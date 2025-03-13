@@ -161,6 +161,10 @@ int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
 int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) { return nodesStringToNode(pStr, (SNode**)pSubplan); }
 
 int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
+  if (NULL == pSubplan) {
+    return terrno = TSDB_CODE_INVALID_PARA;
+  }
+  
   if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
     *pLen = insert->size;

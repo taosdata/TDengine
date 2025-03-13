@@ -132,8 +132,12 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
     return code;
   }
 
-  char buf[128] = {0};
-  sprintf(buf, "0x%" PRIx64 "-0x%x", pTask->id.streamId, pTask->id.taskId);
+  char    buf[128] = {0};
+  int32_t ret = snprintf(buf, tListLen(buf), "0x%" PRIx64 "-0x%x", pTask->id.streamId, pTask->id.taskId);
+  if (ret < 0 || ret >= tListLen(buf)) {
+    stError("s-task:0x%x failed to set the taskIdstr, code: out of buffer", pTask->id.taskId);
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
 
   pTask->id.idStr = taosStrdup(buf);
   if (pTask->id.idStr == NULL) {
@@ -402,7 +406,7 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
   }
 
   char    id[128] = {0};
-  int32_t nBytes = sprintf(id, "0x%" PRIx64 "-0x%x", streamId, taskId);
+  int32_t nBytes = snprintf(id, tListLen(id), "0x%" PRIx64 "-0x%x", streamId, taskId);
   if (nBytes < 0 || nBytes >= sizeof(id)) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
@@ -413,10 +417,14 @@ int32_t streamTaskSetBackendPath(SStreamTask* pTask) {
     return terrno;
   }
 
-  (void)sprintf(pTask->backendPath, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, id);
-  stDebug("s-task:%s set backend path:%s", pTask->id.idStr, pTask->backendPath);
-
-  return 0;
+  int32_t code = snprintf(pTask->backendPath, len + nBytes + 2, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, id);
+  if (code < 0 || code >= len + nBytes + 2) {
+    stError("s-task:%s failed to set backend path:%s, code: out of buffer", pTask->id.idStr, pTask->backendPath);
+    return TSDB_CODE_OUT_OF_BUFFER;
+  } else {
+    stDebug("s-task:%s set backend path:%s", pTask->id.idStr, pTask->backendPath);
+    return 0;
+  }
 }
 
 int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver) {
@@ -695,7 +703,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
-    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 5000);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to kill task related query handle, code:%s", id, tstrerror(code));
     }
@@ -854,7 +862,7 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
       pStreamTask->status.taskStatus = TASK_STATUS__READY;
     }
 
-    code = streamMetaSaveTask(pMeta, pStreamTask);
+    code = streamMetaSaveTaskInMeta(pMeta, pStreamTask);
     streamMutexUnlock(&(pStreamTask->lock));
 
     streamMetaReleaseTask(pMeta, pStreamTask);
@@ -1017,7 +1025,7 @@ static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   // in case of fill-history task, stop the tsdb file scan operation.
   if (pTask->info.fillHistory == 1) {
     void* pExecutor = pTask->exec.pExecutor;
-    code = qKillTask(pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pExecutor, TSDB_CODE_SUCCESS, 10000);
   }
 
   stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
@@ -1129,7 +1137,11 @@ SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
 
 int32_t createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId) {
   char buf[128] = {0};
-  sprintf(buf, "0x%" PRIx64 "-0x%x", streamId, taskId);
+  int32_t code = snprintf(buf, tListLen(buf),"0x%" PRIx64 "-0x%x", streamId, taskId);
+  if (code < 0 || code >= tListLen(buf)) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
   *pId = taosStrdup(buf);
 
   if (*pId == NULL) {
@@ -1275,6 +1287,8 @@ const char* streamTaskGetExecType(int32_t type) {
       return "resume-task-from-idle";
     case STREAM_EXEC_T_ADD_FAILED_TASK:
       return "record-start-failed-task";
+    case STREAM_EXEC_T_STOP_ONE_TASK:
+      return "stop-one-task";
     case 0:
       return "exec-all-tasks";
     default:

@@ -386,7 +386,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000260D | Tags number not matched                                      | Mismatched number of tag columns                             | Check and correct the SQL statement                          |
 | 0x8000260E | Invalid tag name                                             | Invalid or non-existent tag name                             | Check and correct the SQL statement                          |
 | 0x80002610 | Value is too long                                            | Value length exceeds limit                                   | Check and correct the SQL statement or API parameters        |
-| 0x80002611 | Password can not be empty                                    | Password is empty                                            | Use a valid password                                         |
+| 0x80002611 | Password too short or empty                                  | Password is empty or less than 8 chars                                       | Use a valid password                                         |
 | 0x80002612 | Port should be an integer that is less than 65535 and greater than 0 | Illegal port number                                          | Check and correct the port number                            |
 | 0x80002613 | Endpoint should be in the format of 'fqdn:port'              | Incorrect address format                                     | Check and correct the address information                    |
 | 0x80002614 | This statement is no longer supported                        | Feature has been deprecated                                  | Refer to the feature documentation                           |
@@ -534,4 +534,5 @@ This document details the server error codes that may be encountered when using 
 | 0x80004000 | Invalid message       | The subscribed data is illegal, generally does not occur     | Check the client-side error logs for details |
 | 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error, not exposed to users         |
 | 0x80004002 | Consumer closed       | The consumer no longer exists                                | Check if it has already been closed          |
+| 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate | Without calling subscribe, directly poll data |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |

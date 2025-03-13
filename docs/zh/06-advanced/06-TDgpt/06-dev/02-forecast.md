@@ -99,7 +99,7 @@ def test_myfc(self):
     s = loader.get_service("myfc")
 
     # 设置用于预测分析的数据
-    s.set_input_list(self.get_input_list())
+    s.set_input_list(self.get_input_list(), None)
     # 检查预测结果应该全部为 1
     r = s.set_params(
         {"fc_rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "start_p": 0}

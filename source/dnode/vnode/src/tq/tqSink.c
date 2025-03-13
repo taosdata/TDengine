@@ -422,7 +422,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
   reqs.nReqs = taosArrayGetSize(reqs.pArray);
   code = tqPutReqToQueue(pVnode, &reqs, encodeCreateChildTableForRPC, TDMT_VND_CREATE_TABLE);
   if (code != TSDB_CODE_SUCCESS) {
-    tqError("s-task:%s failed to send create table msg", id);
+    tqError("s-task:%s failed to send create table msg, code:%s", id, tstrerror(code));
   }
 
 _end:
@@ -861,11 +861,19 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
   int32_t     vgId = TD_VID(pVnode);
   int64_t     suid = pTask->outputInfo.tbSink.stbUid;
   const char* id = pTask->id.idStr;
+  int32_t     timeout = 300;  // 5min
+  int64_t     start = taosGetTimestampSec();
 
   while (pTableSinkInfo->uid == 0) {
     if (streamTaskShouldStop(pTask)) {
       tqDebug("s-task:%s task will stop, quit from waiting for table:%s create", id, dstTableName);
       return TSDB_CODE_STREAM_EXEC_CANCELLED;
+    }
+
+    int64_t waitingDuration = taosGetTimestampSec() - start;
+    if (waitingDuration > timeout) {
+      tqError("s-task:%s wait for table-creating:%s more than %dsec, failed", id, dstTableName, timeout);
+      return  TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
 
     // wait for the table to be created
@@ -1047,8 +1055,6 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         pTableSinkInfo->uid = 0;
         code = doPutSinkTableInfoIntoCache(pTask->outputInfo.tbSink.pTbInfo, pTableSinkInfo, groupId, id);
       } else {
-        metaReaderClear(&mr);
-
         tqError("s-task:%s vgId:%d dst-table:%s not auto-created, and not create in tsdb, discard data", id, vgId,
                 dstTableName);
         return TSDB_CODE_TDB_TABLE_NOT_EXIST;
@@ -1412,6 +1418,7 @@ int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_
   code = setDstTableDataUid(pVnode, pTask, pDataBlock, stbFullName, &tbData);
   if (code != TSDB_CODE_SUCCESS) {
     tqError("vgId:%d s-task:%s dst-table not exist, stb:%s discard stream results", vgId, id, stbFullName);
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return code;
   }
 
@@ -1423,12 +1430,14 @@ int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_
       tbData.pCreateTbReq = NULL;
     }
 
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return code;
   }
 
   void* p = taosArrayPush(submitReq.aSubmitTbData, &tbData);
   if (p == NULL) {
     tqDebug("vgId:%d, s-task:%s failed to build submit msg, code:%s, data lost", vgId, id, tstrerror(terrno));
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return terrno;
   }
 

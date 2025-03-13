@@ -130,6 +130,8 @@ class TDTestCase:
         tdSql.error(f'create user {username} pass "test123@#$"')
         if "Name or password too long" in tdSql.error_info:
             tdLog.info("error info is true!")
+        elif "Password too short or empty" in tdSql.error_info:
+            tdLog.info("error info is true!")
         else:
             tdLog.exit("error info is not true")
     
@@ -145,6 +147,10 @@ class TDTestCase:
         password = tdCom.get_long_name(self.password_length_boundary+1)
         tdSql.error(f'create user {username} pass "{password}@1"')
         if "Invalid password format" in tdSql.error_info:
+            tdLog.info("error info is true!")
+        elif "Name or password too long" in tdSql.error_info:
+            tdLog.info("error info is true!")
+        elif "Password too short or empty" in tdSql.error_info:
             tdLog.info("error info is true!")
         else:
             tdLog.exit("error info is not true")

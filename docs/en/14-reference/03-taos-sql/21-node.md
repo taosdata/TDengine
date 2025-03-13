@@ -45,7 +45,7 @@ ALTER ALL DNODES dnode_option
 
 For configuration parameters that support dynamic modification, you can use the ALTER DNODE or ALTER ALL DNODES syntax to modify the values of configuration parameters in a dnode. Starting from version 3.3.4.0, the modified configuration parameters will be automatically persisted and will remain effective even after the database service is restarted.
 
-To check whether a configuration parameter supports dynamic modification, please refer to the following page: [taosd Reference](../01-components/01-taosd.md)
+To check whether a configuration parameter supports dynamic modification, please refer to the following page: [taosd Reference](/tdengine-reference/components/taosd/)
 
 The value is the parameter's value and needs to be in character format. For example, to change the log output level of dnode 1 to debug:
 
@@ -130,7 +130,7 @@ ALTER LOCAL local_option
 
 You can use the above syntax to modify the client's configuration parameters, and there is no need to restart the client. The changes take effect immediately.
 
-To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](../01-components/02-taosc.md)
+To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](/tdengine-reference/components/taosc/)
 
 
 ## View Client Configuration

@@ -73,7 +73,7 @@ If the client encounters a connection failure, please follow the steps below to 
 
 ### 5. What to do if you encounter the error "Unable to resolve FQDN"?
 
-This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For the TAOS Shell or client applications, please check the following:
+This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For the TDengine CLI or client applications, please check the following:
 
 1. Check if the FQDN of the server you are connecting to is correct.
 2. If there is a DNS server in the network configuration, check if it is working properly
@@ -244,15 +244,15 @@ launchctl limit maxfiles
 This prompt indicates that the number of vnodes required for creating the db is not enough, exceeding the upper limit of vnodes in the dnode. By default, a dnode contains twice the number of CPU cores worth of vnodes, which can also be controlled by the supportVnodes parameter in the configuration file.
 Normally, increase the supportVnodes parameter in taos.cfg.
 
-### 21 Why can data from a specified time period be queried using taos-CLI on the server, but not on the client machine?
+### 21 Why can data from a specified time period be queried using TDengine CLI on the server, but not on the client machine?
 
 This issue is due to the client and server having different time zone settings. Adjusting the client's time zone to match the server's will resolve the issue.
 
 ### 22 The table name is confirmed to exist, but returns "table name does not exist" when writing or querying, why?
 
-In TDengine, all names, including database names and table names, are case-sensitive. If these names are not enclosed in backticks (\`) in the program or taos-CLI, even if you input them in uppercase, the engine will convert them to lowercase for use. If the names are enclosed in backticks, the engine will not convert them to lowercase and will use them as is.
+In TDengine, all names, including database names and table names, are case-sensitive. If these names are not enclosed in backticks (\`) in the program or TDengine CLI, even if you input them in uppercase, the engine will convert them to lowercase for use. If the names are enclosed in backticks, the engine will not convert them to lowercase and will use them as is.
 
-### 23 How to fully display field content in taos-CLI queries?
+### 23 How to fully display field content in TDengine CLI queries?
 
 You can use the \G parameter for vertical display, such as `show databases\G\;` (for ease of input, press TAB after "\" to automatically complete the content).
 
@@ -297,3 +297,22 @@ Reporting this error indicates that the first connection to the cluster was succ
   
 Therefore, first, check whether all ports on the server and cluster (default 6030 for native connections and 6041 for HTTP connections) are open; Next, check if the client's hosts file has configured the fqdn and IP information for all dnodes in the cluster.
 If the issue still cannot be resolved, it is necessary to contact Taos technical personnel for support.
+
+### 32 Why is the original database lost and the cluster ID changed when the data directory dataDir of the database remains unchanged on the same server?
+Background: When the TDengine server process (taosd) starts, if there are no valid data file subdirectories (such as mnode, dnode, and vnode) under the data directory (dataDir, which is specified in the configuration file taos.cfg), these directories will be created automatically.When a new mnode directory is created, a new cluster ID will be allocated to generate a new cluster.
+
+Cause analysis: The data directory dataDir of taosd can point to multiple different mount points.If these mount points are not configured for automatic mounting in the fstab file, after the server restarts, dataDir will only exist as a normal directory of the local disk, and it will not point to the mounted disk as expected.At this point, if the taosd service is started, it will create a new directory under dataDir to generate a new cluster.
+
+Impact of the problem: After the server is restarted, the original database is lost (note: it is not really lost, but the original data disk is not attached and cannot be seen for the time being) and the cluster ID changes, resulting in the inability to access the original database. For enterprise users, if they have been authorized for the cluster ID, they will also find that the machine code of the cluster server has not changed, but the original authorization has expired.If the problem is not monitored or found and handled in time, the user will not notice that the original database has been lost, resulting in losses and increased operation and maintenance costs.
+
+Problem solving: You should configure the automatic mount of the dataDir directory in the fstab file to ensure that the dataDir always points to the expected mount point and directory. At this point, restarting the server will retrieve the original database and cluster. In the subsequent version, we will develop a function to enable taosd to exit in the startup phase when it detects that the dataDir changes before and after startup, and provide corresponding error prompts.
+
+### 33 How to solve MVCP1400.DLL loss when running TDengine on Windows platform?
+1. Reinstall Microsoft Visual C++ Redistributable: As msvcp140.dll is part of Microsoft Visual C++Redistributable, reinstalling this package usually resolves most issues. You can download the corresponding version from the official Microsoft website for installation
+2. Manually download and replace the msvcp140.dll file online: You can download the msvcp140.dll file from a reliable source and copy it to the corresponding directory in the system. Ensure that the downloaded files match your system architecture (32-bit or 64 bit) and ensure the security of the source
+
+### 34 Which fast query data from super table with TAG filter or child table ?
+Directly querying from child table is fast. The query from super table with TAG filter is designed to meet the convenience of querying. It can filter data from multiple child tables at the same time. If the goal is to pursue performance and the child table has been clearly queried, directly querying from the sub table can achieve higher performance
+
+### 35 How to view data compression ratio indicators?
+Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details [Click Here](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed)

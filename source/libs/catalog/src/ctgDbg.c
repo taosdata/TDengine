@@ -480,6 +480,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
 
     dbCache = (SCtgDBCache *)pIter;
 
+    CTG_LOCK(CTG_READ, &dbCache->dbLock);
+
     dbFName = taosHashGetKey(pIter, &len);
 
     int32_t metaNum = dbCache->tbCache ? taosHashGetSize(dbCache->tbCache) : 0;
@@ -509,6 +511,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
              hashMethod, hashPrefix, hashSuffix, vgNum);
 
     if (dbCache->vgCache.vgInfo) {
+      CTG_LOCK(CTG_READ, &dbCache->vgCache.vgLock);
+
       int32_t i = 0;
       void *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
       while (pVgIter) {
@@ -524,6 +528,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
         
         pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);      
       }
+
+      CTG_UNLOCK(CTG_READ, &dbCache->vgCache.vgLock);
     }
 
     if (dbCache->cfgCache.cfgInfo) {
@@ -543,6 +549,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
                pCfg->walRollPeriod, pCfg->walRetentionSize, pCfg->walSegmentSize, pCfg->numOfRetensions,
                pCfg->schemaless, pCfg->sstTrigger);
     }
+
+    CTG_UNLOCK(CTG_READ, &dbCache->dbLock);
 
     ++i;
     pIter = taosHashIterate(dbHash, pIter);

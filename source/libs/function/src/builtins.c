@@ -828,14 +828,20 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     const SParamInfo* paramPattern = funcMgtBuiltins[pFunc->funcId].parameters.inputParaInfo[i];
 
     while (1) {
-      for (int8_t j = paramPattern[paramIdx].startParam;
-           j <= (paramPattern[paramIdx].endParam == -1 ? INT8_MAX : paramPattern[paramIdx].endParam); j++) {
+      // one table can have at most 4096 columns, int32_t is enough.
+      for (int32_t j = paramPattern[paramIdx].startParam;
+           j <= (paramPattern[paramIdx].endParam == -1 ? INT32_MAX - 1 : paramPattern[paramIdx].endParam); j++) {
         if (j > LIST_LENGTH(paramList)) {
           code = TSDB_CODE_SUCCESS;
           isMatch = true;
           break;
         }
         SNode* pNode = nodesListGetNode(paramList, j - 1);
+        if (NULL == pNode) {
+          code = TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+          isMatch = false;
+          break;
+        }
         // check node type
         if (!paramSupportNodeType(pNode, paramPattern[paramIdx].validNodeType)) {
           code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
@@ -1217,7 +1223,7 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
 
     SValueNode* pValue = (SValueNode*)pOption;
-    if (!taosAnalGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
+    if (!taosAnalyGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
       return invaildFuncParaValueErrMsg(pErrBuf, len, "FORECAST option should include algo field");
     }
 

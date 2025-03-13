@@ -197,8 +197,7 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   code = metaDecodeEntry(pDecoder, &metaEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = metaHandleEntry2(pMeta, &metaEntry);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  metaHandleSyncEntry(pMeta, &metaEntry);
 
 _exit:
   if (code) {
@@ -325,7 +324,6 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   ctx->suidInfo = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->suidInfo == NULL) {
     return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
-    ;
   }
   taosHashSetFreeFp(ctx->suidInfo, destroySTableInfoForChildTable);
 

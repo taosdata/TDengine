@@ -637,6 +637,38 @@ static void mndCancelGetNextAnode(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_ANODE);
 }
 
+// todo handle multiple anode case, remove the duplicate algos
+void mndRetrieveAlgoList(SMnode* pMnode, SArray* pFc, SArray* pAd) {
+  SSdb      *pSdb = pMnode->pSdb;
+  void      *pIter = NULL;
+  SAnodeObj *pObj = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ANODE, pIter, (void **)&pObj);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (pObj->numOfAlgos >= ANALY_ALGO_TYPE_END) {
+      if (pObj->algos[ANALY_ALGO_TYPE_ANOMALY_DETECT] != NULL) {
+        void* p = taosArrayAddAll(pAd, pObj->algos[ANALY_ALGO_TYPE_ANOMALY_DETECT]);
+        if (p == NULL) {
+          mError("failed to add retrieved anomaly-detection algorithms, code:%s", tstrerror(terrno));
+        }
+      }
+
+      if (pObj->algos[ANALY_ALGO_TYPE_FORECAST] != NULL) {
+        void* p = taosArrayAddAll(pFc, pObj->algos[ANALY_ALGO_TYPE_FORECAST]);
+        if (p == NULL) {
+          mError("failed to add retrieved forecast algorithms, code:%s", tstrerror(terrno));
+        }
+      }
+    }
+
+    sdbRelease(pSdb, pObj);
+  }
+}
+
 static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->info.node;
   SSdb      *pSdb = pMnode->pSdb;
@@ -661,7 +693,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
         if (code != 0) goto _end;
 
-        STR_TO_VARSTR(buf, taosAnalAlgoStr(t));
+        STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
@@ -712,11 +744,11 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
   if (details == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t numOfDetails = tjsonGetArraySize(details);
 
-  pObj->algos = taosMemoryCalloc(ANAL_ALGO_TYPE_END, sizeof(SArray *));
+  pObj->algos = taosMemoryCalloc(ANALY_ALGO_TYPE_END, sizeof(SArray *));
   if (pObj->algos == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  pObj->numOfAlgos = ANAL_ALGO_TYPE_END;
-  for (int32_t i = 0; i < ANAL_ALGO_TYPE_END; ++i) {
+  pObj->numOfAlgos = ANALY_ALGO_TYPE_END;
+  for (int32_t i = 0; i < ANALY_ALGO_TYPE_END; ++i) {
     pObj->algos[i] = taosArrayInit(4, sizeof(SAnodeAlgo));
     if (pObj->algos[i] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -727,8 +759,8 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 
     code = tjsonGetStringValue2(detail, "type", buf, sizeof(buf));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-    EAnalAlgoType type = taosAnalAlgoInt(buf);
-    if (type < 0 || type >= ANAL_ALGO_TYPE_END) return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
+    EAnalAlgoType type = taosAnalyAlgoInt(buf);
+    if (type < 0 || type >= ANALY_ALGO_TYPE_END) return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
 
     SJson *algos = tjsonGetObjectItem(detail, "algo");
     if (algos == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
@@ -757,7 +789,7 @@ static int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
   char anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
   snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", url, "list");
 
-  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL);
+  SJson *pJson = taosAnalySendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL, 0);
   if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeAlgoList(pJson, pObj);
@@ -773,7 +805,7 @@ static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status, int32_t statusLe
   char    anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
   snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", pObj->url, "status");
 
-  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL);
+  SJson *pJson = taosAnalySendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL, 0);
   if (pJson == NULL) return terrno;
 
   code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
@@ -855,7 +887,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
             }
 
             url.urlLen = 1 + tsnprintf(url.url, TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
-                                      taosAnalAlgoUrlStr(url.type));
+                                      taosAnalyAlgoUrlStr(url.type));
             if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalyticsUrl)) != 0) {
               taosMemoryFree(url.url);
               sdbRelease(pSdb, pAnode);
@@ -900,5 +932,6 @@ int32_t mndInitAnode(SMnode *pMnode) {
 }
 
 void mndCleanupAnode(SMnode *pMnode) {}
+void mndRetrieveAlgoList(SMnode *pMnode, SArray *pFc, SArray *pAd) {}
 
 #endif

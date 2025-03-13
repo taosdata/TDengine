@@ -294,7 +294,10 @@ void *taosMemCalloc(int64_t num, int64_t size) {
 #ifdef USE_TD_MEMORY
   int32_t memorySize = num * size;
   char   *tmp = calloc(memorySize + sizeof(TdMemoryInfo), 1);
-  if (tmp == NULL) return NULL;
+  if (tmp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)tmp;
   pTdMemoryInfo->memorySize = memorySize;
@@ -328,6 +331,7 @@ void *taosMemRealloc(void *ptr, int64_t size) {
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
   if (tpTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -335,7 +339,10 @@ void *taosMemRealloc(void *ptr, int64_t size) {
   memcpy(&tdMemoryInfo, pTdMemoryInfo, sizeof(TdMemoryInfo));
 
   void *tmp = realloc(pTdMemoryInfo, size + sizeof(TdMemoryInfo));
-  if (tmp == NULL) return NULL;
+  if (tmp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   memcpy(tmp, &tdMemoryInfo, sizeof(TdMemoryInfo));
   ((TdMemoryInfoPtr)tmp)->memorySize = size;

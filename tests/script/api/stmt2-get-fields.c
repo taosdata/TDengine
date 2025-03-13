@@ -16,8 +16,8 @@ void getFields(TAOS *taos, const char *sql) {
     return;
   }
   int             fieldNum = 0;
-  TAOS_FIELD_STB *pFields = NULL;
-  code = taos_stmt2_get_stb_fields(stmt, &fieldNum, &pFields);
+  TAOS_FIELD_ALL *pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
   if (code != 0) {
     printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
   } else {
@@ -28,7 +28,7 @@ void getFields(TAOS *taos, const char *sql) {
     }
   }
   printf("====================================\n");
-  taos_stmt2_free_stb_fields(stmt, pFields);
+  taos_stmt2_free_fields(stmt, pFields);
   taos_stmt2_close(stmt);
 }
 
@@ -42,15 +42,15 @@ void getQueryFields(TAOS *taos, const char *sql) {
     return;
   }
   int             fieldNum = 0;
-  TAOS_FIELD_STB *pFields = NULL;
-  code = taos_stmt2_get_stb_fields(stmt, &fieldNum, &pFields);
+  TAOS_FIELD_ALL *pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
   if (code != 0) {
     printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
   } else {
     printf("bind nums:%d\n", fieldNum);
   }
   printf("====================================\n");
-  taos_stmt2_free_stb_fields(stmt, pFields);
+  taos_stmt2_free_fields(stmt, pFields);
   taos_stmt2_close(stmt);
 }
 

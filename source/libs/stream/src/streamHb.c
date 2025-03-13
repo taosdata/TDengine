@@ -243,6 +243,8 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
       continue;
     }
 
+    // todo: this lock may blocked by lock in streamMetaStartOneTask function, which may lock a very long time when
+    // trying to load remote checkpoint data
     streamMutexLock(&pTask->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(pTask);
     streamMutexUnlock(&pTask->lock);
@@ -327,11 +329,10 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     pMeta->pHbInfo->hbStart = 0;
     code = taosReleaseRef(streamMetaRefPool, rid);
     if (code == TSDB_CODE_SUCCESS) {
-      stDebug("vgId:%d jump out of meta timer", vgId);
+      stInfo("vgId:%d jump out of meta timer since closed", vgId);
     } else {
       stError("vgId:%d jump out of meta timer, failed to release the meta rid:%" PRId64, vgId, rid);
     }
-//    taosMemoryFree(param);
     return;
   }
 
@@ -342,7 +343,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     if (code == TSDB_CODE_SUCCESS) {
       stInfo("vgId:%d role:%d not leader not send hb to mnode", vgId, role);
     } else {
-      stError("vgId:%d role:%d not leader not send hb to mnodefailed to release the meta rid:%" PRId64, vgId, role, rid);
+      stError("vgId:%d role:%d not leader not send hb to mnode, failed to release meta rid:%" PRId64, vgId, role, rid);
     }
 //    taosMemoryFree(param);
     return;
@@ -364,13 +365,24 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     pMeta->pHbInfo->hbStart = taosGetTimestampMs();
   }
 
-  streamMetaRLock(pMeta);
-  code = streamMetaSendHbHelper(pMeta);
-  if (code) {
-    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
+  // NOTE: stream task in restart procedure. not generate the hb now, try to acquire the lock may cause stuck this timer.
+  int32_t count = 30;
+  bool    send = false;
+  while ((--count) >= 0) {
+    int32_t ret = streamMetaTryRlock(pMeta);
+    if (ret != 0) {
+      taosMsleep(10);
+    } else {
+      send = true;
+      code = streamMetaSendHbHelper(pMeta);
+      streamMetaRUnLock(pMeta);
+      break;
+    }
   }
 
-  streamMetaRUnLock(pMeta);
+  if (!send) {
+    stError("vgId:%d failed to send hmMsg to mnode, retry again in 5s, code:%s", pMeta->vgId, tstrerror(code));
+  }
 
   streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
                  "meta-hb-tmr");
@@ -414,7 +426,7 @@ void destroyMetaHbInfo(SMetaHbInfo* pInfo) {
 void streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta) {
   // wait for the stream meta hb function stopping
   if (pMeta->role == NODE_ROLE_LEADER) {
-    taosMsleep(2 * META_HB_CHECK_INTERVAL);
+    taosMsleep(3 * META_HB_CHECK_INTERVAL);
     stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
   }
 }

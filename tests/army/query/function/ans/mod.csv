@@ -2,7 +2,7 @@
 taos> select MOD(10.55, 3)
        mod(10.55, 3)       |
 ============================
-         1.550000000000001 |
+                      1.55 |
 
 taos> select MOD(10.55, 2)
        mod(10.55, 2)       |
@@ -32,12 +32,12 @@ taos> select MOD(-10.55, 1)
 taos> select MOD(99, 1)
         mod(99, 1)         |
 ============================
-         0.000000000000000 |
+                         0 |
 
 taos> select MOD(10.55, 1) + 1
      mod(10.55, 1) + 1     |
 ============================
-         1.550000000000001 |
+                      1.55 |
 
 taos> select MOD(MOD(MOD(MOD(MOD(MOD(MOD(123.123456789, 9), 8), 7), 6), 5), 4), 3)
  mod(mod(mod(mod(mod(mod(mod(123.123456789, 9), 8), 7), 6), 5), 4 |
@@ -69,12 +69,12 @@ taos> select MOD(current, id + 1) from ts_4893.meters order by ts limit 10
          0.649999618530273 |
          0.574000358581543 |
          0.795000076293945 |
-         3.232999801635742 |
+          3.23299980163574 |
          0.706000328063965 |
-         2.508000373840332 |
-         2.595999717712402 |
-         2.961999893188477 |
-         2.225999832153320 |
+          2.50800037384033 |
+           2.5959997177124 |
+          2.96199989318848 |
+          2.22599983215332 |
          0.336999893188477 |
 
 taos> select MOD(current, 1) from ts_4893.meters order by ts limit 10
@@ -88,7 +88,7 @@ taos> select MOD(current, 1) from ts_4893.meters order by ts limit 10
          0.508000373840332 |
          0.595999717712402 |
          0.961999893188477 |
-         0.225999832153320 |
+          0.22599983215332 |
          0.336999893188477 |
 
 taos> select MOD(sqrt(current), abs(id + 1)) from ts_4893.meters order by ts limit 10
@@ -108,40 +108,40 @@ taos> select MOD(sqrt(current), abs(id + 1)) from ts_4893.meters order by ts lim
 taos> select mod(10, -3)
         mod(10, -3)        |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select mod(10, 3)
         mod(10, 3)         |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select mod(id, 3) from ts_4893.d0 order by ts limit 10
         mod(id, 3)         |
 ============================
-         0.000000000000000 |
-         1.000000000000000 |
-         2.000000000000000 |
-         0.000000000000000 |
-         1.000000000000000 |
-         2.000000000000000 |
-         0.000000000000000 |
-         1.000000000000000 |
-         2.000000000000000 |
-         0.000000000000000 |
+                         0 |
+                         1 |
+                         2 |
+                         0 |
+                         1 |
+                         2 |
+                         0 |
+                         1 |
+                         2 |
+                         0 |
 
 taos> select mod(id, 3) from ts_4893.meters order by ts limit 10
         mod(id, 3)         |
 ============================
-         0.000000000000000 |
-         1.000000000000000 |
-         2.000000000000000 |
-         0.000000000000000 |
-         1.000000000000000 |
-         2.000000000000000 |
-         0.000000000000000 |
-         1.000000000000000 |
-         2.000000000000000 |
-         0.000000000000000 |
+                         0 |
+                         1 |
+                         2 |
+                         0 |
+                         1 |
+                         2 |
+                         0 |
+                         1 |
+                         2 |
+                         0 |
 
 taos> select mod(null, 2)
        mod(null, 2)        |
@@ -171,37 +171,37 @@ taos> select mod(5, 0)
 taos> select mod(0, 1)
          mod(0, 1)         |
 ============================
-         0.000000000000000 |
+                         0 |
 
 taos> select mod(1, 1)
          mod(1, 1)         |
 ============================
-         0.000000000000000 |
+                         0 |
 
 taos> select mod(5, 2)
          mod(5, 2)         |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select mod(5, -3)
         mod(5, -3)         |
 ============================
-         2.000000000000000 |
+                         2 |
 
 taos> select mod(15, 4)
         mod(15, 4)         |
 ============================
-         3.000000000000000 |
+                         3 |
 
 taos> select mod(-5, 3)
         mod(-5, 3)         |
 ============================
-        -2.000000000000000 |
+                        -2 |
 
 taos> select mod(voltage, 2) from ts_4893.meters limit 1
       mod(voltage, 2)      |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select mod(current, 10) from ts_4893.meters limit 1
      mod(current, 10)      |
@@ -211,7 +211,7 @@ taos> select mod(current, 10) from ts_4893.meters limit 1
 taos> select mod(current, log(100)) from ts_4893.meters limit 1
   mod(current, log(100))   |
 ============================
-         1.439659246554090 |
+          1.43965924655409 |
 
 taos> select mod(phase, 4) from ts_4893.meters limit 1
        mod(phase, 4)       |
@@ -221,7 +221,7 @@ taos> select mod(phase, 4) from ts_4893.meters limit 1
 taos> select mod(abs(voltage), 3) from ts_4893.meters limit 1
    mod(abs(voltage), 3)    |
 ============================
-         2.000000000000000 |
+                         2 |
 
 taos> select mod(phase, sqrt(16)) from ts_4893.meters limit 1
    mod(phase, sqrt(16))    |
@@ -231,5 +231,5 @@ taos> select mod(phase, sqrt(16)) from ts_4893.meters limit 1
 taos> select mod(round(voltage), 5) from ts_4893.meters limit 1
   mod(round(voltage), 5)   |
 ============================
-         1.000000000000000 |
+                         1 |
 

@@ -224,6 +224,10 @@ void streamStateDel(SStreamState* pState, const SWinKey* key) {
   deleteRowBuff(pState->pFileState, key, sizeof(SWinKey));
 }
 
+void streamStateDelByGroupId(SStreamState* pState, uint64_t groupId) {
+  deleteRowBuffByGroupId(pState->pFileState, groupId);
+}
+
 int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
   return streamStateFillPut_rocksdb(pState, key, value, vLen);
 }
@@ -546,10 +550,6 @@ void streamStateDestroy(SStreamState* pState, bool remove) {
   taosMemoryFreeClear(pState);
 }
 
-int32_t streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark) {
-  return deleteExpiredCheckPoint(pState->pFileState, mark);
-}
-
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts) { streamFileStateReloadInfo(pState->pFileState, ts); }
 
 void streamStateCopyBackend(SStreamState* src, SStreamState* dst) {
@@ -616,8 +616,6 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
 }
 
 void streamStateClearExpiredState(SStreamState* pState) { clearExpiredState(pState->pFileState); }
-
-void streamStateSetFillInfo(SStreamState* pState) { setFillInfo(pState->pFileState); }
 
 int32_t streamStateGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {

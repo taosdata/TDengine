@@ -313,7 +313,6 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     if (code != 0) {
       if (code != TSDB_CODE_MSG_PREPROCESSED) {
         vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, tstrerror(code));
-        if (terrno != 0) code = terrno;
       }
       vnodeHandleProposeError(pVnode, pMsg, code);
       rpcFreeCont(pMsg->pCont);
@@ -698,6 +697,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpGetSnapshot = NULL;
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshotInfo;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
+  pFsm->FpAfterRestoredCb = NULL;
   pFsm->FpLeaderTransferCb = NULL;
   pFsm->FpApplyQueueEmptyCb = vnodeApplyQueueEmpty;
   pFsm->FpApplyQueueItems = vnodeApplyQueueItems;

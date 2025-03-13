@@ -4935,9 +4935,9 @@ static const char* jkLimitOffset = "Offset";
 static int32_t limitNodeToJson(const void* pObj, SJson* pJson) {
   const SLimitNode* pNode = (const SLimitNode*)pObj;
 
-  int32_t code = tjsonAddIntegerToObject(pJson, jkLimitLimit, pNode->limit);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkLimitOffset, pNode->offset);
+  int32_t code = tjsonAddObject(pJson, jkLimitLimit, nodeToJson, pNode->limit);
+  if (TSDB_CODE_SUCCESS == code && pNode->offset) {
+    code = tjsonAddObject(pJson, jkLimitOffset, nodeToJson, pNode->offset);
   }
 
   return code;
@@ -4946,9 +4946,9 @@ static int32_t limitNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToLimitNode(const SJson* pJson, void* pObj) {
   SLimitNode* pNode = (SLimitNode*)pObj;
 
-  int32_t code = tjsonGetBigIntValue(pJson, jkLimitLimit, &pNode->limit);
+  int32_t code = jsonToNodeObject(pJson, jkLimitLimit, (SNode**)&pNode->limit);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkLimitOffset, &pNode->offset);
+    code = jsonToNodeObject(pJson, jkLimitOffset, (SNode**)&pNode->offset);
   }
 
   return code;

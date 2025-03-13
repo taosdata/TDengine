@@ -411,7 +411,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndStreamConsensusChkpt(pMnode);
   }
 
-  if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
+  if (sec % tsTelemInterval == (TMIN(86400, (tsTelemInterval - 1)))) {
     mndPullupTelem(pMnode);
   }
 
@@ -797,14 +797,7 @@ int32_t mndStart(SMnode *pMnode) {
       return -1;
     }
     mndSetRestored(pMnode, true);
-  } else {
-    if (sdbPrepare(pMnode->pSdb) != 0) {
-      mError("failed to prepare sdb while start mnode");
-      return -1;
-    }
-    mndSetRestored(pMnode, true);
   }
-
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
 
   return mndInitTimer(pMnode);
@@ -1181,6 +1174,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 }
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
+  mTrace("mnode get load");
   SSyncState state = syncGetState(pMnode->syncMgmt.sync);
   pLoad->syncState = state.state;
   pLoad->syncRestore = state.restored;

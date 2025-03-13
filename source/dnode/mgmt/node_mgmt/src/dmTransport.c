@@ -119,7 +119,7 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
 static void dmUpdateAnalFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   SRetrieveAnalAlgoRsp rsp = {0};
   if (tDeserializeRetrieveAnalAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
-    taosAnalUpdate(rsp.ver, rsp.hash);
+    taosAnalyUpdate(rsp.ver, rsp.hash);
     rsp.hash = NULL;
   }
   tFreeRetrieveAnalAlgoRsp(&rsp);
@@ -254,7 +254,15 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pRpc->info.wrapper = pWrapper;
 
-  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
+  EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
+  if (IsReq(pRpc)) {
+    if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY)
+      itype = DEF_QITEM;
+    else
+      itype = RPC_QITEM;
+  } else {
+    itype = DEF_QITEM;
+  }
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) goto _OVER;
 

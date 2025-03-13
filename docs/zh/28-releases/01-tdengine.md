@@ -16,13 +16,25 @@ TDengine 版本号由四个数字组成，中间由点号分隔，定义如下
 
 ## TDengine 2.x 下载
 
-TDengine 2.x 各版本安装包请访问[这里](https://www.taosdata.com/all-downloads)
+TDengine 2.x 各版本安装包请访问 [这里](https://www.taosdata.com/all-downloads)
 
 ## TDengine 3.x 下载
 
 TDengine 3.x 各版本安装包下载链接如下：
 
 import Release from "/components/ReleaseV3";
+
+## 3.3.5.8
+
+<Release type="tdengine" version="3.3.5.8" />
+
+## 3.3.5.2
+
+<Release type="tdengine" version="3.3.5.2" />
+
+## 3.3.5.0
+
+<Release type="tdengine" version="3.3.5.0" />
 
 ## 3.3.4.8
 

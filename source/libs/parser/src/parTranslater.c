@@ -1364,7 +1364,7 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
     tstrncpy(pCol->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    tstrncpy(pCol->node.userAlias, pExpr->aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pCol->node.userAlias, pExpr->userAlias, TSDB_COL_NAME_LEN);
   }
   pCol->node.resType = pExpr->resType;
   return TSDB_CODE_SUCCESS;
@@ -2005,7 +2005,7 @@ static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal
     pVal->datum.i = AUTO_DURATION_VALUE;
     pVal->unit = getPrecisionUnit(pVal->node.resType.precision);
   } else if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                                 pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
+                                 pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -2270,6 +2270,7 @@ static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
 
 // 0 means equal, 1 means the left shall prevail, -1 means the right shall prevail
 static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
+  if (l->type == TSDB_DATA_TYPE_NULL) return -1;
   if (l->type != r->type) {
     return 1;
   }
@@ -3882,7 +3883,7 @@ static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
 
 static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
   nodesRewriteExprs(pSelect->pProjectionList, rewriteColsToSelectValFuncImpl, pCxt);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && !pSelect->isDistinct) {
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     nodesRewriteExprs(pSelect->pOrderByList, rewriteColsToSelectValFuncImpl, pCxt);
   }
   return pCxt->errCode;
@@ -4728,16 +4729,20 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
     return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET required for WINDOW join");
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit && NULL != ((SLimitNode*)pJoinTable->pJLimit)->limit) {
     if (*pSType != JOIN_STYPE_ASOF && *pSType != JOIN_STYPE_WIN) {
       return buildInvalidOperationMsgExt(&pCxt->msgBuf, "JLIMIT not supported for %s join",
                                          getFullJoinTypeString(type, *pSType));
     }
     SLimitNode* pJLimit = (SLimitNode*)pJoinTable->pJLimit;
-    if (pJLimit->limit > JOIN_JLIMIT_MAX_VALUE || pJLimit->limit < 0) {
+    code = translateExpr(pCxt, (SNode**)&pJLimit->limit);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (pJLimit->limit->datum.i > JOIN_JLIMIT_MAX_VALUE || pJLimit->limit->datum.i < 0) {
       return buildInvalidOperationMsg(&pCxt->msgBuf, "JLIMIT value is out of valid range [0, 1024]");
     }
-    if (0 == pJLimit->limit) {
+    if (0 == pJLimit->limit->datum.i) {
       pCurrSmt->isEmptyResult = true;
     }
   }
@@ -6105,7 +6110,7 @@ static int32_t translateAnomalyWindow(STranslateContext* pCxt, SSelectStmt* pSel
   SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pSelect->pWindow;
   int32_t             code = checkAnomalyExpr(pCxt, pAnomaly->pExpr);
   if (TSDB_CODE_SUCCESS == code) {
-    if (!taosAnalGetOptStr(pAnomaly->anomalyOpt, "algo", NULL, 0) != 0) {
+    if (!taosAnalyGetOptStr(pAnomaly->anomalyOpt, "algo", NULL, 0) != 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,
                                      "ANOMALY_WINDOW option should include algo field");
     }
@@ -6993,16 +6998,32 @@ static int32_t translateFrom(STranslateContext* pCxt, SNode** pTable) {
 }
 
 static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if ((NULL != pSelect->pLimit && pSelect->pLimit->offset < 0) ||
-      (NULL != pSelect->pSlimit && pSelect->pSlimit->offset < 0)) {
+  int32_t code = 0;
+
+  if (pSelect->pLimit && pSelect->pLimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pLimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pLimit && pSelect->pLimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pLimit->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSlimit && pSelect->pSlimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSlimit && pSelect->pSlimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->offset);
+  }
+
+  if ((TSDB_CODE_SUCCESS == code) && 
+      ((NULL != pSelect->pLimit && pSelect->pLimit->offset && pSelect->pLimit->offset->datum.i < 0) ||
+      (NULL != pSelect->pSlimit && pSelect->pSlimit->offset && pSelect->pSlimit->offset->datum.i < 0))) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
 
-  if (NULL != pSelect->pSlimit && (NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList)) {
+  if ((TSDB_CODE_SUCCESS == code) && NULL != pSelect->pSlimit && (NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* pTable, SNode** pPrimaryKey) {
@@ -7385,6 +7406,52 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   return (SNode*)pCol;
 }
 
+static bool isUionOperator(SNode* pNode) {
+  return QUERY_NODE_SET_OPERATOR == nodeType(pNode) && (((SSetOperator*)pNode)->opType == SET_OP_TYPE_UNION ||
+                                                        ((SSetOperator*)pNode)->opType == SET_OP_TYPE_UNION_ALL);
+}
+
+static int32_t pushdownCastForUnion(STranslateContext* pCxt, SNode* pNode, SExprNode* pExpr, int pos) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (isUionOperator(pNode)) {
+    SSetOperator* pSetOperator = (SSetOperator*)pNode;
+    SNodeList*    pLeftProjections = getProjectList(pSetOperator->pLeft);
+    SNodeList*    pRightProjections = getProjectList(pSetOperator->pRight);
+    if (LIST_LENGTH(pLeftProjections) != LIST_LENGTH(pRightProjections)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCORRECT_NUM_OF_COL);
+    }
+
+    SNode*  pLeft = NULL;
+    SNode*  pRight = NULL;
+    int32_t index = 0;
+    FORBOTH(pLeft, pLeftProjections, pRight, pRightProjections) {
+      ++index;
+      if (index < pos) {
+        continue;
+      }
+      SNode* pRightFunc = NULL;
+      code = createCastFunc(pCxt, pRight, pExpr->resType, &pRightFunc);
+      if (TSDB_CODE_SUCCESS != code || NULL == pRightFunc) {
+        return code;
+      }
+      REPLACE_LIST2_NODE(pRightFunc);
+      code = pushdownCastForUnion(pCxt, pSetOperator->pRight, (SExprNode*)pRightFunc, index);
+      if (TSDB_CODE_SUCCESS != code ) return code;
+
+      SNode* pLeftFunc = NULL;
+      code = createCastFunc(pCxt, pLeft, pExpr->resType, &pLeftFunc);
+      if (TSDB_CODE_SUCCESS != code || NULL == pLeftFunc) {
+        return code;
+      }
+      REPLACE_LIST1_NODE(pLeftFunc);
+      code = pushdownCastForUnion(pCxt, pSetOperator->pLeft, (SExprNode*)pLeftFunc, index);
+      if (TSDB_CODE_SUCCESS != code ) return code;
+      break;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   SNodeList* pLeftProjections = getProjectList(pSetOperator->pLeft);
   SNodeList* pRightProjections = getProjectList(pSetOperator->pRight);
@@ -7394,9 +7461,11 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
 
   SNode* pLeft = NULL;
   SNode* pRight = NULL;
+  int32_t index = 0;
   FORBOTH(pLeft, pLeftProjections, pRight, pRightProjections) {
     SExprNode* pLeftExpr = (SExprNode*)pLeft;
     SExprNode* pRightExpr = (SExprNode*)pRight;
+    ++index;
     int32_t    comp = dataTypeComp(&pLeftExpr->resType, &pRightExpr->resType);
     if (comp > 0) {
       SNode*  pRightFunc = NULL;
@@ -7406,6 +7475,8 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
       }
       REPLACE_LIST2_NODE(pRightFunc);
       pRightExpr = (SExprNode*)pRightFunc;
+      code = pushdownCastForUnion(pCxt, pSetOperator->pRight, pRightExpr, index);
+      if (TSDB_CODE_SUCCESS != code ) return code;
     } else if (comp < 0) {
       SNode*  pLeftFunc = NULL;
       int32_t code = createCastFunc(pCxt, pLeft, pRightExpr->resType, &pLeftFunc);
@@ -7418,6 +7489,8 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
       snprintf(pLeftFuncExpr->userAlias, sizeof(pLeftFuncExpr->userAlias), "%s", pLeftExpr->userAlias);
       pLeft = pLeftFunc;
       pLeftExpr = pLeftFuncExpr;
+      code = pushdownCastForUnion(pCxt, pSetOperator->pLeft, pLeftExpr, index);
+      if (TSDB_CODE_SUCCESS != code ) return code;
     }
     snprintf(pRightExpr->aliasName, sizeof(pRightExpr->aliasName), "%s", pLeftExpr->aliasName);
     SNode* pProj = createSetOperProject(pSetOperator->stmtName, pLeft);
@@ -7481,7 +7554,14 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
 }
 
 static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
-  if ((NULL != pLimit && pLimit->offset < 0)) {
+  int32_t code = 0;
+  if (pLimit && pLimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pLimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pLimit && pLimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pLimit->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code && (NULL != pLimit && NULL != pLimit->offset && pLimit->offset->datum.i < 0)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
   return TSDB_CODE_SUCCESS;
@@ -7529,9 +7609,13 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
   }
   if (TSDB_CODE_SUCCESS == code) {
     bool isStrict = false;
-    code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
-    if (TSDB_CODE_SUCCESS == code && !isStrict) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+    if (NULL != pPrimaryKeyCond) {
+      code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
+      if (TSDB_CODE_SUCCESS == code && !isStrict) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+      }
+    } else {
+      pDelete->timeRange = TSWINDOW_INITIALIZER;
     }
   }
   nodesDestroyNode(pPrimaryKeyCond);
@@ -7549,6 +7633,11 @@ static int32_t translateDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
 }
 
 static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
+  const char* dbName = ((STableNode*)pDelete->pFromTable)->dbName;
+  if (IS_SYS_DBNAME(dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot delete from system database: `%s`", dbName);
+  }
   pCxt->pCurrStmt = (SNode*)pDelete;
   int32_t code = translateFrom(pCxt, &pDelete->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
@@ -7781,7 +7870,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
 
 static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const char* pName, int64_t val, int64_t minVal,
                                 int64_t maxVal, bool skipUndef) {
-  if (skipUndef ? ((val >= 0) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
+  if (skipUndef ? ((val >= 0 || val < -2) && (val < minVal || val > maxVal)) : (val < minVal || val > maxVal)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
                                    "Invalid option %s: %" PRId64 ", valid range: [%" PRId64 ", %" PRId64 "]", pName,
                                    val, minVal, maxVal);
@@ -7892,6 +7981,17 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
 }
 
 static int32_t checkDbKeepTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (pOptions->pKeepTimeOffsetNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pKeepTimeOffsetNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_HOUR != pOptions->pKeepTimeOffsetNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option keep_time_offset unit: %c, only %c allowed",
+                                     pOptions->pKeepTimeOffsetNode->unit, TIME_UNIT_HOUR);
+    }
+    pOptions->keepTimeOffset = getBigintFromValueNode(pOptions->pKeepTimeOffsetNode) / 60;
+  }
   if (pOptions->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pOptions->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid option keep_time_offset: %d"
@@ -8147,7 +8247,6 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
 
 static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t code = 0;
-  int64_t interval = 0;
   int32_t keep2 = pOptions->keep[2];
 
   if (NULL != pOptions->pCompactIntervalNode) {
@@ -8162,23 +8261,26 @@ static int32_t checkDbCompactIntervalOption(STranslateContext* pCxt, const char*
                                      pOptions->pCompactIntervalNode->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR,
                                      TIME_UNIT_DAY);
     }
-    interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
+    int64_t interval = getBigintFromValueNode(pOptions->pCompactIntervalNode);
     if (interval != 0) {
       if (keep2 == -1) {  // alter db
         TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
         keep2 = pOptions->pDbCfg->daysToKeep2;
       }
       code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+      TAOS_CHECK_RETURN(code);
     }
+    pOptions->compactInterval = (int32_t)interval;
   } else if (pOptions->compactInterval > 0) {
-    interval = pOptions->compactInterval * 1440;  // convert to minutes
-    if (keep2 == -1) {                            // alter db
+    int64_t interval = (int64_t)pOptions->compactInterval * 1440;  // convert to minutes
+    if (keep2 == -1) {                                             // alter db
       TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pDbName, &pOptions->pDbCfg));
       keep2 = pOptions->pDbCfg->daysToKeep2;
     }
     code = checkDbRangeOption(pCxt, "compact_interval", interval, TSDB_MIN_COMPACT_INTERVAL, keep2);
+    TAOS_CHECK_RETURN(code);
+    pOptions->compactInterval = (int32_t)interval;
   }
-  if (code == 0) pOptions->compactInterval = interval;
   return code;
 }
 
@@ -8221,6 +8323,10 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
   pOptions->compactStartTime = getBigintFromValueNode(pStart);
   pOptions->compactEndTime = getBigintFromValueNode(pEnd);
 
+  if (pOptions->compactStartTime == 0 && pOptions->compactEndTime == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pOptions->compactStartTime >= pOptions->compactEndTime) {
     return generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
@@ -8237,7 +8343,7 @@ static int32_t checkDbCompactTimeRangeOption(STranslateContext* pCxt, const char
   }
   if (pOptions->compactStartTime < -keep2 || pOptions->compactStartTime > -days) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option compact_time_range: %dm, start_time should be in range: [%dm, %dm]",
+                                   "Invalid option compact_time_range: %dm, start time should be in range: [%dm, %dm]",
                                    pOptions->compactStartTime, -keep2, -days);
   }
   if (pOptions->compactEndTime < -keep2 || pOptions->compactEndTime > -days) {
@@ -8397,6 +8503,10 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
   if (NULL != strchr(pStmt->dbName, '.')) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
                                    "The database name cannot contain '.'");
+  }
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot create system database: `%s`", pStmt->dbName);
   }
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
@@ -8587,6 +8697,10 @@ static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseS
 }
 
 static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt* pStmt) {
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot drop system database: `%s`",
+                                   pStmt->dbName);
+  }
   SDropDbReq dropReq = {0};
   SName      name = {0};
   int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
@@ -8634,6 +8748,10 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
 }
 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot alter system database: `%s`",
+                                   pStmt->dbName);
+  }
   if (pStmt->pOptions->walLevel == 0) {
     TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pStmt->dbName, &pStmt->pOptions->pDbCfg));
     if (pStmt->pOptions->pDbCfg->replications > 1) {
@@ -9109,6 +9227,12 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (NULL != strchr(pStmt->tableName, '.')) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
                                    "The table name cannot contain '.'");
+  }
+
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot create table of system database: `%s`.`%s`", pStmt->dbName,
+                                   pStmt->tableName);
   }
 
   SDbCfgInfo dbCfg = {0};
@@ -9857,6 +9981,11 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 }
 
 static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot alter table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+  }
+
   if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType ||
       TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
@@ -10085,7 +10214,6 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
 
   const char* validConfigs[] = {
       "encrypt_key",
-      tsAlterCompactTaskKeywords,
   };
   if (0 == strncasecmp(cfgReq.config, validConfigs[0], strlen(validConfigs[0]) + 1)) {
     int32_t klen = strlen(cfgReq.value);
@@ -10096,28 +10224,6 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
                                      ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
     }
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_KEY, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
-  } else if (0 == strncasecmp(cfgReq.config, validConfigs[1], strlen(validConfigs[1]) + 1)) {
-    char*   endptr = NULL;
-    int32_t maxCompactTasks = taosStr2Int32(cfgReq.value, &endptr, 10);
-    int32_t minMaxCompactTasks = MIN_MAX_COMPACT_TASKS;
-    int32_t maxMaxCompactTasks = MAX_MAX_COMPACT_TASKS;
-
-    // check format
-    if (endptr == cfgReq.value || endptr[0] != '\0') {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,
-                                     "Invalid max compact tasks: %s", cfgReq.value);
-    }
-
-    // check range
-    if (maxCompactTasks < minMaxCompactTasks || maxCompactTasks > maxMaxCompactTasks) {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,
-                                     "Invalid max compact tasks: %d, valid range [%d,%d]", maxCompactTasks,
-                                     minMaxCompactTasks, maxMaxCompactTasks);
-    }
-
-    code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
   } else {
     code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
   }
@@ -11410,7 +11516,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
 
   if (pSelect->hasInterpFunc) {
     // Temporary code
-    if (pStmt->pOptions->triggerType != STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    if (tsStreamCoverage == false && pStmt->pOptions->triggerType != STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Stream interp function only support force window close");
     }
@@ -11524,6 +11630,10 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
                                        "stream max delay must be bigger than 5 seconds");
       }
     }
+  }
+
+  if (NULL != pSelect->pHaving) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported Having");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -15575,11 +15685,6 @@ static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) 
   char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
-    if (IS_SYS_DBNAME(pClause->dbName)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
-                                     "Cannot drop table of system database: `%s`.`%s`", pClause->dbName,
-                                     pClause->tableName);
-    }
     for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
       if (pClause->tableName[i] == '\0') {
         break;
@@ -15609,6 +15714,15 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   int8_t          tableType;
   SNode*          pNode;
   SArray*         pTsmas = NULL;
+
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    if (IS_SYS_DBNAME(pClause->dbName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                     "Cannot drop table of system database: `%s`.`%s`", pClause->dbName,
+                                     pClause->tableName);
+    }
+  }
 
   TAOS_CHECK_RETURN(rewriteDropTableWithOpt(pCxt, pQuery));
 
@@ -15699,11 +15813,6 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
   if (!pStmt->withOpt) return code;
   pCxt->withOpt = true;
 
-  if (IS_SYS_DBNAME(pStmt->dbName)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
-                                   "Cannot drop table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
-  }
-
   for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
     if (pStmt->tableName[i] == '\0') {
       break;
@@ -15733,6 +15842,11 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
 }
 
 static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
+  SDropSuperTableStmt* pStmt = (SDropSuperTableStmt*)pQuery->pRoot;
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot drop table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+  }
   TAOS_CHECK_RETURN(rewriteDropSuperTablewithOpt(pCxt, pQuery));
   TAOS_RETURN(0);
 }
@@ -16285,6 +16399,11 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
+
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot alter table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+  }
 
   if (pStmt->dataType.type == TSDB_DATA_TYPE_JSON && pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);

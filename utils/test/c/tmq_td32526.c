@@ -181,6 +181,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       printResult(tmqmessage);
       taos_free_result(tmqmessage);
     } else {
+      ASSERT(taos_errno(NULL) == 0);
       break;
     }
   }

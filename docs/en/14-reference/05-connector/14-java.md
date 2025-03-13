@@ -1,4 +1,5 @@
 ---
+toc_max_heading_level: 4
 sidebar_label: Java
 title: Java Client Library
 slug: /tdengine-reference/client-libraries/java
@@ -30,33 +31,37 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 ## Version History
 
-| taos-jdbcdriver Version |                                                                        Major Changes                                                                        |   TDengine Version    |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-|        3.4.0        | 1. Replaced fastjson library with jackson. <br/> 2. WebSocket uses a separate protocol identifier. <br/> 3. Optimized background thread usage to avoid user misuse leading to timeouts.    |       -        |
-|        3.3.4        | Fixed getInt error when data type is float.     |       -        |
-|        3.3.3        | Fixed memory leak caused by closing WebSocket statement.      |       -        |
-|        3.3.2        | 1. Optimized parameter binding performance under WebSocket connection. <br/> 2. Improved support for mybatis.      |       -        |
-|        3.3.0        | 1. Optimized data transmission performance under WebSocket connection. <br/> 2. Supports skipping SSL verification, off by default.      |        3.3.2.0 and higher         |
-|        3.2.11        | Fixed a bug in closing result set in Native connection.      |        -         |
-|        3.2.10        | 1. REST/WebSocket connections support data compression during transmission. <br/> 2. WebSocket automatic reconnection mechanism, off by default. <br/> 3. Connection class provides methods for schemaless writing. <br/> 4. Optimized data fetching performance for native connections. <br/> 5. Fixed some known issues.  <br/> 6. Metadata retrieval functions can return a list of supported functions.     |        -         |
-|        3.2.9         | Fixed bug in closing WebSocket prepareStatement.                                    |        -         |
-|        3.2.8         | 1. Optimized auto-commit. <br/> 2. Fixed manual commit bug in WebSocket. <br/> 3. Optimized WebSocket prepareStatement using a single connection. <br/> 4. Metadata supports views.                                       |        -         |
-|        3.2.7         | 1. Supports VARBINARY and GEOMETRY types. <br/> 2. Added timezone setting support for native connections. <br/> 3. Added WebSocket automatic reconnection feature.                                                                     | 3.2.0.0 and higher |
-|        3.2.5         | Data subscription adds committed() and assignment() methods.                                                       | 3.1.0.3 and higher |
-|        3.2.4         | Data subscription adds enable.auto.commit parameter under WebSocket connection, as well as unsubscribe() method.                                  |         -          |
-|        3.2.3         | Fixed ResultSet data parsing failure in some cases.                                                          |         -          |
-|        3.2.2         | New feature: Data subscription supports seek function.                                                         | 3.0.5.0 and higher |
-|        3.2.1         | 1. WebSocket connection supports schemaless and prepareStatement writing. <br/> 2. Consumer poll returns result set as ConsumerRecord, which can be accessed through value() method. | 3.0.3.0 and higher |
-|        3.2.0         | Connection issues, not recommended for use.                                                                |         -          |
-|        3.1.0         | WebSocket connection supports subscription function.                                                               |         -          |
-|    3.0.1 - 3.0.4     | Fixed data parsing errors in result sets under some conditions. 3.0.1 compiled in JDK 11 environment, other versions recommended for JDK 8.                             |         -          |
-|        3.0.0         | Supports TDengine 3.0                                                                    | 3.0.0.0 and higher |
-|        2.0.42        | Fixed wasNull interface return value in WebSocket connection.                                                        |         -          |
-|        2.0.41        | Fixed username and password encoding method in REST connection.                                                          |         -          |
-|   2.0.39 - 2.0.40    | Added REST connection/request timeout settings.                                                              |         -          |
-|        2.0.38        | JDBC REST connection adds batch fetching function.                                                             |         -          |
-|        2.0.37        | Added support for json tag.                                                                  |         -          |
-|        2.0.36        | Added support for schemaless writing.                                                               |         -          |
+| taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                               | TDengine Version   |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.5.3                   | Support unsigned data types in WebSocket connections.                                                                                                                                                                                                                                                                                                                                                       | -                  |
+| 3.5.2                   | Fixed WebSocket result set free bug.                                                                                                                                                                                                                                                                                                                                                                        | -                  |
+| 3.5.1                   | Fixed the getObject issue in data subscription.                                                                                                                                                                                                                                                                                                                                                             | -                  |
+| 3.5.0                   | 1. Optimized the performance of WebSocket connection parameter binding, supporting parameter binding queries using binary data. <br/> 2. Optimized the performance of small queries in WebSocket connection. <br/> 3. Added support for setting time zone and app info on WebSocket connection.                                                                                                             | 3.3.5.0 and higher |
+| 3.4.0                   | 1. Replaced fastjson library with jackson. <br/> 2. WebSocket uses a separate protocol identifier. <br/> 3. Optimized background thread usage to avoid user misuse leading to timeouts.                                                                                                                                                                                                                     | -                  |
+| 3.3.4                   | Fixed getInt error when data type is float.                                                                                                                                                                                                                                                                                                                                                                 | -                  |
+| 3.3.3                   | Fixed memory leak caused by closing WebSocket statement.                                                                                                                                                                                                                                                                                                                                                    | -                  |
+| 3.3.2                   | 1. Optimized parameter binding performance under WebSocket connection. <br/> 2. Improved support for mybatis.                                                                                                                                                                                                                                                                                               | -                  |
+| 3.3.0                   | 1. Optimized data transmission performance under WebSocket connection. <br/> 2. Supports skipping SSL verification, off by default.                                                                                                                                                                                                                                                                         | 3.3.2.0 and higher |
+| 3.2.11                  | Fixed a bug in closing result set in Native connection.                                                                                                                                                                                                                                                                                                                                                     | -                  |
+| 3.2.10                  | 1. REST/WebSocket connections support data compression during transmission. <br/> 2. WebSocket automatic reconnection mechanism, off by default. <br/> 3. Connection class provides methods for schemaless writing. <br/> 4. Optimized data fetching performance for native connections. <br/> 5. Fixed some known issues.  <br/> 6. Metadata retrieval functions can return a list of supported functions. | -                  |
+| 3.2.9                   | Fixed bug in closing WebSocket prepareStatement.                                                                                                                                                                                                                                                                                                                                                            | -                  |
+| 3.2.8                   | 1. Optimized auto-commit. <br/> 2. Fixed manual commit bug in WebSocket. <br/> 3. Optimized WebSocket prepareStatement using a single connection. <br/> 4. Metadata supports views.                                                                                                                                                                                                                         | -                  |
+| 3.2.7                   | 1. Supports VARBINARY and GEOMETRY types. <br/> 2. Added timezone setting support for native connections. <br/> 3. Added WebSocket automatic reconnection feature.                                                                                                                                                                                                                                          | 3.2.0.0 and higher |
+| 3.2.5                   | Data subscription adds committed() and assignment() methods.                                                                                                                                                                                                                                                                                                                                                | 3.1.0.3 and higher |
+| 3.2.4                   | Data subscription adds enable.auto.commit parameter under WebSocket connection, as well as unsubscribe() method.                                                                                                                                                                                                                                                                                            | -                  |
+| 3.2.3                   | Fixed ResultSet data parsing failure in some cases.                                                                                                                                                                                                                                                                                                                                                         | -                  |
+| 3.2.2                   | New feature: Data subscription supports seek function.                                                                                                                                                                                                                                                                                                                                                      | 3.0.5.0 and higher |
+| 3.2.1                   | 1. WebSocket connection supports schemaless and prepareStatement writing. <br/> 2. Consumer poll returns result set as ConsumerRecord, which can be accessed through value() method.                                                                                                                                                                                                                        | 3.0.3.0 and higher |
+| 3.2.0                   | Connection issues, not recommended for use.                                                                                                                                                                                                                                                                                                                                                                 | -                  |
+| 3.1.0                   | WebSocket connection supports subscription function.                                                                                                                                                                                                                                                                                                                                                        | -                  |
+| 3.0.1 - 3.0.4           | Fixed data parsing errors in result sets under some conditions. 3.0.1 compiled in JDK 11 environment, other versions recommended for JDK 8.                                                                                                                                                                                                                                                                 | -                  |
+| 3.0.0                   | Supports TDengine 3.0                                                                                                                                                                                                                                                                                                                                                                                       | 3.0.0.0 and higher |
+| 2.0.42                  | Fixed wasNull interface return value in WebSocket connection.                                                                                                                                                                                                                                                                                                                                               | -                  |
+| 2.0.41                  | Fixed username and password encoding method in REST connection.                                                                                                                                                                                                                                                                                                                                             | -                  |
+| 2.0.39 - 2.0.40         | Added REST connection/request timeout settings.                                                                                                                                                                                                                                                                                                                                                             | -                  |
+| 2.0.38                  | JDBC REST connection adds batch fetching function.                                                                                                                                                                                                                                                                                                                                                          | -                  |
+| 2.0.37                  | Added support for json tag.                                                                                                                                                                                                                                                                                                                                                                                 | -                  |
+| 2.0.36                  | Added support for schemaless writing.                                                                                                                                                                                                                                                                                                                                                                       | -                  |
 
 ## Exceptions and Error Codes
 
@@ -75,47 +80,47 @@ The error codes that the JDBC connector may report include 4 types:
 
 Please refer to the specific error codes:
 
-| Error Code | Description                                                     | Suggested Actions                                                                         |
-| ---------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 0x2301     | connection already closed                                       | The connection is already closed, check the connection status, or recreate the connection to execute related commands. |
-| 0x2302     | this operation is NOT supported currently!                      | The current interface is not supported, consider switching to another connection method. |
-| 0x2303     | invalid variables                                               | Invalid parameters, please check the interface specifications and adjust the parameter types and sizes. |
-| 0x2304     | statement is closed                                             | The statement is already closed, check if the statement was used after being closed, or if the connection is normal. |
-| 0x2305     | resultSet is closed                                             | The resultSet has been released, check if the resultSet was used after being released. |
-| 0x2306     | Batch is empty!                                                 | Add parameters to prepareStatement before executing executeBatch. |
-| 0x2307     | Can not issue data manipulation statements with executeQuery()  | Use executeUpdate() for update operations, not executeQuery(). |
-| 0x2308     | Can not issue SELECT via executeUpdate()                        | Use executeQuery() for query operations, not executeUpdate(). |
-| 0x230d     | parameter index out of range                                    | Parameter out of bounds, check the reasonable range of parameters. |
-| 0x230e     | connection already closed                                       | The connection is already closed, check if the Connection was used after being closed, or if the connection is normal. |
-| 0x230f     | unknown sql type in tdengine                                    | Check the Data Type types supported by TDengine. |
-| 0x2310     | can't register JDBC-JNI driver                                  | Cannot register JNI driver, check if the url is correctly filled. |
-| 0x2312     | url is not set                                                  | Check if the REST connection url is correctly filled. |
-| 0x2314     | numeric value out of range                                      | Check if the correct interface was used for numeric types in the result set. |
-| 0x2315     | unknown taos type in tdengine                                   | When converting TDengine data types to JDBC data types, check if the correct TDengine data type was specified. |
-| 0x2317     |                                                                 | Incorrect request type used in REST connection. |
-| 0x2318     |                                                                 | Data transmission error occurred in REST connection, check the network situation and retry. |
-| 0x2319     | user is required                                                | Username information is missing when creating a connection. |
-| 0x231a     | password is required                                            | Password information is missing when creating a connection. |
-| 0x231c     | httpEntity is null, sql:                                        | An exception occurred in REST connection execution. |
-| 0x231d     | can't create connection with server within                      | Increase the httpConnectTimeout parameter to extend the connection time, or check the connection with taosAdapter. |
-| 0x231e     | failed to complete the task within the specified time           | Increase the messageWaitTimeout parameter to extend the execution time, or check the connection with taosAdapter. |
-| 0x2350     | unknown error                                                   | Unknown exception, please provide feedback to the developers on github. |
-| 0x2352     | Unsupported encoding                                            | An unsupported character encoding set was specified in the local connection. |
-| 0x2353     | internal error of database, please see taoslog for more details | An error occurred while executing prepareStatement in local connection, check taos log for troubleshooting. |
-| 0x2354     | JNI connection is NULL                                          | The Connection was already closed when executing commands in local connection. Check the connection with TDengine. |
-| 0x2355     | JNI result set is NULL                                          | The result set is abnormal in local connection, check the connection and retry. |
-| 0x2356     | invalid num of fields                                           | The meta information of the result set obtained in local connection does not match. |
-| 0x2357     | empty sql string                                                | Fill in the correct SQL for execution. |
-| 0x2359     | JNI alloc memory failed, please see taoslog for more details    | Memory allocation error in local connection, check taos log for troubleshooting. |
-| 0x2371     | consumer properties must not be null!                           | Parameters are null when creating a subscription, fill in the correct parameters. |
-| 0x2372     | configs contain empty key, failed to set consumer property      | The parameter key contains empty values, fill in the correct parameters. |
-| 0x2373     | failed to set consumer property,                                | The parameter value contains empty values, fill in the correct parameters. |
-| 0x2375     | topic reference has been destroyed                              | During the data subscription process, the topic reference was released. Check the connection with TDengine. |
+| Error Code | Description                                                     | Suggested Actions                                                                                                                  |
+| ---------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 0x2301     | connection already closed                                       | The connection is already closed, check the connection status, or recreate the connection to execute related commands.             |
+| 0x2302     | this operation is NOT supported currently!                      | The current interface is not supported, consider switching to another connection method.                                           |
+| 0x2303     | invalid variables                                               | Invalid parameters, please check the interface specifications and adjust the parameter types and sizes.                            |
+| 0x2304     | statement is closed                                             | The statement is already closed, check if the statement was used after being closed, or if the connection is normal.               |
+| 0x2305     | resultSet is closed                                             | The resultSet has been released, check if the resultSet was used after being released.                                             |
+| 0x2306     | Batch is empty!                                                 | Add parameters to prepareStatement before executing executeBatch.                                                                  |
+| 0x2307     | Can not issue data manipulation statements with executeQuery()  | Use executeUpdate() for update operations, not executeQuery().                                                                     |
+| 0x2308     | Can not issue SELECT via executeUpdate()                        | Use executeQuery() for query operations, not executeUpdate().                                                                      |
+| 0x230d     | parameter index out of range                                    | Parameter out of bounds, check the reasonable range of parameters.                                                                 |
+| 0x230e     | connection already closed                                       | The connection is already closed, check if the Connection was used after being closed, or if the connection is normal.             |
+| 0x230f     | unknown sql type in tdengine                                    | Check the Data Type types supported by TDengine.                                                                                   |
+| 0x2310     | can't register JDBC-JNI driver                                  | Cannot register JNI driver, check if the url is correctly filled.                                                                  |
+| 0x2312     | url is not set                                                  | Check if the REST connection url is correctly filled.                                                                              |
+| 0x2314     | numeric value out of range                                      | Check if the correct interface was used for numeric types in the result set.                                                       |
+| 0x2315     | unknown taos type in tdengine                                   | When converting TDengine data types to JDBC data types, check if the correct TDengine data type was specified.                     |
+| 0x2317     |                                                                 | Incorrect request type used in REST connection.                                                                                    |
+| 0x2318     |                                                                 | Data transmission error occurred in REST connection, check the network situation and retry.                                        |
+| 0x2319     | user is required                                                | Username information is missing when creating a connection.                                                                        |
+| 0x231a     | password is required                                            | Password information is missing when creating a connection.                                                                        |
+| 0x231c     | httpEntity is null, sql:                                        | An exception occurred in REST connection execution.                                                                                |
+| 0x231d     | can't create connection with server within                      | Increase the httpConnectTimeout parameter to extend the connection time, or check the connection with taosAdapter.                 |
+| 0x231e     | failed to complete the task within the specified time           | Increase the messageWaitTimeout parameter to extend the execution time, or check the connection with taosAdapter.                  |
+| 0x2350     | unknown error                                                   | Unknown exception, please provide feedback to the developers on github.                                                            |
+| 0x2352     | Unsupported encoding                                            | An unsupported character encoding set was specified in the local connection.                                                       |
+| 0x2353     | internal error of database, please see taoslog for more details | An error occurred while executing prepareStatement in local connection, check taos log for troubleshooting.                        |
+| 0x2354     | JNI connection is NULL                                          | The Connection was already closed when executing commands in local connection. Check the connection with TDengine.                 |
+| 0x2355     | JNI result set is NULL                                          | The result set is abnormal in local connection, check the connection and retry.                                                    |
+| 0x2356     | invalid num of fields                                           | The meta information of the result set obtained in local connection does not match.                                                |
+| 0x2357     | empty sql string                                                | Fill in the correct SQL for execution.                                                                                             |
+| 0x2359     | JNI alloc memory failed, please see taoslog for more details    | Memory allocation error in local connection, check taos log for troubleshooting.                                                   |
+| 0x2371     | consumer properties must not be null!                           | Parameters are null when creating a subscription, fill in the correct parameters.                                                  |
+| 0x2372     | configs contain empty key, failed to set consumer property      | The parameter key contains empty values, fill in the correct parameters.                                                           |
+| 0x2373     | failed to set consumer property,                                | The parameter value contains empty values, fill in the correct parameters.                                                         |
+| 0x2375     | topic reference has been destroyed                              | During the data subscription process, the topic reference was released. Check the connection with TDengine.                        |
 | 0x2376     | failed to set consumer topic, topic name is empty               | During the data subscription process, the subscription topic name is empty. Check if the specified topic name is correctly filled. |
-| 0x2377     | consumer reference has been destroyed                           | The data transmission channel for the subscription has been closed, check the connection with TDengine. |
-| 0x2378     | consumer create error                                           | Data subscription creation failed, check the error information and taos log for troubleshooting. |
-| 0x2379     | seek offset must not be a negative number                       | The seek interface parameter must not be negative, use the correct parameters. |
-| 0x237a     | vGroup not found in result set                                  | VGroup not assigned to the current consumer, due to the Rebalance mechanism causing the Consumer and VGroup to be unbound. |
+| 0x2377     | consumer reference has been destroyed                           | The data transmission channel for the subscription has been closed, check the connection with TDengine.                            |
+| 0x2378     | consumer create error                                           | Data subscription creation failed, check the error information and taos log for troubleshooting.                                   |
+| 0x2379     | seek offset must not be a negative number                       | The seek interface parameter must not be negative, use the correct parameters.                                                     |
+| 0x237a     | vGroup not found in result set                                  | VGroup not assigned to the current consumer, due to the Rebalance mechanism causing the Consumer and VGroup to be unbound.         |
 
 - [TDengine Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 <!-- - [TDengine_ERROR_CODE](../error-code) -->
@@ -124,24 +129,27 @@ Please refer to the specific error codes:
 
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Java type conversions are as follows:
 
-| TDengine DataType | JDBCType           |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte array         |
-| NCHAR             | java.lang.String   |
-| JSON              | java.lang.String   |
-| VARBINARY         | byte[]             |
-| GEOMETRY          | byte[]             |
+| TDengine DataType | JDBCType             | Remark                                  |
+| ----------------- | -------------------- | --------------------------------------- |
+| TIMESTAMP         | java.sql.Timestamp   |                                         |
+| BOOL              | java.lang.Boolean    |                                         |
+| TINYINT           | java.lang.Byte       |                                         |
+| TINYINT UNSIGNED  | java.lang.Short      | only supported in WebSocket connections |
+| SMALLINT          | java.lang.Short      |                                         |
+| SMALLINT UNSIGNED | java.lang.Integer    | only supported in WebSocket connections |
+| INT               | java.lang.Integer    |                                         |
+| INT UNSIGNED      | java.lang.Long       | only supported in WebSocket connections |
+| BIGINT            | java.lang.Long       |                                         |
+| BIGINT UNSIGNED   | java.math.BigInteger | only supported in WebSocket connections |
+| FLOAT             | java.lang.Float      |                                         |
+| DOUBLE            | java.lang.Double     |                                         |
+| BINARY            | byte array           |                                         |
+| NCHAR             | java.lang.String     |                                         |
+| JSON              | java.lang.String     | only supported in tags                  |
+| VARBINARY         | byte[]               |                                         |
+| GEOMETRY          | byte[]               |                                         |
 
-**Note**: JSON type is only supported in tags.  
-Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
+**Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
 For the WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 For the Java connector, you can use the jts library to conveniently create GEOMETRY type objects, serialize them, and write to TDengine. Here is an example [Geometry Example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
@@ -244,13 +252,13 @@ For WebSocket connections, the configuration parameters in the URL are as follow
 
 - user: Login username for TDengine, default value 'root'.
 - password: User login password, default value 'taosdata'.
-- charset: Specifies the character set for parsing string data when batch fetching is enabled.
 - batchErrorIgnore: true: Continues executing the following SQL if one SQL fails during the execution of Statement's executeBatch. false: Does not execute any statements after a failed SQL. Default value: false.
 - httpConnectTimeout: Connection timeout in ms, default value 60000.
 - messageWaitTimeout: Message timeout in ms, default value 60000.
 - useSSL: Whether SSL is used in the connection.
+- timezone: Client timezone, default is the system current timezone. Recommended not to set, using the system time zone provides better performance.
 
-**Note**: Some configuration items (such as: locale, timezone) do not take effect in WebSocket connections.
+**Note**: Some configuration items (such as: locale, charset) do not take effect in WebSocket connections.
 
 **REST Connection**
 Using JDBC REST connection does not depend on the client driver. Compared to native JDBC connections, you only need to:
@@ -263,14 +271,13 @@ For REST connections, the configuration parameters in the URL are as follows:
 
 - user: Login username for TDengine, default value 'root'.
 - password: User login password, default value 'taosdata'.
-- charset: Specifies the character set for parsing string data when batch fetching is enabled.
 - batchErrorIgnore: true: Continues executing the following SQL if one SQL fails during the execution of Statement's executeBatch. false: Does not execute any statements after a failed SQL. Default value: false.
 - httpConnectTimeout: Connection timeout in ms, default value 60000.
 - httpSocketTimeout: Socket timeout in ms, default value 60000.
 - useSSL: Whether SSL is used in the connection.
 - httpPoolSize: REST concurrent request size, default 20.
 
-**Note**: Some configuration items (such as: locale, timezone) do not take effect in REST connections.
+**Note**: Some configuration items (such as: locale, charset and timezone) do not take effect in REST connections.
 
 :::note
 
@@ -294,7 +301,9 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR: Effective only when using native JDBC connections. Client configuration file directory path, default value on Linux OS is `/etc/taos`, on Windows OS is `C:/TDengine/cfg`.
 - TSDBDriver.PROPERTY_KEY_CHARSET: Character set used by the client, default value is the system character set.
 - TSDBDriver.PROPERTY_KEY_LOCALE: Effective only when using native JDBC connections. Client locale, default value is the current system locale.
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE: Effective only when using native JDBC connections. Client time zone, default value is the current system time zone. Due to historical reasons, we only support part of the POSIX standard, such as UTC-8 (representing Shanghai, China), GMT-8, Asia/Shanghai.
+- TSDBDriver.PROPERTY_KEY_TIME_ZONE: 
+  - Native connections: Client time zone, default value is the current system time zone. Effective globally. Due to historical reasons, we only support part of the POSIX standard, such as UTC-8 (representing Shanghai, China), GMT-8, Asia/Shanghai.
+  - WebSocket connections. Client time zone, default value is the current system time zone. Effective on the connection. Only IANA time zones are supported, such as Asia/Shanghai. It is recommended not to set this parameter, as using the system time zone provides better performance.
 - TSDBDriver.HTTP_CONNECT_TIMEOUT: Connection timeout, in ms, default value is 60000. Effective only in REST connections.
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: Socket timeout, in ms, default value is 60000. Effective only in REST connections and when batchfetch is set to false.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: Message timeout, in ms, default value is 60000. Effective only under WebSocket connections.
@@ -303,12 +312,14 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: Whether to enable compression during transmission. Effective only when using REST/WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable auto-reconnect. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 
-> **Note**: Enabling auto-reconnect is only effective for simple SQL execution, schema-less writing, and data subscription. It is ineffective for parameter binding. Auto-reconnect is only effective for connections established through parameters specifying the database, and ineffective for later `use db` statements to switch databases.
+  > **Note**: Enabling auto-reconnect is only effective for simple SQL execution, schema-less writing, and data subscription. It is ineffective for parameter binding. Auto-reconnect is only effective for connections established through parameters specifying the database, and ineffective for later `use db` statements to switch databases.
 
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Auto-reconnect retry interval, in milliseconds, default value 2000. Effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: Auto-reconnect retry count, default value 3, effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
-
+- TSDBDriver.PROPERTY_KEY_APP_NAME: App name, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is java.  
+- TSDBDriver.PROPERTY_KEY_APP_IP: App IP, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is empty.  
+  
 Additionally, for native JDBC connections, other parameters such as log level and SQL length can be specified by specifying the URL and Properties.
 
 **Priority of Configuration Parameters**
@@ -489,16 +500,16 @@ For example: if the password is specified as taosdata in the URL and as taosdemo
 
 List of interface methods that return `true` for supported features, others not explicitly mentioned return `false`.
 
-| Interface Method                                       | Description                                         |
-|--------------------------------------------------------|-----------------------------------------------------|
-| `boolean nullsAreSortedAtStart()`                      | Determines if `NULL` values are sorted at the start |
-| `boolean storesLowerCaseIdentifiers()`                 | Determines if the database stores identifiers in lowercase |
-| `boolean supportsAlterTableWithAddColumn()`            | Determines if the database supports adding columns with `ALTER TABLE` |
-| `boolean supportsAlterTableWithDropColumn()`           | Determines if the database supports dropping columns with `ALTER TABLE` |
-| `boolean supportsColumnAliasing()`                     | Determines if the database supports column aliasing |
-| `boolean supportsGroupBy()`                            | Determines if the database supports `GROUP BY` statements |
-| `boolean isCatalogAtStart()`                           | Determines if the catalog name appears at the start of the fully qualified name in the database |
-| `boolean supportsCatalogsInDataManipulation()`         | Determines if the database supports catalog names in data manipulation statements |  
+| Interface Method                               | Description                                                                                     |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `boolean nullsAreSortedAtStart()`              | Determines if `NULL` values are sorted at the start                                             |
+| `boolean storesLowerCaseIdentifiers()`         | Determines if the database stores identifiers in lowercase                                      |
+| `boolean supportsAlterTableWithAddColumn()`    | Determines if the database supports adding columns with `ALTER TABLE`                           |
+| `boolean supportsAlterTableWithDropColumn()`   | Determines if the database supports dropping columns with `ALTER TABLE`                         |
+| `boolean supportsColumnAliasing()`             | Determines if the database supports column aliasing                                             |
+| `boolean supportsGroupBy()`                    | Determines if the database supports `GROUP BY` statements                                       |
+| `boolean isCatalogAtStart()`                   | Determines if the catalog name appears at the start of the fully qualified name in the database |
+| `boolean supportsCatalogsInDataManipulation()` | Determines if the database supports catalog names in data manipulation statements               |
 
 ### Connection Features
 

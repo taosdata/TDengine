@@ -97,6 +97,7 @@ int32_t cfgLoadFromArray(SConfig *pCfg, SArray *pArgs) {
 }
 
 int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
+  int32_t code = TSDB_CODE_SUCCESS;
   int32_t size = taosArrayGetSize(pArgs);
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *pItemNew = taosArrayGet(pArgs, i);
@@ -124,14 +125,27 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
         break;
       case CFG_DTYPE_STRING:
       case CFG_DTYPE_DIR:
-      case CFG_DTYPE_LOCALE:
-      case CFG_DTYPE_CHARSET:
-      case CFG_DTYPE_TIMEZONE:
         taosMemoryFree(pItemOld->str);
         pItemOld->str = taosStrdup(pItemNew->str);
         if (pItemOld->str == NULL) {
           (void)taosThreadMutexUnlock(&pCfg->lock);
           TAOS_RETURN(terrno);
+        }
+        break;
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+        code = cfgSetItemVal(pItemOld, pItemNew->name, pItemNew->str, pItemNew->stype);
+        if (code != TSDB_CODE_SUCCESS) {
+          (void)taosThreadMutexUnlock(&pCfg->lock);
+          TAOS_RETURN(code);
+        }
+        break;
+      case CFG_DTYPE_TIMEZONE:
+        truncateTimezoneString(pItemNew->str);
+        code = cfgSetItemVal(pItemOld, pItemNew->name, pItemNew->str, pItemNew->stype);
+        if (code != TSDB_CODE_SUCCESS) {
+          (void)taosThreadMutexUnlock(&pCfg->lock);
+          TAOS_RETURN(code);
         }
         break;
       default:
@@ -501,11 +515,13 @@ int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **pItem, const char *name, c
 
   *pItem = cfgGetItem(pCfg, name);
   if (*pItem == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
-    TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
+    code = TSDB_CODE_CFG_NOT_FOUND;
+    goto _exit;
   }
-  TAOS_CHECK_RETURN(cfgSetItemVal(*pItem, name, value, stype));
 
+  TAOS_CHECK_GOTO(cfgSetItemVal(*pItem, name, value, stype), NULL, _exit);
+
+_exit:
   if (lock) {
     (void)taosThreadMutexUnlock(&pCfg->lock);
   }
@@ -517,7 +533,7 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pItem == NULL) {
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+    TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL: {
@@ -601,11 +617,11 @@ int32_t checkItemDyn(SConfigItem *pItem, bool isServer) {
     return TSDB_CODE_SUCCESS;
   }
   if (isServer) {
-    if (pItem->dynScope == CFG_DYN_ENT_CLIENT || pItem->dynScope == CFG_DYN_ENT_CLIENT_LAZY) {
+    if (pItem->dynScope == CFG_DYN_CLIENT || pItem->dynScope == CFG_DYN_CLIENT_LAZY) {
       return TSDB_CODE_INVALID_CFG;
     }
   } else {
-    if (pItem->dynScope == CFG_DYN_ENT_SERVER || pItem->dynScope == CFG_DYN_ENT_SERVER_LAZY) {
+    if (pItem->dynScope == CFG_DYN_SERVER || pItem->dynScope == CFG_DYN_SERVER_LAZY) {
       return TSDB_CODE_INVALID_CFG;
     }
   }
@@ -627,6 +643,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     cfgUnLock(pCfg);
     TAOS_RETURN(code);
   }
+
   if ((pItem->category == CFG_CATEGORY_GLOBAL) && alterType == CFG_ALTER_DNODE) {
     uError("failed to config:%s, not support update global config on only one dnode", name);
     cfgUnLock(pCfg);

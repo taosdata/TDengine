@@ -23,24 +23,25 @@ import RequestId from "./_request_id.mdx";
 
 ## 版本历史
 
-| driver-go 版本 | 主要变化                                 | TDengine 版本    |
-|-------------|-------------------------------------|---------------|
-| v3.5.8       | 修复空指针异常                              | -              |
-| v3.5.7       | taosWS 和 taosRestful 支持传入 request id | -              |
-| v3.5.6       | 提升 websocket 查询和写入性能                 | 3.3.2.0 及更高版本  |
-| v3.5.5       | restful 支持跳过 ssl 证书检查                | -              |
-| v3.5.4       | 兼容 TDengine 3.3.0.0 tmq raw data     | -              |
-| v3.5.3       | 重构 taosWS                            | -              |
-| v3.5.2       | websocket 压缩和优化消息订阅性能                | 3.2.3.0 及更高版本  |
-| v3.5.1       | 原生 stmt 查询和 geometry 类型支持            | 3.2.1.0 及更高版本  |
-| v3.5.0       | 获取消费进度及按照指定进度开始消费                    | 3.0.5.0 及更高版本 |
-| v3.3.1       | 基于 websocket 的 schemaless 协议写入       | 3.0.4.1 及更高版本  |
-| v3.1.0       | 提供贴近 kafka 的订阅 api                   | -              |
-| v3.0.4       | 新增 request id 相关接口                   | 3.0.2.2 及更高版本  |
-| v3.0.3       | 基于 websocket 的 statement 写入          | -              |
-| v3.0.2       | 基于 websocket 的数据查询和写入                | 3.0.1.5 及更高版本  |
-| v3.0.1       | 基于 websocket 的消息订阅                   | -              |
-| v3.0.0       | 适配 TDengine 3.0 查询和写入                | 3.0.0.0 及更高版本  |
+| driver-go 版本 | 主要变化                                       | TDengine 版本   |
+|--------------|--------------------------------------------|---------------|
+| v3.6.0       | stmt2 原生接口，DSN 支持密码包含特殊字符（url.QueryEscape） | 3.3.5.0 及更高版本 |
+| v3.5.8       | 修复空指针异常                                    | -             |
+| v3.5.7       | taosWS 和 taosRestful 支持传入 request id       | -             |
+| v3.5.6       | 提升 websocket 查询和写入性能                       | 3.3.2.0 及更高版本 |
+| v3.5.5       | restful 支持跳过 ssl 证书检查                      | -             |
+| v3.5.4       | 兼容 TDengine 3.3.0.0 tmq raw data           | -             |
+| v3.5.3       | 重构 taosWS                                  | -             |
+| v3.5.2       | websocket 压缩和优化消息订阅性能                      | 3.2.3.0 及更高版本 |
+| v3.5.1       | 原生 stmt 查询和 geometry 类型支持                  | 3.2.1.0 及更高版本 |
+| v3.5.0       | 获取消费进度及按照指定进度开始消费                          | 3.0.5.0 及更高版本 |
+| v3.3.1       | 基于 websocket 的 schemaless 协议写入             | 3.0.4.1 及更高版本 |
+| v3.1.0       | 提供贴近 kafka 的订阅 api                         | -             |
+| v3.0.4       | 新增 request id 相关接口                         | 3.0.2.2 及更高版本 |
+| v3.0.3       | 基于 websocket 的 statement 写入                | -             |
+| v3.0.2       | 基于 websocket 的数据查询和写入                      | 3.0.1.5 及更高版本 |
+| v3.0.1       | 基于 websocket 的消息订阅                         | -             |
+| v3.0.0       | 适配 TDengine 3.0 查询和写入                      | 3.0.0.0 及更高版本 |
 
 ## 异常和错误码
 
@@ -136,6 +137,8 @@ WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/w
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
+
+当密码中包含特殊字符时，需要使用 `url.QueryEscape` 进行转义。
 
 ##### 原生连接
 
@@ -492,6 +495,37 @@ Prepare 允许使用预编译的 SQL 语句，可以提高性能并提供参数�
 
 - `func (s *Stmt) Close() error`
     - **接口说明**：关闭语句。
+    - **返回值**：错误信息。
+
+从 3.6.0 版本开始，提供 stmt2 绑定参数的接口
+
+- `func (conn *Connector) Stmt2(reqID int64, singleTableBindOnce bool) *Stmt2`
+    - **接口说明**：从连接创建 stmt2。
+    - **参数说明**：
+        - `reqID`：请求 ID。
+        - `singleTableBindOnce`：单个子表在单次执行中只有一次数据绑定。
+    - **返回值**：stmt2 对象。
+- `func (s *Stmt2) Prepare(sql string) error`
+    - **接口说明**：绑定 sql 语句。
+    - **参数说明**：
+        - `sql`：要绑定的 sql 语句。
+    - **返回值**：错误信息。
+- `func (s *Stmt2) Bind(params []*stmt.TaosStmt2BindData) error`
+    - **接口说明**：绑定数据。
+    - **参数说明**：
+        - params要绑定的数据。
+    - **返回值**：错误信息。
+- `func (s *Stmt2) Execute() error`
+    - **接口说明**：执行语句。
+    - **返回值**：错误信息。
+- `func (s *Stmt2) GetAffectedRows() int`
+    - **接口说明**：获取受影响行数（只在插入语句有效）。
+    - **返回值**：受影响行数。
+- `func (s *Stmt2) UseResult() (driver.Rows, error)`
+    - **接口说明**：获取结果集（只在查询语句有效）。
+    - **返回值**：结果集 Rows 对象，错误信息。
+- `func (s *Stmt2) Close() error`
+    - **接口说明**：关闭stmt2。
     - **返回值**：错误信息。
 
 `ws/stmt` 包提供了通过 WebSocket 进行参数绑定的接口

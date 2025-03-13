@@ -1808,7 +1808,7 @@ int stateKeyDecode(void* k, char* buf) {
   return p - buf;
 }
 
-int stateKeyToString(void* k, char* buf) {
+int32_t stateKeyToString(void* k, char* buf) {
   SStateKey* key = k;
   int        n = 0;
   n += sprintf(buf + n, "[groupId:%" PRIu64 ",", key->key.groupId);

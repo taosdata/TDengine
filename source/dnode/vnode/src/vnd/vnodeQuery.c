@@ -49,6 +49,35 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
+void vnodePrintTableMeta(STableMetaRsp* pMeta) {
+  if (!(qDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+
+  qDebug("tbName:%s", pMeta->tbName);
+  qDebug("stbName:%s", pMeta->stbName);
+  qDebug("dbFName:%s", pMeta->dbFName);
+  qDebug("dbId:%" PRId64, pMeta->dbId);
+  qDebug("numOfTags:%d", pMeta->numOfTags);
+  qDebug("numOfColumns:%d", pMeta->numOfColumns);
+  qDebug("precision:%d", pMeta->precision);
+  qDebug("tableType:%d", pMeta->tableType);
+  qDebug("sversion:%d", pMeta->sversion);
+  qDebug("tversion:%d", pMeta->tversion);
+  qDebug("suid:%" PRIu64, pMeta->suid);
+  qDebug("tuid:%" PRIu64, pMeta->tuid);
+  qDebug("vgId:%d", pMeta->vgId);
+  qDebug("sysInfo:%d", pMeta->sysInfo);
+  if (pMeta->pSchemas) {
+    for (int32_t i = 0; i < (pMeta->numOfColumns + pMeta->numOfTags); ++i) {
+      SSchema* pSchema = pMeta->pSchemas + i;
+      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes, pSchema->name);
+    }
+  }
+
+}
+
+
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
@@ -91,10 +120,15 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
       goto _exit3;
     }
-    char tbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    TAOS_CHECK_GOTO(metaGetTableNameByUid(pVnode, tbUid, tbName), NULL, _exit3);
-    tstrncpy(metaRsp.tbName, varDataVal(tbName), TSDB_TABLE_NAME_LEN);
-    TAOS_CHECK_GOTO(metaGetTableEntryByName(&mer1, varDataVal(tbName)), NULL, _exit3);
+    SMetaReader mr3 = {0};
+    metaReaderDoInit(&mr3, ((SVnode *)pVnode)->pMeta, META_READER_NOLOCK);
+    if ((code = metaReaderGetTableEntryByUid(&mr3, tbUid)) < 0) {
+      metaReaderClear(&mr3);
+      TAOS_CHECK_GOTO(code, NULL, _exit3);
+    }
+    tstrncpy(metaRsp.tbName, mr3.me.name, TSDB_TABLE_NAME_LEN);
+    metaReaderClear(&mr3);
+    TAOS_CHECK_GOTO(metaGetTableEntryByName(&mer1, metaRsp.tbName), NULL, _exit3);
   } else if (metaGetTableEntryByName(&mer1, infoReq.tbName) < 0) {
     code = terrno;
     goto _exit3;
@@ -149,6 +183,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+
+  vnodePrintTableMeta(&metaRsp);
 
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -243,7 +279,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
     goto _exit;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_LOCK);
+    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
@@ -279,7 +315,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     }
   } else {
     vError("vnodeGetTableCfg get invalid table type:%d", mer1.me.type);
-    return TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_APP_ERROR;
+    goto _exit;
   }
 
   cfgRsp.numOfTags = schemaTag.nCols;

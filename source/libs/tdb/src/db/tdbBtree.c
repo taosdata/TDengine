@@ -1491,7 +1491,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
         ofpCell = tdbPageGetCell(ofp, 0);
 
         int lastKeyPage = 0;
-        if (nLeftKey <= maxLocal - sizeof(SPgno)) {
+        if (nLeftKey <= ofp->maxLocal - sizeof(SPgno)) {
           bytes = nLeftKey;
           lastKeyPage = 1;
           lastKeyPageSpace = ofp->maxLocal - sizeof(SPgno) - nLeftKey;
@@ -2023,16 +2023,29 @@ int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   memcpy(pKey, cd.pKey, (size_t)cd.kLen);
 
   if (ppVal) {
-    // TODO: vLen may be zero
-    pVal = tdbRealloc(*ppVal, cd.vLen);
-    if (pVal == NULL) {
-      tdbFree(pKey);
-      return terrno;
+    if (cd.vLen > 0) {
+      pVal = tdbRealloc(*ppVal, cd.vLen);
+      if (pVal == NULL) {
+        tdbFree(pKey);
+        return terrno;
+      }
+
+      memcpy(pVal, cd.pVal, (size_t)cd.vLen);
+      if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+        tdbTrace("tdb/btree-next decoder: %p pVal free: %p", &cd, cd.pVal);
+        tdbFree(cd.pVal);
+      }
+    } else {
+      pVal = NULL;
     }
 
     *ppVal = pVal;
     *vLen = cd.vLen;
-    memcpy(pVal, cd.pVal, (size_t)cd.vLen);
+  } else {
+    if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+      tdbTrace("tdb/btree-next2 decoder: %p pVal free: %p", &cd, cd.pVal);
+      tdbFree(cd.pVal);
+    }
   }
 
   ret = tdbBtcMoveToPrev(pBtc);

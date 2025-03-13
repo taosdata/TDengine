@@ -417,7 +417,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   pVnode->path = (char *)&pVnode[1];
-  tstrncpy(pVnode->path, path, strlen(path) + 1);
+  memcpy(pVnode->path, path, strlen(path) + 1);
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.commitTerm = info.state.commitTerm;
@@ -437,11 +437,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
-
-  if (vnodeAChannelInit(1, &pVnode->commitChannel) != 0) {
-    vError("vgId:%d, failed to init commit channel", TD_VID(pVnode));
-    goto _err;
-  }
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -558,10 +553,6 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vnodeAWait(&pVnode->commitTask);
-    if (vnodeAChannelDestroy(&pVnode->commitChannel, true) != 0) {
-      vError("vgId:%d, failed to destroy commit channel", TD_VID(pVnode));
-    }
-
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);

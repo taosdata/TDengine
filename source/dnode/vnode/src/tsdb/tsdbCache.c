@@ -610,6 +610,7 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
   int32_t     nCol;
   SArray     *ctxArray = pTsdb->rCache.ctxArray;
   STsdbRowKey tsdbRowKey = {0};
+  STSDBRowIter iter = {0};
 
   STbData *pIMem = tsdbGetTbDataFromMemTable(imem, suid, uid);
 
@@ -641,7 +642,6 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
 
   tsdbRowGetKey(pMemRow, &tsdbRowKey);
 
-  STSDBRowIter iter = {0};
   TAOS_CHECK_EXIT(tsdbRowIterOpen(&iter, pMemRow, pTSchema));
 
   int32_t iCol = 0;
@@ -685,7 +685,6 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
     STsdbRowKey tsdbRowKey = {0};
     tsdbRowGetKey(pMemRow, &tsdbRowKey);
 
-    STSDBRowIter iter = {0};
     TAOS_CHECK_EXIT(tsdbRowIterOpen(&iter, pMemRow, pTSchema));
 
     int32_t iCol = 0;
@@ -1716,7 +1715,7 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
       uint8_t colType = tColDataGetBitValue(pColData, tRow.iRow);
       if (colType == 2) {
         SColVal colVal = COL_VAL_NONE(pColData->cid, pColData->type);
-        tColDataGetValue(pColData, tRow.iRow, &colVal);
+        TAOS_CHECK_GOTO(tColDataGetValue(pColData, tRow.iRow, &colVal), &lino, _exit);
 
         SLastUpdateCtx updateCtx = {.lflag = LFLAG_LAST, .tsdbRowKey = tsdbRowKey, .colVal = colVal};
         if (!taosArrayPush(ctxArray, &updateCtx)) {
@@ -2470,6 +2469,7 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
   int            numKeys = TARRAY_SIZE(pCidList);
   MemNextRowIter iter = {0};
   SSHashObj     *iColHash = NULL;
+  STSDBRowIter   rowIter = {0};
 
   // 1, get from mem, imem filtered with delete info
   TAOS_CHECK_EXIT(memRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pReadSnap, pr));
@@ -2490,7 +2490,6 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
   STsdbRowKey rowKey = {0};
   tsdbRowGetKey(pRow, &rowKey);
 
-  STSDBRowIter rowIter = {0};
   TAOS_CHECK_EXIT(tsdbRowIterOpen(&rowIter, pRow, pTSchema));
 
   int32_t iCol = 0, jCol = 0, jnCol = TARRAY_SIZE(pLastArray);
@@ -2564,7 +2563,6 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
       STsdbRowKey tsdbRowKey = {0};
       tsdbRowGetKey(pRow, &tsdbRowKey);
 
-      STSDBRowIter rowIter = {0};
       TAOS_CHECK_EXIT(tsdbRowIterOpen(&rowIter, pRow, pTSchema));
 
       iCol = 0;
@@ -2635,23 +2633,15 @@ _exit:
 }
 
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey) {
-  int32_t code = 0, lino = 0;
-  // fetch schema
+  int32_t   code = 0, lino = 0;
   STSchema *pTSchema = NULL;
   int       sver = -1;
+  int       numKeys = 0;
+  SArray   *remainCols = NULL;
 
   TAOS_CHECK_RETURN(metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema));
 
-  // build keys & multi get from rocks
-  int     numCols = pTSchema->numOfCols;
-  int     numKeys = 0;
-  SArray *remainCols = NULL;
-
-  code = tsdbCacheCommit(pTsdb);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, %s commit failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-  }
+  int numCols = pTSchema->numOfCols;
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 

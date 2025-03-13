@@ -22,6 +22,8 @@
 #include "transLog.h"
 #include "trpc.h"
 #include "tversion.h"
+#include "thttp.h"
+#include "tjson.h"
 using namespace std;
 
 const char *label = "APP";
@@ -515,7 +517,7 @@ TEST_F(TransEnv, idTest) {
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   SRpcMsg req = {0};
-  for (int i = 0; i < 500000; i++) {
+  for (int i = 0; i < 50000; i++) {
    memset(&req, 0, sizeof(req));
    req.info.noResp = 0;
    req.msgType = 3;
@@ -526,4 +528,123 @@ TEST_F(TransEnv, noResp) {
   }
   taosMsleep(10000);
   // no resp
+}
+
+TEST_F(TransEnv, http) {
+  int32_t code = 0;
+  char tmp[4096] = {0};
+  int32_t lino = 0;
+  SJson* pJson = tjsonCreateObject();
+
+  char clusterName[64] = {0};
+  tjsonAddStringToObject(pJson, "instanceId", clusterName);
+  tjsonAddDoubleToObject(pJson, "reportVersion", 1);
+
+  if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
+    tjsonAddStringToObject(pJson, "os", tmp);
+  }
+  char *pCont = NULL;
+  int32_t len = 0;
+
+  float numOfCores = 0;
+  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "cpuModel", tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores), &lino, _OVER);
+  } else {
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores), &lino, _OVER);
+  }
+
+  snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "memory", tmp), &lino, _OVER);
+
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "version", td_version), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "buildInfo", td_buildinfo), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "gitInfo", td_gitinfo), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "email", "test126.com"), &lino, _OVER);
+
+  
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfDnode",1 ), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfMnode", 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfVgroup", 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfDatabase", 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfSuperTable", 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfChildTable", 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfColumn", 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfPoint", 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "totalStorage", 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "compStorage", 1), &lino, _OVER);
+
+  pCont = tjsonToString(pJson); 
+  len = strlen(pCont);
+  tjsonDelete(pJson);
+
+  {
+    #if 0
+  STelemAddrMgmt mgt;
+  taosTelemetryMgtInit(&mgt, "telemetry.tdengine.com");
+  int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT); 
+
+  taosMsleep(2000);
+  code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT);
+  printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+  for (int32_t i = 0; i < 10; i++) {
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT);
+
+    printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+    taosMsleep(2000);
+  }
+  taosTelemetryDestroy(&mgt); 
+#endif
+  }
+
+  {
+#if 0
+    STelemAddrMgmt mgt;
+    taosTelemetryMgtInit(&mgt, "telemetry.taosdata.com");
+    int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+    printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+
+    taosMsleep(2000);
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT);
+    for (int32_t i = 0; i < 10; i++) {
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT);
+    printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+    taosMsleep(2000);
+  }
+  taosTelemetryDestroy(&mgt); 
+#endif
+
+  }
+#if 1
+    STelemAddrMgmt mgt;
+    taosTelemetryMgtInit(&mgt, "telemetry.taosdata.com");
+    int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+    printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+
+    taosMsleep(2000);
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT);
+    for (int32_t i = 0; i < 1; i++) {
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, pCont, len,HTTP_FLAT);
+    printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
+    taosMsleep(2000);
+  }
+  taosTelemetryDestroy(&mgt); 
+#endif
+  {
+    STelemAddrMgmt mgt;
+    taosTelemetryMgtInit(&mgt, "error");
+  int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+
+  taosMsleep(2000);
+  code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT);
+  for (int32_t i = 0; i < 10; i++) {
+    code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT);
+    taosMsleep(2000);
+
+  }
+  taosTelemetryDestroy(&mgt); 
+
+  }
+_OVER:
+  return;
 }

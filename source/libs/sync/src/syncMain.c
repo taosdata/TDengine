@@ -422,13 +422,11 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   SyncIndex minMatchIndex = SYNC_INDEX_INVALID;
 
-  if (pSyncNode->peersNum > 0) {
-    minMatchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[0]));
-  }
-
-  for (int32_t i = 1; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
-    if (matchIndex < minMatchIndex) {
+    if (minMatchIndex == SYNC_INDEX_INVALID) {
+      minMatchIndex = matchIndex;
+    } else if (matchIndex > 0 && matchIndex < minMatchIndex) {
       minMatchIndex = matchIndex;
     }
   }
@@ -1006,8 +1004,8 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
     sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:%" PRId64 " at %d", pSyncNode->vgId, pData->rid,
            pData->destId.addr, pSyncTimer->timerMS);
 
-    bool stopped = taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid), syncEnv()->pTimerManager,
-                                &pSyncTimer->pTimer);
+    bool stopped = taosTmrResetPriority(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid),
+                                        syncEnv()->pTimerManager, &pSyncTimer->pTimer, 2);
     if (stopped) {
       sError("vgId:%d, failed to reset hb timer success", pSyncNode->vgId);
       return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -1655,8 +1653,8 @@ ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->raftCfg
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   if (syncIsInit()) {
-    bool stopped = taosTmrReset(pSyncNode->FpPingTimerCB, pSyncNode->pingTimerMS, (void*)pSyncNode->rid,
-                                syncEnv()->pTimerManager, &pSyncNode->pPingTimer);
+    bool stopped = taosTmrResetPriority(pSyncNode->FpPingTimerCB, pSyncNode->pingTimerMS, (void*)pSyncNode->rid,
+                                        syncEnv()->pTimerManager, &pSyncNode->pPingTimer, 2);
     if (stopped) {
       sError("vgId:%d, failed to reset ping timer, ms:%d", pSyncNode->vgId, pSyncNode->pingTimerMS);
       return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -2793,8 +2791,8 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
       if (syncIsInit()) {
         sTrace("vgId:%d, reset peer hb timer at %d", pSyncNode->vgId, pSyncTimer->timerMS);
-        bool stopped = taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid,
-                                    syncEnv()->pTimerManager, &pSyncTimer->pTimer);
+        bool stopped = taosTmrResetPriority(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid,
+                                            syncEnv()->pTimerManager, &pSyncTimer->pTimer, 2);
         if (stopped) sError("vgId:%d, reset peer hb timer error, %s", pSyncNode->vgId, tstrerror(code));
 
       } else {
@@ -3430,7 +3428,8 @@ _out:;
            ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-    TAOS_CHECK_RETURN(syncNodeUpdateAssignedCommitIndex(ths, matchIndex));
+    int64_t index = syncNodeUpdateAssignedCommitIndex(ths, matchIndex);
+    sTrace("vgId:%d, update assigned commit index %" PRId64 "", ths->vgId, index);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
         syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex) < 0) {

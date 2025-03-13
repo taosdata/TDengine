@@ -1403,7 +1403,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   }
 
   (*ptrBuf)[totalBytesRead] = '\0';
-  ret = totalBytesRead;
+  ret = (totalBytesRead > 0 ? totalBytesRead : -1); // -1 means EOF
 #else
   size_t len = 0;
   ret = getline(ptrBuf, &len, pFile->fp);

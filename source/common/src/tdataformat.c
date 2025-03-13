@@ -449,9 +449,11 @@ static int32_t tBindInfoCompare(const void *p1, const void *p2, const void *para
  * `infoSorted` is whether the bind information is sorted by column id
  * `pTSchema` is the schema of the table
  * `rowArray` is the array to store the rows
+ * `pOrdered` is the pointer to store ordered
+ * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                          SArray *rowArray) {
+                          SArray *rowArray, bool *pOrdered, bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -469,6 +471,7 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     return terrno;
   }
 
+  SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
 
@@ -506,6 +509,22 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    if (pOrdered && pDupTs) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        *pOrdered = true;
+        *pDupTs = false;
+      } else {
+        // no more compare if we already get disordered or duplicate rows
+        if (*pOrdered && !*pDupTs) {
+          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (code >= 0);
+          *pDupTs = (code == 0);
+        }
+      }
+      lastRowKey = rowKey;
     }
   }
 
@@ -2652,8 +2671,13 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue6,  // HAS_VALUE | HAS_NULL
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
-void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+  if (iVal < 0 || iVal >= pColData->nVal ||
+      (pColData->flag <= 0 || pColData->flag >= sizeof(tColDataGetValueImpl) / POINTER_BYTES)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
+  return TSDB_CODE_SUCCESS;
 }
 
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
@@ -3235,9 +3259,11 @@ _exit:
  * `infoSorted` is whether the bind information is sorted by column id
  * `pTSchema` is the schema of the table
  * `rowArray` is the array to store the rows
+ * `pOrdered` is the pointer to store ordered
+ * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray) {
+                           SArray *rowArray, bool *pOrdered, bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -3266,6 +3292,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     }
   }
 
+  SRowKey rowKey, lastRowKey;
   for (int32_t iRow = 0; iRow < numOfRows; iRow++) {
     taosArrayClear(colValArray);
 
@@ -3316,6 +3343,22 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    if (pOrdered && pDupTs) {
+      tRowGetKey(row, &rowKey);
+      if (iRow == 0) {
+        *pOrdered = true;
+        *pDupTs = false;
+      } else {
+        // no more compare if we already get disordered or duplicate rows
+        if (*pOrdered && !*pDupTs) {
+          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (code >= 0);
+          *pDupTs = (code == 0);
+        }
+      }
+      lastRowKey = rowKey;
     }
   }
 
@@ -3398,7 +3441,10 @@ static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, S
 
   for (int32_t i = 0; i < nColData; i++) {
     SColVal cv = {0};
-    tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    code = tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
     code = tColDataAppendValue(&aToColData[i], &cv);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -3537,7 +3583,10 @@ static int32_t tColDataMerge(SArray **colArr) {
         SColData *dstCol = taosArrayGet(dst, j);
 
         SColVal cv;
-        tColDataGetValue(srcCol, i, &cv);
+        code = tColDataGetValue(srcCol, i, &cv);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
         code = tColDataAppendValue(dstCol, &cv);
         if (code) {
           goto _exit;
@@ -3550,7 +3599,10 @@ static int32_t tColDataMerge(SArray **colArr) {
         SColData *dstCol = taosArrayGet(dst, j);
 
         SColVal cv;
-        tColDataGetValue(srcCol, i, &cv);
+        code = tColDataGetValue(srcCol, i, &cv);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
         code = tColDataUpdateValue(dstCol, &cv, true);
         if (code) {
           goto _exit;
@@ -3637,25 +3689,25 @@ _exit:
   return 0;
 }
 
-static int32_t tPutColDataVersion0(uint8_t *pBuf, SColData *pColData) {
-  int32_t n = 0;
+static int32_t tEncodeColDataVersion0(SEncoder *pEncoder, SColData *pColData) {
+  int32_t code = 0;
 
-  n += tPutI16v(pBuf ? pBuf + n : NULL, pColData->cid);
-  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->type);
-  n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nVal);
-  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->flag);
+  if ((code = tEncodeI16v(pEncoder, pColData->cid))) return code;
+  if ((code = tEncodeI8(pEncoder, pColData->type))) return code;
+  if ((code = tEncodeI32v(pEncoder, pColData->nVal))) return code;
+  if ((code = tEncodeI8(pEncoder, pColData->flag))) return code;
 
   // bitmap
   switch (pColData->flag) {
     case (HAS_NULL | HAS_NONE):
     case (HAS_VALUE | HAS_NONE):
     case (HAS_VALUE | HAS_NULL):
-      if (pBuf) (void)memcpy(pBuf + n, pColData->pBitMap, BIT1_SIZE(pColData->nVal));
-      n += BIT1_SIZE(pColData->nVal);
+      code = tEncodeFixed(pEncoder, pColData->pBitMap, BIT1_SIZE(pColData->nVal));
+      if (code) return code;
       break;
     case (HAS_VALUE | HAS_NULL | HAS_NONE):
-      if (pBuf) (void)memcpy(pBuf + n, pColData->pBitMap, BIT2_SIZE(pColData->nVal));
-      n += BIT2_SIZE(pColData->nVal);
+      code = tEncodeFixed(pEncoder, pColData->pBitMap, BIT2_SIZE(pColData->nVal));
+      if (code) return code;
       break;
     default:
       break;
@@ -3664,40 +3716,46 @@ static int32_t tPutColDataVersion0(uint8_t *pBuf, SColData *pColData) {
   // value
   if (pColData->flag & HAS_VALUE) {
     if (IS_VAR_DATA_TYPE(pColData->type)) {
-      if (pBuf) (void)memcpy(pBuf + n, pColData->aOffset, pColData->nVal << 2);
-      n += (pColData->nVal << 2);
+      code = tEncodeFixed(pEncoder, pColData->aOffset, pColData->nVal << 2);
+      if (code) return code;
 
-      n += tPutI32v(pBuf ? pBuf + n : NULL, pColData->nData);
-      if (pBuf) (void)memcpy(pBuf + n, pColData->pData, pColData->nData);
-      n += pColData->nData;
+      code = tEncodeI32v(pEncoder, pColData->nData);
+      if (code) return code;
+
+      code = tEncodeFixed(pEncoder, pColData->pData, pColData->nData);
+      if (code) return code;
     } else {
-      if (pBuf) (void)memcpy(pBuf + n, pColData->pData, pColData->nData);
-      n += pColData->nData;
+      code = tEncodeFixed(pEncoder, pColData->pData, pColData->nData);
+      if (code) return code;
     }
   }
 
-  return n;
+  return code;
 }
 
-static int32_t tGetColDataVersion0(uint8_t *pBuf, SColData *pColData) {
-  int32_t n = 0;
+static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
+  int32_t code = 0;
 
-  n += tGetI16v(pBuf + n, &pColData->cid);
-  n += tGetI8(pBuf + n, &pColData->type);
-  n += tGetI32v(pBuf + n, &pColData->nVal);
-  n += tGetI8(pBuf + n, &pColData->flag);
+  if ((code = tDecodeI16v(pDecoder, &pColData->cid))) return code;
+  if ((code = tDecodeI8(pDecoder, &pColData->type))) return code;
+  if ((code = tDecodeI32v(pDecoder, &pColData->nVal))) return code;
+  if ((code = tDecodeI8(pDecoder, &pColData->flag))) return code;
+
+  if (pColData->type <= 0 || pColData->type >= TSDB_DATA_TYPE_MAX || pColData->flag <= 0 || pColData->flag >= 8) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   // bitmap
   switch (pColData->flag) {
     case (HAS_NULL | HAS_NONE):
     case (HAS_VALUE | HAS_NONE):
     case (HAS_VALUE | HAS_NULL):
-      pColData->pBitMap = pBuf + n;
-      n += BIT1_SIZE(pColData->nVal);
+      code = tDecodeBinaryWithSize(pDecoder, BIT1_SIZE(pColData->nVal), &pColData->pBitMap);
+      if (code) return code;
       break;
     case (HAS_VALUE | HAS_NULL | HAS_NONE):
-      pColData->pBitMap = pBuf + n;
-      n += BIT2_SIZE(pColData->nVal);
+      code = tDecodeBinaryWithSize(pDecoder, BIT2_SIZE(pColData->nVal), &pColData->pBitMap);
+      if (code) return code;
       break;
     default:
       break;
@@ -3706,53 +3764,72 @@ static int32_t tGetColDataVersion0(uint8_t *pBuf, SColData *pColData) {
   // value
   if (pColData->flag & HAS_VALUE) {
     if (IS_VAR_DATA_TYPE(pColData->type)) {
-      pColData->aOffset = (int32_t *)(pBuf + n);
-      n += (pColData->nVal << 2);
+      code = tDecodeBinaryWithSize(pDecoder, pColData->nVal << 2, (uint8_t **)&pColData->aOffset);
+      if (code) return code;
 
-      n += tGetI32v(pBuf + n, &pColData->nData);
-      pColData->pData = pBuf + n;
-      n += pColData->nData;
+      code = tDecodeI32v(pDecoder, &pColData->nData);
+      if (code) return code;
+
+      code = tDecodeBinaryWithSize(pDecoder, pColData->nData, &pColData->pData);
+      if (code) return code;
     } else {
-      pColData->pData = pBuf + n;
       pColData->nData = TYPE_BYTES[pColData->type] * pColData->nVal;
-      n += pColData->nData;
+      code = tDecodeBinaryWithSize(pDecoder, pColData->nData, &pColData->pData);
+      if (code) return code;
     }
   }
   pColData->cflag = 0;
 
-  return n;
+  return code;
 }
 
-static int32_t tPutColDataVersion1(uint8_t *pBuf, SColData *pColData) {
-  int32_t n = tPutColDataVersion0(pBuf, pColData);
-  n += tPutI8(pBuf ? pBuf + n : NULL, pColData->cflag);
-  return n;
+static int32_t tEncodeColDataVersion1(SEncoder *pEncoder, SColData *pColData) {
+  int32_t code = tEncodeColDataVersion0(pEncoder, pColData);
+  if (code) return code;
+  return tEncodeI8(pEncoder, pColData->cflag);
 }
 
-static int32_t tGetColDataVersion1(uint8_t *pBuf, SColData *pColData) {
-  int32_t n = tGetColDataVersion0(pBuf, pColData);
-  n += tGetI8(pBuf ? pBuf + n : NULL, &pColData->cflag);
-  return n;
+static int32_t tDecodeColDataVersion1(SDecoder *pDecoder, SColData *pColData) {
+  int32_t code = tDecodeColDataVersion0(pDecoder, pColData);
+  if (code) return code;
+
+  code = tDecodeI8(pDecoder, &pColData->cflag);
+  return code;
 }
 
-int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData) {
+int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData) {
   if (version == 0) {
-    return tPutColDataVersion0(pBuf, pColData);
+    return tEncodeColDataVersion0(pEncoder, pColData);
   } else if (version == 1) {
-    return tPutColDataVersion1(pBuf, pColData);
+    return tEncodeColDataVersion1(pEncoder, pColData);
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
 }
 
-int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData) {
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData) {
   if (version == 0) {
-    return tGetColDataVersion0(pBuf, pColData);
+    return tDecodeColDataVersion0(pDecoder, pColData);
   } else if (version == 1) {
-    return tGetColDataVersion1(pBuf, pColData);
+    return tDecodeColDataVersion1(pDecoder, pColData);
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
+}
+
+int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow) { return tEncodeFixed(pEncoder, pRow, pRow->len); }
+
+int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow) {
+  if (ppRow == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pDecoder->pos + sizeof(SRow) > pDecoder->size) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  SRow *pRow = (SRow *)(pDecoder->data + pDecoder->pos);
+  return tDecodeBinaryWithSize(pDecoder, pRow->len, (uint8_t **)ppRow);
 }
 
 #define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \

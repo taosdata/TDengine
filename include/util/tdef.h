@@ -17,6 +17,7 @@
 #define _TD_UTIL_DEF_H_
 
 #include "os.h"
+#include "cus_name.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,14 +78,6 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_DEFAULT_PASS "prodb"
 #else
 #define TSDB_DEFAULT_PASS "taosdata"
-#endif
-
-#ifndef TD_PRODUCT_NAME
-#ifdef TD_ENTERPRISE
-#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
-#else
-#define TD_PRODUCT_NAME "TDengine Community Edition"
-#endif
 #endif
 
 #define TSDB_TRUE  1
@@ -456,13 +449,13 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 #define TSDB_MIN_STT_TRIGGER            1
-#ifdef TD_ENTERPRISE
+// #ifdef TD_ENTERPRISE
 #define TSDB_MAX_STT_TRIGGER     16
 #define TSDB_DEFAULT_SST_TRIGGER 2
-#else
-#define TSDB_MAX_STT_TRIGGER     1
-#define TSDB_DEFAULT_SST_TRIGGER 1
-#endif
+// #else
+// #define TSDB_MAX_STT_TRIGGER     1
+// #define TSDB_DEFAULT_SST_TRIGGER 1
+// #endif
 #define TSDB_STT_TRIGGER_ARRAY_SIZE 16  // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
 #define TSDB_MIN_HASH_PREFIX        (2 - TSDB_TABLE_NAME_LEN)
 #define TSDB_MAX_HASH_PREFIX        (TSDB_TABLE_NAME_LEN - 2)
@@ -558,6 +551,7 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_CLEAR_TYPE(x, _type) ((x) &= (~_type))
 #define TSDB_QUERY_RESET_TYPE(x)        ((x) = TSDB_QUERY_TYPE_NON_TYPE)
 
+#define TSDB_ORDER_NONE 0
 #define TSDB_ORDER_ASC  1
 #define TSDB_ORDER_DESC 2
 
@@ -659,10 +653,18 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define AUDIT_OPERATION_LEN 20
 
 typedef enum {
-  ANAL_ALGO_TYPE_ANOMALY_DETECT = 0,
-  ANAL_ALGO_TYPE_FORECAST = 1,
-  ANAL_ALGO_TYPE_END,
+  ANALY_ALGO_TYPE_ANOMALY_DETECT = 0,
+  ANALY_ALGO_TYPE_FORECAST = 1,
+  ANALY_ALGO_TYPE_END,
 } EAnalAlgoType;
+
+typedef enum {
+  TSDB_VERSION_UNKNOWN = 0,
+  TSDB_VERSION_OSS,
+  TSDB_VERSION_ENTERPRISE,
+  TSDB_VERSION_CLOUD,
+  TSDB_VERSION_END,
+} EVersionType;
 
 #define MIN_RESERVE_MEM_SIZE 1024 // MB
 

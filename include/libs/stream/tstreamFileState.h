@@ -59,6 +59,7 @@ int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t k
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                    int32_t* pWinCode);
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
+void    deleteRowBuffByGroupId(SStreamFileState* pFileState, uint64_t groupId);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
 bool    hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
 int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
@@ -67,7 +68,6 @@ SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
 void             flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState);
 int32_t          recoverSnapshot(SStreamFileState* pFileState, int64_t ckId);
 
-int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark);
 int32_t streamFileStateGetSelectRowSize(SStreamFileState* pFileState);
 void    streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts);

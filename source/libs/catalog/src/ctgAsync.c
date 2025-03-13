@@ -861,6 +861,16 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
                     userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum;
+  int32_t taskNumWithSubTasks = tbMetaNum * gCtgAsyncFps[CTG_TASK_GET_TB_META].subTaskFactor + dbVgNum * gCtgAsyncFps[CTG_TASK_GET_DB_VGROUP].subTaskFactor +
+                                udfNum * gCtgAsyncFps[CTG_TASK_GET_UDF].subTaskFactor + tbHashNum * gCtgAsyncFps[CTG_TASK_GET_TB_HASH].subTaskFactor +
+                                qnodeNum * gCtgAsyncFps[CTG_TASK_GET_QNODE].subTaskFactor + dnodeNum * gCtgAsyncFps[CTG_TASK_GET_DNODE].subTaskFactor +
+                                svrVerNum * gCtgAsyncFps[CTG_TASK_GET_SVR_VER].subTaskFactor + dbCfgNum * gCtgAsyncFps[CTG_TASK_GET_DB_CFG].subTaskFactor +
+                                indexNum * gCtgAsyncFps[CTG_TASK_GET_INDEX_INFO].subTaskFactor + userNum * gCtgAsyncFps[CTG_TASK_GET_USER].subTaskFactor +
+                                dbInfoNum * gCtgAsyncFps[CTG_TASK_GET_DB_INFO].subTaskFactor + tbIndexNum * gCtgAsyncFps[CTG_TASK_GET_TB_SMA_INDEX].subTaskFactor +
+                                tbCfgNum * gCtgAsyncFps[CTG_TASK_GET_TB_CFG].subTaskFactor + tbTagNum * gCtgAsyncFps[CTG_TASK_GET_TB_TAG].subTaskFactor +
+                                viewNum * gCtgAsyncFps[CTG_TASK_GET_VIEW].subTaskFactor + tbTsmaNum * gCtgAsyncFps[CTG_TASK_GET_TB_TSMA].subTaskFactor +
+                                tsmaNum * gCtgAsyncFps[CTG_TASK_GET_TSMA].subTaskFactor + tbNameNum * gCtgAsyncFps[CTG_TASK_GET_TB_NAME].subTaskFactor;
+
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
   if (NULL == *job) {
     ctgError("failed to calloc, size:%d,QID:0x%" PRIx64, (int32_t)sizeof(SCtgJob), pConn->requestId);
@@ -905,7 +915,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   }
 #endif
 
-  pJob->pTasks = taosArrayInit(taskNum, sizeof(SCtgTask));
+  pJob->pTasks = taosArrayInit(taskNumWithSubTasks, sizeof(SCtgTask));
   if (NULL == pJob->pTasks) {
     ctgError("taosArrayInit %d tasks failed", taskNum);
     CTG_ERR_JRET(terrno);
@@ -1960,7 +1970,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   switch (reqType) {
     case TDMT_MND_USE_DB: {
       SUseDbOutput* pOut = (SUseDbOutput*)pMsgCtx->out;
-      CTG_ERR_RET(ctgMakeVgArray(pOut->dbVgroup));
+      CTG_ERR_RET(ctgMakeVgArray(pOut->dbVgroup, pName->dbname, false));
       SArray* pVgArray = NULL;
       TSWAP(pVgArray, pOut->dbVgroup->vgArray);
       int32_t vgSize = taosArrayGetSize(pVgArray);
@@ -2132,7 +2142,7 @@ int32_t ctgHandleGetDbVgRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
       SUseDbOutput* pOut = (SUseDbOutput*)pTask->msgCtx.out;
       SDBVgInfo*    pDb = NULL;
 
-      CTG_ERR_JRET(ctgGenerateVgList(pCtg, pOut->dbVgroup->vgHash, (SArray**)&pTask->res));
+      CTG_ERR_JRET(ctgGenerateVgList(pCtg, pOut->dbVgroup->vgHash, (SArray**)&pTask->res, ctx->dbFName));
 
       CTG_ERR_JRET(cloneDbVgInfo(pOut->dbVgroup, &pDb));
       CTG_ERR_JRET(ctgUpdateVgroupEnqueue(pCtg, ctx->dbFName, pOut->dbId, pDb, false));
@@ -3165,7 +3175,7 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask* pTask) {
       CTG_ERR_JRET(ctgBuildUseDbOutput((SUseDbOutput**)&pMsgCtx->out, dbCache->vgCache.vgInfo));
     }
 
-    CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res));
+    CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res, pCtx->dbFName));
 
     ctgReleaseVgInfoToCache(pCtg, dbCache);
     dbCache = NULL;
@@ -4178,27 +4188,27 @@ int32_t ctgCloneDbVg(SCtgTask* pTask, void** pRes) {
 }
 
 SCtgAsyncFps gCtgAsyncFps[] = {
-    {ctgInitGetQnodeTask, ctgLaunchGetQnodeTask, ctgHandleGetQnodeRsp, ctgDumpQnodeRes, NULL, NULL},
-    {ctgInitGetDnodeTask, ctgLaunchGetDnodeTask, ctgHandleGetDnodeRsp, ctgDumpDnodeRes, NULL, NULL},
-    {ctgInitGetDbVgTask, ctgLaunchGetDbVgTask, ctgHandleGetDbVgRsp, ctgDumpDbVgRes, ctgCompDbVgTasks, ctgCloneDbVg},
-    {ctgInitGetDbCfgTask, ctgLaunchGetDbCfgTask, ctgHandleGetDbCfgRsp, ctgDumpDbCfgRes, NULL, NULL},
-    {ctgInitGetDbInfoTask, ctgLaunchGetDbInfoTask, ctgHandleGetDbInfoRsp, ctgDumpDbInfoRes, NULL, NULL},
+    {ctgInitGetQnodeTask, ctgLaunchGetQnodeTask, ctgHandleGetQnodeRsp, ctgDumpQnodeRes, NULL, NULL, 1},
+    {ctgInitGetDnodeTask, ctgLaunchGetDnodeTask, ctgHandleGetDnodeRsp, ctgDumpDnodeRes, NULL, NULL, 1},
+    {ctgInitGetDbVgTask, ctgLaunchGetDbVgTask, ctgHandleGetDbVgRsp, ctgDumpDbVgRes, ctgCompDbVgTasks, ctgCloneDbVg, 1},
+    {ctgInitGetDbCfgTask, ctgLaunchGetDbCfgTask, ctgHandleGetDbCfgRsp, ctgDumpDbCfgRes, NULL, NULL, 1},
+    {ctgInitGetDbInfoTask, ctgLaunchGetDbInfoTask, ctgHandleGetDbInfoRsp, ctgDumpDbInfoRes, NULL, NULL, 1},
     {ctgInitGetTbMetaTask, ctgLaunchGetTbMetaTask, ctgHandleGetTbMetaRsp, ctgDumpTbMetaRes, ctgCompTbMetaTasks,
-     ctgCloneTbMeta},
-    {ctgInitGetTbHashTask, ctgLaunchGetTbHashTask, ctgHandleGetTbHashRsp, ctgDumpTbHashRes, NULL, NULL},
-    {ctgInitGetTbIndexTask, ctgLaunchGetTbIndexTask, ctgHandleGetTbIndexRsp, ctgDumpTbIndexRes, NULL, NULL},
-    {ctgInitGetTbCfgTask, ctgLaunchGetTbCfgTask, ctgHandleGetTbCfgRsp, ctgDumpTbCfgRes, NULL, NULL},
-    {ctgInitGetIndexTask, ctgLaunchGetIndexTask, ctgHandleGetIndexRsp, ctgDumpIndexRes, NULL, NULL},
-    {ctgInitGetUdfTask, ctgLaunchGetUdfTask, ctgHandleGetUdfRsp, ctgDumpUdfRes, NULL, NULL},
-    {ctgInitGetUserTask, ctgLaunchGetUserTask, ctgHandleGetUserRsp, ctgDumpUserRes, NULL, NULL},
-    {ctgInitGetSvrVerTask, ctgLaunchGetSvrVerTask, ctgHandleGetSvrVerRsp, ctgDumpSvrVer, NULL, NULL},
-    {ctgInitGetTbMetasTask, ctgLaunchGetTbMetasTask, ctgHandleGetTbMetasRsp, ctgDumpTbMetasRes, NULL, NULL},
-    {ctgInitGetTbHashsTask, ctgLaunchGetTbHashsTask, ctgHandleGetTbHashsRsp, ctgDumpTbHashsRes, NULL, NULL},
-    {ctgInitGetTbTagTask, ctgLaunchGetTbTagTask, ctgHandleGetTbTagRsp, ctgDumpTbTagRes, NULL, NULL},
-    {ctgInitGetViewsTask, ctgLaunchGetViewsTask, ctgHandleGetViewsRsp, ctgDumpViewsRes, NULL, NULL},
-    {ctgInitGetTbTSMATask, ctgLaunchGetTbTSMATask, ctgHandleGetTbTSMARsp, ctgDumpTbTSMARes, NULL, NULL},
-    {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL},
-    {ctgInitGetTbNamesTask, ctgLaunchGetTbNamesTask, ctgHandleGetTbNamesRsp, ctgDumpTbNamesRes, NULL, NULL},
+     ctgCloneTbMeta, 1},
+    {ctgInitGetTbHashTask, ctgLaunchGetTbHashTask, ctgHandleGetTbHashRsp, ctgDumpTbHashRes, NULL, NULL, 1},
+    {ctgInitGetTbIndexTask, ctgLaunchGetTbIndexTask, ctgHandleGetTbIndexRsp, ctgDumpTbIndexRes, NULL, NULL, 1},
+    {ctgInitGetTbCfgTask, ctgLaunchGetTbCfgTask, ctgHandleGetTbCfgRsp, ctgDumpTbCfgRes, NULL, NULL, 2},
+    {ctgInitGetIndexTask, ctgLaunchGetIndexTask, ctgHandleGetIndexRsp, ctgDumpIndexRes, NULL, NULL, 1},
+    {ctgInitGetUdfTask, ctgLaunchGetUdfTask, ctgHandleGetUdfRsp, ctgDumpUdfRes, NULL, NULL, 1},
+    {ctgInitGetUserTask, ctgLaunchGetUserTask, ctgHandleGetUserRsp, ctgDumpUserRes, NULL, NULL, 2},
+    {ctgInitGetSvrVerTask, ctgLaunchGetSvrVerTask, ctgHandleGetSvrVerRsp, ctgDumpSvrVer, NULL, NULL, 1},
+    {ctgInitGetTbMetasTask, ctgLaunchGetTbMetasTask, ctgHandleGetTbMetasRsp, ctgDumpTbMetasRes, NULL, NULL, 1},
+    {ctgInitGetTbHashsTask, ctgLaunchGetTbHashsTask, ctgHandleGetTbHashsRsp, ctgDumpTbHashsRes, NULL, NULL, 1},
+    {ctgInitGetTbTagTask, ctgLaunchGetTbTagTask, ctgHandleGetTbTagRsp, ctgDumpTbTagRes, NULL, NULL, 2},
+    {ctgInitGetViewsTask, ctgLaunchGetViewsTask, ctgHandleGetViewsRsp, ctgDumpViewsRes, NULL, NULL, 1},
+    {ctgInitGetTbTSMATask, ctgLaunchGetTbTSMATask, ctgHandleGetTbTSMARsp, ctgDumpTbTSMARes, NULL, NULL, 1},
+    {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL, 1},
+    {ctgInitGetTbNamesTask, ctgLaunchGetTbNamesTask, ctgHandleGetTbNamesRsp, ctgDumpTbNamesRes, NULL, NULL, 1},
 };
 
 int32_t ctgMakeAsyncRes(SCtgJob* pJob) {

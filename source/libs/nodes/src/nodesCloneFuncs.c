@@ -52,7 +52,7 @@
     if (NULL == (pSrc)->fldname) {                                      \
       break;                                                            \
     }                                                                   \
-    int32_t code = nodesCloneNode((pSrc)->fldname, &((pDst)->fldname)); \
+    int32_t code = nodesCloneNode((SNode*)(pSrc)->fldname, (SNode**)&((pDst)->fldname)); \
     if (NULL == (pDst)->fldname) {                                      \
       return code;                                                      \
     }                                                                   \
@@ -102,6 +102,9 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_OBJECT_FIELD(resType, sizeof(SDataType));
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
+  COPY_SCALAR_FIELD(asAlias);
+  COPY_SCALAR_FIELD(asParam);
+  COPY_SCALAR_FIELD(asPosition);
   COPY_SCALAR_FIELD(projIdx);
   return TSDB_CODE_SUCCESS;
 }
@@ -343,8 +346,8 @@ static int32_t orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNod
 }
 
 static int32_t limitNodeCopy(const SLimitNode* pSrc, SLimitNode* pDst) {
-  COPY_SCALAR_FIELD(limit);
-  COPY_SCALAR_FIELD(offset);
+  CLONE_NODE_FIELD(limit);
+  CLONE_NODE_FIELD(offset);
   return TSDB_CODE_SUCCESS;
 }
 

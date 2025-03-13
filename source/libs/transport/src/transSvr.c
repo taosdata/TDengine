@@ -1109,27 +1109,39 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
+  if ((code = uv_accept(q, (uv_stream_t*)(pConn->pTcp))) == 0) {
     uv_os_fd_t fd;
     TAOS_UNUSED(uv_fileno((const uv_handle_t*)pConn->pTcp, &fd));
     tTrace("conn %p created, fd:%d", pConn, fd);
 
-    struct sockaddr peername, sockname;
-    int             addrlen = sizeof(peername);
-    if (0 != uv_tcp_getpeername(pConn->pTcp, (struct sockaddr*)&peername, &addrlen)) {
-      tError("conn %p failed to get peer info", pConn);
+    struct sockaddr_storage peername, sockname;
+    // Get and valid the peer info
+    int addrlen = sizeof(peername);
+    if ((code = uv_tcp_getpeername(pConn->pTcp, (struct sockaddr*)&peername, &addrlen)) != 0) {
+      tError("conn %p failed to get peer info since %s", pConn, uv_strerror(code));
       transUnrefSrvHandle(pConn);
       return;
     }
-    TAOS_UNUSED(transSockInfo2Str(&peername, pConn->dst));
+    if (peername.ss_family != AF_INET) {
+      tError("conn %p failed to get peer info since not support other protocol except ipv4", pConn);
+      transUnrefSrvHandle(pConn);
+      return;
+    }
+    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&peername, pConn->dst));
 
+    // Get and valid the sock info
     addrlen = sizeof(sockname);
-    if (0 != uv_tcp_getsockname(pConn->pTcp, (struct sockaddr*)&sockname, &addrlen)) {
-      tError("conn %p failed to get local info", pConn);
+    if ((code = uv_tcp_getsockname(pConn->pTcp, (struct sockaddr*)&sockname, &addrlen)) != 0) {
+      tError("conn %p failed to get local info since %s", pConn, uv_strerror(code));
       transUnrefSrvHandle(pConn);
       return;
     }
-    TAOS_UNUSED(transSockInfo2Str(&sockname, pConn->src));
+    if (sockname.ss_family != AF_INET) {
+      tError("conn %p failed to get sock info since not support other protocol except ipv4", pConn);
+      transUnrefSrvHandle(pConn);
+      return;
+    }
+    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&sockname, pConn->src));
 
     struct sockaddr_in addr = *(struct sockaddr_in*)&peername;
     struct sockaddr_in saddr = *(struct sockaddr_in*)&sockname;
@@ -1149,7 +1161,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
   } else {
-    tDebug("failed to create new connection");
+    tDebug("failed to create new connection reason %s", uv_err_name(code));
     transUnrefSrvHandle(pConn);
   }
 }

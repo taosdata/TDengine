@@ -16,6 +16,10 @@
 #ifndef _TD_SIM_INT_H_
 #define _TD_SIM_INT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "os.h"
 
 #include "cJSON.h"
@@ -161,8 +165,8 @@ typedef struct _script_t {
   int32_t           type;
   bool              killed;
   void             *taos;
-  char              rows[12];                                                         // number of rows data retrieved
-  char              cols[12];                                                        // number of columns data retrieved
+  char              rows[12];  // number of rows data retrieved
+  char              cols[12];  // number of columns data retrieved
   char              data[MAX_QUERY_ROW_NUM][MAX_QUERY_COL_NUM][MAX_QUERY_VALUE_LEN];  // query results
   char              system_exit_code[12];
   char              system_ret_content[MAX_SYSTEM_RESULT_LEN];
@@ -192,7 +196,7 @@ SScript *simParseScript(char *fileName);
 SScript *simProcessCallOver(SScript *script);
 void    *simExecuteScript(void *script);
 void     simInitsimCmdList();
-bool     simSystemInit();
+void     simSystemInit();
 void     simSystemCleanUp();
 char    *simGetVariable(SScript *script, char *varName, int32_t varLen);
 bool     simExecuteExpCmd(SScript *script, char *option);
@@ -213,5 +217,12 @@ bool     simExecuteLineInsertCmd(SScript *script, char *option);
 bool     simExecuteLineInsertErrorCmd(SScript *script, char *option);
 bool     simExecuteSetBIModeCmd(SScript *script, char *option);
 void     simVisuallizeOption(SScript *script, char *src, char *dst);
+
+int32_t simEntry(int32_t argc, char **argv);
+void    simHandleSignal(int32_t signo, void *sigInfo, void *context);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*_TD_SIM_INT_H_*/

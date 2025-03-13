@@ -180,7 +180,7 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
  */
 int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
-int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode);
+int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitDuration);
 
 bool qTaskIsExecuting(qTaskInfo_t qinfo);
 

@@ -412,7 +412,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
 
   pScan->node.groupAction = GROUP_ACTION_NONE;
-  pScan->node.resultDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  pScan->node.resultDataOrder = (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_GLOBAL;
   if (pCxt->pPlanCxt->streamQuery) {
     pScan->triggerType = pCxt->pPlanCxt->triggerType;
     pScan->watermark = pCxt->pPlanCxt->watermark;

@@ -22,15 +22,11 @@ import imgStep11 from '../../assets/grafana-11.png';
 
 This document describes how to integrate the TDengine data source with the open-source data visualization system [Grafana](https://www.grafana.com/) to achieve data visualization and build a monitoring and alert system. With the TDengine plugin, you can easily display data from TDengine tables on Grafana dashboards without the need for complex development work.
 
-## Grafana Version Requirements
-
-TDengine currently supports Grafana version 7.5 and above. It is recommended to use the latest version. Please download and install the corresponding version of Grafana according to your system environment.
-
 ## Prerequisites
 
 To add the TDengine data source to Grafana normally, the following preparations are needed.
 
-- Grafana service has been deployed and is running normally.  
+- Grafana service has been deployed and is running normally. TDengine currently supports Grafana version 7.5 and above. It is recommended to use the latest version.  
     **Note**: Ensure that the account starting Grafana has write permissions to its installation directory, otherwise you may not be able to install plugins later.
 - TDengine cluster has been deployed and is running normally.
 - taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter/)

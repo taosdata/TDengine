@@ -32,13 +32,15 @@ typedef struct SVnodeMgmt {
   const char           *name;
   SQueryAutoQWorkerPool queryPool;
   SAutoQWorkerPool      streamPool;
+  SAutoQWorkerPool      streamLongExecPool;
+  SWWorkerPool          streamCtrlPool;
   SWWorkerPool          fetchPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
   SHashObj             *runngingHash;
   SHashObj             *closedHash;
   SHashObj             *creatingHash;
-  TdThreadRwlock        lock;
+  TdThreadRwlock        hashLock;
   TdThreadMutex         mutex;
   SVnodesStat           state;
   STfs                 *pTfs;
@@ -73,6 +75,8 @@ typedef struct {
   SMultiWorker pApplyW;
   STaosQueue  *pQueryQ;
   STaosQueue  *pStreamQ;
+  STaosQueue  *pStreamCtrlQ;
+  STaosQueue  *pStreamLongExecQ;
   STaosQueue  *pFetchQ;
   STaosQueue  *pMultiMgmQ;
 } SVnodeObj;
@@ -134,6 +138,9 @@ int32_t vmPutMsgToSyncRdQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToStreamCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToStreamLongExecQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
 int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMultiMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);

@@ -71,12 +71,7 @@ typedef TdFilePtr tdb_fd_t;
 #define tdbGetDirEntryName            taosGetDirEntryName
 #define tdbDirEntryBaseName           taosDirEntryBaseName
 
-static FORCE_INLINE void tdbCloseDir(TdDirPtr *ppDir) {
-  int32_t ret = taosCloseDir(ppDir);
-  if (ret) {
-    tdbError("failed to close directory, reason:%s", tstrerror(ret));
-  }
-}
+void tdbCloseDir(TdDirPtr *ppDir);
 
 #define tdbOsRemove              remove
 #define tdbOsFileSize(FD, PSIZE) taosFStatFile(FD, PSIZE, NULL)

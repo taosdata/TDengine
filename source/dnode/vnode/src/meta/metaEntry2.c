@@ -10,14 +10,16 @@
 
 #include "meta.h"
 
+extern SDmNotifyHandle dmNotifyHdl;
+
 int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry);
 void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
-void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
 int     tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
+static void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
 static int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **childList);
 static int32_t metaFetchTagIdxKey(SMeta *pMeta, const SMetaEntry *pEntry, const SSchema *pTagColumn,
                                   STagIdxKey **ppTagIdxKey, int32_t *pTagIdxKeySize);
@@ -990,6 +992,20 @@ static int32_t metaTtlIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
   return code;
 }
 
+static void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
+#if defined(TD_ENTERPRISE)
+  int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
+  int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
+  if (deltaTS > tsTimeSeriesThreshold) {
+    if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
+      if (tsem_post(&dmNotifyHdl.sem) != 0) {
+        metaError("vgId:%d, failed to post semaphore, errno:%d", TD_VID(pMeta->pVnode), errno);
+      }
+    }
+  }
+#endif
+}
+
 static int32_t (*metaTableOpFn[META_TABLE_MAX][META_TABLE_OP_MAX])(SMeta *pMeta, const SMetaHandleParam *pParam) =
     {
         [META_ENTRY_TABLE] =
@@ -1139,6 +1155,7 @@ static int32_t metaHandleNormalTableCreate(SMeta *pMeta, const SMetaEntry *pEntr
         metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pEntry->name, tstrerror(rc));
       }
     }
+    metaTimeSeriesNotifyCheck(pMeta);
   } else {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
@@ -1214,7 +1231,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
       if (ret < 0) {
         metaErr(TD_VID(pMeta->pVnode), ret);
       }
-      pMeta->pVnode->config.vndStats.numOfNTimeSeries += (nCols - 1);
+      pMeta->pVnode->config.vndStats.numOfTimeSeries += (nCols > 0 ? nCols - 1 : 0);
     }
 
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
@@ -1228,7 +1245,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
   } else {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
-
+  metaTimeSeriesNotifyCheck(pMeta);
   metaFetchEntryFree(&pSuperEntry);
   return code;
 }
@@ -1595,6 +1612,10 @@ static int32_t metaHandleSuperTableUpdateImpl(SMeta *pMeta, SMetaHandleParam *pP
     }
   }
 
+  if (TSDB_CODE_SUCCESS == code) {
+    metaUpdateStbStats(pMeta, pEntry->uid, 0, pEntry->stbEntry.schemaRow.nCols - pOldEntry->stbEntry.schemaRow.nCols);
+  }
+
   return code;
 }
 
@@ -1645,7 +1666,6 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
         metaFetchEntryFree(&pOldEntry);
         return code;
       }
-      // TAOS_CHECK_RETURN(metaGetSubtables(pMeta, pEntry->uid, uids));
       TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type));
     } else if (deltaCol == -1) {
       int16_t cid = -1;
@@ -1667,7 +1687,6 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
           metaFetchEntryFree(&pOldEntry);
           return code;
         }
-        // TAOS_CHECK_RETURN(metaGetSubtables(pMeta, pEntry->uid, uids));
         TAOS_CHECK_RETURN(tsdbCacheDropSTableColumn(pTsdb, uids, cid, hasPrimaryKey));
       }
     }
@@ -1675,7 +1694,16 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
 
     tsdbCacheInvalidateSchema(pTsdb, pEntry->uid, -1, pEntry->stbEntry.schemaRow.version);
   }
-
+  if (updStat) {
+    int64_t ctbNum = 0;
+    int32_t ret = metaGetStbStats(pMeta->pVnode, pEntry->uid, &ctbNum, NULL);
+    if (ret < 0) {
+      metaError("vgId:%d, failed to get stb stats:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pEntry->name,
+                pEntry->uid, tstrerror(ret));
+    }
+    pMeta->pVnode->config.vndStats.numOfTimeSeries += (ctbNum * deltaCol);
+    if (deltaCol > 0) metaTimeSeriesNotifyCheck(pMeta);
+  }
   metaFetchEntryFree(&pOldEntry);
   return code;
 }
@@ -1774,7 +1802,9 @@ static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntr
 #endif
     tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
   }
-  metaTimeSeriesNotifyCheck(pMeta);
+  int32_t deltaCol = pEntry->ntbEntry.schemaRow.nCols - pOldEntry->ntbEntry.schemaRow.nCols;
+  pMeta->pVnode->config.vndStats.numOfNTimeSeries += deltaCol;  
+  if (deltaCol > 0) metaTimeSeriesNotifyCheck(pMeta);
   metaFetchEntryFree(&pOldEntry);
   return code;
 }
@@ -1916,4 +1946,13 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
     metaErr(vgId, code);
   }
   TAOS_RETURN(code);
+}
+
+void metaHandleSyncEntry(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
+  return;
 }

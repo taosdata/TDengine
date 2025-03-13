@@ -43,9 +43,9 @@ CODE_DIR=`pwd`
 
 IN_TDINTERNAL="community"
 if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  cd ../../..
+  pushd ../../..
 else
-  cd ../../
+  pushd ../../
 fi
 
 TOP_DIR=`pwd`
@@ -118,6 +118,8 @@ ulimit -n 600000
 ulimit -c unlimited
 
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
+
+popd
 
 if [ -n "$FILE_NAME" ]; then
   echo "------------------------------------------------------------------------"

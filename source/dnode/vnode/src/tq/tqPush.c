@@ -17,6 +17,9 @@
 #include "vnd.h"
 
 int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
+  if (pTq == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   if (taosHashGetSize(pTq->pPushMgr) <= 0) {
     return 0;
   }
@@ -46,24 +49,13 @@ int32_t tqPushMsg(STQ* pTq, tmsg_t msgType) {
     }
   }
 
-  streamMetaRLock(pTq->pStreamMeta);
-  int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
-  streamMetaRUnLock(pTq->pStreamMeta);
-
-//  tqTrace("vgId:%d handle submit, restore:%d, numOfTasks:%d", TD_VID(pTq->pVnode), pTq->pVnode->restored, numOfTasks);
-
-  // push data for stream processing:
-  // 1. the vnode has already been restored.
-  // 2. the vnode should be the leader.
-  // 3. the stream is not suspended yet.
-  if ((!tsDisableStream) && (numOfTasks > 0)) {
-    code = tqScanWalAsync(pTq, true);
-  }
-
   return code;
 }
 
 int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
+  if (pTq == NULL || handle == NULL || pMsg == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t    vgId = TD_VID(pTq->pVnode);
   STqHandle* pHandle = (STqHandle*)handle;
 
@@ -101,6 +93,9 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
 }
 
 void tqUnregisterPushHandle(STQ* pTq, void *handle) {
+  if (pTq == NULL || handle == NULL) {
+    return;
+  }
   STqHandle *pHandle = (STqHandle*)handle;
   int32_t    vgId = TD_VID(pTq->pVnode);
 

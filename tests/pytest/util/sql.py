@@ -100,7 +100,7 @@ class TDSql:
         if drop:
             s = f'drop database if exists {dbname}'
             self.cursor.execute(s)
-        s = f'create database {dbname}'
+        s = f'create database {dbname} stt_trigger 1'
         for k, v in kwargs.items():
             s += f" {k} {v}"
         if "duration" not in kwargs:
@@ -155,6 +155,9 @@ class TDSql:
 
         try:
             self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+            self.queryRows = len(self.queryResult)
+            self.queryCols = len(self.cursor.description)
         except BaseException as e:
             tdLog.info("err:%s" % (e))
             expectErrNotOccured = False
@@ -165,10 +168,6 @@ class TDSql:
         if expectErrNotOccured:
             tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
         else:
-            self.queryRows = 0
-            self.queryCols = 0
-            self.queryResult = None
-
             if fullMatched:
                 if expectedErrno != None:
                     expectedErrno_rest = expectedErrno & 0x0000ffff
@@ -415,6 +414,29 @@ class TDSql:
         self.checkRowCol(row, col)
         return self.cursor.istype(col, dataType)
 
+    def checkFloatString(self, row, col, data, show = False):
+        if row >= self.queryRows:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        if col >= self.queryCols:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, col+1, self.queryCols)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)   
+      
+        self.checkRowCol(row, col)
+
+        val = float(self.queryResult[row][col])
+        if abs(data) >= 1 and abs((val - data) / data) <= 0.000001:
+            if(show):
+                tdLog.info("check successfully")
+        elif abs(data) < 1 and abs(val - data) <= 0.000001:
+            if(show):
+                tdLog.info("check successfully")
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+            tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
 
     def checkData(self, row, col, data, show = False):
         if row >= self.queryRows:

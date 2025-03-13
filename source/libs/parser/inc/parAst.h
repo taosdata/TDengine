@@ -152,7 +152,7 @@ SNode*     createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken
 SNode*     createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
                                SNode* pJoinCond);
 SNode*     createViewNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pViewName);
-SNode*     createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset);
+SNode*     createLimitNode(SAstCreateContext* pCxt, SNode* pLimit, SNode* pOffset);
 SNode*     createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
 SNode*     createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap);
 SNode*     createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr);

@@ -311,11 +311,6 @@ class TDTestCase:
                     "category": "global"
                 },
                 {
-                    "name": "resolveFQDNRetryTime",
-                    "value": 500,
-                    "category": "global"
-                },
-                {
                     "name": "syncHeartbeatInterval",
                     "value": 3000,
                     "category": "global"

@@ -117,7 +117,7 @@ typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
-typedef int32_t (*SdbPrepareFp)(SMnode *pMnode);
+typedef int32_t (*SdbAfterRestoredFp)(SMnode *pMnode);
 typedef int32_t (*SdbValidateFp)(SMnode *pMnode, void *pTrans, SSdbRaw *pRaw);
 typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
@@ -188,31 +188,31 @@ typedef struct SSdbRow {
 } SSdbRow;
 
 typedef struct SSdb {
-  SMnode        *pMnode;
-  SWal          *pWal;
-  int64_t        sync;
-  char          *currDir;
-  char          *tmpDir;
-  int64_t        commitIndex;
-  int64_t        commitTerm;
-  int64_t        commitConfig;
-  int64_t        applyIndex;
-  int64_t        applyTerm;
-  int64_t        applyConfig;
-  int64_t        tableVer[SDB_MAX];
-  int64_t        maxId[SDB_MAX];
-  EKeyType       keyTypes[SDB_MAX];
-  SHashObj      *hashObjs[SDB_MAX];
-  TdThreadRwlock locks[SDB_MAX];
-  SdbInsertFp    insertFps[SDB_MAX];
-  SdbUpdateFp    updateFps[SDB_MAX];
-  SdbDeleteFp    deleteFps[SDB_MAX];
-  SdbDeployFp    deployFps[SDB_MAX];
-  SdbPrepareFp   prepareFps[SDB_MAX];
-  SdbEncodeFp    encodeFps[SDB_MAX];
-  SdbDecodeFp    decodeFps[SDB_MAX];
-  SdbValidateFp  validateFps[SDB_MAX];
-  TdThreadMutex  filelock;
+  SMnode            *pMnode;
+  SWal              *pWal;
+  int64_t            sync;
+  char              *currDir;
+  char              *tmpDir;
+  int64_t            commitIndex;
+  int64_t            commitTerm;
+  int64_t            commitConfig;
+  int64_t            applyIndex;
+  int64_t            applyTerm;
+  int64_t            applyConfig;
+  int64_t            tableVer[SDB_MAX];
+  int64_t            maxId[SDB_MAX];
+  EKeyType           keyTypes[SDB_MAX];
+  SHashObj          *hashObjs[SDB_MAX];
+  TdThreadRwlock     locks[SDB_MAX];
+  SdbInsertFp        insertFps[SDB_MAX];
+  SdbUpdateFp        updateFps[SDB_MAX];
+  SdbDeleteFp        deleteFps[SDB_MAX];
+  SdbDeployFp        deployFps[SDB_MAX];
+  SdbAfterRestoredFp afterRestoredFps[SDB_MAX];
+  SdbEncodeFp        encodeFps[SDB_MAX];
+  SdbDecodeFp        decodeFps[SDB_MAX];
+  SdbValidateFp      validateFps[SDB_MAX];
+  TdThreadMutex      filelock;
 } SSdb;
 
 typedef struct SSdbIter {
@@ -222,16 +222,16 @@ typedef struct SSdbIter {
 } SSdbIter;
 
 typedef struct {
-  ESdbType      sdbType;
-  EKeyType      keyType;
-  SdbDeployFp   deployFp;
-  SdbPrepareFp  prepareFp;
-  SdbEncodeFp   encodeFp;
-  SdbDecodeFp   decodeFp;
-  SdbInsertFp   insertFp;
-  SdbUpdateFp   updateFp;
-  SdbDeleteFp   deleteFp;
-  SdbValidateFp validateFp;
+  ESdbType           sdbType;
+  EKeyType           keyType;
+  SdbDeployFp        deployFp;
+  SdbAfterRestoredFp afterRestoredFp;
+  SdbEncodeFp        encodeFp;
+  SdbDecodeFp        decodeFp;
+  SdbInsertFp        insertFp;
+  SdbUpdateFp        updateFp;
+  SdbDeleteFp        deleteFp;
+  SdbValidateFp      validateFp;
 } SSdbTable;
 
 typedef struct SSdbOpt {
@@ -279,7 +279,7 @@ int32_t sdbDeploy(SSdb *pSdb);
  * @param pSdb The sdb object.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t sdbPrepare(SSdb *pSdb);
+int32_t sdbAfterRestored(SSdb *pSdb);
 
 /**
  * @brief Load sdb from file.

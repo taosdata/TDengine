@@ -66,7 +66,7 @@ pidfile = /usr/local/taos/taosanode/taosanode.pid
 # uWSGI log files
 logto = /var/log/taos/taosanode/taosanode.log
 
-# wWSGI monitor port
+# uWSGI monitor port
 stats = 127.0.0.1:8387
 
 # python virtual environment directory, used by Anode
@@ -86,7 +86,7 @@ log-level = DEBUG
 
 **提示**
 请勿设置 `daemonize` 参数，该参数会导致 uWSGI 与 systemctl 冲突，从而导致 Anode 无法正常启动。
-上面的示例配置文件 `taosanode.ini` 只包含了使用 Anode 提供服务的基础配置参数，对于 uWSGI 的其他配置参数的设置及其说明请参考 [uWSGIS官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+上面的示例配置文件 `taosanode.ini` 只包含了使用 Anode 提供服务的基础配置参数，对于 uWSGI 的其他配置参数的设置及其说明请参考 [uWSGI 官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
 
 Anode 运行配置主要是以下：
 - app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
@@ -110,7 +110,7 @@ SHOW ANODES;
 taos> show anodes;
      id      |              url               |    status    |       create_time       |       update_time       |
 ==================================================================================================================
-           1 | 192.168.0.1:6090             | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
+           1 | 192.168.0.1:6090               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
 Query OK, 1 row(s) in set (0.037205s)
 
 ```

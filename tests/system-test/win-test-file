@@ -246,6 +246,7 @@ python3 ./test.py -f 0-others/user_privilege_show.py
 python3 ./test.py -f 0-others/user_privilege_all.py
 python3 ./test.py -f 0-others/fsync.py
 python3 ./test.py -f 0-others/multilevel.py
+python3 ./test.py -f 0-others/retention_test.py
 python3 ./test.py -f 0-others/ttl.py
 python3 ./test.py -f 0-others/ttlChangeOnWrite.py
 python3 ./test.py -f 0-others/compress_tsz1.py
@@ -561,7 +562,7 @@ python3 ./test.py -f 1-insert/update_data.py
 python3 ./test.py -f 1-insert/tb_100w_data_order.py
 python3 ./test.py -f 1-insert/delete_childtable.py
 python3 ./test.py -f 1-insert/delete_normaltable.py
-python3 ./test.py -f 1-insert/delete_systable.py
+python3 ./test.py -f 1-insert/ddl_in_sysdb.py
 python3 ./test.py -f 1-insert/keep_expired.py
 python3 ./test.py -f 1-insert/stmt_error.py
 python3 ./test.py -f 1-insert/drop.py

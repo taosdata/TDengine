@@ -1939,6 +1939,20 @@ int sml_td24559_Test() {
   }
   taos_free_result(pRes);
 
+  const char *sql2[] = {
+      "stb,t1=1 f1=283i32,f2=g\"Point(4.343 89.342)\" 1632299375000",
+  };
+
+  pRes = taos_query(taos, "use td24559");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql2, sizeof(sql2) / sizeof(sql2[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+
   pRes = taos_query(taos, "drop database if exists td24559");
   taos_free_result(pRes);
 
@@ -2321,6 +2335,17 @@ int sml_td17324_Test() {
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  ASSERT(code == 0);
+  taos_free_result(pRes);
+
+  const char *sql1[] = {
+      "st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"pa3ssit\",c2=false,c4=4f64 1732700000394000000",
+  };
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  code = taos_errno(pRes);
   printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
   ASSERT(code == 0);
   taos_free_result(pRes);

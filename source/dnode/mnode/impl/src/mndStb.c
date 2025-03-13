@@ -1805,7 +1805,6 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
   }
   SSchema *pTarget = &pOld->pColumns[idx];
   col_id_t colId = pTarget->colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
   code = validColCmprByType(pTarget->type, p->bytes);
@@ -3700,10 +3699,6 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *ta
   int32_t tag = mndFindSuperTableTagIndex(pOld, tagIdxReq->colName);
   if (tag < 0) {
     terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
-    return -1;
-  }
-  col_id_t colId = pOld->pTags[tag].colId;
-  if (mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId) != 0) {
     return -1;
   }
   if (mndAllocStbSchemas(pOld, pNew) != 0) {

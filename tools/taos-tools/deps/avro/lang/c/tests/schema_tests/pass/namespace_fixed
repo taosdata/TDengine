@@ -1,0 +1,9 @@
+{"type": "record", "name": "org.apache.avro.tests.Hello", "fields": [
+  {"name": "f1", "type": {"type": "fixed", "name": "MyFixed", "size": 16}},
+  {"name": "f2", "type": "org.apache.avro.tests.MyFixed"},
+  {"name": "f3", "type": "MyFixed"},
+  {"name": "f4", "type": {"type": "fixed", "name": "other.namespace.OtherFixed", "size": 18}},
+  {"name": "f5", "type": "other.namespace.OtherFixed"},
+  {"name": "f6", "type": {"type": "fixed", "name": "ThirdFixed", "namespace": "some.other", "size": 20}},
+  {"name": "f7", "type": "some.other.ThirdFixed"}
+]}

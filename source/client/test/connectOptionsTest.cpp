@@ -55,7 +55,13 @@ TAOS* getConnWithOption(const char *tz){
 
 void execQuery(TAOS* pConn, const char *sql){
   TAOS_RES* pRes = taos_query(pConn, sql);
-  ASSERT(taos_errno(pRes) == TSDB_CODE_SUCCESS);
+  int       code = taos_errno(pRes);
+  while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+    taosMsleep(2000);
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    code = taos_errno(pRes);
+  }
+  ASSERT(code == TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 }
 

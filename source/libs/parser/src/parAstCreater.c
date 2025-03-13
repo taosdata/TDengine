@@ -116,7 +116,7 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     (void)strdequote(pPassword);
     if (strtrim(pPassword) <= 0) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
     } else if (invalidPassword(pPassword)) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
     }
@@ -1287,14 +1287,14 @@ _err:
   return NULL;
 }
 
-SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset) {
+SNode* createLimitNode(SAstCreateContext* pCxt, SNode* pLimit, SNode* pOffset) {
   CHECK_PARSER_STATUS(pCxt);
   SLimitNode* limitNode = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limitNode);
   CHECK_MAKE_NODE(limitNode);
-  limitNode->limit = taosStr2Int64(pLimit->z, NULL, 10);
+  limitNode->limit = (SValueNode*)pLimit;
   if (NULL != pOffset) {
-    limitNode->offset = taosStr2Int64(pOffset->z, NULL, 10);
+    limitNode->offset = (SValueNode*)pOffset;
   }
   return (SNode*)limitNode;
 _err:
@@ -2023,7 +2023,11 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_KEEP_TIME_OFFSET:
-      pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      if (TK_NK_INTEGER == ((SToken*)pVal)->type) {
+        pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      } else {
+        pDbOptions->pKeepTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      }      
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);

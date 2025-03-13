@@ -18,7 +18,7 @@
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 
-#define CHECK_NOT_RSP_DURATION 10 * 1000  // 10 sec
+#define CHECK_NOT_RSP_DURATION 60 * 1000  // 60 sec
 
 static void    processDownstreamReadyRsp(SStreamTask* pTask);
 static void    rspMonitorFn(void* param, void* tmrId);
@@ -660,7 +660,7 @@ void handleTimeoutDownstreamTasks(SStreamTask* pTask, SArray* pTimeoutList) {
 
   pInfo->timeoutRetryCount += 1;
 
-  // timeout more than 100 sec, add into node update list
+  // timeout more than 600 sec, add into node update list
   if (pInfo->timeoutRetryCount > 10) {
     pInfo->timeoutRetryCount = 0;
 
@@ -674,7 +674,7 @@ void handleTimeoutDownstreamTasks(SStreamTask* pTask, SArray* pTimeoutList) {
       findCheckRspStatus(pInfo, *pTaskId, &p);
       if (p != NULL) {
         code = streamTaskAddIntoNodeUpdateList(pTask, p->vgId);
-        stDebug("s-task:%s vgId:%d downstream task:0x%x (vgId:%d) timeout more than 100sec, add into nodeUpdate list",
+        stDebug("s-task:%s vgId:%d downstream task:0x%x (vgId:%d) timeout more than 600sec, add into nodeUpdate list",
                 id, vgId, p->taskId, p->vgId);
       }
     }

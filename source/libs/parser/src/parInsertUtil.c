@@ -101,10 +101,13 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
   } else {  // get current DB name first, and then set it into path
-    if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
+    char tbname[TSDB_TABLE_FNAME_LEN] = {0};
+    strncpy(tbname, pTableName->z, pTableName->n);
+    int32_t tbLen = strdequote(tbname);
+    if (tbLen >= TSDB_TABLE_NAME_LEN) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
-    if (pTableName->n == 0) {
+    if (tbLen == 0) {
       return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, "invalid table name");
     }
 

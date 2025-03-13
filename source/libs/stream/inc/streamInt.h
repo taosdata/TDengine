@@ -38,7 +38,7 @@ extern "C" {
 #define META_HB_SEND_IDLE_COUNTER          25  // send hb every 5 sec
 #define STREAM_TASK_KEY_LEN                ((sizeof(int64_t)) << 1)
 #define STREAM_TASK_QUEUE_CAPACITY         5120
-#define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (30)
+#define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (10)
 
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
@@ -144,6 +144,8 @@ struct SStreamQueue {
   STaosQall*  qall;
   void*       qItem;
   int8_t      status;
+  STaosQueue* pChkptQueue;
+  void*       qChkptItem;
 };
 
 struct SStreamQueueItem {
@@ -244,9 +246,19 @@ int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpoi
 int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
 int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
                                        STimeWindow* pLatestWindow, const char* id);
+// inject stream errors
+void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 
 // inject stream errors
 void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
+
+int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type);
+int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList);
+int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
+int32_t uploadCheckpointToS3(const char* id, const char* path);
+int32_t deleteCheckpointFile(const char* id, const char* name);
+int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
+                                        int32_t transId);
 
 #ifdef __cplusplus
 }

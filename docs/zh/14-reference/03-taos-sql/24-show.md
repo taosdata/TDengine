@@ -155,7 +155,7 @@ SHOW QNODES;
 SHOW QUERIES;
 ```
 
-显示当前系统中正在进行的查询。
+显示当前系统中正在进行的写入（更新）/查询/删除。（由于内部 API 命名原因，所以统称 QUERIES）
 
 ## SHOW SCORES
 

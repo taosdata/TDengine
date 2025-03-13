@@ -21,28 +21,17 @@
 #include "tglobal.h"
 #include "version.h"
 #include "tconv.h"
-#ifdef TD_JEMALLOC_ENABLED
-#include "jemalloc/jemalloc.h"
-#endif
 #include "dmUtil.h"
 #include "tcs.h"
 #include "qworker.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#ifdef TD_JEMALLOC_ENABLED
+#define ALLOW_FORBID_FUNC
+#include "jemalloc/jemalloc.h"
+#endif
+
 #include "cus_name.h"
-#else
-#ifndef CUS_NAME
-#define CUS_NAME "TDengine"
-#endif
 
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
-
-#ifndef CUS_EMAIL
-#define CUS_EMAIL "<support@taosdata.com>"
-#endif
-#endif
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
@@ -131,25 +120,7 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   if (taosIgnSignal(SIGSEGV) != 0) {
     dWarn("failed to ignore signal SIGABRT");
   }
-
-  char       *pMsg = NULL;
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;
-  int64_t     msgLen = -1;
-
-  if (tsEnableCrashReport) {
-    if (taosGenCrashJsonMsg(signum, &pMsg, dmGetClusterId(), global.startTime)) {
-      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
-      goto _return;
-    } else {
-      msgLen = strlen(pMsg);
-    }
-  }
-
-_return:
-
-  taosLogCrashInfo(CUS_PROMPT "d", pMsg, msgLen, signum, sigInfo);
+  writeCrashLogToFile(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
 
 #ifdef _TD_DARWIN_64
   exit(signum);
@@ -177,11 +148,23 @@ static void dmSetSignalHandle() {
   if (taosSetSignal(SIGBREAK, dmStopDnode) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
+  if (taosSetSignal(SIGABRT, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGFPE, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGSEGV, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #ifndef WINDOWS
   if (taosSetSignal(SIGTSTP, dmStopDnode) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
   if (taosSetSignal(SIGQUIT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGBUS, dmLogCrash) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
 #endif

@@ -3,6 +3,9 @@ title: 预测算法
 description: 预测算法
 ---
 
+import fc_result from '../pic/fc.png';
+import fc_result_figure from '../pic/fc-result.png';
+
 时序数据预测处理以持续一个时间段的时序数据作为输入，预测接下来一个连续时间区间内时间序列数据趋势。用户可以指定输出的（预测）时间序列数据点的数量，因此其输出的结果行数不确定。为此，TDengine 使用新 SQL 函数 `FORECAST` 提供时序数据预测服务。基础数据（用于预测的历史时间序列数据）是该函数的输入，预测结果是该函数的输出。用户可以通过 `FORECAST` 函数调用 Anode 提供的预测算法提供的服务。
 
 在后续章节中，使用时序数据表`foo`作为示例，介绍预测和异常检测算法的使用方式，`foo` 表的模式如下：
@@ -41,7 +44,7 @@ algo=expr1
 "}
 
 ```
-1. `column_expr`：预测的时序数据列。与异常检测相同，只支持数值类型列输入。
+1. `column_expr`：预测的时序数据列，只支持数值类型列输入。
 2. `options`：预测函数的参数。字符串类型，其中使用 K=V 方式调用算法及相关参数。采用逗号分隔的 K=V 字符串表示，其中的字符串不需要使用单引号、双引号、或转义号等符号，不能使用中文及其他宽字符。预测支持 `conf`, `every`, `rows`, `start`, `rows` 几个控制参数，其含义如下：
 
 ### 参数说明
@@ -91,3 +94,52 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 ## 内置预测算法
 - [arima](./02-arima.md)
 - [holtwinters](./03-holtwinters.md)
+- CES (Complex Exponential Smoothing) 
+- Theta
+- Prophet
+- XGBoost
+- LightGBM
+- Multiple Seasonal-Trend decomposition using LOESS (MSTL)
+- ETS (Error, Trend, Seasonal)
+- Long Short-Term Memory (LSTM)
+- Multilayer Perceptron (MLP)
+- DeepAR
+- N-BEATS
+- N-HiTS
+- PatchTST (Patch Time Series Transformer)
+- Temporal Fusion Transformer
+- TimesNet
+
+## 算法有效性评估工具
+TDgpt 提供预测分析算法有效性评估工具 `analytics_compare`，调用该工具并设置合适的参数，能够使用 TDengine 中的数据作为回测依据，评估不同预测算法或相同的预测算法在不同的参数或训练模型的下的预测有效性。预测有效性的评估使用 `MSE` 和 `MAE` 指标作为依据，后续还将增加 `MAPE`指标。
+
+```ini
+[forecast]
+# 训练数据的周期，每个周期包含多少个输入点
+period = 10
+
+# 使用范围内最后 10 条记录作为预测结果
+rows = 10
+
+# 训练数据开始时间
+start_time = 1949-01-01T00:00:00
+
+# 训练数据结束时间
+end_time = 1960-12-01T00:00:00
+
+# 输出结果的起始时间
+res_start_time = 1730000000000
+
+# 是否绘制预测结果图
+gen_figure = true
+```
+
+算法对比分析运行完成以后，生成 fc-results.xlsx 文件，其中包含了调用算法的预测分析误差、执行时间、调用参数等信息。如下图所示：
+
+<img src={fc_result} width="760" alt="预测对比结果" />
+
+
+如果设置了 `gen_figure` 为 true，分析结果中还会有绘制的分析预测结果图（如下图所示）。
+
+<img src={fc_result_figure} width="760" alt="预测对比结果" />
+

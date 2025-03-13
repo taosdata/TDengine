@@ -126,6 +126,10 @@ void fetchCallback(void* param, void* res, int32_t numOfRow) {
 void queryCallback(void* param, void* res, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     (void)printf("failed to execute, reason:%s\n", taos_errstr(res));
+    taos_free_result(res);
+    tsem_t *sem = (tsem_t *)param;
+    tsem_post(sem);
+    return;
   }
   (void)printf("start to fetch data\n");
   taos_fetch_raw_block_a(res, fetchCallback, param);
@@ -528,6 +532,10 @@ TEST(clientCase, create_stable_Test) {
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "use abc1");
+  while (taos_errno(pRes) == TSDB_CODE_MND_DB_IN_CREATING || taos_errno(pRes) == TSDB_CODE_MND_DB_IN_DROPPING) {
+    taosMsleep(2000);
+    pRes = taos_query(pConn, "use abc1");
+  }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table if not exists abc1.st1(ts timestamp, k int) tags(a int)");
@@ -660,6 +668,10 @@ TEST(clientCase, create_multiple_tables) {
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "use abc1");
+  while (taos_errno(pRes) == TSDB_CODE_MND_DB_IN_CREATING || taos_errno(pRes) == TSDB_CODE_MND_DB_IN_DROPPING) {
+    taosMsleep(2000);
+    pRes = taos_query(pConn, "use abc1");
+  }
   if (taos_errno(pRes) != 0) {
     (void)printf("failed to use db, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -788,12 +800,20 @@ TEST(clientCase, insert_test) {
 }
 
 TEST(clientCase, projection_query_tables) {
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/first/cfg");
+
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
   TAOS_RES* pRes = NULL;
 
   pRes= taos_query(pConn, "use abc1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "select forecast(k,'algo=arima,wncheck=0') from t1 where ts<='2024-11-15 1:7:44'");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+  }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table tu using st2 tags(2)");
@@ -1512,6 +1532,10 @@ TEST(clientCase, timezone_Test) {
     taos_free_result(pRes);
 
     pRes = taos_query(pConn, "create table db1.t1 (ts timestamp, v int)");
+    while (taos_errno(pRes) == TSDB_CODE_MND_DB_IN_CREATING || taos_errno(pRes) == TSDB_CODE_MND_DB_IN_DROPPING) {
+      taosMsleep(2000);
+      pRes = taos_query(pConn, "create table db1.t1 (ts timestamp, v int)");
+    }
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
 

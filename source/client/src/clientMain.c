@@ -24,13 +24,13 @@
 #include "query.h"
 #include "scheduler.h"
 #include "tcompare.h"
+#include "tconv.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
-#include "tconv.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -56,12 +56,12 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 }
 
 #ifndef WINDOWS
-static void freeTz(void *p){
+static void freeTz(void *p) {
   timezone_t tz = *(timezone_t *)p;
   tzfree(tz);
 }
 
-int32_t tzInit(){
+int32_t tzInit() {
   pTimezoneMap = taosHashInit(0, MurmurHash3_32, false, HASH_ENTRY_LOCK);
   if (pTimezoneMap == NULL) {
     return terrno;
@@ -75,15 +75,15 @@ int32_t tzInit(){
   return 0;
 }
 
-void tzCleanup(){
+void tzCleanup() {
   taosHashCleanup(pTimezoneMap);
   taosHashCleanup(pTimezoneNameMap);
 }
 
-static timezone_t setConnnectionTz(const char* val){
-  timezone_t tz = NULL;
+static timezone_t setConnnectionTz(const char *val) {
+  timezone_t  tz = NULL;
   timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
-  if (tmp != NULL && *tmp != NULL){
+  if (tmp != NULL && *tmp != NULL) {
     tz = *tmp;
     goto END;
   }
@@ -100,18 +100,20 @@ static timezone_t setConnnectionTz(const char* val){
     }
   }
   int32_t code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
-  if (code != 0){
+  if (code != 0) {
     tscError("%s put timezone to tz map error:%d", __func__, code);
     tzfree(tz);
     tz = NULL;
     goto END;
   }
 
-  time_t    tx1 = taosGetTimestampSec();
-  char output[TD_TIMEZONE_LEN] = {0};
-  taosFormatTimezoneStr(tx1, val, tz, output);
-  code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
-  if (code != 0){
+  time_t tx1 = taosGetTimestampSec();
+  char   output[TD_TIMEZONE_LEN] = {0};
+  code = taosFormatTimezoneStr(tx1, val, tz, output);
+  if (code == 0) {
+    code = taosHashPut(pTimezoneNameMap, &tz, sizeof(timezone_t), output, strlen(output) + 1);
+  }
+  if (code != 0) {
     tscError("failed to put timezone %s to map", val);
   }
 
@@ -120,25 +122,25 @@ END:
 }
 #endif
 
-static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char* val){
+static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char *val) {
   if (taos == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    return terrno = TSDB_CODE_INVALID_PARA;
   }
 
 #ifdef WINDOWS
-  if (option == TSDB_OPTION_CONNECTION_TIMEZONE){
-    return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
+  if (option == TSDB_OPTION_CONNECTION_TIMEZONE) {
+    return terrno = TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
   }
 #endif
 
-  if (option < TSDB_OPTION_CONNECTION_CLEAR || option >= TSDB_MAX_OPTIONS_CONNECTION){
-    return TSDB_CODE_INVALID_PARA;
+  if (option < TSDB_OPTION_CONNECTION_CLEAR || option >= TSDB_MAX_OPTIONS_CONNECTION) {
+    return terrno = TSDB_CODE_INVALID_PARA;
   }
 
   int32_t code = taos_init();
   // initialize global config
   if (code != 0) {
-    return code;
+    return terrno = code;
   }
 
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
@@ -147,7 +149,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     return terrno;
   }
 
-  if (option == TSDB_OPTION_CONNECTION_CLEAR){
+  if (option == TSDB_OPTION_CONNECTION_CLEAR) {
     val = NULL;
   }
 
@@ -163,19 +165,19 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
         goto END;
       }
       pObj->optionInfo.charsetCxt = tmp;
-    }else{
+    } else {
       pObj->optionInfo.charsetCxt = NULL;
     }
   }
 
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
 #ifndef WINDOWS
-    if (val != NULL){
-      if (val[0] == 0){
+    if (val != NULL) {
+      if (val[0] == 0) {
         val = "UTC";
       }
       timezone_t tz = setConnnectionTz(val);
-      if (tz == NULL){
+      if (tz == NULL) {
         code = terrno;
         goto END;
       }
@@ -197,7 +199,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
   if (option == TSDB_OPTION_CONNECTION_USER_IP || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
       pObj->optionInfo.userIp = taosInetAddr(val);
-      if (pObj->optionInfo.userIp == INADDR_NONE){
+      if (pObj->optionInfo.userIp == INADDR_NONE) {
         code = TSDB_CODE_INVALID_PARA;
         goto END;
       }
@@ -208,10 +210,10 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
 
 END:
   releaseTscObj(*(int64_t *)taos);
-  return code;
+  return terrno = code;
 }
 
-int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...){
+int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...) {
   return setConnectionOption(taos, option, (const char *)arg);
 }
 
@@ -251,7 +253,7 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   nodesDestroyAllocatorSet();
-  //  cleanupAppInfo();
+  cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
 
@@ -697,13 +699,13 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
-        len += tsnprintf(str + len, size - len, "%f", fv);
+        len += snprintf(str + len, size - len, "%.*g", FLT_DIG, fv);
       } break;
 
       case TSDB_DATA_TYPE_DOUBLE: {
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
-        len += tsnprintf(str + len, size - len, "%lf", dv);
+        len += snprintf(str + len, size - len, "%.*g", DBL_DIG, dv);
       } break;
 
       case TSDB_DATA_TYPE_VARBINARY: {
@@ -886,6 +888,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 
   if (db == NULL || strlen(db) == 0) {
     releaseTscObj(*(int64_t *)taos);
+    tscError("invalid parameter for %s", db == NULL ? "db is NULL" : "db is empty");
     terrno = TSDB_CODE_TSC_INVALID_INPUT;
     return terrno;
   }
@@ -2127,6 +2130,11 @@ int taos_stmt_close(TAOS_STMT *stmt) {
 }
 
 TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
+  if (NULL == taos) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
   if (NULL == pObj) {
     tscError("invalid parameter for %s", __FUNCTION__);
@@ -2166,17 +2174,41 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     pStmt->semWaited = true;
   }
 
-  int32_t code = 0;
+  SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
+  if (NULL == hashTbnames) {
+    tscError("stmt2 bind failed: %s", tstrerror(terrno));
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < bindv->count; ++i) {
     if (bindv->tbnames && bindv->tbnames[i]) {
+      if (pStmt->sql.stbInterlaceMode) {
+        if (tSimpleHashGet(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i])) != NULL) {
+          code = terrno = TSDB_CODE_PAR_TBNAME_DUPLICATED;
+          tscError("stmt2 bind failed: %s %s", tstrerror(terrno), bindv->tbnames[i]);
+          goto out;
+        }
+
+        code = tSimpleHashPut(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i]), NULL, 0);
+        if (code) {
+          goto out;
+        }
+      }
+
       code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
-        return code;
+        goto out;
       }
     }
 
     if (bindv->tags && bindv->tags[i]) {
       code = stmtSetTbTags2(stmt, bindv->tags[i]);
+      if (code) {
+        goto out;
+      }
+    } else if (pStmt->bInfo.tbType == TSDB_CHILD_TABLE && pStmt->sql.autoCreateTbl) {
+      code = stmtSetTbTags2(stmt, NULL);
       if (code) {
         return code;
       }
@@ -2187,26 +2219,29 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         tscError("invalid bind num %d", bind->num);
-        terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-        return terrno;
+        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        goto out;
       }
 
       int32_t insert = 0;
       (void)stmtIsInsert2(stmt, &insert);
       if (0 == insert && bind->num > 1) {
         tscError("only one row data allowed for query");
-        terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-        return terrno;
+        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        goto out;
       }
 
       code = stmtBindBatch2(stmt, bind, col_idx);
       if (TSDB_CODE_SUCCESS != code) {
-        return code;
+        goto out;
       }
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+out:
+  tSimpleHashCleanup(hashTbnames);
+
+  return code;
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
@@ -2228,16 +2263,7 @@ int taos_stmt2_close(TAOS_STMT2 *stmt) {
 
   return stmtClose2(stmt);
 }
-/*
-int taos_stmt2_param_count(TAOS_STMT2 *stmt, int *nums) {
-  if (stmt == NULL || nums == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-  return stmtGetParamNum2(stmt, nums);
-}
-*/
+
 int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
   if (stmt == NULL || insert == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -2248,29 +2274,7 @@ int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
   return stmtIsInsert2(stmt, insert);
 }
 
-int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields) {
-  if (stmt == NULL || count == NULL) {
-    tscError("NULL parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-
-  if (field_type == TAOS_FIELD_COL) {
-    return stmtGetColFields2(stmt, count, fields);
-  } else if (field_type == TAOS_FIELD_TAG) {
-    return stmtGetTagFields2(stmt, count, fields);
-  } else if (field_type == TAOS_FIELD_QUERY) {
-    return stmtGetParamNum2(stmt, count);
-  } else if (field_type == TAOS_FIELD_TBNAME) {
-    return stmtGetParamTbName(stmt, count);
-  } else {
-    tscError("invalid parameter for %s", __FUNCTION__);
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-}
-
-int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fields) {
+int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields) {
   if (stmt == NULL || count == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -2292,13 +2296,7 @@ int taos_stmt2_get_stb_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_STB **fie
   return stmtGetStbColFields2(stmt, count, fields);
 }
 
-void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields) {
-  (void)stmt;
-  if (!fields) return;
-  taosMemoryFree(fields);
-}
-
-DLL_EXPORT void taos_stmt2_free_stb_fields(TAOS_STMT2 *stmt, TAOS_FIELD_STB *fields) {
+DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields) {
   (void)stmt;
   if (!fields) return;
   taosMemoryFree(fields);

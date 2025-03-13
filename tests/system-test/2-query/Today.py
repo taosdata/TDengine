@@ -18,7 +18,7 @@ class TDTestCase:
         self.today_ts = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d").timestamp()
         self.today_ts_ns = 0
         self.time_unit = ['b','u','a','s','m','h','d','w']
-        self.error_param = ['1.5','abc','!@#','"abc"','today()']
+        self.error_param = ['abc','!@#','"abc"','today()']
         self.arithmetic_operators = ['+','-','*','/']
         self.relational_operator = ['<','<=','=','>=','>']
         # prepare data

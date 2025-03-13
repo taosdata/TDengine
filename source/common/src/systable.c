@@ -123,6 +123,9 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "s3_compact", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
     {.name = "with_arbitrator", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
     {.name = "encrypt_algorithm", .bytes = TSDB_ENCRYPT_ALGO_STR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "compact_interval", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "compact_time_range", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "compact_time_offset", .bytes = 4 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {

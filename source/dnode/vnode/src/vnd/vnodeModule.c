@@ -20,14 +20,13 @@
 
 static volatile int32_t VINIT = 0;
 
-int vnodeInit(int nthreads, StopDnodeFp stopDnodeFp) {
+int vnodeInit(StopDnodeFp stopDnodeFp) {
   if (atomic_val_compare_exchange_32(&VINIT, 0, 1)) {
     return 0;
   }
 
-  TAOS_CHECK_RETURN(vnodeAsyncOpen(nthreads));
+  TAOS_CHECK_RETURN(vnodeAsyncOpen());
   TAOS_CHECK_RETURN(walInit(stopDnodeFp));
-  TAOS_CHECK_RETURN(tsdbInit());
 
   monInitVnode();
 
@@ -36,7 +35,6 @@ int vnodeInit(int nthreads, StopDnodeFp stopDnodeFp) {
 
 void vnodeCleanup() {
   if (atomic_val_compare_exchange_32(&VINIT, 1, 0) == 0) return;
-  tsdbCleanUp();
   vnodeAsyncClose();
   walCleanUp();
   smaCleanUp();

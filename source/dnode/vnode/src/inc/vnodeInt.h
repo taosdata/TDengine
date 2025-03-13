@@ -160,7 +160,7 @@ int32_t         metaAlterSuperTable(SMeta* pMeta, int64_t version, SVCreateStbRe
 int32_t         metaDropSuperTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int32_t         metaCreateTable2(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** ppRsp);
 int32_t         metaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq);
-int32_t         metaTrimTables(SMeta* pMeta);
+int32_t         metaTrimTables(SMeta* pMeta, int64_t version);
 int32_t         metaDropMultipleTables(SMeta* pMeta, int64_t version, SArray* tbUids);
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
@@ -239,7 +239,7 @@ void    tqClose(STQ*);
 int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
-int     tqScanWalAsync(STQ* pTq, bool ckPause);
+void    tqScanWalAsync(STQ* pTq);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
@@ -254,6 +254,9 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
+
+// injection error
+void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
@@ -479,8 +482,7 @@ struct SVnode {
   SVBufPool*    onRecycle;
 
   // commit variables
-  SVAChannelID commitChannel;
-  SVATaskID    commitTask;
+  SVATaskID commitTask;
 
   SMeta*        pMeta;
   SSma*         pSma;

@@ -29,6 +29,7 @@ static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 int32_t* taosGetErrno() { return &tsErrno; }
 int32_t* taosGetErrln() { return &tsErrln; }
 char*    taosGetErrMsg() { return tsErrMsgDetail; }
+void     taosClearErrMsg() { tsErrMsgDetail[0] = '\0'; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
@@ -648,7 +649,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SINGLE_GROUP,          "Not a single-group g
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAGS_NOT_MATCHED,          "Tags number not matched")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TAG_NAME,          "Invalid tag name")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,   "Name or password too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PASSWD_EMPTY,              "Password can not be empty")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, "Password too short or empty")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PORT,              "Port should be an integer that is less than 65535 and greater than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ENDPOINT,          "Endpoint should be in the format of 'fqdn:port'")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_EXPRIE_STATEMENT,          "This statement is no longer supported")
@@ -856,6 +857,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP,     "Replay need only on
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled if subscribe db or stable")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_TABLE_QUALIFIED,         "No table qualified for query")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_NEED_REBALANCE,          "No need rebalance")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_STATUS,             "Invalid status, please subscribe topic first")
 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")
@@ -908,12 +910,6 @@ const char* tstrerror(int32_t err) {
   (void)taosThreadOnce(&tsErrorInit, tsSortError);
 
   // this is a system errno
-  if ((err & 0x00ff0000) == 0x00ff0000) {
-    int32_t code = err & 0x0000ffff;
-    // strerror can handle any invalid code
-    // invalid code return Unknown error
-    return strerror(code);
-  }
   #ifdef WINDOWS
   if ((err & 0x01ff0000) == 0x01ff0000) {
     snprintf(WinAPIErrDesc, 256, "windows api error, code: 0x%08x", err & 0x0000ffff);
@@ -923,6 +919,13 @@ const char* tstrerror(int32_t err) {
     return WinAPIErrDesc;
   }
   #endif
+  if ((err & 0x00ff0000) == 0x00ff0000) {
+    int32_t code = err & 0x0000ffff;
+    // strerror can handle any invalid code
+    // invalid code return Unknown error
+    return strerror(code);
+  }
+
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
 

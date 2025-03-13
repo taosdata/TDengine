@@ -14,6 +14,7 @@ The default configuration file for `Agent` is located at `/etc/taos/agent.toml`,
 - `token`: Required, the Token generated when creating `Agent` in `Explorer`.
 - `instanceId`: The instance ID of the current taosx-agent service. If multiple taosx-agent instances are started on the same machine, it is necessary to ensure that the instance IDs of each instance are unique.
 - `compression`: Optional, can be configured as `true` or `false`, default is `false`. If set to `true`, it enables data compression in communication between `Agent` and `taosX`.
+- `in_memory_cache_capacity`: Optional, signifies the maximum number of message batches that can be cached in memory and can be configured as a positive integer greater than zero. The default value is set at 64.
 - `log_level`: Optional, log level, default is `info`. Like `taosX`, it supports five levels: `error`, `warn`, `info`, `debug`, `trace`. Deprecated, please use `log.level` instead.
 - `log_keep_days`: Optional, the number of days to keep logs, default is `30` days. Deprecated, please use `log.keepDays` instead.
 - `log.path`: The directory where log files are stored.
@@ -44,6 +45,10 @@ As shown below:
 # enable communication data compression between Agent and taosX
 #
 #compression = true
+
+# In-memory cache capacity
+#
+#in_memory_cache_capacity = 64
 
 # log configuration
 [log]

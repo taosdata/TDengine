@@ -425,8 +425,8 @@ static int32_t tlvDecodeValueU64(STlvDecoder* pDecoder, uint64_t* pValue) {
 }
 
 static int32_t tlvDecodeDouble(STlv* pTlv, double* pValue) {
-  int64_t temp = 0;
-  int32_t code = tlvDecodeI64(pTlv, &temp);
+  volatile int64_t temp = 0;
+  int32_t code = tlvDecodeI64(pTlv, (int64_t*)&temp);
   if (TSDB_CODE_SUCCESS == code) {
     *pValue = *(double*)&temp;
   }
@@ -434,8 +434,8 @@ static int32_t tlvDecodeDouble(STlv* pTlv, double* pValue) {
 }
 
 static int32_t tlvDecodeValueDouble(STlvDecoder* pDecoder, double* pValue) {
-  int64_t temp = 0;
-  int32_t code = tlvDecodeValueI64(pDecoder, &temp);
+  volatile int64_t temp = 0;
+  int32_t code = tlvDecodeValueI64(pDecoder, (int64_t*)&temp);
   if (TSDB_CODE_SUCCESS == code) {
     *pValue = *(double*)&temp;
   }
@@ -1246,9 +1246,9 @@ enum { LIMIT_CODE_LIMIT = 1, LIMIT_CODE_OFFSET };
 static int32_t limitNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SLimitNode* pNode = (const SLimitNode*)pObj;
 
-  int32_t code = tlvEncodeI64(pEncoder, LIMIT_CODE_LIMIT, pNode->limit);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, LIMIT_CODE_OFFSET, pNode->offset);
+  int32_t code = tlvEncodeObj(pEncoder, LIMIT_CODE_LIMIT, nodeToMsg, pNode->limit);
+  if (TSDB_CODE_SUCCESS == code && pNode->offset) {
+    code = tlvEncodeObj(pEncoder, LIMIT_CODE_OFFSET, nodeToMsg, pNode->offset);
   }
 
   return code;
@@ -1262,10 +1262,10 @@ static int32_t msgToLimitNode(STlvDecoder* pDecoder, void* pObj) {
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
       case LIMIT_CODE_LIMIT:
-        code = tlvDecodeI64(pTlv, &pNode->limit);
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->limit);
         break;
       case LIMIT_CODE_OFFSET:
-        code = tlvDecodeI64(pTlv, &pNode->offset);
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->offset);
         break;
       default:
         break;

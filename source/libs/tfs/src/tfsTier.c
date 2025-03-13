@@ -41,13 +41,13 @@ void tfsDestroyTier(STfsTier *pTier) {
 int32_t tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg, STfsDisk **ppDisk) {
   int32_t   code = 0;
   int32_t   lino = 0;
+  int32_t   id = 0;
   STfsDisk *pDisk = NULL;
 
   if (pTier->ndisk >= TFS_MAX_DISKS_PER_TIER) {
     TAOS_CHECK_GOTO(TSDB_CODE_FS_TOO_MANY_MOUNT, &lino, _exit);
   }
 
-  int32_t id = 0;
   if (pTier->level == 0) {
     if (pTier->disks[0] != NULL) {
       id = pTier->ndisk;

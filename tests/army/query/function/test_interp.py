@@ -40,6 +40,9 @@ class TDTestCase(TBase):
         )
         tdSql.execute("create table if not exists test.td32861(ts timestamp, c1 int);")
 
+        tdSql.execute("create stable if not exists test.ts5941(ts timestamp, c1 int, c2 int) tags (t1 varchar(30));")
+        tdSql.execute("create table if not exists test.ts5941_child using test.ts5941 tags ('testts5941');")
+
         tdLog.printNoPrefix("==========step2:insert data")
 
         tdSql.execute(f"insert into test.td32727 values ('2020-02-01 00:00:05', 5, 5, 5, 5, 5.0, 5.0, true, 'varchar', 'nchar', 5, 5, 5, 5)")
@@ -56,6 +59,9 @@ class TDTestCase(TBase):
                 ('2020-01-01 00:00:15', 15),
                 ('2020-01-01 00:00:21', 21);"""
         )
+        tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:05', 5, 5)")
+        tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:10', 10, 10)")
+        tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:15', 15, 15)")
 
     def test_normal_query_new(self, testCase):
         # read sql from .sql file and execute

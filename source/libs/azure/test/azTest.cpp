@@ -199,3 +199,132 @@ TEST(AzTest, InterfaceTest) {
 
   azEnd();
 }
+
+// TEST(AzTest, DISABLED_InterfaceTestBig) {
+TEST(AzTest, InterfaceTestBig) {
+  int  code = 0;
+  bool check = false;
+  bool withcp = false;
+
+  code = azInitEnv();
+  if (code) {
+    std::cout << "ablob env init failed with: " << code << std::endl;
+    return;
+  }
+
+  GTEST_ASSERT_EQ(code, 0);
+  GTEST_ASSERT_EQ(tsS3Enabled, 1);
+
+  code = azBegin();
+  GTEST_ASSERT_EQ(code, 0);
+
+  code = azCheckCfg();
+  GTEST_ASSERT_EQ(code, 0);
+  const int size = 256 * 1024 * 1024 + 1;
+  char     *data = (char *)taosMemoryCalloc(1, size);
+  if (!data) {
+    std::cout << "code: " << code << "terrno: " << terrno << std::endl;
+
+    return;
+  }
+
+  for (int i = 0; i < size / 2; ++i) {
+    data[i * 2 + 1] = 1;
+  }
+
+  const char object_name[] = "azut.bin";
+  char       path[PATH_MAX] = {0};
+  char       path_download[PATH_MAX] = {0};
+  int        ds_len = strlen(TD_DIRSEP);
+  int        tmp_len = strlen(tsTempDir);
+
+  (void)snprintf(path, PATH_MAX, "%s", tsTempDir);
+  if (strncmp(tsTempDir + tmp_len - ds_len, TD_DIRSEP, ds_len) != 0) {
+    (void)snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", TD_DIRSEP);
+    (void)snprintf(path + tmp_len + ds_len, PATH_MAX - tmp_len - ds_len, "%s", object_name);
+  } else {
+    (void)snprintf(path + tmp_len, PATH_MAX - tmp_len, "%s", object_name);
+  }
+
+  tstrncpy(path_download, path, strlen(path) + 1);
+  tstrncpy(path_download + strlen(path), ".download", strlen(".download") + 1);
+
+  TdFilePtr fp = taosOpenFile(path, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_WRITE_THROUGH);
+  GTEST_ASSERT_NE(fp, nullptr);
+
+  int n = taosWriteFile(fp, data, size);
+  GTEST_ASSERT_EQ(n, size);
+
+  code = taosCloseFile(&fp);
+  GTEST_ASSERT_EQ(code, 0);
+
+  code = azPutObjectFromFileOffset(path, object_name, 0, size);
+  GTEST_ASSERT_EQ(code, 0);
+
+  uint8_t *pBlock = NULL;
+  code = azGetObjectBlock(object_name, 0, size, check, &pBlock);
+  GTEST_ASSERT_EQ(code, 0);
+
+  for (int i = 0; i < size / 2; ++i) {
+    GTEST_ASSERT_EQ(pBlock[i * 2], 0);
+    GTEST_ASSERT_EQ(pBlock[i * 2 + 1], 1);
+  }
+
+  taosMemoryFree(pBlock);
+
+  code = azGetObjectToFile(object_name, path_download);
+  GTEST_ASSERT_EQ(code, 0);
+
+  {
+    TdFilePtr fp = taosOpenFile(path, TD_FILE_READ);
+    GTEST_ASSERT_NE(fp, nullptr);
+
+    (void)memset(data, 0, size);
+
+    int64_t n = taosReadFile(fp, data, size);
+    GTEST_ASSERT_EQ(n, size);
+
+    code = taosCloseFile(&fp);
+    GTEST_ASSERT_EQ(code, 0);
+
+    for (int i = 0; i < size / 2; ++i) {
+      GTEST_ASSERT_EQ(data[i * 2], 0);
+      GTEST_ASSERT_EQ(data[i * 2 + 1], 1);
+    }
+  }
+
+  azDeleteObjectsByPrefix(object_name);
+  // list object to check
+
+  code = azPutObjectFromFile2(path, object_name, withcp);
+  GTEST_ASSERT_EQ(code, 0);
+
+  code = azGetObjectsByPrefix(object_name, tsTempDir);
+  GTEST_ASSERT_EQ(code, 0);
+
+  {
+    TdFilePtr fp = taosOpenFile(path, TD_FILE_READ);
+    GTEST_ASSERT_NE(fp, nullptr);
+
+    (void)memset(data, 0, size);
+
+    int64_t n = taosReadFile(fp, data, size);
+    GTEST_ASSERT_EQ(n, size);
+
+    code = taosCloseFile(&fp);
+    GTEST_ASSERT_EQ(code, 0);
+
+    for (int i = 0; i < size / 2; ++i) {
+      GTEST_ASSERT_EQ(data[i * 2], 0);
+      GTEST_ASSERT_EQ(data[i * 2 + 1], 1);
+    }
+  }
+
+  const char *object_name_arr[] = {object_name};
+  code = azDeleteObjects(object_name_arr, 1);
+  GTEST_ASSERT_EQ(code, 0);
+
+  taosMemoryFree(data);
+
+  azEnd();
+}

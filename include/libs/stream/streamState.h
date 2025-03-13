@@ -34,7 +34,6 @@ void          streamStateClose(SStreamState* pState, bool remove);
 int32_t       streamStateBegin(SStreamState* pState);
 void          streamStateCommit(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState, bool remove);
-int32_t       streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark);
 int32_t       streamStateDelTaskDb(SStreamState* pState);
 
 int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
@@ -45,6 +44,7 @@ int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, in
 bool    streamStateCheck(SStreamState* pState, const SWinKey* key);
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal);
 void    streamStateDel(SStreamState* pState, const SWinKey* key);
+void    streamStateDelByGroupId(SStreamState* pState, uint64_t groupId);
 void    streamStateClear(SStreamState* pState);
 void    streamStateSetNumber(SStreamState* pState, int32_t number, int32_t tsIdex);
 void    streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
@@ -108,7 +108,6 @@ int32_t streamStateFillGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, con
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
 // twa
-void streamStateSetFillInfo(SStreamState* pState);
 void streamStateClearExpiredState(SStreamState* pState);
 
 void streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);

@@ -35,11 +35,10 @@ int32_t simInitCfg() {
   return 0;
 }
 
-bool simSystemInit() {
+void simSystemInit() {
   simInitCfg();
   simInitsimCmdList();
   memset(simScriptList, 0, sizeof(SScript *) * MAX_MAIN_SCRIPT_NUM);
-  return true;
 }
 
 void simSystemCleanUp() {}

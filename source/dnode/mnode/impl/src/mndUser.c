@@ -1805,12 +1805,21 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndCheckPasswordFmt(const char *pwd) {
-  int32_t len = strlen(pwd);
-  if (len < TSDB_PASSWORD_MIN_LEN || len > TSDB_PASSWORD_MAX_LEN) {
+static int32_t mndCheckPasswordMinLen(const char *pwd, int32_t len) {
+  if (len < TSDB_PASSWORD_MIN_LEN) {
     return -1;
   }
+  return 0;
+}
 
+static int32_t mndCheckPasswordMaxLen(const char *pwd, int32_t len) {
+  if (len > TSDB_PASSWORD_MAX_LEN) {
+    return -1;
+  }
+  return 0;
+}
+
+static int32_t mndCheckPasswordFmt(const char *pwd, int32_t len) {
   if (strcmp(pwd, "taosdata") == 0) {
     return 0;
   }
@@ -1875,13 +1884,16 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  if (mndCheckPasswordFmt(createReq.pass) != 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
-  }
-
+  int32_t len = strlen(createReq.pass);
   if (createReq.isImport != 1) {
-    if (strlen(createReq.pass) >= TSDB_PASSWORD_LEN) {
+    if (mndCheckPasswordMinLen(createReq.pass, len) != 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
+    }
+    if (mndCheckPasswordMaxLen(createReq.pass, len) != 0) {
       TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
+    }
+    if (mndCheckPasswordFmt(createReq.pass, len) != 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
     }
   }
 
@@ -2364,8 +2376,17 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType && mndCheckPasswordFmt(alterReq.pass) != 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
+  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
+    int32_t len = strlen(alterReq.pass);
+    if (mndCheckPasswordMinLen(alterReq.pass, len) != 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
+    }
+    if (mndCheckPasswordMaxLen(alterReq.pass, len) != 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
+    }
+    if (mndCheckPasswordFmt(alterReq.pass, len) != 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
+    }
   }
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, alterReq.user, &pUser), &lino, _OVER);

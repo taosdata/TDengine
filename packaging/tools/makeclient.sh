@@ -282,5 +282,3 @@ else
   rm -rf ${install_dir} ||:
 #  mv ../"$(basename ${pkg_name}).tar.gz" .
 fi
-
-cd ${curr_dir}

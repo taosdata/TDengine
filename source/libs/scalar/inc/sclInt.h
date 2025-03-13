@@ -21,6 +21,8 @@ extern "C" {
 #include "query.h"
 #include "tcommon.h"
 #include "thash.h"
+#include "querynodes.h"
+#include "function.h"
 
 typedef struct SOperatorValueType {
   int32_t opResType;
@@ -141,11 +143,13 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 #define GET_PARAM_PRECISON(_c) ((_c)->columnData->info.precision)
 
 void sclFreeParam(SScalarParam* param);
-int32_t doVectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,
+int32_t doVectorCompare(SScalarParam* pLeft, SScalarParam *pLeftVar, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,
                      int32_t _ord, int32_t optr);
 int32_t vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,
                           int32_t _ord, int32_t optr);
 int32_t vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr);
+
+bool checkOperatorRestypeIsTimestamp(EOperatorType opType, int32_t ldt, int32_t rdt);
 
 #ifdef __cplusplus
 }

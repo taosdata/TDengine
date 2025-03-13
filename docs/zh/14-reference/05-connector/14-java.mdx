@@ -21,8 +21,8 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 ## JDBC 和 JRE 版本兼容性
 
-- JDBC: 支持 JDBC 4.2 及以上版本。
-- JRE: 支持 JRE 8 及以上版本。
+- JDBC：支持 JDBC 4.2 及以上版本。
+- JRE：支持 JRE 8 及以上版本。
 
 ## 支持的平台
 
@@ -33,6 +33,10 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | ------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+|        3.5.3        | 在 WebSocket 连接上支持无符号数据类型     |  -  |
+|        3.5.2        | 解决了 WebSocket 查询结果集释放 bug     |  -  |
+|        3.5.1        | 解决了数据订阅获取时间戳对象类型问题     |  -  |
+|        3.5.0        | 1. 优化了 WebSocket 连接参数绑定性能，支持参数绑定查询使用二进制数据 <br/> 2. 优化了 WebSocket 连接在小查询上的性能 <br/> 3. WebSocket 连接上支持设置时区和应用信息     |       3.3.5.0 及更高版本  |
 |        3.4.0        | 1. 使用 jackson 库替换 fastjson 库 <br/> 2. WebSocket 采用独立协议标识 <br/> 3. 优化后台拉取线程使用，避免用户误用导致超时     |       -        |
 |        3.3.4        | 解决了 getInt 在数据类型为 float 报错     |       -        |
 |        3.3.3        | 解决了 WebSocket statement 关闭导致的内存泄漏      |       -        |
@@ -97,7 +101,7 @@ JDBC 连接器可能报错的错误码包括 4 种：
 | 0x2318     |                                                                 | REST 连接中出现了数据传输异常，请检查网络情况并重试。                                     |
 | 0x2319     | user is required                                                | 创建连接时缺少用户名信息                                                                  |
 | 0x231a     | password is required                                            | 创建连接时缺少密码信息                                                                    |
-| 0x231c     | httpEntity is null, sql:                                        | REST 连接中执行出现异常                                                                   |
+| 0x231c     | httpEntity is null, sql                                         | REST 连接中执行出现异常                                                                   |
 | 0x231d     | can't create connection with server within                      | 通过增加参数 httpConnectTimeout 增加连接耗时，或是请检查与 taosAdapter 之间的连接情况。   |
 | 0x231e     | failed to complete the task within the specified time           | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况。   |
 | 0x2350     | unknown error                                                   | 未知异常，请在 github 反馈给开发人员。                                                    |
@@ -125,24 +129,27 @@ JDBC 连接器可能报错的错误码包括 4 种：
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | JDBCType           |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte array         |
-| NCHAR             | java.lang.String   |
-| JSON              | java.lang.String   |
-| VARBINARY         | byte[]             |
-| GEOMETRY          | byte[]             |
+| TDengine DataType | JDBCType             | 备注|
+| ----------------- | -------------------- |-------------------- |
+| TIMESTAMP         | java.sql.Timestamp   ||
+| BOOL              | java.lang.Boolean    ||
+| TINYINT           | java.lang.Byte       ||
+| TINYINT UNSIGNED  | java.lang.Short      |仅在 WebSocket 连接方式支持|
+| SMALLINT          | java.lang.Short      ||
+| SMALLINT UNSIGNED | java.lang.Integer    |仅在 WebSocket 连接方式支持|
+| INT               | java.lang.Integer    ||
+| INT UNSIGNED      | java.lang.Long       |仅在 WebSocket 连接方式支持|
+| BIGINT            | java.lang.Long       ||
+| BIGINT UNSIGNED   | java.math.BigInteger |仅在 WebSocket 连接方式支持|
+| FLOAT             | java.lang.Float      ||
+| DOUBLE            | java.lang.Double     ||
+| BINARY            | byte array           ||
+| NCHAR             | java.lang.String     ||
+| JSON              | java.lang.String     |仅在 tag 中支持|
+| VARBINARY         | byte[]               ||
+| GEOMETRY          | byte[]               ||
 
-**注意**：JSON 类型仅在 tag 中支持。  
-由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
+**注意**：由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
 GEOMETRY类型是little endian字节序的二进制数据，符合WKB规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
 WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 对于java连接器，可以使用jts库来方便的创建GEOMETRY类型对象，序列化后写入TDengine，这里有一个样例[Geometry示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
@@ -155,7 +162,7 @@ WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/w
 - connectionPools：HikariCP, Druid, dbcp, c3p0 等连接池中使用 taos-jdbcdriver。
 - SpringJdbcTemplate：Spring JdbcTemplate 中使用 taos-jdbcdriver。
 - mybatisplus-demo：Springboot + Mybatis 中使用 taos-jdbcdriver。
-- springbootdemo: Springboot 中使用 taos-jdbcdriver。
+- springbootdemo：Springboot 中使用 taos-jdbcdriver。
 - consumer-demo：Consumer 消费 TDengine 数据示例，可通过参数控制消费速度。
 
 请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
@@ -184,13 +191,13 @@ WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/w
 
 **原因**：taos-jdbcdriver 3.\* 版本仅支持 TDengine 3.0 及以上版本。
 
-**解决方法**： 使用 taos-jdbcdriver 2.\* 版本连接 TDengine 2.\* 版本。
+**解决方法**：使用 taos-jdbcdriver 2.\* 版本连接 TDengine 2.\* 版本。
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 
 **原因**：taos-jdbcdriver 3.0.1 版本需要在 JDK 11+ 环境使用。
 
-**解决方法**： 更换 taos-jdbcdriver 3.0.2+ 版本。
+**解决方法**：更换 taos-jdbcdriver 3.0.2+ 版本。
 
 其它问题请参考 [FAQ](../../../train-faq/faq)
 
@@ -219,7 +226,7 @@ TDengine 的 JDBC URL 规范格式为：
 - charset：客户端使用的字符集，默认值为系统字符集。
 - locale：客户端语言环境，默认值系统当前 locale。
 - timezone：客户端使用的时区，默认值为系统当前时区。
-- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：true。开启批量拉取同时获取一批数据在查询数据量较大时批量拉取可以有效的提升查询性能。
+- batchfetch：true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：true。开启批量拉取同时获取一批数据在查询数据量较大时批量拉取可以有效的提升查询性能。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败将继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。  
@@ -243,13 +250,13 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 对于 WebSocket 连接，url 中的配置参数如下：
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
-- charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 60000。
-- messageWaitTimeout: 消息超时时间, 单位 ms， 默认值为 60000。 
-- useSSL: 连接中是否使用 SSL。
+- httpConnectTimeout：连接超时时间，单位 ms， 默认值为 60000。
+- messageWaitTimeout：消息超时时间, 单位 ms， 默认值为 60000。 
+- useSSL：连接中是否使用 SSL。
+- timezone：客户端使用的时区，连接上生效，默认值为系统时区。推荐不设置，使用系统时区性能更好。
 
-**注意**：部分配置项（比如：locale、timezone）在 WebSocket 连接中不生效。
+**注意**：部分配置项（比如：locale、charset）在 WebSocket 连接中不生效。
 
 **REST 连接**  
 使用 JDBC REST 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
@@ -261,14 +268,13 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 对于 REST 连接，url 中的配置参数如下：
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
-- charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 60000。
-- httpSocketTimeout: socket 超时时间，单位 ms，默认值为 60000。
-- useSSL: 连接中是否使用 SSL。
-- httpPoolSize: REST 并发请求大小，默认 20。
+- httpConnectTimeout：连接超时时间，单位 ms， 默认值为 60000。
+- httpSocketTimeout：socket 超时时间，单位 ms，默认值为 60000。
+- useSSL：连接中是否使用 SSL。
+- httpPoolSize：REST 并发请求大小，默认 20。
 
-**注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。
+**注意**：部分配置项（比如：locale、charset 和 timezone）在 REST 连接中不生效。
 
 :::note
 
@@ -286,24 +292,29 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 'root'。
 - TSDBDriver.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 'taosdata'。
-- TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。因历史原因使用 REST 连接时，若设置此参数为 true 会变成 WebSocket 连接。
+- TSDBDriver.PROPERTY_KEY_BATCH_LOAD：true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。因历史原因使用 REST 连接时，若设置此参数为 true 会变成 WebSocket 连接。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 - TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 - TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。因为历史的原因，我们只支持POSIX标准的部分规范，如UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
-- TSDBDriver.HTTP_CONNECT_TIMEOUT: 连接超时时间，单位 ms， 默认值为 60000。仅在 REST 连接时生效。
-- TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 60000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
-- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。 仅 WebSocket 连接下有效。
-- TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 WebSocket/REST 连接时生效。
-- TSDBDriver.HTTP_POOL_SIZE: REST 并发请求大小，默认 20。
-- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 REST/WebSocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 WebSocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-> **注意**：启用自动重连仅对简单执行 SQL 语句以及 无模式写入、数据订阅有效。对于参数绑定无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
+- TSDBDriver.PROPERTY_KEY_TIME_ZONE：
+    - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持POSIX标准的部分规范，如UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
+    - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。
+- TSDBDriver.HTTP_CONNECT_TIMEOUT：连接超时时间，单位 ms， 默认值为 60000。仅在 REST 连接时生效。
+- TSDBDriver.HTTP_SOCKET_TIMEOUT：socket 超时时间，单位 ms，默认值为 60000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
+- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT：消息超时时间, 单位 ms， 默认值为 60000。 仅 WebSocket 连接下有效。
+- TSDBDriver.PROPERTY_KEY_USE_SSL：连接中是否使用 SSL。仅在 WebSocket/REST 连接时生效。
+- TSDBDriver.HTTP_POOL_SIZE：REST 并发请求大小，默认 20。
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION：传输过程是否启用压缩。仅在使用 REST/WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT：是否启用自动重连。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
+    > **注意**：启用自动重连仅对简单执行 SQL 语句以及 无模式写入、数据订阅有效。对于参数绑定无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
 
-- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: 关闭 SSL 证书验证 。仅在使用 WebSocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION：关闭 SSL 证书验证 。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
+
+- TSDBDriver.PROPERTY_KEY_APP_NAME：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
+- TSDBDriver.PROPERTY_KEY_APP_IP：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。
 
 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。
 
@@ -1166,7 +1177,7 @@ JDBC 驱动支持标准的 ResultSet 接口，提供了用于读取结果集中�
 
 ### 参数绑定
 PreparedStatement 允许使用预编译的 SQL 语句，这可以提高性能并提供参数化查询的能力，从而增加安全性。  
-JDBC 驱动提供了实现 PreparedStatement 接口的两个类：  
+JDBC 驱动提供了实现 PreparedStatement 接口的两个类： 
 1. 对应原生连接的 TSDBPreparedStatement
 2. 对应 WebSocket 连接的 TSWSPreparedStatement  
 
@@ -1326,7 +1337,7 @@ ParameterMetaData 提供了参数元数据接口：
     - `size`：所有字符串的最大长度，一般为建表语句的限制值。
   - **异常**：
     - 如果操作过程中发生错误，将抛出 SQLException 异常。
-- 下面接口除了要设置的值类型不同外，其余同 setString：    
+- 下面接口除了要设置的值类型不同外，其余同 setString：   
   - `void setVarbinary(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
   - `void setGeometry(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
   - `void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException`
@@ -1352,19 +1363,19 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
   - **返回值**：消费者对象
   - **异常**：如果创建失败，抛出 SQLException 异常。
 
-创建消费者支持属性列表：  
-- td.connect.type: 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
-- bootstrap.servers: TDengine 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
-- enable.auto.commit: 是否允许自动提交。
-- group.id: consumer: 所在的 group。
-- value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
-- httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
-- messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
-- httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。  
-- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 WebSocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 WebSocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+创建消费者支持属性列表： 
+- td.connect.type：连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
+- bootstrap.servers：TDengine 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
+- enable.auto.commit：是否允许自动提交。
+- group.id：consumer：所在的 group。
+- value.deserializer：结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
+- httpConnectTimeout：创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
+- messageWaitTimeout：数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
+- httpPoolSize：同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。  
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION：传输过程是否启用压缩。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT：是否启用自动重连。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 
 其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 

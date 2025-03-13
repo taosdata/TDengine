@@ -47,6 +47,7 @@ const char* terrstr();
 
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
+void     taosClearErrMsg();
 int32_t* taosGetErrno();
 int32_t* taosGetErrln();
 int32_t  taosGetErrSize();
@@ -801,7 +802,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PAR_TAGS_NOT_MATCHED          TAOS_DEF_ERROR_CODE(0, 0x260D)
 #define TSDB_CODE_PAR_INVALID_TAG_NAME          TAOS_DEF_ERROR_CODE(0, 0x260E)
 #define TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG   TAOS_DEF_ERROR_CODE(0, 0x2610)
-#define TSDB_CODE_PAR_PASSWD_EMPTY              TAOS_DEF_ERROR_CODE(0, 0x2611)
+#define TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY TAOS_DEF_ERROR_CODE(0, 0x2611)
 #define TSDB_CODE_PAR_INVALID_PORT              TAOS_DEF_ERROR_CODE(0, 0x2612)
 #define TSDB_CODE_PAR_INVALID_ENDPOINT          TAOS_DEF_ERROR_CODE(0, 0x2613)
 #define TSDB_CODE_PAR_EXPRIE_STATEMENT          TAOS_DEF_ERROR_CODE(0, 0x2614)
@@ -1013,6 +1014,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT         TAOS_DEF_ERROR_CODE(0, 0x4014)
 #define TSDB_CODE_TMQ_NO_TABLE_QUALIFIED         TAOS_DEF_ERROR_CODE(0, 0x4015)
 #define TSDB_CODE_TMQ_NO_NEED_REBALANCE          TAOS_DEF_ERROR_CODE(0, 0x4016)
+#define TSDB_CODE_TMQ_INVALID_STATUS             TAOS_DEF_ERROR_CODE(0, 0x4017)
 
 // stream
 #define TSDB_CODE_STREAM_TASK_NOT_EXIST          TAOS_DEF_ERROR_CODE(0, 0x4100)

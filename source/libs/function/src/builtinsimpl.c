@@ -771,7 +771,35 @@ bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
+static bool funcNotSupportStringSma(SFunctionNode* pFunc) {
+  SNode* pParam;
+  switch (pFunc->funcType) {
+    case FUNCTION_TYPE_MAX:
+    case FUNCTION_TYPE_MIN:
+    case FUNCTION_TYPE_SUM:
+    case FUNCTION_TYPE_AVG:
+    case FUNCTION_TYPE_AVG_PARTIAL:
+    case FUNCTION_TYPE_PERCENTILE:
+    case FUNCTION_TYPE_SPREAD:
+    case FUNCTION_TYPE_SPREAD_PARTIAL:
+    case FUNCTION_TYPE_SPREAD_MERGE:
+    case FUNCTION_TYPE_TWA:
+    case FUNCTION_TYPE_ELAPSED:
+      pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      if (pParam && nodesIsExprNode(pParam) && (IS_VAR_DATA_TYPE(((SExprNode*)pParam)->resType.type))) {
+        return true;
+      }
+      break;
+    default:
+      break;
+  }
+  return false;
+}
+
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  if (funcNotSupportStringSma(pFunc)) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
   return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
@@ -6590,7 +6618,7 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   double   compressRadio = 0;
   if (rawDataSize != 0) {
     compressRadio = totalDiskSize * 100 / (double)rawDataSize;
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[%.2f]", compressRadio);
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[%.2f%]", compressRadio);
   } else {
     len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[NULL]");
   }

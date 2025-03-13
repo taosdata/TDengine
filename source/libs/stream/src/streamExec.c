@@ -464,8 +464,8 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
   // 2. send msg to mnode to launch a checkpoint to keep the state for current stream
   code = streamTaskSendCheckpointReq(pStreamTask);
 
-  // 3. assign the status to the value that will be kept in disk
-  pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask).state;
+  // 3. the default task status should be ready or something, not halt.
+  // status to the value that will be kept in disk
 
   // 4. open the inputQ for all upstream tasks
   streamTaskOpenAllUpstreamInput(pStreamTask);
@@ -698,6 +698,8 @@ static int32_t doHandleChkptBlock(SStreamTask* pTask) {
 
   streamMutexLock(&pTask->lock);
   SStreamTaskState pState = streamTaskGetStatus(pTask);
+  streamMutexUnlock(&pTask->lock);
+
   if (pState.state == TASK_STATUS__CK) {  // todo other thread may change the status
     stDebug("s-task:%s checkpoint block received, set status:%s", id, pState.name);
     code = streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
@@ -715,7 +717,7 @@ static int32_t doHandleChkptBlock(SStreamTask* pTask) {
     }
   }
 
-  streamMutexUnlock(&pTask->lock);
+//  streamMutexUnlock(&pTask->lock);
   return code;
 }
 
@@ -777,7 +779,8 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
   int32_t     code = 0;
 
   // merge multiple input data if possible in the input queue.
-  stDebug("s-task:%s start to extract data block from inputQ", id);
+  int64_t st = taosGetTimestampMs();
+  stDebug("s-task:%s start to extract data block from inputQ, ts:%" PRId64, id, st);
 
   while (1) {
     int32_t           blockSize = 0;
@@ -823,6 +826,10 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+#if 0
+      // Injection error: for automatic kill long trans test
+      taosMsleep(50*1000);
+#endif
       code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
       if (code != 0) {
         stError("s-task:%s failed to process checkpoint-trigger block, code:%s", pTask->id.idStr, tstrerror(code));
@@ -840,8 +847,6 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         stError("s-task:%s invalid block type:%d for sink task, discard", id, type);
         continue;
       }
-
-      int64_t st = taosGetTimestampMs();
 
       // here only handle the data block sink operation
       if (type == STREAM_INPUT__DATA_BLOCK) {
@@ -871,6 +876,13 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
       streamFreeQitem(pInput);
       if (code) {
+        return code;
+      }
+
+      double el = (taosGetTimestampMs() - st) / 1000.0;
+      if (el > 2.0) {  // elapsed more than 5 sec, not occupy the CPU anymore
+        stDebug("s-task:%s occupy more than 5.0s, release the exec threads and idle for 500ms", id);
+        streamTaskSetIdleInfo(pTask, 500);
         return code;
       }
     }
@@ -903,8 +915,35 @@ bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
   }
 }
 
+static bool shouldNotCont(SStreamTask* pTask) {
+  int32_t       level = pTask->info.taskLevel;
+  SStreamQueue* pQueue = pTask->inputq.queue;
+  ETaskStatus   status = streamTaskGetStatus(pTask).state;
+
+  // 1. task should jump out
+  bool quit = (status == TASK_STATUS__STOP) || (status == TASK_STATUS__PAUSE) || (status == TASK_STATUS__DROPPING);
+
+  // 2. checkpoint procedure, the source task's checkpoint queue is empty, not read from ordinary queue
+  bool emptyCkQueue = (taosQueueItemSize(pQueue->pChkptQueue) == 0);
+
+  // 3. no data in ordinary queue
+  bool emptyBlockQueue = (streamQueueGetNumOfItems(pQueue) == 0);
+
+  if (quit) {
+    return true;
+  } else {
+    if (status == TASK_STATUS__CK && level == TASK_LEVEL__SOURCE) {
+      // in checkpoint procedure, we only check whether the controller queue is empty or not
+      return emptyCkQueue;
+    } else { // otherwise, if the block queue is empty, not continue.
+      return emptyBlockQueue && emptyCkQueue;
+    }
+  }
+}
+
 int32_t streamResumeTask(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
+  int32_t     level = pTask->info.taskLevel;
   int32_t     code = 0;
 
   if (pTask->status.schedStatus != TASK_SCHED_STATUS__ACTIVE) {
@@ -917,11 +956,10 @@ int32_t streamResumeTask(SStreamTask* pTask) {
     if (code) {
       stError("s-task:%s failed to exec stream task, code:%s, continue", id, tstrerror(code));
     }
-    // check if continue
+
     streamMutexLock(&pTask->lock);
 
-    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
-    if ((numOfItems == 0) || streamTaskShouldStop(pTask) || streamTaskShouldPause(pTask)) {
+    if (shouldNotCont(pTask)) {
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
       streamTaskClearSchedIdleInfo(pTask);
       streamMutexUnlock(&pTask->lock);

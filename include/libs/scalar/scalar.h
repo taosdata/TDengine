@@ -40,7 +40,7 @@ pDst need to freed in caller
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst);
 
 int32_t scalarGetOperatorParamNum(EOperatorType type);
-int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type);
+int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_t processType);
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2);
 int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex, int32_t numOfRows);

@@ -491,15 +491,15 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::
 
-## UNION ALL Clause
+## UNION Clause
 
 ```text title=Syntax
 SELECT ...
-UNION ALL SELECT ...
-[UNION ALL SELECT ...]
+UNION [ALL] SELECT ...
+[UNION [ALL] SELECT ...]
 ```
 
-TDengine supports the UNION ALL operator. This means that if multiple SELECT clauses return result sets with the exact same structure (column names, column types, number of columns, order), these result sets can be combined together using UNION ALL. Currently, only the UNION ALL mode is supported, which means that duplicates are not removed during the merging process. In the same SQL statement, a maximum of 100 UNION ALLs are supported.
+TDengine supports the UNION [ALL] operator. This means that if multiple SELECT clauses return result sets with the exact same structure (column names, column types, number of columns, order), these result sets can be combined together using UNION [ALL].
 
 ## SQL Examples
 
