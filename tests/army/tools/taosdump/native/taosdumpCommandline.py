@@ -224,10 +224,11 @@ class TDTestCase(TBase):
         
         sql = f"create user dkj pass '{pwd}' "
         tdSql.execute(sql)
-         
+
+        pwd = "taosdata"  
         cmds = [
-            f"-udkj -p{pwd}        -D test -o {tmpdir}",  # command pass
-            f"-udkj -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
+            f"-uroot -p{pwd}        -D test -o {tmpdir}",  # command pass
+            f"-uroot -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
         ]
 
         for cmd in cmds:
