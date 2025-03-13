@@ -21,19 +21,18 @@ include(${TD_SUPPORT_DIR}/cmake.version)
 include(${TD_SUPPORT_DIR}/cmake.install)
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
-
-add_library(api INTERFACE)
-target_include_directories(api INTERFACE "include/client")
-
 add_subdirectory(contrib)
-add_subdirectory(source)
-add_subdirectory(tools)
-add_subdirectory(utils)
-add_subdirectory(tests)
-add_subdirectory(docs/doxgen)
 
 if(${BUILD_TEST})
   include(CTest)
   enable_testing()
   add_subdirectory(examples/c)
 endif(${BUILD_TEST})
+
+add_library(api INTERFACE)
+target_include_directories(api INTERFACE "include/client")
+add_subdirectory(source)
+add_subdirectory(tools)
+add_subdirectory(utils)
+add_subdirectory(tests)
+add_subdirectory(docs/doxgen)
