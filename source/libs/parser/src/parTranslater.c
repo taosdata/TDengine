@@ -9250,9 +9250,13 @@ static int32_t checkColumnOptions(SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions) {
+static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions, bool createStable) {
   if (pOptions == NULL || (pOptions->keep == -1 && pOptions->pKeepNode == NULL)) {
     return TSDB_CODE_SUCCESS;
+  }
+  if (!createStable) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                   "KEEP parameter is not allowed when creating normal table");
   }
   if (pOptions && pOptions->pKeepNode) {
     if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pKeepNode)) {
@@ -9724,7 +9728,7 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkColumnOptions(pStmt->pCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableKeepOption(pCxt, pStmt->pOptions);
+    code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable);
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (createStable && pStmt->pOptions->ttl != 0) {
@@ -10494,7 +10498,7 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
     code = checkAlterSuperTableBySchema(pCxt, pStmt, pTableMeta);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableKeepOption(pCxt, pStmt->pOptions);
+    code = checkTableKeepOption(pCxt, pStmt->pOptions, true);
   }
   taosMemoryFree(pTableMeta);
   return code;
@@ -15483,6 +15487,10 @@ static int32_t checkCreateSubTable(STranslateContext* pCxt, SCreateSubTableClaus
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
                                    "The table name cannot contain '.'");
   }
+  if (pStmt->pOptions->keep >= 0 || pStmt->pOptions->pKeepNode != NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                   "child table cannot set keep duration");
+  }
   return TSDB_CODE_SUCCESS;
 }
 static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableClause* pStmt, SHashObj* pVgroupHashmap) {
@@ -16925,6 +16933,10 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
     return TSDB_CODE_SUCCESS;
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+  if (pStmt->pOptions->keep >= 0 || pStmt->pOptions->pKeepNode != NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                   "only super table can alter keep duration");
   }
 
   const SSchema* pSchema = getNormalColSchema(pTableMeta, pStmt->colName);

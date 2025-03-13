@@ -83,6 +83,23 @@ class TDTestCase(TBase):
         tdSql.error(f"ALTER STABLE stb_0 KEEP 1f",expectErrInfo="syntax error")
         tdSql.error(f"ALTER STABLE stb_0 KEEP 1d1",expectErrInfo="syntax error")
 
+    def check_child_table_with_keep(self):
+        tdLog.info(f"check child table with keep")
+        tdSql.execute("USE test")
+        tdSql.execute("CREATE DATABASE db")
+        tdSql.execute("USE db")
+        tdSql.execute("CREATE STABLE stb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1d")
+        tdSql.error(f"CREATE TABLE ctb USING stb TAGS (1) KEEP 1d",expectErrInfo="child table cannot set keep duration")
+        tdSql.execute(f"CREATE TABLE ctb USING stb TAGS (1)")
+        tdSql.error(f"ALTER TABLE ctb keep 1d",expectErrInfo="only super table can alter keep duration")
+
+    def check_normal_table_with_keep(self):
+        tdLog.info(f"check normal table with keep")
+        tdSql.execute("USE test")
+        tdSql.error("CREATE TABLE ntb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) KEEP 1d",expectErrInfo="KEEP parameter is not allowed when creating normal table")
+        tdSql.execute("CREATE TABLE ntb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10))")
+        tdSql.error("ALTER TABLE ntb keep 1d",expectErrInfo="only super table can alter keep duration")
+        
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -101,6 +118,12 @@ class TDTestCase(TBase):
 
         # check alter stb with keep err
         self.check_alter_stb_with_keep_err()
+
+        # check child table with keep
+        self.check_child_table_with_keep()
+
+        # check normal table with keep
+        self.check_normal_table_with_keep()
 
         tdLog.success(f"{__file__} successfully executed")
 
