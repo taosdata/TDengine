@@ -3381,7 +3381,7 @@ static SNode* setXnodeOptionImpl(SAstCreateContext* pCxt, SNode* pXnodeOptions, 
   CHECK_PARSER_STATUS(pCxt);
   SXnodeOptions* pOptions = (SXnodeOptions*)pXnodeOptions;
   switch (type) {
-    case DB_OPTION_KEEP:
+    case XNODE_OPTION_PROTOCOL:
       pOptions->pProtocol = pVal;
       break;
     default:
