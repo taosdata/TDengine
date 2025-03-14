@@ -42,8 +42,8 @@ class TDTestCase(TBase):
         tdSql.execute("insert into d0 file '%s'" % datafile)
         tdSql.execute("CREATE TABLE `n1` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, co NCHAR(10))")
         tdSql.execute("insert into n1 values(now, 1, null, '23')")
-        tdSql.execute("insert into n1 values(now, null, 3, '23')")
-        tdSql.execute("insert into n1 values(now, 5, 3, '23')")
+        tdSql.execute("insert into n1 values(now+1a, null, 3, '23')")
+        tdSql.execute("insert into n1 values(now+2a, 5, 3, '23')")
 
     def test_normal_query_new(self, testCase):
         # read sql from .sql file and execute

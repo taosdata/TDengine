@@ -3280,3 +3280,76 @@ void rewriteExprAliasName(SExprNode* pNode, int64_t num) {
 bool isRelatedToOtherExpr(SExprNode* pExpr) {
   return pExpr->relatedTo != 0;
 }
+
+typedef struct SContainsColCxt {
+  bool       containsCol;
+} SContainsColCxt;
+
+static EDealRes nodeContainsCol(SNode* pNode, void* pContext) {
+  SContainsColCxt* pCxt = pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    pCxt->containsCol = true;
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+bool nodesContainsColumn(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  SContainsColCxt cxt = {0};
+  nodesWalkExpr(pNode, nodeContainsCol, &cxt);
+  
+  return cxt.containsCol;
+}
+
+
+
+int32_t mergeNodeToLogic(SNode** pDst, SNode** pSrc) {
+  SLogicConditionNode* pLogicCond = NULL;
+  int32_t              code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCond);
+  if (NULL == pLogicCond) {
+    return code;
+  }
+  pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  code = nodesListMakeAppend(&pLogicCond->pParameterList, *pSrc);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pSrc = NULL;
+    code = nodesListMakeAppend(&pLogicCond->pParameterList, *pDst);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *pDst = (SNode*)pLogicCond;
+  } else {
+    nodesDestroyNode((SNode*)pLogicCond);
+  }
+  return code;
+}
+
+
+int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond) {
+  if (NULL == *pCond) {
+    TSWAP(*pCond, *pAdditionalCond);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCond) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*pCond)->condType) {
+    code = nodesListAppend(((SLogicConditionNode*)*pCond)->pParameterList, *pAdditionalCond);
+    if (TSDB_CODE_SUCCESS == code) {
+      *pAdditionalCond = NULL;
+    }
+  } else {
+    code = mergeNodeToLogic(pCond, pAdditionalCond);
+  }
+  
+  return code;
+}
+
+
+

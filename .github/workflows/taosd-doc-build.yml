@@ -7,7 +7,6 @@ on:
       - '3.0'
     paths:
       - 'docs/**'
-      - '*.md'
 
 env:
   DOC_WKC: "/root/doc_ci_work"
