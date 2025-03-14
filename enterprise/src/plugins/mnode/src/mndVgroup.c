@@ -91,7 +91,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
 
   if (count == 0) {
     mError("trans:%d, no match found, vgId:%d, db:%s", pTrans->id, req.vgId, req.db);
-    code = TSDB_CODE_TSC_INVALID_OPERATION;
+    code = TSDB_CODE_MND_NO_VGROUP_ON_DB;
     goto _OVER;
   }
 
