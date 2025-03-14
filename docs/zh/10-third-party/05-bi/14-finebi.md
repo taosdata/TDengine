@@ -1,6 +1,6 @@
 ---
-sidebar_label: Fine BI
-title: 与 Fine BI 集成
+sidebar_label: FineBI
+title: 与 FineBI 集成
 ---
 
 帆软是一家专注于商业智能与数据分析领域的科技企业，凭借自主研发的 FineBI 和 FineReport 两款核心产品在行业内占据重要地位。帆软的 BI 工具广泛应用于各类企业，帮助用户实现数据的可视化分析、报表生成和数据决策支持。
@@ -26,7 +26,7 @@ title: 与 Fine BI 集成
 
 **第 2 步**，启动 FineBI 服务，在浏览器中输入 `http://ip:37799/webroot/decision`, 其中 ip 是 FineBI 服务端 ip 地址。
 
-**第 3 步**， 打开 Fine BI Web 页面登录后，点击【管理系统】->【插件管理】，在右侧的【应用商城】中点击【从本地安装】选择已下载的 `fine_conf_entity` 插件进行安装。
+**第 3 步**， 打开 FineBI Web 页面登录后，点击【管理系统】->【插件管理】，在右侧的【应用商城】中点击【从本地安装】选择已下载的 `fine_conf_entity` 插件进行安装。
 
 ![finebi-workbook](./finebi/plugin.webp) 
 
