@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tunit.h"
 
+#ifdef USE_STREAM
 static void *freeStreamTasks(SArray *pTaskLevel);
 
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
@@ -198,6 +199,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
 }
 
 void *freeStreamTasks(SArray *pTaskLevel) {
+  if (pTaskLevel == NULL) return NULL;
   int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
 
   for (int32_t i = 0; i < numOfLevel; i++) {
@@ -233,6 +235,7 @@ void tFreeStreamObj(SStreamObj *pStream) {
     taosMemoryFree(pStream->tagSchema.pSchema);
   }
 }
+#endif
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));

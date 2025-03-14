@@ -2497,7 +2497,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 
   SResultRow* pRow = getResultRowByPos(pBuf, &pResultRowInfo->cur, false);
   if (pRow) {
-    w = pRow->win;
+    TAOS_SET_OBJ_ALIGNED(&w, pRow->win);
   }
 
   // in case of typical time window, we can calculate time window directly.

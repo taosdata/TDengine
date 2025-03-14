@@ -1334,13 +1334,13 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
   int32_t tlen;
   tEncodeSize(tEncodeStreamDispatchReq, pReq, tlen, code);
   if (code < 0) {
-    goto FAIL;
+    goto _ERR;
   }
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
     code = terrno;
-    goto FAIL;
+    goto _ERR;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(vgId);
@@ -1350,7 +1350,7 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeStreamDispatchReq(&encoder, pReq)) < 0) {
     tEncoderClear(&encoder);
-    goto FAIL;
+    goto _ERR;
   }
   tEncoderClear(&encoder);
 
@@ -1359,7 +1359,7 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
 
   return tmsgSendReq(pEpSet, &msg);
 
-FAIL:
+_ERR:
   if (buf) {
     rpcFreeCont(buf);
   }

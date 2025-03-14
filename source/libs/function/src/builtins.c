@@ -736,7 +736,7 @@ static int32_t checkFixedValue(SNode* pNode, const SParamInfo* paramPattern, int
       }
     } else {
       for (int32_t k = 0; k < paramPattern->fixedValueSize; k++) {
-        if (strcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
+        if (taosStrcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
           code = TSDB_CODE_SUCCESS;
           *isMatch = true;
           break;
@@ -4417,6 +4417,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
+  #ifdef USE_GEOS
   {
     .name = "st_geomfromtext",
     .type = FUNCTION_TYPE_GEOM_FROM_TEXT,
@@ -4606,6 +4607,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = containsProperlyFunction,
     .finalizeFunc = NULL
   },
+#endif
   {
     .name = "_tbuid",
     .type = FUNCTION_TYPE_TBUID,

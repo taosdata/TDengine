@@ -669,8 +669,8 @@ static void monitorSendAllSlowLog() {
       int64_t size = getFileSize(pClient->path);
       if (size <= 0) {
         if (size < 0) {
-          tscError("monitor failed to get file size:%s, err:%d", pClient->path, errno);
-          if (errno == ENOENT) {
+          tscError("monitor failed to get file size:%s, err:%d", pClient->path, ERRNO);
+          if (ERRNO == ENOENT) {
             processFileRemoved(pClient);
           }
         }
@@ -810,16 +810,16 @@ static void* monitorThreadFunc(void* param) {
 static int32_t tscMonitortInit() {
   TdThreadAttr thAttr;
   if (taosThreadAttrInit(&thAttr) != 0) {
-    tscError("failed to init thread attr since %s", strerror(errno));
+    tscError("failed to init thread attr since %s", strerror(ERRNO));
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   if (taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE) != 0) {
-    tscError("failed to set thread attr since %s", strerror(errno));
+    tscError("failed to set thread attr since %s", strerror(ERRNO));
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
   if (taosThreadCreate(&monitorThread, &thAttr, monitorThreadFunc, NULL) != 0) {
-    tscError("failed to create monitor thread since %s", strerror(errno));
+    tscError("failed to create monitor thread since %s", strerror(ERRNO));
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
@@ -873,7 +873,7 @@ int32_t monitorInit() {
 
   if (tsem2_init(&monitorSem, 0, 0) != 0) {
     tscError("sem init error since %s", terrstr());
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   code = taosOpenQueue(&monitorQueue);

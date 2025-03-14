@@ -249,7 +249,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
               tstrerror(terrno), state);
       code = taosMkDir(state);
       if (code != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
       }
     }
 
@@ -515,7 +515,7 @@ int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId
   } else {
     code = taosMkDir(defaultPath);
     if (code != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       goto _EXIT;
     }
   }
@@ -563,8 +563,8 @@ int32_t copyFiles_create(char* src, char* dst, int8_t type) {
   // create and copy file
   int32_t err = taosCopyFile(src, dst);
 
-  if (errno == EXDEV || errno == ENOTSUP) {
-    errno = 0;
+  if (ERRNO == EXDEV || ERRNO == ENOTSUP) {
+    SET_ERRNO(0);
     return 0;
   }
   return 0;
@@ -602,7 +602,7 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
     goto _ERROR;
   }
 
-  errno = 0;
+  SET_ERRNO(0);
   TdDirEntryPtr de = NULL;
   while ((de = taosReadDir(pDir)) != NULL) {
     char* name = taosGetDirEntryName(de);
@@ -625,14 +625,14 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
     if (strncmp(name, current, strlen(name) <= currLen ? strlen(name) : currLen) == 0) {
       code = copyFiles_create(srcName, dstName, 0);
       if (code != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         stError("failed to copy file, detail: %s to %s reason:%s", srcName, dstName, tstrerror(code));
         goto _ERROR;
       }
     } else if (strncmp(name, info, strlen(name) <= infoLen ? strlen(name) : infoLen) == 0) {
       code = copyFiles_create(srcName, dstName, 0);
       if (code != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         stError("failed to copy file, detail: %s to %s reason:%s", srcName, dstName, tstrerror(code));
         goto _ERROR;
       }
@@ -640,7 +640,7 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
     } else {
       code = copyFiles_hardlink(srcName, dstName, 0);
       if (code != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         stError("failed to hard link file, detail:%s to %s, reason:%s", srcName, dstName, tstrerror(code));
         goto _ERROR;
       } else {
@@ -722,7 +722,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   code = createDirIfNotExist(prefixPath);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _EXIT;
   }
 
@@ -734,7 +734,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   code = createDirIfNotExist(defaultPath);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _EXIT;
   }
 
@@ -746,7 +746,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   code = createDirIfNotExist(checkpointRoot);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _EXIT;
   }
 
@@ -2757,7 +2757,7 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
     code = taosMkDir(temp);
     if (code != 0) {
       taosMemoryFree(temp);
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
     }
   }
 
@@ -5107,7 +5107,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     }
 
     if (taosCopyFile(srcBuf, dstBuf) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       stError("failed to copy file from %s to %s, reason:%s", srcBuf, dstBuf, tstrerror(code));
       goto _ERROR;
     }
@@ -5144,7 +5144,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   }
 
   if (taosCopyFile(srcBuf, dstBuf) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     stError("failed to copy file from %s to %s, reason:%s", srcBuf, dstBuf, tstrerror(code));
     goto _ERROR;
   }
@@ -5236,7 +5236,7 @@ int32_t bkdMgtCreate(char* path, SBkdMgt** mgt) {
   }
 
   if (taosThreadRwlockInit(&p->rwLock, NULL) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     bkdMgtDestroy(p);
     return code;
   }

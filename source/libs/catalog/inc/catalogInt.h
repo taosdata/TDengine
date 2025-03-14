@@ -339,8 +339,10 @@ typedef struct SCtgTSMACache {
 } SCtgTSMACache;
 
 typedef struct SCtgDBCache {
-  SRWLatch     dbLock;  // RC between destroy tbCache/stbCache and all reads
   uint64_t     dbId;
+  uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
+  uint64_t     dbCacheSize;
+  SRWLatch     dbLock;  // RC between destroy tbCache/stbCache and all reads
   int8_t       deleted;
   SCtgVgCache  vgCache;
   SCtgCfgCache cfgCache;
@@ -349,8 +351,6 @@ typedef struct SCtgDBCache {
   SHashObj*    stbCache;   // key:suid, value:char*
   SHashObj*    tsmaCache;  // key:tbname, value: SCtgTSMACache
   int32_t      tsmaVersion;
-  uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
-  uint64_t     dbCacheSize;
 } SCtgDBCache;
 
 typedef struct SCtgRentSlot {

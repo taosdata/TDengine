@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _STREAM_BACKEDN_ROCKSDB_H_
-#define _STREAM_BACKEDN_ROCKSDB_H_
+#ifdef USE_STREAM
+#ifndef _STREAM_BACKEND_ROCKSDB_H_
+#define _STREAM_BACKEND_ROCKSDB_H_
 
 #include "rocksdb/c.h"
 // #include "streamInt.h"
@@ -283,4 +284,5 @@ uint32_t nextPow2(uint32_t x);
 }
 #endif
 
-#endif
+#endif /* _STREAM_BACKEND_ROCKSDB_H_ */
+#endif /* USE_STREAM */
