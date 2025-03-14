@@ -1,7 +1,6 @@
 name: TDgpt Test
 
 on:
-  push:
   pull_request:
     branches:
       - '3.0'
