@@ -82,7 +82,8 @@ typedef enum ETableOptionType {
   TABLE_OPTION_ROLLUP,
   TABLE_OPTION_TTL,
   TABLE_OPTION_SMA,
-  TABLE_OPTION_DELETE_MARK
+  TABLE_OPTION_DELETE_MARK,
+  TABLE_OPTION_KEEP
 } ETableOptionType;
 
 typedef enum EColumnOptionType {

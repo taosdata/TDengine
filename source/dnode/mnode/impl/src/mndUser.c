@@ -15,7 +15,9 @@
 
 #define _DEFAULT_SOURCE
 // clang-format off
+#ifndef TD_ASTRA
 #include <uv.h>
+#endif
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
@@ -688,11 +690,12 @@ void mndCleanupUser(SMnode *pMnode) { ipWhiteMgtCleanup(); }
 static void ipRangeToStr(SIpV4Range *range, char *buf) {
   struct in_addr addr;
   addr.s_addr = range->ip;
-
+#ifndef TD_ASTRA
   (void)uv_inet_ntop(AF_INET, &addr, buf, 32);
   if (range->mask != 32) {
     (void)tsnprintf(buf + strlen(buf), 36 - strlen(buf), "/%d", range->mask);
   }
+#endif
   return;
 }
 static bool isDefaultRange(SIpV4Range *pRange) {
@@ -839,12 +842,13 @@ static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList) {
   }
   (*ppWhiteList)->num = 1;
   SIpV4Range *range = &((*ppWhiteList)->pIpRange[0]);
-
+#ifndef TD_ASTRA
   struct in_addr addr;
   if (uv_inet_pton(AF_INET, "127.0.0.1", &addr) == 0) {
     range->ip = addr.s_addr;
     range->mask = 32;
   }
+#endif
   return 0;
 }
 
@@ -2330,6 +2334,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pAlterTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
 
+#ifdef USE_TOPIC
   if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
@@ -2357,7 +2362,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     }
     mndReleaseTopic(pMnode, pTopic);
   }
-
+#endif
 _OVER:
   if (code < 0) {
     mError("user:%s, failed to alter user privileges at line %d since %s", pAlterReq->user, lino, tstrerror(code));

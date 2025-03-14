@@ -527,7 +527,6 @@ typedef struct SRetention {
 #define RETENTION_VALID(l, r) ((((l) == 0 && (r)->freq >= 0) || ((r)->freq > 0)) && ((r)->keep > 0))
 
 #pragma pack(push, 1)
-
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
 typedef struct SEp {
   char     fqdn[TSDB_FQDN_LEN];
@@ -949,6 +948,7 @@ typedef struct {
   int64_t  deleteMark2;
   int32_t  sqlLen;
   char*    sql;
+  int64_t  keep;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -987,6 +987,7 @@ typedef struct {
   char*   comment;
   int32_t sqlLen;
   char*   sql;
+  int64_t keep;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -3241,6 +3242,7 @@ typedef struct SVCreateStbReq {
   int8_t          source;
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
+  int64_t         keep;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -4233,7 +4235,7 @@ typedef struct {
   int8_t       rawData;
   int32_t      minPollRows;
   int8_t       enableBatchMeta;
-  SHashObj    *uidHash;  // to find if uid is duplicated
+  SHashObj     *uidHash;  // to find if uid is duplicated
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);

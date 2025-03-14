@@ -297,6 +297,7 @@ extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern bool    tsStreamCoverage;
+extern bool    tsStreamRunHistoryAsync;
 extern int8_t  tsS3EpNum;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;

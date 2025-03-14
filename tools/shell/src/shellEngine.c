@@ -89,7 +89,11 @@ int32_t shellRunSingleCommand(char *command) {
   if (shellRegexMatch(command, "^[\t ]*clear[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
+#ifndef TD_ASTRA
     system("clear");
+#else
+    printf("\033[2J\033[H");
+#endif
 #pragma GCC diagnostic pop
     return 0;
   }
@@ -662,27 +666,27 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*u", width, *((uint32_t *)val));
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      printf("%*" PRId64, width, *((int64_t *)val));
+      printf("%*" PRId64, width, taosGetInt64Aligned((int64_t *)val));
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      printf("%*" PRIu64, width, *((uint64_t *)val));
+      printf("%*" PRIu64, width, taosGetUInt64Aligned((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       width = width >= LENGTH ? LENGTH - 1 : width;
       if (tsEnableScience) {
-        printf("%*.7e", width, GET_FLOAT_VAL(val));
+        printf("%*.7e", width, taosGetFloatAligned((float *)val));
       } else {
-        snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, GET_FLOAT_VAL(val));
+        snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, taosGetFloatAligned((float *)val));
         printf("%s", buf);
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       width = width >= LENGTH ? LENGTH - 1 : width;
       if (tsEnableScience) {
-        snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
+        snprintf(buf, LENGTH, "%*.15e", width, taosGetDoubleAligned((double *)val));
         printf("%s", buf);
       } else {
-        snprintf(buf, LENGTH, "%*.*g", width, DBL_DIG, GET_DOUBLE_VAL(val));
+        snprintf(buf, LENGTH, "%*.*g", width, DBL_DIG, taosGetDoubleAligned((double *)val));
         printf("%*s", width, buf);
       }
       break;
@@ -705,7 +709,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       shellPrintGeometry(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
+      shellFormatTimestamp(buf, sizeof(buf), taosGetInt64Aligned((int64_t *)val), precision);
       printf("%s", buf);
       break;
     default:
@@ -993,7 +997,7 @@ void shellDumpResultCallback(void *param, TAOS_RES *tres, int num_of_rows) {
     }
   } else {
     if (num_of_rows < 0) {
-      printf("\033[31masync retrieve failed, code: %d\033[0m\n", num_of_rows);
+      printf("\033[31masync retrieve failed, code: %d\033, %s[0m\n", num_of_rows, tstrerror(num_of_rows));
     }
     tsem_post(&dump_info->sem);
   }
@@ -1162,6 +1166,7 @@ int32_t shellGetGrantInfo(char *buf) {
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
   strtok(sinfo, "\r\n");
 
+#ifndef TD_ASTRA
   char sql[] = "show grants";
 
   TAOS_RES *tres = taos_query(shell.conn, sql);
@@ -1214,6 +1219,10 @@ int32_t shellGetGrantInfo(char *buf) {
   }
 
   fprintf(stdout, "\r\n");
+#else
+  verType = TSDB_VERSION_ENTERPRISE;
+  sprintf(buf, "Server is %s, %s and will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
+#endif
   return verType;
 }
 
@@ -1296,7 +1305,8 @@ void *shellThreadLoop(void *arg) {
 }
 #pragma GCC diagnostic pop
 
-int32_t shellExecute() {
+int32_t shellExecute(int argc, char *argv[]) {
+  int32_t code = 0;
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
@@ -1363,9 +1373,9 @@ int32_t shellExecute() {
     return 0;
   }
 
-  if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
-    printf("failed to create cancel semaphore\r\n");
-    return -1;
+  if ((code = tsem_init(&shell.cancelSem, 0, 0)) != 0) {
+    printf("failed to create cancel semaphore since %s\r\n", tstrerror(code));
+    return code;
   }
 
   TdThread spid = {0};
@@ -1419,5 +1429,5 @@ int32_t shellExecute() {
   taos_kill_query(shell.conn);
   taos_close(shell.conn);
 
-  return 0;
+  TAOS_RETURN(code);
 }

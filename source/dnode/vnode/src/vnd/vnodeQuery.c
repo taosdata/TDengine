@@ -115,9 +115,9 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   // query meta
   metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
   if (reqTbUid) {
-    errno = 0;
+    SET_ERRNO(0);
     uint64_t tbUid = taosStr2UInt64(infoReq.tbName, NULL, 10);
-    if (errno == ERANGE || tbUid == 0) {
+    if (ERRNO == ERANGE || tbUid == 0) {
       code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
       goto _exit3;
     }
@@ -761,6 +761,21 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
     *num = 2;
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t vnodeGetStbKeep(SVnode *pVnode, tb_uid_t suid, int64_t *keep) {
+  SMetaReader mr = {0};
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
+
+  int32_t code = metaReaderGetTableEntryByUid(&mr, suid);
+  if (code == TSDB_CODE_SUCCESS) {
+    *keep = mr.me.stbEntry.keep;
+  } else {
+    *keep = 0;  // Default value if not found
+  }
+
+  metaReaderClear(&mr);
   return TSDB_CODE_SUCCESS;
 }
 

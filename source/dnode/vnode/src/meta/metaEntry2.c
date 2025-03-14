@@ -999,7 +999,7 @@ static void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
   if (deltaTS > tsTimeSeriesThreshold) {
     if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
       if (tsem_post(&dmNotifyHdl.sem) != 0) {
-        metaError("vgId:%d, failed to post semaphore, errno:%d", TD_VID(pMeta->pVnode), errno);
+        metaError("vgId:%d, failed to post semaphore, errno:%d", TD_VID(pMeta->pVnode), ERRNO);
       }
     }
   }
@@ -1191,7 +1191,7 @@ static int32_t metaHandleChildTableCreateImpl(SMeta *pMeta, const SMetaEntry *pE
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    metaUpdateStbStats(pMeta, pSuperEntry->uid, 1, 0);
+    metaUpdateStbStats(pMeta, pSuperEntry->uid, 1, 0, -1);
     int32_t ret = metaUidCacheClear(pMeta, pSuperEntry->uid);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1357,7 +1357,7 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
   }
 
   --pMeta->pVnode->config.vndStats.numOfCTables;
-  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0);
+  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0, -1);
   int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
   if (ret < 0) {
     metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1613,7 +1613,8 @@ static int32_t metaHandleSuperTableUpdateImpl(SMeta *pMeta, SMetaHandleParam *pP
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    metaUpdateStbStats(pMeta, pEntry->uid, 0, pEntry->stbEntry.schemaRow.nCols - pOldEntry->stbEntry.schemaRow.nCols);
+    metaUpdateStbStats(pMeta, pEntry->uid, 0, pEntry->stbEntry.schemaRow.nCols - pOldEntry->stbEntry.schemaRow.nCols,
+                       pEntry->stbEntry.keep);
   }
 
   return code;

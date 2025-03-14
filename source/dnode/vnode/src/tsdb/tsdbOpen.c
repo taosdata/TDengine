@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "meta.h"
 #include "tsdb.h"
 #include "tsdbFS2.h"
 

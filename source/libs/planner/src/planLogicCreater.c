@@ -390,7 +390,7 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   pScan->tableType = pRealTable->pMeta->tableType;
   pScan->scanSeq[0] = hasRepeatScanFuncs ? 2 : 1;
   pScan->scanSeq[1] = 0;
-  pScan->scanRange = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&pScan->scanRange, TSWINDOW_INITIALIZER);
   pScan->tableName.type = TSDB_TABLE_NAME_T;
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
   tstrncpy(pScan->tableName.dbname, pRealTable->table.dbName, TSDB_DB_NAME_LEN);
@@ -600,6 +600,9 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->node.requireDataOrder = pJoin->hashJoinHint ? DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
+  pJoin->leftNoOrderedSubQuery = pJoinTable->leftNoOrderedSubQuery;
+  pJoin->rightNoOrderedSubQuery = pJoinTable->leftNoOrderedSubQuery;
+  
   code = nodesCloneNode(pJoinTable->pWindowOffset, &pJoin->pWindowOffset);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pJoinTable->pJLimit, &pJoin->pJLimit);

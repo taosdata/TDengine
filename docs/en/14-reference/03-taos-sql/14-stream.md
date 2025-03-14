@@ -15,7 +15,7 @@ stream_options: {
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
- FILL_HISTORY   [0|1] [async]
+ FILL_HISTORY   [0|1] [ASYNC]
  IGNORE UPDATE  [0|1]
 }
 
