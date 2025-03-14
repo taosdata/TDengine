@@ -1,0 +1,112 @@
+name: TDgpt Test
+
+on:
+  push:
+  pull_request:
+    branches:
+      - '3.0'
+    paths:
+      - 'tools/tdgpt/**'
+      - 'source/libs/executor/src/forecastoperator.c'
+      - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'include/common/tanalytics.h'
+      - 'source/common/src/tanalytics.c'
+      - 'tests/parallel/tdgpt_cases.task'
+      - 'tests/script/tsim/analytics'
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]
+
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/tools/tdgpt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install flake8 pytest pylint
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Checking the code with pylint
+        run: |
+          pylint $(git ls-files '*.py') --exit-zero
+
+      - name: Checking the code with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run test cases with pytest
+        run: |
+          pytest
+
+  function-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.18
+          
+      - name: Install dependencies 
+        run: |
+          sudo apt update -y
+          sudo apt install -y \
+            build-essential \
+            cmake \
+            gawk \
+            libgeos-dev \
+            libjansson-dev \
+            liblzma-dev \
+            libsnappy-dev \
+            libssl-dev \
+            libz-dev \
+            pkg-config \
+            zlib1g
+            
+      - name: Build and install TDengine
+        run: |
+          mkdir debug && cd debug
+          cmake .. -DBUILD_TOOLS=true \
+            -DBUILD_KEEPER=true \
+            -DBUILD_HTTP=false \
+            -DBUILD_TEST=true \
+            -DBUILD_DEPENDENCY_TESTS=false
+          make -j 4
+          sudo make install
+          which taosd
+          which taosadapter
+          which taoskeeper
+
+      - name: Run tdgpt test
+        run: |
+          cd ${{ github.workspace }}/tests/sctipt
+          date
+          ./test.sh -f tsim/analytics/basic0.sim
+          echo "Test exit code: $?"
+          if [ $? -eq 0 ]; then
+            echo "Tests passed."
+          else
+            echo "Tests failed."
+          fi
