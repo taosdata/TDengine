@@ -133,12 +133,12 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   int32_t code = 0;
   SWal   *pWal = taosMemoryCalloc(1, sizeof(SWal));
   if (pWal == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return NULL;
   }
 
   if (walInitLock(pWal) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     taosMemoryFree(pWal);
     return NULL;
   }
@@ -177,7 +177,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeCur = -1;
   pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
-    wError("vgId:%d, failed to init array of fileInfoSet since %s, path:%s", pWal->cfg.vgId, strerror(errno),
+    wError("vgId:%d, failed to init taosArray of fileInfoSet since %s, path:%s", pWal->cfg.vgId, strerror(ERRNO),
            pWal->path);
     goto _err;
   }
@@ -185,7 +185,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // init gc
   pWal->toDeleteFiles = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->toDeleteFiles == NULL) {
-    wError("vgId:%d, failed to init array of toDeleteFiles since %s, path:%s", pWal->cfg.vgId, strerror(errno),
+    wError("vgId:%d, failed to init taosArray of toDeleteFiles since %s, path:%s", pWal->cfg.vgId, strerror(ERRNO),
            pWal->path);
     goto _err;
   }
@@ -354,7 +354,7 @@ static bool walNeedFsync(SWal *pWal) {
 static void walUpdateSeq() {
   taosMsleep(WAL_REFRESH_MS);
   if (atomic_add_fetch_32((volatile int32_t *)&tsWal.seq, 1) < 0) {
-    wError("failed to update wal seq since %s", strerror(errno));
+    wError("failed to update wal seq since %s", strerror(ERRNO));
   }
 }
 
@@ -367,7 +367,7 @@ static void walFsyncAll() {
       int32_t code = taosFsyncFile(pWal->pLogFile);
       if (code != 0) {
         wError("vgId:%d, file:%" PRId64 ".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-               strerror(errno));
+               strerror(ERRNO));
       }
     }
     pWal = taosIterateRef(tsWal.refSetId, pWal->refId);
@@ -390,11 +390,13 @@ static int32_t walCreateThread() {
   TdThreadAttr thAttr;
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-
+#ifdef TD_COMPACT_OS
+    (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
   if (taosThreadCreate(&tsWal.thread, &thAttr, walThreadFunc, NULL) != 0) {
-    wError("failed to create wal thread since %s", strerror(errno));
+    wError("failed to create wal thread since %s", strerror(ERRNO));
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   (void)taosThreadAttrDestroy(&thAttr);

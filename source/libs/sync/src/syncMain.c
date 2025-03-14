@@ -855,7 +855,7 @@ int32_t syncIsCatchUp(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -883,7 +883,7 @@ ESyncRole syncGetRole(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -899,7 +899,7 @@ int64_t syncGetTerm(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -1081,7 +1081,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   if (!taosDirExist((char*)(pSyncInfo->path))) {
     if (taosMkDir(pSyncInfo->path) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       sError("vgId:%d, failed to create dir:%s since %s", pSyncInfo->vgId, pSyncInfo->path, terrstr());
       goto _error;
     }
@@ -1340,7 +1340,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   // init peer heartbeat timer
   for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {
     if ((code = syncHbTimerInit(pSyncNode, &(pSyncNode->peerHeartbeatTimerArr[i]), (pSyncNode->replicasId)[i])) != 0) {
-      errno = code;
+      terrno = code;
       goto _error;
     }
   }

@@ -590,6 +590,7 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+  int64_t   keep;
 } SStbObj;
 
 typedef struct {
@@ -833,7 +834,7 @@ typedef struct {
 
   int32_t indexForMultiAggBalance;
   int8_t  subTableWithoutMd5;
-  char    reserve[256];
+  char    reserve[TSDB_RESERVE_VALUE_LEN];
 
 } SStreamObj;
 

@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#ifdef USE_STREAM
 #ifndef _STREAM_INC_H_
 #define _STREAM_INC_H_
 
@@ -265,3 +265,4 @@ int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId
 #endif
 
 #endif /* ifndef _STREAM_INC_H_ */
+#endif /* USE_STREAM */

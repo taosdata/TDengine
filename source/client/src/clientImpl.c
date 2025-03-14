@@ -1126,13 +1126,13 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
       }
     }
 
-    tscDebug("lastKey:%" PRId64 " vgId:%d, vgVer:%" PRId64, ts, *(int32_t*)pRow[1], *(int64_t*)pRow[2]);
+    tscInfo("[create stream with histroy] lastKey:%" PRId64 " vgId:%d, vgVer:%" PRId64, ts, *(int32_t*)pRow[1], *(int64_t*)pRow[2]);
   }
 
   (*pBlock)->info.window.ekey = lastTs;
   (*pBlock)->info.rows = numOfRows;
 
-  tscDebug("lastKey:%" PRId64 " numOfRows:%d from all vgroups", lastTs, numOfRows);
+  tscInfo("[create stream with histroy] lastKey:%" PRId64 " numOfRows:%d from all vgroups", lastTs, numOfRows);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2413,7 +2413,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   int32_t hasColumnSeg = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  uint64_t groupId = *(uint64_t*)p;
+  uint64_t groupId = taosGetUInt64Aligned((uint64_t*)p);
   p += sizeof(uint64_t);
 
   // check fields
@@ -2469,10 +2469,11 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (convertUcs4) {
     code = doConvertUCS4(pResultInfo, colLength);
   }
-
+#endif
   return code;
 }
 
@@ -3115,7 +3116,9 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
     code = TSDB_CODE_SUCCESS;
     pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
   }
-  pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  }
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {
     pReq->inCallback = false;

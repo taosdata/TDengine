@@ -699,6 +699,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->deleteMark1));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->deleteMark2));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->keep));
 
   ENCODESQL();
 
@@ -809,6 +810,9 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
 
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->deleteMark1));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->deleteMark2));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->keep));
+  }
 
   DECODESQL();
 
@@ -916,6 +920,7 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
   if (pReq->commentLen > 0) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->comment));
   }
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->keep));
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -978,7 +983,9 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
     }
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->comment));
   }
-
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->keep));
+  }
   DECODESQL();
 
   tEndDecode(&decoder);
@@ -10453,6 +10460,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
 
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->colCmpred));
   TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
+  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->keep));
   tEndEncode(pCoder);
 
 _exit:
@@ -10486,6 +10494,9 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_EXIT(tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr));
+    }
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->keep));
     }
   }
   tEndDecode(pCoder);
@@ -11866,6 +11877,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   // auto create table
   if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     if (!(pSubmitTbData->pCreateTbReq)) {
+      uError("auto create table but request is NULL");
       return TSDB_CODE_INVALID_MSG;
     }
     TAOS_CHECK_EXIT(tEncodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq));
@@ -12005,7 +12017,7 @@ int32_t tEncodeSubmitReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
     for (uint64_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
       SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
       if ((pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) && pSubmitTbData->pCreateTbReq == NULL) {
-        pSubmitTbData->flags = 0;
+        pSubmitTbData->flags &= ~SUBMIT_REQ_AUTO_CREATE_TABLE;
       }
       TAOS_CHECK_EXIT(tEncodeSSubmitTbData(pCoder, pSubmitTbData));
     }
