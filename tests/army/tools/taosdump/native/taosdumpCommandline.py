@@ -228,7 +228,7 @@ class TDTestCase(TBase):
         tdSql.execute(sql)
 
         cmds = [
-            f"-u{user} -p{pwd}        -D test -o {tmpdir}",  # command pass
+            f"-u{user} -p'{pwd}'      -D test -o {tmpdir}",  # command pass
             f"-u{user} -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
         ]
 

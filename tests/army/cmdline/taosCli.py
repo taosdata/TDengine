@@ -227,7 +227,7 @@ class TDTestCase(TBase):
         tdSql.execute(sql)
          
         cmds = [
-            f"-u{user} -p{pwd} -s 'show databases;'",         # command pass
+            f"-u{user} -p'{pwd}'      -s 'show databases;'",  # command pass
             f"-u{user} -p < {pwdFile} -s 'show databases;'"   # input   pass
         ]
 
