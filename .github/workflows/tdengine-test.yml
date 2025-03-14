@@ -16,6 +16,7 @@ on:
       - 'source/common/src/tanalytics.c'
       - 'tests/parallel/tdgpt_cases.task'
       - 'tests/script/tsim/analytics'
+      - '**/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-TDengine
