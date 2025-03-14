@@ -347,9 +347,11 @@ bool tsDisableStream = false;
 bool tsDisableStream = true;
 #endif
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
+int64_t tsStreamFailedTimeout = 30 * 60 * 1000;
 bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
+bool    tsStreamRunHistoryAsync = false;
 
 bool tsUpdateCacheBatch = true;
 
@@ -774,6 +776,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,CFG_CATEGORY_LOCAL));
 
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "streamRunHistoryAsync", tsStreamRunHistoryAsync, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -964,6 +969,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamFailedTimeout", tsStreamFailedTimeout, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamAggCnt", tsStreamAggCnt, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1800, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1507,6 +1513,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamCoverage");
   tsStreamCoverage = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamRunHistoryAsync");
+  tsStreamRunHistoryAsync = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
 
@@ -1836,6 +1845,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamBufferSize");
   tsStreamBufferSize = pItem->i64;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamFailedTimeout");
+  tsStreamFailedTimeout = pItem->i64;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamAggCnt");
   tsStreamAggCnt = pItem->i32;
@@ -2825,6 +2837,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"numOfRpcSessions", &tsNumOfRpcSessions},
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
+                                         {"streamRunHistoryAsync", &tsStreamRunHistoryAsync},
                                          {"streamCoverage", &tsStreamCoverage},
                                          {"compareAsStrInGreatest", &tsCompareAsStrInGreatest}};
 

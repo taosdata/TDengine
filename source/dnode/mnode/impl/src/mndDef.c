@@ -199,6 +199,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
 }
 
 void *freeStreamTasks(SArray *pTaskLevel) {
+  if (pTaskLevel == NULL) return NULL;
   int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
 
   for (int32_t i = 0; i < numOfLevel; i++) {
