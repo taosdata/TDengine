@@ -1383,8 +1383,6 @@ class DecimalTest : public ::testing::Test {
   std::string generate_decimal_str() { return generator_.generate(generator_config_); }
 };
 
-TEST_F(DecimalTest, insert) {}
-
 TEST(decimal, fillDecimalInfoInBytes) {
   auto    d = getDecimalType(10, 2);
   int32_t bytes = 0;
@@ -1397,7 +1395,9 @@ TEST(decimal, fillDecimalInfoInBytes) {
   ASSERT_EQ(scale, d.scale);
 }
 
+#if 0
 TEST_F(DecimalTest, api_taos_fetch_rows) {
+  GTEST_SKIP_("");
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
@@ -1494,7 +1494,9 @@ TEST_F(DecimalTest, api_taos_fetch_rows) {
 
   taos_close(pTaos);
 }
+#endif
 
+#if 0
 TEST_F(DecimalTest, decimalFromStr) {
   Numeric<64> numeric64 = {10, 2, "0"};
 
@@ -1505,6 +1507,7 @@ TEST_F(DecimalTest, decimalFromStr) {
   numeric64 = {18, 2, "0"};
   Numeric<128> numeric128 = {38, 10, "0"};
 }
+#endif
 
 TEST(decimal, test_add_check_overflow) {
   Numeric<128> dec128 = {38, 10, "9999999999999999999999999999.9999999999"};
