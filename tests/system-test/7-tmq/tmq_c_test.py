@@ -23,6 +23,13 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
+    def checkData(self):
+        tdSql.execute('use db_taosx')
+        tdSql.query("select * from ct0")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 4, 23.23)
+
+        return
     def run(self):
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_write_raw_test'%(buildPath)
@@ -41,6 +48,7 @@ class TDTestCase:
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
+        self.checkData()
         return
 
     def stop(self):

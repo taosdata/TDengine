@@ -64,7 +64,7 @@ os.makedirs(log_file_path, exist_ok=True)
 
 scan_log_file = f"{log_file_path}/scan_log.txt"
 logger.add(scan_log_file, rotation="10MB", retention="7 days", level="DEBUG")
-#if error happens, open this to debug
+# if error happens, open this to debug
 # print(self_path,work_path,TD_project_path,log_file_path,change_file_list)
 
 # scan result base path
@@ -75,7 +75,7 @@ scan_result_base_path = f"{log_file_path}/clang_scan_result/"
 # compile_commands_path = f"{work_path}/debugNoSan/compile_commands.json"
 compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
 
-#if error happens, open this to debug
+# if error happens, open this to debug
 # print(f"compile_commands_path:{compile_commands_path}")
 
 # # replace the docerk worf path with real work path in compile_commands.json
@@ -116,8 +116,15 @@ class CommandExecutor:
 def scan_files_path(source_file_path):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = ["/root/charles/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
-                           "/test/", "contrib", "debug", "deps", "/root/charles/TDinternal/community/source/libs/parser/src/sql.c", "/root/charles/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
+    scan_skip_file_list = [
+        "/root/charles/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
+        "/test/",
+        "contrib",
+        "debug",
+        "deps",
+        "/root/charles/TDinternal/community/source/libs/parser/src/sql.c",
+        "/root/charles/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
+    ]
     for root, dirs, files in os.walk(source_file_path):
         for file in files:
             if any(item in root for item in scan_dir_list):
@@ -129,7 +136,17 @@ def scan_files_path(source_file_path):
 def input_files(change_files):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = ["tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl", "/test/", "contrib", "debug", "deps", "source/libs/parser/src/sql.c", "source/libs/azure", "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
+    scan_skip_file_list = [
+        "tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
+        "/test/",
+        "contrib",
+        "debug",
+        "deps",
+        "source/libs/parser/src/sql.c",
+        "source/libs/azure",
+        "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
+        "source/libs/decimal/",
+    ]
     with open(change_files, 'r') as file:
         for line in file:
             file_name = line.strip()

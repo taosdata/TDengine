@@ -199,7 +199,14 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
     }
+    case TSDB_DATA_TYPE_DECIMAL64:
+      COPY_SCALAR_FIELD(datum.d);
+      break;
     case TSDB_DATA_TYPE_DECIMAL:
+      pDst->datum.p = taosMemCalloc(1, pSrc->node.resType.bytes);
+      if (!pDst->datum.p) return terrno;
+      memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes);
+      break;
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     default:
@@ -234,6 +241,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(pkBytes);
   COPY_SCALAR_FIELD(hasOriginalFunc);
   COPY_SCALAR_FIELD(originalFuncId);
+  COPY_OBJECT_FIELD(srcFuncInputType, sizeof(SDataType));
   return TSDB_CODE_SUCCESS;
 }
 

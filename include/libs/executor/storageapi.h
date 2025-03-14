@@ -84,6 +84,7 @@ typedef struct SMetaEntry {
   uint8_t* pBuf;
 
   SColCmprWrapper colCmpr;  // col compress alg
+  SExtSchema*     pExtSchemas;
 } SMetaEntry;
 
 typedef struct SMetaReader {
@@ -135,6 +136,11 @@ typedef struct SMetaTableInfo {
   SSchemaWrapper* schema;
   char            tbName[TSDB_TABLE_NAME_LEN];
 } SMetaTableInfo;
+
+static FORCE_INLINE void destroyMetaTableInfo(SMetaTableInfo* mtInfo){
+  if (mtInfo == NULL) return;
+  tDeleteSchemaWrapper(mtInfo->schema);
+}
 
 typedef struct SSnapContext {
   struct SMeta* pMeta;

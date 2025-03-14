@@ -313,7 +313,7 @@ END:
   if (code != 0){
     tqError("%s failed at %d, vgId:%d, task exec error since %s", __FUNCTION__ , lino, pTq->pVnode->config.vgId, tstrerror(code));
   }
-  taosMemoryFree(pSW);
+  tDeleteSchemaWrapper(pSW);
   taosMemoryFree(tbName);
   return code;
 }
