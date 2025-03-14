@@ -936,11 +936,10 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
 
     if (type != STREAM_INPUT__RECALCULATE) {
       code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
-    }
-
-    if (code) {
       streamFreeQitem(pInput);
-      return code;
+      if (code) {
+        return code;
+      }
     }
 
     // for stream with only 1 task, start related re-calculate stream task directly.
@@ -949,6 +948,8 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       SSDataBlock* pb = taosArrayGet(((SStreamDataBlock*)pInput)->blocks, 0);
 
       if ((taskLevel == TASK_LEVEL__AGG) || ((taskLevel == TASK_LEVEL__SOURCE) && (!pTask->info.hasAggTasks))) {
+        EStreamType blockType = pb->info.type;
+
         if (pTask->hTaskInfo.id.streamId == 0) {
           stError("s-task:%s related re-calculate stream task is dropping, failed to start re-calculate", id);
           streamFreeQitem(pInput);
@@ -971,7 +972,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
           return code;
         }
 
-        if (pb->info.type == STREAM_RECALCULATE_START) {
+        if (blockType == STREAM_RECALCULATE_START) {
           // start the related recalculate task to do recalculate
           stDebug("s-task:%s start recalculate task to do recalculate:0x%x", id, pHTask->id.taskId);
 
@@ -994,12 +995,13 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
           }
         }
         streamMetaReleaseTask(pTask->pMeta, pHTask);
-        streamFreeQitem(pInput);
       } else if ((taskLevel == TASK_LEVEL__SOURCE) && pTask->info.hasAggTasks) {
         code = continueDispatchRecalculateStart((SStreamDataBlock*)pInput, pTask);
-      } else {
-        streamFreeQitem(pInput);
       }
+    }
+
+    if (type == STREAM_INPUT__RECALCULATE) {
+      streamFreeQitem(pInput);
     }
 
     if (code) {
