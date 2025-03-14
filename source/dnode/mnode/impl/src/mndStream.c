@@ -250,13 +250,13 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
   pOldStream->updateTime = pNewStream->updateTime;
   pOldStream->checkpointId = pNewStream->checkpointId;
   pOldStream->checkpointFreq = pNewStream->checkpointFreq;
-  if (pOldStream->tasks == NULL){
-    pOldStream->tasks = pNewStream->tasks;
-    pNewStream->tasks = NULL;
+  if (pOldStream->pTaskList == NULL) {
+    pOldStream->pTaskList = pNewStream->pTaskList;
+    pNewStream->pTaskList = NULL;
   }
-  if (pOldStream->pHTasksList == NULL){
-    pOldStream->pHTasksList = pNewStream->pHTasksList;
-    pNewStream->pHTasksList = NULL;
+  if (pOldStream->pHTaskList == NULL) {
+    pOldStream->pHTaskList = pNewStream->pHTaskList;
+    pNewStream->pHTaskList = NULL;
   }
   taosWUnLockLatch(&pOldStream->lock);
   return 0;
@@ -926,7 +926,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   code = mndAcquireStream(pMnode, createReq.name, &pStream);
   if (pStream != NULL && code == 0) {
-    if (pStream->tasks != NULL){
+    if (pStream->pTaskList != NULL){
       if (createReq.igExists) {
         mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
         mndReleaseStream(pMnode, pStream);

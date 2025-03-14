@@ -1110,7 +1110,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
   TSDB_CHECK_CODE(code, lino, _end);
 
   int8_t streamStatus = atomic_load_8(&pStream->status);
-  if (isPaused && pStream->tasks != NULL) {
+  if (isPaused && pStream->pTaskList != NULL) {
     streamStatus = STREAM_STATUS__PAUSE;
   }
   mndShowStreamStatus(status2, streamStatus);
