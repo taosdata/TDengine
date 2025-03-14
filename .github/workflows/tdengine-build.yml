@@ -8,12 +8,11 @@ on:
       - '3.1'
       - '3.3.6'
       - 'enh/cmake-TD-33848'
-      
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
       - 'tests/**'
-      - '*.md'
+      - '**/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

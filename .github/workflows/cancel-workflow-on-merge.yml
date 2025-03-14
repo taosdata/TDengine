@@ -1,4 +1,4 @@
-name: Cancel Workflow on Merge or Close
+name: Cancel Workflow on Merge
 
 on:
   pull_request:

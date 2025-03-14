@@ -1,4 +1,4 @@
-name: TDengine CI Test Manually
+name: TDengine Test (Manual)
 
 on:
   workflow_dispatch:
