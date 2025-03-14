@@ -1067,7 +1067,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     int32_t ret = streamMetaAcquireTaskUnsafe(pMeta, &pTask->streamTaskId, &pStreamTask);
     if (ret == 0 && pStreamTask != NULL) {
-      tqWarn("s-task:0x%x stopped, not ready for related task:%s scan-history work, do nothing",
+      tqWarn("s-task:0x%" PRIx64 " stopped, not ready for related task:%s scan-history work, do nothing",
              pTask->streamTaskId.taskId, pTask->id.idStr);
       streamMetaReleaseTask(pMeta, pStreamTask);
     } else {
