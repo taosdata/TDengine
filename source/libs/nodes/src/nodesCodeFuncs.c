@@ -163,6 +163,10 @@ const char* nodesNodeName(ENodeType type) {
       return "DropAnodeStmt";
     case QUERY_NODE_UPDATE_ANODE_STMT:
       return "UpdateAnodeStmt";
+    case QUERY_NODE_CREATE_XNODE_STMT:
+      return "CreateXnodeStmt";
+    case QUERY_NODE_DROP_XNODE_STMT:
+      return "DropXnodeStmt";
     case QUERY_NODE_CREATE_SNODE_STMT:
       return "CreateSnodeStmt";
     case QUERY_NODE_DROP_SNODE_STMT:
@@ -6950,6 +6954,28 @@ static int32_t jsonToDropAnodeStmt(const SJson* pJson, void* pObj) {
   return tjsonGetIntValue(pJson, jkUpdateDropANodeStmtId, &pNode->anodeId);
 }
 
+static const char* jkUpdateDropXNodeStmtId = "DnodeId";
+
+static int32_t createXnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SCreateXnodeStmt* pNode = (const SCreateXnodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkCreateComponentNodeStmtDnodeId, pNode->dnodeId);
+}
+
+static int32_t jsonToCreateXnodeStmt(const SJson* pJson, void* pObj) {
+  SCreateXnodeStmt* pNode = (SCreateXnodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkCreateComponentNodeStmtDnodeId, &pNode->dnodeId);
+}
+
+static int32_t dropXnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropXnodeStmt* pNode = (const SDropXnodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkUpdateDropXNodeStmtId, pNode->dnodeId);
+}
+
+static int32_t jsonToDropXnodeStmt(const SJson* pJson, void* pObj) {
+  SDropXnodeStmt* pNode = (SDropXnodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkUpdateDropXNodeStmtId, &pNode->dnodeId);
+}
+
 static int32_t createSnodeStmtToJson(const void* pObj, SJson* pJson) {
   return createComponentNodeStmtToJson(pObj, pJson);
 }
@@ -8167,6 +8193,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return dropAnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_UPDATE_ANODE_STMT:
       return updateAnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_CREATE_XNODE_STMT:
+      return createXnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_DROP_XNODE_STMT:
+      return dropXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SNODE_STMT:
       return createSnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_SNODE_STMT:

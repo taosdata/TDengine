@@ -93,6 +93,10 @@ typedef enum EColumnOptionType {
   COLUMN_OPTION_PRIMARYKEY,
 } EColumnOptionType;
 
+typedef enum EXnodeOptionType {
+  XNODE_OPTION_PROTOCOL = 1,
+} EXnodeOptionType;
+
 typedef struct SAlterOption {
   int32_t    type;
   SToken     val;
@@ -155,8 +159,8 @@ SNode*     createViewNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pVie
 SNode*     createLimitNode(SAstCreateContext* pCxt, SNode* pLimit, SNode* pOffset);
 SNode*     createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
 SNode*     createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap);
-SNode*     createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode *pTrueForLimit);
-SNode*     createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode *pTrueForLimit);
+SNode*     createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pTrueForLimit);
+SNode*     createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit);
 SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken);
 SNode*     createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt);
 SNode*     createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
@@ -265,6 +269,10 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
 SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
 SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode);
 SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode, bool updateAll);
+SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl, SNode* pOptions);
+SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode);
+SNode* createDefaultXnodeOptions(SAstCreateContext* pCxt);
+SNode* setXnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EXnodeOptionType type, void* pVal);
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
@@ -297,7 +305,7 @@ SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, con
 SNode* createStreamOptions(SAstCreateContext* pCxt);
 SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptionsSetFlag setflag, SToken* pToken,
                         SNode* pNode);
-SNode* createStreamNotifyOptions(SAstCreateContext *pCxt, SNodeList* pAddrUrls, SNodeList* pEventTypes);
+SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, SNodeList* pEventTypes);
 SNode* setStreamNotifyOptions(SAstCreateContext* pCxt, SNode* pNode, EStreamNotifyOptionSetFlag setFlag,
                               SToken* pToken);
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pStreamName, SNode* pRealTable,
@@ -329,14 +337,14 @@ SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactIdNo
 SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode);
 
-SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
-                            SNode* pRealTable, SNode* pInterval);
-SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs);
-SNode* createDefaultTSMAOptions(SAstCreateContext* pCxt);
-SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
-SNode* createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable);
-SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
-SNode* createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type);
+SNode*     createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
+                                SNode* pRealTable, SNode* pInterval);
+SNode*     createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs);
+SNode*     createDefaultTSMAOptions(SAstCreateContext* pCxt);
+SNode*     createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
+SNode*     createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable);
+SNode*     createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
+SNode*     createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type);
 SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pFuncNode, SNodeList* pNodeList, SToken* pAlias);
 
 #ifdef __cplusplus

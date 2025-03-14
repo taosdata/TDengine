@@ -222,6 +222,17 @@ This document details the server error codes that may be encountered when using 
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 
+## xnode
+
+| Error Code | Description            | Possible Error Scenarios or Reasons | Recommended Actions |
+| ---------- | ---------------------- | ---------------------------- | ------------------ |
+| 0x80000450 | Xnode already exists   | Already created              | Check node status  |
+| 0x80000451 | Xnode already deployed | Already deployed             | Confirm if correct |
+| 0x80000452 | Xnode not deployed     | Internal error               | Report issue       |
+| 0x80000453 | Xnode not there        | Offline                      | Confirm if correct |
+| 0x80000454 | Xnode too long url     | url too long                 | Check url length   |
+
+
 ## dnode
 
 | Error Code | Description            | Possible Error Scenarios or Reasons | Recommended Actions |
