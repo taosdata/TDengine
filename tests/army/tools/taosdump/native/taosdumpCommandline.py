@@ -177,14 +177,12 @@ class TDTestCase(TBase):
 
         # executes 
         for item in checkItems:
-            self.clearPath(tmpdir)
+            self.clearPath(tmpdir) # clear tmp
             command = item[0]
             results = item[1]
             rlist = self.taosdump(command)
             for result in results:
                 self.checkListString(rlist, result)
-            # clear tmp    
-
     
     # check except
     def checkExcept(self, command):
@@ -217,7 +215,7 @@ class TDTestCase(TBase):
     # password
     def checkPassword(self, tmpdir):
         # 255 char max password
-        user    = "dkj"
+        user    = "test_user"
         pwd     = ""
         pwdFile = "cmdline/data/pwdMax.txt"
         with open(pwdFile) as file:
