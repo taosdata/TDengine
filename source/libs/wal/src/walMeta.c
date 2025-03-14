@@ -1058,7 +1058,7 @@ int32_t walLoadMeta(SWal* pWal) {
   if (fileSize == 0) {
     code = taosRemoveFile(fnameStr);
     if (code) {
-      wError("vgId:%d, failed to remove file %s since %s", pWal->cfg.vgId), fnameStr, strerror(ERRNO);
+      wError("vgId:%d, failed to remove file %s since %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
     } else {
       wInfo("vgId:%d, remove old meta file %s", pWal->cfg.vgId, fnameStr);
     }

@@ -95,12 +95,10 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool               accepted = false;
   SSyncRaftEntry*    pEntry = NULL;
   bool               resetElect = false;
-  const STraceId*    trace = &pRpcMsg->info.traceId;
-  char               tbuf[40] = {0};
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-    syncLogRecvAppendEntries(ths, pMsg, "not in my config");
+    syncLogRecvAppendEntries(ths, pMsg, "not in my config", &pRpcMsg->info.traceId);
     goto _IGNORE;
   }
 
@@ -111,7 +109,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
   if (code != 0) {
-    syncLogRecvAppendEntries(ths, pMsg, "build rsp error");
+    syncLogRecvAppendEntries(ths, pMsg, "build rsp error", &pRpcMsg->info.traceId);
     goto _IGNORE;
   }
 
@@ -157,7 +155,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  sGTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
+  sGTrace(pRpcMsg->info.traceId, "vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
           ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
           pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
           pEntry->term);
@@ -177,19 +175,19 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 _SEND_RESPONSE:
   pEntry = NULL;
-  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm, "OnAppn");
+  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm, "OnAppn", pRpcMsg);
   bool matched = (pReply->matchIndex >= pReply->lastSendIndex);
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
     SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
-    sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
+    sTrace("vgId:%d, update commit return index:%" PRId64, ths->vgId, returnIndex);
   }
 
   TRACE_SET_MSGID(&(rpcRsp.info.traceId), tGenIdPI64());
   {
-    const STraceId* trace = &(rpcRsp.info.traceId);
-    sGTrace("vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
+    sGTrace(rpcRsp.info.traceId,
+            "vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
             " to dest:0x%016" PRIx64,
             ths->vgId, pReply->matchIndex, pReply->term, pReply->lastSendIndex, pReply->destId.addr);
   }

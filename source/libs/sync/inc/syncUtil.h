@@ -32,12 +32,12 @@ extern "C" {
 #define sDebug(...) if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN DEBUG ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }
 #define sTrace(...) if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN TRACE ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }
 
-#define sGTrace(param, ...) do { if (sDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sTrace(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
-#define sGFatal(param, ...) do { if (sDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sFatal(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
-#define sGError(param, ...) do { if (sDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sError(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
-#define sGWarn(param, ...)  do { if (sDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sWarn(param  ", QID:%s", __VA_ARGS__, buf);}} while(0)
-#define sGInfo(param, ...)  do { if (sDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sInfo(param  ", QID:%s", __VA_ARGS__, buf);}} while(0)
-#define sGDebug(param, ...) do { if (sDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sDebug(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
+#define sGTrace(trace, param, ...) do { if (sDebugFlag & DEBUG_TRACE) { sTrace(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
+#define sGFatal(trace, param, ...) do { if (sDebugFlag & DEBUG_FATAL) { sFatal(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
+#define sGError(trace, param, ...) do { if (sDebugFlag & DEBUG_ERROR) { sError(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
+#define sGWarn(trace, param, ...)  do { if (sDebugFlag & DEBUG_WARN)  { sWarn(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
+#define sGInfo(ptrace, aram, ...)  do { if (sDebugFlag & DEBUG_INFO)  { sInfo(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
+#define sGDebug(trace, param, ...) do { if (sDebugFlag & DEBUG_DEBUG) { sDebug(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
 
 #define sLFatal(...) if (sDebugFlag & DEBUG_FATAL) { taosPrintLongString("SYN FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }
 #define sLError(...) if (sDebugFlag & DEBUG_ERROR) { taosPrintLongString("SYN ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }
@@ -101,34 +101,46 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
 void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotReceiver* pReceiver,
                                   const char* format, ...);
 
-void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s);
-void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const char* s);
+void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const STraceId* trace);
+void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const STraceId* trace);
 
-void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
-void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
+void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s,
+                                   const STraceId* trace);
+void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s,
+                                   const STraceId* trace);
 
 void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
                           int64_t execTime);
-void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const char* s);
+void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const STraceId* trace);
 
-void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s);
-void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff, const char* s);
+void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s,
+                               const STraceId* trace);
+void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff,
+                               const STraceId* trace);
 
-void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s);
-void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s);
+void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s,
+                                 const STraceId* trace);
+void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s,
+                                 const STraceId* trace);
 
-void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s);
-void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s);
+void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s,
+                                const STraceId* trace);
+void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s,
+                                const STraceId* trace);
 
-void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s);
-void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s);
+void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s,
+                              const STraceId* trace);
+void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s,
+                              const STraceId* trace);
 
 void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, int32_t voteGranted, const char* s,
-                            const char* opt);
-void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);
+                            const char* opt, const STraceId* trace);
+void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s, const STraceId* trace);
 
-void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s);
-void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s);
+void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s,
+                                 const STraceId* trace);
+void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s,
+                                 const STraceId* trace);
 
 #ifdef __cplusplus
 }

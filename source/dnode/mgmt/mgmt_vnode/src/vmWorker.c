@@ -317,28 +317,28 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       if (code) {
         dError("vgId:%d, msg:%p preprocess query msg failed since %s", pVnode->vgId, pMsg, tstrerror(code));
       } else {
-        dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
+        dGTrace("vgId:%d, msg:%p put into vnode-query queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
         code = taosWriteQitem(pVnode->pQueryQ, pMsg);
       }
       break;
     case STREAM_QUEUE:
-      dGTrace("vgId:%d, msg:%p put into vnode-stream queue", pVnode->vgId, pMsg);
+      dGTrace("vgId:%d, msg:%p put into vnode-stream queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pStreamQ, pMsg);
       break;
     case STREAM_CTRL_QUEUE:
-      dGTrace("vgId:%d, msg:%p put into vnode-stream-ctrl queue", pVnode->vgId, pMsg);
+      dGTrace("vgId:%d, msg:%p put into vnode-stream-ctrl queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pStreamCtrlQ, pMsg);
       break;
     case STREAM_LONG_EXEC_QUEUE:
-      dGTrace("vgId:%d, msg:%p put into vnode-stream-long-exec queue", pVnode->vgId, pMsg);
+      dGTrace("vgId:%d, msg:%p put into vnode-stream-long-exec queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pStreamLongExecQ, pMsg);
       break;
     case STREAM_CHKPT_QUEUE:
-      dGTrace("vgId:%d, msg:%p put into vnode-stream-chkpt queue", pVnode->vgId, pMsg);
+      dGTrace("vgId:%d, msg:%p put into vnode-stream-chkpt queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pStreamChkQ, pMsg);
       break;
     case FETCH_QUEUE:
-      dGTrace("vgId:%d, msg:%p put into vnode-fetch queue", pVnode->vgId, pMsg);
+      dGTrace("vgId:%d, msg:%p put into vnode-fetch queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pFetchQ, pMsg);
       break;
     case WRITE_QUEUE:
@@ -357,19 +357,19 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
         code = TSDB_CODE_VND_STOPPED;
         break;
       }
-      dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);
+      dGDebug("vgId:%d, msg:%p put into vnode-write queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pWriteW.queue, pMsg);
       break;
     case SYNC_QUEUE:
-      dGTrace("vgId:%d, msg:%p put into vnode-sync queue", pVnode->vgId, pMsg);
+      dGDebug("vgId:%d, msg:%p put into vnode-sync queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pSyncW.queue, pMsg);
       break;
     case SYNC_RD_QUEUE:
-      dGTrace("vgId:%d, msg:%p put into vnode-sync-rd queue", pVnode->vgId, pMsg);
+      dGDebug("vgId:%d, msg:%p put into vnode-sync-rd queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pSyncRdW.queue, pMsg);
       break;
     case APPLY_QUEUE:
-      dGTrace("vgId:%d, msg:%p put into vnode-apply queue", pVnode->vgId, pMsg);
+      dGDebug("vgId:%d, msg:%p put into vnode-apply queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pApplyW.queue, pMsg);
       break;
     default:

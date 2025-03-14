@@ -174,7 +174,7 @@ static void syncLogBufferStates2Str(SSyncNode* pSyncNode, char* buf, int32_t buf
   }
   int32_t len = 0;
   len += tsnprintf(buf + len, bufLen - len, "[%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pBuf->startIndex,
-                  pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+                   pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 }
 
 static void syncLogReplStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
@@ -200,7 +200,7 @@ static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
     SPeerState* pState = syncNodeGetPeerState(pSyncNode, &(pSyncNode->replicasId[i]));
     if (pState == NULL) break;
     len += tsnprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 "%s", i, pState->lastSendIndex,
-                    pState->lastSendTime, (i < pSyncNode->replicaNum - 1) ? ", " : "");
+                     pState->lastSendTime, (i < pSyncNode->replicaNum - 1) ? ", " : "");
   }
   len += tsnprintf(buf + len, bufLen - len, "%s", "}");
 }
@@ -436,33 +436,41 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
       cfgStr);
 }
 
-void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s) {
+void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const STraceId* trace) {
   if (!(sDebugFlag & DEBUG_TRACE)) return;
 
   int64_t tsNow = taosGetTimestampMs();
   int64_t timeDIff = tsNow - pMsg->timeStamp;
-  sNTrace(
-      pSyncNode, "recv sync-timer {type:%s, lc:%" PRId64 ", ms:%d, ts:%" PRId64 ", elapsed:%" PRId64 ", data:%p}, %s",
-      syncTimerTypeStr(pMsg->timeoutType), pMsg->logicClock, pMsg->timerMS, pMsg->timeStamp, timeDIff, pMsg->data, s);
+  sNTrace(pSyncNode,
+          "recv sync-timer {type:%s, lc:%" PRId64 ", ms:%d, ts:%" PRId64 ", elapsed:%" PRId64
+          ", data:%p}, QID:0x%" PRIx64 ":0x%" PRIx64,
+          syncTimerTypeStr(pMsg->timeoutType), pMsg->logicClock, pMsg->timerMS, pMsg->timeStamp, timeDIff, pMsg->data,
+          trace->rootId, trace->msgId);
 }
 
-void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const char* s) {
-  sNTrace(pSyncNode, "recv sync-local-cmd {cmd:%d-%s, sd-new-term:%" PRId64 ", fc-index:%" PRId64 "}, %s", pMsg->cmd,
-          syncLocalCmdGetStr(pMsg->cmd), pMsg->currentTerm, pMsg->commitIndex, s);
+void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const STraceId* trace) {
+  sNTrace(pSyncNode,
+          "recv sync-local-cmd {cmd:%d-%s, sd-new-term:%" PRId64 ", fc-index:%" PRId64 "}, QID:0x%" PRIx64
+          ":0x%" PRIx64,
+          pMsg->cmd, syncLocalCmdGetStr(pMsg->cmd), pMsg->currentTerm, pMsg->commitIndex, trace->rootId, trace->msgId);
 }
 
-void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s,
+                                   const STraceId* trace) {
   sNTrace(pSyncNode,
           "send sync-append-entries-reply to dnode:%d, {term:%" PRId64 ", pterm:%" PRId64
-          ", success:%d, lsend-index:%" PRId64 ", match:%" PRId64 "}, %s",
-          DID(&pMsg->destId), pMsg->term, pMsg->lastMatchTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
+          ", success:%d, lsend-index:%" PRId64 ", match:%" PRId64 "}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
+          DID(&pMsg->destId), pMsg->term, pMsg->lastMatchTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s,
+          trace->rootId, trace->msgId);
 }
 
-void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s) {
+void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s,
+                                   const STraceId* trace) {
   sNTrace(pSyncNode,
           "recv sync-append-entries-reply from dnode:%d {term:%" PRId64 ", pterm:%" PRId64
-          ", success:%d, lsend-index:%" PRId64 ", match:%" PRId64 "}, %s",
-          DID(&pMsg->srcId), pMsg->term, pMsg->lastMatchTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s);
+          ", success:%d, lsend-index:%" PRId64 ", match:%" PRId64 "}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
+          DID(&pMsg->srcId), pMsg->term, pMsg->lastMatchTerm, pMsg->success, pMsg->lastSendIndex, pMsg->matchIndex, s,
+          trace->rootId, trace->msgId);
 }
 
 void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
@@ -488,7 +496,7 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
   }
 }
 
-void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const char* s) {
+void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const STraceId* trace) {
   if (timeDiff > SYNC_HEARTBEAT_SLOW_MS) {
     pSyncNode->hbSlowNum++;
 
@@ -501,9 +509,9 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
 
     sHError(pSyncNode,
             "recv sync-heartbeat from dnode:%d slow(%d ms) {term:%" PRId64 ", commit-index:%" PRId64
-            ", min-match:%" PRId64 ", ts:%s}, QID:%s, net elapsed:%" PRId64 "ms",
-            DID(&pMsg->srcId), SYNC_HEARTBEAT_SLOW_MS, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, s,
-            timeDiff);
+            ", min-match:%" PRId64 ", ts:%s}, net elapsed:%" PRId64 "ms, QID:0x%" PRIx64 ":0x%" PRIx64,
+            DID(&pMsg->srcId), SYNC_HEARTBEAT_SLOW_MS, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf,
+            timeDiff, trace->rootId, trace->msgId);
   } else {
     if (sDebugFlag & DEBUG_TRACE) {
       char pBuf[TD_TIME_STR_LEN] = {0};
@@ -514,18 +522,23 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
       }
       sHTrace(pSyncNode,
               "recv sync-heartbeat from dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-              ", ts:%s}, QID:%s, net elapsed:%" PRId64 "ms",
-              DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, s, timeDiff);
+              ", ts:%s},  net elapsed:%" PRId64 "ms, QID:0x%" PRIx64 ":0x%" PRIx64,
+              DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timeDiff, trace->rootId,
+              trace->msgId);
     }
   }
 }
 
-void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s) {
-  sHTrace(pSyncNode, "send sync-heartbeat-reply from dnode:%d {term:%" PRId64 ", ts:%" PRId64 "}, %s",
-          DID(&pMsg->destId), pMsg->term, pMsg->timeStamp, s);
+void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s,
+                               const STraceId* trace) {
+  sHTrace(pSyncNode,
+          "send sync-heartbeat-reply from dnode:%d {term:%" PRId64 ", ts:%" PRId64 "}, %s, QID:0x%" PRIx64
+          ":0x%" PRIx64,
+          DID(&pMsg->destId), pMsg->term, pMsg->timeStamp, s, trace->rootId, trace->msgId);
 }
 
-void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff, const char* s) {
+void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t timeDiff,
+                               const STraceId* trace) {
   if (timeDiff > SYNC_HEARTBEAT_REPLY_SLOW_MS) {
     pSyncNode->hbrSlowNum++;
 
@@ -537,8 +550,10 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
     }
 
     sHError(pSyncNode,
-            "recv sync-heartbeat-reply from dnode:%d slow(%d ms) {term:%" PRId64 ", ts:%s}, %s, net elapsed:%" PRId64,
-            DID(&pMsg->srcId), SYNC_HEARTBEAT_REPLY_SLOW_MS, pMsg->term, pBuf, s, timeDiff);
+            "recv sync-heartbeat-reply from dnode:%d slow(%d ms) {term:%" PRId64 ", ts:%s}, net elapsed:%" PRId64
+            ", QID:0x%" PRIx64 ":0x%" PRIx64,
+            DID(&pMsg->srcId), SYNC_HEARTBEAT_REPLY_SLOW_MS, pMsg->term, pBuf, timeDiff, trace->rootId,
+            trace->msgId);
   } else {
     if (sDebugFlag & DEBUG_TRACE) {
       char pBuf[TD_TIME_STR_LEN] = {0};
@@ -548,83 +563,98 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
         }
       }
       sHTrace(pSyncNode,
-              "recv sync-heartbeat-reply from dnode:%d {term:%" PRId64 ", ts:%" PRId64 "}, %s, net elapsed:%" PRId64,
-              DID(&pMsg->srcId), pMsg->term, pMsg->timeStamp, s, timeDiff);
+              "recv sync-heartbeat-reply from dnode:%d {term:%" PRId64 ", ts:%" PRId64 "}, net elapsed:%" PRId64
+              ", QID:0x%" PRIx64 ":0x%" PRIx64,
+              DID(&pMsg->srcId), pMsg->term, pMsg->timeStamp, timeDiff, trace->rootId, trace->msgId);
     }
   }
 }
 
-void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {
+void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s,
+                                 const STraceId* trace) {
   sNDebug(pSyncNode,
           "send sync-snapshot-send to dnode:%d, %s, seq:%d, term:%" PRId64 ", begin-index:%" PRId64
-          ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64,
+          ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64 ", QID:0x%" PRIx64 ":0x%" PRIx64,
           DID(&pMsg->destId), s, pMsg->seq, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm,
-          pMsg->startTime);
+          pMsg->startTime, trace->rootId, trace->msgId);
 }
 
-void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {
+void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s,
+                                 const STraceId* trace) {
   sNDebug(pSyncNode,
           "recv sync-snapshot-send from dnode:%d, %s, seq:%d, term:%" PRId64 ", begin-index:%" PRId64
-          ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64 ", data-len:%u",
+          ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64 ", data-len:%u, QID:0x%" PRIx64
+          ":0x%" PRIx64,
           DID(&pMsg->srcId), s, pMsg->seq, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm,
-          pMsg->startTime, pMsg->dataLen);
+          pMsg->startTime, pMsg->dataLen, trace->rootId, trace->msgId);
 }
 
-void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {
+void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s,
+                                const STraceId* trace) {
   sNDebug(pSyncNode,
           "send sync-snapshot-rsp to dnode:%d, %s, acked:%d, term:%" PRId64 ", begin-index:%" PRId64
-          ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64,
+          ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64 ", QID:0x%" PRIx64 ":0x%" PRIx64,
           DID(&pMsg->destId), s, pMsg->ack, pMsg->term, pMsg->snapBeginIndex, pMsg->lastIndex, pMsg->lastTerm,
-          pMsg->startTime);
+          pMsg->startTime, trace->rootId, trace->msgId);
 }
 
-void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {
+void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s,
+                                const STraceId* trace) {
   sNDebug(pSyncNode,
           "recv sync-snapshot-rsp from dnode:%d, %s, ack:%d, term:%" PRId64 ", begin-index:%" PRId64
-          ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64,
+          ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64 ", QID:0x%" PRIx64 ":0x%" PRIx64,
           DID(&pMsg->srcId), s, pMsg->ack, pMsg->term, pMsg->snapBeginIndex, pMsg->lastIndex, pMsg->lastTerm,
-          pMsg->startTime);
+          pMsg->startTime, trace->rootId, trace->msgId);
 }
 
-void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
+void syncLogRecvAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s,
+                              const STraceId* trace) {
   sNTrace(pSyncNode,
           "recv sync-append-entries from dnode:%d {term:%" PRId64 ", prev-log:{index:%" PRId64 ", term:%" PRId64
-          "}, commit-index:%" PRId64 ", datalen:%d}, %s",
-          DID(&pMsg->srcId), pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->dataLen, s);
+          "}, commit-index:%" PRId64 ", datalen:%d}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
+          DID(&pMsg->srcId), pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex, pMsg->dataLen, s,
+          trace->rootId, trace->msgId);
 }
 
-void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s) {
+void syncLogSendAppendEntries(SSyncNode* pSyncNode, const SyncAppendEntries* pMsg, const char* s,
+                              const STraceId* trace) {
   sNTrace(pSyncNode,
           "send sync-append-entries to dnode:%d, {term:%" PRId64 ", prev-log:{index:%" PRId64 ", term:%" PRId64
-          "}, index:%" PRId64 ", commit-index:%" PRId64 ", datalen:%d}, %s",
+          "}, index:%" PRId64 ", commit-index:%" PRId64 ", datalen:%d}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
           DID(&pMsg->destId), pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, (pMsg->prevLogIndex + 1),
-          pMsg->commitIndex, pMsg->dataLen, s);
+          pMsg->commitIndex, pMsg->dataLen, s, trace->rootId, trace->msgId);
 }
 
 void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, int32_t voteGranted, const char* errmsg,
-                            const char* opt) {
+                            const char* opt, const STraceId* trace) {
   char statusMsg[64];
   snprintf(statusMsg, sizeof(statusMsg), "granted:%d", voteGranted);
   sNInfo(pSyncNode,
-         "%s sync-request-vote from dnode:%d, {term:%" PRId64 ", last-index:%" PRId64 ", last-term:%" PRId64 "}, %s",
+         "%s sync-request-vote from dnode:%d, {term:%" PRId64 ", last-index:%" PRId64 ", last-term:%" PRId64
+         "}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
          opt, DID(&pMsg->srcId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm,
-         (voteGranted != -1) ? statusMsg : errmsg);
+         (voteGranted != -1) ? statusMsg : errmsg, trace->rootId, trace->msgId);
 }
 
-void syncLogSendRequestVote(SSyncNode* pNode, const SyncRequestVote* pMsg, const char* s) {
+void syncLogSendRequestVote(SSyncNode* pNode, const SyncRequestVote* pMsg, const char* s, const STraceId* trace) {
   sNInfo(pNode,
-         "send sync-request-vote to dnode:%d {term:%" PRId64 ", last-index:%" PRId64 ", last-term:%" PRId64 "}, %s",
-         DID(&pMsg->destId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s);
+         "send sync-request-vote to dnode:%d {term:%" PRId64 ", last-index:%" PRId64 ", last-term:%" PRId64
+         "}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
+         DID(&pMsg->destId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s, trace->rootId, trace->msgId);
 }
 
-void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  sNInfo(pSyncNode, "recv sync-request-vote-reply from dnode:%d {term:%" PRId64 ", grant:%d}, %s", DID(&pMsg->srcId),
-         pMsg->term, pMsg->voteGranted, s);
+void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s,
+                                 const STraceId* trace) {
+  sNInfo(pSyncNode,
+         "recv sync-request-vote-reply from dnode:%d {term:%" PRId64 ", grant:%d}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
+         DID(&pMsg->srcId), pMsg->term, pMsg->voteGranted, s, trace->rootId, trace->msgId);
 }
 
-void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s) {
-  sNInfo(pSyncNode, "send sync-request-vote-reply to dnode:%d {term:%" PRId64 ", grant:%d}, %s", DID(&pMsg->destId),
-         pMsg->term, pMsg->voteGranted, s);
+void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s,
+                                 const STraceId* trace) {
+  sNInfo(pSyncNode,
+         "send sync-request-vote-reply to dnode:%d {term:%" PRId64 ", grant:%d}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
+         DID(&pMsg->destId), pMsg->term, pMsg->voteGranted, s, trace->rootId, trace->msgId);
 }
 
 int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size) {

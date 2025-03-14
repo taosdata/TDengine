@@ -622,9 +622,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     return terrno = TSDB_CODE_VND_DUP_REQUEST;
   }
 
-  vDebug("vgId:%d, process write request:%s, index:%" PRId64 ", applied:%" PRId64 ", state.applyTerm:%" PRId64
+  vDebug("vgId:%d, index:%" PRId64 ", process write request:%s, applied:%" PRId64 ", state.applyTerm:%" PRId64
          ", conn.applyTerm:%" PRId64 ", contLen:%d",
-         TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver, pVnode->state.applied, pVnode->state.applyTerm,
+         TD_VID(pVnode), ver, TMSG_INFO(pMsg->msgType), pVnode->state.applied, pVnode->state.applyTerm,
          pMsg->info.conn.applyTerm, pMsg->contLen);
 
   if (!(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm)) {
@@ -807,8 +807,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       return TSDB_CODE_INVALID_MSG;
   }
 
-  vTrace("vgId:%d, process %s request, code:0x%x index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), pRsp->code,
-         ver);
+  const STraceId *trace = &pMsg->info.traceId;
+  vGDebug("vgId:%d, index:%" PRId64 ", msg processed, code:0x%x", TD_VID(pVnode), ver, pRsp->code);
 
   walApplyVer(pVnode->pWal, ver);
 
@@ -2065,7 +2065,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
   }
 
-  vDebug("vgId:%d, submit block, rows:%d", TD_VID(pVnode), (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
+  vDebug("vgId:%d, index:%" PRId64 ", submit block, rows:%d", TD_VID(pVnode), ver,
+         (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
 
   // loop to handle
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {

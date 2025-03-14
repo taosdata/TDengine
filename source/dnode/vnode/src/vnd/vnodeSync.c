@@ -377,12 +377,12 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   const STraceId *trace = &pMsg->info.traceId;
-  vGDebug("vgId:%d, process sync msg:%p, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+  vGDebug("vgId:%d, msg:%p get from vnode-sync queue, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t code = syncProcessMsg(pVnode->sync, pMsg);
   if (code != 0) {
-    vGError("vgId:%d, failed to process sync msg:%p type:%s since %s", pVnode->config.vgId, pMsg,
-            TMSG_INFO(pMsg->msgType), tstrerror(code));
+    vGError("vgId:%d, msg:%p failed to process since %s, type:%s", pVnode->config.vgId, pMsg, tstrerror(code),
+            TMSG_INFO(pMsg->msgType));
   }
 
   return code;
