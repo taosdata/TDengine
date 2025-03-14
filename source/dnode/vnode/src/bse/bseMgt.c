@@ -1000,13 +1000,29 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
     }
   }
 
-  TAOS_CHECK_GOTO(code, &line, _err);
-
 _err:
   taosThreadMutexUnlock(&pBse->mutex);
   if (code != 0) {
     bseError("failed to get value by seq %" PRIu64 " since %s", seq, tstrerror(code));
   }
+  return code;
+}
+
+int32_t seqComparFunc(const void *p1, const void *p2) {
+  uint64_t pu1 = *(const uint64_t *)p1;
+  uint64_t pu2 = *(const uint64_t *)p2;
+  if (pu1 == pu2) {
+    return 0;
+  } else {
+    return (pu1 < pu2) ? -1 : 1;
+  }
+}
+int32_t bseMultiGet(SBse *pBse, SArray *pKey, SArray *ppValue) {
+  int32_t code = 0;
+  taosSort(pKey->pData, taosArrayGetSize(pKey), sizeof(int64_t), seqComparFunc);
+
+  taosThreadMutexLock(&pBse->mutex);
+  taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 
@@ -1162,6 +1178,7 @@ static int32_t readerTableGet(SReaderTable *pTable, uint64_t key, uint8_t **pVal
 _err:
   return code;
 }
+
 static int32_t readerTableBuild(SReaderTable *pTable) {
   int32_t  line = 0;
   int32_t  code = 0;
@@ -1203,7 +1220,7 @@ static int32_t readerTableBuild(SReaderTable *pTable) {
             p = taosDecodeVariantU64(p, &offset);
             count++;
 
-            taosHashPut(pTable->pCache, &seq, sizeof(uint64_t), &offset, sizeof(uint64_t));
+            code = taosHashPut(pTable->pCache, &seq, sizeof(uint64_t), &offset, sizeof(uint64_t));
             // printf("seq:%" PRIu64 ", offset:%" PRIu64 "\n", seq, offset);
           } while (count < pBlk->len);
         } else {
