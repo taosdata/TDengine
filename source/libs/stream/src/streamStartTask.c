@@ -230,11 +230,11 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
       stError("vgId:%d record start task result failed, s-task:0x%" PRIx64
               " already exist start results in meta start task result hashmap",
               vgId, id.taskId);
+      code = 0;
     } else {
-      stError("vgId:%d failed to record start task:0x%" PRIx64 " results, start all tasks failed", vgId, id.taskId);
+      stError("vgId:%d failed to record start task:0x%" PRIx64 " results, start all tasks failed, code:%s", vgId,
+              id.taskId, tstrerror(code));
     }
-    streamMetaWUnLock(pMeta);
-    return code;
   }
 
   int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);

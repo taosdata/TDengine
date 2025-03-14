@@ -108,6 +108,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
+  sTrace("vgId:%d, begin hasVoted", ths->vgId);
   bool grant = (pMsg->term == currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths)) || (syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId)));
   if (grant) {

@@ -145,7 +145,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBlock, SStreamRetrieveReq* req) {
   SRetrieveTableRsp* pRetrieve = NULL;
 
-  size_t dataEncodeSize = blockGetEncodeSize(pBlock);
+  size_t  dataEncodeSize = blockGetEncodeSize(pBlock);
   int32_t len = sizeof(SRetrieveTableRsp) + dataEncodeSize + PAYLOAD_PREFIX_LEN;
 
   pRetrieve = taosMemoryCalloc(1, len);
@@ -684,6 +684,9 @@ static int32_t doAddDispatchBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs,
     }
 
     if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
+      stDebug("s-task:%s dst table hashVal:0x%x assign to vgId:%d range[0x%x, 0x%x]", pTask->id.idStr, hashValue,
+              pVgInfo->vgId, pVgInfo->hashBegin, pVgInfo->hashEnd);
+
       if ((code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j])) < 0) {
         stError("s-task:%s failed to add dispatch block, code:%s", pTask->id.idStr, tstrerror(terrno));
         return code;
@@ -727,6 +730,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     if (!pDataBlock->info.parTbName[0]) {
       memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
       memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
+      stDebug("s-task:%s cached table name:%s, groupId:%" PRId64 " hashVal:0x%x", pTask->id.idStr, pBln->parTbName,
+              groupId, hashValue);
     }
   } else {
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -752,15 +757,17 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
       }
     }
 
-    snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
+    snprintf(ctbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
              pDataBlock->info.parTbName);
-    /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/
+
     SUseDbRsp* pDbInfo = &pTask->outputInfo.shuffleDispatcher.dbInfo;
     hashValue =
         taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
     SBlockName bln = {0};
     bln.hashValue = hashValue;
     memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
+
+    stDebug("s-task:%s dst table:%s hashVal:0x%x groupId:%"PRId64, pTask->id.idStr, ctbName, hashValue, groupId);
 
     // failed to put into name buffer, no need to do anything
     if (tSimpleHashGetSize(pTask->pNameMap) < MAX_BLOCK_NAME_NUM) {  // allow error, and do nothing
@@ -890,7 +897,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   } else {
     streamMutexLock(&pTask->msgInfo.lock);
     if (pTask->msgInfo.inMonitor == 0) {
-//      int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
+      //      int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s start dispatch monitor tmr in %dms, dispatch code:%s", id, DISPATCH_RETRY_INTERVAL_MS,
               tstrerror(code));
       streamStartMonitorDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS);
@@ -967,8 +974,8 @@ static int32_t doTaskChkptStatusCheck(SStreamTask* pTask, void* param, int32_t n
   }
 
   if (taosArrayGetSize(pTask->upstreamInfo.pList) != num) {
-    stWarn("s-task:%s vgId:%d upstream number:%d not equals sent readyMsg:%d, quit from readyMsg send tmr", id,
-           vgId, (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList), num);
+    stWarn("s-task:%s vgId:%d upstream number:%d not equals sent readyMsg:%d, quit from readyMsg send tmr", id, vgId,
+           (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList), num);
     return -1;
   }
 
@@ -1128,8 +1135,7 @@ static void chkptReadyMsgSendMonitorFn(void* param, void* tmrId) {
   // 1. check status in the first place
   if (state.state != TASK_STATUS__CK) {
     streamCleanBeforeQuitTmr(pTmrInfo, param);
-    stDebug("s-task:%s vgId:%d status:%s not in checkpoint, quit from monitor checkpoint-ready", id, vgId,
-            state.name);
+    stDebug("s-task:%s vgId:%d status:%s not in checkpoint, quit from monitor checkpoint-ready", id, vgId, state.name);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     taosArrayDestroy(pNotRspList);
     return;
@@ -1258,7 +1264,7 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
 }
 
 int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
-  size_t dataEncodeSize = blockGetEncodeSize(pBlock);
+  size_t  dataEncodeSize = blockGetEncodeSize(pBlock);
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + dataEncodeSize + PAYLOAD_PREFIX_LEN;
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) {
