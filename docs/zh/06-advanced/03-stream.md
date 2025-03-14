@@ -27,7 +27,7 @@ stream_options: {
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
- FILL_HISTORY   [0|1]
+ FILL_HISTORY   [0|1] [ASYNC]
  IGNORE UPDATE  [0|1]
 }
 
@@ -102,7 +102,7 @@ PARTITION 子句中，为 tbname 定义了一个别名 tname， 在 PARTITION �
 通过启用 fill_history 选项，创建的流计算任务将具备处理创建前、创建过程中以及创建后写入的数据的能力。这意味着，无论数据是在流创建之前还是之后写入的，都将纳入流计算的范围，从而确保数据的完整性和一致性。这一设置为用户提供了更大的灵活性，使其能够根据实际需求灵活处理历史数据和新数据。
 
 注意：
-- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以配置参数 streamRunHistoryAsync（3.3.6.0版本开始支持） 为 1 （默认为0），将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。
+- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（3.3.6.0版本开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
 
 - 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
 
