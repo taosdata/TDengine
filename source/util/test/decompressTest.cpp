@@ -182,7 +182,7 @@ void        compressImplTestByAlg(void* pVal, int8_t type, int32_t num, uint32_t
 
     DEFINE_VAR(cmprAlg)
     int32_t len = compres.compFunc(pVal, bytes, num, px, externalSize, cmprAlg, pBuf, externalSize);
-    printf("encode:%s, compress alg:%s, type:%s, compresess size: %d, actual size: %d, radio: %f\n", end[l1], alg[l2],
+    printf("encode:%s, compress alg:%s, type:%s, compresess size: %d, actual size: %d, ratio: %f\n", end[l1], alg[l2],
                   compres.name, len, bytes, (float)len / bytes);
     char* pOutput = static_cast<char*>(taosMemoryCalloc(1, externalSize));
     memset(pBuf, 0, externalSize);
