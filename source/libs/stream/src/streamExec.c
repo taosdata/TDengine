@@ -936,11 +936,10 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
 
     if (type != STREAM_INPUT__RECALCULATE) {
       code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
-    }
-
-    if (code) {
       streamFreeQitem(pInput);
-      return code;
+      if (code) {
+        return code;
+      }
     }
 
     // for stream with only 1 task, start related re-calculate stream task directly.
