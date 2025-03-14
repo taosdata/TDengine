@@ -1,0 +1,33 @@
+name: TDinternal CI Pipelines
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'enterprise/documentation/**'
+      - 'enterprise/packaging/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-TDinternal
+  cancel-in-progress: true
+
+jobs:
+  run-tests-on-linux:
+    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
+    with:
+      tdinternal: true
+      run_function_test: true
+      run_tdgpt_test: false
+
+  run-tests-on-mac:
+    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
+    with:
+      tdinternal: true
+
+  run-tests-on-windows:
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
+    with:
+      tdinternal: true

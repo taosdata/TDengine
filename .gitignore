@@ -14,7 +14,7 @@ taoscsv/
 *._.taos_history
 *.jscs.json
 *.deps
-*.yml
+.yml
 ._~$*
 log/
 bin_x64/
