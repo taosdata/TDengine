@@ -2170,10 +2170,6 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if( atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum)>1) {
-    tscError("async bind param is still working, please try again later");
-    return TSDB_CODE_TSC_STMT_API_ERROR;
-  }
 
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
@@ -2280,8 +2276,8 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   int code_s = taosStmt2AsyncBind(stmtAsyncBindThreadFunc, (void *)args);
   if (code_s != TSDB_CODE_SUCCESS) {
     (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
-    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
      tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
   }
