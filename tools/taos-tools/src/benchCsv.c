@@ -355,11 +355,6 @@ int csvGenCreateDbSql(SDataBase* db, char* buf, int size) {
     pos += snprintf(buf + pos, size - pos, g_arguments->escape_character ? "`%s`" : "%s", db->dbName);
     if (pos <= 0 || pos >= size) return -1;
 
-    if (-1 != g_arguments->inputted_vgroups) {
-        pos += snprintf(buf + pos, size - pos, " VGROUPS %d", g_arguments->inputted_vgroups);
-        if (pos <= 0 || pos >= size) return -1;
-    }
-
     if (db->cfgs) {
         for (size_t i = 0; i < db->cfgs->size; ++i) {
             SDbCfg* cfg = benchArrayGet(db->cfgs, i);

@@ -1133,29 +1133,7 @@ static uint8_t sclGetOpValueNodeTsPrecision(SNode *pLeft, SNode *pRight) {
   return 0;
 }
 
-int32_t sclConvertOpValueNodeTs(SOperatorNode *node) {
-  if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
-    if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
-      SCL_ERR_RET(
-          sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight), (SValueNode *)node->pLeft));
-    }
-  } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
-    if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
-      if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
-        SCL_ERR_RET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight),
-                                            (SValueNode *)node->pRight));
-      } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
-        SNode *pNode;
-        FOREACH(pNode, ((SNodeListNode *)node->pRight)->pNodeList) {
-          if (SCL_IS_VAR_VALUE_NODE(pNode)) {
-            SCL_ERR_RET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, pNode), (SValueNode *)pNode));
-          }
-        }
-      }
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
+
 
 int32_t sclConvertCaseWhenValueNodeTs(SCaseWhenNode *node) {
   if (NULL == node->pCase) {
@@ -1344,7 +1322,7 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
-  ctx->code = sclConvertOpValueNodeTs(node);
+  ctx->code = scalarConvertOpValueNodeTs(node);
   if (ctx->code) {
     return DEAL_RES_ERROR;
   }
@@ -1806,6 +1784,31 @@ static int32_t sclGetBitwiseOperatorResType(SOperatorNode *pOp) {
   pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t scalarConvertOpValueNodeTs(SOperatorNode *node) {
+  if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
+    if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
+      SCL_ERR_RET(
+          sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight), (SValueNode *)node->pLeft));
+    }
+  } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
+    if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
+      if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
+        SCL_ERR_RET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight),
+                                            (SValueNode *)node->pRight));
+      } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
+        SNode *pNode;
+        FOREACH(pNode, ((SNodeListNode *)node->pRight)->pNodeList) {
+          if (SCL_IS_VAR_VALUE_NODE(pNode)) {
+            SCL_ERR_RET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, pNode), (SValueNode *)pNode));
+          }
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, false, pRes); }
 

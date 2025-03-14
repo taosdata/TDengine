@@ -18,6 +18,8 @@ import datetime
 import random
 import copy
 import json
+import tempfile
+import uuid
 
 import frame.eos
 import frame.etool
@@ -477,3 +479,48 @@ class TBase:
         print(rlist)
 
         return rlist
+
+    # generate new json file
+    def genNewJson(self, jsonFile, modifyFunc=None):
+        try:
+            with open(jsonFile, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            tdLog.info(f"the specified json file '{jsonFile}' was not found.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error reading the json file: {e}")
+            return None
+        
+        if callable(modifyFunc):
+            modifyFunc(data)
+        
+        tempDir = os.path.join(tempfile.gettempdir(), 'json_templates')
+        try:
+            os.makedirs(tempDir, exist_ok=True)
+        except PermissionError:
+            tdLog.info(f"no sufficient permissions to create directory at '{tempDir}'.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error creating temporary directory: {e}")
+            return None
+        
+        tempPath = os.path.join(tempDir, f"temp_{uuid.uuid4().hex}.json")
+
+        try:
+            with open(tempPath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            tdLog.info(f"error writing to temporary json file: {e}")
+            return None
+
+        tdLog.info(f"create temporary json file successfully, file: {tempPath}")
+        return tempPath
+
+    # delete file
+    def deleteFile(self, filename):
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception as err:
+            raise Exception(err)

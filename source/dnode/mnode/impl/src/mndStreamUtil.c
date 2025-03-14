@@ -995,6 +995,8 @@ static void mndShowStreamStatus(char *dst, int8_t status) {
     tstrncpy(dst, "recover", MND_STREAM_TRIGGER_NAME_SIZE);
   } else if (status == STREAM_STATUS__PAUSE) {
     tstrncpy(dst, "paused", MND_STREAM_TRIGGER_NAME_SIZE);
+  } else if (status == STREAM_STATUS__INIT) {
+    tstrncpy(dst, "init", MND_STREAM_TRIGGER_NAME_SIZE);
   }
 }
 
@@ -1108,7 +1110,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
   TSDB_CHECK_CODE(code, lino, _end);
 
   int8_t streamStatus = atomic_load_8(&pStream->status);
-  if (isPaused) {
+  if (isPaused && pStream->pTaskList != NULL) {
     streamStatus = STREAM_STATUS__PAUSE;
   }
   mndShowStreamStatus(status2, streamStatus);
@@ -1207,6 +1209,17 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
 
   code = colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+  if (streamStatus == STREAM_STATUS__FAILED){
+    STR_TO_VARSTR(msg, pStream->reserve)
+  } else {
+    STR_TO_VARSTR(msg, " ")
+  }
+  code = colDataSetVal(pColInfo, numOfRows, (const char *)msg, false);
 
 _end:
   if (code) {

@@ -145,7 +145,11 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (g_pNodeAllocator->pCurrChunk->usedSize + size > g_pNodeAllocator->pCurrChunk->availableSize) {
+  int32_t alignedSize = size;
+#ifdef NO_UNALIGNED_ACCESS
+  alignedSize = (size + 3) & (~3);
+#endif
+  if (g_pNodeAllocator->pCurrChunk->usedSize + alignedSize > g_pNodeAllocator->pCurrChunk->availableSize) {
     int32_t code = callocNodeChunk(g_pNodeAllocator, NULL);
     if (TSDB_CODE_SUCCESS != code) {
       *pOut = NULL;
@@ -153,25 +157,31 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
     }
   }
   void* p = g_pNodeAllocator->pCurrChunk->pBuf + g_pNodeAllocator->pCurrChunk->usedSize;
-  g_pNodeAllocator->pCurrChunk->usedSize += size;
+  g_pNodeAllocator->pCurrChunk->usedSize += alignedSize;
   *pOut = p;
   return TSDB_CODE_SUCCESS;
   ;
 }
 
+#ifdef NO_UNALIGNED_ACCESS
+#define NODE_ALLOCATOR_HEAD_LEN 4
+#else
+#define NODE_ALLOCATOR_HEAD_LEN 1
+#endif
+
 static int32_t nodesCalloc(int32_t num, int32_t size, void** pOut) {
   void*   p = NULL;
-  int32_t code = nodesCallocImpl(num * size + 1, &p);
+  int32_t code = nodesCallocImpl(num * size + NODE_ALLOCATOR_HEAD_LEN, &p);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
   *(char*)p = (NULL != g_pNodeAllocator) ? 1 : 0;
-  *pOut = (char*)p + 1;
+  *pOut = (char*)p + NODE_ALLOCATOR_HEAD_LEN;
   return TSDB_CODE_SUCCESS;
 }
 
 void nodesFree(void* p) {
-  char* ptr = (char*)p - 1;
+  char* ptr = (char*)p - NODE_ALLOCATOR_HEAD_LEN;
   if (0 == *ptr) {
     taosMemoryFree(ptr);
   }
@@ -190,7 +200,7 @@ static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocato
     return code;
   }
   if (0 != taosThreadMutexInit(&(*pAllocator)->mutex, NULL)) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -3299,3 +3309,76 @@ void rewriteExprAliasName(SExprNode* pNode, int64_t num) {
 bool isRelatedToOtherExpr(SExprNode* pExpr) {
   return pExpr->relatedTo != 0;
 }
+
+typedef struct SContainsColCxt {
+  bool       containsCol;
+} SContainsColCxt;
+
+static EDealRes nodeContainsCol(SNode* pNode, void* pContext) {
+  SContainsColCxt* pCxt = pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    pCxt->containsCol = true;
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+bool nodesContainsColumn(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  SContainsColCxt cxt = {0};
+  nodesWalkExpr(pNode, nodeContainsCol, &cxt);
+  
+  return cxt.containsCol;
+}
+
+
+
+int32_t mergeNodeToLogic(SNode** pDst, SNode** pSrc) {
+  SLogicConditionNode* pLogicCond = NULL;
+  int32_t              code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCond);
+  if (NULL == pLogicCond) {
+    return code;
+  }
+  pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  code = nodesListMakeAppend(&pLogicCond->pParameterList, *pSrc);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pSrc = NULL;
+    code = nodesListMakeAppend(&pLogicCond->pParameterList, *pDst);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *pDst = (SNode*)pLogicCond;
+  } else {
+    nodesDestroyNode((SNode*)pLogicCond);
+  }
+  return code;
+}
+
+
+int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond) {
+  if (NULL == *pCond) {
+    TSWAP(*pCond, *pAdditionalCond);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCond) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*pCond)->condType) {
+    code = nodesListAppend(((SLogicConditionNode*)*pCond)->pParameterList, *pAdditionalCond);
+    if (TSDB_CODE_SUCCESS == code) {
+      *pAdditionalCond = NULL;
+    }
+  } else {
+    code = mergeNodeToLogic(pCond, pAdditionalCond);
+  }
+  
+  return code;
+}
+
+
+

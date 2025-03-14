@@ -103,7 +103,7 @@ END:
   if (pPlan) nodesDestroyNode((SNode*)pPlan);
   TAOS_RETURN(code);
 }
-
+#ifdef USE_STREAM
 int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
   STaskOutputInfo* pInfo = &pTask->outputInfo;
 
@@ -860,7 +860,9 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream, int64_t skey, SAr
 
   TAOS_RETURN(code);
 }
+#endif
 
+#ifdef USE_TOPIC
 int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub) {
   int32_t     code = 0;
   SSdb*       pSdb = pMnode->pSdb;
@@ -957,3 +959,4 @@ END:
   qDestroyQueryPlan(pPlan);
   return code;
 }
+#endif
