@@ -9,6 +9,13 @@ on:
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
+      - 'tools/tdgpt/**'
+      - 'source/libs/executor/src/forecastoperator.c'
+      - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'include/common/tanalytics.h'
+      - 'source/common/src/tanalytics.c'
+      - 'tests/parallel/tdgpt_cases.task'
+      - 'tests/script/tsim/analytics'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-TDengine
@@ -18,88 +25,19 @@ env:
   WKC: '/var/lib/jenkins/workspace/TDinternal/community'
 
 jobs:
-  fetch-parameters:
-    name: Prepare Test
-    runs-on: 
-      group: CI
-      labels: [self-hosted, Linux, X64, testing]
-    outputs:
-      run_function_test: ${{ steps.parameters.outputs.run_function_test }}
-      run_tdgpt_test: ${{ steps.parameters.outputs.run_tdgpt_test }}
-    steps:
-      - name: Determine trigger source and fetch parameters
-        id: parameters
-        run: |
-          set -euo pipefail
-          # target_branch=${{ github.event.pull_request.base.ref }}
-
-          # # Fetch the latest code from the target branch
-          # cd ${{ env.WKC }}
-          # git reset --hard
-          # git clean -f
-          # git remote prune origin
-          # git fetch
-          # git checkout "$target_branch"
-          # git remote prune origin
-          # git pull >/dev/null
-
-          # # Check whether to run tdgpt test cases
-          # changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | grep -v "^docs/en/" | grep -v "^docs/zh/" | grep -v ".md$" | tr '\n' ' ' || :)
-          # echo "changed files exclude doc: ${changed_files_non_doc}"
-          
-          # if [[ -n "$changed_files_non_doc" && "$changed_files_non_doc" =~ (forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt) ]]; then
-          #   run_tdgpt_test="true"
-          # else
-          #   run_tdgpt_test="false"
-          # fi
-          # echo "run tdgpt test: ${run_tdgpt_test}"
-
-          # # Check whether to run function test cases
-          # changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | \
-          #   grep -v "^docs/en/" | \
-          #   grep -v "^docs/zh/" | \
-          #   grep -v ".md$" | \
-          #   grep -Ev "forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt" | \
-          #   tr '\n' ' ' || :)
-          # echo "changed files exclude tdgpt: ${changed_files_non_tdgpt}"
-          
-          # if [ -n "$changed_files_non_tdgpt" ]; then
-          #   run_function_test="true"
-          # else
-          #   run_function_test="false"
-          # fi
-
-          # echo "run function test: ${run_function_test}"
-
-          run_tdgpt_test="true"
-          run_function_test="true"
-          # Output the results for GitHub Actions
-          echo "run_function_test=$run_function_test" >> $GITHUB_OUTPUT
-          echo "run_tdgpt_test=$run_tdgpt_test" >> $GITHUB_OUTPUT
-
-          echo ${{ github.event.pull_request.head.ref }}
-          echo ${{ github.event.pull_request.base.ref }}
-          echo ${{ github.event.pull_request.number }}
-
   run-tests-on-linux:
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
-    needs: fetch-parameters
-    if: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' || needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
-      run_function_test: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
-      run_tdgpt_test: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' }}
+      run_function_test: true
+      run_tdgpt_test: false
 
   run-tests-on-mac:
     uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
-    needs: fetch-parameters
-    if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
 
   run-tests-on-windows:
     uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
-    needs: fetch-parameters
-    if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
