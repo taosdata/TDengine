@@ -163,8 +163,8 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
 
     taosArrayPush(pMeta->startInfo.pStagesList, &info);
-    stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId, info.ts,
-            (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
+    stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId, numOfConsensusChkptIdTasks,
+            info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
   }
 
   streamMetaWUnLock(pMeta);
@@ -277,7 +277,8 @@ int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId
   }
 
   int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
-  int32_t numOfRecv = taosHashGetSize(pStartInfo->pReadyTaskSet) + taosHashGetSize(pStartInfo->pFailedTaskSet);
+  int32_t numOfSucc = taosHashGetSize(pStartInfo->pReadyTaskSet);
+  int32_t numOfRecv = numOfSucc + taosHashGetSize(pStartInfo->pFailedTaskSet);
 
   allRsp = allCheckDownstreamRsp(pMeta, pStartInfo, numOfTotal);
   if (allRsp) {
@@ -528,19 +529,12 @@ int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
       stDebug("s-task:%s vgId:%d set requiring consensus-chkptId in hbMsg, ts:%" PRId64, pTask->id.idStr, vgId,
               pConChkptInfo->statusTs);
       return 1;
+    } else if (pConChkptInfo->status == 0) {
+      stDebug("vgId:%d s-task:%s not need to set the req checkpointId, current stage:%d", vgId, pTask->id.idStr,
+              pConChkptInfo->status);
     } else {
       stWarn("vgId:%d, s-task:%s restart procedure expired, start stage:%d", vgId, pTask->id.idStr,
              pConChkptInfo->status);
-      /*int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
-
-      // not recv consensus-checkpoint rsp for 60sec, send it again in hb to mnode
-      if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && el > 60) {
-        pConChkptInfo->statusTs = ts;
-
-        stWarn(
-            "s-task:%s vgId:%d not recv consensus-chkptId for %ds(more than 60s), set requiring in Hb again, ts:%"
-      PRId64, pTask->id.idStr, vgId, el, pConChkptInfo->statusTs); return 1;
-      }*/
     }
   }
 

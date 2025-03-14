@@ -133,6 +133,8 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
       code = streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   } else {  // for sink task, set it ready directly.
+//    streamTaskSetConsenChkptIdRecv(pTask, 0, taosGetTimestampMs());
+//
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", idstr, pTask->info.nodeId);
     streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, idstr);
     processDownstreamReadyRsp(pTask, false);
