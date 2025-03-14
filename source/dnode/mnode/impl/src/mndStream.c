@@ -652,6 +652,11 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->type = pStream->outputSchema.pSchema[i].type;
     pField->bytes = pStream->outputSchema.pSchema[i].bytes;
     pField->compress = createDefaultColCmprByType(pField->type);
+    if (IS_DECIMAL_TYPE(pField->type)) {
+      uint8_t prec = 0, scale = 0;
+      extractDecimalTypeInfoFromBytes(&pField->bytes, &prec, &scale);
+      pField->typeMod = decimalCalcTypeMod(prec, scale);
+    }
   }
 
   if (pStream->tagSchema.nCols == 0) {

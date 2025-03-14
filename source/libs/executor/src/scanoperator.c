@@ -2881,7 +2881,8 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
   SColumnInfoData* pColTs = taosArrayGet(pBlock->pDataBlock, 0);
   SColumnInfoData* pColPk = taosArrayGet(pBlock->pDataBlock, 1);
 
-  qDebug("doBlockDataWindowFilter primary key, ts:%" PRId64 " %" PRId64, offset->ts, offset->primaryKey.val);
+  qDebug("doBlockDataWindowFilter primary key, ts:%" PRId64 " %" PRId64, offset->ts,
+         VALUE_GET_TRIVIAL_DATUM(&offset->primaryKey));
   QUERY_CHECK_CONDITION((pColPk->info.type == offset->primaryKey.type), code, lino, _end,
                         TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
@@ -2898,7 +2899,7 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
       p[i] = (*ts > offset->ts) || (func(data, tmq) > 0);
       taosMemoryFree(tmq);
     } else {
-      p[i] = (*ts > offset->ts) || (func(data, &offset->primaryKey.val) > 0);
+      p[i] = (*ts > offset->ts) || (func(data, VALUE_GET_DATUM(&offset->primaryKey, pColPk->info.type)) > 0);
     }
 
     if (!p[i]) {
@@ -3137,7 +3138,7 @@ static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOff
       val.nData = varDataLen(tmp);
       memcpy(val.pData, varDataVal(tmp), varDataLen(tmp));
     } else {
-      memcpy(&val.val, tmp, pColPk->info.bytes);
+      valueSetDatum(&val, pColPk->info.type, tmp, pColPk->info.bytes);
     }
   }
   tqOffsetResetToData(offset, pBlock->info.id.uid, pBlock->info.window.ekey, val);
@@ -4161,7 +4162,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     code = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pInfo->sContext, &mtInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     if (code != 0) {
-      tDeleteSchemaWrapper(mtInfo.schema);
+      destroyMetaTableInfo(&mtInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     STqOffsetVal offset = {0};
@@ -4173,7 +4174,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN, val);
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
     }
-    tDeleteSchemaWrapper(mtInfo.schema);
+    destroyMetaTableInfo(&mtInfo);
     code = qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
     QUERY_CHECK_CODE(code, lino, _end);
     (*ppRes) = NULL;
@@ -5326,7 +5327,6 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
       nodesRewriteExprPostOrder(&pTagCond, tagScanRewriteTagColumn, (void*)&pInfo->filterCtx);
     }
   }
-  // TODO wjm check pInfo->filterCtx.code
   __optr_fn_t tagScanNextFn = (pTagScanNode->onlyMetaCtbIdx) ? doTagScanFromCtbIdxNext : doTagScanFromMetaEntryNext;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, tagScanNextFn, NULL, destroyTagScanOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

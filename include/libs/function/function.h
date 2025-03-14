@@ -270,6 +270,7 @@ typedef struct SqlFunctionCtx {
   bool                 bInputFinished;
   bool                 hasWindowOrGroup;  // denote that the function is used with time window or group
   bool                 needCleanup;       // denote that the function need to be cleaned up
+  int32_t              inputType; // save the fuction input type funcs like finalize
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
@@ -296,12 +297,14 @@ struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   SHashObj        *pHashFilterOthers;
-  int32_t          hashValueType;
+  int32_t          filterValueType;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
   timezone_t       tz;
   void            *charsetCxt;
+  SArray          *pFilterArr; // for types that can't filter with hash
+  STypeMod         filterValueTypeMod;
 };
 
 static inline void setTzCharset(SScalarParam *param, timezone_t tz, void *charsetCxt) {
@@ -320,7 +323,7 @@ typedef struct SPoint {
 } SPoint;
 
 void taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
-                                   int32_t inputType);
+                                   int32_t inputType, STypeMod inputTypeMod);
 
 #define LEASTSQUARES_DOUBLE_ITEM_LENGTH 25
 #define LEASTSQUARES_BUFF_LENGTH        128

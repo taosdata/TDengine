@@ -561,6 +561,7 @@ typedef struct {
   col_id_t colId;
   int32_t  cmprAlg;
 } SCmprObj;
+
 typedef struct {
   char      name[TSDB_TABLE_FNAME_LEN];
   char      db[TSDB_DB_FNAME_LEN];
@@ -591,6 +592,7 @@ typedef struct {
   int8_t    source;
   SColCmpr* pCmpr;
   int64_t   keep;
+  SExtSchema* pExtSchemas;
 } SStbObj;
 
 typedef struct {

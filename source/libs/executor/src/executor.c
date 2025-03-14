@@ -1538,6 +1538,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SMetaTableInfo mtInfo = {0};
       code = pTaskInfo->storageAPI.snapshotFn.getMetaTableInfoFromSnapshot(sContext, &mtInfo);
       if (code != 0) {
+        destroyMetaTableInfo(&mtInfo);
         return code;
       }
       pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pInfo->dataReader);
@@ -1547,7 +1548,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       tableListClear(pTableListInfo);
 
       if (mtInfo.uid == 0) {
-        tDeleteSchemaWrapper(mtInfo.schema);
+        destroyMetaTableInfo(&mtInfo);
         goto end;  // no data
       }
 
@@ -1555,7 +1556,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       code = initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        tDeleteSchemaWrapper(mtInfo.schema);
+        destroyMetaTableInfo(&mtInfo);
         return code;
       }
       if (pAPI->snapshotFn.taosXGetTablePrimaryKey(sContext)) {
@@ -1566,7 +1567,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       code = tableListAddTableInfo(pTableListInfo, mtInfo.uid, 0);
       if (code != TSDB_CODE_SUCCESS) {
-        tDeleteSchemaWrapper(mtInfo.schema);
+        destroyMetaTableInfo(&mtInfo);
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         return code;
       }
@@ -1574,14 +1575,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
       if (!pList) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        tDeleteSchemaWrapper(mtInfo.schema);
+        destroyMetaTableInfo(&mtInfo);
         return code;
       }
       int32_t size = 0;
       code = tableListGetSize(pTableListInfo, &size);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        tDeleteSchemaWrapper(mtInfo.schema);
+        destroyMetaTableInfo(&mtInfo);
         return code;
       }
 
@@ -1589,7 +1590,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
                                                            NULL, (void**)&pInfo->dataReader, NULL, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        tDeleteSchemaWrapper(mtInfo.schema);
+        destroyMetaTableInfo(&mtInfo);
         return code;
       }
 

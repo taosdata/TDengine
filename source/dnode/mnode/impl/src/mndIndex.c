@@ -664,6 +664,7 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
   pNew->pColumns = NULL;
   pNew->pCmpr = NULL;
   pNew->pTags = NULL;
+  pNew->pExtSchemas = NULL;
   pNew->updateTime = taosGetTimestampMs();
   pNew->lock = 0;
 
@@ -733,6 +734,7 @@ _OVER:
     taosMemoryFree(newStb.pTags);
     taosMemoryFree(newStb.pColumns);
     taosMemoryFree(newStb.pCmpr);
+    taosMemoryFreeClear(newStb.pExtSchemas);
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
@@ -847,6 +849,7 @@ _OVER:
   taosMemoryFree(newObj.pTags);
   taosMemoryFree(newObj.pColumns);
   taosMemoryFree(newObj.pCmpr);
+  taosMemoryFreeClear(newObj.pExtSchemas);
 
   mndTransDrop(pTrans);
   mndReleaseStb(pMnode, pStb);
