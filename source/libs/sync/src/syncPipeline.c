@@ -1573,7 +1573,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
   }
 
   TRACE_SET_MSGID(&(msgOut.info.traceId), tGenIdPI64());
-  STraceId* trace = &(msgOut.info.traceId);
+  STraceId* trace = &msgOut.info.traceId;
   sGDebug("vgId:%d, replicate one msg index:%" PRId64 " term:%" PRId64 " prevterm:%" PRId64 " to dest:0x%016" PRIx64,
           pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
   TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);

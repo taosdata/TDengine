@@ -3749,7 +3749,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   SyncTerm        term = raftStoreGetTerm(ths);
   SSyncRaftEntry* pEntry = NULL;
   if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-    pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index, &pMsg->info.traceId);
+    pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index, trace);
   } else {
     pEntry = syncEntryBuildFromRpcMsg(pMsg, term, index);
   }
