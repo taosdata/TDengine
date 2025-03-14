@@ -187,10 +187,12 @@ _SEND_RESPONSE:
   }
 
   TRACE_SET_MSGID(&(rpcRsp.info.traceId), tGenIdPI64());
-  trace = &(rpcRsp.info.traceId);
-  sGTrace("vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
-          " to dest: 0x%016" PRIx64,
-          ths->vgId, pReply->matchIndex, pReply->term, pReply->lastSendIndex, pReply->destId.addr);
+  {
+    const STraceId* trace = &(rpcRsp.info.traceId);
+    sGTrace("vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
+            " to dest:0x%016" PRIx64,
+            ths->vgId, pReply->matchIndex, pReply->term, pReply->lastSendIndex, pReply->destId.addr);
+  }
   // ack, i.e. send response
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp));
 

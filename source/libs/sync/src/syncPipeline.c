@@ -1210,7 +1210,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
   bool     barrier = false;
   SyncTerm term = -1;
   if ((code = syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier)) < 0) {
-    sError("vgId:%d, failed to replicate log entry since %s, index:%" PRId64 ", dest: 0x%016" PRIx64, pNode->vgId,
+    sError("vgId:%d, failed to replicate log entry since %s, index:%" PRId64 ", dest:0x%016" PRIx64, pNode->vgId,
            tstrerror(code), index, pDestId->addr);
     TAOS_RETURN(code);
   }
@@ -1235,8 +1235,8 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
 int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   if (!pMgr->restored) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
-  sTrace("vgId:%d, begin to attempt replicate log entries from end to match, repl-mgr:[%" PRId64 ", %" PRId64
-         ", %" PRId64 "), restore:%d",
+  sTrace("vgId:%d, replicate log entries from end to match, repl-mgr:[%" PRId64 ", %" PRId64 ", %" PRId64
+         "), restore:%d",
          pNode->vgId, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex, pMgr->restored);
 
   SRaftId*  pDestId = &pNode->replicasId[pMgr->peerId];
@@ -1259,8 +1259,10 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
     SRaftId* pDestId = &pNode->replicasId[pMgr->peerId];
     bool     barrier = false;
     SyncTerm term = -1;
-    if ((code = syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier)) < 0) {
-      sError("vgId:%d, failed to replicate log entry since %s, index:%" PRId64 ", dest: 0x%016" PRIx64, pNode->vgId,
+
+    code = syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier);
+    if (code < 0) {
+      sError("vgId:%d, failed to replicate log entry since %s, index:%" PRId64 ", dest:0x%016" PRIx64, pNode->vgId,
              tstrerror(code), index, pDestId->addr);
       TAOS_RETURN(code);
     }
@@ -1269,7 +1271,10 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
     pMgr->states[pos].term = term;
     pMgr->states[pos].acked = false;
 
-    if (firstIndex == -1) firstIndex = index;
+    if (firstIndex == -1) {
+      firstIndex = index;
+    }
+
     count++;
 
     pMgr->endIndex = index + 1;
@@ -1569,7 +1574,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
 
   TRACE_SET_MSGID(&(msgOut.info.traceId), tGenIdPI64());
   STraceId* trace = &(msgOut.info.traceId);
-  sGTrace("vgId:%d, replicate one msg index:%" PRId64 " term:%" PRId64 " prevterm:%" PRId64 " to dest: 0x%016" PRIx64,
+  sGDebug("vgId:%d, replicate one msg index:%" PRId64 " term:%" PRId64 " prevterm:%" PRId64 " to dest:0x%016" PRIx64,
           pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
   TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
 

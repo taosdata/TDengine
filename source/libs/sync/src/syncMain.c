@@ -962,7 +962,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
   } else {
     SRespStub stub = {.createTime = taosGetTimestampMs(), .rpcMsg = *pMsg};
     uint64_t  seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
-    SRpcMsg   rpcMsg = {0};
+    SRpcMsg   rpcMsg = {.info.traceId = pMsg->info.traceId};
     int32_t   code = syncBuildClientRequest(&rpcMsg, pMsg, seqNum, isWeak, pSyncNode->vgId);
     if (code != 0) {
       sError("vgId:%d, failed to propose msg while serialize since %s", pSyncNode->vgId, terrstr());
@@ -970,7 +970,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
       TAOS_RETURN(code);
     }
 
-    sNTrace(pSyncNode, "propose msg, type:%s", TMSG_INFO(pMsg->msgType));
+    const STraceId *trace = &pMsg->info.traceId;
+    sGDebug("vgId:%d, propose msg, type:%s", pSyncNode->vgId, TMSG_INFO(pMsg->msgType));
     code = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
       sWarn("vgId:%d, failed to propose msg while enqueue since %s", pSyncNode->vgId, terrstr());
@@ -3739,7 +3740,8 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 //
 
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex) {
-  sNTrace(ths, "on client request");
+  const STraceId *trace = &pMsg->info.traceId;
+  sGTrace("vgId:%d, process client request", ths->vgId);
 
   int32_t code = 0;
 
@@ -3747,13 +3749,13 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   SyncTerm        term = raftStoreGetTerm(ths);
   SSyncRaftEntry* pEntry = NULL;
   if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-    pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index);
+    pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index, &pMsg->info.traceId);
   } else {
     pEntry = syncEntryBuildFromRpcMsg(pMsg, term, index);
   }
 
   if (pEntry == NULL) {
-    sError("vgId:%d, failed to process client request since %s.", ths->vgId, terrstr());
+    sGError("vgId:%d, failed to process client request since %s", ths->vgId, terrstr());
     return TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
@@ -3773,7 +3775,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
       int32_t code = syncNodeCheckChangeConfig(ths, pEntry);
       if (code < 0) {
-        sError("vgId:%d, failed to check change config since %s.", ths->vgId, terrstr());
+        sGError("vgId:%d, failed to check change config since %s.", ths->vgId, terrstr());
         syncEntryDestroy(pEntry);
         pEntry = NULL;
         TAOS_RETURN(code);
@@ -3782,8 +3784,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       if (code > 0) {
         SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
         int32_t num = syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
-        sDebug("vgId:%d, get response stub for config change, seqNum:%" PRIu64 ", num:%d", ths->vgId, pEntry->seqNum,
-               num);
+        sGDebug("vgId:%d, get response stub for config change, seqNum:%" PRIu64 ", num:%d", ths->vgId, pEntry->seqNum,
+                num);
         if (rsp.info.handle != NULL) {
           tmsgSendRsp(&rsp);
         }

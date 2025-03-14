@@ -1071,7 +1071,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     goto _exit;
   }
 
-  vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
+  vInfo("vgId:%d, process trim vnode request, time:%d", pVnode->config.vgId, trimReq.timestamp);
 
   code = vnodeAsyncRetention(pVnode, trimReq.timestamp);
 
@@ -1091,7 +1091,7 @@ static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _exit;
   }
 
-  vInfo("vgId:%d, s3migrate vnode request will be processed, time:%d", pVnode->config.vgId, s3migrateReq.timestamp);
+  vInfo("vgId:%d, process s3migrate vnode request, time:%d", pVnode->config.vgId, s3migrateReq.timestamp);
 
   code = vnodeAsyncS3Migrate(pVnode, s3migrateReq.timestamp);
 
@@ -1113,7 +1113,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids != 0) {
-    vInfo("vgId:%d, drop ttl table req will be processed, time:%d, ntbUids:%d", pVnode->config.vgId,
+    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId,
           ttlReq.timestampSec, ttlReq.nUids);
   }
 
@@ -2052,7 +2052,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
   }
 
-  vDebug("vgId:%d, submit block size:%d", TD_VID(pVnode), (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
+  vDebug("vgId:%d, submit block, rows:%d", TD_VID(pVnode), (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
 
   // loop to handle
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {

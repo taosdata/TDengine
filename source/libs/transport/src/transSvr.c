@@ -541,7 +541,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
       tDebug("%s conn:%p, failed get user info since %s", transLabel(pInst), pConn, tstrerror(terrno));
       return false;
     }
-    tDebug("%s conn:%p, no need get user info", transLabel(pInst), pConn);
+    tTrace("%s conn:%p, no need get user info", transLabel(pInst), pConn);
   }
 
   if (resetBuf == 0) {
