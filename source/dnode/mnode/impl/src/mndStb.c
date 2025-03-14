@@ -3727,7 +3727,10 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
               tsnprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
                         "(%d)", (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
         } else if (IS_DECIMAL_TYPE(colType)) {
-          //colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d,%d)", pStb->pColumns[i].precision, pStb->pColumns[i].scale);
+          STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
+          uint8_t prec = 0, scale = 0;
+          decimalFromTypeMod(typeMod, &prec, &scale);
+          colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d,%d)", prec, scale);
         }
         varDataSetLen(colTypeStr, colTypeLen);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false), pStb, &lino, _OVER);
