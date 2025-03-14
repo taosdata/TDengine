@@ -185,6 +185,8 @@ int32_t          getStateRecFlag(SStreamFileState* pFileState, const void* pKey,
 void             clearExpiredSessionState(struct SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs,
                                           SSHashObj* pFlushGroup);
 bool             hasSessionState(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, bool* pIsLast);
+int32_t          saveRecInfoToDisk(STableTsDataState* pTsDataState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen);
+int32_t          flushRemainRecInfoToDisk(STableTsDataState* pTsDataState);
 
 #ifdef __cplusplus
 }

@@ -34,6 +34,7 @@
 #define NUM_OF_CACHE_WIN               64
 #define MAX_NUM_OF_CACHE_WIN           128
 #define MIN_NUM_OF_SORT_CACHE_WIN      40960
+#define BATCH_LIMIT                    256
 
 #define DEFAULT_STATE_MAP_CAPACITY 10240
 #define MAX_STATE_MAP_SIZE         10240000
@@ -422,14 +423,17 @@ int32_t clearFlushedRowBuff(SStreamFileState* pFileState, SStreamSnapshot* pFlus
 
         pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
         pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
-        SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
-        taosMemoryFreeClear(tmp);
+        if (pPos->beUsed == false) {
+          SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
+          taosMemoryFreeClear(tmp);
+        }
         if (pPos->pRowBuff) {
           i++;
         }
       }
     }
   }
+  qDebug("clear flushed row buff. %d rows to disk. is all:%d", listNEles(pFlushList), all);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -461,7 +465,6 @@ int32_t popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, 
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
     if (pPos->beUsed == used) {
       if (used && !pPos->pRowBuff) {
-        QUERY_CHECK_CONDITION((pPos->needFree == true), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         continue;
       }
       code = tdListAppend(pFlushList, &pPos);
@@ -469,8 +472,10 @@ int32_t popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, 
 
       pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
       pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
-      SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
-      taosMemoryFreeClear(tmp);
+      if (pPos->beUsed == false) {
+        SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
+        taosMemoryFreeClear(tmp);
+      }
       if (pPos->pRowBuff) {
         i++;
       }
@@ -539,9 +544,12 @@ int32_t clearRowBuff(SStreamFileState* pFileState) {
   if (pFileState->deleteMark != INT64_MAX) {
     clearExpiredRowBuff(pFileState, pFileState->maxTs - pFileState->deleteMark, false);
   }
-  if (isListEmpty(pFileState->freeBuffs)) {
-    return flushRowBuff(pFileState);
-  }
+  do {
+    int32_t code = flushRowBuff(pFileState);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } while (isListEmpty(pFileState->freeBuffs) && pFileState->curRowCount == pFileState->maxRowCount);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -865,10 +873,10 @@ int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** 
   QUERY_CHECK_CODE(code, lino, _end);
 
   (*pVal) = pPos->pRowBuff;
-  if (!pPos->needFree) {
-    code = tdListPrepend(pFileState->usedBuffs, &pPos);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  // if (!pPos->needFree) {
+  //   code = tdListPrepend(pFileState->usedBuffs, &pPos);
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  // }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -899,8 +907,12 @@ bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, bool hasLimit
       if (hasLimit && taosArrayGetSize(pWinStates) <= MIN_NUM_OF_SORT_CACHE_WIN) {
         res = true;
       }
-      SWinKey* fistKey = (SWinKey*) taosArrayGet(pWinStates, 0);
-      qInfo("===stream===check window state. buff min ts:%" PRId64 ",groupId:%" PRIu64".key ts:%" PRId64 ",groupId:%" PRIu64, fistKey->ts, fistKey->groupId, pKey->ts, pKey->groupId);
+      if (qDebugFlag & DEBUG_DEBUG) {
+        SWinKey* fistKey = (SWinKey*)taosArrayGet(pWinStates, 0);
+        qDebug("===stream===check window state. buff min ts:%" PRId64 ",groupId:%" PRIu64 ".key ts:%" PRId64
+               ",groupId:%" PRIu64,
+               fistKey->ts, fistKey->groupId, pKey->ts, pKey->groupId);
+      }
     } else {
       res = true;
     }
@@ -921,8 +933,6 @@ void flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, boo
   int32_t   lino = 0;
   SListIter iter = {0};
   tdListInitIter(pSnapshot, &iter, TD_LIST_FORWARD);
-
-  const int32_t BATCH_LIMIT = 256;
 
   int64_t    st = taosGetTimestampMs();
   SListNode* pNode = NULL;
@@ -1662,7 +1672,6 @@ int32_t doTsDataCommit(STableTsDataState* pTsDataState) {
 
   batch = streamStateCreateBatch();
   QUERY_CHECK_NULL(batch, code, lino, _end, terrno);
-  const int32_t BATCH_LIMIT = 256;
   int           idx = streamStateGetCfIdx(pTsDataState->pState, "partag");
   int32_t       len = (pTsDataState->pkValLen + sizeof(uint64_t) + sizeof(int32_t) + 64) * 2;
   pTempBuf = taosMemoryCalloc(1, len);
@@ -1710,7 +1719,6 @@ int32_t doRangeDataCommit(STableTsDataState* pTsDataState) {
 
   batch = streamStateCreateBatch();
   QUERY_CHECK_NULL(batch, code, lino, _end, terrno);
-  const int32_t BATCH_LIMIT = 256;
   int           idx = streamStateGetCfIdx(pTsDataState->pState, "sess");
   int32_t       len = (pTsDataState->pkValLen + sizeof(uint64_t) + sizeof(int32_t) + 64) * 2;
 
@@ -1787,6 +1795,14 @@ int32_t initTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_
   pTsDataState->curRecId = -1;
 
   pTsDataState->pStreamTaskState = pOtherState;
+
+  pTsDataState->cfgIndex = streamStateGetCfIdx(pTsDataState->pState, "sess");
+  pTsDataState->pBatch = streamStateCreateBatch();
+  QUERY_CHECK_NULL(pTsDataState->pBatch, code, lino, _end, TSDB_CODE_FAILED);
+  
+  pTsDataState->batchBufflen = (pTsDataState->recValueLen + sizeof(uint64_t) + sizeof(int32_t) + 64) * 2;
+  pTsDataState->pBatchBuff = taosMemoryCalloc(1, pTsDataState->batchBufflen);
+
   (*ppTsDataState) = pTsDataState;
 
 _end:
@@ -1818,6 +1834,12 @@ void destroyTsDataState(STableTsDataState* pTsDataState) {
   taosMemoryFreeClear(pTsDataState->pState);
   taosMemoryFreeClear(pTsDataState->pRecValueBuff);
   pTsDataState->pStreamTaskState = NULL;
+
+  streamStateClearBatch(pTsDataState->pBatch);
+  streamStateDestroyBatch(pTsDataState->pBatch);
+  pTsDataState->pBatch = NULL;
+  taosMemoryFreeClear(pTsDataState->pBatchBuff);
+
   taosMemoryFreeClear(pTsDataState);
 }
 
@@ -1875,13 +1897,19 @@ void moveLastStateCurNext(SStreamStateCur* pCur, getStateBuffFn fn) {
 int32_t getNLastStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (pCur->pHashData == NULL) {
-    return TSDB_CODE_FAILED;
-  }
-  SArray*  pWinStates = *((void**)pCur->pHashData);
-  int32_t size = taosArrayGetSize(pWinStates);
-  if (size == 0) {
-    return TSDB_CODE_FAILED;
+  SArray*  pWinStates = NULL;
+  int32_t size = 0;
+
+  while(1) {
+    if (pCur->pHashData == NULL) {
+      return TSDB_CODE_FAILED;
+    }
+    pWinStates = *((void**)pCur->pHashData);
+    size = taosArrayGetSize(pWinStates);
+    if (size > 0) {
+      break;
+    }
+    moveLastStateCurNext(pCur, getSearchBuff);
   }
 
   int32_t i = TMAX(size - num, 0);
@@ -1938,6 +1966,36 @@ _end:
     tSimpleHashCleanup(tmpState.pTableTsDataMap);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  return code;
+}
+
+int32_t saveRecInfoToDisk(STableTsDataState* pTsDataState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  SStateSessionKey stateKey = {.key = *pKey, .opNum = ((SStreamState*)pTsDataState->pState)->number};
+  code = streamStatePutBatchOptimize(pTsDataState->pState, pTsDataState->cfgIndex, pTsDataState->pBatch, &stateKey, pVal, vLen, 0,
+                                     pTsDataState->pBatchBuff);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  memset(pTsDataState->pBatchBuff, 0, pTsDataState->batchBufflen);
+
+  if (streamStateGetBatchSize(pTsDataState->pBatch) >= BATCH_LIMIT) {
+    code = streamStatePutBatch_rocksdb(pTsDataState->pState, pTsDataState->pBatch);
+    streamStateClearBatch(pTsDataState->pBatch);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t flushRemainRecInfoToDisk(STableTsDataState* pTsDataState) {
+  int32_t code = streamStatePutBatch_rocksdb(pTsDataState->pState, pTsDataState->pBatch);
+  streamStateClearBatch(pTsDataState->pBatch);
   return code;
 }
 
@@ -2046,7 +2104,7 @@ void clearExpiredSessionState(SStreamFileState* pFileState, int32_t numOfKeep, T
       }
       pPos->invalid = true;
 
-      if (i = 0 && pFlushGroup != NULL) {
+      if (i == 0 && pFlushGroup != NULL) {
         void* pGpVal = tSimpleHashGet(pFlushGroup, &pKey->groupId, sizeof(uint64_t));
         if (pGpVal == NULL) {
           code = tdListAppend(pFlushList, &pPos);

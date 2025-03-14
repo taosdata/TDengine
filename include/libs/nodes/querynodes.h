@@ -73,7 +73,8 @@ typedef enum EColumnType {
   COLUMN_TYPE_WINDOW_START,
   COLUMN_TYPE_WINDOW_END,
   COLUMN_TYPE_WINDOW_DURATION,
-  COLUMN_TYPE_GROUP_KEY
+  COLUMN_TYPE_GROUP_KEY,
+  COLUMN_TYPE_IS_WINDOW_FILLED,
 } EColumnType;
 
 typedef struct SColumnNode {
@@ -571,6 +572,7 @@ typedef struct SVnodeModifyOpStmt {
   SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
   SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>
+  SHashObj*             pSuperTableHashObj;  // SHashObj<table_name, STableMeta*>
   SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta, sync mode
   SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta, sync mode
   SHashObj*             pTableCxtHashObj;    // temp SHashObj<tuid, STableDataCxt*> for single request

@@ -1385,10 +1385,10 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
 
   {
     pCur = streamStateSessionSeekToLast_rocksdb(pTsDataState->pState, INT64_MAX);
-    void*       pVal = NULL;
-    int32_t     vlen = 0;
-    SSessionKey key = {0};
-    int32_t     winRes = streamStateSessionGetKVByCur_rocksdb(pTsDataState->pState, pCur, &key, &pVal, &vlen);
+    SRecDataInfo* pRecVal = NULL;
+    int32_t       vlen = 0;
+    SSessionKey   key = {0};
+    int32_t winRes = streamStateSessionGetKVByCur_rocksdb(pTsDataState->pState, pCur, &key, (void**)&pRecVal, &vlen);
     if (winRes != TSDB_CODE_SUCCESS) {
       goto _end;
     }
@@ -1396,6 +1396,7 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
            key.win.skey, key.win.ekey, key.groupId);
 
     pRange->win = key.win;
+    pRange->calWin = pRecVal->calWin;
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     if (pRange->pGroupIds == NULL) {
       pRange->pGroupIds = tSimpleHashInit(8, hashFn);
@@ -1403,7 +1404,7 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
     if (pRange->pUIds == NULL) {
       pRange->pUIds = tSimpleHashInit(8, hashFn);
     }
-    code = putRangeIdInfo(pRange, key.groupId, *(uint64_t*)pVal);
+    code = putRangeIdInfo(pRange, key.groupId, pRecVal->tableUid);
     QUERY_CHECK_CODE(code, lino, _end);
     code = streamStateSessionDel_rocksdb(pTsDataState->pState, &key);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1432,10 +1433,14 @@ int32_t getNLastSessionStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* 
   int32_t i = TMAX(size - num, 0);
 
   for ( ; i < size; i++) {
-    void* pPos = taosArrayGet(pWinStates, i);
+    SRowBuffPos* pPos = taosArrayGetP(pWinStates, i);
     QUERY_CHECK_NULL(pPos, code, lino, _end, terrno);
 
-    void* pTempRes = taosArrayPush(pRes, &pPos);
+    SResultWindowInfo winInfo = {0};
+    winInfo.pStatePos = pPos;
+    winInfo.sessionWin = *(SSessionKey*)pPos->pKey;
+
+    void* pTempRes = taosArrayPush(pRes, &winInfo);
     QUERY_CHECK_NULL(pTempRes, code, lino, _end, terrno);
   }
 
@@ -1449,6 +1454,9 @@ _end:
 bool hasSessionState(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, bool* pIsLast) {
   SSHashObj*   pRowStateBuff = getRowStateBuff(pFileState);
   void**       ppBuff = (void**)tSimpleHashGet(pRowStateBuff, &pKey->groupId, sizeof(uint64_t));
+  if (ppBuff == NULL) {
+    return false;
+  }
   SArray*      pWinStates = (SArray*)(*ppBuff);
   int32_t      size = taosArrayGetSize(pWinStates);
   int32_t      index = binarySearch(pWinStates, size, pKey, sessionStateKeyCompare);

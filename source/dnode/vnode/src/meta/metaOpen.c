@@ -133,7 +133,7 @@ static void doScan(SMeta *pMeta) {
   }
 }
 
-static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
+int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
   SMeta  *pMeta = NULL;
   int32_t code = 0;
   int32_t lino;
@@ -251,6 +251,12 @@ _exit:
   return code;
 }
 
+void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  int32_t offset = strlen(fname);
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
+}
+
 bool generateNewMeta = false;
 
 static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
@@ -260,7 +266,7 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
 
   metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
 
-  // Open a new meta for orgainzation
+  // Open a new meta for organization
   int32_t code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);
   if (code) {
     return code;
@@ -366,72 +372,85 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   }
   metaClose(&pNewMeta);
   metaInfo("vgId:%d finish to generate new meta", TD_VID(pVnode));
+
+  // Commit the new metadata
+  char metaDir[TSDB_FILENAME_LEN] = {0};
+  char metaTempDir[TSDB_FILENAME_LEN] = {0};
+  char metaBackupDir[TSDB_FILENAME_LEN] = {0};
+
+  vnodeGetMetaPath(pVnode, metaDir, VNODE_META_DIR);
+  vnodeGetMetaPath(pVnode, metaTempDir, VNODE_META_TMP_DIR);
+  vnodeGetMetaPath(pVnode, metaBackupDir, VNODE_META_BACKUP_DIR);
+
+  metaClose(ppMeta);
+  if (taosRenameFile(metaDir, metaBackupDir) != 0) {
+    metaError("vgId:%d failed to rename old meta to backup, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+    return terrno;
+  }
+
+  // rename the new meta to old meta
+  if (taosRenameFile(metaTempDir, metaDir) != 0) {
+    metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+    return terrno;
+  }
+
+  code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, false);
+  if (code) {
+    metaError("vgId:%d failed to open new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
+  metaInfo("vgId:%d successfully opened new meta", TD_VID(pVnode));
+
   return 0;
 }
 
 int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
-  if (generateNewMeta) {
-    char path[TSDB_FILENAME_LEN] = {0};
-    char oldMetaPath[TSDB_FILENAME_LEN] = {0};
-    char newMetaPath[TSDB_FILENAME_LEN] = {0};
-    char backupMetaPath[TSDB_FILENAME_LEN] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  char    metaDir[TSDB_FILENAME_LEN] = {0};
+  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
+  char    metaTempDir[TSDB_FILENAME_LEN] = {0};
 
-    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
-    snprintf(oldMetaPath, sizeof(oldMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_DIR);
-    snprintf(newMetaPath, sizeof(newMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_TMP_DIR);
-    snprintf(backupMetaPath, sizeof(backupMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_BACKUP_DIR);
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
 
-    bool oldMetaExist = taosCheckExistFile(oldMetaPath);
-    bool newMetaExist = taosCheckExistFile(newMetaPath);
-    bool backupMetaExist = taosCheckExistFile(backupMetaPath);
+  bool metaExists = taosCheckExistFile(metaDir);
+  bool metaBackupExists = taosCheckExistFile(metaBackupDir);
+  bool metaTempExists = taosCheckExistFile(metaTempDir);
 
-    if ((!backupMetaExist && !oldMetaExist && newMetaExist)     // case 2
-        || (backupMetaExist && !oldMetaExist && !newMetaExist)  // case 4
-        || (backupMetaExist && oldMetaExist && newMetaExist)    // case 8
-    ) {
-      metaError("vgId:%d invalid meta state, please check", TD_VID(pVnode));
-      return TSDB_CODE_FAILED;
-    } else if ((backupMetaExist && oldMetaExist && !newMetaExist)       // case 7
-               || (!backupMetaExist && !oldMetaExist && !newMetaExist)  // case 1
-    ) {
-      return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
-    } else if (backupMetaExist && !oldMetaExist && newMetaExist) {
-      if (taosRenameFile(newMetaPath, oldMetaPath) != 0) {
-        metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
-        return terrno;
-      }
-      return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
-    } else {
-      int32_t code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
-      if (code) {
-        return code;
-      }
-
-      code = metaGenerateNewMeta(ppMeta);
-      if (code) {
-        metaError("vgId:%d failed to generate new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
-      }
-
-      metaClose(ppMeta);
-      if (taosRenameFile(oldMetaPath, backupMetaPath) != 0) {
-        metaError("vgId:%d failed to rename old meta to backup, reason:%s", TD_VID(pVnode), tstrerror(terrno));
-        return terrno;
-      }
-
-      // rename the new meta to old meta
-      if (taosRenameFile(newMetaPath, oldMetaPath) != 0) {
-        metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
-        return terrno;
-      }
-      code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, false);
-      if (code) {
-        metaError("vgId:%d failed to open new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
-        return code;
-      }
+  if ((!metaBackupExists && !metaExists && metaTempExists)     //
+      || (metaBackupExists && !metaExists && !metaTempExists)  //
+      || (metaBackupExists && metaExists && metaTempExists)    //
+  ) {
+    metaError("vgId:%d, invalid meta state, please check!", TD_VID(pVnode));
+    return TSDB_CODE_FAILED;
+  } else if (!metaBackupExists && metaExists && metaTempExists) {
+    taosRemoveDir(metaTempDir);
+  } else if (metaBackupExists && !metaExists && metaTempExists) {
+    code = taosRenameFile(metaTempDir, metaDir);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+      return code;
     }
+    taosRemoveDir(metaBackupDir);
+  } else if (metaBackupExists && metaExists && !metaTempExists) {
+    taosRemoveDir(metaBackupDir);
+  }
 
-  } else {
-    return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+  // Do open meta
+  code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  if (generateNewMeta) {
+    code = metaGenerateNewMeta(ppMeta);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+      return code;
+    }
   }
 
   return TSDB_CODE_SUCCESS;

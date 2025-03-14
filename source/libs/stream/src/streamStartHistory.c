@@ -76,7 +76,7 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   memcpy(serializedReq, &req, len);
 
   SRpcMsg rpcMsg = {.contLen = len, .pCont = serializedReq, .msgType = TDMT_VND_STREAM_SCAN_HISTORY};
-  return tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg);
+  return tmsgPutToQueue(pTask->pMsgCb, STREAM_LONG_EXEC_QUEUE, &rpcMsg);
 }
 
 void streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
@@ -547,7 +547,7 @@ int32_t streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
   SDataRange* pRange = &pTask->dataRange;
 
   if (!HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-    if (pTask->info.fillHistory == 1) {
+    if (pTask->info.fillHistory == STREAM_HISTORY_TASK) {
       stDebug("s-task:%s fill-history task, time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64 "-%" PRId64,
               pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     } else {
@@ -558,8 +558,8 @@ int32_t streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
     }
 
     return TSDB_CODE_SUCCESS;
-  } else {
-    if (pTask->info.fillHistory != 0) {
+  } else {  // has related helper tasks
+    if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
       stError("s-task:%s task should not be fill-history task, internal error", pTask->id.idStr);
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
@@ -568,14 +568,19 @@ int32_t streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
       return TSDB_CODE_SUCCESS;
     }
 
-    stDebug("s-task:%s level:%d related fill-history task exists, stream task timeWindow:%" PRId64 " - %" PRId64
-            ", verRang:%" PRId64 " - %" PRId64,
-            pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
-            pRange->range.maxVer);
+    if (pTask->info.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      stDebug("s-task:%s level:%d related recalculate task exist, do nothing", pTask->id.idStr, pTask->info.taskLevel);
+      return 0;
+    } else {
+      stDebug("s-task:%s level:%d related fill-history task exists, stream task timeWindow:%" PRId64 " - %" PRId64
+              ", verRang:%" PRId64 " - %" PRId64,
+              pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
+              pRange->range.maxVer);
 
-    SVersionRange verRange = pRange->range;
-    STimeWindow   win = pRange->window;
-    return streamSetParamForStreamScannerStep2(pTask, &verRange, &win);
+      SVersionRange verRange = pRange->range;
+      STimeWindow   win = pRange->window;
+      return streamSetParamForStreamScannerStep2(pTask, &verRange, &win);
+    }
   }
 }
 

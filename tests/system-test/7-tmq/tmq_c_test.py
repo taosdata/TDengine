@@ -37,6 +37,10 @@ class TDTestCase:
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
+        cmdStr = '%s/build/bin/tmq_poll_test'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
         return
 
     def stop(self):

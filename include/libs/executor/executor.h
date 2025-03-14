@@ -184,7 +184,7 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
  */
 int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
-int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode);
+int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitDuration);
 
 bool qTaskIsExecuting(qTaskInfo_t qinfo);
 
@@ -220,8 +220,7 @@ const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 const char*   qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
 void* qExtractReaderFromStreamScanner(void* scanner);
-
-void qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+void  qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);

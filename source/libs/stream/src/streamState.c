@@ -722,6 +722,7 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
 }
 
 void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs) {
+  qDebug("===stream=== clear stream state. keep:%d, ts:%" PRId64, numOfKeep, minTs);
   if (numOfKeep == 0) {
     streamFileStateClear(pState->pFileState);
     SSHashObj* pSearchBuff = getSearchBuff(pState->pFileState);
@@ -800,12 +801,18 @@ int32_t streamStateDeleteInfo(SStreamState* pState, void* pKey, int32_t keyLen) 
   return streamDefaultDel_rocksdb(pState, pKey);
 }
 
-int32_t streamStateSessionSaveToDisk(SStreamState* pState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen) {
+int32_t streamStateSessionSaveToDisk(STableTsDataState* pTblState, SSessionKey* pKey, SRecDataInfo* pVal,
+                                     int32_t vLen) {
+  SStreamState* pState = pTblState->pState;
   qDebug("===stream===%s save recalculate range.recId:%d. start:%" PRId64 ",end:%" PRId64 ",groupId:%" PRIu64
          ". cal start:%" PRId64 ",cal end:%" PRId64 ",tbl uid:%" PRIu64 ",data version:%" PRId64 ",mode:%d",
-         pState->pTaskIdStr, pState->number, pKey->win.skey, pKey->win.ekey, pKey->groupId, pVal->calWin.skey, pVal->calWin.ekey,
-         pVal->tableUid, pVal->dataVersion, pVal->mode);
-  return streamStateSessionPut_rocksdb(pState, pKey, (const void*)pVal, vLen);
+         pState->pTaskIdStr, pState->number, pKey->win.skey, pKey->win.ekey, pKey->groupId, pVal->calWin.skey,
+         pVal->calWin.ekey, pVal->tableUid, pVal->dataVersion, pVal->mode);
+  return saveRecInfoToDisk(pTblState, pKey, pVal, vLen);
+}
+
+int32_t streamStateFlushReaminInfoToDisk(STableTsDataState* pTblState) {
+  return flushRemainRecInfoToDisk(pTblState);
 }
 
 int32_t streamStateSessionDeleteAll(SStreamState* pState) {

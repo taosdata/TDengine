@@ -230,7 +230,7 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
     if (IS_VAR_DATA_TYPE(pCols[i].type)) {
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCols[i].bytes);
       if (pSupInfo->buildBuf[i] == NULL) {
-        tsdbError("failed to prepare memory for set columnId slot list, size:%d, code: %s", pCols[i].bytes,
+        tsdbError("failed to prepare memory for set columnId slot list, size:%d, code:%s", pCols[i].bytes,
                   tstrerror(terrno));
       }
       TSDB_CHECK_NULL(pSupInfo->buildBuf[i], code, lino, _end, terrno);
@@ -610,11 +610,12 @@ static int32_t tsdbTryAcquireReader(STsdbReader* pReader) {
 
   code = taosThreadMutexTryLock(&pReader->readerMutex);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("tsdb/read: %p, post-trytake read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+    // Failing to acquire the lock is reasonable, not an error
+    tsdbWarn("tsdb/read: %p, post-trytake read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
   } else {
     tsdbTrace("tsdb/read: %p, post-trytask read mutex: %p", pReader, &pReader->readerMutex);
   }
-  TSDB_CHECK_CODE(code, lino, _end);
+  return code;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

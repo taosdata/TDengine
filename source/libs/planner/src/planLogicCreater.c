@@ -76,6 +76,9 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_GROUP_KEY:
       pCol->colType = COLUMN_TYPE_GROUP_KEY;
       break;
+    case FUNCTION_TYPE_IS_WINDOW_FILLED:
+      pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
+      break;
     default:
       break;
   }
@@ -1425,7 +1428,7 @@ static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     if (COLUMN_TYPE_WINDOW_START == pCol->colType || COLUMN_TYPE_WINDOW_END == pCol->colType ||
-        COLUMN_TYPE_WINDOW_DURATION == pCol->colType) {
+        COLUMN_TYPE_WINDOW_DURATION == pCol->colType || COLUMN_TYPE_IS_WINDOW_FILLED == pCol->colType) {
       pCtx->hasPseudoWinCol = true;
       pCtx->code =
           taosHashPut(pCtx->pCollectFillCtx->pPseudoCols, pCol->colName, TSDB_COL_NAME_LEN, &pNode, POINTER_BYTES);

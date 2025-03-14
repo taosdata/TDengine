@@ -733,9 +733,11 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     if (retry) {
       taosMsleep(10);
       if (code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
-        sError("vgId:%d, failed to execute fsm since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+        sError("vgId:%d, will retry to execute fsm after 10ms, last error is %s. index:%" PRId64, pNode->vgId,
+               tstrerror(code), pEntry->index);
       } else {
-        sDebug("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+        sDebug("vgId:%d, will retry to execute fsm after 10ms, last error is %s. index:%" PRId64, pNode->vgId,
+               tstrerror(code), pEntry->index);
       }
     }
   } while (retry);
@@ -1140,26 +1142,29 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
 
 int32_t syncLogReplProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncHeartbeatReply* pMsg) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pMgr->mutex);
   if (pMsg->startTime != 0 && pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl in heartbeat. peer:%" PRIx64 ", start time:%" PRId64 ", old:%" PRId64 "",
           pNode->vgId, pMsg->srcId.addr, pMsg->startTime, pMgr->peerStartTime);
     syncLogReplReset(pMgr);
     pMgr->peerStartTime = pMsg->startTime;
   }
-  (void)taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pMgr->mutex);
   return 0;
 }
 
 int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pMgr->mutex);
   if (pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl in appendlog reply. peer:%" PRIx64 ", start time:%" PRId64 ", old:%" PRId64,
           pNode->vgId, pMsg->srcId.addr, pMsg->startTime, pMgr->peerStartTime);
     syncLogReplReset(pMgr);
     pMgr->peerStartTime = pMsg->startTime;
   }
+  (void)taosThreadMutexUnlock(&pMgr->mutex);
+
+  (void)taosThreadMutexLock(&pBuf->mutex);
 
   int32_t code = 0;
   if (pMgr->restored) {
@@ -1324,6 +1329,12 @@ SSyncLogReplMgr* syncLogReplCreate() {
     return NULL;
   }
 
+  int32_t code = taosThreadMutexInit(&pMgr->mutex, NULL);
+  if (code) {
+    terrno = code;
+    return NULL;
+  }
+
   return pMgr;
 }
 
@@ -1331,6 +1342,7 @@ void syncLogReplDestroy(SSyncLogReplMgr* pMgr) {
   if (pMgr == NULL) {
     return;
   }
+  (void)taosThreadMutexDestroy(&pMgr->mutex);
   taosMemoryFree(pMgr);
   return;
 }

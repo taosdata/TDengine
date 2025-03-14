@@ -125,8 +125,11 @@ int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperato
   code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pBasicInfo->pDelRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  pBasicInfo->pUpdated = taosArrayInit(1024, POINTER_BYTES);
+  pBasicInfo->pUpdated = taosArrayInit(1024, sizeof(SResultWindowInfo));
   QUERY_CHECK_NULL(pBasicInfo->pUpdated, code, lino, _end, terrno);
+
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pBasicInfo->pSeDeleted = tSimpleHashInit(32, hashFn);
   
   const char* windowType = NULL;
   if (IS_NORMAL_INTERVAL_OP(pOperator)) {
@@ -173,11 +176,18 @@ bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo) {
 }
 
 void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
+  blockDataDestroy(pBasicInfo->pCheckpointRes);
+  pBasicInfo->pCheckpointRes = NULL;
+
+  tSimpleHashCleanup(pBasicInfo->pSeDeleted);
+  pBasicInfo->pSeDeleted = NULL;
+
   blockDataDestroy(pBasicInfo->pDelRes);
   pBasicInfo->pDelRes = NULL;
-
   taosArrayDestroyP(pBasicInfo->pUpdated, destroyFlusedPos);
   pBasicInfo->pUpdated = NULL;
+
+  pBasicInfo->pTsDataState = NULL;
 
   destroyStreamNotifyEventSupp(&pBasicInfo->notifyEventSup);
 }

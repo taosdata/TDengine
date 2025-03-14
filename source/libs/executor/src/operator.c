@@ -349,7 +349,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       if (code) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
-        qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
+        qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
         return code;
       }
 
@@ -387,7 +387,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         if (code) {
           pTaskInfo->code = code;
           tableListDestroy(pTableListInfo);
-          qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
+          qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
           return code;
         }
       }
@@ -417,7 +417,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
                                        pTagIndexCond, pTaskInfo);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
-          qError("failed to getTableList, code: %s", tstrerror(code));
+          qError("failed to getTableList, code:%s", tstrerror(code));
           tableListDestroy(pTableListInfo);
           return code;
         }
@@ -646,9 +646,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION == type) {
     code = createFinalSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE == type) {
-    //todo (liuyao) add
+    code = createStateNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT == type) {
-    //todo (liuyao) add
+    code = createEventNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT == type) {
     //todo (liuyao) add
   } else {

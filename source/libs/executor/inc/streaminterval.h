@@ -20,12 +20,21 @@ extern "C" {
 #endif
 
 #include "executorInt.h"
+#include "operator.h"
 
 typedef struct SPullWindowInfo {
   STimeWindow window;
   uint64_t    groupId;
   STimeWindow calWin;
 } SPullWindowInfo;
+
+typedef struct STimeFillRange {
+  TSKEY    skey;
+  TSKEY    ekey;
+  uint64_t groupId;
+  void*    pStartRow;
+  void*    pEndRow;
+} STimeFillRange;
 
 int32_t     doStreamIntervalNonblockAggImpl(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval);
@@ -37,13 +46,31 @@ int32_t     copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64
                               int32_t buffLen);
 int32_t     saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode, STableTsDataState* pTsDataState,
                                 SStreamAggSupporter* pAggSup);
-int32_t     initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval);
+int32_t     initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval, SOperatorInfo* downstream);
 void        destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup);
 int32_t     buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState,
                                 SNonBlockAggSupporter* pNbSup);
-int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState,
-                                   SStreamAggSupporter* pAggSup);
-int32_t getChildIndex(SSDataBlock* pBlock);
+int32_t     getChildIndex(SSDataBlock* pBlock);
+void        adjustDownstreamBasicInfo(SOperatorInfo* downstream, struct SSteamOpBasicInfo* pBasic);
+int32_t     processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo);
+int32_t     doStreamNonblockFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
+int32_t     doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pSrcBlock, SSDataBlock* pDstBlock);
+void        resetStreamFillInfo(SStreamFillOperatorInfo* pInfo);
+void        removeDuplicateResult(SArray* pTsArrray, __compar_fn_t fn);
+int32_t     keepBlockRowInStateBuf(SStreamFillOperatorInfo* pInfo, SStreamFillInfo* pFillInfo, SSDataBlock* pBlock,
+                                   TSKEY* tsCol, int32_t rowId, uint64_t groupId, int32_t rowSize);
+void        setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts);
+void        doStreamTimeSliceFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pRes);
+void        resetTimeSlicePrevAndNextWindow(SStreamFillSupporter* pFillSup);
+TSKEY       adustPrevTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval);
+TSKEY       adustEndTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval);
+void        destroyStreamFillOperatorInfo(void* param);
+void        destroyStreamNonblockFillOperatorInfo(void* param);
+int32_t     buildDeleteResult(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId, SSDataBlock* delRes);
+void        setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo);
+void        doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
+int32_t     initFillSupRowInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
+void        getStateKeepInfo(SNonBlockAggSupporter* pNbSup, bool isRecOp, int32_t* pNumRes, TSKEY* pTsRes);
 
 #ifdef __cplusplus
 }

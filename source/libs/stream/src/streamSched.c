@@ -109,17 +109,21 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
   }
 }
 
-int32_t streamTrySchedExec(SStreamTask* pTask) {
+int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
   if (streamTaskSetSchedStatusWait(pTask)) {
-    return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0);
+    return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
   } else {
-    stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+    if (chkptQueue) {
+      stWarn("s-task:%s not launch task in chkpt queue, may delay checkpoint procedure", pTask->id.idStr);
+    } else {
+      stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+    }
   }
 
   return 0;
 }
 
-int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType) {
+int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType, bool chkptExec) {
   int32_t code = 0;
   int32_t tlen = 0;
 
@@ -158,10 +162,18 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
     stDebug("vgId:%d create msg to exec, type:%d, %s", vgId, execType, streamTaskGetExecType(execType));
   }
 
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
-  code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
-  if (code) {
-    stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+  if (chkptExec) {
+    SRpcMsg msg = {.msgType = TDMT_STREAM_CHKPT_EXEC, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
+    code = tmsgPutToQueue(pMsgCb, STREAM_CHKPT_QUEUE, &msg);
+    if (code) {
+      stError("vgId:%d failed to put msg into stream chkpt queue, code:%s, %x", vgId, tstrerror(code), taskId);
+    }
+  } else {
+    SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
+    code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+    if (code) {
+      stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+    }
   }
   return code;
 }
@@ -207,12 +219,17 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
     return;
   }
 
-  code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK);
+  code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK,
+                             (p.state == TASK_STATUS__CK));
   if (code) {
     stError("s-task:%s sched task failed, code:%s", pId->idStr, tstrerror(code));
   } else {
-    stDebug("trigger to resume s-task:%s after idled for %dms", pId->idStr, pTask->status.schedIdleTime);
-
+    if (p.state == TASK_STATUS__CK) {
+      stDebug("trigger to resume s-task:%s in stream chkpt queue after idled for %dms", pId->idStr,
+              pTask->status.schedIdleTime);
+    } else {
+      stDebug("trigger to resume s-task:%s after idled for %dms", pId->idStr, pTask->status.schedIdleTime);
+    }
     // release the task ref count
     streamTaskClearSchedIdleInfo(pTask);
   }
@@ -285,7 +302,7 @@ int32_t streamCreateAddRecalculateEndBlock(SStreamTask* pTask) {
   SStreamDataBlock* pBlock = NULL;
   int32_t           code = streamCreateRecalculateBlock(pTask, &pBlock, STREAM_RECALCULATE_END);
   if (code) {
-    stError("s-task:%s failed to create recalculate end trigger, code:%s, try again in %dms", id, tstrerror(code));
+    stError("s-task:%s failed to create recalculate end trigger, code:%s, try again in ms", id, tstrerror(code));
     return code;
   }
 
@@ -363,22 +380,42 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
         goto _end;
       }
     } else if (trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE && level == TASK_LEVEL__SOURCE) {
-      SStreamDataBlock* pTrigger = NULL;
-      code = streamCreateRecalculateBlock(pTask, &pTrigger, STREAM_RECALCULATE_START);
-      if (code) {
-        stError("s-task:%s failed to prepare recalculate data trigger, code:%s, try again in %dms", id, tstrerror(code),
-                nextTrigger);
-        goto _end;
+      // we need to make sure fill-history process is completed
+      STaskId hId = pTask->hTaskInfo.id;
+      {
+        SStreamTask* pHTask = NULL;
+        int32_t      ret = streamMetaAcquireTaskUnsafe(pTask->pMeta, &hId, &pHTask);
+
+        if (ret == 0 && pHTask != NULL) {
+          if (pHTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+            SStreamDataBlock* pTrigger = NULL;
+            code = streamCreateRecalculateBlock(pTask, &pTrigger, STREAM_RECALCULATE_START);
+            if (code) {
+              stError("s-task:%s failed to prepare recalculate data trigger, code:%s, try again in %dms", id,
+                      tstrerror(code), nextTrigger);
+              streamMetaReleaseTask(pTask->pMeta, pHTask);
+              goto _end;
+            }
+
+            atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
+            code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
+            if (code != TSDB_CODE_SUCCESS) {
+              stError("s-task:%s failed to put recalculate block into q, code:%s", pTask->id.idStr, tstrerror(code));
+              streamMetaReleaseTask(pTask->pMeta, pHTask);
+              goto _end;
+            } else {
+              stDebug("s-task:%s put recalculate block into inputQ", pTask->id.idStr);
+            }
+
+          } else {
+            stDebug("s-task:%s related task:0x%" PRIx64 " in fill-history model, not start the recalculate procedure",
+                    pTask->id.idStr, hId.taskId);
+          }
+
+          streamMetaReleaseTask(pTask->pMeta, pHTask);
+        }
       }
 
-      atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
-      code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
-      if (code != TSDB_CODE_SUCCESS) {
-        stError("s-task:%s failed to put recalculate block into q, code:%s", pTask->id.idStr, tstrerror(code));
-        goto _end;
-      } else {
-        stDebug("s-task:%s put recalculate block into inputQ", pTask->id.idStr);
-      }
     } else if (status == TASK_TRIGGER_STATUS__MAY_ACTIVE) {
       SStreamTrigger* pTrigger = NULL;
       code = streamCreateTriggerBlock(&pTrigger, STREAM_INPUT__GET_RES, STREAM_GET_ALL);
@@ -397,7 +434,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
       }
     }
 
-    code = streamTrySchedExec(pTask);
+    code = streamTrySchedExec(pTask, false);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to sched to run, wait for next time", pTask->id.idStr);
     }

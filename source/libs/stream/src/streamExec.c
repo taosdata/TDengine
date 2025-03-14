@@ -124,7 +124,7 @@ static int32_t doAppendPullOverBlock(SStreamTask* pTask, int32_t* pNumOfBlocks, 
             pTask->info.selfChildId, pRetrieveBlock->reqId);
   } else {
     code = terrno;
-    stError("s-task:%s failed to append pull over block for retrieve data, QID:0x%" PRIx64" code:%s", pTask->id.idStr,
+    stError("s-task:%s failed to append pull over block for retrieve data, QID:0x%" PRIx64 " code:%s", pTask->id.idStr,
             pRetrieveBlock->reqId, tstrerror(code));
   }
 
@@ -140,11 +140,11 @@ static int32_t doAppendRecalBlock(SStreamTask* pTask, int32_t* pNumOfBlocks, SSt
   if (p != NULL) {
     (*pNumOfBlocks) += 1;
     stDebug("s-task:%s(child %d) recalculate from upstream completed, QID:0x%" PRIx64, pTask->id.idStr,
-            pTask->info.selfChildId, /*pRecalculateBlock->reqId*/ 0);
+            pTask->info.selfChildId, /*pRecalculateBlock->reqId*/ (int64_t)0);
   } else {
     code = terrno;
     stError("s-task:%s failed to append recalculate block for downstream, QID:0x%" PRIx64" code:%s", pTask->id.idStr,
-            /*pRecalculateBlock->reqId*/0, tstrerror(code));
+            /*pRecalculateBlock->reqId*/(int64_t)0, tstrerror(code));
   }
 
   return code;
@@ -198,6 +198,10 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
       }
 
       break;
+    }
+
+    if (pTask->info.fillHistory == STREAM_RECALCUL_TASK && pTask->info.taskLevel == TASK_LEVEL__AGG) {
+      stDebug("s-task:%s exec output type:%d", pTask->id.idStr, output->info.type);
     }
 
     if (output->info.type == STREAM_RETRIEVE) {
@@ -341,7 +345,7 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st) {
     return buildScanhistoryExecRet(TASK_SCANHISTORY_QUIT, 0);
   }
 
-  if (!pTask->hTaskInfo.operatorOpen) {
+  if ((!pTask->hTaskInfo.operatorOpen) || (pTask->info.fillHistory == STREAM_RECALCUL_TASK)) {
     int32_t code = qSetStreamOpOpen(exec);
     pTask->hTaskInfo.operatorOpen = true;
   }
@@ -730,6 +734,8 @@ static int32_t doHandleChkptBlock(SStreamTask* pTask) {
 
   streamMutexLock(&pTask->lock);
   SStreamTaskState pState = streamTaskGetStatus(pTask);
+  streamMutexUnlock(&pTask->lock);
+
   if (pState.state == TASK_STATUS__CK) {  // todo other thread may change the status
     stDebug("s-task:%s checkpoint block received, set status:%s", id, pState.name);
     code = streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
@@ -747,7 +753,7 @@ static int32_t doHandleChkptBlock(SStreamTask* pTask) {
     }
   }
 
-  streamMutexUnlock(&pTask->lock);
+//  streamMutexUnlock(&pTask->lock);
   return code;
 }
 
@@ -812,7 +818,8 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
   int32_t     taskType = pTask->info.fillHistory;
 
   // merge multiple input data if possible in the input queue.
-  stDebug("s-task:%s start to extract data block from inputQ", id);
+  int64_t st = taosGetTimestampMs();
+  stDebug("s-task:%s start to extract data block from inputQ, ts:%" PRId64, id, st);
 
   while (1) {
     int32_t           blockSize = 0;
@@ -842,8 +849,6 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       return 0;
     }
 
-    int64_t st = taosGetTimestampMs();
-
     EExtractDataCode ret = streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
     if (ret == EXEC_AFTER_IDLE) {
       streamTaskSetIdleInfo(pTask, MIN_INVOKE_INTERVAL);
@@ -860,6 +865,10 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+#if 0
+      // Injection error: for automatic kill long trans test
+      taosMsleep(50*1000);
+#endif
       code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
       if (code != 0) {
         stError("s-task:%s failed to process checkpoint-trigger block, code:%s", pTask->id.idStr, tstrerror(code));
@@ -980,7 +989,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
               } else {
                 stDebug("s-task:%s put recalculate block into inputQ", pHTask->id.idStr);
               }
-              code = streamTrySchedExec(pHTask);
+              code = streamTrySchedExec(pHTask, false);
             }
           }
         }
@@ -1040,8 +1049,35 @@ bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
   }
 }
 
+static bool shouldNotCont(SStreamTask* pTask) {
+  int32_t       level = pTask->info.taskLevel;
+  SStreamQueue* pQueue = pTask->inputq.queue;
+  ETaskStatus   status = streamTaskGetStatus(pTask).state;
+
+  // 1. task should jump out
+  bool quit = (status == TASK_STATUS__STOP) || (status == TASK_STATUS__PAUSE) || (status == TASK_STATUS__DROPPING);
+
+  // 2. checkpoint procedure, the source task's checkpoint queue is empty, not read from ordinary queue
+  bool emptyCkQueue = (taosQueueItemSize(pQueue->pChkptQueue) == 0);
+
+  // 3. no data in ordinary queue
+  bool emptyBlockQueue = (streamQueueGetNumOfItems(pQueue) == 0);
+
+  if (quit) {
+    return true;
+  } else {
+    if (status == TASK_STATUS__CK && level == TASK_LEVEL__SOURCE) {
+      // in checkpoint procedure, we only check whether the controller queue is empty or not
+      return emptyCkQueue;
+    } else { // otherwise, if the block queue is empty, not continue.
+      return emptyBlockQueue && emptyCkQueue;
+    }
+  }
+}
+
 int32_t streamResumeTask(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
+  int32_t     level = pTask->info.taskLevel;
   int32_t     code = 0;
 
   if (pTask->status.schedStatus != TASK_SCHED_STATUS__ACTIVE) {
@@ -1054,11 +1090,10 @@ int32_t streamResumeTask(SStreamTask* pTask) {
     if (code) {
       stError("s-task:%s failed to exec stream task, code:%s, continue", id, tstrerror(code));
     }
-    // check if continue
+
     streamMutexLock(&pTask->lock);
 
-    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
-    if ((numOfItems == 0) || streamTaskShouldStop(pTask) || streamTaskShouldPause(pTask)) {
+    if (shouldNotCont(pTask)) {
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
       streamTaskClearSchedIdleInfo(pTask);
       streamMutexUnlock(&pTask->lock);

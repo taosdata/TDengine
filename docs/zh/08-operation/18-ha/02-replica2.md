@@ -67,11 +67,15 @@ alter database <dbname> replica 2|1
 
 | 异常场景 | 集群状态 |
 | ------- | ------ |
-| 没有 Vnode 发生故障： Arbitrator 故障（Mnode 宕机节点超过一个，导致 Mnode 无法选主）| **持续提供服务** |
+| 没有 Vnode 发生故障：Arbitrator 故障（Mnode 宕机节点超过一个，导致 Mnode 无法选主）| **持续提供服务** |
 | 仅一个 Vnode 故障：VGroup 已经达成同步后，某一个 Vnode 才发生故障的                |  **持续提供服务** |
+| 仅一个 Vnode 故障：2 个 Vnode 同时故障，故障前 VGroup 达成同步，但是只有一个 Vnode 从故障中恢复服务，另一个 Vnode 服务故障  |  **通过下面的命令，强制指定 leader, 继续提供服务** |
 | 仅一个 Vnode 故障：离线 Vnode 启动后，VGroup 未达成同步前，另一个 Vnode 服务故障的  |  **无法提供服务** |
 | 两个 Vnode 都发生故障                                                         |  **无法提供服务** |
 
+```sql
+ASSIGN LEADER FORCE;
+```
 
 ## 常见问题
 

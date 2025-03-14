@@ -62,6 +62,16 @@ void releaseFlusedPos(void* pRes) {
   }
 }
 
+void getStateKeepInfo(SNonBlockAggSupporter* pNbSup, bool isRecOp, int32_t* pNumRes, TSKEY* pTsRes) {
+  if (isRecOp) {
+    (*pNumRes) = 0;
+    (*pTsRes) = INT64_MIN;
+  } else {
+    (*pNumRes) = pNbSup->numOfKeep;
+    (*pTsRes) = pNbSup->tsOfKeep;
+  }
+}
+
 void streamIntervalNonblockReleaseState(SOperatorInfo* pOperator) {
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
@@ -113,12 +123,12 @@ int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode
                             SStreamAggSupporter* pAggSup) {
   int32_t len = copyRecDataToBuff(pWinKey->win.skey, pWinKey->win.ekey, uid, -1, mode, NULL, 0,
                                   pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
-  return pAggSup->stateStore.streamStateSessionSaveToDisk(pTsDataState->pState, pWinKey, pTsDataState->pRecValueBuff,
-                                                          len);
+  return pAggSup->stateStore.streamStateSessionSaveToDisk(pTsDataState, pWinKey, pTsDataState->pRecValueBuff, len);
 }
 
-int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState,
-                                   SStreamAggSupporter* pAggSup) {
+static int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid,
+                                          STableTsDataState* pTsDataState, SStreamAggSupporter* pAggSup,
+                                          SInterval* pInterval) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t mode = 0;
@@ -128,7 +138,8 @@ int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_
     SWinKey*     pKey = pWinPos->pKey;
     int32_t      winRes = pAggSup->stateStore.streamStateGetRecFlag(pAggSup->pState, pKey, sizeof(SWinKey), &mode);
     if (winRes == TSDB_CODE_SUCCESS) {
-      SSessionKey winKey = {.win.skey = pKey->ts, .win.ekey = pKey->ts, .groupId = pKey->groupId};
+      SSessionKey winKey = {
+          .win.skey = pKey->ts, .win.ekey = taosTimeGetIntervalEnd(pKey->ts, pInterval), .groupId = pKey->groupId};
       code = saveRecWindowToDisc(&winKey, uid, mode, pTsDataState, pAggSup);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -212,7 +223,8 @@ int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* p
         code = pInfo->streamAggSup.stateStore.streamStateGetAllPrev(pInfo->streamAggSup.pState, &curKey,
                                                                     pInfo->pUpdated, pInfo->nbSup.numOfKeep);
         QUERY_CHECK_CODE(code, lino, _end);
-        checkAndSaveWinStateToDisc(startIndex, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup);
+        code = checkAndSaveWinStateToDisc(startIndex, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup, &pInfo->interval);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
 
@@ -325,9 +337,10 @@ static void removeDataDeleteResults(SArray* pUpdatedWins, SArray* pDelWins) {
   }
   taosArraySort(pDelWins, winKeyCmprImpl);
   taosArrayRemoveDuplicate(pDelWins, winKeyCmprImpl, NULL);
+  delSize = taosArrayGetSize(pDelWins);
 
   for (int32_t i = 0; i < size; i++) {
-    SRowBuffPos* pPos = *(SRowBuffPos**)taosArrayGet(pUpdatedWins, i);
+    SRowBuffPos* pPos = (SRowBuffPos*) taosArrayGetP(pUpdatedWins, i);
     SWinKey*     pResKey = (SWinKey*)pPos->pKey;
     int32_t      index = binarySearchCom(pDelWins, delSize, pResKey, TSDB_ORDER_DESC, compareWinKey);
     if (index >= 0 && 0 == compareWinKey(pResKey, pDelWins, index)) {
@@ -400,13 +413,19 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     pInfo->nbSup.tsOfKeep = pInfo->twAggSup.minTs;
   }
 
-  if (!isHistoryOperator(&pInfo->basic) || !isFinalOperator(&pInfo->basic)) {
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep);
+  if ( !(isFinalOperator(&pInfo->basic) && (isRecalculateOperator(&pInfo->basic) || isHistoryOperator(&pInfo->basic))) ) {
+    int32_t numOfKeep = 0;
+    TSKEY tsOfKeep = INT64_MAX;
+    getStateKeepInfo(&pInfo->nbSup, isRecalculateOperator(&pInfo->basic), &numOfKeep, &tsOfKeep);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, numOfKeep, tsOfKeep);
   }
+
   pInfo->twAggSup.minTs = INT64_MAX;
+  pInfo->basic.numOfRecv = 0;
   setStreamOperatorCompleted(pOperator);
-  if (isFinalOperator(&pInfo->basic) && tSimpleHashGetSize(pInfo->nbSup.pPullDataMap) == 0) {
-    qDebug("===stream===%s recalculate is finished.", GET_TASKID(pTaskInfo));
+  if (isFinalOperator(&pInfo->basic) && isRecalculateOperator(&pInfo->basic) && tSimpleHashGetSize(pInfo->nbSup.pPullDataMap) == 0) {
+    qInfo("===stream===%s recalculate is finished.", GET_TASKID(pTaskInfo));
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 0, INT64_MAX);
     pTaskInfo->streamInfo.recoverScanFinished = true;
   }
   (*ppRes) = NULL;
@@ -498,13 +517,7 @@ static int32_t doProcessRecalculateReq(SOperatorInfo* pOperator, SSDataBlock* pB
     SResultRowInfo dumyInfo = {0};
     dumyInfo.cur.pageId = -1;
 
-    STimeWindow win = {0};
-    if (isFinalOperator(&pInfo->basic)) {
-      win.skey = startTsCols[i];
-      win.ekey = endTsCols[i];
-    } else {
-      win = getActiveTimeWindow(NULL, &dumyInfo, startTsCols[i], pInterval, TSDB_ORDER_ASC);
-    }
+    STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, startTsCols[i], pInterval, TSDB_ORDER_ASC);
 
     do {
       if (!inCalSlidingWindow(pInterval, &win, calStTsCols[i], calEnTsCols[i], pBlock->info.type)) {
@@ -594,7 +607,7 @@ _end:
   return code;
 }
 
-static int32_t processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo) {
+int32_t processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
@@ -689,13 +702,18 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pBlock == NULL) {
-      qDebug("===stream===%s return data:%s.", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType));
+      qDebug("===stream===%s return data:%s. rev rows:%d", GET_TASKID(pTaskInfo),
+             getStreamOpName(pOperator->operatorType), pInfo->basic.numOfRecv);
       if (isFinalOperator(&pInfo->basic) && isRecalculateOperator(&pInfo->basic)) {
+        code = pAggSup->stateStore.streamStateFlushReaminInfoToDisk(pInfo->basic.pTsDataState);
+        QUERY_CHECK_CODE(code, lino, _end);
         code = buildRetriveRequest(pTaskInfo, pAggSup, pInfo->basic.pTsDataState, &pInfo->nbSup);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
       pOperator->status = OP_RES_TO_RETURN;
       break;
     }
+    pInfo->basic.numOfRecv += pBlock->info.rows;
 
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
     setStreamOperatorState(&pInfo->basic, pBlock->info.type);
@@ -803,7 +821,8 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
                                        pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     if (!isHistoryOperator(&pInfo->basic)) {
-      checkAndSaveWinStateToDisc(0, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup);
+      code = checkAndSaveWinStateToDisc(0, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup, &pInfo->interval);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
@@ -1034,7 +1053,8 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
   }
 
   if (!isHistoryOperator(&pInfo->basic)) {
-    checkAndSaveWinStateToDisc(0, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup);
+    code = checkAndSaveWinStateToDisc(0, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup, &pInfo->interval);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
