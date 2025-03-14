@@ -7,14 +7,26 @@ if(NOT ${TD_WINDOWS})
 else()
     add_library(os STATIC ${OS_SRC})
 endif(NOT ${TD_WINDOWS})
+if(${BUILD_MSVCREGEX})
+    DEP_ext_msvcregex(os)
+endif()
+if(${BUILD_PTHREAD})
+    DEP_ext_pthread(os)
+endif()
+if(${BUILD_WITH_ICONV})
+    DEP_ext_iconv(os)
+endif()
+if(${BUILD_WCWIDTH})
+    DEP_ext_wcwidth(os)
+endif()
+if(${BUILD_CRASHDUMP})
+    DEP_ext_crashdump(os)
+endif()
 target_include_directories(
     os
     PUBLIC "${TD_SOURCE_DIR}/include/os"
     PUBLIC "${TD_SOURCE_DIR}/include"
     PUBLIC "${TD_SOURCE_DIR}/include/util"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/pthread"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/iconv"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/msvcregex"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 # iconv
@@ -47,14 +59,13 @@ endif ()
 if(CHECK_STR2INT_ERROR)
     add_definitions(-DTD_CHECK_STR_TO_INT_ERROR)
 endif()
-target_link_libraries(
-    os
-    PUBLIC pthread
-)
+if(NOT ${TD_WINDOWS})
+    target_link_libraries(os PUBLIC pthread)
+endif()
 DEP_ext_zlib(os)
 if(TD_WINDOWS)
     target_link_libraries(
-        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump dbghelp version KtmW32
+        os PUBLIC ws2_32 winmm dbghelp version KtmW32 Iphlpapi Userenv
     )
 elseif(TD_DARWIN_64)
     find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation)

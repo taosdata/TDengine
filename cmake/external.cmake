@@ -139,7 +139,7 @@ if(${TD_LINUX})
 elseif(${TD_DARWIN})
     set(ext_zlib_static libz.a)
 elseif(${TD_WINDOWS})
-    set(ext_zlib_static zs$<$<CONFIG:Debug>:d>.lib)
+    set(ext_zlib_static zs$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:d>.lib)
 endif()
 INIT_EXT(ext_zlib
     INC_DIR          include
@@ -168,6 +168,7 @@ add_dependencies(build_externals ext_zlib)     # this is for github workflow in 
 if(${BUILD_PTHREAD})        # {
     if(${TD_WINDOWS})
         set(ext_pthread_static pthreadVC3.lib)
+        set(ext_pthread_dll pthreadVC3.dll)
     endif()
     INIT_EXT(ext_pthread
         INC_DIR          include
@@ -189,6 +190,7 @@ if(${BUILD_PTHREAD})        # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${_ins}/bin/${ext_pthread_dll} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${ext_pthread_dll}
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -506,31 +508,54 @@ if(${TD_LINUX})
 elseif(${TD_DARWIN})
     set(ext_xxhash_static libxxhash.a)
 elseif(${TD_WINDOWS})
-    set(ext_xxhash_static libxxhash.lib)
+    set(ext_xxhash_static xxhash.lib)
 endif()
-INIT_EXT(ext_xxhash
-    INC_DIR          usr/local/include
-    LIB              usr/local/lib/${ext_xxhash_static}
-)
 get_from_local_repo_if_exists("https://github.com/Cyan4973/xxHash.git")
-ExternalProject_Add(ext_xxhash
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
-    PREFIX "${_base}"
-    BUILD_IN_SOURCE TRUE
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    PATCH_COMMAND
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/xxhash.Makefile Makefile
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND
-        COMMAND make DESTDIR=${_ins} VERBOSE=1
-    INSTALL_COMMAND
-        COMMAND make DESTDIR=${_ins} VERBOSE=1 install
-    GIT_SHALLOW TRUE
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
+if(NOT ${TD_WINDOWS})        # {
+    INIT_EXT(ext_xxhash
+        INC_DIR          "usr/local/include"
+        LIB              "usr/local/lib/${ext_xxhash_static}"
+    )
+    ExternalProject_Add(ext_xxhash
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/xxhash.Makefile Makefile
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND
+            COMMAND make DESTDIR=${_ins}
+        INSTALL_COMMAND
+            COMMAND make DESTDIR=${_ins} install
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+else()                       # }{
+    INIT_EXT(ext_xxhash
+        INC_DIR          "include"
+        LIB              "lib/${ext_xxhash_static}"
+    )
+    ExternalProject_Add(ext_xxhash
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
+        PREFIX "${_base}"
+        SOURCE_SUBDIR cmake_unofficial
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+endif()                      # }
 add_dependencies(build_externals ext_xxhash)     # this is for github workflow in cache-miss step.
 
 # lzma2
@@ -847,8 +872,8 @@ if(${BUILD_GEOS})           # {
         set(ext_geos_static libgeos.a)
         set(ext_geos_c_static libgeos_c.a)
     elseif(${TD_WINDOWS})
-        set(ext_geos_static libgeos.lib)
-        set(ext_geos_c_static libgeos_c.lib)
+        set(ext_geos_static geos.lib)
+        set(ext_geos_c_static geos_c.lib)
     endif()
     INIT_EXT(ext_geos
         INC_DIR          include
@@ -979,7 +1004,7 @@ if(${BUILD_PCRE2})          # {
     elseif(${TD_DARWIN})
         set(ext_pcre2_static libpcre2-8.a)
     elseif(${TD_WINDOWS})
-        set(ext_pcre2_static libpcre2-8.lib)
+        set(ext_pcre2_static pcre2-8-static.lib)
     endif()
     INIT_EXT(ext_pcre2
         INC_DIR          include
@@ -1046,6 +1071,7 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
         CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
         CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
         CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
+        CMAKE_ARGS -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
         # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
@@ -1057,4 +1083,3 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
     )
     add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
 endif()                                          # }
-

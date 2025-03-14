@@ -13,6 +13,7 @@ endif()
 DEP_ext_geos(util)
 if(${BUILD_PCRE2})          # {
   DEP_ext_pcre2(util)
+  target_compile_definitions(util PRIVATE -DPCRE2_STATIC)
 endif()                     # }
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)

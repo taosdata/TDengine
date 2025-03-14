@@ -184,7 +184,7 @@ foreach(index RANGE 0 6)
     )
 endforeach()
 
-# SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
+# SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)
 
 if(${TD_DARWIN})
