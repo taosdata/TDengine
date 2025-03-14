@@ -40,7 +40,8 @@ pgrep taosd || taosd >> /dev/null 2>&1 &
 
 sleep 10
 
-ctest -E "cunit_test" -j8
+ctest -R taoscTest
+ctest -E "cunit_test|taoscTest" -j8
 
 ret=$?
 exit $ret
