@@ -1241,7 +1241,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   if (pCxt->pPlanCxt->streamQuery) {
-    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE || pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
       pWindow->windowAlgo = INTERVAL_ALGO_STREAM_CONTINUE_SINGLE;
     } else {
       pWindow->windowAlgo = INTERVAL_ALGO_STREAM_SINGLE;
