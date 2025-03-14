@@ -2251,7 +2251,7 @@ int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg
     }
     memcpy(pNew->pIpRanges, pOld->pIpRanges, sz);
   }
-
+_return:
   if (code < 0) {
     tFreeSUpdateIpWhiteReq(pClone);
     taosMemoryFree(pClone);

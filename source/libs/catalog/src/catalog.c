@@ -229,7 +229,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
       if (output->tbMeta) {
         int32_t metaSize = CTG_META_SIZE(output->tbMeta);
         int32_t schemaExtSize = 0;
-        if (useCompress(output->tbMeta->tableType) && output->tbMeta->schemaExt) {
+        if (withExtSchema(output->tbMeta->tableType) && output->tbMeta->schemaExt) {
           schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
         }
         TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));

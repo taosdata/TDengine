@@ -542,7 +542,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     int32_t schemaExtSize = 0;
     int32_t colRefSize = 0;
     int32_t metaSize = CTG_META_SIZE(tbMeta);
-    if (useCompress(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+    if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
       schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
     if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
@@ -554,7 +554,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     }
 
     TAOS_MEMCPY(*pTableMeta, tbMeta, metaSize);
-    if (useCompress(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+    if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
       (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
       TAOS_MEMCPY((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
     } else {
@@ -625,13 +625,13 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   if (stbMeta->schemaExt) {
     schemaExtSize = stbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
-  *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize +schemaExtSize + colRefSize);
+  *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize + schemaExtSize + colRefSize);
   if (NULL == *pTableMeta) {
     taosMemoryFreeClear(tmpRef);
     CTG_ERR_RET(terrno);
   }
 
-  TAOS_MEMCPY(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
+  TAOS_MEMCPY(&(*pTableMeta)->numOfColRefs, &stbMeta->numOfColRefs, metaSize - sizeof(SCTableMeta));
   if (stbMeta->schemaExt) {
     (*pTableMeta)->schemaExt = (SSchemaExt*)((char*)*pTableMeta + metaSize);
     TAOS_MEMCPY((*pTableMeta)->schemaExt, stbMeta->schemaExt, schemaExtSize);
@@ -639,10 +639,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     (*pTableMeta)->schemaExt =  NULL;
   }
 
-  TAOS_MEMCPY(&(*pTableMeta)->numOfColRefs, &stbMeta->numOfColRefs, metaSize - sizeof(SCTableMeta));
-
-  if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
-    (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize);
+  if (colRefSize != 0) {
+    (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize + schemaExtSize);
     (*pTableMeta)->numOfColRefs = numOfColRefs;
     TAOS_MEMCPY((*pTableMeta)->colRef, tmpRef, colRefSize);
   } else {
@@ -3556,7 +3554,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       int32_t schemaExtSize = 0;
       int32_t colRefSize = 0;
       int32_t metaSize = CTG_META_SIZE(tbMeta);
-      if (useCompress(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+      if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
         schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
       }
       if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
@@ -3570,7 +3568,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       }
 
       TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
-      if (useCompress(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
+      if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
         pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
         TAOS_MEMCPY(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
       } else {
@@ -3728,7 +3726,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     TAOS_MEMCPY(&pTableMeta->numOfColRefs, &stbMeta->numOfColRefs, metaSize + schemaExtSize - sizeof(SCTableMeta));
-    if (useCompress(stbMeta->tableType) && stbMeta->schemaExt != NULL) {
+    if (withExtSchema(stbMeta->tableType) && stbMeta->schemaExt != NULL) {
       pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
     } else {
       pTableMeta->schemaExt = NULL;

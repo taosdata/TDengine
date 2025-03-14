@@ -102,14 +102,15 @@ SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
   hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
 
   if (hasTypeMods) {
-    SExtSchema* ret = taosMemoryMalloc(sizeof(SExtSchema) * pSchWrapper->nCols);
-    if (ret != NULL){
+    SExtSchema *ret = taosMemoryMalloc(sizeof(SExtSchema) * pSchWrapper->nCols);
+    if (ret != NULL) {
       memcpy(ret, pME->pExtSchemas, pSchWrapper->nCols * sizeof(SExtSchema));
     }
     return ret;
   }
   return NULL;
-=======
+}
+
 int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   SColRefWrapper *pWrapper = &pME->colRef;
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nCols));
@@ -164,7 +165,6 @@ static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) 
     memcpy(pDst->pColRef, pSrc->pColRef, pSrc->nCols * sizeof(SColRef));
   }
   return 0;
->>>>>>> 3330e5729a (feat: [TS-4897] Support create/drop/alter/show/describe vtable)
 }
 
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {

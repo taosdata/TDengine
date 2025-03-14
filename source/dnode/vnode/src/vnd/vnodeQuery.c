@@ -393,15 +393,17 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   SColCmprWrapper *pColCmpr = &pReader->me.colCmpr;
   SColRefWrapper  *pColRef = &mer1.me.colRef;
 
-  for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
-    SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
-    SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
-    pSchExt->colId = pCmpr->id;
-    pSchExt->compress = pCmpr->alg;
-    if (pReader->me.pExtSchemas)
-      pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
-    else
-      pSchExt->typeMod = 0;
+  if (withExtSchema(cfgRsp.tableType)) {
+    for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+      SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
+      SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
+      pSchExt->colId = pCmpr->id;
+      pSchExt->compress = pCmpr->alg;
+      if (pReader->me.pExtSchemas)
+        pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
+      else
+        pSchExt->typeMod = 0;
+    }
   }
 
   cfgRsp.virtualStb = false;

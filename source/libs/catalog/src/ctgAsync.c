@@ -1679,7 +1679,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
     if (pOut->tbMeta) {
       int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
       int32_t schemaExtSize = 0;
-      if (useCompress(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
+      if (withExtSchema(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
         schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
       }
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize);
@@ -1892,7 +1892,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
     if (pOut->tbMeta) {
       int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
       int32_t schemaExtSize = 0;
-      if (useCompress(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
+      if (withExtSchema(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
         schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
       }
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize);
@@ -2115,7 +2115,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
     if (pOut->tbMeta) {
       int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
       int32_t schemaExtSize = 0;
-      if (useCompress(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
+      if (withExtSchema(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
         schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
       }
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize);

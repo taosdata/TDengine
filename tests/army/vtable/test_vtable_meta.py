@@ -17,7 +17,6 @@ from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame.common import *
-
 class TDTestCase(TBase):
 
     def prepare_tables(self):

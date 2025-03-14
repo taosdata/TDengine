@@ -1088,7 +1088,7 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
     int32_t metaSize =
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
-        (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
+        (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
     int32_t colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
     const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize;
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);

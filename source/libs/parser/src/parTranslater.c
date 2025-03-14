@@ -17742,6 +17742,10 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       return terrno;
     }
   } else {
+    pReq->colName = taosStrdup(pStmt->colName);
+    if (pReq->colName == NULL) {
+      return terrno;
+    }
     pReq->type = pStmt->dataType.type;
     pReq->flags = COL_SMA_ON;
     pReq->bytes = calcTypeBytes(pStmt->dataType);
@@ -17754,8 +17758,8 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       int8_t code = setColCompressByOption(pReq->type, columnEncodeVal(pStmt->pColOptions->encode),
                                            columnCompressVal(pStmt->pColOptions->compress),
                                            columnLevelVal(pStmt->pColOptions->compressLevel), true, &pReq->compress);
-      if (code != TSDB_CODE_SUCCESS) return code;
     }
+  }
 
   pReq->typeMod = 0;
   if (IS_DECIMAL_TYPE(pStmt->dataType.type)) {

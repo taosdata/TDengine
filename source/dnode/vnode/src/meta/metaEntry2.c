@@ -1470,7 +1470,7 @@ static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEn
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    metaUpdateStbStats(pMeta, pSuperEntry->uid, 1, 0);
+    metaUpdateStbStats(pMeta, pSuperEntry->uid, 1, 0, -1);
     int32_t ret = metaUidCacheClear(pMeta, pSuperEntry->uid);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1806,7 +1806,7 @@ static int32_t metaHandleVirtualChildTableDropImpl(SMeta *pMeta, const SMetaHand
   }
 
   --pMeta->pVnode->config.vndStats.numOfVCTables;
-  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0);
+  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0, -1);
   int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
   if (ret < 0) {
     metaErr(TD_VID(pMeta->pVnode), ret);
