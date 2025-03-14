@@ -101,7 +101,7 @@ jobs:
 
       - name: Run tdgpt test
         run: |
-          cd ${{ github.workspace }}/tests/sctipt
+          cd ${{ github.workspace }}/tests/script
           date
           ./test.sh -f tsim/analytics/basic0.sim
           echo "Test exit code: $?"
