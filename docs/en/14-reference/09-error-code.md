@@ -462,8 +462,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80002688 | Cannot use 'year' or 'month' as true_for duration            | Use year or month as true_for_duration                       | Check and correct the SQL statement                          |
 | 0x80002689 | Invalid using cols function                                  | Illegal using cols function                                        | Check and correct the SQL statement                          |
 | 0x8000268A | Cols function's first param must be a select function that output a single row | The first parameter of the cols function should be a selection function | Check and correct the SQL statement                          |
-| 0x8000268B | Invalid using cols function with multiple output columns     | Illegal using the cols function for multiple column output             | Check and correct the SQL statement                          |
-| 0x8000268C | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |
+| 0x8000268B | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |
+| 0x8000268C | Join primary key col must be timestmap type                  | Join primary key data type error                             | Check and correct the SQL statement                          |
 | 0x800026FF | Parser internal error                                        | Internal error in parser                                     | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                       | Internal error in planner                                    | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                              | JOIN condition validation failed                             | Preserve the scene and logs, report issue on GitHub          |
