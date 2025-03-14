@@ -204,8 +204,8 @@ typedef struct SPkInfo {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
-  int64_t     rows;  // todo hide this attribute
   uint32_t    capacity;
+  int64_t     rows;  // todo hide this attribute
   SBlockID    id;
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not

@@ -234,13 +234,13 @@ int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, ch
   }
 
 /* mktime will be affected by TZ, set by using taos_options */
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(TD_ASTRA) 
   int64_t seconds = user_mktime64(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 0);
   // int64_t seconds = gmtime(&tm);
 #else
   int64_t seconds = taosTimeGm(&tm);
   if (seconds == -1){
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 #endif
 
@@ -591,13 +591,13 @@ int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecisi
  */
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* duration, char* unit,
                               int32_t timePrecision) {
-  errno = 0;
+  SET_ERRNO(0);
   char* endPtr = NULL;
 
   /* get the basic numeric value */
   int64_t timestamp = taosStr2Int64(token, &endPtr, 10);
-  if ((timestamp == 0 && token[0] != '0') || errno != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+  if ((timestamp == 0 && token[0] != '0') || ERRNO != 0) {
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   /* natual month/year are not allowed in absolute duration */
@@ -611,12 +611,12 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
 
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision,
                             bool negativeAllow) {
-  errno = 0;
+  SET_ERRNO(0);
 
   /* get the basic numeric value */
   *duration = taosStr2Int64(token, NULL, 10);
-  if ((*duration < 0 && !negativeAllow) || errno != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+  if ((*duration < 0 && !negativeAllow) || ERRNO != 0) {
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   *unit = token[tokenLen - 1];
@@ -648,7 +648,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   struct tm  tm;
   time_t     tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
   if(taosLocalTime(&tt, &tm, NULL, 0, tz) == NULL) {
-    uError("failed to convert time to gm time, code:%d", errno);
+    uError("failed to convert time to gm time, code:%d", ERRNO);
     return t;
   }
   int32_t    mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
@@ -664,7 +664,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
 
   tt = taosMktime(&tm, tz);
   if (tt == -1){
-    uError("failed to convert gm time to time, code:%d", errno);
+    uError("failed to convert gm time to time, code:%d", ERRNO);
     return t;
   }
   return (int64_t)(tt * TSDB_TICK_PER_SECOND(precision) + fraction);
@@ -718,14 +718,14 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
     struct tm  tm;
     time_t     t = (time_t)skey;
     if (taosLocalTime(&t, &tm, NULL, 0, NULL) == NULL) {
-      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, errno);
+      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ret;
     }
     int32_t    smon = tm.tm_year * 12 + tm.tm_mon;
 
     t = (time_t)ekey;
     if (taosLocalTime(&t, &tm, NULL, 0, NULL) == NULL) {
-      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, errno);
+      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ret;
     }
     int32_t emon = tm.tm_year * 12 + tm.tm_mon;
@@ -752,7 +752,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     struct tm  tm;
     time_t     tt = (time_t)start;
     if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) == NULL){
-      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, errno);
+      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ts;
     }
     tm.tm_sec = 0;
@@ -772,7 +772,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
     tt = taosMktime(&tm, pInterval->timezone);
     if (tt == -1){
-      uError("%s failed to convert local time to time, code:%d", __FUNCTION__, errno);
+      uError("%s failed to convert local time to time, code:%d", __FUNCTION__, ERRNO);
       return ts;
     }
     start = (int64_t)(tt * TSDB_TICK_PER_SECOND(precision));
@@ -990,7 +990,7 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
   }
 
   if (NULL == taosLocalTime(&quot, &ptm, buf, bufLen, NULL)) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
   int32_t length = (int32_t)taosStrfTime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
   length += tsnprintf(ts + length, fractionLen, format, mod);
@@ -1032,7 +1032,7 @@ int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm, timezone_t tz) 
   tm->fsec = ts % TICK_PER_SECOND[precision] * (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
   time_t t = ts / TICK_PER_SECOND[precision];
   if (NULL == taosLocalTime(&t, &tm->tm, NULL, 0, tz)) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1508,6 +1508,8 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
       case TSFKW_TZH:{
 #ifdef WINDOWS
         int32_t gmtoff = -_timezone;
+#elif defined(TD_ASTRA)
+        int32_t gmtoff = -timezone;
 #else
         int32_t gmtoff = tm->tm.tm_gmtoff;
 #endif
@@ -1594,7 +1596,7 @@ static const char* tsFormatStr2Int32(int32_t* dest, const char* str, int32_t len
     // no integers found
     return NULL;
   }
-  if (errno == ERANGE || res > INT32_MAX || res < INT32_MIN) {
+  if (ERRNO == ERANGE || res > INT32_MAX || res < INT32_MIN) {
     // out of range
     return NULL;
   }
@@ -1937,6 +1939,8 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   if (tzHour != 0) {
 #ifdef WINDOWS
     int32_t gmtoff = -_timezone;
+#elif defined(TD_ASTRA)
+    int32_t gmtoff = -timezone;
 #else
     int32_t gmtoff = tm.tm.tm_gmtoff;
 #endif
@@ -2136,7 +2140,7 @@ int64_t taosGetTimestampToday(int32_t precision, timezone_t tz) {
   }
   struct tm tm;
   if (taosLocalTime(&t, &tm, NULL, 0,  tz) == NULL){
-    uError("%s failed to get local time, code:%d", __FUNCTION__, errno);
+    uError("%s failed to get local time, code:%d", __FUNCTION__, ERRNO);
     return t;
   }
   tm.tm_hour = 0;
@@ -2145,7 +2149,7 @@ int64_t taosGetTimestampToday(int32_t precision, timezone_t tz) {
 
   time_t tmp = taosMktime(&tm, tz);
   if (tmp == (time_t)-1) {
-    uError("%s failed to get timestamp of today, code:%d", __FUNCTION__, errno);
+    uError("%s failed to get timestamp of today, code:%d", __FUNCTION__, ERRNO);
     return t;
   }
   return (int64_t)tmp * factor;

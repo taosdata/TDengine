@@ -120,6 +120,7 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 }
 
 static void vmProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+#ifdef USE_STREAM
   SVnodeObj      *pVnode = pInfo->ahandle;
   const STraceId *trace = &pMsg->info.traceId;
 
@@ -135,9 +136,11 @@ static void vmProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dGTrace("vgId:%d, msg:%p is freed, code:0x%x", pVnode->vgId, pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
+#endif
 }
 
 static void vmProcessStreamCtrlQueue(SQueueInfo *pInfo, STaosQall* pQall, int32_t numOfItems) {
+#ifdef USE_STREAM
   SVnodeObj *pVnode = pInfo->ahandle;
   void      *pItem = NULL;
   int32_t    code = 0;
@@ -163,6 +166,7 @@ static void vmProcessStreamCtrlQueue(SQueueInfo *pInfo, STaosQall* pQall, int32_
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
+#endif
 }
 
 static void vmProcessStreamChkptQueue(SQueueInfo *pInfo, STaosQall* pQall, int32_t numOfItems) {

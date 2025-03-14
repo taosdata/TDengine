@@ -19,7 +19,9 @@
 #include "executor.h"
 #include "filter.h"
 #include "qworker.h"
+#ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
+#endif
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
@@ -466,12 +468,12 @@ typedef struct {
 } SVATaskID;
 
 struct SVnode {
-  char*     path;
-  SVnodeCfg config;
   SVState   state;
   SVStatis  statis;
+  char*     path;
   STfs*     pTfs;
   int32_t   diskPrimary;
+  SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
 
