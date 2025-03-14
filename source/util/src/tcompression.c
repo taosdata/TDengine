@@ -488,7 +488,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
   int64_t     prev_value = 0;
 
   while (count < nelements) {
-    uint64_t w = *(uint64_t *)ip;
+    uint64_t w = taosGetUInt64Aligned(ip);
 
     char    selector = (char)(w & INT64MASK(4));       // selector = 4
     char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
