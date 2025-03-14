@@ -15,7 +15,7 @@ stream_options: {
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
- FILL_HISTORY   [0|1]
+ FILL_HISTORY   [0|1] [async]
  IGNORE UPDATE  [0|1]
 }
 
@@ -126,6 +126,13 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 ```
 
 If the stream task is completely outdated and you no longer want it to monitor or process data, you can manually delete it. The computed data will still be retained.
+
+Tips:
+- When enabling fill_history, creating a stream requires finding the boundary point of historical data. If there is a lot of historical data, it may cause the task of creating a stream to take a long time. In this case, you can use fill_history 1 async (supported since version 3.3.6.0) , then the task of creating a stream can be processed in the background. The statement of creating a stream can be returned immediately without blocking subsequent operations. async only takes effect when fill_history 1 is used, and creating a stream with fill_history 0 is very fast and does not require asynchronous processing.
+
+- Show streams can be used to view the progress of background stream creation (ready status indicates success, init status indicates stream creation in progress, failed status indicates that the stream creation has failed, and the message column can be used to view the reason for the failure. In the case of failed stream creation, the stream can be deleted and rebuilt).
+
+- Besides, do not create multiple streams asynchronously at the same time, as transaction conflicts may cause subsequent streams to fail.
 
 ## Deleting Stream Computing
 

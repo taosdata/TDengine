@@ -3727,6 +3727,7 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
   pOptions->fillHistory = STREAM_DEFAULT_FILL_HISTORY;
   pOptions->ignoreExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
   pOptions->ignoreUpdate = STREAM_DEFAULT_IGNORE_UPDATE;
+  pOptions->runHistoryAsync = false;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -3749,7 +3750,7 @@ static int8_t getTriggerType(uint32_t tokenType) {
 }
 
 SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptionsSetFlag setflag, SToken* pToken,
-                        SNode* pNode) {
+                        SNode* pNode, bool runHistoryAsync) {
   SStreamOptions* pStreamOptions = (SStreamOptions*)pOptions;
   if (BIT_FLAG_TEST_MASK(setflag, pStreamOptions->setFlag)) {
     pCxt->errCode =
@@ -3783,7 +3784,7 @@ SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptions
       break;
   }
   BIT_FLAG_SET_MASK(pStreamOptions->setFlag, setflag);
-
+  pStreamOptions->runHistoryAsync = runHistoryAsync;
   return pOptions;
 }
 

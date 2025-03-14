@@ -12683,7 +12683,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
     getSourceDatabase(pStmt->pQuery, pCxt->pParseCxt->acctId, pReq->sourceDB);
     code = nodesNodeToString(pStmt->pQuery, false, &pReq->ast, NULL);
   }
-  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory && (pCxt->pParseCxt->streamRunHistory || !tsStreamRunHistoryAsync)) {
+  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory && (pCxt->pParseCxt->streamRunHistory || !pStmt->pOptions->runHistoryAsync)) {
     SRealTableNode* pTable = (SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable);
     code = createLastTsSelectStmt(pTable->table.dbName, pTable->table.tableName, pTable->pMeta->schema[0].name,
                                   &pStmt->pPrevQuery);

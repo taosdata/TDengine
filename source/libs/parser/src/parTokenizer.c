@@ -114,6 +114,7 @@ static SKeyword keywordTable[] = {
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
     {"FILL_HISTORY",         TK_FILL_HISTORY},
+    {"ASYNC",                TK_ASYNC},
     {"FIRST",                TK_FIRST},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
