@@ -34,6 +34,76 @@ export default {
           defaultValue: '',
           required: true,
           type: 'input'
+        },
+        {
+          label: 'TLS 校验',
+          description:
+            '是否开启 TLS 校验。\n开启单向校验后，需要上传 CA 证书文件，用于校验 MQTT 服务器证书。\n开启双向校验后，需要上传 CA 证书文件、客户端证书和客户端私钥文件，用于校验 MQTT 服务器证书和客户端证书。\n',
+          field: 'tsl_verify',
+          placeholder: '',
+          defaultValue: 'none',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
+            {
+              label: '不开启',
+              value: 'none'
+            },
+            {
+              label: '单向校验',
+              value: 'single'
+            },
+            {
+              label: '双向校验',
+              value: 'both'
+            }
+          ]
+        },
+        {
+          label: 'CA',
+          description: 'CA 证书文件，用于校验 MQTT 服务器证书。',
+          field: 'ca',
+          required: true,
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: '',
+          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOnValues: {
+            tsl_verify: ['single', 'both']
+          }
+        },
+        {
+          label: '客户端证书',
+          description: '需要 .cert 文件。',
+          field: 'cert',
+          required: true,
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: '',
+          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOnValues: {
+            tsl_verify: ['both']
+          }
+        },
+        {
+          label: '客户端私钥',
+          description: '私钥文件，和客户端证书必须同时上传。',
+          field: 'cert_key',
+          placeholder: '',
+          required: true,
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: '',
+          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOnValues: {
+            tsl_verify: ['both']
+          }
         }
       ]
     },
@@ -72,66 +142,6 @@ export default {
       field: 'groups_before',
       hide: true,
       children: [
-        {
-          label: 'SSL 证书',
-          field: 'ssl',
-          description: '使用证书和私钥建立连接以启用 SSL。',
-          hide: false,
-          type: 'switch',
-          defaultValue: false,
-          valueField: 'isEnable',
-          hasValue: true,
-          children: [
-            {
-              label: 'CA',
-              description: 'CA 证书文件',
-              field: 'ca',
-              required: true,
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            },
-            {
-              label: '客户端证书',
-              description: '.cert 文件',
-              field: 'cert',
-              required: true,
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            },
-            {
-              label: '客户端私钥',
-              description: '私钥文件',
-              field: 'cert_key',
-              required: true,
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            }
-          ]
-        },
         {
           label: '采集配置',
           field: 'collect',

@@ -26,6 +26,7 @@ export default {
   logs: 'Logs',
   chart: 'Chart',
   run: 'Run',
+  format: 'Format',
   moreOperations: 'More Operations',
   add: 'Add',
   edit: 'Edit',

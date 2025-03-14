@@ -1,9 +1,5 @@
 <template>
   <div class="sql-code-editor">
-    <el-alert v-if="isSelectSql" :title="t('explorer.resultLimitWaringTip')" type="warning" show-icon> </el-alert>
-    <p v-else class="primary-tip">
-      {{ t('explorer.sqlCodeTip') }}
-    </p>
     <div class="editor-area">
       <SqlEditor
         v-model="sqlStr"
@@ -15,10 +11,14 @@
         @execute="handleExecute"
       ></SqlEditor>
     </div>
+    <div class="float-in-sql-editor">
+      <el-alert v-if="isSelectSql" :title="t('explorer.resultLimitWaringTip')" type="warning" show-icon> </el-alert>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
+import { format } from 'sql-formatter';
 import { validSqlIsSelect } from 'utils/validate';
 import { getSqlProvider } from '../model/useExplorer';
 import SqlEditor from 'components/SqlCodeEditor/index.vue';
@@ -35,7 +35,8 @@ let currentPosition = {
 };
 
 defineExpose({
-  handleExecute
+  handleExecute,
+  handleFormat
 });
 
 addSqlCodeEvent.on((code: string) => {
@@ -50,6 +51,23 @@ function handleExecute() {
   const selection = getCurrentSelection();
   executeSql(selection || sqlStr.value);
 }
+
+function handleFormat() {
+  if (!editoIns.value) return;
+
+  const { from, to } = editoIns.value.state.selection.main;
+  if (from < to) {
+    const selection = editoIns.value.state.sliceDoc(from, to);
+    const formattedSql = format(selection, { language: 'mysql' });
+    editoIns.value.dispatch({
+      changes: { from, to, insert: formattedSql }
+    });
+  } else {
+    const formattedSql = format(sqlStr.value, { language: 'mysql' });
+    sqlStr.value = formattedSql;
+  }
+}
+
 function handleReady(payload: Recordable) {
   editoIns.value = payload.view;
 }
@@ -87,8 +105,17 @@ function addCodeAtPosition(code: string) {
   flex-shrink: 0;
   width: 100%;
   min-height: 20vh;
-  padding: 0 15px 20px;
+  padding: 0;
+  margin-top: -20px;
   overflow: auto;
+
+  .float-in-sql-editor {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    left: 60px;
+    z-index: 10;
+  }
 
   /* stylelint-disable-next-line selector-class-pattern */
   &:deep(.CodeMirror) {
