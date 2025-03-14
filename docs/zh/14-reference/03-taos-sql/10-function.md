@@ -2122,14 +2122,14 @@ ignore_null_values: {
 **适用于**：表和超级表。
 
 **使用说明**
-- INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
+- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法(interp_clause)，语法介绍[参考链接](../select/#interp) 。
+- 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
 - INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
-- INTERP SQL 查询需要同时与 RANGE、EVERY 和 FILL 关键字一起使用；流计算不能使用 RANGE，需要 EVERY 和 FILL 关键字一起使用。使用规则见 [INTERP](../select/#interp) 子句。
 - INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
 - INTERP 可以与伪列 `_irowts` 一起使用，返回插值点所对应的时间戳(v3.0.2.0 以后支持)。
 - INTERP 可以与伪列 `_isfilled` 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(v3.0.3.0 以后支持)。
-- INTERP 只有在使用 [FILL](../distinguished/#fill-子句) PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值, 则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。
-- INTERP 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
+- 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值, 则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。
+- 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
 
 ### IRATE
 
