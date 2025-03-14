@@ -999,7 +999,7 @@ static void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
   if (deltaTS > tsTimeSeriesThreshold) {
     if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
       if (tsem_post(&dmNotifyHdl.sem) != 0) {
-        metaError("vgId:%d, failed to post semaphore, errno:%d", TD_VID(pMeta->pVnode), errno);
+        metaError("vgId:%d, failed to post semaphore, errno:%d", TD_VID(pMeta->pVnode), ERRNO);
       }
     }
   }

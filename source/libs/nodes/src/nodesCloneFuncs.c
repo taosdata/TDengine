@@ -102,9 +102,11 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_OBJECT_FIELD(resType, sizeof(SDataType));
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
+  COPY_CHAR_ARRAY_FIELD(srcTable);
   COPY_SCALAR_FIELD(asAlias);
   COPY_SCALAR_FIELD(asParam);
   COPY_SCALAR_FIELD(asPosition);
+  COPY_SCALAR_FIELD(joinSrc);
   COPY_SCALAR_FIELD(projIdx);
   COPY_SCALAR_FIELD(relatedTo);
   COPY_SCALAR_FIELD(bindExprID);
@@ -242,6 +244,7 @@ static int32_t tableNodeCopy(const STableNode* pSrc, STableNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(tableAlias);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(singleTable);
+  COPY_SCALAR_FIELD(inJoin);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -321,6 +324,10 @@ static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDs
   CLONE_NODE_FIELD(addPrimCond);
   COPY_SCALAR_FIELD(hasSubQuery);
   COPY_SCALAR_FIELD(isLowLevelJoin);
+  COPY_SCALAR_FIELD(leftNoOrderedSubQuery);
+  COPY_SCALAR_FIELD(rightNoOrderedSubQuery);
+  //COPY_SCALAR_FIELD(condAlwaysTrue);
+  //COPY_SCALAR_FIELD(condAlwaysFalse);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
   CLONE_NODE_FIELD(pOnCond);
@@ -542,6 +549,11 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(grpJoin);
   COPY_SCALAR_FIELD(hashJoinHint);
   COPY_SCALAR_FIELD(batchScanHint);
+  COPY_SCALAR_FIELD(noPrimKeyEqCond);
+  COPY_SCALAR_FIELD(leftConstPrimGot);
+  COPY_SCALAR_FIELD(rightConstPrimGot);
+  COPY_SCALAR_FIELD(leftNoOrderedSubQuery);
+  COPY_SCALAR_FIELD(rightNoOrderedSubQuery);
   CLONE_NODE_FIELD(pLeftOnCond);
   CLONE_NODE_FIELD(pRightOnCond);
   COPY_SCALAR_FIELD(timeRangeTarget);

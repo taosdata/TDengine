@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
+#include "tutil.h"
 #include "thash.h"
 #include "types.h"
 #include "xxhash.h"
@@ -106,8 +107,12 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len) {
   const uint8_t *end = data + (len - (len & 7));
 
   while (data != end) {
+#ifndef NO_UNALIGNED_ACCESS
     uint64_t k = *((uint64_t *)data);
-
+#else
+    uint64_t k = 0;
+    memcpy(&k, data, sizeof(uint64_t));
+#endif
     k *= m;
     k ^= k >> r;
     k *= m;
@@ -176,7 +181,7 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   }
 }
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
-  uint64_t val = *(uint64_t *)key;
+  uint64_t val = taosGetUInt64Aligned((uint64_t *)key);
 
   uint64_t hash = val >> 16U;
   hash += (val & 0xFFFFU);

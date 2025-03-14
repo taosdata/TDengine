@@ -527,7 +527,6 @@ typedef struct SRetention {
 #define RETENTION_VALID(l, r) ((((l) == 0 && (r)->freq >= 0) || ((r)->freq > 0)) && ((r)->keep > 0))
 
 #pragma pack(push, 1)
-
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
 typedef struct SEp {
   char     fqdn[TSDB_FQDN_LEN];
@@ -4236,7 +4235,7 @@ typedef struct {
   int8_t       rawData;
   int32_t      minPollRows;
   int8_t       enableBatchMeta;
-  SHashObj    *uidHash;  // to find if uid is duplicated
+  SHashObj     *uidHash;  // to find if uid is duplicated
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);

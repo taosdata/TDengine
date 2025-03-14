@@ -288,7 +288,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
         TAOS_RETURN(terrno);
       }
       if (taosMulMkDir(s) != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         taosMemoryFree(s);
         TAOS_RETURN(code);
       }

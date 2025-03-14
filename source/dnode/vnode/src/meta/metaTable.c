@@ -171,14 +171,15 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
   indexMultiTermDestroy(terms);
 
   taosArrayDestroy(pTagVals);
-#endif
   return code;
 _exception:
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
+#endif
   return code;
 }
 int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+int32_t code = 0;
 #ifdef USE_INVERTED_INDEX
   if (pMeta->pTagIvtIdx == NULL || pCtbEntry == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -192,7 +193,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   int32_t     nTagData = 0;
 
   SArray *pTagVals = NULL;
-  int32_t code = tTagToValArray((const STag *)data, &pTagVals);
+  code = tTagToValArray((const STag *)data, &pTagVals);
   if (code) {
     return code;
   }
@@ -253,11 +254,11 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   code = indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
-#endif
   return code;
 _exception:
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
+#endif
   return code;
 }
 
@@ -730,7 +731,7 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
     return terrno;
   }
 
-  (*ppTagIdxKey)->suid = suid;
+  taosSetInt64Aligned(&((*ppTagIdxKey)->suid), suid);
   (*ppTagIdxKey)->cid = cid;
   (*ppTagIdxKey)->isNull = (pTagData == NULL) ? 1 : 0;
   (*ppTagIdxKey)->type = type;
@@ -739,10 +740,10 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
   if (IS_VAR_DATA_TYPE(type)) {
     memcpy((*ppTagIdxKey)->data, (uint16_t *)&nTagData, VARSTR_HEADER_SIZE);
     if (pTagData != NULL) memcpy((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE, pTagData, nTagData);
-    *(tb_uid_t *)((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE + nTagData) = uid;
+    taosSetInt64Aligned((tb_uid_t *)((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE + nTagData), uid);
   } else {
     if (pTagData != NULL) memcpy((*ppTagIdxKey)->data, pTagData, nTagData);
-    *(tb_uid_t *)((*ppTagIdxKey)->data + nTagData) = uid;
+    taosSetInt64Aligned((tb_uid_t *)((*ppTagIdxKey)->data + nTagData), uid);
   }
 
   return 0;

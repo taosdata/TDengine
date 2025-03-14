@@ -17,7 +17,9 @@
 #define _TD_DND_MGMT_H_
 
 // tobe deleted
+#ifdef USE_UDF
 #include "uv.h"
+#endif
 
 #include "dmInt.h"
 #include "tfs.h"
@@ -58,6 +60,7 @@ typedef struct {
   char desc[TSDB_STEP_DESC_LEN];
 } SStartupInfo;
 
+#ifdef USE_UDF
 typedef struct SUdfdData {
   bool         startCalled;
   bool         needCleanUp;
@@ -71,6 +74,7 @@ typedef struct SUdfdData {
   int32_t      stopCalled;
   int32_t      dnodeId;
 } SUdfdData;
+#endif
 
 typedef struct SDnode {
   int8_t        once;
@@ -78,7 +82,9 @@ typedef struct SDnode {
   EDndRunStatus status;
   SStartupInfo  startup;
   SDnodeData    data;
+#ifdef USE_UDF
   SUdfdData     udfdData;
+#endif
   TdThreadMutex mutex;
   TdFilePtr     lockfile;
   STfs         *pTfs;
