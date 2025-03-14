@@ -70,6 +70,8 @@ TDengine is an open source, high-performance, cloud native [time-series database
 
 For a full list of TDengine competitive advantages, please [check here](https://tdengine.com/tdengine/). The easiest way to experience TDengine is through [TDengine Cloud](https://cloud.tdengine.com).
 
+For the latest TDengine component TDgpt, please refer to [TDgpt README](./tools/tdgpt/README.md) for details.
+
 # 2. Documentation
 
 For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com))
