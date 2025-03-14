@@ -458,26 +458,85 @@ function build_taosx() {
 #     verify_commit_id $keeperDir taoskeeper $keeperDir
 # }
 
+download_plugin() {
+    local version=$1
+    local zip_file="tdengine-datasource-$version.zip"
+    local zip_file_local="tdengine-datasource.zip"
+    local md5_file="$zip_file.md5"
+    local md5_file_local="tdengine-datasource.zip.md5"
+
+    # 下载 ZIP 文件
+    local remote_zip_url="https://github.com/taosdata/grafanaplugin/releases/download/v$version/$zip_file"
+    echo "** 下载插件 ZIP 文件: $remote_zip_url"
+    curl --silent -L "$remote_zip_url" -o "$zip_file"
+
+    # 验证下载文件的 MD5 校验和
+    if md5sum -c "$md5_file_local" >/dev/null; then
+        echo "** 下载文件校验成功。"
+    else
+        echo "** 下载文件校验失败，请检查网络或文件完整性。"
+        exit 1
+    fi
+    mv $zip_file $zip_file_local
+}
+
 function update_connectors() {
+    for connector in "${connectors[@]}"; do
+        cd ${connectorDir}/${connector}
+        git pull
 
-    if [ "${os_type}" != "Darwin" ]; then
-        for connector in "${connectors[@]}"; do
-            cd ${connectorDir}/${connector}
-            git pull
+        if [ "${connector}" == "taos-connector-jdbc" ]; then
+            mvn clean package -Dmaven.test.skip=true
+        fi
+    done
 
-            if [ "${connector}" == "taos-connector-jdbc" ]; then
-                mvn clean package -Dmaven.test.skip=true
-            fi
-        done
+    cd ${connectorDir}
+    #rm -rf tdengine-datasource*
+    rm -rf TDinsight.sh
+    wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh && echo "TDinsight.sh downloaded!" \
+    || echo "failed to download TDinsight.sh"
+    
+    chmod +x TDinsight.sh
+    #./TDinsight.sh --download-only ||:
+    TDENGINE_PLUGIN_VERSION=$(curl --silent "https://api.github.com/repos/taosdata/grafanaplugin/releases/latest" |
+    grep '"tag_name":' |
+    sed -E 's/.*"v([^"]+)".*/\1/')
 
-        cd ${connectorDir}
-        rm -rf tdengine-datasource*
-        rm -rf TDinsight.sh
-        wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh && echo "TDinsight.sh downloaded!" \
-        || echo "failed to download TDinsight.sh"
-        
-        chmod +x TDinsight.sh
-        ./TDinsight.sh --download-only ||:
+    echo "** 最新插件版本: $TDENGINE_PLUGIN_VERSION"
+
+    # 定义文件名
+    ZIP_FILE="tdengine-datasource-$TDENGINE_PLUGIN_VERSION.zip"
+    ZIP_FILE_LOCAL="tdengine-datasource.zip"
+    MD5_FILE="$ZIP_FILE.md5"
+    MD5_FILE_LOCAL="tdengine-datasource.zip.md5"
+
+    # 从 GitHub 下载 MD5 文件
+    REMOTE_MD5_URL="https://github.com/taosdata/grafanaplugin/releases/download/v$TDENGINE_PLUGIN_VERSION/$MD5_FILE"
+    echo "** 下载远程 MD5 文件: $REMOTE_MD5_URL"
+    curl --silent -L "$REMOTE_MD5_URL" -o "$MD5_FILE"
+
+    # 检查本地是否存在 MD5 文件
+    if [ -f "$MD5_FILE_LOCAL" ]; then
+        echo "** 本地 MD5 文件已存在，开始对比校验和..."
+
+        # 对比本地和远程的 MD5 文件
+        if cmp -s "$MD5_FILE_LOCAL" "$MD5_FILE"; then
+            echo "** 本地文件与远程文件一致，无需下载。"
+            #rm -f "$MD5_FILE.tmp"  # 删除临时文件
+        else
+            echo "** 本地文件与远程文件不一致，删除旧文件并下载新版本..."
+            rm -f "$ZIP_FILE_LOCAL" "$MD5_FILE_LOCAL"  # 删除旧文件
+            mv "$MD5_FILE" "$MD5_FILE_LOCAL"  # 使用新的 MD5 文件
+
+            # 调用下载函数
+            download_plugin "$TDENGINE_PLUGIN_VERSION"
+        fi
+    else
+        echo "** 本地 MD5 文件不存在，直接下载新版本..."
+        mv "$MD5_FILE" "$MD5_FILE_LOCAL"  # 使用新的 MD5 文件
+        cat "$MD5_FILE_LOCAL"
+        # 调用下载函数
+        download_plugin "$TDENGINE_PLUGIN_VERSION"
     fi
 }
 
@@ -869,15 +928,20 @@ function make_mac_pkg() {
     sudo mkdir -p /opt/tdengine/examples/taosbenchmark-json
     sudo cp $communityDir/tools/taos-tools/example/* /opt/tdengine/examples/taosbenchmark-json
 
+    sudo cp ${connectorDir}/TDinsight.sh ${mac_install_dir}/bin || exit 1
+    sudo cp ${connectorDir}/tdengine-datasource.zip ${mac_install_dir}/bin || exit 1
+    sudo cp ${connectorDir}/tdengine-datasource.zip.md5 ${mac_install_dir}/bin || exit 1
+
     # copy connectors
+    sudo rm -rf ${mac_install_dir}/connector
     sudo mkdir -p ${mac_install_dir}/connector
     cd ${mac_install_dir}/connector
 
-    sudo cp -r ${connectorDir}/driver-go . && sudo mv driver-go go && sudo rm -rf go/.git || exit 1
-    sudo cp -r ${connectorDir}/taos-connector-python . && sudo mv taos-connector-python python && sudo rm -rf python/.git || exit 1
-    sudo cp -r ${connectorDir}/taos-connector-node . && sudo mv taos-connector-node nodejs && sudo rm -rf nodejs/.git || exit 1
-    sudo cp -r ${connectorDir}/taos-connector-dotnet . && sudo mv taos-connector-dotnet dotnet && sudo rm -rf dotnet/.git || exit 1
-    sudo cp -r ${connectorDir}/taos-connector-rust . && sudo mv taos-connector-rust rust && sudo rm -rf rust/.git || exit 1
+    sudo cp -r ${connectorDir}/driver-go go && sudo rm -rf go/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-python python && sudo rm -rf python/.git  || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-node nodejs && sudo rm -rf nodejs/.git  || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-dotnet dotnet && sudo rm -rf dotnet/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-rust rust && sudo rm -rf rust/.git || exit 1
     sudo cp ${connectorDir}/taos-connector-jdbc/target/*.jar . || exit 1
 
     # others
@@ -911,7 +975,7 @@ function make_mac_pkg() {
 
         /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
 
-        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/taosudf,bin/taoskeeper,bin/taosadapter,bin/taos-explorer}
+        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/taosudf,bin/taoskeeper,bin/taosadapter,bin/taos-explorer,bin/TDinsight.sh,bin/tdengine-datasource.zip,bin/tdengine-datasource.zip.md5,bin/start-all.sh,bin/stop-all.sh}
         sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$os_arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s|$communityDir/packaging/tools/mac_install_summary.txt|$communityDir/packaging/tools/mac_install_summary_client.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
@@ -921,7 +985,7 @@ function make_mac_pkg() {
         
         cd $communityDir/packaging/tools
         git checkout -- $communityDir/packaging/tools/TDengine.pkgproj
-        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/taosudf,bin/taoskeeper,bin/taosadapter,bin/taos-explorer}
+        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/taosudf,bin/taoskeeper,bin/taosadapter,bin/taos-explorer,bin/TDinsight.sh,bin/tdengine-datasource.zip,bin/tdengine-datasource.zip.md5}
 
         sed -i '' "s/3.0.1.4/$version/g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s|/opt.*/tools/post.sh|$communityDir/packaging/tools/post.sh|g" $communityDir/packaging/tools/TDengine.pkgproj
@@ -1018,11 +1082,11 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-wait $pid3
-if [ $? -ne 0 ]; then
-    echo "build taoskeeper failed"
-    exit 1
-fi
+# wait $pid3
+# if [ $? -ne 0 ]; then
+#     echo "build taoskeeper failed"
+#     exit 1
+# fi
 
 wait $pid4
 if [ $? -ne 0 ]; then
