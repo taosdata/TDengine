@@ -1,4 +1,4 @@
-name: TDengine CI Test
+name: TDengine Test
 
 on:
   pull_request:
@@ -16,9 +16,10 @@ on:
       - 'source/common/src/tanalytics.c'
       - 'tests/parallel/tdgpt_cases.task'
       - 'tests/script/tsim/analytics'
+      - '**/*.md'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-TDengine
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-TDengine
   cancel-in-progress: true
 
 env:
