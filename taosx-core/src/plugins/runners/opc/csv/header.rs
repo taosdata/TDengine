@@ -1,9 +1,115 @@
 use anyhow::bail;
 use csv_async::StringRecord;
+use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 
-use crate::runners::opc::config::csv::column::CsvColumn;
+use crate::plugins::runners::opc::csv::column::CsvColumn;
 use crate::runners::opc::OpcType;
+
+pub const UA_HEADER: [&str; 16] = [
+    "No.",
+    "point_id",
+    "enabled",
+    "stable",
+    "tbname",
+    "value_col",
+    "value_transform",
+    "type",
+    "quality_col",
+    "ts_col",
+    "ts_transform",
+    "request_ts_col",
+    "request_ts_transform",
+    "received_ts_col",
+    "received_ts_transform",
+    "tag::VARCHAR(200)::name",
+];
+pub const UA_ROW: [&str; 16] = [
+    "",
+    "",
+    "",
+    "opc_{type}",
+    "t_{ns}_{id}",
+    "val",
+    "",
+    "",
+    "quality",
+    "ts",
+    "",
+    "qts",
+    "",
+    "rts",
+    "",
+    "",
+];
+
+pub const DA_HEADER: [&str; 16] = [
+    "No.",
+    "tag_name",
+    "enabled",
+    "stable",
+    "tbname",
+    "value_col",
+    "value_transform",
+    "type",
+    "quality_col",
+    "ts_col",
+    "ts_transform",
+    "request_ts_col",
+    "request_ts_transform",
+    "received_ts_col",
+    "received_ts_transform",
+    "tag::VARCHAR(200)::name",
+];
+
+pub const DA_ROW: [&str; 16] = [
+    "",
+    "",
+    "",
+    "opc_{type}",
+    "t_{tag_name}",
+    "val",
+    "",
+    "",
+    "quality",
+    "ts",
+    "",
+    "qts",
+    "",
+    "rts",
+    "",
+    "",
+];
+
+pub fn get_template(opc_type: OpcType, with_demo: bool) -> String {
+    match opc_type {
+        OpcType::OPCUA => ua_template(with_demo),
+        OpcType::OPCDA => da_template(with_demo),
+        OpcType::FAKE => unimplemented!("invalid opc type"),
+    }
+}
+
+fn ua_template(with_demo: bool) -> String {
+    let mut template = UA_HEADER.iter().join(",");
+    template.push('\n');
+    if with_demo {
+        template.push_str("1,ns=3;i=1010,1,opc_{type},t_{ns}_{id},val,val*1.8+32,double,quality,ts,,qts,,rts,,temperature\n");
+        template.push_str("2,ns=3;i=1011,1,opc_{type},t_{ns}_{id},val,val + 10,int,quality,ts,ts+8*3600*1000,qts,qts+8*3600*1000,rts,rts+8*3600*1000,pressure\n");
+        template.push_str("3,ns=5;s=abcd,1,opc_{type},t_{ns}_{id},val,,,quality,ts,ts-6*1000,qts,qts-6*1000,rts,rts-6*1000,current\n");
+    }
+    template
+}
+
+fn da_template(with_demo: bool) -> String {
+    let mut template = DA_HEADER.iter().join(",");
+    template.push('\n');
+    if with_demo {
+        template.push_str("1,root.parent.temperature,1,opc_{type},t_{tag_name},val,val*1.8+32,float,quality,ts,,qts,,rts,,temperature\n");
+        template.push_str("2,root.parent.pressure,1,opc_{type},t_{tag_name},val,val+10,,quality,ts,ts+8*3600*1000,qts,qts+8*3600*1000,rts,rts+8*3600*1000,pressure\n");
+        template.push_str("3,root.parent.current,1,opc_{type},t_{tag_name},val,,,quality,ts,ts-6*1000,qts,qts-6*1000,rts,rts-6*1000,current\n");
+    }
+    template
+}
 
 #[derive(Debug)]
 pub struct CsvHeader {
@@ -95,8 +201,8 @@ impl CsvHeader {
         self.enabled_index
     }
 
-    pub fn get_opc_type(&self) -> &OpcType {
-        &self.opc_type
+    pub fn get_opc_type(&self) -> OpcType {
+        self.opc_type
     }
 
     pub fn get_columns(&self) -> Vec<&CsvColumn> {
@@ -119,6 +225,45 @@ impl CsvHeader {
 mod tests {
     use super::*;
     use taosx_ipc::prelude::IpcDataType;
+
+    #[test]
+    fn test_get_template() {
+        let template = get_template(OpcType::OPCUA, true);
+        let lines = template.trim().split("\n").collect_vec();
+        assert_eq!(lines.len(), 4);
+        let header = StringRecord::from(lines[0].split(",").collect_vec());
+        let header = CsvHeader::try_new(OpcType::OPCUA, &header).unwrap();
+        assert_eq!(header.opc_type, OpcType::OPCUA);
+        assert_eq!(header.columns.len(), 16);
+        assert_eq!(header.get_column("point_id").unwrap().index, 1);
+        assert_eq!(header.get_primary_timestamp().unwrap().name, "ts_col");
+        assert_eq!(header.get_column("ts_transform").unwrap().index, 10);
+        assert_eq!(header.get_column("request_ts_col").unwrap().index, 11);
+        assert_eq!(header.get_column("request_ts_transform").unwrap().index, 12);
+        assert_eq!(header.get_column("received_ts_col").unwrap().index, 13);
+        assert_eq!(
+            header.get_column("received_ts_transform").unwrap().index,
+            14
+        );
+
+        let template = get_template(OpcType::OPCDA, true);
+        let lines = template.trim().split("\n").collect_vec();
+        assert_eq!(lines.len(), 4);
+        let header = StringRecord::from(lines[0].split(",").collect_vec());
+        let header = CsvHeader::try_new(OpcType::OPCDA, &header).unwrap();
+        assert_eq!(header.opc_type, OpcType::OPCDA);
+        assert_eq!(header.columns.len(), 16);
+        assert_eq!(header.get_column("tag_name").unwrap().index, 1);
+        assert_eq!(header.get_primary_timestamp().unwrap().name, "ts_col");
+        assert_eq!(header.get_column("ts_transform").unwrap().index, 10);
+        assert_eq!(header.get_column("request_ts_col").unwrap().index, 11);
+        assert_eq!(header.get_column("request_ts_transform").unwrap().index, 12);
+        assert_eq!(header.get_column("received_ts_col").unwrap().index, 13);
+        assert_eq!(
+            header.get_column("received_ts_transform").unwrap().index,
+            14
+        );
+    }
 
     #[tokio::test]
     async fn test_try_new() {

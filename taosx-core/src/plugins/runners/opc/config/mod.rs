@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use taos::Dsn;
 use tempfile::NamedTempFile;
 
-use crate::runners::opc::config::collect::CollectConfig;
-use crate::runners::opc::config::connect::ConnectConfig;
-use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{
+use crate::plugins::runners::opc::csv::CsvParser;
+use crate::plugins::runners::opc::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, OpcPointMappingRule,
 };
+use crate::runners::opc::config::collect::CollectConfig;
+use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
 use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
@@ -17,8 +17,6 @@ use crate::utils::validate_table_column_name;
 
 pub mod collect;
 mod connect;
-pub mod csv;
-pub mod model;
 pub mod points;
 mod report;
 
@@ -88,7 +86,7 @@ impl OPCConfig {
                 let (point_map, table_map) = rule.generate(points)?;
 
                 OpcModelConfig {
-                    opc_type: opc_type.clone(),
+                    opc_type,
                     generate_rule: Some(GeneratePointMappingBy::Rule(rule)),
                     point_config_map: point_map,
                     table_config_map: table_map,
@@ -283,19 +281,22 @@ impl OPCConfig {
     }
 
     /// 从 dsn 中解析 table_primary_key 参数：主键列。
-    /// "选择数据点位"时，table_primary_key 参数指定主键列，只能是 original_ts 或 received_ts。
+    /// "选择数据点位"时，table_primary_key 参数指定主键列，只能是 original_ts/request_ts/received_ts。
     pub fn parse_primary_key(dsn: &Dsn) -> anyhow::Result<Option<String>> {
         dsn.params.get("table_primary_key").map_or(Ok(None), |v| {
             if v.is_empty() {
                 return Ok(None);
             }
             match v.as_str() {
-                ColumnConfig::ORIGINAL_TS | ColumnConfig::RECEIVED_TS => Ok(Some(v.to_string())),
+                ColumnConfig::ORIGINAL_TS
+                | ColumnConfig::REQUEST_TS
+                | ColumnConfig::RECEIVED_TS => Ok(Some(v.to_string())),
                 _ => {
                     bail!(
-                        "invalid table_primary_key: {}, must be {} or {}",
+                        "invalid table_primary_key: {}, must be {} or {} or {}",
                         v.to_string(),
                         ColumnConfig::ORIGINAL_TS,
+                        ColumnConfig::REQUEST_TS,
                         ColumnConfig::RECEIVED_TS
                     );
                 }
@@ -406,7 +407,7 @@ mod tests {
         let result = OPCConfig::parse_primary_key(&dsn);
         assert!(result.is_err());
         assert_eq!(
-            "invalid table_primary_key: invalid, must be original_ts or received_ts",
+            "invalid table_primary_key: invalid, must be original_ts or request_ts or received_ts",
             result.err().unwrap().to_string()
         );
     }

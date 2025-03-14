@@ -190,7 +190,8 @@ import {
   connectivityCheckResult,
   validOpcFileResult,
   taskId,
-  validateFormFields
+  validateFormFields,
+  formatFromData
 } from '../model/util';
 
 const dataInProps = getDataInProps();
@@ -456,7 +457,7 @@ function handleBeforeUpload() {
 async function handleValidOpcFile() {
   // csv 文件合法性检查
   const params = {
-    dsn: sourceForm
+    dsn: formatFromData(sourceForm)
   };
 
   const result = await dataInProps.dataSource.api.validOpcFile(params);
