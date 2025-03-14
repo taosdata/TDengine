@@ -30,7 +30,7 @@ extern "C" {
 // |<---suid--->|<---version--->|<-------colName------>|<---type-->|<--fstOffset->|
 // |<-uint64_t->|<---int64_t--->|<--TSDB_COL_NAME_LEN-->|<-uint8_t->|<---int32_t-->|
 
-PACK_PUSH_MIN
+#pragma pack(push, 1)
 typedef struct TFileHeader {
   uint64_t suid;
   int64_t  version;

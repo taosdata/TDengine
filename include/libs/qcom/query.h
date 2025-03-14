@@ -96,7 +96,7 @@ typedef struct SExecResult {
   void*    res;
 } SExecResult;
 
-PACK_PUSH_MIN
+#pragma pack(push, 1)
 typedef struct SCTableMeta {
   uint64_t uid;
   uint64_t suid;
@@ -105,7 +105,7 @@ typedef struct SCTableMeta {
 } SCTableMeta;
 #pragma pack(pop)
 
-PACK_PUSH_MIN
+#pragma pack(push, 1)
 typedef struct STableMeta {
   // BEGIN: KEEP THIS PART SAME WITH SCTableMeta
   uint64_t uid;

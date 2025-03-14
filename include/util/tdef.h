@@ -33,6 +33,8 @@ extern "C" {
 #define PACK_PUSH_MIN _Pragma("pack(push, 1)")
 #endif
 
+#define PACK_POP _Pragma("pack(pop)")
+
 #define TSKEY             int64_t
 #define TSKEY_MIN         INT64_MIN
 #define TSKEY_MAX         INT64_MAX

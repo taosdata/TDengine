@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
+#include "tutil.h"
 #include "thash.h"
 #include "types.h"
 #include "xxhash.h"
@@ -180,7 +181,7 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   }
 }
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
-  uint64_t val = *(uint64_t *)key;
+  uint64_t val = taosGetUInt64Aligned((uint64_t *)key);
 
   uint64_t hash = val >> 16U;
   hash += (val & 0xFFFFU);

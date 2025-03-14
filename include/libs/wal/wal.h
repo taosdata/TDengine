@@ -68,7 +68,7 @@ typedef struct {
   int64_t logRetention;
 } SWalVer;
 
-PACK_PUSH_MIN
+#pragma pack(push, 1)
 // used by sync module
 typedef struct {
   int8_t   isWeek;

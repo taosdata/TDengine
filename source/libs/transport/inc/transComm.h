@@ -196,7 +196,7 @@ typedef struct {
   uint8_t secret[TSDB_PASSWORD_LEN];
 } STransUserMsg;
 
-#pragma pack(pop)
+PACK_POP
 
 int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet);
 int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet);

@@ -35,7 +35,7 @@
 #define tlvForEach(pDecoder, pTlv, code) \
   while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) && NULL != pTlv)
 
-PACK_PUSH_MIN
+#pragma pack(push, 1)
 
 typedef struct STlv {
   int16_t type;
@@ -381,7 +381,12 @@ static int32_t tlvDecodeI64(STlv* pTlv, int64_t* pValue) {
 static int32_t tlvDecodeValueI64(STlvDecoder* pDecoder, int64_t* pValue) {
   int32_t code = tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
   if (TSDB_CODE_SUCCESS == code) {
+#ifndef NO_UNALIGNED_ACCESS
     *pValue = ntohll(*pValue);
+#else
+    int64_t value = taosGetInt64Aligned(pValue);
+    taosSetInt64Aligned(pValue, ntohll(value));
+#endif
   }
   return code;
 }

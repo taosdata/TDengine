@@ -30,7 +30,7 @@ extern "C" {
 
 typedef int32_t (*hJoinImplFp)(SOperatorInfo*);
 
-PACK_PUSH_MIN
+#pragma pack(push, 1)
 typedef struct SBufRowInfo {
   void*    next;
   uint16_t pageId;

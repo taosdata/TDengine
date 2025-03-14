@@ -1205,9 +1205,9 @@ int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFNam
   int32_t  code = getMetaDataFromHash(pDbFName, strlen(pDbFName), pMetaCache->pDbInfo, (void**)&pDbInfo);
   if (TSDB_CODE_SUCCESS == code) {
     *pVersion = pDbInfo->vgVer;
-    *pDbId = pDbInfo->dbId;
+    taosSetInt64Aligned(pDbId, pDbInfo->dbId);
     *pTableNum = pDbInfo->tbNum;
-    *pStateTs = pDbInfo->stateTs;
+    taosSetInt64Aligned(pStateTs, pDbInfo->stateTs);
   }
   return code;
 }

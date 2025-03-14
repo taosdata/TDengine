@@ -570,7 +570,7 @@ static int tdbPageDefragment(SPage *pPage) {
 
 /* ---------------------------------------------------------------------------------------------------------- */
 
-PACK_PUSH_MIN
+#pragma pack(push, 1)
 typedef struct {
   u16 cellNum;
   u16 cellBody;
@@ -674,7 +674,7 @@ SPageMethods pageMethods = {
     setPageFreeCellInfo   // setFreeCellInfo
 };
 
-PACK_PUSH_MIN
+#pragma pack(push, 1)
 typedef struct {
   u8 cellNum[3];
   u8 cellBody[3];
