@@ -1202,6 +1202,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pOptions->pRollupFuncs);
       nodesDestroyList(pOptions->pSma);
       nodesDestroyList(pOptions->pDeleteMark);
+      nodesDestroyNode((SNode*)pOptions->pKeepNode);
       break;
     }
     case QUERY_NODE_COLUMN_OPTIONS: {

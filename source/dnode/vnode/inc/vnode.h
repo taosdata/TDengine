@@ -94,6 +94,7 @@ void   *vnodeGetIvtIdx(void *pVnode);
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
+int32_t vnodeGetStbKeep(SVnode *pVnode, tb_uid_t suid, int64_t *keep);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
 
@@ -349,6 +350,9 @@ int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader);
 int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader);
 int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value);
 void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
+
+int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
+void    metaFetchEntryFree(SMetaEntry **ppEntry);
 
 #ifdef __cplusplus
 }
