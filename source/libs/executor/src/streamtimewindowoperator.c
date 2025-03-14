@@ -5572,8 +5572,8 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
       continue;
     } else {
       if (pBlock->info.type != STREAM_NORMAL && pBlock->info.type != STREAM_INVALID) {
-        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-        QUERY_CHECK_CODE(code, lino, _end);
+        qDebug("===stream===%s ignore recv block. type:%d", GET_TASKID(pTaskInfo), pBlock->info.type);
+        continue;
       }
     }
 
