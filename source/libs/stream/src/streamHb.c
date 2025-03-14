@@ -297,7 +297,10 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   }
 
   if (setReqCheckpointId) {
-    ASSERT(pMeta->startInfo.curStage == START_MARK_REQ_CHKPID);
+    if (pMeta->startInfo.curStage != START_MARK_REQ_CHKPID) {
+      stError("vgId:%d internal unknown error, current stage is:%d expected:%d", pMeta->vgId, pMeta->startInfo.curStage,
+              START_MARK_REQ_CHKPID);
+    }
 
     pMeta->startInfo.curStage = START_WAIT_FOR_CHKPTID;
     SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = pMsg->ts};

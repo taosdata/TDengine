@@ -949,7 +949,7 @@ void streamBackendCleanup(void* arg) {
   streamMutexDestroy(&pHandle->mutex);
 
   streamMutexDestroy(&pHandle->cfMutex);
-  stDebug("vgId:%d destroy stream backend:%p", pHandle->vgId, pHandle);
+  stDebug("vgId:%d destroy stream backend:%p", (int32_t) pHandle->vgId, pHandle);
   taosMemoryFree(pHandle);
 }
 
