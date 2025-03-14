@@ -5968,7 +5968,7 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
     }
 #endif
   } else {
-    pJoin->timeRange = TSWINDOW_INITIALIZER;
+    TAOS_SET_OBJ_ALIGNED(&pJoin->timeRange, TSWINDOW_INITIALIZER);
   }
 
 #if 0
@@ -6013,7 +6013,7 @@ static int32_t hashJoinOptRewriteJoin(SOptimizeContext* pCxt, SLogicNode* pNode,
       if (TSWINDOW_IS_EQUAL(pScan->scanRange, TSWINDOW_INITIALIZER)) {
         continue;
       } else if (pJoin->timeRange.ekey < pScan->scanRange.skey || pJoin->timeRange.skey > pScan->scanRange.ekey) {
-        pJoin->timeRange = TSWINDOW_DESC_INITIALIZER;
+        TAOS_SET_OBJ_ALIGNED(&pJoin->timeRange, TSWINDOW_DESC_INITIALIZER);
         break;
       } else {
         pJoin->timeRange.skey = TMAX(pJoin->timeRange.skey, pScan->scanRange.skey);
@@ -6159,8 +6159,8 @@ int32_t stbJoinOptRewriteToTagScan(SLogicNode* pJoin, SNode* pNode) {
       SColumnNode* pTargetCol = (SColumnNode*)pTarget;
       FOREACH(pTag, pTags) {
         SColumnNode* pTagCol = (SColumnNode*)pTag;
-        if (0 == strcasecmp(pTargetCol->node.aliasName, pTagCol->colName) &&
-            0 == strcasecmp(pTargetCol->tableAlias, pTagCol->tableAlias)) {
+        if (0 == taosStrcasecmp(pTargetCol->node.aliasName, pTagCol->colName) &&
+            0 == taosStrcasecmp(pTargetCol->tableAlias, pTagCol->tableAlias)) {
           found = true;
           break;
         }

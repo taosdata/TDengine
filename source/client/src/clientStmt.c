@@ -762,7 +762,7 @@ int32_t stmtAsyncOutput(STscStmt* pStmt, void* param) {
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
   } else {
     STMT_ERR_RET(qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
-                                        &pStmt->sql.siInfo));
+                                        &pStmt->sql.siInfo, NULL));
 
     // taosMemoryFree(pParam->pTbData);
 
@@ -809,7 +809,7 @@ int32_t stmtStartBindThread(STscStmt* pStmt) {
   }
 
   if (taosThreadCreate(&pStmt->bindThread, &thAttr, stmtBindThreadFunc, pStmt) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     STMT_ERR_RET(terrno);
   }
 

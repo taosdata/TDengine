@@ -145,7 +145,11 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (g_pNodeAllocator->pCurrChunk->usedSize + size > g_pNodeAllocator->pCurrChunk->availableSize) {
+  int32_t alignedSize = size;
+#ifdef NO_UNALIGNED_ACCESS
+  alignedSize = (size + 3) & (~3);
+#endif
+  if (g_pNodeAllocator->pCurrChunk->usedSize + alignedSize > g_pNodeAllocator->pCurrChunk->availableSize) {
     int32_t code = callocNodeChunk(g_pNodeAllocator, NULL);
     if (TSDB_CODE_SUCCESS != code) {
       *pOut = NULL;
@@ -153,25 +157,31 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
     }
   }
   void* p = g_pNodeAllocator->pCurrChunk->pBuf + g_pNodeAllocator->pCurrChunk->usedSize;
-  g_pNodeAllocator->pCurrChunk->usedSize += size;
+  g_pNodeAllocator->pCurrChunk->usedSize += alignedSize;
   *pOut = p;
   return TSDB_CODE_SUCCESS;
   ;
 }
 
+#ifdef NO_UNALIGNED_ACCESS
+#define NODE_ALLOCATOR_HEAD_LEN 4
+#else
+#define NODE_ALLOCATOR_HEAD_LEN 1
+#endif
+
 static int32_t nodesCalloc(int32_t num, int32_t size, void** pOut) {
   void*   p = NULL;
-  int32_t code = nodesCallocImpl(num * size + 1, &p);
+  int32_t code = nodesCallocImpl(num * size + NODE_ALLOCATOR_HEAD_LEN, &p);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
   *(char*)p = (NULL != g_pNodeAllocator) ? 1 : 0;
-  *pOut = (char*)p + 1;
+  *pOut = (char*)p + NODE_ALLOCATOR_HEAD_LEN;
   return TSDB_CODE_SUCCESS;
 }
 
 void nodesFree(void* p) {
-  char* ptr = (char*)p - 1;
+  char* ptr = (char*)p - NODE_ALLOCATOR_HEAD_LEN;
   if (0 == *ptr) {
     taosMemoryFree(ptr);
   }
@@ -190,7 +200,7 @@ static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocato
     return code;
   }
   if (0 != taosThreadMutexInit(&(*pAllocator)->mutex, NULL)) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return TSDB_CODE_SUCCESS;
 }

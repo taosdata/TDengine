@@ -286,7 +286,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
     tsdbRemoveFile(fobj->fname);
     return;
   }
-
+#ifdef USE_S3
   if (!remove_all) {
     // remove local last chunk file
     char lc_path[TSDB_FILENAME_LEN];
@@ -330,6 +330,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
 
     tsdbRemoveFile(lc_path);
   }
+#endif
 }
 
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {

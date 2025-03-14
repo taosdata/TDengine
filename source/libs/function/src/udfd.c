@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_UDF
 // clang-format off
 #include "uv.h"
 #include "os.h"
@@ -1078,7 +1079,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (file == NULL) {
-    fnError("taosudf write udf shared library: %s failed, error: %d %s", path, errno, strerror(terrno));
+    fnError("taosudf write udf shared library: %s failed, error: %d %s", path, ERRNO, strerror(ERRNO));
     return TSDB_CODE_FILE_CORRUPTED;
   }
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
@@ -1865,3 +1866,4 @@ _exit:
 
   return code;
 }
+#endif

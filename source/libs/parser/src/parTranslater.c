@@ -76,7 +76,7 @@ typedef struct SSysTableShowAdapter {
   const char* pDbName;
   const char* pTableName;
   int32_t     numOfShowCols;
-  const char* pShowCols[2];
+  const char* pShowCols[3];
 } SSysTableShowAdapter;
 
 typedef struct SCollectJoinCondsContext {
@@ -187,8 +187,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .showType = QUERY_NODE_SHOW_STREAMS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_STREAMS,
-    .numOfShowCols = 1,
-    .pShowCols = {"stream_name"}
+    .numOfShowCols = 3,
+    .pShowCols = {"stream_name","status","message"}
   },
   {
     .showType = QUERY_NODE_SHOW_TABLES_STMT,
@@ -2154,7 +2154,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       pVal->datum.d = taosStr2Double(pVal->literal, NULL);
-      if (strict && (((pVal->datum.d == HUGE_VAL || pVal->datum.d == -HUGE_VAL) && errno == ERANGE) ||
+      if (strict && (((pVal->datum.d == HUGE_VAL || pVal->datum.d == -HUGE_VAL) && ERRNO == ERANGE) ||
                      isinf(pVal->datum.d) || isnan(pVal->datum.d))) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
@@ -3751,7 +3751,7 @@ static bool isWindowJoinSubTbTag(SSelectStmt* pSelect, SNode* pNode) {
   }
 
   SRealTableNode* pTargetTable = pProbeTable;
-  if (0 != strcasecmp(pCol->tableAlias, pProbeTable->table.tableAlias)) {
+  if (0 != taosStrcasecmp(pCol->tableAlias, pProbeTable->table.tableAlias)) {
     pTargetTable = pBuildTable;
   }
 
@@ -3791,7 +3791,7 @@ static bool isWindowJoinSubTbname(SSelectStmt* pSelect, SNode* pNode) {
   SRealTableNode* pTargetTable = pProbeTable;
   bool            isProbeTable = true;
   SValueNode*     pVal = (SValueNode*)nodesListGetNode(pFuncNode->pParameterList, 0);
-  if (NULL != pVal && 0 != strcasecmp(pVal->literal, pProbeTable->table.tableAlias)) {
+  if (NULL != pVal && 0 != taosStrcasecmp(pVal->literal, pProbeTable->table.tableAlias)) {
     pTargetTable = pBuildTable;
     isProbeTable = false;
   }
@@ -5966,7 +5966,7 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
     if (nodeType(pNew) == QUERY_NODE_VALUE) {
-      *pTimeRange = TSWINDOW_INITIALIZER;
+      TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     } else {
       code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
     }
@@ -5976,7 +5976,7 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
 
 static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWindow* pTimeRange) {
   if (NULL == pWhere) {
-    *pTimeRange = TSWINDOW_INITIALIZER;
+    TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5994,7 +5994,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWi
       bool isStrict = false;
       code = getTimeRange(&pPrimaryKeyCond, pTimeRange, &isStrict);
     } else {
-      *pTimeRange = TSWINDOW_INITIALIZER;
+     TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     }
   }
   nodesDestroyNode(pCond);
@@ -8184,10 +8184,9 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
 
 static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   if (NULL == pDelete->pWhere) {
-    pDelete->timeRange = TSWINDOW_INITIALIZER;
+    TAOS_SET_OBJ_ALIGNED(&pDelete->timeRange, TSWINDOW_INITIALIZER);
     return TSDB_CODE_SUCCESS;
   }
-
   SNode*  pPrimaryKeyCond = NULL;
   SNode*  pOtherCond = NULL;
   int32_t code = filterPartitionCond(&pDelete->pWhere, &pPrimaryKeyCond, NULL, &pDelete->pTagCond, &pOtherCond);
@@ -8202,7 +8201,7 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
       }
     } else {
-      pDelete->timeRange = TSWINDOW_INITIALIZER;
+      TAOS_SET_OBJ_ALIGNED(&pDelete->timeRange, TSWINDOW_INITIALIZER);
     }
   }
   nodesDestroyNode(pPrimaryKeyCond);
@@ -10820,7 +10819,7 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   const char* validConfigs[] = {
       "encrypt_key",
   };
-  if (0 == strncasecmp(cfgReq.config, validConfigs[0], strlen(validConfigs[0]) + 1)) {
+  if (0 == taosStrncasecmp(cfgReq.config, validConfigs[0], strlen(validConfigs[0]) + 1)) {
     int32_t klen = strlen(cfgReq.value);
     if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
       tFreeSMCfgDnodeReq(&cfgReq);
@@ -12635,6 +12634,7 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
+  parserInfo("[create stream with histroy] create select last ts query, db:%s, table:%s", pDb, pTable);
   tstrncpy(col->tableAlias, pTable, tListLen(col->tableAlias));
   tstrncpy(col->colName, pkColName, tListLen(col->colName));
   SNodeList* pParameterList = NULL;
@@ -12839,7 +12839,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
     getSourceDatabase(pStmt->pQuery, pCxt->pParseCxt->acctId, pReq->sourceDB);
     code = nodesNodeToString(pStmt->pQuery, false, &pReq->ast, NULL);
   }
-  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory) {
+  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory && (pCxt->pParseCxt->streamRunHistory || !tsStreamRunHistoryAsync)) {
     SRealTableNode* pTable = (SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable);
     code = createLastTsSelectStmt(pTable->table.dbName, pTable->table.tableName, pTable->pMeta->schema[0].name,
                                   &pStmt->pPrevQuery);
@@ -13061,6 +13061,7 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, SSDa
     code = buildCmdMsg(&cxt, TDMT_MND_CREATE_STREAM, (FSerializeFunc)tSerializeSCMCreateStreamReq, pStmt->pReq);
   }
 
+  qInfo("[create stream with histroy] post create stream, lastTs:%" PRId64, pStmt->pReq->lastTs);
   if (TSDB_CODE_SUCCESS == code) {
     code = setQuery(&cxt, pQuery);
   }
@@ -16021,7 +16022,7 @@ static int32_t prepareReadCsvFile(STranslateContext* pCxt, SCreateSubTableFromFi
   return code;
 
 _ERR:
-  taosCloseFile(&fp);
+  TAOS_UNUSED(taosCloseFile(&fp));
   taosMemoryFreeClear(pCreateInfo);
   destructParseFileContext(&pParFileCxt);
   return code;

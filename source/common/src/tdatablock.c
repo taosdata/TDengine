@@ -98,7 +98,7 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 }
 
 static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
-    if (isNull || pData == NULL) {
+  if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
     if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
       pColumnInfoData->varmeta.offset[rowIndex] = -1;  // it is a null value of VAR type.
@@ -1472,7 +1472,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, 0);
         SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
         if (pColInfoData == NULL || pOrder == NULL) {
-          return errno;
+          return terrno;
         }
 
         int64_t p0 = taosGetTimestampUs();
@@ -1861,14 +1861,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // window start ts
   void* px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // window end ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1878,14 +1878,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // uid
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // group id
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1895,14 +1895,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // calculate start ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // calculate end ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1911,7 +1911,7 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   infoData.info.bytes = VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -3260,7 +3260,11 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   data += sizeof(bool);
 
   *actualLen = dataLen;
+#ifndef NO_UNALIGNED_ACCESS
   *groupId = pBlock->info.id.groupId;
+#else
+  taosSetPUInt64Aligned(groupId, &pBlock->info.id.groupId);
+#endif
   if (dataLen > dataBuflen) goto _exit;
 
   return dataLen;
@@ -3300,7 +3304,11 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   pStart += sizeof(int32_t);
 
   // group id sizeof(uint64_t)
+#ifndef NO_UNALIGNED_ACCESS
   pBlock->info.id.groupId = *(uint64_t*)pStart;
+#else
+  taosSetPUInt64Aligned(&pBlock->info.id.groupId, (uint64_t*)pStart);
+#endif
   pStart += sizeof(uint64_t);
 
   if (pBlock->pDataBlock == NULL) {

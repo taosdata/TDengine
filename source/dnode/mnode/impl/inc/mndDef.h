@@ -833,7 +833,7 @@ typedef struct {
 
   int32_t indexForMultiAggBalance;
   int8_t  subTableWithoutMd5;
-  char    reserve[256];
+  char    reserve[TSDB_RESERVE_VALUE_LEN];
 
 } SStreamObj;
 
