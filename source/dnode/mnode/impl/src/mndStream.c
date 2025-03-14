@@ -878,10 +878,8 @@ static int32_t mndProcessFailedStreamReq(SRpcMsg *pReq) {
   }
 
   taosWLockLatch(&pStream->lock);
-  if (pStream->status == STREAM_STATUS__INIT){
-    pStream->status = STREAM_STATUS__FAILED;
-    tstrncpy(pStream->reserve, tstrerror(errCode), sizeof(pStream->reserve));
-  }
+  pStream->status = STREAM_STATUS__FAILED;
+  tstrncpy(pStream->reserve, tstrerror(errCode), sizeof(pStream->reserve));
   taosWUnLockLatch(&pStream->lock);
   mndReleaseStream(pMnode, pStream);
 
@@ -921,7 +919,9 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     if (pStream->tasks != NULL){
       if (createReq.igExists) {
         mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
-        goto _OVER;
+        mndReleaseStream(pMnode, pStream);
+        tFreeSCMCreateStreamReq(&createReq);
+        return code;
       } else {
         code = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
         goto _OVER;

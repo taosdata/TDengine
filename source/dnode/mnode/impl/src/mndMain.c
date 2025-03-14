@@ -419,7 +419,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndStreamCheckNode(pMnode);
   }
 
-  if (sec % 10 == 0) {
+  if (sec % (tsStreamFailedTimeout/1000) == 0) {
     mndStreamCheckStatus(pMnode);
   }
 
