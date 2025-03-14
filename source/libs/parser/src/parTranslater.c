@@ -13540,7 +13540,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   if (TSDB_CODE_SUCCESS == code) {
     code = buildStreamNotifyOptions(pCxt, pStmt->pNotifyOptions, pReq);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pCxt->pMetaCache != NULL) {
     TSWAP(pReq->pVSubTables, pCxt->pMetaCache->pVSubTables);
   }
   return code;
