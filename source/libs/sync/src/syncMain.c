@@ -943,11 +943,11 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
       // after raft member change, need to handle 1->2 switching point
       // at this point, need to switch entry handling thread
       if (pSyncNode->replicaNum == 1) {
-        sTrace("vgId:%d, propose optimized msg, index:%" PRId64 " type:%s", pSyncNode->vgId, retIndex,
+        sDebug("vgId:%d, index:%" PRId64 ", propose optimized msg type:%s", pSyncNode->vgId, retIndex,
                TMSG_INFO(pMsg->msgType));
         return 1;
       } else {
-        sTrace("vgId:%d, propose optimized msg, return to normal, index:%" PRId64
+        sDebug("vgId:%d, index:%" PRId64 ", propose optimized msg, return to normal,"
                " type:%s, "
                "handle:%p",
                pSyncNode->vgId, retIndex, TMSG_INFO(pMsg->msgType), pMsg->info.handle);
@@ -971,7 +971,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
     }
 
     const STraceId *trace = &pMsg->info.traceId;
-    sGDebug("vgId:%d, propose msg, type:%s", pSyncNode->vgId, TMSG_INFO(pMsg->msgType));
+    sGDebug("vgId:%d, msg:%p, propose msg, type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
     code = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
       sWarn("vgId:%d, failed to propose msg while enqueue since %s", pSyncNode->vgId, terrstr());
@@ -1466,7 +1466,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
 
   if (lastVer != -1 && endIndex != lastVer + 1) {
     code = TSDB_CODE_WAL_LOG_INCOMPLETE;
-    sWarn("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64 "",
+    sWarn("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64,
           pSyncNode->vgId, terrstr(), endIndex - 1, lastVer);
     // TAOS_RETURN(code);
   }
@@ -2367,7 +2367,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
 
-  sInfo("vgId:%d, become leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64 "", pSyncNode->vgId,
+  sInfo("vgId:%d, become leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64, pSyncNode->vgId,
         raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, lastIndex);
 }
 
@@ -2811,7 +2811,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       }
 
     } else {
-      sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64 "", pSyncNode->vgId,
+      sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64, pSyncNode->vgId,
              timerLogicClock, msgLogicClock);
     }
   }
@@ -3404,12 +3404,12 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
   TAOS_RETURN(code);
 }
 
-int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
+int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
   int32_t code = -1;
   if (pEntry->dataLen < sizeof(SMsgHead)) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    sError("vgId:%d, cannot append an invalid client request with no msg head. type:%s, dataLen:%d", ths->vgId,
-           TMSG_INFO(pEntry->originalRpcType), pEntry->dataLen);
+    sError("vgId:%d, msg:%p, cannot append an invalid client request with no msg head, type:%s dataLen:%d", ths->vgId,
+           pMsg, TMSG_INFO(pEntry->originalRpcType), pEntry->dataLen);
     syncEntryDestroy(pEntry);
     pEntry = NULL;
     goto _out;
@@ -3417,10 +3417,10 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
 
   // append to log buffer
   if ((code = syncLogBufferAppend(ths->pLogBuf, ths, pEntry)) < 0) {
-    sError("vgId:%d, failed to enqueue sync log buffer, index:%" PRId64, ths->vgId, pEntry->index);
+    sError("vgId:%d, index:%" PRId64 ", failed to enqueue sync log buffer", ths->vgId, pEntry->index);
     int32_t ret = 0;
     if ((ret = syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno, false)) != 0) {
-      sError("vgId:%d, failed to execute fsm, since %s", ths->vgId, tstrerror(ret));
+      sError("vgId:%d, index:%" PRId64 ", failed to execute fsm since %s", ths->vgId, pEntry->index, tstrerror(ret));
     }
     syncEntryDestroy(pEntry);
     pEntry = NULL;
@@ -3430,21 +3430,23 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   code = 0;
 _out:;
   // proceed match index, with replicating on needed
-  SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append");
+  SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append", pMsg);
 
-  if (pEntry != NULL)
-    sTrace("vgId:%d, append raft entry. index:%" PRId64 ", term:%" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
+  if (pEntry != NULL) {
+    sDebug("vgId:%d, index:%" PRId64 ", append raft entry, msg:%p term:%" PRId64 " buf:[%" PRId64 " %" PRId64 " %" PRId64
            ", %" PRId64 ")",
-           ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
+           ths->vgId, pEntry->index, pMsg, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
            ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
+  }
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     int64_t index = syncNodeUpdateAssignedCommitIndex(ths, matchIndex);
-    sTrace("vgId:%d, update assigned commit index %" PRId64 "", ths->vgId, index);
+    sTrace("vgId:%d, index:%" PRId64 ", update assigned commit, msg:%p", ths->vgId, index, pMsg);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
         syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex) < 0) {
-      sError("vgId:%d, failed to commit until commitIndex:%" PRId64 "", ths->vgId, ths->commitIndex);
+      sError("vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64, ths->vgId, index,
+             pMsg, ths->commitIndex);
       code = TSDB_CODE_SYN_INTERNAL_ERROR;
     }
   }
@@ -3456,11 +3458,13 @@ _out:;
 
   // single replica
   SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, matchIndex);
-  sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
+  sTrace("vgId:%d, index:%" PRId64 ", raft entry update commit, msg:%p return index:%" PRId64, ths->vgId, matchIndex,
+         pMsg, returnIndex);
 
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
       (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex)) < 0) {
-    sError("vgId:%d, failed to commit until commitIndex:%" PRId64 "", ths->vgId, ths->commitIndex);
+    sError("vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64 " return index:%" PRId64,
+           ths->vgId, matchIndex, pMsg, ths->commitIndex, returnIndex);
   }
 
   TAOS_RETURN(code);
@@ -3522,7 +3526,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
     TAOS_RETURN(code);
   }
 
-  code = syncNodeAppend(ths, pEntry);
+  code = syncNodeAppend(ths, pEntry, NULL);
   TAOS_RETURN(code);
 }
 
@@ -3666,7 +3670,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (pMgr == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("vgId:%d, failed to get log repl mgr for the peer at addr 0x016%" PRIx64 "", ths->vgId, pMsg->srcId.addr);
+    sError("vgId:%d, failed to get log repl mgr for the peer at addr 0x016%" PRIx64, ths->vgId, pMsg->srcId.addr);
     TAOS_RETURN(code);
   }
 
@@ -3706,7 +3710,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT || pMsg->cmd == SYNC_LOCAL_CMD_LEARNER_CMT) {
     if (syncLogBufferIsEmpty(ths->pLogBuf)) {
-      sError("vgId:%d, sync log buffer is empty.", ths->vgId);
+      sError("vgId:%d, sync log buffer is empty", ths->vgId);
       return 0;
     }
     SyncTerm matchTerm = syncLogBufferGetLastMatchTerm(ths->pLogBuf);
@@ -3715,10 +3719,10 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
     if (pMsg->currentTerm == matchTerm) {
       SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
-      sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
+      sTrace("vgId:%d, raft entry update commit return index:%" PRId64, ths->vgId, returnIndex);
     }
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
-      sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64 "", ths->vgId, terrstr(),
+      sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64, ths->vgId, terrstr(),
              ths->commitIndex);
     }
   } else {
@@ -3741,7 +3745,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex) {
   const STraceId *trace = &pMsg->info.traceId;
-  sGTrace("vgId:%d, process client request", ths->vgId);
+  sGDebug("vgId:%d, msg:%p, process client request", ths->vgId, pMsg);
 
   int32_t code = 0;
 
@@ -3755,7 +3759,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   }
 
   if (pEntry == NULL) {
-    sGError("vgId:%d, failed to process client request since %s", ths->vgId, terrstr());
+    sGError("vgId:%d, msg:%p, failed to process client request since %s", ths->vgId, pMsg, terrstr());
     return TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
@@ -3775,7 +3779,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
       int32_t code = syncNodeCheckChangeConfig(ths, pEntry);
       if (code < 0) {
-        sGError("vgId:%d, failed to check change config since %s.", ths->vgId, terrstr());
+        sGError("vgId:%d, msg:%p, failed to check change config since %s", ths->vgId, pMsg, terrstr());
         syncEntryDestroy(pEntry);
         pEntry = NULL;
         TAOS_RETURN(code);
@@ -3784,7 +3788,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       if (code > 0) {
         SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
         int32_t num = syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
-        sGDebug("vgId:%d, get response stub for config change, seqNum:%" PRIu64 ", num:%d", ths->vgId, pEntry->seqNum,
+        sGDebug("vgId:%d, msg:%p, get response stub for config change, seqNum:%" PRIu64 " num:%d", ths->vgId,  pMsg, pEntry->seqNum,
                 num);
         if (rsp.info.handle != NULL) {
           tmsgSendRsp(&rsp);
@@ -3795,7 +3799,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       }
     }
 
-    code = syncNodeAppend(ths, pEntry);
+    code = syncNodeAppend(ths, pEntry, pMsg);
     return code;
   } else {
     syncEntryDestroy(pEntry);

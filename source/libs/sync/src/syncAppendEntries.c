@@ -177,13 +177,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 _SEND_RESPONSE:
   pEntry = NULL;
-  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm, "OnAppn");
+  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm, "OnAppn", pRpcMsg);
   bool matched = (pReply->matchIndex >= pReply->lastSendIndex);
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
     SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
-    sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
+    sTrace("vgId:%d, update commit return index:%" PRId64, ths->vgId, returnIndex);
   }
 
   TRACE_SET_MSGID(&(rpcRsp.info.traceId), tGenIdPI64());
