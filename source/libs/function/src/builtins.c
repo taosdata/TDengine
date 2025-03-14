@@ -5804,6 +5804,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = leastFunction,
     .finalizeFunc = NULL
   },
+  {
+    .name = "_group_id",
+    .type = FUNCTION_TYPE_GROUP_ID,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL,
+  },
+    {
+    .name = "_iswindowfilled",
+    .type = FUNCTION_TYPE_IS_WINDOW_FILLED,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
+    .translateFunc = translateIsFilledPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = isWinFilledFunction,
+    .finalizeFunc = NULL,
+  },
 };
 // clang-format on
 

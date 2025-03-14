@@ -303,6 +303,10 @@ extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern bool    tsCompareAsStrInGreatest;
 
+extern char     tsAdapterFqdn[];
+extern uint16_t tsAdapterPort;
+extern char     tsAdapterToken[];
+
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

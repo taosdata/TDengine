@@ -3762,6 +3762,8 @@ static int8_t getTriggerType(uint32_t tokenType) {
       return STREAM_TRIGGER_MAX_DELAY;
     case TK_FORCE_WINDOW_CLOSE:
       return STREAM_TRIGGER_FORCE_WINDOW_CLOSE;
+    case TK_CONTINUOUS_WINDOW_CLOSE:
+      return STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE;
     default:
       break;
   }
@@ -3782,6 +3784,9 @@ SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptions
       pStreamOptions->triggerType = getTriggerType(pToken->type);
       if (STREAM_TRIGGER_MAX_DELAY == pStreamOptions->triggerType) {
         pStreamOptions->pDelay = pNode;
+      }
+      if (STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE == pStreamOptions->triggerType) {
+        pStreamOptions->pRecInterval = pNode;
       }
       break;
     case SOPT_WATERMARK_SET:

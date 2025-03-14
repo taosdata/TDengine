@@ -10178,6 +10178,12 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->notifyEventTypes));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->notifyErrorHandle));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->notifyHistory));
+
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->recalculateInterval));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pWstartName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pWendName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pGroupIdName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pIsWindowFilledName));
   tEndEncode(&encoder);
 
 _exit:
@@ -10334,6 +10340,14 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->notifyEventTypes));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->notifyErrorHandle));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->notifyHistory));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->recalculateInterval));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pWstartName));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pWendName));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pGroupIdName));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pIsWindowFilledName));
   }
 
   tEndDecode(&decoder);
