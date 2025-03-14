@@ -106,19 +106,19 @@ typedef enum {
     }                                                                    \
   } while (0)
 
-#define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)                          \
-  do {                                                                                        \
-    _t*                d = (_t*)(_col->pData);                                                \
-    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                          \
-    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                                 \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {                      \
-        continue;                                                                             \
-      };                                                                                      \
+#define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)                                  \
+  do {                                                                                                \
+    _t*                d = (_t*)(_col->pData);                                                        \
+    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                                  \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                                         \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {                              \
+        continue;                                                                                     \
+      };                                                                                              \
       overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, DECIMAL_WORD_NUM(_t)); \
-      if (overflow) break;                                                                    \
+      if (overflow) break;                                                                            \
       pOps->add(_res, d + i, DECIMAL_WORD_NUM(_t));                                                   \
-      (numOfElem)++;                                                                          \
-    }                                                                                         \
+      (numOfElem)++;                                                                                  \
+    }                                                                                                 \
   } while (0)
 
 #define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)             \

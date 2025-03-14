@@ -986,8 +986,8 @@ static int32_t translateAvg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   bool       isMergeFunc = pFunc->funcType == FUNCTION_TYPE_AVG_MERGE || pFunc->funcType == FUNCTION_TYPE_AVG_STATE_MERGE;
   SDataType* pInputDt = getSDataTypeFromNode(
       nodesListGetNode(isMergeFunc ? pFunc->pSrcFuncRef->pParameterList : pFunc->pParameterList, 0));
+  pFunc->srcFuncInputType = *pInputDt;
   if (IS_DECIMAL_TYPE(pInputDt->type)) {
-    pFunc->srcFuncInputType = *pInputDt;
     SDataType sumDt = {.type = TSDB_DATA_TYPE_DECIMAL,
                        .bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes,
                        .precision = TSDB_DECIMAL_MAX_PRECISION,
