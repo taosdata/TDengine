@@ -59,6 +59,7 @@ class TDTestCase(TBase):
         tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_13 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 365001",expectErrInfo="Invalid option keep value")
         tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_14 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1f",expectErrInfo="syntax error")
         tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_15 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1d1",expectErrInfo="syntax error")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_16 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 21474836479999",expectErrInfo="Invalid option keep value")
 
     def check_alter_stb_with_keep(self):
         tdLog.info(f"check alter stb with keep")
