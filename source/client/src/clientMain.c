@@ -2220,16 +2220,17 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       }
     }
 
+    SVCreateTbReq *pCreateTbReq = NULL;
     if (bindv->tags && bindv->tags[i]) {
-      code = stmtSetTbTags2(stmt, bindv->tags[i]);
-      if (code) {
-        goto out;
-      }
-    } else if (pStmt->bInfo.tbType == TSDB_CHILD_TABLE && pStmt->sql.autoCreateTbl) {
-      code = stmtSetTbTags2(stmt, NULL);
-      if (code) {
-        return code;
-      }
+      code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
+    } else if (pStmt->sql.autoCreateTbl || pStmt->bInfo.needParse) {
+      code = stmtCheckTags2(stmt, &pCreateTbReq);
+    } else {
+      pStmt->sql.autoCreateTbl = false;
+    }
+
+    if (code) {
+      goto out;
     }
 
     if (bindv->bind_cols && bindv->bind_cols[i]) {
@@ -2249,7 +2250,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         goto out;
       }
 
-      code = stmtBindBatch2(stmt, bind, col_idx);
+      code = stmtBindBatch2(stmt, bind, col_idx, pCreateTbReq);
       if (TSDB_CODE_SUCCESS != code) {
         goto out;
       }
