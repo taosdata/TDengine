@@ -113,8 +113,6 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
     taosMemoryFree(pReq);
     return code;
   }
-
-  mDebug("set the resume action for trans:%d", pTrans->id);
   return code;
 }
 
@@ -438,6 +436,8 @@ int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pSt
     return code;
   }
 
+  mDebug("transId:%d start to create resume actions", pTrans->id);
+
   while (streamTaskIterNextTask(pIter)) {
     SStreamTask *pTask = NULL;
     code = streamTaskIterGetCurrent(pIter, &pTask);
@@ -578,7 +578,7 @@ int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *
   return 0;
 }
 
-int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* pTask, int64_t checkpointId, int64_t ts) {
+int32_t doSetCheckpointIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* pTask, int64_t checkpointId, int64_t ts) {
   SRestoreCheckpointInfo req = {
       .taskId = pTask->id.taskId,
       .streamId = pTask->id.streamId,
@@ -624,7 +624,7 @@ int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* p
     return code;
   }
 
-  code = setTransAction(pTrans, pBuf, tlen, TDMT_STREAM_CONSEN_CHKPT, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
+  code = setTransAction(pTrans, pBuf, tlen, TDMT_STREAM_CONSEN_CHKPT, &epset, TSDB_CODE_STREAM_TASK_IVLD_STATUS, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBuf);
   }
@@ -632,6 +632,50 @@ int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* p
   return code;
 }
 
+int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream, int64_t checkpointId,
+                                  SArray *pList) {
+  SStreamTaskIter *pIter = NULL;
+  int32_t          num = taosArrayGetSize(pList);
+
+  taosWLockLatch(&pStream->lock);
+  int32_t code = createStreamTaskIter(pStream, &pIter);
+  if (code) {
+    taosWUnLockLatch(&pStream->lock);
+    mError("failed to create stream task iter:%s", pStream->name);
+    return code;
+  }
+
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = NULL;
+    code = streamTaskIterGetCurrent(pIter, &pTask);
+    if (code) {
+      destroyStreamTaskIter(pIter);
+      taosWUnLockLatch(&pStream->lock);
+      return code;
+    }
+
+    // find the required entry
+    int64_t startTs = 0;
+    for(int32_t i = 0; i < num; ++i) {
+      SCheckpointConsensusEntry* pEntry = taosArrayGet(pList, i);
+      if (pEntry->req.taskId == pTask->id.taskId) {
+        startTs = pEntry->req.startTs;
+        break;
+      }
+    }
+
+    code = doSetCheckpointIdAction(pMnode, pTrans, pTask, checkpointId, startTs);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyStreamTaskIter(pIter);
+      taosWUnLockLatch(&pStream->lock);
+      return code;
+    }
+  }
+
+  destroyStreamTaskIter(pIter);
+  taosWUnLockLatch(&pStream->lock);
+  return 0;
+}
 
 int32_t mndStreamSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t checkpointId,
                                      int8_t mndTrigger) {

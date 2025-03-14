@@ -192,7 +192,8 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
 
     int32_t cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1;
 
-    TAOS_CHECK_EXIT(buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true, &tbData.pCreateTbReq));
+    TAOS_CHECK_EXIT(buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true, &tbData.pCreateTbReq,
+                                            ""));
 
     {
       uint64_t groupId = pDataBlock->info.id.groupId;

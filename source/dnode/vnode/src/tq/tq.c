@@ -1064,11 +1064,19 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   // 1. get the related stream task
   code = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId, &pStreamTask);
   if (pStreamTask == NULL) {
-    tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
-            pTask->streamTaskId.taskId, pTask->id.idStr);
 
-    tqDebug("s-task:%s fill-history task set status to be dropping", id);
-    code = streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
+    int32_t ret = streamMetaAcquireTaskUnsafe(pMeta, &pTask->streamTaskId, &pStreamTask);
+    if (ret == 0 && pStreamTask != NULL) {
+      tqWarn("s-task:0x%" PRIx64 " stopped, not ready for related task:%s scan-history work, do nothing",
+             pTask->streamTaskId.taskId, pTask->id.idStr);
+      streamMetaReleaseTask(pMeta, pStreamTask);
+    } else {
+      tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
+              pTask->streamTaskId.taskId, pTask->id.idStr);
+
+      tqDebug("s-task:%s fill-history task set status to be dropping", id);
+      code = streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
+    }
 
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1347,10 +1355,24 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
-  SStreamCheckpointReadyMsg* pReq = (SStreamCheckpointReadyMsg*)pMsg->pCont;
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
-    tqError("vgId:%d not leader, ignore the retrieve checkpoint-trigger msg from 0x%x", vgId,
-            (int32_t)pReq->downstreamTaskId);
+    char*    msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    int32_t  len = pMsg->contLen - sizeof(SMsgHead);
+    int32_t  code = 0;
+    SDecoder decoder;
+
+    SStreamCheckpointReadyMsg req = {0};
+    tDecoderInit(&decoder, (uint8_t*)msg, len);
+    if (tDecodeStreamCheckpointReadyMsg(&decoder, &req) < 0) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+      tDecoderClear(&decoder);
+      return code;
+    }
+    tDecoderClear(&decoder);
+
+    tqError("vgId:%d not leader, s-task:0x%x ignore the retrieve checkpoint-trigger msg from s-task:0x%x vgId:%d", vgId,
+            req.upstreamTaskId, req.downstreamTaskId, req.downstreamNodeId);
+
     return TSDB_CODE_STREAM_NOT_LEADER;
   }
 

@@ -17,7 +17,7 @@ from util.sql import *
 from util.common import *
 
 class TDTestCase:
-    updatecfgDict = {'ttlUnit':5,'ttlPushInterval':3}
+    updatecfgDict = {'ttlUnit':5,'ttlPushInterval':3, 'mdebugflag':143}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)

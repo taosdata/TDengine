@@ -166,7 +166,7 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->scalarSup);
   taosArrayDestroy(pInfo->historyPoints);
 
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  taosArrayDestroy(pInfo->pUpdated);
   pInfo->pUpdated = NULL;
 
   tSimpleHashCleanup(pInfo->pUpdatedMap);
@@ -174,7 +174,7 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->pDelWins);
   tSimpleHashCleanup(pInfo->pDeletedMap);
-  clearGroupResInfo(&pInfo->groupResInfo);
+  clearGroupResArray(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
 

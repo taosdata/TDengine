@@ -794,6 +794,7 @@ _exit:
   return code;
 }
 
+// todo: serialized term attributes.
 int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq) {
   int32_t code = 0;
   int32_t lino;

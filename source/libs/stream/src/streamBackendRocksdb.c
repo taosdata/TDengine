@@ -843,6 +843,8 @@ int32_t streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId, 
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pHandle->cfInst, code, lino, _EXIT, terrno);
 
+  pHandle->vgId = vgId;
+
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
 
   int32_t nBGThread = tsNumOfSnodeStreamThreads <= 2 ? 1 : tsNumOfSnodeStreamThreads / 2;
@@ -914,6 +916,7 @@ _EXIT:
   taosMemoryFree(backendPath);
   return code;
 }
+
 void streamBackendCleanup(void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)arg;
 
@@ -930,6 +933,7 @@ void streamBackendCleanup(void* arg) {
     rocksdb_close(pHandle->db);
     pHandle->db = NULL;
   }
+
   rocksdb_options_destroy(pHandle->dbOpt);
   rocksdb_env_destroy(pHandle->env);
   rocksdb_cache_destroy(pHandle->cache);
@@ -945,16 +949,16 @@ void streamBackendCleanup(void* arg) {
   streamMutexDestroy(&pHandle->mutex);
 
   streamMutexDestroy(&pHandle->cfMutex);
-  stDebug("destroy stream backend :%p", pHandle);
+  stDebug("vgId:%d destroy stream backend:%p", (int32_t) pHandle->vgId, pHandle);
   taosMemoryFree(pHandle);
-  return;
 }
+
 void streamBackendHandleCleanup(void* arg) {
   SBackendCfWrapper* wrapper = arg;
   bool               remove = wrapper->remove;
   TAOS_UNUSED(taosThreadRwlockWrlock(&wrapper->rwLock));
 
-  stDebug("start to do-close backendwrapper %p, %s", wrapper, wrapper->idstr);
+  stDebug("start to do-close backendWrapper %p, %s", wrapper, wrapper->idstr);
   if (wrapper->rocksdb == NULL) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&wrapper->rwLock));
     return;
@@ -2613,11 +2617,14 @@ int32_t taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* 
 
 void taskDbDestroy(void* pDb, bool flush) {
   STaskDbWrapper* wrapper = pDb;
-  if (wrapper == NULL) return;
+  if (wrapper == NULL) {
+    return;
+  }
 
+  int64_t st = taosGetTimestampMs();
   streamMetaRemoveDB(wrapper->pMeta, wrapper->idstr);
 
-  stDebug("succ to destroy stream backend:%p", wrapper);
+  stDebug("%s succ to destroy stream backend:%p", wrapper->idstr, wrapper);
 
   int8_t nCf = tListLen(ginitDict);
   if (flush && wrapper->removeAllFiles == 0) {
@@ -2674,25 +2681,26 @@ void taskDbDestroy(void* pDb, bool flush) {
     rocksdb_comparator_destroy(compare);
     rocksdb_block_based_options_destroy(tblOpt);
   }
+
   taosMemoryFree(wrapper->pCompares);
   taosMemoryFree(wrapper->pCfOpts);
   taosMemoryFree(wrapper->pCfParams);
 
   streamMutexDestroy(&wrapper->mutex);
-
   taskDbDestroyChkpOpt(wrapper);
-
-  taosMemoryFree(wrapper->idstr);
 
   if (wrapper->removeAllFiles) {
     char* err = NULL;
-    stInfo("drop task remove backend dat:%s", wrapper->path);
+    stInfo("drop task remove backend data:%s", wrapper->path);
     taosRemoveDir(wrapper->path);
   }
+
+  int64_t et = taosGetTimestampMs();
+  stDebug("%s destroy stream backend:%p completed, elapsed time:%.2fs", wrapper->idstr, wrapper, (et - st)/1000.0);
+
+  taosMemoryFree(wrapper->idstr);
   taosMemoryFree(wrapper->path);
   taosMemoryFree(wrapper);
-
-  return;
 }
 
 void taskDbDestroy2(void* pDb) { taskDbDestroy(pDb, true); }

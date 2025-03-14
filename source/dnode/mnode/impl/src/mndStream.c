@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mndStream.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
-#include "mndStream.h"
 #include "mndTrans.h"
 #include "osMemory.h"
 #include "parser.h"
@@ -1228,18 +1228,16 @@ static int32_t streamWaitComparFn(const void *p1, const void *p2) {
 }
 
 // all tasks of this stream should be ready, otherwise do nothing
-static bool isStreamReadyHelp(int64_t now, SStreamObj* pStream) {
+static bool isStreamReadyHelp(int64_t now, SStreamObj *pStream) {
   bool ready = false;
 
   streamMutexLock(&execInfo.lock);
 
   int64_t lastReadyTs = getStreamTaskLastReadyState(execInfo.pTaskList, pStream->uid);
   if ((lastReadyTs == -1) || ((lastReadyTs != -1) && ((now - lastReadyTs) < tsStreamCheckpointInterval * 1000))) {
-
     if (lastReadyTs != -1) {
-      mInfo("not start checkpoint, stream:0x%" PRIx64 " last ready ts:%" PRId64 " ready duration:%" PRId64
-            "ms less than threshold",
-            pStream->uid, lastReadyTs, (now - lastReadyTs));
+      mInfo("not start checkpoint, stream:0x%" PRIx64 " readyTs:%" PRId64 " ready duration:%.2fs less than threshold",
+            pStream->uid, lastReadyTs, (now - lastReadyTs) / 1000.0);
     }
 
     ready = false;
@@ -1901,11 +1899,12 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo, bool includeAllNodes, STrans** pUpdateTrans) {
-  SSdb       *pSdb = pMnode->pSdb;
-  void       *pIter = NULL;
-  STrans     *pTrans = NULL;
-  int32_t     code = 0;
+static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo, bool includeAllNodes,
+                                      STrans **pUpdateTrans, SArray* pStreamList) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  STrans *pTrans = NULL;
+  int32_t code = 0;
   *pUpdateTrans = NULL;
 
   // conflict check for nodeUpdate trans, here we randomly chose one stream to add into the trans pool
@@ -1974,6 +1973,10 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     }
 
     code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
+    if (code == 0) {
+      taosArrayPush(pStreamList, &pStream->uid);
+    }
+
     sdbRelease(pSdb, pStream);
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -2152,7 +2155,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
     return 0;
   }
 
-  code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot);
+  code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot, NULL);
   if (code) {
     mError("failed to take the vgroup snapshot, ignore it and continue");
   }
@@ -2176,10 +2179,27 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
     mDebug("vnode(s) change detected, build trans to update stream task epsets");
 
     STrans *pTrans = NULL;
+    SArray* pStreamIdList = taosArrayInit(4, sizeof(int64_t));
 
     streamMutexLock(&execInfo.lock);
-    code = mndProcessVgroupChange(pMnode, &changeInfo, updateAllVgroups, &pTrans);
+    code = mndProcessVgroupChange(pMnode, &changeInfo, updateAllVgroups, &pTrans, pStreamIdList);
+
+    // remove the consensus-checkpoint-id req of all related stream(s)
+    int32_t num = taosArrayGetSize(pStreamIdList);
+    if (num > 0) {
+      mDebug("start to clear %d related stream in consensus-checkpoint-id list due to nodeUpdate", num);
+      for (int32_t x = 0; x < num; ++x) {
+        int64_t uid = *(int64_t *)taosArrayGet(pStreamIdList, x);
+        int32_t ret = mndClearConsensusCheckpointId(execInfo.pStreamConsensus, uid);
+        if (ret != 0) {
+          mError("failed to remove stream:0x%" PRIx64 " from consensus-checkpoint-id list, code:%s", uid,
+                 tstrerror(ret));
+        }
+      }
+    }
+
     streamMutexUnlock(&execInfo.lock);
+    taosArrayDestroy(pStreamIdList);
 
     // NOTE: sync trans out of lock
     if (code == 0 && pTrans != NULL) {
@@ -2385,8 +2405,9 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
 
     if (pStream != NULL) {  // TODO:handle error
       code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
-      if (code) {
-        mError("failed to create checkpoint trans, code:%s", tstrerror(code));
+      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+        mError("stream:0x%" PRIx64 " failed to create checkpoint trans, checkpointId:%" PRId64 ", code:%s",
+               req.streamId, checkpointId, tstrerror(code));
       }
     } else {
       // todo: wait for the create stream trans completed, and launch the checkpoint trans
@@ -2394,11 +2415,15 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
       // sleep(500ms)
     }
 
-    // remove this entry
-    (void) taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
+    // remove this entry, not overwriting the global error code
+    int32_t ret = taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
+    if (ret) {
+      mError("failed to remove transfer state stream, code:%s", tstrerror(ret));
+    }
 
     int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);
-    mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", req.streamId, numOfStreams);
+    mDebug("stream:0x%" PRIx64 " removed in transfer-state list, %d stream(s) not finish fill-history process",
+           req.streamId, numOfStreams);
   }
 
   if (pStream != NULL) {
@@ -2475,7 +2500,7 @@ static void doAddReportStreamTask(SArray *pList, int64_t reportedChkptId, const 
                pReport->taskId, p->checkpointId, pReport->checkpointId);
       } else if (p->checkpointId < pReport->checkpointId) {  // expired checkpoint-report msg, update it
         mInfo("s-task:0x%x expired checkpoint-report info in checkpoint-report list update from %" PRId64 "->%" PRId64,
-               pReport->taskId, p->checkpointId, pReport->checkpointId);
+              pReport->taskId, p->checkpointId, pReport->checkpointId);
 
         // update the checkpoint report info
         p->checkpointId = pReport->checkpointId;
@@ -2612,6 +2637,8 @@ static int64_t getConsensusId(int64_t streamId, int32_t numOfTasks, int32_t *pEx
     if (chkId > pe->checkpointInfo.latestId) {
       if (chkId != INT64_MAX) {
         *pAllSame = false;
+        mDebug("checkpointIds not identical, prev:%" PRId64 " smaller:%" PRId64 " from task:0x%" PRIx64, chkId,
+               pe->checkpointInfo.latestId, pe->id.taskId);
       }
       chkId = pe->checkpointInfo.latestId;
     }
@@ -2637,7 +2664,7 @@ static void doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId,
   }
 }
 
-static int32_t doCleanReqList(SArray* pList, SCheckpointConsensusInfo* pInfo) {
+static int32_t doCleanReqList(SArray *pList, SCheckpointConsensusInfo *pInfo) {
   int32_t alreadySend = taosArrayGetSize(pList);
 
   for (int32_t i = 0; i < alreadySend; ++i) {
@@ -2663,7 +2690,6 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   int64_t now = taosGetTimestampMs();
   bool    allReady = true;
   SArray *pNodeSnapshot = NULL;
-  int32_t maxAllowedTrans = 20;
   int32_t numOfTrans = 0;
   int32_t code = 0;
   void   *pIter = NULL;
@@ -2679,9 +2705,16 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
     return terrno;
   }
 
+  SHashObj* pTermMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pTermMap == NULL) {
+    taosArrayDestroy(pList);
+    taosArrayDestroy(pStreamList);
+    return terrno;
+  }
+
   mDebug("start to process consensus-checkpointId in tmr");
 
-  code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot);
+  code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot, pTermMap);
   taosArrayDestroy(pNodeSnapshot);
   if (code) {
     mError("failed to get the vgroup snapshot, ignore it and continue");
@@ -2691,6 +2724,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
     mWarn("not all vnodes are ready, end to process the consensus-checkpointId in tmr process");
     taosArrayDestroy(pStreamList);
     taosArrayDestroy(pList);
+    taosHashCleanup(pTermMap);
     return 0;
   }
 
@@ -2717,31 +2751,62 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
       continue;
     }
 
+    if (pStream->uid != pInfo->streamId) {
+      // todo remove it
+    }
+
+    if ((num < pInfo->numOfTasks) || (pInfo->numOfTasks == 0)) {
+      mDebug("stream:0x%" PRIx64 " %s %d/%d tasks send checkpoint-consensus req(not all), ignore", pStream->uid,
+             pStream->name, num, pInfo->numOfTasks);
+      mndReleaseStream(pMnode, pStream);
+      continue;
+    }
+
+    streamId = pStream->uid;
+
+    int32_t existed = 0;
+    bool    allSame = true;
+    int64_t chkId = getConsensusId(pInfo->streamId, pInfo->numOfTasks, &existed, &allSame);
+    if (chkId == -1) {
+      mDebug("not all(%d/%d) task(s) send hbMsg yet, wait for a while and check again", existed, pInfo->numOfTasks);
+      mndReleaseStream(pMnode, pStream);
+      continue;
+    }
+
+    bool allQualified = true;
     for (int32_t j = 0; j < num; ++j) {
       SCheckpointConsensusEntry *pe = taosArrayGet(pInfo->pTaskList, j);
       if (pe == NULL) {
         continue;
       }
 
-      if (streamId == -1) {
-        streamId = pe->req.streamId;
-      }
-
-      int32_t existed = 0;
-      bool    allSame = true;
-      int64_t chkId = getConsensusId(pe->req.streamId, pInfo->numOfTasks, &existed, &allSame);
-      if (chkId == -1) {
-        mDebug("not all(%d/%d) task(s) send hbMsg yet, wait for a while and check again, s-task:0x%x", existed,
-               pInfo->numOfTasks, pe->req.taskId);
-        break;
+      if (pe->req.nodeId != -2) {
+        int32_t *pTerm = taosHashGet(pTermMap, &(pe->req.nodeId), sizeof(pe->req.nodeId));
+        if (pTerm == NULL) {
+          mError("stream:0x%" PRIx64 " s-task:0x%x req from vgId:%d not found in termMap", pe->req.streamId,
+                 pe->req.taskId, pe->req.nodeId);
+          allQualified = false;
+          continue;
+        } else {
+          if (*pTerm != pe->req.term) {
+            mWarn("stream:0x%" PRIx64 " s-task:0x%x req from vgId:%d is expired, term:%d, current term:%d",
+                  pe->req.streamId, pe->req.taskId, pe->req.nodeId, pe->req.term, *pTerm);
+            allQualified = false;
+            continue;
+          }
+        }
       }
 
       if (((now - pe->ts) >= 10 * 1000) || allSame) {
-        mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs and all tasks have same checkpointId", pe->req.taskId,
-               pe->req.startTs, (now - pe->ts) / 1000.0);
+        mDebug("s-task:0x%x vgId:%d term:%d sendTs:%" PRId64 " wait %.2fs or all tasks have same checkpointId:%" PRId64, pe->req.taskId,
+               pe->req.nodeId, pe->req.term, pe->req.startTs, (now - pe->ts) / 1000.0, chkId);
         if (chkId > pe->req.checkpointId) {
           streamMutexUnlock(&execInfo.lock);
+
           taosArrayDestroy(pStreamList);
+          taosArrayDestroy(pList);
+          taosHashCleanup(pTermMap);
+
           mError("s-task:0x%x checkpointId:%" PRId64 " is updated to %" PRId64 ", update it", pe->req.taskId,
                  pe->req.checkpointId, chkId);
 
@@ -2750,42 +2815,38 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
           return TSDB_CODE_FAILED;
         }
 
-        // todo: check for redundant consensus-checkpoint trans, if this kinds of trans repeatly failed.
-        code = mndCreateSetConsensusChkptIdTrans(pMnode, pStream, pe->req.taskId, chkId, pe->req.startTs);
-        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-          mError("failed to create consensus-checkpoint trans, stream:0x%" PRIx64, pStream->uid);
-        }
-
-        void *p = taosArrayPush(pList, &pe->req.taskId);
-        if (p == NULL) {
-          mError("failed to put into task list, taskId:0x%x", pe->req.taskId);
-        }
       } else {
         mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs already, wait for next round to check", pe->req.taskId,
                pe->req.startTs, (now - pe->ts) / 1000.0);
+        allQualified = false;
+      }
+    }
+
+    if (allQualified) {
+      code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_CONSEN_NAME, false);
+
+      if (code == 0) {
+        code = mndCreateSetConsensusChkptIdTrans(pMnode, pStream, chkId, pInfo->pTaskList);
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+          mError("failed to create consensus-checkpoint trans, stream:0x%" PRIx64, pStream->uid);
+        } else {
+          numOfTrans += 1;
+          mndClearConsensusRspEntry(pInfo);
+          void *p = taosArrayPush(pStreamList, &streamId);
+          if (p == NULL) {
+            mError("failed to put into stream list, stream:0x%" PRIx64 " not remove it in consensus-chkpt list",
+                   streamId);
+          }
+        }
+      } else {
+        mDebug("stream:0x%" PRIx64 "not create chktp-consensus, due to trans conflict", pStream->uid);
       }
     }
 
     mndReleaseStream(pMnode, pStream);
 
-    int32_t alreadySend = doCleanReqList(pList, pInfo);
-
-    // clear request stream item with empty task list
-    if (taosArrayGetSize(pInfo->pTaskList) == 0) {
-      mndClearConsensusRspEntry(pInfo);
-      if (streamId == -1) {
-        mError("streamId is -1, streamId:%" PRIx64" in consensus-checkpointId hashMap, cont", pInfo->streamId);
-      }
-
-      void *p = taosArrayPush(pStreamList, &streamId);
-      if (p == NULL) {
-        mError("failed to put into stream list, stream:0x%" PRIx64 " not remove it in consensus-chkpt list", streamId);
-      }
-    }
-
-    numOfTrans += alreadySend;
-    if (numOfTrans > maxAllowedTrans) {
-      mInfo("already send consensus-checkpointId trans:%d, try next time", alreadySend);
+    // create one transaction each time
+    if (numOfTrans > 0) {
       taosHashCancelIterate(execInfo.pStreamConsensus, pIter);
       break;
     }
@@ -2804,6 +2865,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
 
   taosArrayDestroy(pStreamList);
   taosArrayDestroy(pList);
+  taosHashCleanup(pTermMap);
 
   mDebug("end to process consensus-checkpointId in tmr, send consensus-checkpoint trans:%d", numOfTrans);
   return code;

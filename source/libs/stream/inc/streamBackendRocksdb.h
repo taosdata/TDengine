@@ -44,7 +44,7 @@ typedef struct {
   TdThreadMutex                      cfMutex;
   SHashObj*                          cfInst;
   int64_t                            defaultCfInit;
-
+  int64_t                            vgId;
 } SBackendWrapper;
 
 typedef struct {
