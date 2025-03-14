@@ -58,6 +58,7 @@ typedef struct SMetaEntry {
       SSchemaWrapper schemaRow;
       SSchemaWrapper schemaTag;
       SRSmaParam     rsmaParam;
+      int64_t        keep;
     } stbEntry;
     struct {
       int64_t  btime;
@@ -155,6 +156,7 @@ typedef struct {
   int64_t uid;
   int64_t ctbNum;
   int32_t colNum;
+  int64_t keep;
 } SMetaStbStats;
 
 // clang-format off

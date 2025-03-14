@@ -198,6 +198,8 @@ typedef struct STableOptions {
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
+  SValueNode* pKeepNode;
+  int32_t     keep;
 } STableOptions;
 
 typedef struct SColumnOptions {

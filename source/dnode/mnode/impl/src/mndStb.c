@@ -34,7 +34,7 @@
 #include "tname.h"
 
 #define STB_VER_NUMBER   2
-#define STB_RESERVE_SIZE 64
+#define STB_RESERVE_SIZE 56
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
@@ -190,6 +190,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
       SDB_SET_INT32(pRaw, dataPos, p->alg, _OVER)
     }
   }
+  SDB_SET_INT64(pRaw, dataPos, pStb->keep, _OVER)
+
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -316,6 +318,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, (int32_t *)&pCmpr->alg, _OVER)  // compatiable
     }
   }
+  SDB_GET_INT64(pRaw, dataPos, &pStb->keep, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
 
@@ -431,6 +434,8 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->smaVer = pNew->smaVer;
   pOld->nextColId = pNew->nextColId;
   pOld->ttl = pNew->ttl;
+  pOld->keep = pNew->keep;
+  
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
     memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
@@ -527,6 +532,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
 
   req.colCmpred = 1;
   SColCmprWrapper *pCmpr = &req.colCmpr;
+  req.keep = pStb->keep;
   pCmpr->version = pStb->colVer;
   pCmpr->nCols = pStb->numOfColumns;
 
@@ -878,6 +884,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->commentLen = pCreate->commentLen;
   pDst->pFuncs = pCreate->pFuncs;
   pDst->source = pCreate->source;
+  pDst->keep = pCreate->keep;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -1422,6 +1429,7 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   int32_t code = 0;
   if (pAlter->commentLen >= 0) return 0;
   if (pAlter->ttl != 0) return 0;
+  if (pAlter->keep != -1) return 0;
 
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -1454,8 +1462,8 @@ int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
   TAOS_RETURN(0);
 }
 
-static int32_t mndUpdateStbCommentAndTTL(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen,
-                                         int32_t ttl) {
+static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen,
+                                     int32_t ttl, int64_t keep) {
   int32_t code = 0;
   if (commentLen > 0) {
     pNew->commentLen = commentLen;
@@ -1472,6 +1480,10 @@ static int32_t mndUpdateStbCommentAndTTL(const SStbObj *pOld, SStbObj *pNew, cha
 
   if (ttl >= 0) {
     pNew->ttl = ttl;
+  }
+
+  if (keep > 0) {
+    pNew->keep = keep;
   }
 
   if ((code = mndAllocStbSchemas(pOld, pNew)) != 0) {
@@ -2625,7 +2637,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       needRsp = false;
-      code = mndUpdateStbCommentAndTTL(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl);
+      code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
