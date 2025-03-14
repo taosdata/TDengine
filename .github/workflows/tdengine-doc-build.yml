@@ -9,11 +9,11 @@ on:
       - 'docs/**'
 
 env:
-  DOC_WKC: "/root/doc_ci_work"
-  ZH_DOC_REPO: "docs.taosdata.com"
-  EN_DOC_REPO: "docs.tdengine.com"
-  TD_REPO: "TDengine"
-  TOOLS_REPO: "taos-tools"
+  DOC_WKC: '/root/doc_ci_work'
+  ZH_DOC_REPO: 'docs.taosdata.com'
+  EN_DOC_REPO: 'docs.tdengine.com'
+  TD_REPO: 'TDengine'
+  TOOLS_REPO: 'taos-tools'
 
 jobs:
   build-doc:
