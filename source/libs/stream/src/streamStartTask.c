@@ -42,14 +42,10 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int32_t numOfConsensusChkptIdTasks = 0;
   int32_t numOfTasks = 0;
 
-  streamMetaWLock(pMeta);
-
   numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
     stInfo("vgId:%d no tasks exist, quit from consensus checkpointId", pMeta->vgId);
     streamMetaResetStartInfo(&pMeta->startInfo, vgId);
-
-    streamMetaWUnLock(pMeta);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -166,8 +162,6 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId, numOfConsensusChkptIdTasks,
             info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
   }
-
-  streamMetaWUnLock(pMeta);
 
   // prepare the fill-history task before starting all stream tasks, to avoid fill-history tasks are started without
   // initialization, when the operation of check downstream tasks status is executed far quickly.

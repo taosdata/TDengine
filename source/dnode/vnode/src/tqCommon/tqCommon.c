@@ -791,8 +791,6 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   int64_t         st = taosGetTimestampMs();
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
 
-  streamMetaWLock(pMeta);
-
   if (pStartInfo->startAllTasks == 1) {
     // wait for the checkpoint id rsp, this rsp will be expired
     if (pStartInfo->curStage == START_MARK_REQ_CHKPID) {
@@ -823,7 +821,6 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
       tqInfo("vgId:%d in start procedure, but not start to do anything yet, do nothing", vgId);
     }
 
-    streamMetaWUnLock(pMeta);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -842,12 +839,10 @@ _start:
   streamMetaLoadAllTasks(pMeta);
 
   if (isLeader && !tsDisableStream) {
-    streamMetaWUnLock(pMeta);
     code = streamMetaStartAllTasks(pMeta);
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
     pStartInfo->restartCount = 0;
-    streamMetaWUnLock(pMeta);
     tqInfo("vgId:%d, follower node not start stream tasks or stream is disabled", vgId);
   }
 
@@ -877,10 +872,14 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     code = streamMetaStartOneTask(pMeta, req.streamId, req.taskId);
     return 0;
   } else if (type == STREAM_EXEC_T_START_ALL_TASKS) {
+    streamMetaWLock(pMeta);
     code = streamMetaStartAllTasks(pMeta);
+    streamMetaWUnLock(pMeta);
     return 0;
   } else if (type == STREAM_EXEC_T_RESTART_ALL_TASKS) {
+    streamMetaWLock(pMeta);
     code = restartStreamTasks(pMeta, isLeader);
+    streamMetaWUnLock(pMeta);
     return 0;
   } else if (type == STREAM_EXEC_T_STOP_ALL_TASKS) {
     code = streamMetaStopAllTasks(pMeta);
