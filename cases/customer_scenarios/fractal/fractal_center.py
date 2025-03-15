@@ -15,7 +15,7 @@ class FractalCenter(TDCase):
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
-        self.db_config = self.case_config["db_config"]
+        self.db_config = json.load(open(os.path.join(self.env_root, "db_config.json")))
         self.case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
         self.edge_hosts = self.case_config["edge_dnode_hosts"]
         self.tdCom.api_type = 'restful'
@@ -49,14 +49,14 @@ class FractalCenter(TDCase):
         # 创建legacy datain任务,每个edge侧的mqtt_datain数据库都会有一个legacy datain任务
         for edge_host in self.edge_hosts:
             case_data = {
-                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=realtime&schema=always&schema-polling-interval=5s",
+                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s",
                 "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}?{self.compression_param}",
                 "labels": self.case_data_org["from"]["labels"]
             }
             response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks',header=headers)
             task_info = response.json()
             task_list.append(task_info["id"])
-  
+
 
     def desc(self) -> str:
         case_description = """

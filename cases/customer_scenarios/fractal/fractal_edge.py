@@ -9,7 +9,7 @@ class FractalEdge(TDCase):
     def init(self):
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
-        self.db_config = self.case_config["db_config"]
+        self.db_config = json.load(open(os.path.join(self.env_root, "db_config.json")))
 
         # self.execute_time = int(case_config["exec_time"])
         self.execute_time = int(self.case_config["exec_time"])
@@ -58,7 +58,7 @@ class FractalEdge(TDCase):
             task_list.append(task_info["id"])
 
         # time.sleep(self.execute_time)
-        
+
         # for task_id in task_list:
         #     self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
 

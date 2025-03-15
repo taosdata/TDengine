@@ -15,7 +15,7 @@ class FractalQuery(TDCase):
         self.detail_log_path = f'{self.log_path}/details'
         self.summary_log_path = f'{self.log_path}/summary'
         self._remote.cmd("localhost", [f'mkdir -p {self.detail_log_path}', f'mkdir -p {self.summary_log_path}'])
-        self.report_file = f'{self.log_path}/perf_report.txt'
+        self.report_file = f'{self.log_path}/perf_report_{self.case_config["test_start_time"]}.txt'
         self.test_robot_url = (
     "https://open.feishu.cn/open-apis/bot/v2/hook/11e9e452-34a0-4c88-b014-10e21cb521dd"
 )
@@ -108,6 +108,8 @@ class FractalQuery(TDCase):
         with open(self.report_file, 'r') as file:
             log_content = file.read()
         self.send_msg(self.test_robot_url, self.get_msg(log_content))
+        self._remote.cmd("localhost", f'cp {self.report_file} {self.env_root}')
+
 
     def desc(self) -> str:
         case_description = """
