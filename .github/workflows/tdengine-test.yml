@@ -17,9 +17,26 @@ on:
       - 'tests/parallel/tdgpt_cases.task'
       - 'tests/script/tsim/analytics'
       - '**/*.md'
+  workflow_dispatch:
+    inputs:
+      specified_source_branch:
+        description: 'Enter the source branch name of TDengine'
+        required: false
+        default: 'unavailable'
+        type: string
+      specified_target_branch:
+        description: 'Enter the target branch name of TDengine'
+        required: false
+        default: 'unavailable'
+        type: string
+      specified_pr_number:
+        description: 'Enter the PR number of TDengine'
+        required: false
+        default: 'unavailable'
+        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-TDengine
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.inputs.specified_target_branch }}-${{ github.event.inputs.specified_pr_number }}-TDengine
   cancel-in-progress: true
 
 env:
@@ -30,15 +47,22 @@ jobs:
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
     with:
       tdinternal: false
-      run_function_test: true
-      run_tdgpt_test: false
+      specified_source_branch: ${{ github.event.inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event.inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event.inputs.specified_pr_number }}
 
   run-tests-on-mac:
     uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
     with:
       tdinternal: false
+      specified_source_branch: ${{ github.event.inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event.inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event.inputs.specified_pr_number }}
 
   run-tests-on-windows:
     uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
     with:
       tdinternal: false
+      specified_source_branch: ${{ github.event.inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event.inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event.inputs.specified_pr_number }}
