@@ -2416,7 +2416,7 @@ static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowInde
     return 0;
   }
 
-  return *(TSKEY*)colDataGetData(pTsColInfo, rowIndex);
+  return (TSKEY)taosGetInt64Aligned(colDataGetData(pTsColInfo, rowIndex));
 }
 
 int32_t firstLastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
@@ -3038,7 +3038,7 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
   }
-  pInfo->ts = cts;
+  taosSetInt64Aligned(&pInfo->ts, cts);
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -3097,9 +3097,10 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
       bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
       char* data = isNull ? NULL : colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
+      TSKEY its = taosGetInt64Aligned(&pInfo->ts);
       numOfElems++;
 
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+      if (pResInfo->numOfRes == 0 || its < cts) {
         int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
         if (code != TSDB_CODE_SUCCESS) return code;
       }
@@ -3112,15 +3113,16 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
     while (funcInputGetNextRowIndex(pInput, from, false, &i, &from)) {
       bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
       char* data = isNull ? NULL : colDataGetData(pInputCol, i);
-      TSKEY cts = pts[i];
-
+      TSKEY cts = taosGetInt64Aligned(pts + i);
+      TSKEY its = taosGetInt64Aligned(&pInfo->ts);
+      
       numOfElems++;
       char* pkData = NULL;
       if (pCtx->hasPrimaryKey) {
         pkData = colDataGetData(pkCol, i);
       }
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts ||
-          (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+      if (pResInfo->numOfRes == 0 || its < cts ||
+          (its == cts && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
         int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -3867,7 +3869,7 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
     releaseBufPage(pHandle->pBuf, pPage);
   } else {  // other tuple save policy
     if (pStore->streamStateFuncPut(pHandle->pState, key, pBuf, length) >= 0) {
-      p.streamTupleKey = *key;
+      TAOS_SET_POBJ_ALIGNED(&p.streamTupleKey, key);
     }
   }
 
@@ -3891,7 +3893,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
     }
     key.groupId = pSrcBlock->info.id.groupId;
-    key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);
+    key.ts = taosGetInt64Aligned(colDataGetData(pColInfo, rowIndex));
   }
 
   char* buf = NULL;
