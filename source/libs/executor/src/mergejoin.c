@@ -2045,7 +2045,7 @@ int32_t mAsofBackwardAddEqRowsToCache(struct SOperatorInfo* pOperator, SMJoinWin
 
     if (pTable->blkRowIdx == pTable->blk->info.rows && !pTable->dsFetchDone) {
       pTable->blk = (*pCtx->pJoin->retrieveFp)(pCtx->pJoin, pTable);
-      qDebug("%s merge join %s table got block for same ts, rows:%" PRId64, GET_TASKID(pOperator->pTaskInfo), MJOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
+      qDebug("%s merge join %s table got block for same ts, rows:%" PRId64, GET_TASKID(pOperator->pTaskInfo), JOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
 
       pTable->blkRowIdx = 0;
       pCtx->buildGrp.blk = pTable->blk;
@@ -2436,7 +2436,7 @@ int32_t mAsofForwardChkFillGrpCache(SMJoinWindowCtx* pCtx) {
   
   do {
     build->blk = (*pCtx->pJoin->retrieveFp)(pCtx->pJoin, build);
-    qDebug("%s merge join %s table got block to fill grp, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(build->type), build->blk ? build->blk->info.rows : 0);
+    qDebug("%s merge join %s table got block to fill grp, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), JOIN_TBTYPE(build->type), build->blk ? build->blk->info.rows : 0);
     
     build->blkRowIdx = 0;
     
@@ -2561,7 +2561,7 @@ int32_t mAsofForwardSkipAllEqRows(SMJoinWindowCtx* pCtx, int64_t timestamp) {
     }
     
     pTable->blk = (*pCtx->pJoin->retrieveFp)(pCtx->pJoin, pTable);
-    qDebug("%s merge join %s table got block to skip eq ts, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
+    qDebug("%s merge join %s table got block to skip eq ts, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), JOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
 
     pTable->blkRowIdx = 0;
 
@@ -3020,7 +3020,7 @@ int32_t mWinJoinAddWinBeginBlk(SMJoinWindowCtx* pCtx) {
   
   do {
     build->blk = (*pCtx->pJoin->retrieveFp)(pCtx->pJoin, pCtx->pJoin->build);
-    qDebug("%s merge join %s table got block to start win, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(build->type), build->blk ? build->blk->info.rows : 0);
+    qDebug("%s merge join %s table got block to start win, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), JOIN_TBTYPE(build->type), build->blk ? build->blk->info.rows : 0);
     
     build->blkRowIdx = 0;
     
@@ -3320,7 +3320,7 @@ int32_t mWinJoinAddWinEndBlk(SMJoinWindowCtx* pCtx) {
     MJ_ERR_RET(mWinJoinCloneCacheBlk(pCtx));
     
     build->blk = (*pCtx->pJoin->retrieveFp)(pCtx->pJoin, pCtx->pJoin->build);
-    qDebug("%s merge join %s table got block to start win, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(build->type), build->blk ? build->blk->info.rows : 0);
+    qDebug("%s merge join %s table got block to start win, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), JOIN_TBTYPE(build->type), build->blk ? build->blk->info.rows : 0);
     
     build->blkRowIdx = 0;
     
