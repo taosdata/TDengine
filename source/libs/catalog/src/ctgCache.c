@@ -268,19 +268,19 @@ int32_t ctgAcquireTbMetaFromCache(SCatalog *pCtg, const char *dbFName, const cha
   
   CTG_ERR_JRET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (NULL == dbCache) {
-    ctgDebug("tb:%s, db not in cache, db:%s", tbName, dbFName);
+    ctgTrace("tb:%s, db not in cache, db:%s", tbName, dbFName);
     goto _return;
   }
 
   pCache = taosHashAcquire(dbCache->tbCache, tbName, strlen(tbName));
   if (NULL == pCache) {
-    ctgDebug("tb:%s, tb not in cache, db:%s", tbName, dbFName);
+    ctgTrace("tb:%s, tb not in cache, db:%s", tbName, dbFName);
     goto _return;
   }
 
   CTG_LOCK(CTG_READ, &pCache->metaLock);
   if (NULL == pCache->pMeta) {
-    ctgDebug("tb:%s, meta not in cache, db:%s", tbName, dbFName);
+    ctgTrace("tb:%s, meta not in cache, db:%s", tbName, dbFName);
     goto _return;
   }
 
@@ -829,13 +829,13 @@ int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool tbNotExist
 
   SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, pReq->user, strlen(pReq->user));
   if (NULL == pUser) {
-    ctgDebug("user:%s, user not in cache", pReq->user);
+    ctgTrace("user:%s, user not in cache", pReq->user);
     goto _return;
   }
 
   *inCache = true;
 
-  ctgDebug("user:%s, get user from cache", pReq->user);
+  ctgTrace("user:%s, get user from cache", pReq->user);
   CTG_CACHE_HIT_INC(CTG_CI_USER, 1);
 
   SCtgAuthReq req = {0};
@@ -859,7 +859,7 @@ _return:
 
   *inCache = false;
   CTG_CACHE_NHIT_INC(CTG_CI_USER, 1);
-  ctgDebug("user:%s, get user from cache failed, metaNotExists:%d, code:%d", pReq->user, pRes->metaNotExists, code);
+  ctgTrace("user:%s, get user from cache failed, metaNotExists:%d, code:0x%x", pReq->user, pRes->metaNotExists, code);
 
   return code;
 }
@@ -3266,7 +3266,7 @@ void *ctgUpdateThreadFunc(void *param) {
 
   while (true) {
     if (tsem_wait(&gCtgMgmt.queue.reqSem)) {
-      qError("ctg tsem_wait failed, error:%s", tstrerror(terrno));
+      qError("catalog tsem_wait failed, error:%s", tstrerror(terrno));
     }
 
     if (atomic_load_8((int8_t *)&gCtgMgmt.queue.stopQueue)) {
