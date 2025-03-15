@@ -75,6 +75,11 @@
 ,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
 ,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py -B
 ,,n,army,python3 ./test.py -f whole/checkErrorCode.py
+,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py
+,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py
+,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
 
 #
 # army/tools
@@ -217,6 +222,7 @@
 #
 # system test
 #
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py

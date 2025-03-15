@@ -1339,7 +1339,7 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
     return terrno;
   }
 
-  pCond->twindows = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&pCond->twindows, TSWINDOW_INITIALIZER);
   pCond->suid = pMtInfo->suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;

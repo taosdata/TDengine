@@ -328,6 +328,27 @@ class TDTestCase(TBase):
         self.checkExceptCmd()
         # mode version
         self.checkModeVersion()
+    
+    # password
+    def checkPassword(self):
+        # 255 char max password
+        user    = "test_user"
+        pwd     = ""
+        pwdFile = "cmdline/data/pwdMax.txt"
+        with open(pwdFile) as file:
+            pwd = file.readline()
+        
+        sql = f"create user {user} pass '{pwd}' "
+        tdSql.execute(sql)
+         
+        cmds = [
+            f"-u{user} -p'{pwd}'      -s 'show databases;'",  # command pass
+            f"-u{user} -p < {pwdFile} -s 'show databases;'"   # input   pass
+        ]
+
+        for cmd in cmds:
+            rlist = self.taos(cmd)
+            self.checkListString(rlist, "Query OK,")
 
     # run
     def run(self):
@@ -351,8 +372,12 @@ class TDTestCase(TBase):
         # check data in/out
         self.checkDumpInOut()
 
+
         # check conn mode
         self.checkConnMode()
+
+        # max password
+        self.checkPassword()
 
         tdLog.success(f"{__file__} successfully executed")
 

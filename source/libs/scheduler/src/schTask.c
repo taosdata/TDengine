@@ -115,7 +115,7 @@ int32_t schAppendTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *ad
   SSchNodeInfo nodeInfo = {.addr = *addr, .handle = SCH_GET_TASK_HANDLE(pTask)};
 
   if (taosHashPut(pTask->execNodes, &execId, sizeof(execId), &nodeInfo, sizeof(nodeInfo))) {
-    SCH_TASK_ELOG("taosHashPut nodeInfo to execNodes failed, errno:%d", errno);
+    SCH_TASK_ELOG("taosHashPut nodeInfo to execNodes failed, errno:%d", ERRNO);
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -629,7 +629,7 @@ int32_t schMoveTaskToSuccList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
       SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
     }
 
-    SCH_TASK_ELOG("taosHashPut task to succTask list failed, errno:%d", errno);
+    SCH_TASK_ELOG("taosHashPut task to succTask list failed, errno:%d", ERRNO);
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -656,7 +656,7 @@ int32_t schMoveTaskToFailList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
       SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
     }
 
-    SCH_TASK_ELOG("taosHashPut task to failTask list failed, errno:%d", errno);
+    SCH_TASK_ELOG("taosHashPut task to failTask list failed, errno:%d", ERRNO);
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -681,7 +681,7 @@ int32_t schMoveTaskToExecList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
       SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
     }
 
-    SCH_TASK_ELOG("taosHashPut task to execTask list failed, errno:%d", errno);
+    SCH_TASK_ELOG("taosHashPut task to execTask list failed, errno:%d", ERRNO);
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -803,7 +803,7 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
       SQueryNodeAddr *naddr = &nload->addr;
 
       if (NULL == taosArrayPush(pTask->candidateAddrs, naddr)) {
-        SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
+        SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, ERRNO);
         SCH_ERR_RET(terrno);
       }
 
@@ -836,7 +836,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
 
   if (pTask->plan->execNode.epSet.numOfEps > 0) {
     if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
-      SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, errno:%d", errno);
+      SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, errno:%d", ERRNO);
       SCH_ERR_RET(terrno);
     }
 

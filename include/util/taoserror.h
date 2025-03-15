@@ -58,6 +58,11 @@ int32_t  taosGetErrSize();
 #define SET_ERROR_MSG(MSG, ...) \
   (void)snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
+#ifndef TD_ASTRA_RTP
+#define SET_ERRNO(_code) (errno = (_code))
+#define ERRNO            errno
+#endif
+
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 
@@ -915,8 +920,8 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PAR_TRUE_FOR_UNIT             TAOS_DEF_ERROR_CODE(0, 0x2688)
 #define TSDB_CODE_PAR_INVALID_COLS_FUNCTION     TAOS_DEF_ERROR_CODE(0, 0x2689)
 #define TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC   TAOS_DEF_ERROR_CODE(0, 0x268A)
-#define TSDB_CODE_INVALID_MULITI_COLS_FUNC      TAOS_DEF_ERROR_CODE(0, 0x268B)
-#define TSDB_CODE_INVALID_COLS_ALIAS            TAOS_DEF_ERROR_CODE(0, 0x268C)
+#define TSDB_CODE_PAR_INVALID_COLS_ALIAS        TAOS_DEF_ERROR_CODE(0, 0x268B)
+#define TSDB_CODE_PAR_PRIM_KEY_MUST_BE_TS       TAOS_DEF_ERROR_CODE(0, 0x268C)
 #define TSDB_CODE_PAR_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x26FF)
 
 //planner

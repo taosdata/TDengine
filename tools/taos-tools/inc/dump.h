@@ -55,6 +55,7 @@
 #define NEED_CALC_COUNT         UINT64_MAX
 #define HUMAN_TIME_LEN      28
 #define DUMP_DIR_LEN        (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
+#define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
 
 
 #define debugPrint(fmt, ...) \
@@ -333,7 +334,7 @@ typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char     password[SHELL_MAX_PASSWORD_LEN];
+    char     password[TSDB_USET_PASSWORD_LONGLEN];
     uint16_t port;
     // strlen(taosdump.) +1 is 10
     char     outpath[DUMP_DIR_LEN];

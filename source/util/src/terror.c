@@ -758,9 +758,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TRUE_FOR_NEGATIVE,          "True_for duration c
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TRUE_FOR_UNIT,              "Cannot use 'year' or 'month' as true_for duration")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_FUNCTION,      "Invalid cols function")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC,    "cols function's first param must be a select function that output a single row")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MULITI_COLS_FUNC,       "Improper use of cols function with multiple output columns")
-TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_COLS_ALIAS,             "Invalid using alias for cols function")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_ALIAS,         "Invalid using alias for cols function")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIM_KEY_MUST_BE_TS,        "Join primary key col must be timestmap type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner

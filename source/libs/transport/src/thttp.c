@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef TD_ASTRA_RPC
 #define _DEFAULT_SOURCE
 // clang-format off
-#include <uv.h>
 #include "zlib.h"
 #include "thttp.h"
+#include <uv.h>
 #include "taoserror.h"
 #include "transComm.h"
 
@@ -917,7 +918,7 @@ int64_t transInitHttpChanImpl() {
 
   err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
   if (err != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _ERROR;
   }
 
@@ -1119,3 +1120,26 @@ _end:
   }
   return code;
 }
+#else  // TD_ASTRA_RPC
+
+#include "thttp.h"
+
+int32_t taosTelemetryMgtInit(STelemAddrMgmt* mgt, char* defaultAddr) { return 0; }
+void    taosTelemetryDestroy(STelemAddrMgmt* mgt) { return; }
+
+// not safe for multi-thread, should be called in the same thread
+int32_t taosSendTelemReport(STelemAddrMgmt* mgt, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                            EHttpCompFlag flag) {
+  return 0;
+}
+
+int32_t taosSendRecvHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                      EHttpCompFlag flag, const char* qid, int64_t recvBufId) {
+  return 0;
+}
+
+int32_t taosSendHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                  EHttpCompFlag flag, const char* qid) {
+  return 0;
+}
+#endif

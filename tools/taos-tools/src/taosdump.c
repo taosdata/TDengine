@@ -764,14 +764,13 @@ static void parse_args(
                   || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
                 setConsoleEcho(false);
-                if (scanf("%20s", arguments->password) > 1) {
+                if (scanf("%255s", arguments->password) > 1) {
                     errorPrint("%s() LN%d, password read error!\n",
                             __func__, __LINE__);
                 }
                 setConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2),
-                        SHELL_MAX_PASSWORD_LEN);
+                strcpy(arguments->password, (char *)(argv[i] + 2));
                 strcpy(argv[i], "-p");
             }
         } else if (strcmp(argv[i], "-n") == 0) {

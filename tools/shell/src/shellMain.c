@@ -30,9 +30,9 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 #if !defined(WINDOWS)
   taosIgnSignal(SIGBUS);
 #endif
-
+#ifdef USE_REPORT
   taos_write_crashinfo(signum, sigInfo, context);
-
+#endif
 #ifdef _TD_DARWIN_64
   exit(signum);
 #elif defined(WINDOWS)
@@ -125,14 +125,28 @@ int main(int argc, char *argv[]) {
   // kill heart-beat thread when quit
   taos_set_hb_quit(1);
 
+#ifndef TD_ASTRA
+  if (shell.args.is_dump_config) {
+    shellDumpConfig();
+    taos_cleanup();
+    return 0;
+  }
+
   if (shell.args.is_startup || shell.args.is_check) {
     shellCheckServerStatus();
     taos_cleanup();
     return 0;
   }
 
+  if (shell.args.netrole != NULL) {
+    shellTestNetWork();
+    taos_cleanup();
+    return 0;
+  }
+#endif
+  // support port feature
   shellAutoInit();
-  int32_t ret = shellExecute();
+  int32_t ret = shellExecute(argc, argv);
   shellAutoExit();
 
   return ret;

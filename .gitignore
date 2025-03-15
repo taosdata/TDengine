@@ -137,7 +137,6 @@ tags
 *CMakeCache*
 *CMakeFiles*
 .history/
-*.txt
 *.tcl
 *.pc
 contrib/geos

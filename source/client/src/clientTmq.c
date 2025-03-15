@@ -1346,13 +1346,13 @@ static void doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
 static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   if (pParam == NULL) {
-    goto FAIL;
+    goto _ERR;
   }
 
   tmq_t* tmq = taosAcquireRef(tmqMgmt.rsetId, pParam->refId);
   if (tmq == NULL) {
     code = TSDB_CODE_TMQ_CONSUMER_CLOSED;
-    goto FAIL;
+    goto _ERR;
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -1408,7 +1408,7 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  FAIL:
+  _ERR:
   if (pParam && pParam->sync) {
     SAskEpInfo* pInfo = pParam->pParam;
     if (pInfo) {
@@ -1760,7 +1760,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   // init semaphore
   if (tsem2_init(&pTmq->rspSem, 0, 0) != 0) {
     tqErrorC("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId,
-             tstrerror(TAOS_SYSTEM_ERROR(errno)), pTmq->groupId);
+             tstrerror(TAOS_SYSTEM_ERROR(ERRNO)), pTmq->groupId);
     SET_ERROR_MSG_TMQ("init t_sem failed")
     goto _failed;
   }

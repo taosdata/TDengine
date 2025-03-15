@@ -47,7 +47,7 @@ static FORCE_INLINE bool isNullValue(int8_t dataType, SToken* pToken) {
 }
 
 static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPtr) {
-  errno = 0;
+  SET_ERRNO(0);
   *value = taosStr2Double(pToken->z, endPtr);
 
   // not a valid integer number, return error
@@ -449,6 +449,7 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
 
 // need to call geosFreeBuffer(*output) later
 static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
+#ifdef USE_GEOS
   int32_t code = TSDB_CODE_FAILED;
 
   //[ToDo] support to parse WKB as well as WKT
@@ -465,6 +466,9 @@ static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
   }
 
   return code;
+#else
+  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
+#endif
 }
 
 static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, int32_t bytes) {
@@ -652,7 +656,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
       }
-      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
+      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && ERRNO == ERANGE) || isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
       }
 
@@ -717,7 +721,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
           return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
         }
         char buf[512] = {0};
-        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s %d %d", strerror(terrno), errno, EILSEQ);
+        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s %d %d", strerror(terrno), ERRNO, EILSEQ);
         taosMemoryFree(p);
         return buildSyntaxErrMsg(pMsgBuf, buf, pToken->z);
       }
@@ -1933,7 +1937,6 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
       }
       pCxt->isStmtBind = true;
-      pStmt->usingTableProcessing = true;
       if (pCols->pColIndex[i] == tbnameIdx) {
         *bFoundTbName = true;
         char* tbName = NULL;
@@ -1968,6 +1971,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         if (!(tag_index < numOfTags)) {
           return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfTags");
         }
+        pStmt->usingTableProcessing = true;
         pCxt->tags.pColIndex[tag_index++] = pCols->pColIndex[i] - numOfCols;
         pCxt->tags.mixTagsCols = true;
         pCxt->tags.numOfBound++;

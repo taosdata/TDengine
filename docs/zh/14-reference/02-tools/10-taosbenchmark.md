@@ -294,7 +294,6 @@ taosBenchmark -f <json file>
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
-
 - **mixed_query**：混合查询开关。  
   “yes”: 开启 “混合查询”。   
   “no” : 关闭 “混合查询” ，即 “普通查询”。  

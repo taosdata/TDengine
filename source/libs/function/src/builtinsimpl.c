@@ -566,20 +566,22 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
 
   int32_t type = pInput->pData[0]->info.type;
 
-  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+  char*   buf = GET_ROWCELL_INTERBUF(pResInfo);
+  int64_t val = *((int64_t*)buf);
   if (IS_NULL_TYPE(type)) {
     // select count(NULL) returns 0
     numOfElem = 1;
-    *((int64_t*)buf) += 0;
+    val += 0;
   } else {
     numOfElem = getNumOfElems(pCtx);
-    *((int64_t*)buf) += numOfElem;
+    val += numOfElem;
   }
+  taosSetInt64Aligned((int64_t*)buf, val);
 
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;
   } else {
-    SET_VAL(pResInfo, *((int64_t*)buf), 1);
+    SET_VAL(pResInfo, val, 1);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -6608,12 +6610,12 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   uint64_t totalDiskSize = pData->dataInDiskSize;
   uint64_t rawDataSize = pData->rawDataSize;
-  double   compressRadio = 0;
+  double   compressRatio = 0;
   if (rawDataSize != 0) {
-    compressRadio = totalDiskSize * 100 / (double)rawDataSize;
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[%.2f%]", compressRadio);
+    compressRatio = totalDiskSize * 100 / (double)rawDataSize;
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[%.2f%]", compressRatio);
   } else {
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[NULL]");
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[NULL]");
   }
 
   varDataSetLen(st, len);

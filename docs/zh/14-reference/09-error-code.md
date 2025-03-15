@@ -481,8 +481,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002688 | Cannot use 'year' or 'month' as true_for duration                                                      | 不能使用 n(月), y(年) 作为 true_for 的时间单位   | 检查并修正 SQL 语句                     |
 | 0x80002689 | Invalid using cols function                                                                            | cols 函数使用错误                             | 检查并修正 SQL 语句                        |
 | 0x8000268A | Cols function's first param must be a select function that output a single row         | cols 函数第一个参数应该为选择函数                | 检查并修正 SQL 语句                     |
-| 0x8000268B | Invalid using cols function with multiple output columns                                               | 多列输出的 cols 函数使用错误                   | 检查并修正 SQL 语句                      |
-| 0x8000268C | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                      | 检查并修正 SQL 语句                     |
+| 0x8000268B | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                      | 检查并修正 SQL 语句                     |
+| 0x8000268C | Join primary key col must be timestmap type                                                            | 关联查询主键列等值条件类型错误                 | 检查并修正 SQL 语句                     |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                | 保留现场和日志，github上报issue       |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                | 保留现场和日志，github上报issue       |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                              | 保留现场和日志，github上报issue       |
