@@ -135,7 +135,7 @@ jobs:
             tr '\n' ' ' || : \
           )
           echo $changed_files_non_doc > \
-            ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/non_docs_changed.txt
+            ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt
       
       - name: Check assert testing
         run: |
@@ -184,7 +184,7 @@ jobs:
           ./run_scan_container.sh \
             -d ${{ env.WKDIR }} \
             -b ${{ env.PR_NUMBER }}_${{ github.run_number }} \
-            -f ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/non_docs_changed.txt \
+            -f ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt \
             ${{ steps.get_param.outputs.extra_param }}
 
       - name: Run tdgpt test cases
