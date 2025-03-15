@@ -357,6 +357,8 @@ static void stmtResetQueueTableBuf(STableBufInfo* pTblBuf, SStmtQueue* pQueue) {
 static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClean) {
   if (pStmt->sql.stbInterlaceMode) {
     if (deepClean) {
+      tscDebug("stmt2 stbInterlaceMode deep clean exec info: exec.pBlockHash %p, exec.pCurrBlock:%p",
+               pStmt->exec.pBlockHash, pStmt->exec.pCurrBlock);
       taosHashCleanup(pStmt->exec.pBlockHash);
       pStmt->exec.pBlockHash = NULL;
 
@@ -404,6 +406,7 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
       return TSDB_CODE_SUCCESS;
     }
 
+    tscDebug("stmt2 clean exec info: exec.pBlockHash %p", pStmt->exec.pBlockHash);
     taosHashCleanup(pStmt->exec.pBlockHash);
     pStmt->exec.pBlockHash = NULL;
 
@@ -813,6 +816,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (NULL != pOptions) {
     (void)memcpy(&pStmt->options, pOptions, sizeof(pStmt->options));
     if (pOptions->singleStbInsert && pOptions->singleTableBindOnce) {
+      tscDebug("stmt2 interlace mode insert");
       pStmt->stbInterlaceMode = true;
     }
 
@@ -895,7 +899,7 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
 int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
-  STMT_DLOG_E("start to prepare");
+  tscDebug("start to prepare sql:%s", sql);
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
@@ -921,6 +925,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   char* dbName = NULL;
   if (qParseDbName(sql, length, &dbName)) {
     STMT_ERR_RET(stmtSetDbName2(stmt, dbName));
+    tscDebug("db name in sql:%s", dbName);
     taosMemoryFreeClear(dbName);
   }
 
@@ -1087,6 +1092,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
     int32_t vgId = -1;
     STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
     (*pCreateTbReq)->uid = vgId;
+    tscDebug("stmt2 interlace build createTbReq:%p, vgId:%d", *pCreateTbReq, vgId);
   } else {
     boundTags = pStmt->bInfo.boundTags;
   }
@@ -1232,13 +1238,15 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
   STMT_ERRI_JRET(
       qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.preCtbname, fieldNum, fields));
   if (pStmt->bInfo.tbType == TSDB_SUPER_TABLE && cleanStb) {
-    pStmt->bInfo.needParse = true;
+    // pStmt->bInfo.needParse = true;
     qDestroyStmtDataBlock(*pDataBlock);
     *pDataBlock = NULL;
     if (taosHashRemove(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName)) != 0) {
       tscError("get fileds %s remove exec blockHash fail", pStmt->bInfo.tbFName);
       STMT_ERRI_JRET(TSDB_CODE_APP_ERROR);
     }
+    stmtCleanBindInfo(pStmt);
+    tscDebug("remove stb %s from exec blockHash and binfo", pStmt->bInfo.tbFName);
   }
 
 _return:

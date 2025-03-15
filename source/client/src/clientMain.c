@@ -2126,7 +2126,9 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
   return stmtUseResult(stmt);
 }
 
-char *taos_stmt_errstr(TAOS_STMT *stmt) { return (char *)stmtErrstr(stmt); }
+char *taos_stmt_errstr(TAOS_STMT *stmt) {
+  return (char *)taos_stmt2_error((TAOS_STMT *)stmt);
+}
 
 int taos_stmt_affected_rows(TAOS_STMT *stmt) {
   if (stmt == NULL) {
@@ -2240,6 +2242,8 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     if (bindv->tags && bindv->tags[i]) {
       code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
     } else if (pStmt->sql.autoCreateTbl || pStmt->bInfo.needParse) {
+      tscDebug("stmt2 autoCreateTbl:%d or sql needParse:%d, but tags is NULL", pStmt->sql.autoCreateTbl,
+               pStmt->bInfo.needParse);
       code = stmtCheckTags2(stmt, &pCreateTbReq);
     } else {
       pStmt->sql.autoCreateTbl = false;

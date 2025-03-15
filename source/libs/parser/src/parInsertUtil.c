@@ -626,15 +626,18 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     ctbReq->uid=0;
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
+    parserDebug("stmt2 interlace mode : table not exist, auto create table, uid:%" PRId64 ", vgId:%d, tbname:%s", uid, vgId, ctbReq->name);
   } else {
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+    parserDebug("stmt2 interlace mode : table exist, uid:%" PRId64 ", vgId:%d", uid, vgId);
     pTbCtx->pMeta->vgId = vgId;
     pTbCtx->pMeta->uid = uid;
     pTbCtx->pData->uid = uid;
     pTbCtx->pData->pCreateTbReq = NULL;
     if (ctbReq != NULL) {
+      parserDebug("destroy create table request:%p", ctbReq);
       tdDestroySVCreateTbReq(ctbReq);
     }
   }
