@@ -52,7 +52,8 @@ typedef void   TAOS_SUB;
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
 #define TSDB_DATA_TYPE_GEOMETRY   20                      // geometry
-#define TSDB_DATA_TYPE_MAX        21
+#define TSDB_DATA_TYPE_DECIMAL64  21                      // decimal64
+#define TSDB_DATA_TYPE_MAX        22
 
 typedef enum {
   TSDB_OPTION_LOCALE,
@@ -275,6 +276,7 @@ DLL_EXPORT int      taos_affected_rows(TAOS_RES *res);
 DLL_EXPORT int64_t  taos_affected_rows64(TAOS_RES *res);
 
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
+DLL_EXPORT TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int         taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
 DLL_EXPORT int  taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);

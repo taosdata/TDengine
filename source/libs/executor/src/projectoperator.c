@@ -1014,7 +1014,12 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
       // _rowts/_c0, not tbname column
       if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId))) {
-        // do nothing
+        if (fmIsGroupIdFunc(pfCtx->functionId)) {
+          SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+          TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
+          code = colDataSetVal(pColInfoData, pResult->info.rows, (const char*)&pSrcBlock->info.id.groupId, false);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
       } else if (fmIsIndefiniteRowsFunc(pfCtx->functionId)) {
         SResultRowEntryInfo* pResInfo = GET_RES_INFO(pfCtx);
         code = pfCtx->fpSet.init(pfCtx, pResInfo);
