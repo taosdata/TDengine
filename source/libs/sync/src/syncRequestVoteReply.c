@@ -44,26 +44,26 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-    syncLogRecvRequestVoteReply(ths, pMsg, "not in my config");
+    syncLogRecvRequestVoteReply(ths, pMsg, "not in my config", &pRpcMsg->info.traceId);
 
     TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   // drop stale response
   if (pMsg->term < currentTerm) {
-    syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response");
+    syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response", &pRpcMsg->info.traceId);
 
     TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }
 
   if (pMsg->term > currentTerm) {
-    syncLogRecvRequestVoteReply(ths, pMsg, "error term");
+    syncLogRecvRequestVoteReply(ths, pMsg, "error term", &pRpcMsg->info.traceId);
     syncNodeStepDown(ths, pMsg->term, pMsg->destId);
 
     TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }
 
-  syncLogRecvRequestVoteReply(ths, pMsg, "");
+  syncLogRecvRequestVoteReply(ths, pMsg, "", &pRpcMsg->info.traceId);
   if (pMsg->term != currentTerm) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // This tallies votes even when the current state is not Candidate,

@@ -901,7 +901,7 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, task);
   }
 
-  tDebug("conn:%p, get from pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
+  tTrace("conn:%p, get from pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
 
   *ppConn = conn;
   return 0;
@@ -943,7 +943,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   QUEUE_INIT(&conn->q);
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
-  tDebug("conn:%p, added to pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
+  tTrace("conn:%p, added to pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
 
   conn->heapMissHit = 0;
 
@@ -1437,7 +1437,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     }
     QUEUE_PUSH(&pThrd->batchSendSet, &pConn->batchSendq);
     pConn->inThreadSendq = 1;
-    tDebug("%s conn:%p, batch send later", pInst->label, pConn);
+    tTrace("%s conn:%p, batch send later", pInst->label, pConn);
     return 0;
   }
 
@@ -1445,7 +1445,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
 
   int32_t totalLen = 0;
   if (size == 0) {
-    tDebug("%s conn:%p, not msg to send", pInst->label, pConn);
+    tTrace("%s conn:%p, not msg to send", pInst->label, pConn);
     return 0;
   }
   uv_buf_t* wb = NULL;
@@ -1552,7 +1552,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   SWReqsWrapper* pWreq = req->data;
 
   QUEUE_MOVE(&reqToSend, &pWreq->node);
-  tDebug("%s conn:%p, start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, j, totalLen);
+  tTrace("%s conn:%p, start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, j, totalLen);
 
   int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
   if (ret != 0) {

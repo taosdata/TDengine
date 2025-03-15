@@ -91,11 +91,11 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncRequestVote* pMsg = pRpcMsg->pCont;
   bool             resetElect = false;
 
-  syncLogRecvRequestVote(ths, pMsg, -1, "", "recv");
+  syncLogRecvRequestVote(ths, pMsg, -1, "", "recv", &pRpcMsg->info.traceId);
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
-    syncLogRecvRequestVote(ths, pMsg, -1, "not in my config", "process");
+    syncLogRecvRequestVote(ths, pMsg, -1, "not in my config", "process", &pRpcMsg->info.traceId);
 
     TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
   }
@@ -135,8 +135,8 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (!(!grant || pMsg->term == pReply->term)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // trace log
-  syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "", "proceed");
-  syncLogSendRequestVoteReply(ths, pReply, "");
+  syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "", "proceed", &pRpcMsg->info.traceId);
+  syncLogSendRequestVoteReply(ths, pReply, "", &pRpcMsg->info.traceId);
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);

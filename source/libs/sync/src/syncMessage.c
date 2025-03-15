@@ -152,6 +152,7 @@ int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pE
                                             SRpcMsg* pRpcMsg) {
   uint32_t dataLen = pEntry->bytes;
   uint32_t bytes = sizeof(SyncAppendEntries) + dataLen;
+  pRpcMsg->info.traceId = pEntry->originRpcTraceId;
   pRpcMsg->contLen = bytes;
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
   if (pRpcMsg->pCont == NULL) {
