@@ -141,7 +141,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
                                 const char* id) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN &&
+      pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
       return TSDB_CODE_APP_ERROR;

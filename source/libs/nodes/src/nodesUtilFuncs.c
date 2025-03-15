@@ -2143,6 +2143,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
       nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);
+      tSimpleHashCleanup(pSubplan->pVTables);
       nodesClearList(pSubplan->pParents);
       break;
     }
@@ -3422,8 +3423,6 @@ bool nodesContainsColumn(SNode* pNode) {
   return cxt.containsCol;
 }
 
-
-
 int32_t mergeNodeToLogic(SNode** pDst, SNode** pSrc) {
   SLogicConditionNode* pLogicCond = NULL;
   int32_t              code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCond);
@@ -3467,5 +3466,43 @@ int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond) {
   return code;
 }
 
+void tFreeStreamVtbColName(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SColIdName* pColId = (SColIdName*)param;
+
+  taosMemoryFreeClear(pColId->colName);
+}
+
+void tFreeStreamVtbOtbInfo(void* param) {
+  SArray** ppArray = (SArray**)param;
+  if (NULL == param || NULL == *ppArray) {
+    return;
+  }
+
+  taosArrayDestroyEx(*ppArray, tFreeStreamVtbColName);
+}
+
+
+void tFreeStreamVtbVtbInfo(void* param) {
+  SSHashObj** ppHash = (SSHashObj**)param;
+  if (NULL == param || NULL == *ppHash) {
+    return;
+  }
+
+  tSimpleHashCleanup(*ppHash);
+}
+
+
+void tFreeStreamVtbDbVgInfo(void* param) {
+  SSHashObj** ppHash = (SSHashObj**)param;
+  if (NULL == param || NULL == *ppHash) {
+    return;
+  }
+
+  tSimpleHashCleanup(*ppHash);
+}
 
 

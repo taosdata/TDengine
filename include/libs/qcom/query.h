@@ -164,6 +164,34 @@ typedef struct SDBVgInfo {
   SArray*   vgArray;  // SVgroupInfo
 } SDBVgInfo;
 
+typedef struct SVGroupHashInfo {
+  int32_t  vgId;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+} SVGroupHashInfo;
+
+typedef struct SDBVgHashInfo {
+  int16_t   hashPrefix;
+  int16_t   hashSuffix;
+  int8_t    hashMethod;
+  bool      vgSorted;
+  SArray*   vgArray;   //SArray<SVGroupHashInfo>
+} SDBVgHashInfo;
+
+typedef struct SColIdName {
+  int16_t colId;
+  char*   colName;
+} SColIdName;
+
+typedef struct SStreamVBuildCtx {
+  int64_t      lastUid;
+  SRefColInfo* lastCol;
+
+  SSHashObj*   lastVg;
+  SSHashObj*   lastVtable;
+  SArray*      lastOtable;
+} SStreamVBuildCtx;
+
 typedef struct SUseDbOutput {
   char       db[TSDB_DB_FNAME_LEN];
   uint64_t   dbId;
@@ -371,6 +399,10 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
 int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
 void    freeDbCfgInfo(SDbCfgInfo* pInfo);
+
+void tFreeStreamVtbOtbInfo(void* param);
+void tFreeStreamVtbVtbInfo(void* param);
+void tFreeStreamVtbDbVgInfo(void* param);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));

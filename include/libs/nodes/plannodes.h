@@ -500,6 +500,10 @@ typedef struct SVirtualScanPhysiNode {
   bool           groupSort;
   bool           scanAllCols;
   SNodeList*     pTargets;
+  SNodeList*     pTags;
+  SNode*         pSubtable;
+  int8_t         igExpired;
+  int8_t         igCheckUpdate;
 }SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
@@ -896,6 +900,7 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
   SNode*         pTagCond;
   SNode*         pTagIndexCond;
+  SSHashObj*     pVTables;      // for stream virtual tables
   bool           showRewrite;
   bool           isView;
   bool           isAudit;

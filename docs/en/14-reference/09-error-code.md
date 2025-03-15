@@ -111,6 +111,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000030C | Invalid query id                                             | Internal error                                               | Report issue                                                 |
 | 0x8000030E | Invalid connection id                                        | Internal error                                               | Report issue                                                 |
 | 0x80000315 | User is disabled                                             | User is unavailable                                          | Grant permissions                                            |
+| 0x80000318 | Mnode internal error                                         | Internal error                                               | Report issue                                                 |
 | 0x80000320 | Object already there                                         | Internal error                                               | Report issue                                                 |
 | 0x80000322 | Invalid table type                                           | Internal error                                               | Report issue                                                 |
 | 0x80000323 | Object not there                                             | Internal error                                               | Report issue                                                 |

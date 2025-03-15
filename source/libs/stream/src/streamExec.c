@@ -48,7 +48,8 @@ static int32_t doOutputResultBlockImpl(SStreamTask* pTask, SStreamDataBlock* pBl
     pTask->outputInfo.smaSink.smaSink(pTask->outputInfo.smaSink.vnode, pTask->outputInfo.smaSink.smaId, pBlock->blocks);
     destroyStreamDataBlock(pBlock);
   } else {
-    if (type != TASK_OUTPUT__FIXED_DISPATCH && type != TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    if (type != TASK_OUTPUT__FIXED_DISPATCH && type != TASK_OUTPUT__SHUFFLE_DISPATCH &&
+        type != TASK_OUTPUT__VTABLE_MAP) {
       stError("s-task:%s invalid stream output type:%d, internal error", pTask->id.idStr, type);
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
@@ -631,7 +632,7 @@ void streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) 
   }
 
   // transfer the ownership of executor state
-  if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH || type == TASK_OUTPUT__VTABLE_MAP) {
     if (level == TASK_LEVEL__SOURCE) {
       stDebug("s-task:%s add transfer-state block into outputQ", id);
     } else {

@@ -429,6 +429,31 @@ int32_t queryBuildGetStreamProgressMsg(void* input, char** msg, int32_t msgSize,
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t queryBuildVSubTablesMsg(void* input, char** msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int64_t)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SVSubTablesReq req = {0};
+  req.suid = *(int64_t*)input;
+
+  int32_t bufLen = tSerializeSVSubTablesReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
+  if(tSerializeSVSubTablesReq(pBuf, bufLen, &req) < 0)   {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
   SUseDbRsp     usedbRsp = {0};
@@ -1062,6 +1087,21 @@ int32_t queryProcessStreamProgressRsp(void* output, char* msg, int32_t msgSize) 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessVSubTablesRsp(void* output, char* msg, int32_t msgSize) {
+  if (!output || !msg || msgSize <= 0) {
+    qError("queryProcessVSubTablesRsp input error, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SVSubTablesRsp* pRsp = (SVSubTablesRsp*)output;
+  int32_t code = tDeserializeSVSubTablesRsp(msg, msgSize, pRsp);
+  if (code != 0) {
+    qError("tDeserializeSVSubTablesRsp failed, msgSize: %d, error:%d", msgSize, code);
+    return code;
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
 
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
@@ -1082,6 +1122,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryBuildGetTableTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryBuildGetTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryBuildVSubTablesMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryProcessTableNameRsp;
@@ -1101,6 +1142,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryProcessVSubTablesRsp;
 }
 
 #pragma GCC diagnostic pop

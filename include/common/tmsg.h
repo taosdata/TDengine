@@ -624,6 +624,35 @@ typedef struct {
   SColRef*  pColRef;
 } SColRefWrapper;
 
+typedef struct {
+  int32_t vgId;
+  SColRef colRef;
+} SColRefEx;
+
+typedef struct {
+  int16_t colId;
+  char    refDbName[TSDB_DB_NAME_LEN];
+  char    refTableName[TSDB_TABLE_NAME_LEN];
+  char    refColName[TSDB_COL_NAME_LEN];
+} SRefColInfo;
+
+typedef struct SVCTableRefCols {
+  uint64_t     uid;
+  int32_t      numOfSrcTbls;
+  int32_t      numOfColRefs;
+  SRefColInfo* refCols;
+} SVCTableRefCols;
+
+typedef struct SVCTableMergeInfo {
+  uint64_t     uid;
+  int32_t      numOfSrcTbls;
+} SVCTableMergeInfo;
+
+typedef struct {
+  int32_t     nCols;
+  SColRefEx*  pColRefEx;
+} SColRefExWrapper;
+
 struct SSchema {
   int8_t   type;
   int8_t   flags;
@@ -1420,6 +1449,24 @@ int32_t tDeserializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
 int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
 int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
 void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
+
+typedef struct {
+  SMsgHead header;
+  tb_uid_t suid;
+} SVSubTablesReq;
+
+int32_t tSerializeSVSubTablesReq(void *buf, int32_t bufLen, SVSubTablesReq *pReq);
+int32_t tDeserializeSVSubTablesReq(void *buf, int32_t bufLen, SVSubTablesReq *pReq);
+
+typedef struct {
+  int32_t  vgId;
+  SArray*  pTables;   //SArray<SVCTableRefCols*>
+} SVSubTablesRsp;
+
+int32_t tSerializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp);
+int32_t tDeserializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp);
+void tDestroySVSubTablesRsp(void* rsp);
+
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -3126,6 +3173,7 @@ typedef struct {
   char    pWendName[TSDB_COL_NAME_LEN];
   char    pGroupIdName[TSDB_COL_NAME_LEN];
   char    pIsWindowFilledName[TSDB_COL_NAME_LEN];
+  SArray* pVSubTables; // array of SVSubTablesRsp
 } SCMCreateStreamReq;
 
 typedef struct STaskNotifyEventStat {

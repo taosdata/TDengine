@@ -609,6 +609,159 @@ _exit:
     (void)taosThreadRwlockUnlock(&(pVnode)->metaRWLock); \
   } while (0)
 
+int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SMetaReader                mr = {0};
+  bool                       readerInit = false;
+  SVCTableRefCols*           pTb = NULL;
+  int32_t                    refColsNum = 0;
+  char                       tbFName[TSDB_TABLE_FNAME_LEN];
+  
+  SArray *pList = taosArrayInit(10, sizeof(uint64_t));
+  QUERY_CHECK_NULL(pList, code, line, _return, terrno);
+  
+  QUERY_CHECK_CODE(pHandle->api.metaFn.getChildTableList(pHandle->vnode, suid, pList), line, _return);
+
+  size_t num = taosArrayGetSize(pList);
+  *ppRes = taosArrayInit(num, POINTER_BYTES);
+  QUERY_CHECK_NULL(*ppRes, code, line, _return, terrno);
+  SSHashObj* pSrcTbls = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  QUERY_CHECK_NULL(pSrcTbls, code, line, _return, terrno);
+
+  for (int32_t i = 0; i < num; ++i) {
+    uint64_t* id = taosArrayGet(pList, i);
+    QUERY_CHECK_NULL(id, code, line, _return, terrno);
+    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+    QUERY_CHECK_CODE(pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id), line, _return);
+    readerInit = true;
+
+    refColsNum = 0;
+    for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
+      if (mr.me.colRef.pColRef[j].hasRef) {
+        refColsNum++;
+      }
+    }
+
+    if (refColsNum <= 0) {
+      pHandle->api.metaReaderFn.clearReader(&mr);
+      readerInit = false;
+      continue;
+    }
+
+    pTb = taosMemoryCalloc(1, refColsNum * sizeof(SRefColInfo) + sizeof(*pTb));
+    QUERY_CHECK_NULL(pTb, code, line, _return, terrno);
+
+    pTb->uid = mr.me.uid;
+    pTb->numOfColRefs = refColsNum;
+    pTb->refCols = (SRefColInfo*)(pTb + 1);
+    
+    refColsNum = 0;
+    tSimpleHashClear(pSrcTbls);
+    for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
+      if (!mr.me.colRef.pColRef[j].hasRef) {
+        continue;
+      }
+
+      pTb->refCols[refColsNum].colId = mr.me.colRef.pColRef[j].id;
+      tstrncpy(pTb->refCols[refColsNum].refColName, mr.me.colRef.pColRef[j].refColName, TSDB_COL_NAME_LEN);
+      tstrncpy(pTb->refCols[refColsNum].refTableName, mr.me.colRef.pColRef[j].refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pTb->refCols[refColsNum].refDbName, mr.me.colRef.pColRef[j].refDbName, TSDB_DB_NAME_LEN);
+
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->refCols[refColsNum].refDbName, pTb->refCols[refColsNum].refTableName);
+
+      if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
+        QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
+      }
+      
+      refColsNum++;
+    }
+
+    pTb->numOfSrcTbls = tSimpleHashGetSize(pSrcTbls);
+    QUERY_CHECK_NULL(taosArrayPush(*ppRes, &pTb), code, line, _return, terrno);
+    pTb = NULL;
+    
+    pHandle->api.metaReaderFn.clearReader(&mr);
+    readerInit = false;
+  }
+
+_return:
+
+  if (readerInit) {
+    pHandle->api.metaReaderFn.clearReader(&mr);
+  }
+
+  taosArrayDestroy(pList);
+  taosMemoryFree(pTb);
+  tSimpleHashCleanup(pSrcTbls);
+  
+  if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
+}
+
+
+int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t        code = 0;
+  int32_t        rspSize = 0;
+  SVSubTablesReq req = {0};
+  SVSubTablesRsp rsp = {0};
+  SRpcMsg      rspMsg = {0};
+  void        *pRsp = NULL;
+  int32_t      line = 0;
+
+  if (tDeserializeSVSubTablesReq(pMsg->pCont, pMsg->contLen, &req)) {
+    code = terrno;
+    qError("tDeserializeSVSubTablesReq failed");
+    goto _return;
+  }
+
+  SReadHandle handle = {.vnode = pVnode};
+  initStorageAPI(&handle.api);
+
+  QUERY_CHECK_CODE(vnodeReadVSubtables(&handle, req.suid, &rsp.pTables), line, _return);
+  rsp.vgId = TD_VID(pVnode);
+
+  rspSize = tSerializeSVSubTablesRsp(NULL, 0, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVSubTablesRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+  pRsp = rpcMallocCont(rspSize);
+  if (pRsp == NULL) {
+    code = terrno;
+    qError("rpcMallocCont %d failed, error:%d", rspSize, terrno);
+    goto _return;
+  }
+  rspSize = tSerializeSVSubTablesRsp(pRsp, rspSize, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVSubTablesRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+
+_return:
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType;
+
+  if (code) {
+    qError("vnd get virtual subtables failed cause of %s", tstrerror(code));
+  }
+
+  tDestroySVSubTablesRsp(&rsp);
+
+  tmsgSendRsp(&rspMsg);
+
+  return code;
+}
+
+
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
   pLoad->syncAppliedIndex = pVnode->state.applied;

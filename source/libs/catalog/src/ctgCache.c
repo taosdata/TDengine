@@ -776,6 +776,26 @@ int32_t ctgReadTbTypeFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int3
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *tbType, int64_t* suid) {
+  SCtgDBCache *dbCache = NULL;
+  SCtgTbCache *tbCache = NULL;
+  CTG_ERR_RET(ctgAcquireTbMetaFromCache(pCtg, dbFName, tbName, &dbCache, &tbCache));
+  if (NULL == tbCache) {
+    ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *tbType = tbCache->pMeta->tableType;
+  *suid = tbCache->pMeta->suid;
+  ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+
+  ctgDebug("Got tb %s tbType %d suid %" PRIu64 " from cache, dbFName:%s", tbName, *tbType, *suid, dbFName);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
 int32_t ctgReadTbIndexFromCache(SCatalog *pCtg, SName *pTableName, SArray **pRes) {
   int32_t      code = 0;
   SCtgDBCache *dbCache = NULL;

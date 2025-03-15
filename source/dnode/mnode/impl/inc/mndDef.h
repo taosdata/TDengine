@@ -788,6 +788,7 @@ typedef struct SStreamConf {
   int64_t watermark;
 } SStreamConf;
 
+
 typedef struct {
   char     name[TSDB_STREAM_FNAME_LEN];
   SRWLatch lock;
@@ -839,6 +840,8 @@ typedef struct {
   int8_t  subTableWithoutMd5;
   char    reserve[TSDB_RESERVE_VALUE_LEN];
 
+  SSHashObj*  pVTableMap;  // do not serialize
+  SQueryPlan* pPlan;  // do not serialize
 } SStreamObj;
 
 typedef struct SStreamSeq {
