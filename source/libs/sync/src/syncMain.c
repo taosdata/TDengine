@@ -3440,12 +3440,14 @@ _out:;
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     int64_t index = syncNodeUpdateAssignedCommitIndex(ths, matchIndex);
-    sTrace("vgId:%d, index:%" PRId64 ", update assigned commit, msg:%p", ths->vgId, index, pMsg);
+    sGTrace(pEntry ? &pEntry->originRpcTraceId : NULL, "vgId:%d, index:%" PRId64 ", update assigned commit, msg:%p",
+            ths->vgId, index, pMsg);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
         syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex) < 0) {
-      sError("vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64, ths->vgId, index,
-             pMsg, ths->commitIndex);
+      sGError(pEntry ? &pEntry->originRpcTraceId : NULL,
+              "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64, ths->vgId, index, pMsg,
+              ths->commitIndex);
       code = TSDB_CODE_SYN_INTERNAL_ERROR;
     }
   }
@@ -3457,13 +3459,15 @@ _out:;
 
   // single replica
   SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, matchIndex);
-  sTrace("vgId:%d, index:%" PRId64 ", raft entry update commit, msg:%p return index:%" PRId64, ths->vgId, matchIndex,
-         pMsg, returnIndex);
+  sGTrace(pEntry ? &pEntry->originRpcTraceId : NULL,
+          "vgId:%d, index:%" PRId64 ", raft entry update commit, msg:%p return index:%" PRId64, ths->vgId, matchIndex,
+          pMsg, returnIndex);
 
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
       (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex)) < 0) {
-    sError("vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64 " return index:%" PRId64,
-           ths->vgId, matchIndex, pMsg, ths->commitIndex, returnIndex);
+    sGError(pEntry ? &pEntry->originRpcTraceId : NULL,
+            "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64 " return index:%" PRId64,
+            ths->vgId, matchIndex, pMsg, ths->commitIndex, returnIndex);
   }
 
   TAOS_RETURN(code);

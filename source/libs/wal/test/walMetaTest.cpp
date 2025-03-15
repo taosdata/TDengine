@@ -442,7 +442,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.bodyLen, len, NULL);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
@@ -495,9 +495,9 @@ TEST_F(WalKeepEnv, walScanLogGetLastVerHeadMissMatch) {
   pWal->writeHead.head.syncMeta = syncMeta;
 
   pWal->writeHead.cksumHead = 1;
-  pWal->writeHead.cksumBody = walCalcBodyCksum(newStr, len, NULL);
+  pWal->writeHead.cksumBody = walCalcBodyCksum(newStr, len);
   taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead));
-  taosWriteFile(pWal->pLogFile, newStr, len, NULL);
+  taosWriteFile(pWal->pLogFile, newStr, len);
 
   int64_t lastVer = 0;
   code = walScanLogGetLastVer(pWal, 0, &lastVer);
@@ -532,7 +532,7 @@ TEST_F(WalKeepEnv, walScanLogGetLastVerBodyMissMatch) {
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = 1;
   taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead));
-  taosWriteFile(pWal->pLogFile, newStr, len, NULL);
+  taosWriteFile(pWal->pLogFile, newStr, len);
 
   int64_t lastVer = 0;
   code = walScanLogGetLastVer(pWal, 0, &lastVer);
@@ -560,9 +560,9 @@ TEST_F(WalKeepEnv, walCheckAndRepairIdxFile) {
     pWal->writeHead.head.ingestTs = taosGetTimestampUs();
     pWal->writeHead.head.syncMeta = syncMeta;
     pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
-    pWal->writeHead.cksumBody = walCalcBodyCksum(newStr, len, NULL);
+    pWal->writeHead.cksumBody = walCalcBodyCksum(newStr, len);
     taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead));
-    taosWriteFile(pWal->pLogFile, newStr, len, NULL);
+    taosWriteFile(pWal->pLogFile, newStr, len);
   }
   pWal->vers.lastVer = 99;
   pFileInfo->lastVer = 99;
@@ -734,7 +734,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.bodyLen, len, NULL);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
@@ -764,7 +764,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.bodyLen, len, NULL);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
