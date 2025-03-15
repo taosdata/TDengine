@@ -164,7 +164,11 @@ jobs:
       - name: Run function returns with a null pointer scan testing
         run: |
           cd ${{ env.WKC }}/tests/parallel_test
-          ./run_scan_container.sh -d ${{ env.WKDIR }} -b ${{ env.PR_NUMBER }}_${{ github.run_number }} -f ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
+          ./run_scan_container.sh \
+            -d ${{ env.WKDIR }} \
+            -b ${{ env.PR_NUMBER }}_${{ github.run_number }} \
+            -f ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt \
+            ${{ steps.get_param.outputs.extra_param }}
 
       - name: Run tdgpt test cases
         run: |
