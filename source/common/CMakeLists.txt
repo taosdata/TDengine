@@ -87,21 +87,15 @@ if(${TD_WINDOWS})
   )
 
 else()
-  find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-
   target_link_libraries(
     common
-
-    PUBLIC ${CURL_LIBRARY}
-    PUBLIC ${SSL_LIBRARY}
-    PUBLIC ${CRYPTO_LIBRARY}
 
     PUBLIC os
     PUBLIC util
     INTERFACE api
   )
+  DEP_ext_curl(common)
+  DEP_ext_ssl(common)
 endif()
 
 if(${BUILD_S3})
