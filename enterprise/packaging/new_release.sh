@@ -423,41 +423,6 @@ function build_taosx() {
     fi
 }
 
-# function build_taoskeeper() {
-#     echo "build taoskeeper"
-
-#     # skip build taoskeeper for enterprise version on Mac
-#     if [ "${os_type}" == "Darwin" ] && [ "$versionType" == "enterprise" ]; then
-#         return
-#     fi
-    
-#     platform="${os_type}-${os_arch}"
-#     dateinfo=`date +"%F %T %:z"`
-#     buildinfo="${platform} ${dateinfo}"    
-
-#     if [ "$versionType" != "community" ];then
-#         keeper_url="github.com/taosdata/taoskeeperinternal"
-#     else
-#         keeper_url="github.com/taosdata/taoskeeper"
-#     fi
-    
-#     cd $keeperDir
-#     rm -rf taoskeeper || :
-#     git_pull $keeperDir ${branch} ver-${version}
-#     gitinfo=`git rev-parse HEAD`
-
-#     go build -ldflags="-s -w -X '${keeper_url}/version.Version=$version' -X '${keeper_url}/version.Gitinfo=$gitinfo' -X '${keeper_url}/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
-    
-#     if [ -f taoskeeper ]; then
-#         echo "build taoskeeper success"
-#     else
-#         echo "build taoskeeper failed"
-#         exit 1
-#     fi
-
-#     verify_commit_id $keeperDir taoskeeper $keeperDir
-# }
-
 download_plugin() {
     local version=$1
     local zip_file="tdengine-datasource-$version.zip"
@@ -540,17 +505,57 @@ function update_connectors() {
     fi
 }
 
+function prepare_tdinspect() {
+    cd ${baseDir}/${branch}
+    # GitHub API token
+    GITHUB_TOKEN="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"
+
+    # Repository information
+    REPO_OWNER="taosdata"
+    REPO_NAME="operation"
+
+    # Get the latest release information
+    latest_release=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+    "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest")
+
+    # Extract the asset ID for tdinspect.tar.gz
+    asset_id=$(echo "$latest_release" | jq -r '.assets[] | select(.name == "tdinspect.tar.gz") | .id')
+
+    # Check if asset ID was found
+    if [ -z "$asset_id" ]; then
+    echo "Error: tdinspect.tar.gz not found in the latest release."
+    exit 1
+    fi
+
+    # Download the asset using the asset ID
+    curl -L -o tdinspect.tar.gz \
+    -H "Accept: application/octet-stream" \
+    -H "Authorization: Bearer $GITHUB_TOKEN" \
+    "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/assets/$asset_id"
+    echo "tdinspect.tar.gz has been downloaded successfully."
+
+    tar -xvf tdinspect.tar.gz 
+    echo "tdinspect.tar.gz has been extracted successfully."
+}
+
 function preparepkg() {
     header_files="${communityDir}/include/client/taos.h ${communityDir}/include/common/taosdef.h ${communityDir}/include/util/taoserror.h ${communityDir}/include/util/tdef.h ${communityDir}/include/libs/function/taosudf.h"
     wsheader_files="${debugDir}/build/include/taosws.h"
 
+    prepare_tdinspect
     cd ${baseDir}/${branch}    
     rm -rf ${install_dir}/*
     mkdir -p ${install_dir}/bin ${install_dir}/cfg ${install_dir}/inc ${install_dir}/init.d
-
+    
+    # copy tdinspect
+    cp -r tdinspect_tool/tdinspect  ${install_dir}/bin/ || :
+    cp -r tdinspect_tool/inspect.cfg ${install_dir}/cfg/  || :
+    cp -r tdinspect_tool/user_guide.txt ${install_dir}/cfg/  || :
+    rm -rf tdinspect_tool
+    
     # copy bin files
     serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}keeper ${prefix}Benchmark ${prefix}dump taosudf)
-
+    
     for bin in "${serverBin[@]}"; do
         if [ -f "${debugDir}/build/bin/${bin}" ]; then
             cp ${debugDir}/build/bin/${bin} ${install_dir}/bin || :
