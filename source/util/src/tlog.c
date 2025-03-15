@@ -1374,9 +1374,7 @@ static void checkWriteCrashLogToFileInNewThead() {
     if (code != 0 ) {
       uError("failed to post sem for crashBasicInfo, code:%d", code);
     }
-=======
     TAOS_UNUSED(tsem_post(&gCrashBasicInfo.sem));
->>>>>>> 3.0
   }
 }
 
