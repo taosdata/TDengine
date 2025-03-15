@@ -1224,7 +1224,7 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
   // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
-  // | each column length |
+  // | each column length
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
          sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
@@ -2109,6 +2109,97 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
   }
 
   *pResBlock = pDstBlock;
+  return code;
+}
+
+int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SSDataBlock* pDstBlock = NULL;
+
+  QRY_PARAM_CHECK(pResBlock);
+  QUERY_CHECK_NULL(pDataBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  QUERY_CHECK_CODE(createDataBlock(&pDstBlock), lino, _return);
+
+  pDstBlock->info = pDataBlock->info;
+  pDstBlock->info.pks[0].pData = NULL;
+  pDstBlock->info.pks[1].pData = NULL;
+
+  pDstBlock->info.rows = 0;
+  pDstBlock->info.capacity = 0;
+  pDstBlock->info.rowSize = 0;
+  pDstBlock->info.id = pDataBlock->info.id;
+  pDstBlock->info.blankFill = pDataBlock->info.blankFill;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pColArray); ++i) {
+    SColIdPair *pColPair = taosArrayGet(pColArray, i);
+    QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);
+
+    for (int32_t j = 0; j < taosArrayGetSize(pDataBlock->pDataBlock); ++j) {
+      SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, j);
+      if (p == NULL) {
+        continue;
+      }
+
+      if (p->info.colId == pColPair->vtbColId) {
+        QUERY_CHECK_CODE(blockDataAppendColInfo(pDstBlock, p), lino, _return);
+        break;
+      }
+    }
+  }
+
+  *pResBlock = pDstBlock;
+  return code;
+_return:
+  uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  blockDataDestroy(pDstBlock);
+  return code;
+}
+
+int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock, SSDataBlock** pResBlock) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SSDataBlock *pDstBlock = NULL;
+
+  QRY_PARAM_CHECK(pResBlock);
+  QUERY_CHECK_NULL(pDataBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pOrgBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  QUERY_CHECK_CODE(createOneDataBlock(pOrgBlock, false, &pDstBlock), lino, _return);
+  QUERY_CHECK_CODE(blockDataEnsureCapacity(pDstBlock, pDataBlock->info.rows), lino, _return);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pOrgBlock->pDataBlock); ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
+    SColumnInfoData* pSrc = taosArrayGet(pOrgBlock->pDataBlock, i);
+
+    QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
+    QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno);
+
+    bool found = false;
+    for (int32_t j = 0; j < taosArrayGetSize(pDataBlock->pDataBlock); j++) {
+      SColumnInfoData *p = taosArrayGet(pDataBlock->pDataBlock, j);
+      if (p->info.slotId == pSrc->info.slotId) {
+        QUERY_CHECK_CODE(colDataAssign(pDst, p, (int32_t)pDataBlock->info.rows, &pDataBlock->info), lino, _return);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      colDataSetNNULL(pDst, 0, pDataBlock->info.rows);
+    }
+
+  }
+
+  pDstBlock->info.rows = pDataBlock->info.rows;
+  pDstBlock->info.capacity = pDataBlock->info.rows;
+  pDstBlock->info.window = pDataBlock->info.window;
+
+  *pResBlock = pDstBlock;
+  return code;
+_return:
+  uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  blockDataDestroy(pDstBlock);
   return code;
 }
 

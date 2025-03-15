@@ -94,12 +94,19 @@ typedef struct SColumnNode {
   bool        isPk;
   int32_t     projRefIdx;
   int32_t     resIdx;
+  bool        hasDep;
+  bool        hasRef;
+  char        refDbName[TSDB_DB_NAME_LEN];
+  char        refTableName[TSDB_TABLE_NAME_LEN];
+  char        refColName[TSDB_COL_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
   ENodeType type;
-  SDataType resType;
   char      colName[TSDB_COL_NAME_LEN];
+  char      refDbName[TSDB_DB_NAME_LEN];
+  char      refTableName[TSDB_TABLE_NAME_LEN];
+  char      refColName[TSDB_COL_NAME_LEN];
 } SColumnRefNode;
 
 typedef struct STargetNode {
@@ -238,6 +245,13 @@ typedef struct STempTableNode {
   SNode*     pSubquery;
 } STempTableNode;
 
+typedef struct SVirtualTableNode {
+  STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  SNodeList*         refTables;
+} SVirtualTableNode;
+
 typedef struct SViewNode {
   STableNode         table;  // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
@@ -281,6 +295,7 @@ typedef enum EJoinAlgorithm {
 
 typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
+  DYN_QTYPE_VTB_SCAN,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
@@ -395,6 +410,7 @@ typedef enum EShowKind {
   SHOW_KIND_ALL = 1,
   SHOW_KIND_TABLES_NORMAL,
   SHOW_KIND_TABLES_CHILD,
+  SHOW_KIND_TABLES_VIRTUAL,
   SHOW_KIND_DATABASES_USER,
   SHOW_KIND_DATABASES_SYSTEM
 } EShowKind;

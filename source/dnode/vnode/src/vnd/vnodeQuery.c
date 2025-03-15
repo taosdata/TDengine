@@ -77,6 +77,28 @@ void vnodePrintTableMeta(STableMetaRsp *pMeta) {
   }
 }
 
+int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
+  int8_t tblType = reader->me.type;
+  if (hasRefCol(tblType)) {
+    SColRefWrapper *p = &(reader->me.colRef);
+    if (numOfCol != p->nCols) {
+      vError("fillTableColRef table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
+      return TSDB_CODE_APP_ERROR;
+    }
+    for (int i = 0; i < p->nCols; i++) {
+      SColRef *pColRef = &p->pColRef[i];
+      pRef[i].hasRef = pColRef->hasRef;
+      pRef[i].id = pColRef->id;
+      if(pRef[i].hasRef) {
+        tstrncpy(pRef[i].refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(pRef[i].refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRef[i].refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
+  return 0;
+}
+
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
@@ -139,24 +161,34 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.vgId = TD_VID(pVnode);
   metaRsp.tuid = mer1.me.uid;
 
-  if (mer1.me.type == TSDB_SUPER_TABLE) {
-    tstrncpy(metaRsp.stbName, mer1.me.name, TSDB_TABLE_NAME_LEN);
-    schema = mer1.me.stbEntry.schemaRow;
-    schemaTag = mer1.me.stbEntry.schemaTag;
-    metaRsp.suid = mer1.me.uid;
-  } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
-    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
+  switch (mer1.me.type) {
+    case TSDB_SUPER_TABLE: {
+      (void)strcpy(metaRsp.stbName, mer1.me.name);
+      schema = mer1.me.stbEntry.schemaRow;
+      schemaTag = mer1.me.stbEntry.schemaTag;
+      metaRsp.suid = mer1.me.uid;
+      break;
+    }
+    case TSDB_CHILD_TABLE:
+    case TSDB_VIRTUAL_CHILD_TABLE:{
+      metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
+      if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
-    tstrncpy(metaRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
-    metaRsp.suid = mer2.me.uid;
-    schema = mer2.me.stbEntry.schemaRow;
-    schemaTag = mer2.me.stbEntry.schemaTag;
-  } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
-    schema = mer1.me.ntbEntry.schemaRow;
-  } else {
-    vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
-    goto _exit3;
+      (void)strcpy(metaRsp.stbName, mer2.me.name);
+      metaRsp.suid = mer2.me.uid;
+      schema = mer2.me.stbEntry.schemaRow;
+      schemaTag = mer2.me.stbEntry.schemaTag;
+      break;
+    }
+    case TSDB_NORMAL_TABLE:
+    case TSDB_VIRTUAL_NORMAL_TABLE: {
+      schema = mer1.me.ntbEntry.schemaRow;
+      break;
+    }
+    default: {
+      vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
+      goto _exit3;
+    }
   }
 
   metaRsp.numOfTags = schemaTag.nCols;
@@ -187,6 +219,19 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+  if (hasRefCol(mer1.me.type)) {
+    metaRsp.pColRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * metaRsp.numOfColumns);
+    if (metaRsp.pColRefs) {
+      code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
+      if (code < 0) {
+        goto _exit;
+      }
+    }
+    metaRsp.numOfColRefs = metaRsp.numOfColumns;
+  } else {
+    metaRsp.pColRefs = NULL;
+    metaRsp.numOfColRefs = 0;
+  }
 
   vnodePrintTableMeta(&metaRsp);
 
@@ -215,6 +260,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
 _exit:
+  taosMemoryFree(metaRsp.pColRefs);
   taosMemoryFree(metaRsp.pSchemas);
   taosMemoryFree(metaRsp.pSchemaExt);
 _exit2:
@@ -286,7 +332,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   if (mer1.me.type == TSDB_SUPER_TABLE) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
     goto _exit;
-  } else if (mer1.me.type == TSDB_CHILD_TABLE) {
+  } else if (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
@@ -310,7 +356,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       goto _exit;
     }
     (void)memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
-  } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
+  } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
@@ -329,10 +375,12 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   cfgRsp.numOfTags = schemaTag.nCols;
   cfgRsp.numOfColumns = schema.nCols;
+  cfgRsp.virtualStb = false; // vnode don't have super table, so it's always false
   cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
   cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
+  cfgRsp.pColRefs = (SColRef *)taosMemoryMalloc(sizeof(SColRef) * cfgRsp.numOfColumns);
 
-  if (NULL == cfgRsp.pSchemas || NULL == cfgRsp.pSchemaExt) {
+  if (NULL == cfgRsp.pSchemas || NULL == cfgRsp.pSchemaExt || NULL == cfgRsp.pColRefs) {
     code = terrno;
     goto _exit;
   }
@@ -341,22 +389,36 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     (void)memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
 
-  // if (useCompress(cfgRsp.tableType)) {
-
-  SMetaReader     *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
+  SMetaReader     *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
   SColCmprWrapper *pColCmpr = &pReader->me.colCmpr;
+  SColRefWrapper  *pColRef = &mer1.me.colRef;
 
-  for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
-    SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
-    SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
-    pSchExt->colId = pCmpr->id;
-    pSchExt->compress = pCmpr->alg;
-    if (pReader->me.pExtSchemas)
-      pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
-    else
-      pSchExt->typeMod = 0;
+  if (withExtSchema(cfgRsp.tableType)) {
+    for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+      SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
+      SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
+      pSchExt->colId = pCmpr->id;
+      pSchExt->compress = pCmpr->alg;
+      if (pReader->me.pExtSchemas)
+        pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
+      else
+        pSchExt->typeMod = 0;
+    }
   }
-  //}
+
+  cfgRsp.virtualStb = false;
+  if (hasRefCol(cfgRsp.tableType)) {
+    for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+      SColRef *pRef = &pColRef->pColRef[i];
+      cfgRsp.pColRefs[i].hasRef = pRef->hasRef;
+      cfgRsp.pColRefs[i].id = pRef->id;
+      if (cfgRsp.pColRefs[i].hasRef) {
+        tstrncpy(cfgRsp.pColRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(cfgRsp.pColRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(cfgRsp.pColRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
 
   // encode and send response
   rspLen = tSerializeSTableCfgRsp(NULL, 0, &cfgRsp);

@@ -591,6 +591,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_VND_TABLE_NAME: {
       STableMetaOutput* pOut = (STableMetaOutput*)pCtx->out;
       taosMemoryFree(pOut->tbMeta);
+      taosMemoryFree(pOut->vctbMeta);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -676,6 +677,7 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
   }
 
   taosMemoryFree(pOutput->tbMeta);
+  taosMemoryFree(pOutput->vctbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -1681,15 +1683,42 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 
   TAOS_MEMCPY(*pOutput, output, sizeof(STableMetaOutput));
 
+  if (output->vctbMeta) {
+    int32_t metaSize = sizeof(SVCTableMeta);
+    int32_t colRefSize = 0;
+    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+      colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
+    }
+    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
+    if (NULL == (*pOutput)->vctbMeta) {
+      qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(terrno);
+    }
+
+    TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
+    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+      (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->vctbMeta->colRef = NULL;
+    }
+  }
+
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     int32_t schemaExtSize = 0;
+    int32_t colRefSize = 0;
     if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
       schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      colRefSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+    }
 
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize);
+    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
     qTrace("tbmeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
+
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1702,6 +1731,12 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
       TAOS_MEMCPY((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
     } else {
       (*pOutput)->tbMeta->schemaExt = NULL;
+    }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      (*pOutput)->tbMeta->colRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->tbMeta->colRef = NULL;
     }
   }
 
@@ -2087,12 +2122,12 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
-    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType || TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
       res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
     }
 
-    if (TSDB_CHILD_TABLE == pMeta->tableType) {
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
       CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
       if (NULL == stbName) {
         if (req->onlyCache) {
@@ -2410,6 +2445,8 @@ FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
       return sizeof(*pMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
     case TSDB_CHILD_TABLE:
       return sizeof(SCTableMeta);
+    case TSDB_VIRTUAL_CHILD_TABLE:
+      return sizeof(SVCTableMeta);
     default:
       return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
   }

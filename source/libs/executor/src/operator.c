@@ -512,6 +512,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type) {
+      code = createVirtualTableMergeOperatorInfo(NULL, pHandle, NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else {
       code = TSDB_CODE_INVALID_PARA;
       pTaskInfo->code = code;
@@ -630,7 +632,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
     code = createGroupCacheOperatorInfo(ops, size, (SGroupCachePhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL == type) {
-    code = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
+    code = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT == type) {
     code = createStreamCountAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
@@ -651,6 +653,39 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createEventNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT == type) {
     //todo (liuyao) add
+  } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type) {
+    SVirtualScanPhysiNode* pVirtualTableScanNode = (SVirtualScanPhysiNode*)pPhyNode;
+    // NOTE: this is an patch to fix the physical plan
+
+    if (pVirtualTableScanNode->scan.node.pLimit != NULL) {
+      pVirtualTableScanNode->groupSort = true;
+    }
+
+    STableListInfo* pTableListInfo = tableListCreate();
+    if (!pTableListInfo) {
+      pTaskInfo->code = terrno;
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
+    }
+
+    code = initQueriedTableSchemaInfo(pHandle, &pVirtualTableScanNode->scan, dbname, pTaskInfo);
+    if (code) {
+      pTaskInfo->code = code;
+      tableListDestroy(pTableListInfo);
+      return code;
+    }
+
+      code = createScanTableListInfo(&pVirtualTableScanNode->scan, pVirtualTableScanNode->pGroupTags, pVirtualTableScanNode->groupSort,
+                                     pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
+        return code;
+      }
+
+
+    code = createVirtualTableMergeOperatorInfo(ops, pHandle, pTableListInfo, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
