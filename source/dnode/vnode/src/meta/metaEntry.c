@@ -15,6 +15,83 @@
 
 #include "meta.h"
 
+static bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
+  for (int32_t i = 0; i < nCols; i++) {
+    if (HAS_TYPE_MOD(pSchema + i)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t metaEncodeExtSchema(SEncoder* pCoder, const SMetaEntry* pME) {
+  if (pME->pExtSchemas) {
+    const SSchemaWrapper *pSchWrapper = NULL;
+    bool                  hasTypeMods = false;
+    if (pME->type == TSDB_SUPER_TABLE) {
+      pSchWrapper = &pME->stbEntry.schemaRow;
+    } else if (pME->type == TSDB_NORMAL_TABLE) {
+      pSchWrapper = &pME->ntbEntry.schemaRow;
+    } else {
+      return 0;
+    }
+    hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
+
+    for (int32_t i = 0; i < pSchWrapper->nCols && hasTypeMods; ++i) {
+      TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->pExtSchemas[i].typeMod));
+    }
+  }
+  return 0;
+}
+
+static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
+  bool hasExtSchema = false;
+  SSchemaWrapper* pSchWrapper = NULL;
+  if (pME->type == TSDB_SUPER_TABLE) {
+    pSchWrapper = &pME->stbEntry.schemaRow;
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    pSchWrapper = &pME->ntbEntry.schemaRow;
+  } else {
+    return 0;
+  }
+
+  hasExtSchema = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
+  if (hasExtSchema && pSchWrapper->nCols > 0) {
+    pME->pExtSchemas = (SExtSchema*)tDecoderMalloc(pDecoder, sizeof(SExtSchema) * pSchWrapper->nCols);
+    if (pME->pExtSchemas == NULL) {
+      return terrno;
+    }
+
+    for (int32_t i = 0; i < pSchWrapper->nCols && hasExtSchema; i++) {
+      TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pME->pExtSchemas[i].typeMod));
+    }
+  }
+
+  return 0;
+}
+
+SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
+  const SSchemaWrapper *pSchWrapper = NULL;
+  bool                  hasTypeMods = false;
+  if (pME->type == TSDB_SUPER_TABLE) {
+    pSchWrapper = &pME->stbEntry.schemaRow;
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    pSchWrapper = &pME->ntbEntry.schemaRow;
+  } else {
+    return NULL;
+  }
+  hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
+
+  if (hasTypeMods) {
+    SExtSchema* ret = taosMemoryMalloc(sizeof(SExtSchema) * pSchWrapper->nCols);
+    if (ret != NULL){
+      memcpy(ret, pME->pExtSchemas, pSchWrapper->nCols * sizeof(SExtSchema));
+    }
+    return ret;
+  }
+  return NULL;
+}
+
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
@@ -129,6 +206,10 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       return TSDB_CODE_INVALID_PARA;
     }
     TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
+    TAOS_CHECK_RETURN(metaEncodeExtSchema(pCoder, pME));
+  }
+  if (pME->type == TSDB_SUPER_TABLE) {
+    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
   }
 
   tEndEncode(pCoder);
@@ -208,7 +289,16 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
       }
       TABLE_SET_COL_COMPRESSED(pME->flags);
     }
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(metaDecodeExtSchemas(pCoder, pME));
+    }
   }
+  if (pME->type == TSDB_SUPER_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->stbEntry.keep));
+    }
+  }
+
 
   tEndDecode(pCoder);
   return 0;
@@ -262,6 +352,7 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
     return;
   }
   metaCloneColCmprFree(&(*ppEntry)->colCmpr);
+  taosMemoryFreeClear((*ppEntry)->pExtSchemas);
 
   taosMemoryFreeClear(*ppEntry);
   return;
@@ -310,6 +401,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       metaCloneEntryFree(ppEntry);
       return code;
     }
+    (*ppEntry)->stbEntry.keep = pEntry->stbEntry.keep;
   } else if (pEntry->type == TSDB_CHILD_TABLE) {
     (*ppEntry)->ctbEntry.btime = pEntry->ctbEntry.btime;
     (*ppEntry)->ctbEntry.ttlDays = pEntry->ctbEntry.ttlDays;
@@ -367,6 +459,15 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
   if (code) {
     metaCloneEntryFree(ppEntry);
     return code;
+  }
+  if (pEntry->pExtSchemas && pEntry->colCmpr.nCols > 0) {
+    (*ppEntry)->pExtSchemas = taosMemoryCalloc(pEntry->colCmpr.nCols, sizeof(SExtSchema));
+    if (!(*ppEntry)->pExtSchemas) {
+      code = terrno;
+      metaCloneEntryFree(ppEntry);
+      return code;
+    }
+    memcpy((*ppEntry)->pExtSchemas, pEntry->pExtSchemas, sizeof(SExtSchema) * pEntry->colCmpr.nCols);
   }
 
   return code;

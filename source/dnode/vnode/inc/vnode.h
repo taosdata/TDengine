@@ -94,6 +94,7 @@ void   *vnodeGetIvtIdx(void *pVnode);
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
+int32_t vnodeGetStbKeep(SVnode *pVnode, tb_uid_t suid, int64_t *keep);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
 
@@ -184,6 +185,8 @@ void     tsdbReaderSetCloseFlag(STsdbReader *pReader);
 int64_t  tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
 void     tsdbSetFilesetDelimited(STsdbReader *pReader);
 void     tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn notifyFn, void *param);
+int32_t  tsdbReaderGetProgress(const STsdbReader *pReader, void **pBuf, uint64_t *pLen);
+int32_t  tsdbReaderSetProgress(STsdbReader *pReader, const void *buf, uint64_t len);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -220,6 +223,7 @@ typedef struct STqReader {
   SSDataBlock    *pResBlock;
   int64_t         lastTs;
   bool            hasPrimaryKey;
+  SExtSchema     *extSchema;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -349,6 +353,9 @@ int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader);
 int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader);
 int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value);
 void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
+
+int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
+void    metaFetchEntryFree(SMetaEntry **ppEntry);
 
 #ifdef __cplusplus
 }

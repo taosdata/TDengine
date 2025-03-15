@@ -98,7 +98,7 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 }
 
 static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
-    if (isNull || pData == NULL) {
+  if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
     if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
       pColumnInfoData->varmeta.offset[rowIndex] = -1;  // it is a null value of VAR type.
@@ -725,10 +725,13 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
   void* skey = colDataGetData(pColInfoData, 0);
   void* ekey = colDataGetData(pColInfoData, (pInfo->rows - 1));
 
+  int64_t val = 0;
   if (asc) {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(pInfo->pks[0].val, int64_t, pColInfoData->info.type, skey);
-      GET_TYPED_DATA(pInfo->pks[1].val, int64_t, pColInfoData->info.type, ekey);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey, typeGetTypeModFromColInfo(&pColInfoData->info));
+      VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[0], val);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey, typeGetTypeModFromColInfo(&pColInfoData->info));
+      VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[1], val);
     } else {  // todo refactor
       memcpy(pInfo->pks[0].pData, varDataVal(skey), varDataLen(skey));
       pInfo->pks[0].nData = varDataLen(skey);
@@ -738,8 +741,10 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
     }
   } else {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(pInfo->pks[0].val, int64_t, pColInfoData->info.type, ekey);
-      GET_TYPED_DATA(pInfo->pks[1].val, int64_t, pColInfoData->info.type, skey);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey, typeGetTypeModFromColInfo(&pColInfoData->info));
+      VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[0], val);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey, typeGetTypeModFromColInfo(&pColInfoData->info));
+      VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[1], val);
     } else {  // todo refactor
       memcpy(pInfo->pks[0].pData, varDataVal(ekey), varDataLen(ekey));
       pInfo->pks[0].nData = varDataLen(ekey);
@@ -1472,7 +1477,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, 0);
         SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
         if (pColInfoData == NULL || pOrder == NULL) {
-          return errno;
+          return terrno;
         }
 
         int64_t p0 = taosGetTimestampUs();
@@ -1861,14 +1866,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // window start ts
   void* px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // window end ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1878,14 +1883,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // uid
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // group id
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1895,14 +1900,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // calculate start ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // calculate end ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1911,7 +1916,7 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   infoData.info.bytes = VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -2803,7 +2808,9 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                 terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
                 return terrno;
               }
-              SColVal cv = COL_VAL_VALUE(pCol->colId, ((SValue){.type = pCol->type, .val = *(TSKEY*)var}));
+              SValue val = {.type = pCol->type};
+              VALUE_SET_TRIVIAL_DATUM(&val, *(TSKEY*)var);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, val);
               void*   px = taosArrayPush(pVals, &cv);
               if (px == NULL) {
                 return terrno;
@@ -2816,7 +2823,9 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                 return terrno;
               }
             } else {
-              SColVal cv = COL_VAL_VALUE(pCol->colId, ((SValue){.type = pCol->type, .val = *(int64_t*)var}));
+              SValue val = {.type = pCol->type};
+              VALUE_SET_TRIVIAL_DATUM(&val, *(int64_t*)var);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, val);
               void*   px = taosArrayPush(pVals, &cv);
               if (px == NULL) {
                 return terrno;
@@ -2869,31 +2878,31 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
               } else {
                 SValue sv = {.type = pCol->type};
                 if (pCol->type == pColInfoData->info.type) {
-                  memcpy(&sv.val, var, tDataTypes[pCol->type].bytes);
+                  valueSetDatum(&sv, sv.type, var, tDataTypes[pCol->type].bytes);
                 } else {
                   /**
                    *  1. sum/avg would convert to int64_t/uint64_t/double during aggregation
                    *  2. below conversion may lead to overflow or loss, the app should select the right data type.
                    */
-                  char tv[8] = {0};
+                  char tv[DATUM_MAX_SIZE] = {0};
                   if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
                     float v = 0;
-                    GET_TYPED_DATA(v, float, pColInfoData->info.type, var);
+                    GET_TYPED_DATA(v, float, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else if (pColInfoData->info.type == TSDB_DATA_TYPE_DOUBLE) {
                     double v = 0;
-                    GET_TYPED_DATA(v, double, pColInfoData->info.type, var);
+                    GET_TYPED_DATA(v, double, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else if (IS_SIGNED_NUMERIC_TYPE(pColInfoData->info.type)) {
                     int64_t v = 0;
-                    GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var);
+                    GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else {
                     uint64_t v = 0;
-                    GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var);
+                    GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   }
-                  memcpy(&sv.val, tv, tDataTypes[pCol->type].bytes);
+                  valueSetDatum(&sv, sv.type, tv, tDataTypes[pCol->type].bytes);
                 }
                 SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
                 void* px = taosArrayPush(pVals, &cv);
@@ -3187,7 +3196,12 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     *((int8_t*)data) = pColInfoData->info.type;
     data += sizeof(int8_t);
 
-    *((int32_t*)data) = pColInfoData->info.bytes;
+    int32_t bytes = pColInfoData->info.bytes;
+    *((int32_t*)data) = bytes;
+    if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
+      fillBytesForDecimalType((int32_t*)data, pColInfoData->info.type, pColInfoData->info.precision,
+                              pColInfoData->info.scale);
+    }
     data += sizeof(int32_t);
   }
 
@@ -3260,7 +3274,11 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   data += sizeof(bool);
 
   *actualLen = dataLen;
+#ifndef NO_UNALIGNED_ACCESS
   *groupId = pBlock->info.id.groupId;
+#else
+  taosSetPUInt64Aligned(groupId, &pBlock->info.id.groupId);
+#endif
   if (dataLen > dataBuflen) goto _exit;
 
   return dataLen;
@@ -3300,7 +3318,11 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   pStart += sizeof(int32_t);
 
   // group id sizeof(uint64_t)
+#ifndef NO_UNALIGNED_ACCESS
   pBlock->info.id.groupId = *(uint64_t*)pStart;
+#else
+  taosSetPUInt64Aligned(&pBlock->info.id.groupId, (uint64_t*)pStart);
+#endif
   pStart += sizeof(uint64_t);
 
   if (pBlock->pDataBlock == NULL) {
@@ -3320,6 +3342,10 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
     pStart += sizeof(int8_t);
 
     pColInfoData->info.bytes = *(int32_t*)pStart;
+    if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
+      extractDecimalTypeInfoFromBytes(&pColInfoData->info.bytes, &pColInfoData->info.precision,
+                                      &pColInfoData->info.scale);
+    }
     pStart += sizeof(int32_t);
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
@@ -3566,6 +3592,22 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
             j += 1;
           }
           break;
+        case TSDB_DATA_TYPE_DECIMAL64:
+        case TSDB_DATA_TYPE_DECIMAL:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (colDataIsNull_f(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              memcpy(pDst->pData + numOfRows * pDst->info.bytes, pDst->pData + j * pDst->info.bytes, pDst->info.bytes);
+            }
+            numOfRows += 1;
+            j += 1;
+          }
+          break;
       }
     }
 
@@ -3692,12 +3734,14 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
         } else {
           if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
             float v = 0;
-            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r));
+            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
           } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
             double v = 0;
-            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r));
+            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
+          } else if (IS_DECIMAL_TYPE(pCol->info.type)) {
+            // SKIP for decimal types
           } else {
-            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r));
+            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
           }
         }
       }

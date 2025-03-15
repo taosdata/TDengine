@@ -561,6 +561,7 @@ typedef struct {
   col_id_t colId;
   int32_t  cmprAlg;
 } SCmprObj;
+
 typedef struct {
   char      name[TSDB_TABLE_FNAME_LEN];
   char      db[TSDB_DB_FNAME_LEN];
@@ -590,6 +591,8 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+  int64_t   keep;
+  SExtSchema* pExtSchemas;
 } SStbObj;
 
 typedef struct {
@@ -814,10 +817,10 @@ typedef struct {
   char*   sql;
   char*   ast;
   char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTask>>
 
-  SArray* pHTasksList;  // generate the results for already stored ts data
-  int64_t hTaskUid;     // stream task for history ts data
+  SArray* pTaskList;       // SArray<SArray<SStreamTask>>
+  SArray* pHTaskList;     // generate the results for already stored ts data
+  int64_t hTaskUid;        // stream task for history ts data
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
@@ -833,7 +836,7 @@ typedef struct {
 
   int32_t indexForMultiAggBalance;
   int8_t  subTableWithoutMd5;
-  char    reserve[256];
+  char    reserve[TSDB_RESERVE_VALUE_LEN];
 
 } SStreamObj;
 

@@ -80,6 +80,9 @@ typedef struct SBlockOrderInfo {
 #define IS_JSON_NULL(type, data) \
   ((type) == TSDB_DATA_TYPE_JSON && (*(data) == TSDB_DATA_TYPE_NULL || tTagIsJsonNull(data)))
 
+#define GET_COL_DATA_TYPE(col) \
+  { .type = (col).type, .precision = (col).precision, .bytes = (col).bytes, .scale = (col).scale }
+
 static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
   if (!pColumnInfoData->hasNull) {
     return false;
@@ -174,17 +177,17 @@ static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint3
 static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(int64_t*)p = *(int64_t*)v;
+  taosSetPInt64Aligned((int64_t*)p, v);
 }
 
 static FORCE_INLINE void colDataSetFloat(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, float* v) {
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(float*)p = *(float*)v;
+  taosSetPFloatAligned((float*)p, v);
 }
 
 static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, double* v) {
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(double*)p = *(double*)v;
+  taosSetPDoubleAligned((double*)p, v);
 }
 
 int32_t getJsonValueLen(const char* data);

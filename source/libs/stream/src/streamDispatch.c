@@ -367,8 +367,10 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
       }
 
       // TODO: do not use broadcast
-      if (pDataBlock->info.type == STREAM_DELETE_RESULT || pDataBlock->info.type == STREAM_CHECKPOINT ||
-          pDataBlock->info.type == STREAM_TRANS_STATE) {
+
+      EStreamType type = pDataBlock->info.type;
+      if (type == STREAM_DELETE_RESULT || type == STREAM_CHECKPOINT ||
+          type == STREAM_TRANS_STATE || type == STREAM_RECALCULATE_START) {
         for (int32_t j = 0; j < numOfVgroups; j++) {
           code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j]);
           if (code != 0) {
@@ -527,6 +529,76 @@ static void cleanupInMonitor(int32_t taskId, int64_t taskRefId, void* param) {
   streamTaskFreeRefId(param);
 }
 
+static int32_t sendFailedDispatchData(SStreamTask* pTask, int64_t now) {
+  int32_t           code = 0;
+  const char*       id = pTask->id.idStr;
+  SDispatchMsgInfo* pMsgInfo = &pTask->msgInfo;
+
+  streamMutexLock(&pMsgInfo->lock);
+
+  int32_t             msgId = pMsgInfo->msgId;
+  SStreamDispatchReq* pReq = pTask->msgInfo.pData;
+
+  if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    stDebug("s-task:%s (child taskId:%d) retry shuffle-dispatch to down streams, msgId:%d", id, pTask->info.selfChildId,
+            msgId);
+
+    int32_t numOfRetry = 0;
+    for (int32_t i = 0; i < taosArrayGetSize(pTask->msgInfo.pSendInfo); ++i) {
+      SDispatchEntry* pEntry = taosArrayGet(pTask->msgInfo.pSendInfo, i);
+      if (pEntry == NULL) {
+        continue;
+      }
+
+      if (pEntry->status == TSDB_CODE_SUCCESS && pEntry->rspTs > 0) {
+        continue;
+      }
+
+      // downstream not rsp yet beyond threshold that is 10s
+      if (isDispatchRspTimeout(pEntry, now)) {  // not respond yet beyonds 30s, re-send data
+        doSendFailedDispatch(pTask, pEntry, now, "timeout");
+        numOfRetry += 1;
+        continue;
+      }
+
+      // downstream inputQ is closed
+      if (pEntry->status == TASK_INPUT_STATUS__BLOCKED) {
+        doSendFailedDispatch(pTask, pEntry, now, "downstream inputQ blocked");
+        numOfRetry += 1;
+        continue;
+      }
+
+      // handle other errors
+      if (pEntry->status != TSDB_CODE_SUCCESS) {
+        doSendFailedDispatch(pTask, pEntry, now, "downstream error");
+        numOfRetry += 1;
+      }
+    }
+
+    stDebug("s-task:%s complete retry shuffle-dispatch blocks to all %d vnodes, msgId:%d", pTask->id.idStr, numOfRetry,
+            msgId);
+  } else {
+    int32_t dstVgId = pTask->outputInfo.fixedDispatcher.nodeId;
+    SEpSet* pEpSet = &pTask->outputInfo.fixedDispatcher.epSet;
+    int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
+
+    int32_t         s = taosArrayGetSize(pTask->msgInfo.pSendInfo);
+    SDispatchEntry* pEntry = taosArrayGet(pTask->msgInfo.pSendInfo, 0);
+    if (pEntry != NULL) {
+      setResendInfo(pEntry, now);
+      code = doSendDispatchMsg(pTask, pReq, dstVgId, pEpSet);
+
+      stDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to s-task:0x%x (vgId:%d), msgId:%d, code:%s", id,
+              pTask->info.selfChildId, 1, downstreamTaskId, dstVgId, msgId, tstrerror(code));
+    } else {
+      stError("s-task:%s invalid index 0, size:%d", id, s);
+    }
+  }
+
+  streamMutexUnlock(&pMsgInfo->lock);
+  return code;
+}
+
 static void doMonitorDispatchData(void* param, void* tmrId) {
   int32_t           code = 0;
   int64_t           now = taosGetTimestampMs();
@@ -590,65 +662,7 @@ static void doMonitorDispatchData(void* param, void* tmrId) {
     return;
   }
 
-  {
-    SStreamDispatchReq* pReq = pTask->msgInfo.pData;
-
-    if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      stDebug("s-task:%s (child taskId:%d) retry shuffle-dispatch to down streams, msgId:%d", id,
-              pTask->info.selfChildId, msgId);
-
-      int32_t numOfRetry = 0;
-      for (int32_t i = 0; i < taosArrayGetSize(pTask->msgInfo.pSendInfo); ++i) {
-        SDispatchEntry* pEntry = taosArrayGet(pTask->msgInfo.pSendInfo, i);
-        if (pEntry == NULL) {
-          continue;
-        }
-
-        if (pEntry->status == TSDB_CODE_SUCCESS && pEntry->rspTs > 0) {
-          continue;
-        }
-
-        // downstream not rsp yet beyond threshold that is 10s
-        if (isDispatchRspTimeout(pEntry, now)) {  // not respond yet beyonds 30s, re-send data
-          doSendFailedDispatch(pTask, pEntry, now, "timeout");
-          numOfRetry += 1;
-          continue;
-        }
-
-        // downstream inputQ is closed
-        if (pEntry->status == TASK_INPUT_STATUS__BLOCKED) {
-          doSendFailedDispatch(pTask, pEntry, now, "downstream inputQ blocked");
-          numOfRetry += 1;
-          continue;
-        }
-
-        // handle other errors
-        if (pEntry->status != TSDB_CODE_SUCCESS) {
-          doSendFailedDispatch(pTask, pEntry, now, "downstream error");
-          numOfRetry += 1;
-        }
-      }
-
-      stDebug("s-task:%s complete retry shuffle-dispatch blocks to all %d vnodes, msgId:%d", pTask->id.idStr,
-              numOfRetry, msgId);
-    } else {
-      int32_t dstVgId = pTask->outputInfo.fixedDispatcher.nodeId;
-      SEpSet* pEpSet = &pTask->outputInfo.fixedDispatcher.epSet;
-      int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
-
-      int32_t         s = taosArrayGetSize(pTask->msgInfo.pSendInfo);
-      SDispatchEntry* pEntry = taosArrayGet(pTask->msgInfo.pSendInfo, 0);
-      if (pEntry != NULL) {
-        setResendInfo(pEntry, now);
-        code = doSendDispatchMsg(pTask, pReq, dstVgId, pEpSet);
-
-        stDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to s-task:0x%x (vgId:%d), msgId:%d, code:%s", id,
-                pTask->info.selfChildId, 1, downstreamTaskId, dstVgId, msgId, tstrerror(code));
-      } else {
-        stError("s-task:%s invalid index 0, size:%d", id, s);
-      }
-    }
-  }
+  code = sendFailedDispatchData(pTask, now);
 
   if (streamTaskShouldStop(pTask)) {
     stDebug("s-task:%s should stop, abort from timer", pTask->id.idStr);
@@ -833,7 +847,8 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
     int32_t type = pBlock->type;
     if (!(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-          type == STREAM_INPUT__TRANS_STATE)) {
+          type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__RECALCULATE)) {
+      atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
       stError("s-task:%s invalid dispatch block type:%d", id, type);
       return TSDB_CODE_INTERNAL_ERROR;
     }
@@ -880,7 +895,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
   code = sendDispatchMsg(pTask, pTask->msgInfo.pData);
 
-  // todo: secure the timerActive and start timer in after lock pTask->lock
+  // todo: start timer in after lock pTask->lock
   streamMutexLock(&pTask->lock);
   bool shouldStop = streamTaskShouldStop(pTask);
   streamMutexUnlock(&pTask->lock);
@@ -890,7 +905,6 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   } else {
     streamMutexLock(&pTask->msgInfo.lock);
     if (pTask->msgInfo.inMonitor == 0) {
-//      int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s start dispatch monitor tmr in %dms, dispatch code:%s", id, DISPATCH_RETRY_INTERVAL_MS,
               tstrerror(code));
       streamStartMonitorDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS);
@@ -1320,13 +1334,13 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
   int32_t tlen;
   tEncodeSize(tEncodeStreamDispatchReq, pReq, tlen, code);
   if (code < 0) {
-    goto FAIL;
+    goto _ERR;
   }
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
     code = terrno;
-    goto FAIL;
+    goto _ERR;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(vgId);
@@ -1336,7 +1350,7 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeStreamDispatchReq(&encoder, pReq)) < 0) {
     tEncoderClear(&encoder);
-    goto FAIL;
+    goto _ERR;
   }
   tEncoderClear(&encoder);
 
@@ -1345,7 +1359,7 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
 
   return tmsgSendReq(pEpSet, &msg);
 
-FAIL:
+_ERR:
   if (buf) {
     rpcFreeCont(buf);
   }
@@ -1845,6 +1859,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
+  stDebug("s-task:%s lastMsgId:%"PRId64 " for upstream taskId:0x%x(vgId:%d)", id, pInfo->lastMsgId, pReq->upstreamTaskId,
+          pReq->upstreamNodeId);
+
   if (pMeta->role == NODE_ROLE_FOLLOWER) {
     stError("s-task:%s task on follower received dispatch msgs, dispatch msg rejected", id);
     status = TASK_INPUT_STATUS__REFUSED;
@@ -1868,9 +1885,25 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
         } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
           stDebug("s-task:%s recv trans-state msgId:%d from upstream:0x%x", id, pReq->msgId, pReq->upstreamTaskId);
+        } else if (pReq->type == STREAM_INPUT__RECALCULATE) {
+          stDebug("s-task:%s recv recalculate msgId:%d from upstream:0x%x", id, pReq->msgId, pReq->upstreamTaskId);
         }
 
-        status = streamTaskAppendInputBlocks(pTask, pReq);
+        if (pReq->msgId > pInfo->lastMsgId) {
+          status = streamTaskAppendInputBlocks(pTask, pReq);
+          if (status == TASK_INPUT_STATUS__NORMAL) {
+            stDebug("s-task:%s update the lastMsgId from %" PRId64 " to %d", id, pInfo->lastMsgId, pReq->msgId);
+            pInfo->lastMsgId = pReq->msgId;
+          } else {
+            stDebug("s-task:%s not update the lastMsgId, remain:%" PRId64, id, pInfo->lastMsgId);
+          }
+        } else {
+          stWarn(
+              "s-task:%s duplicate msgId:%d from upstream:0x%x discard and return succ, from vgId:%d already recv "
+              "msgId:%" PRId64,
+              id, pReq->msgId, pReq->upstreamTaskId, pReq->upstreamNodeId, pInfo->lastMsgId);
+          status = TASK_INPUT_STATUS__NORMAL;  // still return success
+        }
       }
     }
   }

@@ -516,7 +516,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       RAW_NULL_CHECK(tvalue);
     } else {
       double val = 0;
-      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
+      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64, 0); // currently tag type can't be decimal, so pass 0 as typeMod
       tvalue = cJSON_CreateNumber(val);
       RAW_NULL_CHECK(tvalue);
     }
@@ -1060,6 +1060,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
       SColCmpr* pCmp = &req.colCmpr.pColCmpr[i];
       field.compress = pCmp->alg;
     }
+    if (req.pExtSchemas) field.typeMod = req.pExtSchemas[i].typeMod;
     RAW_NULL_CHECK(taosArrayPush(pReq.pColumns, &field));
   }
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));
@@ -1974,10 +1975,11 @@ static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrappe
     int j = 0;
     for (; j < pTableMeta->tableInfo.numOfColumns; j++) {
       SSchema* pColSchema = &pTableMeta->schema[j];
+      SSchemaExt* pColExtSchema = &pTableMeta->schemaExt[j];
       char*    fieldName = pSW->pSchema[i].name;
 
       if (strcmp(pColSchema->name, fieldName) == 0) {
-        if (checkSchema(pColSchema, fields, NULL, 0) != 0){
+        if (checkSchema(pColSchema, pColExtSchema, fields, NULL, 0) != 0){
           return true;
         }
         break;

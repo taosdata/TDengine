@@ -145,7 +145,11 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (g_pNodeAllocator->pCurrChunk->usedSize + size > g_pNodeAllocator->pCurrChunk->availableSize) {
+  int32_t alignedSize = size;
+#ifdef NO_UNALIGNED_ACCESS
+  alignedSize = (size + 3) & (~3);
+#endif
+  if (g_pNodeAllocator->pCurrChunk->usedSize + alignedSize > g_pNodeAllocator->pCurrChunk->availableSize) {
     int32_t code = callocNodeChunk(g_pNodeAllocator, NULL);
     if (TSDB_CODE_SUCCESS != code) {
       *pOut = NULL;
@@ -153,25 +157,31 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
     }
   }
   void* p = g_pNodeAllocator->pCurrChunk->pBuf + g_pNodeAllocator->pCurrChunk->usedSize;
-  g_pNodeAllocator->pCurrChunk->usedSize += size;
+  g_pNodeAllocator->pCurrChunk->usedSize += alignedSize;
   *pOut = p;
   return TSDB_CODE_SUCCESS;
   ;
 }
 
+#ifdef NO_UNALIGNED_ACCESS
+#define NODE_ALLOCATOR_HEAD_LEN 4
+#else
+#define NODE_ALLOCATOR_HEAD_LEN 1
+#endif
+
 static int32_t nodesCalloc(int32_t num, int32_t size, void** pOut) {
   void*   p = NULL;
-  int32_t code = nodesCallocImpl(num * size + 1, &p);
+  int32_t code = nodesCallocImpl(num * size + NODE_ALLOCATOR_HEAD_LEN, &p);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
   *(char*)p = (NULL != g_pNodeAllocator) ? 1 : 0;
-  *pOut = (char*)p + 1;
+  *pOut = (char*)p + NODE_ALLOCATOR_HEAD_LEN;
   return TSDB_CODE_SUCCESS;
 }
 
 void nodesFree(void* p) {
-  char* ptr = (char*)p - 1;
+  char* ptr = (char*)p - NODE_ALLOCATOR_HEAD_LEN;
   if (0 == *ptr) {
     taosMemoryFree(ptr);
   }
@@ -190,7 +200,7 @@ static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocato
     return code;
   }
   if (0 != taosThreadMutexInit(&(*pAllocator)->mutex, NULL)) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -881,12 +891,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SMergeAlignedIntervalPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
       code = makeNode(type, sizeof(SStreamIntervalPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
       code = makeNode(type, sizeof(SStreamFinalIntervalPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
       code = makeNode(type, sizeof(SStreamSemiIntervalPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
@@ -900,24 +913,29 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SSessionWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
       code = makeNode(type, sizeof(SStreamSessionWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
       code = makeNode(type, sizeof(SStreamSemiSessionWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
       code = makeNode(type, sizeof(SStreamFinalSessionWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       code = makeNode(type, sizeof(SStateWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
       code = makeNode(type, sizeof(SStreamStateWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
       code = makeNode(type, sizeof(SEventWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
       code = makeNode(type, sizeof(SStreamEventWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
@@ -927,6 +945,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SAnomalyWindowPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
       code = makeNode(type, sizeof(SStreamCountWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -1072,7 +1091,7 @@ void nodesDestroyNode(SNode* pNode) {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
       taosMemoryFreeClear(pValue->literal);
-      if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+      if (IS_VAR_DATA_TYPE(pValue->node.resType.type) || pValue->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
         taosMemoryFreeClear(pValue->datum.p);
       }
       break;
@@ -1192,6 +1211,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pOptions->pRollupFuncs);
       nodesDestroyList(pOptions->pSma);
       nodesDestroyList(pOptions->pDeleteMark);
+      nodesDestroyNode((SNode*)pOptions->pKeepNode);
       break;
     }
     case QUERY_NODE_COLUMN_OPTIONS: {
@@ -1214,6 +1234,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pOptions->pDelay);
       nodesDestroyNode(pOptions->pWatermark);
       nodesDestroyNode(pOptions->pDeleteMark);
+      nodesDestroyNode(pOptions->pRecInterval);
       break;
     }
     case QUERY_NODE_TSMA_OPTIONS: {
@@ -1640,6 +1661,7 @@ void nodesDestroyNode(SNode* pNode) {
         taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
         taosMemoryFreeClear(pQuery->pCmdMsg);
       }
+      taosMemoryFreeClear(pQuery->pResExtSchema);
       taosArrayDestroy(pQuery->pDbList);
       taosArrayDestroy(pQuery->pTableList);
       taosArrayDestroy(pQuery->pTargetTableList);
@@ -1924,6 +1946,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
@@ -1941,17 +1966,22 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE: {
       SStateWinodwPhysiNode* pPhyNode = (SStateWinodwPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStateKey);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT: {
       SEventWinodwPhysiNode* pPhyNode = (SEventWinodwPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStartCond);
@@ -1959,7 +1989,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT: {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT: {
       SCountWinodwPhysiNode* pPhyNode = (SCountWinodwPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
@@ -2307,12 +2338,14 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_DECIMAL64:
       return (void*)&pNode->typeData;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_DECIMAL:
       return (void*)pNode->datum.p;
     default:
       break;
@@ -2376,11 +2409,17 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-    case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
+      pNode->datum.p = (char*)value;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pNode->datum.i = *(int64_t*)value;
+      pNode->typeData = *(int64_t*)value;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
       pNode->datum.p = (char*)value;
       break;
     default:
@@ -3025,7 +3064,17 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
         code = terrno;
       }
       break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pVal->d = pNode->datum.d;
+      break;
     case TSDB_DATA_TYPE_DECIMAL:
+      pVal->pz = taosMemoryCalloc(1, pVal->nLen);
+      if (!pVal->pz) {
+        code = terrno;
+        break;
+      }
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      break;
     case TSDB_DATA_TYPE_BLOB:
       // todo
     default:

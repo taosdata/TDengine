@@ -73,6 +73,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80000134 | Invalid value                     | Invalid value                                                | Preserve the scene and logs, report issue on github          |
 | 0x80000135 | Invalid fqdn                      | Invalid FQDN                                                 | Check if the configured or input FQDN value is correct       |
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
+| 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
+| 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
 
 
 ## tsc

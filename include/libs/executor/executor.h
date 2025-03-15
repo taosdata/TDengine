@@ -53,6 +53,7 @@ typedef struct {
   int32_t     numOfVgroups;
   void*       sContext;  // SSnapContext*
   void*       pStateBackend;
+  void*       pOtherBackend;
   int8_t      fillHistory;
   STimeWindow winRange;
 
@@ -219,8 +220,7 @@ const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 const char*   qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
 void* qExtractReaderFromStreamScanner(void* scanner);
-
-void qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+void  qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
@@ -229,7 +229,7 @@ int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 bool    qStreamScanhistoryFinished(qTaskInfo_t tinfo);
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
 void    qResetTaskInfoCode(qTaskInfo_t tinfo);
-int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow);
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral);
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
 

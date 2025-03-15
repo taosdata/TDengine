@@ -21,10 +21,14 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/client"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+set(TAOSD_MODULE "")
+if(${TAOSD_INTEGRATED})
+    set(TAOSD_MODULE "taosd")
+endif()
 target_link_libraries(
     ${TAOS_LIB}
     INTERFACE api
-    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
+    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal
 )
 
 if(TD_WINDOWS)
@@ -63,7 +67,7 @@ target_include_directories(
 target_link_libraries(
     ${TAOS_LIB_STATIC}
     INTERFACE api
-    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
+    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
 )
 
 if(${BUILD_TEST})

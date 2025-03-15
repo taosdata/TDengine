@@ -18,6 +18,7 @@
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
+#include "decimal.h"
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
@@ -294,6 +295,8 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
 }
 
 SSchema* getTableColumnSchema(const STableMeta* pTableMeta) { return (SSchema*)pTableMeta->schema; }
+
+SSchemaExt* getTableColumnExtSchema(const STableMeta* pTableMeta) { return pTableMeta->schemaExt; }
 
 static SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
   SSchema* pSchema = (SSchema*)pTableMeta->schema;
@@ -840,7 +843,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->timeLineCurMode = TIME_LINE_GLOBAL;
   select->onlyHasKeepOrderFunc = true;
-  select->timeRange = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&select->timeRange, TSWINDOW_INITIALIZER); 
   select->pHint = pHint;
   select->lastProcessByRowFuncId = -1;
   *ppSelect = (SNode*)select;
@@ -1070,7 +1073,7 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
     int32_t metaSize =
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
-        (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
+        (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
     const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize;
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
@@ -1205,9 +1208,9 @@ int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFNam
   int32_t  code = getMetaDataFromHash(pDbFName, strlen(pDbFName), pMetaCache->pDbInfo, (void**)&pDbInfo);
   if (TSDB_CODE_SUCCESS == code) {
     *pVersion = pDbInfo->vgVer;
-    *pDbId = pDbInfo->dbId;
+    taosSetInt64Aligned(pDbId, pDbInfo->dbId);
     *pTableNum = pDbInfo->tbNum;
-    *pStateTs = pDbInfo->stateTs;
+    taosSetInt64Aligned(pStateTs, pDbInfo->stateTs);
   }
   return code;
 }
@@ -1401,7 +1404,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemas = pSchema;
 
   SSchemaExt* pSchemaExt = NULL;
-  if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
+  if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt) {
     int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
     pSchemaExt = taosMemoryMalloc(schemaExtSize);
     if (!pSchemaExt) goto err;
@@ -1502,4 +1505,11 @@ int64_t int64SafeSub(int64_t a, int64_t b) {
     res = INT64_MIN;
   }
   return res;
+}
+
+STypeMod calcTypeMod(const SDataType* pType) {
+  if (IS_DECIMAL_TYPE(pType->type)) {
+    return decimalCalcTypeMod(pType->precision, pType->scale);
+  }
+  return 0;
 }

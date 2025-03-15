@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef USE_UDF
 #include "uv.h"
 
 #include "os.h"
@@ -2323,3 +2324,15 @@ _exit:
 
   return code;
 }
+#else
+#include "tudf.h"
+
+int32_t cleanUpUdfs() { return 0; }
+int32_t udfcOpen() { return 0; }
+int32_t udfcClose() { return 0; }
+int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
+void    udfStopUdfd() { return; }
+int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+#endif

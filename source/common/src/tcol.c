@@ -62,8 +62,9 @@ uint8_t getDefaultEncode(uint8_t type) {
       return TSDB_COLVAL_ENCODE_DISABLED;
     case TSDB_DATA_TYPE_VARBINARY:
       return TSDB_COLVAL_ENCODE_DISABLED;
+    case TSDB_DATA_TYPE_DECIMAL64:
     case TSDB_DATA_TYPE_DECIMAL:
-      return TSDB_COLVAL_ENCODE_DELTAD;
+      return TSDB_COLVAL_ENCODE_DISABLED;
     case TSDB_DATA_TYPE_BLOB:
       return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -110,8 +111,9 @@ uint16_t getDefaultCompress(uint8_t type) {
       return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_VARBINARY:
       return TSDB_COLVAL_COMPRESS_ZSTD;
+    case TSDB_DATA_TYPE_DECIMAL64:
     case TSDB_DATA_TYPE_DECIMAL:
-      return TSDB_COLVAL_COMPRESS_LZ4;
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_BLOB:
       return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -348,7 +350,7 @@ int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressTy
   return TSDB_CODE_SUCCESS;
 }
 
-bool useCompress(uint8_t tableType) {
+bool withExtSchema(uint8_t tableType) {
   return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_CHILD_TABLE == tableType;
 }
 
@@ -413,6 +415,8 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 || TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
   } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
     return 1;
+  } else if (type == TSDB_DATA_TYPE_DECIMAL64 || type == TSDB_DATA_TYPE_DECIMAL) {
+    return l1 == TSDB_COLVAL_ENCODE_DISABLED ? 1 : 0;
   }
   return 0;
 }

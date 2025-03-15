@@ -326,13 +326,11 @@ void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo) {
     streamTmrStop(pInfo->checkRspTmr);
     pInfo->checkRspTmr = NULL;
   }
-
-  streamMutexDestroy(&pInfo->checkInfoLock);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void processDownstreamReadyRsp(SStreamTask* pTask) {
-  EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
+  EStreamTaskEvent event = (pTask->info.fillHistory != STREAM_HISTORY_TASK) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
   int32_t          code = streamTaskOnHandleEventSuccess(pTask->status.pSM, event, NULL, NULL);
   if (code) {
     stError("s-task:%s failed to set event succ, code:%s", pTask->id.idStr, tstrerror(code));
@@ -351,7 +349,7 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
               pTask->info.fillHistory);
     }
 
-    // halt it self for count window stream task until the related fill history task completed.
+    // halt itself for count window stream task until the related fill history task completed.
     stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
             pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);
@@ -364,10 +362,10 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
   // not invoke in success callback due to the deadlock.
   // todo: let's retry
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-    stDebug("s-task:%s try to launch related fill-history task", pTask->id.idStr);
+    stDebug("s-task:%s try to launch related task", pTask->id.idStr);
     code = streamLaunchFillHistoryTask(pTask);
     if (code) {
-      stError("s-task:%s failed to launch history task, code:%s", pTask->id.idStr, tstrerror(code));
+      stError("s-task:%s failed to launch related task, code:%s", pTask->id.idStr, tstrerror(code));
     }
   }
 }

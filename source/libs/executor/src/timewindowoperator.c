@@ -17,7 +17,9 @@
 #include "function.h"
 #include "functionMgt.h"
 #include "operator.h"
+#include "query.h"
 #include "querytask.h"
+#include "taoserror.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -57,8 +59,7 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
   }
 
   // set time window for current result
-  pResultRow->win = (*win);
-
+  TAOS_SET_POBJ_ALIGNED(&pResultRow->win, win);
   *pResult = pResultRow;
   return setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
 }
@@ -235,12 +236,12 @@ void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY pr
     double v1 = 0, v2 = 0, v = 0;
     if (prevRowIndex == -1) {
       SGroupKeys* p = taosArrayGet(pPrevValues, index);
-      GET_TYPED_DATA(v1, double, pColInfo->info.type, p->pData);
+      GET_TYPED_DATA(v1, double, pColInfo->info.type, p->pData, typeGetTypeModFromColInfo(&pColInfo->info));
     } else {
-      GET_TYPED_DATA(v1, double, pColInfo->info.type, colDataGetData(pColInfo, prevRowIndex));
+      GET_TYPED_DATA(v1, double, pColInfo->info.type, colDataGetData(pColInfo, prevRowIndex), typeGetTypeModFromColInfo(&pColInfo->info));
     }
 
-    GET_TYPED_DATA(v2, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex));
+    GET_TYPED_DATA(v2, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex), typeGetTypeModFromColInfo(&pColInfo->info));
 
 #if 0
     if (functionId == FUNCTION_INTERP) {
@@ -270,7 +271,7 @@ void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY pr
     SPoint point = (SPoint){.key = windowKey, .val = &v};
 
     if (!fmIsElapsedFunc(pCtx[k].functionId)) {
-      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, 0);
     }
 
     if (type == RESULT_ROW_START_INTERP) {
@@ -986,6 +987,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       continue;
+    }
+    if (pStateColInfoData->pData == NULL) {
+      qError("%s:%d state column data is null", __FILE__, __LINE__);
+      pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
 
     char* val = colDataGetData(pStateColInfoData, j);

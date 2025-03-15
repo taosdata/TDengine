@@ -58,6 +58,11 @@ int32_t  taosGetErrSize();
 #define SET_ERROR_MSG(MSG, ...) \
   (void)snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
+#ifndef TD_ASTRA_RTP
+#define SET_ERRNO(_code) (errno = (_code))
+#define ERRNO            errno
+#endif
+
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 
@@ -161,6 +166,8 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_UNSUPPORT_OS                  TAOS_DEF_ERROR_CODE(0, 0x013A)
 #define TSDB_CODE_TIME_ERROR                    TAOS_DEF_ERROR_CODE(0, 0x013B)
 #define TSDB_CODE_INVALID_DISK_ID               TAOS_DEF_ERROR_CODE(0, 0x013C)
+#define TSDB_CODE_DECIMAL_OVERFLOW              TAOS_DEF_ERROR_CODE(0, 0x013D)
+#define TSDB_CODE_DIVISION_BY_ZERO              TAOS_DEF_ERROR_CODE(0, 0x013E)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)

@@ -69,6 +69,40 @@ int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, u
   return 0;
 }
 
+int32_t addTableExtSchema(SMetaEntry *pEntry, const SSchema *pColumn, int32_t newColNum, SExtSchema *pExtSchema) {
+  // no need to add ext schema when no column needs ext schemas
+  if (!HAS_TYPE_MOD(pColumn) && !pEntry->pExtSchemas) return 0;
+  if (!pEntry->pExtSchemas) {
+    // add a column which needs ext schema
+    // set all extschemas to zero for all columns alrady existed
+    pEntry->pExtSchemas = (SExtSchema *)taosMemoryCalloc(newColNum, sizeof(SExtSchema));
+  } else {
+    // already has columns with ext schema
+    pEntry->pExtSchemas = (SExtSchema *)taosMemoryRealloc(pEntry->pExtSchemas, sizeof(SExtSchema) * newColNum);
+  }
+  if (!pEntry->pExtSchemas) return terrno;
+  pEntry->pExtSchemas[newColNum - 1] = *pExtSchema;
+  return 0;
+}
+
+int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newColNum) {
+  // no ext schema, no need to drop
+  if (!pEntry->pExtSchemas) return 0;
+  if (dropColId == newColNum) {
+    // drop the last column
+    pEntry->pExtSchemas[dropColId - 1] = (SExtSchema){0};
+  } else {
+    // drop a column in the middle
+    memmove(pEntry->pExtSchemas + dropColId, pEntry->pExtSchemas + dropColId + 1,
+            (newColNum - dropColId) * sizeof(SExtSchema));
+  }
+  for (int32_t i = 0; i < newColNum; i++) {
+    if (hasExtSchema(pEntry->pExtSchemas + i)) return 0;
+  }
+  taosMemoryFreeClear(pEntry->pExtSchemas);
+  return 0;
+}
+
 int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
@@ -171,14 +205,15 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
   indexMultiTermDestroy(terms);
 
   taosArrayDestroy(pTagVals);
-#endif
   return code;
 _exception:
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
+#endif
   return code;
 }
 int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+int32_t code = 0;
 #ifdef USE_INVERTED_INDEX
   if (pMeta->pTagIvtIdx == NULL || pCtbEntry == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -192,7 +227,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   int32_t     nTagData = 0;
 
   SArray *pTagVals = NULL;
-  int32_t code = tTagToValArray((const STag *)data, &pTagVals);
+  code = tTagToValArray((const STag *)data, &pTagVals);
   if (code) {
     return code;
   }
@@ -253,11 +288,11 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   code = indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
-#endif
   return code;
 _exception:
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
+#endif
   return code;
 }
 
@@ -588,7 +623,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
     }
 
     --pMeta->pVnode->config.vndStats.numOfCTables;
-    metaUpdateStbStats(pMeta, e.ctbEntry.suid, -1, 0);
+    metaUpdateStbStats(pMeta, e.ctbEntry.suid, -1, 0, -1);
     ret = metaUidCacheClear(pMeta, e.ctbEntry.suid);
     if (ret < 0) {
       metaError("vgId:%d, failed to clear uid cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
@@ -730,7 +765,7 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
     return terrno;
   }
 
-  (*ppTagIdxKey)->suid = suid;
+  taosSetInt64Aligned(&((*ppTagIdxKey)->suid), suid);
   (*ppTagIdxKey)->cid = cid;
   (*ppTagIdxKey)->isNull = (pTagData == NULL) ? 1 : 0;
   (*ppTagIdxKey)->type = type;
@@ -739,10 +774,10 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
   if (IS_VAR_DATA_TYPE(type)) {
     memcpy((*ppTagIdxKey)->data, (uint16_t *)&nTagData, VARSTR_HEADER_SIZE);
     if (pTagData != NULL) memcpy((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE, pTagData, nTagData);
-    *(tb_uid_t *)((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE + nTagData) = uid;
+    taosSetInt64Aligned((tb_uid_t *)((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE + nTagData), uid);
   } else {
     if (pTagData != NULL) memcpy((*ppTagIdxKey)->data, pTagData, nTagData);
-    *(tb_uid_t *)((*ppTagIdxKey)->data + nTagData) = uid;
+    taosSetInt64Aligned((tb_uid_t *)((*ppTagIdxKey)->data + nTagData), uid);
   }
 
   return 0;
@@ -811,7 +846,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
     taosHashClear(pColCmprObj);
     return rc;
   }
-  if (useCompress(e.type)) {
+  if (withExtSchema(e.type)) {
     SColCmprWrapper *p = &e.colCmpr;
     for (int32_t i = 0; i < p->nCols; i++) {
       SColCmpr *pCmpr = &p->pColCmpr[i];
