@@ -21,7 +21,7 @@ if [ "$edition" == "enterprise" ]; then
 fi
 
 if [ "$edition" == "community" ]; then
-    productName="TDengine-community-anode"
+    productName="TDengine-anode"
 fi
 
 echo start to build release package, edition: ${edition}, version: ${version}
@@ -98,7 +98,13 @@ chmod a+x ${install_dir}/install.sh
 # exit 1
 cd ${release_dir}
 
-pkg_name=${install_dir}
+platform=`uname`
+if uname -m | grep -q "x86_64"; then
+    arch=x64
+elif uname -m | grep -q "arm64\|aarch64"; then
+    arch=arm64
+fi
+pkg_name=${install_dir}-${platform}-${arch}
 echo -e "pkg_name is: ${pkg_name}"
 
 if [ "$osType" != "Darwin" ]; then
