@@ -393,6 +393,7 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_DELETE_DATA,
   STREAM_SCAN_FROM_DATAREADER_RETRIEVE,
   STREAM_SCAN_FROM_DATAREADER_RANGE,
+  STREAM_SCAN_FROM_CREATE_TABLERES,
 } EStreamScanMode;
 
 enum {
@@ -416,6 +417,7 @@ typedef struct SStreamAggSupporter {
   struct SUpdateInfo* pUpdateInfo;
   int32_t             windowCount;
   int32_t             windowSliding;
+  SStreamStateCur*    pCur;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
@@ -459,8 +461,17 @@ typedef struct SStreamNotifyEventSupp {
 
 typedef struct SSteamOpBasicInfo {
   int32_t                primaryPkIndex;
-  bool                   updateOperatorInfo;
+  int16_t                operatorFlag;
   SStreamNotifyEventSupp notifyEventSup;
+  bool                   recvCkBlock;
+  SSDataBlock*           pCheckpointRes;
+  SSHashObj*             pSeDeleted;
+  void*                  pDelIterator;
+  SSDataBlock*           pDelRes;
+  SArray*                pUpdated;
+  bool                   destHasPrimaryKey;
+  STableTsDataState*     pTsDataState;
+  int32_t                numOfRecv;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
@@ -485,7 +496,25 @@ typedef struct SStreamFillSupporter {
   int32_t        pkColBytes;
   __compar_fn_t  comparePkColFn;
   int32_t*       pOffsetInfo;
+  bool           normalFill;
+  void*          pEmptyRow;
+  SArray*        pResultRange;
 } SStreamFillSupporter;
+
+typedef struct SStreamRecParam {
+  char    pSql[2048];
+  int32_t sqlCapcity;
+  char    pUrl[TSDB_EP_LEN + 17];  // "http://localhost:6041/rest/sql"
+  char    pAuth[512 + 22];         // Authorization: Basic token
+  char    pStbFullName[TSDB_TABLE_FNAME_LEN];
+  char    pWstartName[TSDB_COL_NAME_LEN];
+  char    pWendName[TSDB_COL_NAME_LEN];
+  char    pGroupIdName[TSDB_COL_NAME_LEN];
+  char    pIsWindowFilledName[TSDB_COL_NAME_LEN];
+  void*   pIteData;
+  int32_t iter;
+  TSKEY   gap;
+} SStreamRecParam;
 
 typedef struct SStreamScanInfo {
   SSteamOpBasicInfo basic;
@@ -537,18 +566,29 @@ typedef struct SStreamScanInfo {
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
-  SSDataBlock*   pCreateTbRes;
-  int8_t         igCheckUpdate;
-  int8_t         igExpired;
-  void*          pState;  // void
-  SStoreTqReader readerFn;
-  SStateStore    stateStore;
-  SSDataBlock*   pCheckpointRes;
-  int8_t         pkColType;
-  int32_t        pkColLen;
-  bool           useGetResultRange;
-  STimeWindow    lastScanRange;
-  SSDataBlock*   pRangeScanRes;   // update SSDataBlock
+  SSDataBlock*      pCreateTbRes;
+  int8_t            igCheckUpdate;
+  int8_t            igExpired;
+  void*             pState;  // void
+  SStoreTqReader    readerFn;
+  SStateStore       stateStore;
+  SSDataBlock*      pCheckpointRes;
+  int8_t            pkColType;
+  int32_t           pkColLen;
+  bool              useGetResultRange;
+  STimeWindow       lastScanRange;
+  SSDataBlock*      pRangeScanRes;  // update SSDataBlock
+  bool              hasPart;
+
+  //nonblock data scan
+  TSKEY                  recalculateInterval;
+  __compar_fn_t          comparePkColFn;
+  SScanRange             curRange;
+  struct SOperatorInfo*  pRecTableScanOp;
+  bool                   scanAllTables;
+  SSHashObj*             pRecRangeMap;
+  SArray*                pRecRangeRes;
+  SStreamRecParam        recParam;
 } SStreamScanInfo;
 
 typedef struct {
@@ -680,11 +720,20 @@ typedef struct SWindowRowsSup {
   uint64_t    groupId;
 } SWindowRowsSup;
 
-typedef struct SResultWindowInfo {
-  SRowBuffPos* pStatePos;
-  SSessionKey  sessionWin;
-  bool         isOutput;
-} SResultWindowInfo;
+typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
+
+typedef struct SNonBlockAggSupporter {
+  int32_t         numOfKeep;
+  TSKEY           tsOfKeep;
+  AggImplFn       pWindowAggFn;
+  SArray*         pPullWins;
+  int32_t         pullIndex;
+  SSDataBlock*    pPullDataRes;
+  SSHashObj*      pHistoryGroup;
+  SSHashObj*      pPullDataMap;
+  int32_t         numOfChild;
+  SStreamRecParam recParam;
+} SNonBlockAggSupporter;
 
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo        binfo;
@@ -745,7 +794,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   int32_t             order;           // current SSDataBlock scan order
   STimeWindowAggSupp  twAggSup;
   SSDataBlock*        pWinBlock;   // window result
-  SSDataBlock*        pDelRes;     // delete result
+  SSDataBlock*        pDelRes;     // delete result, refactor
   SSDataBlock*        pUpdateRes;  // update window
   bool                returnUpdate;
   SSHashObj*          pStDeleted;
@@ -766,6 +815,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                destHasPrimaryKey;
   SSHashObj*          pPkDeleted;
   struct SOperatorInfo* pOperator;
+  SNonBlockAggSupporter nbSup;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -795,6 +845,7 @@ typedef struct SStreamStateAggOperatorInfo {
   bool                destHasPrimaryKey;
   struct SOperatorInfo* pOperator;
   int64_t              trueForLimit;
+  SNonBlockAggSupporter nbSup;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamEventAggOperatorInfo {
@@ -828,6 +879,7 @@ typedef struct SStreamEventAggOperatorInfo {
   SNodeList*            pStartCondCols;
   SNodeList*            pEndCondCols;
   int64_t               trueForLimit;
+  SNonBlockAggSupporter nbSup;
 } SStreamEventAggOperatorInfo;
 
 typedef struct SStreamCountAggOperatorInfo {
@@ -889,6 +941,7 @@ typedef struct SStreamFillOperatorInfo {
   SGroupResInfo         groupResInfo;
   SStreamState*         pState;
   SStateStore           stateStore;
+  SNonBlockAggSupporter nbSup;
 } SStreamFillOperatorInfo;
 
 typedef struct SStreamTimeSliceOperatorInfo {
@@ -948,6 +1001,7 @@ typedef struct SStreamIntervalSliceOperatorInfo {
   bool                  hasFill;
   bool                  hasInterpoFunc;
   int32_t*              pOffsetInfo;
+  SNonBlockAggSupporter nbSup;
 } SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
@@ -1083,7 +1137,7 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
                                SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
                                SStorageAPI* pApi, int32_t tsIndex, int8_t stateType, int32_t ratio);
 int32_t initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type,
-                       int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic);
+                       int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic, int64_t recalculateInterval);
 int32_t getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
 void    initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 void    getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);

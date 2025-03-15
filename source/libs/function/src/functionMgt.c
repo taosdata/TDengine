@@ -436,6 +436,7 @@ int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFu
 
   (*ppFunc)->hasPk = pSrcFunc->hasPk;
   (*ppFunc)->pkBytes = pSrcFunc->pkBytes;
+  (*ppFunc)->pSrcFuncRef = pSrcFunc;
 
   (void)snprintf((*ppFunc)->functionName, sizeof((*ppFunc)->functionName), "%s", pName);
   (*ppFunc)->pParameterList = pParameterList;
@@ -646,7 +647,7 @@ static int32_t fmCreateStateMergeFunc(SFunctionNode* pFunc, SFunctionNode** pSta
     SNodeList* pParams = NULL;
     int32_t    code = nodesCloneList(pFunc->pParameterList, &pParams);
     if (!pParams) return code;
-    code = createFunction(funcMgtBuiltins[pFunc->funcId].pMergeFunc, pParams, pStateMergeFunc);
+    code = createFunctionWithSrcFunc(funcMgtBuiltins[pFunc->funcId].pMergeFunc, pFunc, pParams, pStateMergeFunc);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyList(pParams);
       return code;
@@ -721,4 +722,11 @@ bool fmIsRowTsOriginFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_IROWTS_ORIGIN == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsGroupIdFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_GROUP_ID == funcMgtBuiltins[funcId].type;
 }

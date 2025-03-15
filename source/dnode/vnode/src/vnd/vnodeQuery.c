@@ -34,7 +34,7 @@ void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery);
 
 int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol) {
   int8_t tblType = reader->me.type;
-  if (useCompress(tblType)) {
+  if (withExtSchema(tblType)) {
     SColCmprWrapper *p = &(reader->me.colCmpr);
     if (numOfCol != p->nCols) {
       vError("fillTableColCmpr table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
@@ -179,6 +179,9 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, metaRsp.numOfColumns);
     if (code < 0) {
       goto _exit;
+    }
+    for (int32_t i = 0; i < metaRsp.numOfColumns && pReader->me.pExtSchemas; i++) {
+      metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
     }
   } else {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -348,6 +351,10 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
     pSchExt->colId = pCmpr->id;
     pSchExt->compress = pCmpr->alg;
+    if (pReader->me.pExtSchemas)
+      pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
+    else
+      pSchExt->typeMod = 0;
   }
   //}
 
@@ -753,7 +760,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
 }
 
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0);
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0, NULL);
   if (pSW) {
     *num = pSW->nCols;
     tDeleteSchemaWrapper(pSW);
@@ -761,6 +768,21 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
     *num = 2;
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t vnodeGetStbKeep(SVnode *pVnode, tb_uid_t suid, int64_t *keep) {
+  SMetaReader mr = {0};
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
+
+  int32_t code = metaReaderGetTableEntryByUid(&mr, suid);
+  if (code == TSDB_CODE_SUCCESS) {
+    *keep = mr.me.stbEntry.keep;
+  } else {
+    *keep = 0;  // Default value if not found
+  }
+
+  metaReaderClear(&mr);
   return TSDB_CODE_SUCCESS;
 }
 

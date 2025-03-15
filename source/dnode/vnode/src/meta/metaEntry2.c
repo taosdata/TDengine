@@ -1080,7 +1080,6 @@ static int32_t metaHandleSuperTableCreateImpl(SMeta *pMeta, const SMetaEntry *pE
     const SMetaHandleParam param = {
         .pEntry = pEntry,
     };
-
     code = metaTableOpFn[op->table][op->op](pMeta, &param);
     if (TSDB_CODE_SUCCESS != code) {
       metaErr(TD_VID(pMeta->pVnode), code);
@@ -1191,7 +1190,7 @@ static int32_t metaHandleChildTableCreateImpl(SMeta *pMeta, const SMetaEntry *pE
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    metaUpdateStbStats(pMeta, pSuperEntry->uid, 1, 0);
+    metaUpdateStbStats(pMeta, pSuperEntry->uid, 1, 0, -1);
     int32_t ret = metaUidCacheClear(pMeta, pSuperEntry->uid);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1357,7 +1356,7 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
   }
 
   --pMeta->pVnode->config.vndStats.numOfCTables;
-  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0);
+  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0, -1);
   int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
   if (ret < 0) {
     metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1613,7 +1612,8 @@ static int32_t metaHandleSuperTableUpdateImpl(SMeta *pMeta, SMetaHandleParam *pP
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    metaUpdateStbStats(pMeta, pEntry->uid, 0, pEntry->stbEntry.schemaRow.nCols - pOldEntry->stbEntry.schemaRow.nCols);
+    metaUpdateStbStats(pMeta, pEntry->uid, 0, pEntry->stbEntry.schemaRow.nCols - pOldEntry->stbEntry.schemaRow.nCols,
+                       pEntry->stbEntry.keep);
   }
 
   return code;

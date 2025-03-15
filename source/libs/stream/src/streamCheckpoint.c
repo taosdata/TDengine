@@ -626,14 +626,16 @@ static int32_t doUpdateCheckpointInfoCheck(SStreamTask* pTask, bool restored, SV
 
     { // destroy the related fill-history tasks
       if (pReq->dropRelHTask) {
+        if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
           code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
 
           int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
           stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
                   id, vgId, pReq->taskId, numOfTasks);
 
-          //todo: task may not exist, commit anyway, optimize this later
+          // todo: task may not exist, commit anyway, optimize this later
           code = streamMetaCommit(pMeta);
+        }
       }
     }
 
@@ -724,9 +726,14 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   streamTaskClearCheckInfo(pTask, true);
 
   if (pReq->dropRelHTask) {
-    stDebug("s-task:0x%x vgId:%d drop the related fill-history task:0x%" PRIx64 " after update checkpoint",
-            pReq->taskId, vgId, pReq->hTaskId);
-    CLEAR_RELATED_FILLHISTORY_TASK(pTask);
+    if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      stInfo("s-task:0x%x vgId:%d drop the related fill-history task:0x%" PRIx64 " after update checkpoint",
+              pReq->taskId, vgId, pReq->hTaskId);
+      CLEAR_RELATED_FILLHISTORY_TASK(pTask);
+    } else {
+      stInfo("s-task:0x%x vgId:%d update the related fill-history task:0x%" PRIx64" to be recalculate task",
+             pReq->taskId, vgId, pReq->hTaskId);
+    }
   }
 
   stDebug("s-task:0x%x set the persistent status attr to be ready, prev:%s, status in sm:%s", pReq->taskId,
@@ -739,16 +746,54 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   if (code != TSDB_CODE_SUCCESS) {
     stError("s-task:%s vgId:%d failed to save task info after do checkpoint, checkpointId:%" PRId64 ", since %s", id,
-            vgId, pReq->checkpointId, terrstr());
+            vgId, pReq->checkpointId, tstrerror(code));
     return TSDB_CODE_SUCCESS;
   }
 
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
-    code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
-    int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
-            (int32_t)pReq->hTaskId, numOfTasks);
+    if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+      int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+      stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
+              (int32_t)pReq->hTaskId, numOfTasks);
+    } else {
+      STaskId hTaskId = {.streamId = pReq->hStreamId, .taskId = pReq->hTaskId};
+
+      SStreamTask* pHTask = NULL;
+      code = streamMetaAcquireTaskUnsafe(pMeta, &hTaskId, &pHTask);
+      if (code == 0 && pHTask != NULL) {
+        stInfo("s-task:0x%x fill-history updated to recalculate task, reset step2Start ts, stream task:0x%x",
+               (int32_t)hTaskId.taskId, pReq->taskId);
+
+        streamMutexLock(&pHTask->lock);
+
+        pHTask->info.fillHistory = STREAM_RECALCUL_TASK;
+        pHTask->execInfo.step2Start = 0; // clear the step2start timestamp
+
+        SStreamTaskState status = streamTaskGetStatus(pHTask);
+        if (status.state == TASK_STATUS__SCAN_HISTORY) {
+          code = streamTaskHandleEvent(pHTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+        }
+
+        if (pHTask->pBackend != NULL) {
+          streamFreeTaskState(pHTask, TASK_STATUS__READY);
+          pHTask->pBackend = NULL;
+        }
+
+        if (pHTask->exec.pExecutor != NULL) {
+          qDestroyTask(pHTask->exec.pExecutor);
+          pHTask->exec.pExecutor = NULL;
+        }
+
+        pMeta->expandTaskFn(pHTask);
+
+        streamMutexUnlock(&pHTask->lock);
+
+        code = streamMetaSaveTaskInMeta(pMeta, pHTask);
+        streamMetaReleaseTask(pMeta, pHTask);
+      }
+    }
   }
 
   code = streamMetaCommit(pMeta);

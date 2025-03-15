@@ -82,7 +82,8 @@ typedef enum ETableOptionType {
   TABLE_OPTION_ROLLUP,
   TABLE_OPTION_TTL,
   TABLE_OPTION_SMA,
-  TABLE_OPTION_DELETE_MARK
+  TABLE_OPTION_DELETE_MARK,
+  TABLE_OPTION_KEEP
 } ETableOptionType;
 
 typedef enum EColumnOptionType {
@@ -191,6 +192,7 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
 
 SDataType createDataType(uint8_t type);
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
+SDataType createDecimalDataType(uint8_t type, const SToken* pPrecisionToken, const SToken* pScaleToken);
 
 SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
 SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt);

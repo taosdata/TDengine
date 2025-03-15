@@ -21,6 +21,8 @@ extern int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEnt
 extern int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntry);
 extern void    metaFetchEntryFree(SMetaEntry **ppEntry);
 extern int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress);
+extern int32_t addTableExtSchema(SMetaEntry* pEntry, const SSchema* pColumn, int32_t newColNum, SExtSchema* pExtSchema);
+extern int32_t dropTableExtSchema(SMetaEntry* pEntry, int32_t dropColId, int32_t newColNum);
 
 static int32_t metaCheckCreateSuperTableReq(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t   vgId = TD_VID(pMeta->pVnode);
@@ -180,6 +182,7 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
       .name = pReq->name,
       .stbEntry.schemaRow = pReq->schemaRow,
       .stbEntry.schemaTag = pReq->schemaTag,
+      .stbEntry.keep = pReq->keep,
   };
   if (pReq->rollup) {
     TABLE_SET_ROLLUP(entry.flags);
@@ -189,6 +192,7 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     TABLE_SET_COL_COMPRESSED(entry.flags);
     entry.colCmpr = pReq->colCmpr;
   }
+  entry.pExtSchemas = pReq->pExtSchemas;
 
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
@@ -435,6 +439,9 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
     SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
     (*ppRsp)->pSchemaExt[i].colId = p->id;
     (*ppRsp)->pSchemaExt[i].compress = p->alg;
+    if (pEntry->pExtSchemas) {
+      (*ppRsp)->pSchemaExt[i].typeMod = pEntry->pExtSchemas[i].typeMod;
+    }
   }
 
   return code;
@@ -454,17 +461,18 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
   }
 
   SMetaEntry entry = {
-      .version = version,
-      .type = TSDB_NORMAL_TABLE,
-      .uid = pReq->uid,
-      .name = pReq->name,
-      .ntbEntry.btime = pReq->btime,
-      .ntbEntry.ttlDays = pReq->ttl,
-      .ntbEntry.commentLen = pReq->commentLen,
-      .ntbEntry.comment = pReq->comment,
-      .ntbEntry.schemaRow = pReq->ntb.schemaRow,
-      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
-      .colCmpr = pReq->colCmpr,
+    .version = version,
+    .type = TSDB_NORMAL_TABLE,
+    .uid = pReq->uid,
+    .name = pReq->name,
+    .ntbEntry.btime = pReq->btime,
+    .ntbEntry.ttlDays = pReq->ttl,
+    .ntbEntry.commentLen = pReq->commentLen,
+    .ntbEntry.comment = pReq->comment,
+    .ntbEntry.schemaRow = pReq->ntb.schemaRow,
+    .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+    .colCmpr = pReq->colCmpr,
+    .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
 
@@ -620,6 +628,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   int32_t         rowSize = 0;
   SSchemaWrapper *pSchema = &pEntry->ntbEntry.schemaRow;
   SSchema        *pColumn;
+  SExtSchema      extSchema = {0};
   pEntry->version = version;
   for (int32_t i = 0; i < pSchema->nCols; i++) {
     pColumn = &pSchema->pSchema[i];
@@ -654,6 +663,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   pColumn->type = pReq->type;
   pColumn->flags = pReq->flags;
   pColumn->colId = pEntry->ntbEntry.ncid++;
+  extSchema.typeMod = pReq->typeMod;
   tstrncpy(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN);
   uint32_t compress;
   if (TSDB_ALTER_TABLE_ADD_COLUMN == pReq->action) {
@@ -665,6 +675,13 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
               __LINE__, tstrerror(code), version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  }
+  code = addTableExtSchema(pEntry, pColumn, pSchema->nCols, &extSchema);
+  if (code) {
+    metaError("vgId:%d, %s failed to add ext schema at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(code);
   }
@@ -774,6 +791,15 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
               __func__, __FILE__, __LINE__, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // update column extschema
+  code = dropTableExtSchema(pEntry, iColumn, pSchema->nCols);
+  if (code) {
+    metaError("vgId:%d, %s failed to remove extschema at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
   }
 
   // do handle entry
@@ -1760,7 +1786,9 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
       .name = pReq->name,
       .stbEntry.schemaRow = pReq->schemaRow,
       .stbEntry.schemaTag = pReq->schemaTag,
+      .stbEntry.keep = pReq->keep,
       .colCmpr = pReq->colCmpr,
+      .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
 
