@@ -122,17 +122,20 @@ jobs:
           cd ${{ env.WKC }}
           git submodule update --init --recursive
 
-      - name: Output the 'file_no_doc_changed' information to the file
+      - name: Detect non-doc files changed
         run: |
           mkdir -p ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}
           cd ${{ env.WKC }}
-          changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD \
+          changed_files_non_doc=$(git --no-pager diff --name-only \
+            FETCH_HEAD \
             $(git merge-base FETCH_HEAD ${{ env.TARGET_BRANCH }}) | \
             grep -v "^docs/en/" | \
             grep -v "^docs/zh/" | \
-            grep -v ".md$" | tr '\n' ' ' || : \
+            grep -v ".md$" | \
+            tr '\n' ' ' || : \
           )
-          echo $changed_files_non_doc > ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt
+          echo $changed_files_non_doc > \
+            ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/non_docs_changed.txt
       
       - name: Check assert testing
         run: |
@@ -181,7 +184,7 @@ jobs:
           ./run_scan_container.sh \
             -d ${{ env.WKDIR }} \
             -b ${{ env.PR_NUMBER }}_${{ github.run_number }} \
-            -f ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt \
+            -f ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/non_docs_changed.txt \
             ${{ steps.get_param.outputs.extra_param }}
 
       - name: Run tdgpt test cases
