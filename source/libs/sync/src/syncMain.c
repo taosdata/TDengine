@@ -943,14 +943,13 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
       // after raft member change, need to handle 1->2 switching point
       // at this point, need to switch entry handling thread
       if (pSyncNode->replicaNum == 1) {
-        sDebug("vgId:%d, index:%" PRId64 ", propose optimized msg type:%s", pSyncNode->vgId, retIndex,
-               TMSG_INFO(pMsg->msgType));
+        sGDebug(&pMsg->info.traceId, "vgId:%d, index:%" PRId64 ", propose optimized msg type:%s", pSyncNode->vgId,
+                retIndex, TMSG_INFO(pMsg->msgType));
         return 1;
       } else {
-        sDebug("vgId:%d, index:%" PRId64 ", propose optimized msg, return to normal,"
-               " type:%s, "
-               "handle:%p",
-               pSyncNode->vgId, retIndex, TMSG_INFO(pMsg->msgType), pMsg->info.handle);
+        sGDebug(&pMsg->info.traceId,
+                "vgId:%d, index:%" PRId64 ", propose optimized msg, return to normal, type:%s, handle:%p",
+                pSyncNode->vgId, retIndex, TMSG_INFO(pMsg->msgType), pMsg->info.handle);
         return 0;
       }
     } else {
@@ -3432,10 +3431,11 @@ _out:;
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append", pMsg);
 
   if (pEntry != NULL) {
-    sDebug("vgId:%d, index:%" PRId64 ", append raft entry, msg:%p term:%" PRId64 " buf:[%" PRId64 " %" PRId64 " %" PRId64
-           ", %" PRId64 ")",
-           ths->vgId, pEntry->index, pMsg, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
-           ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
+    sGDebug(&pEntry->originRpcTraceId,
+            "vgId:%d, index:%" PRId64 ", append raft entry, msg:%p term:%" PRId64 " buf:[%" PRId64 " %" PRId64
+            " %" PRId64 ", %" PRId64 ")",
+            ths->vgId, pEntry->index, pMsg, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
+            ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
   }
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {

@@ -226,7 +226,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.term = pEntry->term;
 
   int64_t tsWriteBegin = taosGetTimestampNs();
-  int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
+                              &pEntry->originRpcTraceId);
   int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
 

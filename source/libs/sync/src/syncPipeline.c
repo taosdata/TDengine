@@ -685,10 +685,11 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
   // if force is true, keep all contition check to execute fsm
   if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1 &&
       pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER && force == false) {
-    sDebug("vgId:%d, index:%" PRId64 ", raft fsm no need to execute, term:%" PRId64
-           ", type:%s code:0x%x, replica:%d, role:%d, restoreFinish:%d",
-           pNode->vgId, pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), applyCode, pNode->replicaNum,
-           pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole, pNode->restoreFinish);
+    sGDebug(&pEntry->originRpcTraceId,
+            "vgId:%d, index:%" PRId64 ", raft fsm no need to execute, term:%" PRId64
+            ", type:%s code:0x%x, replica:%d, role:%d, restoreFinish:%d",
+            pNode->vgId, pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), applyCode, pNode->replicaNum,
+            pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole, pNode->restoreFinish);
     return 0;
   }
 
@@ -827,8 +828,9 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     }
     pBuf->commitIndex = index;
 
-    sDebug("vgId:%d, index:%" PRId64 ", raft entry committed, term:%" PRId64 ", role:%d, current term:%" PRId64, pNode->vgId,
-           pEntry->index, pEntry->term, role, currentTerm);
+    sGDebug(&pEntry->originRpcTraceId,
+            "vgId:%d, index:%" PRId64 ", raft entry committed, term:%" PRId64 ", role:%d, current term:%" PRId64,
+            pNode->vgId, pEntry->index, pEntry->term, role, currentTerm);
 
     code = syncLogBufferGetOneEntry(pBuf, pNode, index + 1, &nextInBuf, &pNextEntry);
     if (pNextEntry != NULL) {
@@ -862,8 +864,9 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
           index++;
           pBuf->commitIndex = index;
 
-          sDebug("vgId:%d, index:%" PRId64 ", raft entry committed, term:%" PRId64 ", role:%d, current term:%" PRId64,
-                 pNode->vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
+          sGDebug(&pNextEntry->originRpcTraceId,
+                  "vgId:%d, index:%" PRId64 ", raft entry committed, term:%" PRId64 ", role:%d, current term:%" PRId64,
+                  pNode->vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
         }
       }
       if (!nextInBuf) {

@@ -526,7 +526,7 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
 }
 
 static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta,
-                                         const void *body, int32_t bodyLen) {
+                                         const void *body, int32_t bodyLen, const STraceId *trace) {
   int32_t code = 0, lino = 0;
   int32_t plainBodyLen = bodyLen;
 
@@ -543,8 +543,8 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, plainBodyLen);
-  wDebug("vgId:%d, index:%" PRId64 ", write log, type:%s, cksum head:%u, cksum body:%u", pWal->cfg.vgId, index,
-         TMSG_INFO(msgType), pWal->writeHead.cksumHead, pWal->writeHead.cksumBody);
+  wDebug("vgId:%d, index:%" PRId64 ", write log, type:%s, cksum head:%u, cksum body:%u, QID:0x%" PRIx64 ":0x%" PRIx64, pWal->cfg.vgId, index,
+         TMSG_INFO(msgType), pWal->writeHead.cksumHead, pWal->writeHead.cksumBody, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
 
   if (pWal->cfg.level != TAOS_WAL_SKIP) {
     TAOS_CHECK_GOTO(walWriteIndex(pWal, index, offset), &lino, _exit);
@@ -691,7 +691,7 @@ static int32_t walInitWriteFile(SWal *pWal) {
 }
 
 int32_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
-                     int32_t bodyLen) {
+                     int32_t bodyLen, const STraceId *trace) {
   int32_t code = 0, lino = 0;
 
   TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
@@ -706,7 +706,7 @@ int32_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syn
     TAOS_CHECK_GOTO(walInitWriteFile(pWal), &lino, _exit);
   }
 
-  TAOS_CHECK_GOTO(walWriteImpl(pWal, index, msgType, syncMeta, body, bodyLen), &lino, _exit);
+  TAOS_CHECK_GOTO(walWriteImpl(pWal, index, msgType, syncMeta, body, bodyLen, trace), &lino, _exit);
 
 _exit:
   if (code) {
