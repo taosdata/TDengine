@@ -177,4 +177,9 @@ jobs:
           cd ${{ env.WKC }}/tests/parallel_test
           export DEFAULT_RETRY_TIME=2
           date
-          timeout 600 time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b "${{ env.PR_NUMBER }}_${{ github.run_number }}" -l ${{ env.WKDIR }}/log -o 300 ${{ steps.get_param.outputs.extra_param }}
+          timeout 600 time ./run.sh -e \
+            -m /home/m.json \
+            -t tdgpt_cases.task \
+            -b "${{ env.PR_NUMBER }}_${{ github.run_number }}" \
+            -l ${{ env.WKDIR }}/log \
+            -o 300 ${{ steps.get_param.outputs.extra_param }}
