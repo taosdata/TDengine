@@ -888,7 +888,7 @@ if(${BUILD_GEOS})           # {
     get_from_local_repo_if_exists("https://github.com/libgeos/geos.git")
     ExternalProject_Add(ext_geos
         GIT_REPOSITORY ${_git_url}
-        GIT_TAG f1519c182497a99db8315ef78e0ae283b0469008
+        GIT_TAG c1a3d838ced34c29f2d4ba9982dbde31f79b2a05
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
