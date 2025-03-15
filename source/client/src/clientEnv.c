@@ -920,7 +920,7 @@ void tscStopCrashReport() {
   }
 }
 
-void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
+void taos_write_crashinfo(int signum, void *sigInfo, void *context) {
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT, lastClusterId, appInfo.startTime);
 }
 #endif

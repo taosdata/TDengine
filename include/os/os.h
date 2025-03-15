@@ -54,6 +54,7 @@ extern "C" {
 #include <sys/wait.h>
 
 #if defined(DARWIN)
+#include <pwd.h>
 #else
 #if !defined(TD_ASTRA)
 #include <argp.h>
