@@ -32,12 +32,12 @@ extern "C" {
 #define sDebug(...) if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN DEBUG ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }
 #define sTrace(...) if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN TRACE ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }
 
-#define sGTrace(trace, param, ...) do { if (sDebugFlag & DEBUG_TRACE) { sTrace(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
-#define sGFatal(trace, param, ...) do { if (sDebugFlag & DEBUG_FATAL) { sFatal(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
-#define sGError(trace, param, ...) do { if (sDebugFlag & DEBUG_ERROR) { sError(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
-#define sGWarn(trace, param, ...)  do { if (sDebugFlag & DEBUG_WARN)  { sWarn(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
-#define sGInfo(ptrace, aram, ...)  do { if (sDebugFlag & DEBUG_INFO)  { sInfo(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
-#define sGDebug(trace, param, ...) do { if (sDebugFlag & DEBUG_DEBUG) { sDebug(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace).rootId, (trace).msgId);}} while(0)
+#define sGTrace(trace, param, ...) do { if (sDebugFlag & DEBUG_TRACE) { sTrace(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define sGFatal(trace, param, ...) do { if (sDebugFlag & DEBUG_FATAL) { sFatal(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define sGError(trace, param, ...) do { if (sDebugFlag & DEBUG_ERROR) { sError(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define sGWarn(trace, param, ...)  do { if (sDebugFlag & DEBUG_WARN)  { sWarn(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define sGInfo(ptrace, aram, ...)  do { if (sDebugFlag & DEBUG_INFO)  { sInfo(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define sGDebug(trace, param, ...) do { if (sDebugFlag & DEBUG_DEBUG) { sDebug(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
 
 #define sLFatal(...) if (sDebugFlag & DEBUG_FATAL) { taosPrintLongString("SYN FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }
 #define sLError(...) if (sDebugFlag & DEBUG_ERROR) { taosPrintLongString("SYN ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }

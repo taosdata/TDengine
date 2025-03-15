@@ -608,8 +608,9 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
     // increase match index
     pBuf->matchIndex = index;
 
-    sDebug("vgId:%d, msg:%p, log buffer proceed, start index:%" PRId64 ", match index:%" PRId64 ", end index:%" PRId64,
-           pNode->vgId, pMsg, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
+    sGDebug(pMsg ? &pMsg->info.traceId : NULL,
+            "vgId:%d, msg:%p, log buffer proceed, start index:%" PRId64 ", match index:%" PRId64 ", end index:%" PRId64,
+            pNode->vgId, pMsg, pBuf->startIndex, pBuf->matchIndex, pBuf->endIndex);
 
     // persist
     if ((code = syncLogStorePersist(pLogStore, pNode, pEntry)) < 0) {
@@ -1574,7 +1575,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
   }
 
   TRACE_SET_MSGID(&(msgOut.info.traceId), tGenIdPI64());
-  sGDebug(msgOut.info.traceId,
+  sGDebug(&msgOut.info.traceId,
           "vgId:%d, replicate one msg index:%" PRId64 " term:%" PRId64 " prevterm:%" PRId64 " to dest:0x%016" PRIx64,
           pNode->vgId, pEntry->index, pEntry->term, prevLogTerm, pDestId->addr);
   TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);

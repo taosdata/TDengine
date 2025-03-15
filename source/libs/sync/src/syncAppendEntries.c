@@ -155,7 +155,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  sGTrace(pRpcMsg->info.traceId, "vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
+  sGTrace(&pRpcMsg->info.traceId, "vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
           ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
           pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
           pEntry->term);
@@ -186,7 +186,7 @@ _SEND_RESPONSE:
 
   TRACE_SET_MSGID(&(rpcRsp.info.traceId), tGenIdPI64());
   {
-    sGTrace(rpcRsp.info.traceId,
+    sGTrace(&rpcRsp.info.traceId,
             "vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
             " to dest:0x%016" PRIx64,
             ths->vgId, pReply->matchIndex, pReply->term, pReply->lastSendIndex, pReply->destId.addr);

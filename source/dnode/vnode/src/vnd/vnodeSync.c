@@ -25,8 +25,7 @@
 static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
-  const STraceId *trace = &pMsg->info.traceId;
-  vGTrace("vgId:%d, msg:%p wait block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
+  vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, wait block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
           TMSG_INFO(pMsg->msgType), pVnode->blockSec, pVnode->blockSeq);
   if (tsem_wait(&pVnode->syncSem) != 0) {
     vError("vgId:%d, failed to wait sem", pVnode->config.vgId);
@@ -35,10 +34,9 @@ static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
 
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
-    const STraceId *trace = &pMsg->info.traceId;
     (void)taosThreadMutexLock(&pVnode->lock);
     if (pVnode->blocked) {
-      vGTrace("vgId:%d, msg:%p post block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
+      vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, post block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
               TMSG_INFO(pMsg->msgType), pVnode->blockSec, pVnode->blockSeq);
       pVnode->blocked = false;
       pVnode->blockSec = 0;
@@ -55,12 +53,11 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   SEpSet newEpSet = {0};
   syncGetRetryEpSet(pVnode->sync, &newEpSet);
 
-  const STraceId *trace = &pMsg->info.traceId;
-  vGTrace("vgId:%d, msg:%p is redirect since not leader, numOfEps:%d inUse:%d", pVnode->config.vgId, pMsg,
-          newEpSet.numOfEps, newEpSet.inUse);
+  vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, is redirect since not leader, numOfEps:%d inUse:%d",
+          pVnode->config.vgId, pMsg, newEpSet.numOfEps, newEpSet.inUse);
   for (int32_t i = 0; i < newEpSet.numOfEps; ++i) {
-    vGTrace("vgId:%d, msg:%p redirect:%d ep:%s:%u", pVnode->config.vgId, pMsg, i, newEpSet.eps[i].fqdn,
-            newEpSet.eps[i].port);
+    vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, redirect:%d ep:%s:%u", pVnode->config.vgId, pMsg, i,
+            newEpSet.eps[i].fqdn, newEpSet.eps[i].port);
   }
   pMsg->info.hasEpSet = 1;
 
@@ -86,8 +83,8 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
   if (vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
     rsp.code = terrno;
-    const STraceId *trace = &pMsg->info.traceId;
-    vGError("vgId:%d, msg:%p failed to apply right now since %s", pVnode->config.vgId, pMsg, terrstr());
+    vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to apply right now since %s", pVnode->config.vgId, pMsg,
+            terrstr());
   }
   if (rsp.info.handle != NULL) {
     tmsgSendRsp(&rsp);
@@ -107,8 +104,8 @@ static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code)
       tmsgSendRsp(&rsp);
     }
   } else {
-    const STraceId *trace = &pMsg->info.traceId;
-    vGError("vgId:%d, msg:%p failed to propose since %s, code:0x%x", pVnode->config.vgId, pMsg, tstrerror(code), code);
+    vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to propose since %s, code:0x%x", pVnode->config.vgId, pMsg,
+            tstrerror(code), code);
     SRpcMsg rsp = {.code = code, .info = pMsg->info};
     if (rsp.info.handle != NULL) {
       tmsgSendRsp(&rsp);
@@ -206,8 +203,7 @@ static void inline vnodeProposeBatchMsg(SVnode *pVnode, SRpcMsg **pMsgArr, bool 
 
   for (int32_t i = 0; i < *arrSize; ++i) {
     SRpcMsg        *pMsg = pMsgArr[i];
-    const STraceId *trace = &pMsg->info.traceId;
-    vGTrace("vgId:%d, msg:%p is freed, code:0x%x", pVnode->config.vgId, pMsg, code);
+    vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, is freed, code:0x%x", pVnode->config.vgId, pMsg, code);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
@@ -230,12 +226,11 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     bool isWeak = vnodeIsMsgWeak(pMsg->msgType);
     bool isBlock = vnodeIsMsgBlock(pMsg->msgType);
 
-    const STraceId *trace = &pMsg->info.traceId;
-    vGDebug("vgId:%d, msg:%p get from vnode-write queue, weak:%d block:%d msg:%d:%d pos:%d, handle:%p", vgId, pMsg,
+    vGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, get from vnode-write queue, weak:%d block:%d msg:%d:%d pos:%d, handle:%p", vgId, pMsg,
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGWarn("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
+      vGWarn(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process since restore not finished, type:%s", vgId, pMsg,
              TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_SYN_RESTORING;
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
@@ -245,7 +240,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     }
 
     if (pMsgArr == NULL || pIsWeakArr == NULL) {
-      vGError("vgId:%d, msg:%p failed to process since out of memory, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process since out of memory, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       vnodeHandleProposeError(pVnode, pMsg, terrno);
       rpcFreeCont(pMsg->pCont);
@@ -258,7 +253,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
-      vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, terrstr());
+      vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to pre-process since %s", vgId, pMsg, terrstr());
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
       continue;
@@ -294,12 +289,11 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
     bool isWeak = vnodeIsMsgWeak(pMsg->msgType);
 
-    const STraceId *trace = &pMsg->info.traceId;
-    vGDebug("vgId:%d, msg:%p get from vnode-write queue, weak:%d block:%d msg:%d:%d, handle:%p", vgId, pMsg, isWeak,
-            vnodeIsMsgBlock(pMsg->msgType), msg, numOfMsgs, pMsg->info.handle);
+    vGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, get from vnode-write queue, weak:%d block:%d msg:%d:%d, handle:%p",
+            vgId, pMsg, isWeak, vnodeIsMsgBlock(pMsg->msgType), msg, numOfMsgs, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGWarn("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
+      vGWarn(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process since restore not finished, type:%s", vgId, pMsg,
              TMSG_INFO(pMsg->msgType));
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
@@ -313,7 +307,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
       if (code != TSDB_CODE_MSG_PREPROCESSED) {
-        vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, tstrerror(code));
+        vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to pre-process since %s", vgId, pMsg, tstrerror(code));
       }
       vnodeHandleProposeError(pVnode, pMsg, code);
       rpcFreeCont(pMsg->pCont);
@@ -323,7 +317,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 
     code = vnodeProposeMsg(pVnode, pMsg, isWeak);
 
-    vGTrace("vgId:%d, msg:%p is freed, code:0x%x", vgId, pMsg, code);
+    vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, is freed, code:0x%x", vgId, pMsg, code);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
@@ -339,15 +333,14 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
-    const STraceId *trace = &pMsg->info.traceId;
 
     if (vnodeIsMsgBlock(pMsg->msgType)) {
-      vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%" PRId64
+      vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, get from vnode-apply queue, type:%s handle:%p index:%" PRId64
               ", blocking msg obtained sec:%d seq:%" PRId64,
               vgId, pMsg, TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex, pVnode->blockSec,
               pVnode->blockSeq);
     } else {
-      vGTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p index:%" PRId64, vgId, pMsg,
+      vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, get from vnode-apply queue, type:%s handle:%p index:%" PRId64, vgId, pMsg,
               TMSG_INFO(pMsg->msgType), pMsg->info.handle, pMsg->info.conn.applyIndex);
     }
 
@@ -355,7 +348,7 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     if (rsp.code == 0) {
       if (vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
         rsp.code = terrno;
-        vGError("vgId:%d, msg:%p failed to apply since %s, index:%" PRId64, vgId, pMsg, terrstr(),
+        vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to apply since %s, index:%" PRId64, vgId, pMsg, terrstr(),
                 pMsg->info.conn.applyIndex);
       }
     }
@@ -369,19 +362,19 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
       }
     }
 
-    vGTrace("vgId:%d, msg:%p is freed, code:0x%x index:%" PRId64, vgId, pMsg, rsp.code, pMsg->info.conn.applyIndex);
+    vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, is freed, code:0x%x index:%" PRId64, vgId, pMsg, rsp.code,
+            pMsg->info.conn.applyIndex);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
 }
 
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  const STraceId *trace = &pMsg->info.traceId;
-  vGDebug("vgId:%d, msg:%p get from vnode-sync queue, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+  vGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, get from vnode-sync queue, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t code = syncProcessMsg(pVnode->sync, pMsg);
   if (code != 0) {
-    vGError("vgId:%d, msg:%p failed to process since %s, type:%s", pVnode->config.vgId, pMsg, tstrerror(code),
+    vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process since %s, type:%s", pVnode->config.vgId, pMsg, tstrerror(code),
             TMSG_INFO(pMsg->msgType));
   }
 
@@ -444,8 +437,8 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
   pMsg->info.conn.applyIndex = pMeta->index;
   pMsg->info.conn.applyTerm = pMeta->term;
 
-  const STraceId *trace = &pMsg->info.traceId;
-  vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
+  vGTrace(&pMsg->info.traceId,
+          "vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
           ", weak:%d, code:%d, state:%d %s, type:%s code:0x%x",
           pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
           pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType), pMsg->code);
@@ -460,8 +453,7 @@ static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMet
     return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
 
-  const STraceId *trace = &pMsg->info.traceId;
-  SVnode         *pVnode = pFsm->data;
+  SVnode *pVnode = pFsm->data;
   vnodePostBlockMsg(pVnode, pMsg);
 
   SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
@@ -469,7 +461,8 @@ static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMet
     tmsgSendRsp(&rsp);
   }
 
-  vGTrace("vgId:%d, msg:%p is freed, code:0x%x index:%" PRId64, TD_VID(pVnode), pMsg, rsp.code, pMeta->index);
+  vGTrace(&pMsg->info.traceId, "vgId:%d, msg:%p, is freed, code:0x%x index:%" PRId64, TD_VID(pVnode), pMsg, rsp.code,
+          pMeta->index);
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   return 0;

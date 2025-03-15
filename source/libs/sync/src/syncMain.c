@@ -970,7 +970,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
       TAOS_RETURN(code);
     }
 
-    sGDebug(pMsg->info.traceId, "vgId:%d, msg:%p, propose msg, type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+    sGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, propose msg, type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
     code = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
       sWarn("vgId:%d, failed to propose msg while enqueue since %s", pSyncNode->vgId, terrstr());
@@ -2790,7 +2790,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
         // send msg
         TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
-        sGTrace(rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId,
+        sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId,
                 DID(&(pSyncMsg->destId)));
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
         int ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
@@ -3588,7 +3588,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->startTime = ths->startTime;
   pMsgReply->timeStamp = tsMs;
 
-  sGTrace(pRpcMsg->info.traceId,
+  sGTrace(&pRpcMsg->info.traceId,
           "vgId:%d, process sync-heartbeat msg from dnode:%d, cluster:%d, msgterm:%" PRId64 " currentTerm:%" PRId64,
           ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
@@ -3733,7 +3733,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 //
 
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex) {
-  sGDebug(pMsg->info.traceId, "vgId:%d, msg:%p, process client request", ths->vgId, pMsg);
+  sGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, process client request", ths->vgId, pMsg);
   int32_t code = 0;
 
   SyncIndex       index = syncLogBufferGetEndIndex(ths->pLogBuf);
@@ -3746,7 +3746,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   }
 
   if (pEntry == NULL) {
-    sGError(pMsg->info.traceId, "vgId:%d, msg:%p, failed to process client request since %s", ths->vgId, pMsg, terrstr());
+    sGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process client request since %s", ths->vgId, pMsg, terrstr());
     return TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
@@ -3766,7 +3766,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
       int32_t code = syncNodeCheckChangeConfig(ths, pEntry);
       if (code < 0) {
-        sGError(pMsg->info.traceId, "vgId:%d, msg:%p, failed to check change config since %s", ths->vgId, pMsg, terrstr());
+        sGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to check change config since %s", ths->vgId, pMsg, terrstr());
         syncEntryDestroy(pEntry);
         pEntry = NULL;
         TAOS_RETURN(code);
@@ -3775,7 +3775,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       if (code > 0) {
         SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
         int32_t num = syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
-        sGDebug(pMsg->info.traceId, "vgId:%d, msg:%p, get response stub for config change, seqNum:%" PRIu64 " num:%d",
+        sGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, get response stub for config change, seqNum:%" PRIu64 " num:%d",
                 ths->vgId, pMsg, pEntry->seqNum, num);
         if (rsp.info.handle != NULL) {
           tmsgSendRsp(&rsp);
