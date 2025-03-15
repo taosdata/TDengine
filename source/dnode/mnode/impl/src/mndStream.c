@@ -250,13 +250,13 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
   pOldStream->updateTime = pNewStream->updateTime;
   pOldStream->checkpointId = pNewStream->checkpointId;
   pOldStream->checkpointFreq = pNewStream->checkpointFreq;
-  if (pOldStream->tasks == NULL){
-    pOldStream->tasks = pNewStream->tasks;
-    pNewStream->tasks = NULL;
+  if (pOldStream->pTaskList == NULL) {
+    pOldStream->pTaskList = pNewStream->pTaskList;
+    pNewStream->pTaskList = NULL;
   }
-  if (pOldStream->pHTasksList == NULL){
-    pOldStream->pHTasksList = pNewStream->pHTasksList;
-    pNewStream->pHTasksList = NULL;
+  if (pOldStream->pHTaskList == NULL) {
+    pOldStream->pHTaskList = pNewStream->pHTaskList;
+    pNewStream->pHTaskList = NULL;
   }
   taosWUnLockLatch(&pOldStream->lock);
   return 0;
@@ -478,7 +478,17 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .deleteMark = pObj->deleteMark,
       .igCheckUpdate = pObj->igCheckUpdate,
       .destHasPrimaryKey = hasDestPrimaryKey(&pObj->outputSchema),
+      .recalculateInterval = pCreate->recalculateInterval,
   };
+  char *pTargetFStable = strchr(pCreate->targetStbFullName, '.');
+  if (pTargetFStable != NULL) {
+    pTargetFStable = pTargetFStable + 1;
+  }
+  tstrncpy(cxt.pStbFullName, pTargetFStable, TSDB_TABLE_FNAME_LEN);
+  tstrncpy(cxt.pWstartName, pCreate->pWstartName, TSDB_COL_NAME_LEN);
+  tstrncpy(cxt.pWendName, pCreate->pWendName, TSDB_COL_NAME_LEN);
+  tstrncpy(cxt.pGroupIdName, pCreate->pGroupIdName, TSDB_COL_NAME_LEN);
+  tstrncpy(cxt.pIsWindowFilledName, pCreate->pIsWindowFilledName, TSDB_COL_NAME_LEN);
 
   // using ast and param to build physical plan
   if ((code = qCreateQueryPlan(&cxt, &pPlan, NULL)) < 0) {
@@ -590,11 +600,11 @@ int32_t mndPersistStreamTasks(STrans *pTrans, SStreamObj *pStream) {
   destroyStreamTaskIter(pIter);
 
   // persistent stream task for already stored ts data
-  if (pStream->conf.fillHistory) {
-    int32_t level = taosArrayGetSize(pStream->pHTasksList);
+  if (pStream->conf.fillHistory || (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE)) {
+    int32_t level = taosArrayGetSize(pStream->pHTaskList);
 
     for (int32_t i = 0; i < level; i++) {
-      SArray *pLevel = taosArrayGetP(pStream->pHTasksList, i);
+      SArray *pLevel = taosArrayGetP(pStream->pHTaskList, i);
 
       int32_t numOfTasks = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < numOfTasks; j++) {
@@ -642,6 +652,11 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->type = pStream->outputSchema.pSchema[i].type;
     pField->bytes = pStream->outputSchema.pSchema[i].bytes;
     pField->compress = createDefaultColCmprByType(pField->type);
+    if (IS_DECIMAL_TYPE(pField->type)) {
+      uint8_t prec = 0, scale = 0;
+      extractDecimalTypeInfoFromBytes(&pField->bytes, &prec, &scale);
+      pField->typeMod = decimalCalcTypeMod(prec, scale);
+    }
   }
 
   if (pStream->tagSchema.nCols == 0) {
@@ -807,9 +822,9 @@ static int32_t addStreamNotifyInfo(SCMCreateStreamReq *createReq, SStreamObj *pS
     goto _end;
   }
 
-  level = taosArrayGetSize(pStream->tasks);
+  level = taosArrayGetSize(pStream->pTaskList);
   for (int32_t i = 0; i < level; ++i) {
-    pLevel = taosArrayGetP(pStream->tasks, i);
+    pLevel = taosArrayGetP(pStream->pTaskList, i);
     nTasks = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < nTasks; ++j) {
       code = addStreamTaskNotifyInfo(createReq, pStream, taosArrayGetP(pLevel, j));
@@ -818,9 +833,9 @@ static int32_t addStreamNotifyInfo(SCMCreateStreamReq *createReq, SStreamObj *pS
   }
 
   if (pStream->conf.fillHistory && createReq->notifyHistory) {
-    level = taosArrayGetSize(pStream->pHTasksList);
+    level = taosArrayGetSize(pStream->pHTaskList);
     for (int32_t i = 0; i < level; ++i) {
-      pLevel = taosArrayGetP(pStream->pHTasksList, i);
+      pLevel = taosArrayGetP(pStream->pHTaskList, i);
       nTasks = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < nTasks; ++j) {
         code = addStreamTaskNotifyInfo(createReq, pStream, taosArrayGetP(pLevel, j));
@@ -916,7 +931,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   code = mndAcquireStream(pMnode, createReq.name, &pStream);
   if (pStream != NULL && code == 0) {
-    if (pStream->tasks != NULL){
+    if (pStream->pTaskList != NULL){
       if (createReq.igExists) {
         mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
         mndReleaseStream(pMnode, pStream);
@@ -1245,9 +1260,9 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   pStream->currentTick = 1;
 
   // 1. redo action: broadcast checkpoint source msg for all source vg
-  int32_t totalLevel = taosArrayGetSize(pStream->tasks);
+  int32_t totalLevel = taosArrayGetSize(pStream->pTaskList);
   for (int32_t i = 0; i < totalLevel; i++) {
-    SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+    SArray      *pLevel = taosArrayGetP(pStream->pTaskList, i);
     SStreamTask *p = taosArrayGetP(pLevel, 0);
 
     if (p->info.taskLevel == TASK_LEVEL__SOURCE) {

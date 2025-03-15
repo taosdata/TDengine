@@ -316,6 +316,12 @@ typedef enum EWindowAlgorithm {
   SESSION_ALGO_STREAM_SINGLE,
   SESSION_ALGO_MERGE,
   INTERVAL_ALGO_STREAM_MID,
+  INTERVAL_ALGO_STREAM_CONTINUE_SINGLE,
+  INTERVAL_ALGO_STREAM_CONTINUE_FINAL,
+  INTERVAL_ALGO_STREAM_CONTINUE_SEMI,
+  SESSION_ALGO_STREAM_CONTINUE_SINGLE,
+  SESSION_ALGO_STREAM_CONTINUE_FINAL,
+  SESSION_ALGO_STREAM_CONTINUE_SEMI,
 } EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
@@ -347,6 +353,7 @@ typedef struct SWindowLogicNode {
   SNodeList*       pTsmaSubplans;
   SNode*           pAnomalyExpr;
   char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  int64_t          recalculateInterval;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -508,6 +515,11 @@ typedef struct STableScanPhysiNode {
   bool           needCountEmptyTable;
   bool           paraTablesSort;
   bool           smallDataTsSort;
+  char           pStbFullName[TSDB_TABLE_FNAME_LEN];
+  char           pWstartName[TSDB_COL_NAME_LEN];
+  char           pWendName[TSDB_COL_NAME_LEN];
+  char           pGroupIdName[TSDB_COL_NAME_LEN];
+  char           pIsWindowFilledName[TSDB_COL_NAME_LEN];
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -683,6 +695,7 @@ typedef struct SWindowPhysiNode {
   int8_t     igExpired;
   int8_t     destHasPrimaryKey;
   bool       mergeDataBlock;
+  int64_t    recalculateInterval;
 } SWindowPhysiNode;
 
 typedef struct SIntervalPhysiNode {

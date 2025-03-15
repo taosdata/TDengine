@@ -199,7 +199,14 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
     }
+    case TSDB_DATA_TYPE_DECIMAL64:
+      COPY_SCALAR_FIELD(datum.d);
+      break;
     case TSDB_DATA_TYPE_DECIMAL:
+      pDst->datum.p = taosMemCalloc(1, pSrc->node.resType.bytes);
+      if (!pDst->datum.p) return terrno;
+      memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes);
+      break;
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     default:
@@ -234,6 +241,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(pkBytes);
   COPY_SCALAR_FIELD(hasOriginalFunc);
   COPY_SCALAR_FIELD(originalFuncId);
+  COPY_OBJECT_FIELD(srcFuncInputType, sizeof(SDataType));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -654,6 +662,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(windowSliding);
   CLONE_NODE_FIELD(pAnomalyExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
+  COPY_SCALAR_FIELD(recalculateInterval);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1132,10 +1141,15 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
       code = physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
       code = physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:

@@ -159,6 +159,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_FORECAST_ROWTS,
   FUNCTION_TYPE_COLS,
   FUNCTION_TYPE_IROWTS_ORIGIN,
+  FUNCTION_TYPE_GROUP_ID,
+  FUNCTION_TYPE_IS_WINDOW_FILLED,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -300,6 +302,7 @@ bool fmIsElapsedFunc(int32_t funcId);
 bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);
+bool fmIsGroupIdFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);

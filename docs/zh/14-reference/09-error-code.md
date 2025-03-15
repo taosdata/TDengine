@@ -76,6 +76,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000134 | Invalid value                     | 无效值                                 | 保留现场和日志，github 上报 issue                                                                                                                    |
 | 0x80000135 | Invalid fqdn                      | 无效 FQDN                               | 检查配置或输入的 FQDN 值是否正确                                                                                                                     |
 | 0x8000013C | Invalid disk id                   | 不合法的 disk id                         | 建议用户检查挂载磁盘是否失效或者使用参数 diskIDCheckEnabled 来跳过磁盘检查                                                                             |
+| 0x8000013D | Decimal value overflow            | Decimal 计算溢出                         | 检查计算表达式和参数值是否计算结果导致类型溢出 |
+| 0x8000013E | Division by zero error            | Division by zero                        | 检查除法操作是否除以0 |
 
 
 

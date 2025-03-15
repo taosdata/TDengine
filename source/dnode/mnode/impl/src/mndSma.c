@@ -1595,8 +1595,8 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   if (!pCxt->pCreateStreamReq->pTags) {
     return terrno;
   }
-  SField  f = {0};
-  int32_t code = 0;
+  SFieldWithOptions f = {0};
+  int32_t           code = 0;
   if (pCxt->pSrcStb) {
     for (int32_t idx = 0; idx < pCxt->pCreateStreamReq->numOfTags - 1; ++idx) {
       SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
@@ -1630,6 +1630,10 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
       f.type = pExprNode->resType.type;
       f.flags = COL_SMA_ON;
       tstrncpy(f.name, pExprNode->userAlias, TSDB_COL_NAME_LEN);
+      if (IS_DECIMAL_TYPE(f.type)) {
+        f.typeMod = decimalCalcTypeMod(pExprNode->resType.precision, pExprNode->resType.scale);
+        f.flags |= COL_HAS_TYPE_MOD;
+      }
       if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pCols, &f)) {
         code = terrno;
         break;
@@ -1797,7 +1801,7 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
     }
   }
   if (LIST_LENGTH(pProjects) > 0) {
-    createStreamReq.pCols = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SField));
+    createStreamReq.pCols = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SFieldWithOptions));
     if (!createStreamReq.pCols) {
       code = terrno;
       goto _OVER;

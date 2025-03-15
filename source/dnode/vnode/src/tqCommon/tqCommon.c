@@ -40,7 +40,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   tqDebug("s-task:%s vgId:%d start to expand stream task", pTask->id.idStr, vgId);
 
-  if (pTask->info.fillHistory) {
+  if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
     streamId = pTask->streamTaskId.streamId;
     taskId = pTask->streamTaskId.taskId;
   } else {
@@ -50,20 +50,31 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   // sink task does not need the pState
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+    if (pTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+      pTask->pRecalState = streamStateRecalatedOpen(pMeta->path, pTask, pTask->id.streamId, pTask->id.taskId);
+      if (pTask->pRecalState == NULL) {
+        tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
+        return terrno;
+      } else {
+        tqDebug("s-task:%s recal state:%p", pTask->id.idStr, pTask->pRecalState);
+      }
+    }
+
     pTask->pState = streamStateOpen(pMeta->path, pTask, streamId, taskId);
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
       return terrno;
     } else {
-      tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+      tqDebug("s-task:%s stream state:%p", pTask->id.idStr, pTask->pState);
     }
   }
 
   SReadHandle handle = {
       .checkpointId = pTask->chkInfo.checkpointId,
-      .pStateBackend = pTask->pState,
+      .pStateBackend = NULL,
       .fillHistory = pTask->info.fillHistory,
       .winRange = pTask->dataRange.window,
+      .pOtherBackend = NULL,
   };
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
@@ -76,6 +87,14 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
   initStorageAPI(&handle.api);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG) {
+    if (pTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+      handle.pStateBackend = pTask->pRecalState;
+      handle.pOtherBackend = pTask->pState;
+    } else {
+      handle.pStateBackend = pTask->pState;
+      handle.pOtherBackend = NULL;
+    }
+
     code = qCreateStreamExecTaskInfo(&pTask->exec.pExecutor, pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
     if (code) {
       tqError("s-task:%s failed to expand task, code:%s", pTask->id.idStr, tstrerror(code));
@@ -808,13 +827,11 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   pMeta->startInfo.startAllTasks = 1;
-  streamMetaWUnLock(pMeta);
 
   terrno = 0;
   tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d, ts:%" PRId64, vgId,
          pMeta->updateInfo.completeTransId, pMeta->updateInfo.completeTs);
 
-  streamMetaWLock(pMeta);
   streamMetaClear(pMeta);
 
   int64_t el = taosGetTimestampMs() - st;

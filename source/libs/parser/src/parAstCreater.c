@@ -2496,6 +2496,15 @@ SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
   return dt;
 }
 
+SDataType createDecimalDataType(uint8_t type, const SToken* pPrecisionToken, const SToken* pScaleToken) {
+  SDataType dt = {0};
+  dt.precision = taosStr2UInt8(pPrecisionToken->z, NULL, 10);
+  dt.scale = pScaleToken ? taosStr2Int32(pScaleToken->z, NULL, 10) : 0;
+  dt.type = decimalTypeFromPrecision(dt.precision);
+  dt.bytes = tDataTypes[dt.type].bytes;
+  return dt;
+}
+
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
                              SNodeList* pTags, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
@@ -3753,6 +3762,8 @@ static int8_t getTriggerType(uint32_t tokenType) {
       return STREAM_TRIGGER_MAX_DELAY;
     case TK_FORCE_WINDOW_CLOSE:
       return STREAM_TRIGGER_FORCE_WINDOW_CLOSE;
+    case TK_CONTINUOUS_WINDOW_CLOSE:
+      return STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE;
     default:
       break;
   }
@@ -3773,6 +3784,9 @@ SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptions
       pStreamOptions->triggerType = getTriggerType(pToken->type);
       if (STREAM_TRIGGER_MAX_DELAY == pStreamOptions->triggerType) {
         pStreamOptions->pDelay = pNode;
+      }
+      if (STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE == pStreamOptions->triggerType) {
+        pStreamOptions->pRecInterval = pNode;
       }
       break;
     case SOPT_WATERMARK_SET:

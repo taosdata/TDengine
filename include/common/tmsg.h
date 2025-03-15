@@ -485,6 +485,14 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
   QUERY_NODE_RESET_STREAM_STMT,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT,
 } ENodeType;
 
 typedef struct {
@@ -515,6 +523,7 @@ typedef struct SFieldWithOptions {
   int8_t   flags;
   int32_t  bytes;
   uint32_t compress;
+  STypeMod typeMod;
 } SFieldWithOptions;
 
 typedef struct SRetention {
@@ -596,6 +605,7 @@ struct SSchema {
 struct SSchemaExt {
   col_id_t colId;
   uint32_t compress;
+  STypeMod typeMod;
 };
 
 //
@@ -659,6 +669,7 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_SET_NULL   ((int8_t)0x10)
 #define COL_SET_VAL    ((int8_t)0x20)
 #define COL_IS_SYSINFO ((int8_t)0x40)
+#define COL_HAS_TYPE_MOD ((int8_t)0x80)
 
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
@@ -677,6 +688,13 @@ void tFreeSSubmitRsp(SSubmitRsp* pRsp);
     (s)->flags &= (~COL_IDX_ON); \
   } while (0)
 
+#define SSCHEMA_SET_TYPE_MOD(s)     \
+  do {                              \
+    (s)->flags |= COL_HAS_TYPE_MOD; \
+  } while (0)
+
+#define HAS_TYPE_MOD(s) (((s)->flags & COL_HAS_TYPE_MOD))
+
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
 #define SSCHMEA_COLID(s) ((s)->colId)
@@ -692,6 +710,12 @@ typedef struct {
   int32_t tsSlowLogThresholdTest;  // Obsolete
   char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN];
 } SMonitorParas;
+
+typedef struct {
+  STypeMod typeMod;
+} SExtSchema;
+
+bool hasExtSchema(const SExtSchema* pExtSchema);
 
 typedef struct {
   int32_t  nCols;
@@ -843,12 +867,14 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
 static FORCE_INLINE int32_t tEncodeSSchemaExt(SEncoder* pEncoder, const SSchemaExt* pSchemaExt) {
   TAOS_CHECK_RETURN(tEncodeI16v(pEncoder, pSchemaExt->colId));
   TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pSchemaExt->compress));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pSchemaExt->typeMod));
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeSSchemaExt(SDecoder* pDecoder, SSchemaExt* pSchemaExt) {
   TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &pSchemaExt->colId));
   TAOS_CHECK_RETURN(tDecodeU32(pDecoder, &pSchemaExt->compress));
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pSchemaExt->typeMod));
   return 0;
 }
 
@@ -881,6 +907,7 @@ static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapp
 }
 
 static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSchemaWrapper* pSW) {
+  if (pSW == NULL) {return TSDB_CODE_INVALID_PARA;}
   TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, pSW->nCols));
   TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, pSW->version));
   for (int32_t i = 0; i < pSW->nCols; i++) {
@@ -890,6 +917,7 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSch
 }
 
 static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWrapper* pSW) {
+  if (pSW == NULL) {return TSDB_CODE_INVALID_PARA;}
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->nCols));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->version));
 
@@ -988,6 +1016,7 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
   int64_t keep;
+  SArray* pTypeMods;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -2936,10 +2965,11 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE            1
-#define STREAM_TRIGGER_WINDOW_CLOSE       2
-#define STREAM_TRIGGER_MAX_DELAY          3
-#define STREAM_TRIGGER_FORCE_WINDOW_CLOSE 4
+#define STREAM_TRIGGER_AT_ONCE                 1
+#define STREAM_TRIGGER_WINDOW_CLOSE            2
+#define STREAM_TRIGGER_MAX_DELAY               3
+#define STREAM_TRIGGER_FORCE_WINDOW_CLOSE      4
+#define STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE 5
 
 #define STREAM_DEFAULT_IGNORE_EXPIRED 1
 #define STREAM_FILL_HISTORY_ON        1
@@ -2992,6 +3022,11 @@ typedef struct {
   int32_t notifyEventTypes;
   int32_t notifyErrorHandle;
   int8_t  notifyHistory;
+  int64_t recalculateInterval;
+  char    pWstartName[TSDB_COL_NAME_LEN];
+  char    pWendName[TSDB_COL_NAME_LEN];
+  char    pGroupIdName[TSDB_COL_NAME_LEN];
+  char    pIsWindowFilledName[TSDB_COL_NAME_LEN];
 } SCMCreateStreamReq;
 
 typedef struct STaskNotifyEventStat {
@@ -3243,6 +3278,7 @@ typedef struct SVCreateStbReq {
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
   int64_t         keep;
+  SExtSchema*     pExtSchemas;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -3283,6 +3319,7 @@ typedef struct SVCreateTbReq {
   int32_t         sqlLen;
   char*           sql;
   SColCmprWrapper colCmpr;
+  SExtSchema*     pExtSchemas;
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -3306,6 +3343,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
+  taosMemoryFreeClear(req->pExtSchemas);
 }
 
 typedef struct {
@@ -3422,6 +3460,8 @@ typedef struct {
   int8_t   source;     // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
   uint32_t compress;   // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
   SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS
+  // for Add column
+  STypeMod typeMod;
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -4316,7 +4356,6 @@ typedef struct {
   };
   void*   data;  //for free in client, only effected if type is data or metadata. raw data not effected
   bool    blockDataElementFree;   // if true, free blockDataElement in blockData,(true in server, false in client)
-
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);

@@ -25,6 +25,7 @@ extern "C" {
 #include "tmsg.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
+#include "ttypes.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) \
@@ -44,13 +45,6 @@ typedef struct SRawExprNode {
   SNode*    pNode;
   bool      isPseudoColumn;
 } SRawExprNode;
-
-typedef struct SDataType {
-  uint8_t type;
-  uint8_t precision;
-  uint8_t scale;
-  int32_t bytes;
-} SDataType;
 
 typedef struct SExprNode {
   ENodeType type;
@@ -76,7 +70,8 @@ typedef enum EColumnType {
   COLUMN_TYPE_WINDOW_START,
   COLUMN_TYPE_WINDOW_END,
   COLUMN_TYPE_WINDOW_DURATION,
-  COLUMN_TYPE_GROUP_KEY
+  COLUMN_TYPE_GROUP_KEY,
+  COLUMN_TYPE_IS_WINDOW_FILLED,
 } EColumnType;
 
 typedef struct SColumnNode {
@@ -203,6 +198,8 @@ typedef struct SFunctionNode {
   bool       dual; // whether select stmt without from stmt, true for without.
   timezone_t tz;
   void      *charsetCxt;
+  const struct SFunctionNode* pSrcFuncRef;
+  SDataType  srcFuncInputType;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -655,6 +652,7 @@ typedef struct SQuery {
   SArray*         pDbList;
   SArray*         pPlaceholderValues;
   SNode*          pPrepareRoot;
+  SExtSchema*     pResExtSchema;
 } SQuery;
 
 void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);

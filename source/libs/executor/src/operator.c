@@ -560,7 +560,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
     code = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
-    code = createStreamIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+    code = createStreamSingleIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL == type) {
+    code = createStreamIntervalSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == type) {
     SMergeAlignedIntervalPhysiNode* pIntervalPhyNode = (SMergeAlignedIntervalPhysiNode*)pPhyNode;
     code = createMergeAlignedIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
@@ -570,12 +572,16 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL == type) {
     int32_t children = 0;
     code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL == type) {
+    code = createSemiIntervalSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL == type) {
     int32_t children = pHandle->numOfVgroups;
     code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL == type) {
     int32_t children = pHandle->numOfVgroups;
     code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL == type) {
+    code = createFinalIntervalSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     code = createSortOperatorInfo(ops[0], (SSortPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT == type) {
@@ -633,6 +639,18 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createStreamTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
     code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION == type) {
+    code = createSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION == type) {
+    code = createSemiSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION == type) {
+    code = createFinalSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE == type) {
+    code = createStateNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT == type) {
+    code = createEventNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT == type) {
+    //todo (liuyao) add
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;

@@ -55,9 +55,10 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
-#define BIT_FLAG_MASK(n)              (1 << n)
-#define BIT_FLAG_SET_MASK(val, mask)  ((val) |= (mask))
-#define BIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
+#define BIT_FLAG_MASK(n)               (1 << n)
+#define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
+#define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
+#define BIT_FLAG_TEST_MASK(val, mask)  (((val) & (mask)) != 0)
 
 #define PRIVILEGE_TYPE_ALL       BIT_FLAG_MASK(0)
 #define PRIVILEGE_TYPE_READ      BIT_FLAG_MASK(1)
@@ -565,6 +566,7 @@ typedef struct SStreamOptions {
   SNode*    pDelay;
   SNode*    pWatermark;
   SNode*    pDeleteMark;
+  SNode*    pRecInterval;
   int8_t    fillHistory;
   int8_t    ignoreExpired;
   int8_t    ignoreUpdate;

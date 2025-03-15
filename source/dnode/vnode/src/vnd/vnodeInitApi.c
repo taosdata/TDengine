@@ -69,6 +69,9 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->fileSetReadNext = tsdbFileSetReaderNext;
   pReader->fileSetGetEntryField = tsdbFileSetGetEntryField;
   pReader->fileSetReaderClose = tsdbFileSetReaderClose;
+
+  pReader->getProgress = (int32_t (*)(const void*, void**, uint64_t*))tsdbReaderGetProgress;
+  pReader->setProgress = (int32_t (*)(void*, const void*, uint64_t))tsdbReaderSetProgress;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -158,6 +161,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStatePutParName = streamStatePutParName;
   pStore->streamStateGetParName = streamStateGetParName;
   pStore->streamStateDeleteParName = streamStateDeleteParName;
+  pStore->streamStateSetParNameInvalid = streamStateSetParNameInvalid;
 
   pStore->streamStateAddIfNotExist = streamStateAddIfNotExist;
   pStore->streamStateReleaseBuf = streamStateReleaseBuf;
@@ -173,8 +177,11 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateClear = streamStateClear;
   pStore->streamStateSaveInfo = streamStateSaveInfo;
   pStore->streamStateGetInfo = streamStateGetInfo;
+  pStore->streamStateGetNumber = streamStateGetNumber;
+  pStore->streamStateDeleteInfo = streamStateDeleteInfo;
   pStore->streamStateSetNumber = streamStateSetNumber;
   pStore->streamStateGetPrev = streamStateGetPrev;
+  pStore->streamStateGetAllPrev = streamStateGetAllPrev;
 
   pStore->streamStateFillPut = streamStateFillPut;
   pStore->streamStateFillGet = streamStateFillGet;
@@ -196,6 +203,9 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateGetKVByCur = streamStateGetKVByCur;
 
   pStore->streamStateClearExpiredState = streamStateClearExpiredState;
+  pStore->streamStateClearExpiredSessionState = streamStateClearExpiredSessionState;
+  pStore->streamStateSetRecFlag = streamStateSetRecFlag;
+  pStore->streamStateGetRecFlag = streamStateGetRecFlag;
 
   pStore->streamStateSessionAddIfNotExist = streamStateSessionAddIfNotExist;
   pStore->streamStateSessionPut = streamStateSessionPut;
@@ -208,6 +218,9 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionGetKeyByRange = streamStateSessionGetKeyByRange;
   pStore->streamStateCountGetKeyByRange = streamStateCountGetKeyByRange;
   pStore->streamStateSessionAllocWinBuffByNextPosition = streamStateSessionAllocWinBuffByNextPosition;
+  pStore->streamStateSessionSaveToDisk = streamStateSessionSaveToDisk;
+  pStore->streamStateFlushReaminInfoToDisk = streamStateFlushReaminInfoToDisk;
+  pStore->streamStateSessionDeleteAll = streamStateSessionDeleteAll;
 
   pStore->streamStateCountWinAddIfNotExist = streamStateCountWinAddIfNotExist;
   pStore->streamStateCountWinAdd = streamStateCountWinAdd;
@@ -241,6 +254,24 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateDestroy = streamFileStateDestroy;
   pStore->streamFileStateClear = streamFileStateClear;
   pStore->needClearDiskBuff = needClearDiskBuff;
+
+  pStore->streamStateGetAndSetTsData = streamStateGetAndSetTsData;
+  pStore->streamStateTsDataCommit = streamStateTsDataCommit;
+  pStore->streamStateInitTsDataState = streamStateInitTsDataState;
+  pStore->streamStateDestroyTsDataState = streamStateDestroyTsDataState;
+  pStore->streamStateRecoverTsData = streamStateRecoverTsData;
+  pStore->streamStateReloadTsDataState = streamStateReloadTsDataState;
+  pStore->streamStateMergeAndSaveScanRange = streamStateMergeAndSaveScanRange;
+  pStore->streamStateMergeAllScanRange = streamStateMergeAllScanRange;
+  pStore->streamStatePopScanRange = streamStatePopScanRange;
+
+  pStore->streamStateCheckSessionState = streamStateCheckSessionState;
+  pStore->streamStateGetLastStateCur = streamStateGetLastStateCur;
+  pStore->streamStateLastStateCurNext = streamStateLastStateCurNext;
+  pStore->streamStateNLastStateGetKVByCur = streamStateNLastStateGetKVByCur;
+  pStore->streamStateGetLastSessionStateCur = streamStateGetLastSessionStateCur;
+  pStore->streamStateLastSessionStateCurNext = streamStateLastSessionStateCurNext;
+  pStore->streamStateNLastSessionStateGetKVByCur = streamStateNLastSessionStateGetKVByCur;
 
   pStore->streamStateOpen = streamStateOpen;
   pStore->streamStateClose = streamStateClose;

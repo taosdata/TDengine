@@ -323,6 +323,16 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2
@@ -1552,7 +1562,7 @@
 ,,y,script,./test.sh -f tsim/table/table.sim
 ,,y,script,./test.sh -f tsim/table/tinyint.sim
 ,,y,script,./test.sh -f tsim/table/vgroup.sim
-,,n,script,./test.sh -f tsim/stream/basic0.sim -g
+,,y,script,./test.sh -f tsim/stream/basic0.sim
 ,,y,script,./test.sh -f tsim/stream/basic1.sim
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,y,script,./test.sh -f tsim/stream/basic3.sim
@@ -1596,6 +1606,8 @@
 ,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreCheckUpdate.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
+,,y,script,./test.sh -f tsim/stream/nonblockIntervalBasic.sim
+,,y,script,./test.sh -f tsim/stream/nonblockIntervalHistory.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnOther.sim
