@@ -3,7 +3,9 @@ name: TDgpt Test
 on:
   pull_request:
     branches:
+      - 'main'
       - '3.0'
+      - '3.3.6'
     paths:
       - 'tools/tdgpt/**'
       - 'source/libs/executor/src/forecastoperator.c'
