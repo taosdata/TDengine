@@ -1,5 +1,5 @@
 option(DEPEND_DIRECTLY "depend externals directly, otherwise externals will not be built each time to save building time"    ON)
-option(ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" OFF)
+option(ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 
 include(ExternalProject)
 
@@ -12,7 +12,9 @@ add_custom_target(build_externals)
 #      TD_CONFIG_NAME will be `Release`
 set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
 if(NOT ${ALIGN_EXTERNAL})
-  set(TD_CONFIG_NAME "Release")
+    if(NOT ${TD_WINDOWS})
+        set(TD_CONFIG_NAME "Release")
+    endif()
 endif()
 
 # eg.: INIT_EXT(ext_zlib)
@@ -346,6 +348,7 @@ if(${BUILD_TEST})           # {
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -1004,7 +1007,7 @@ if(${BUILD_PCRE2})          # {
     elseif(${TD_DARWIN})
         set(ext_pcre2_static libpcre2-8.a)
     elseif(${TD_WINDOWS})
-        set(ext_pcre2_static pcre2-8-static.lib)
+        set(ext_pcre2_static pcre2-8-static$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:d>.lib)
     endif()
     INIT_EXT(ext_pcre2
         INC_DIR          include

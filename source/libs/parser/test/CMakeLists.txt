@@ -9,6 +9,9 @@ IF(NOT TD_DARWIN)
     ADD_EXECUTABLE(parserTest ${SOURCE_LIST})
     DEP_ext_gtest(parserTest)
     DEP_ext_cppstub(parserTest)
+    if(${BUILD_WINGETOPT})
+        DEP_ext_wingetopt(parserTest)
+    endif()
 
     TARGET_INCLUDE_DIRECTORIES(
             parserTest
@@ -20,14 +23,6 @@ IF(NOT TD_DARWIN)
             parserTest
             PUBLIC os util common nodes parser catalog transport function planner qcom
     )
-
-    if(${BUILD_WINGETOPT})
-        target_include_directories(
-            parserTest
-            PUBLIC "${TD_SOURCE_DIR}/contrib/wingetopt/src"
-        )
-        target_link_libraries(parserTest PUBLIC wingetopt)
-    endif()
 
     add_test(
         NAME parserTest
