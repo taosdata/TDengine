@@ -122,7 +122,7 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j4
+          cmake --build . -j4 -v
           sudo make install
           which taosd
           which taosadapter
@@ -136,8 +136,8 @@ jobs:
           set CL=/MP8
           mkdir debug && cd debug
           cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=false -DBUILD_DEPENDENCY_TESTS=false -DBUILD_KEEPER=true
-          jom -j4
-          jom install
+          cmake --build . -j4 -v
+          cmake --install .
 
       - name: Start taosd on Linux and macOS
         if: runner.os != 'Windows'
