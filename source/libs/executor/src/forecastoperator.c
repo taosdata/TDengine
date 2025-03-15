@@ -352,6 +352,8 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   if (pJson != NULL) tjsonDelete(pJson);
   return 0;
 
+
+  
 _OVER:
   tjsonDelete(pJson);
   if (code == 0) {
