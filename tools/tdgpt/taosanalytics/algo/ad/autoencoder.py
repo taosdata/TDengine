@@ -11,7 +11,6 @@ from taosanalytics.conf import app_logger, conf
 from taosanalytics.service import AbstractAnomalyDetectionService
 from taosanalytics.util import create_sequences
 
-# verify the test workflow by charles
 class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
     name = 'ad_encoder'
     desc = "anomaly detection based on auto encoder"
