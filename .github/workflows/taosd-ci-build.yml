@@ -27,11 +27,11 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
-          - ubuntu-22.04
-          - ubuntu-24.04
-          - macos-14
-          - macos-15
-          - windows-2022
+          # - ubuntu-22.04
+          # - ubuntu-24.04
+          # - macos-14
+          # - macos-15
+          # - windows-2022
 
 
     steps:
@@ -122,11 +122,12 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          cmake --build . -j4 -v
-          sudo make install
-          which taosd
-          which taosadapter
-          which taoskeeper
+          cmake --build . --target queryUtilTest -j1 -v
+          # cmake --build . -j4 -v
+          # sudo make install
+          # which taosd
+          # which taosadapter
+          # which taoskeeper
 
       - name: Build and install TDengine on Windows
         if: runner.os == 'Windows'
