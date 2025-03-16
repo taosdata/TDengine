@@ -467,6 +467,15 @@ int32_t toolsGetDefaultVGroups() {
     }
 }
 
+// skip prefix blank
+char * skipBlank(char * name) {
+    char * p = name
+    while(*p == ' ') {
+        p++;
+    }
+    return p;
+}
+
 int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
     int dataLen = 0;
     int n;
@@ -494,7 +503,7 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
             SDbCfg* cfg = benchArrayGet(database->cfgs, i);
 
             // check vgroups
-            if (strncasecmp(cfg->name, "vgroups", 7) == 0) {
+            if (strncasecmp(skipBlank(cfg->name), "vgroups", 7) == 0) {
                 if (vgroups > 0) {
                     // inputted vgroups by commandline
                     infoPrint("ignore config set vgroups %d\n", cfg->valueint);
