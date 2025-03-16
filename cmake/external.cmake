@@ -1,9 +1,5 @@
-option(DEPEND_DIRECTLY "depend externals directly, otherwise externals will not be built each time to save building time"    ON)
-option(ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
-
-include(ExternalProject)
-
-add_custom_target(build_externals)
+option(TD_EXTERNALS_USE_ONLY "external dependencies use only, otherwise download-build-install" OFF)
+option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 
 # eg.: cmake -B debug -DCMAKE_BUILD_TYPE:STRING=Debug
 #      TD_CONFIG_NAME will be `Debug`
@@ -11,17 +7,24 @@ add_custom_target(build_externals)
 #      cmake --build build --config Release
 #      TD_CONFIG_NAME will be `Release`
 set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
-if(NOT ${ALIGN_EXTERNAL})
+if(NOT ${TD_ALIGN_EXTERNAL})
     if(NOT ${TD_WINDOWS})
         set(TD_CONFIG_NAME "Release")
     endif()
 endif()
 
+set(TD_EXTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.externals" CACHE PATH "path where external dependencies reside")
+message(STATUS "TD_EXTERNALS_BASE_DIR:${TD_EXTERNALS_BASE_DIR}")
+
+include(ExternalProject)
+
+add_custom_target(build_externals)
+
 # eg.: INIT_EXT(ext_zlib)
 # initialization all variables to be used by external project and those relied on
 macro(INIT_EXT name)               # {
-    set(_base            "${CMAKE_SOURCE_DIR}/.externals/build/${name}")                      # where all source and build stuffs locate
-    set(_ins             "${CMAKE_SOURCE_DIR}/.externals/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
+    set(_base            "${TD_EXTERNALS_BASE_DIR}/build/${name}")                      # where all source and build stuffs locate
+    set(_ins             "${TD_EXTERNALS_BASE_DIR}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
     set(${name}_build    "${_base}/src/${name}-build")
@@ -55,7 +58,7 @@ macro(INIT_EXT name)               # {
             endif()
         endif()
     endforeach()                     # }
-    if(DEPEND_DIRECTLY)
+    if(NOT TD_EXTERNALS_USE_ONLY)
         add_library(${name}_imp STATIC IMPORTED)
     endif()
     # eg.: DEP_ext_zlib(tgt)
@@ -72,7 +75,7 @@ macro(INIT_EXT name)               # {
         foreach(v ${${name}_inc_dir})
             target_include_directories(${tgt} PUBLIC "${v}")
         endforeach()
-        if(DEPEND_DIRECTLY)     # {
+        if(NOT TD_EXTERNALS_USE_ONLY)     # {
             foreach(v ${${name}_libs})
                 set_target_properties(${name}_imp PROPERTIES
                     IMPORTED_LOCATION "${v}"
@@ -84,7 +87,7 @@ macro(INIT_EXT name)               # {
                 )
             endforeach()
             add_dependencies(${tgt} ${name})
-        endif()                 # }
+        endif()                           # }
         add_definitions(-D_${name})
         if("z${name}" STREQUAL "zext_gtest")
             target_compile_features(${tgt} PUBLIC cxx_std_11)
@@ -93,7 +96,7 @@ macro(INIT_EXT name)               # {
         endif()
     endmacro()                               # }
     macro(DEP_${name}_LIB tgt)               # {
-        if(DEPEND_DIRECTLY)     # {
+        if(NOT TD_EXTERNALS_USE_ONLY)     # {
             foreach(v ${${name}_libs})
                 set_target_properties(${name}_imp PROPERTIES
                     IMPORTED_LOCATION "${v}"
@@ -105,7 +108,7 @@ macro(INIT_EXT name)               # {
                 )
             endforeach()
             add_dependencies(${tgt} ${name})
-        endif()                 # }
+        endif()                           # }
         foreach(v ${${name}_libs})
             target_link_libraries(${tgt} PRIVATE "${v}")
         endforeach()
