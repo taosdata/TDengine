@@ -124,6 +124,7 @@ jobs:
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
           cmake --build . --target ext_gtest -v
+          cmake --build . --target benchmarkTest -v
           # cmake --build . -j4 -v
           # sudo make install
           # which taosd
