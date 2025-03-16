@@ -1097,7 +1097,7 @@ void ctgFreeJob(void* job) {
 
   taosMemoryFree(job);
 
-  qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog job freed", qid, rid);
+  qTrace("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog job freed", qid, rid);
 }
 
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target) {

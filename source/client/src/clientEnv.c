@@ -684,7 +684,7 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscDebug("QID:0x%" PRIx64 ", begin destroy request, res:%p", reqId, pRequest);
+  tscTrace("QID:0x%" PRIx64 ", begin destroy request, res:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
@@ -726,7 +726,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscDebug("QID:0x%" PRIx64 ", end destroy request, res:%p", reqId, pRequest);
+  tscTrace("QID:0x%" PRIx64 ", end destroy request, res:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 
@@ -747,7 +747,7 @@ void taosStopQueryImpl(SRequestObj *pRequest) {
   }
 
   schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
-  tscDebug("QID:0x%" PRIx64 ", killed", pRequest->requestId);
+  tscTrace("QID:0x%" PRIx64 ", killed", pRequest->requestId);
 }
 
 void stopAllQueries(SRequestObj *pRequest) {
