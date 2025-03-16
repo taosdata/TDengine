@@ -464,6 +464,7 @@ extern SSchedulerMgmt schMgmt;
 
 #define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
 #define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
+#define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...)                                                                                    \
   qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
@@ -579,10 +580,10 @@ extern SSchedulerMgmt schMgmt;
     }                                                                                                 \
   } while (0)
 
-#define SCH_RESET_JOB_LEVEL_IDX(_job)                         \
-  do {                                                        \
-    (_job)->levelIdx = (_job)->levelNum - 1;                  \
-    SCH_JOB_DLOG("set job levelIdx to %d", (_job)->levelIdx); \
+#define SCH_RESET_JOB_LEVEL_IDX(_job)                                                       \
+  do {                                                                                      \
+    (_job)->levelIdx = (_job)->levelNum - 1;                                                \
+    qTrace("QID:0x%" PRIx64 ", job levelIdx set to %d", (_job)->queryId, (_job)->levelIdx); \
   } while (0)
 
 void     schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);

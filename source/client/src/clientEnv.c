@@ -263,16 +263,18 @@ static void deregisterRequest(SRequestObj *pRequest) {
          (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
       tscDebug("req:0x%" PRIx64 ", insert duration:%" PRId64 "us, parseCost:%" PRId64 "us, ctgCost:%" PRId64
-               "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us, QID:0x%" PRIx64,
                pRequest->self, duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs,
-               pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+               pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs,
+               pRequest->requestId);
       (void)atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_INSERT;
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
       tscDebug("req:0x%" PRIx64 ", query duration:%" PRId64 "us, parseCost:%" PRId64 "us, ctgCost:%" PRId64
-               "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us, QID:0x%" PRIx64,
                pRequest->self, duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs,
-               pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+               pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs,
+               pRequest->requestId);
 
       (void)atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_QUERY;
@@ -684,7 +686,7 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscDebug("QID:0x%" PRIx64 ", begin destroy request, res:%p", reqId, pRequest);
+  tscTrace("QID:0x%" PRIx64 ", begin destroy request, res:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
@@ -726,7 +728,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscDebug("QID:0x%" PRIx64 ", end destroy request, res:%p", reqId, pRequest);
+  tscTrace("QID:0x%" PRIx64 ", end destroy request, res:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 
@@ -747,7 +749,7 @@ void taosStopQueryImpl(SRequestObj *pRequest) {
   }
 
   schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
-  tscDebug("QID:0x%" PRIx64 ", killed", pRequest->requestId);
+  tscTrace("QID:0x%" PRIx64 ", killed", pRequest->requestId);
 }
 
 void stopAllQueries(SRequestObj *pRequest) {

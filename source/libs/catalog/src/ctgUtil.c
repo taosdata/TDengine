@@ -1097,7 +1097,7 @@ void ctgFreeJob(void* job) {
 
   taosMemoryFree(job);
 
-  qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog job freed", qid, rid);
+  qTrace("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog job freed", qid, rid);
 }
 
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target) {
@@ -1293,7 +1293,7 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
 
   *pVgroup = *vgInfo;
 
-  ctgDebug("tb:%s, get hash vgroup, vgId:%d, epNum %d, current:%s port:%d", tbFullName, vgInfo->vgId,
+  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
            vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1437,7 +1437,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
     *pNewVg = *vgInfo;
 
-    ctgDebug("tb:%s, get hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+    ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
              vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
              vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 

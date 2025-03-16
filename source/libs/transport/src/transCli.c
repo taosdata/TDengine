@@ -1445,7 +1445,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
 
   int32_t totalLen = 0;
   if (size == 0) {
-    tTrace("%s conn:%p, not msg to send", pInst->label, pConn);
+    tTrace("%s conn:%p, msg is sent", pInst->label, pConn);
     return 0;
   }
   uv_buf_t* wb = NULL;

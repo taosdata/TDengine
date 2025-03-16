@@ -1482,7 +1482,7 @@ _return:
 int32_t ctgCallUserCb(void* param) {
   SCtgJob* pJob = (SCtgJob*)param;
 
-  qDebug("QID:0x%" PRIx64 ", catalog start to call user cb with rsp %s", pJob->queryId, tstrerror(pJob->jobResCode));
+  qDebug("QID:0x%" PRIx64 ", catalog start to call user cb with rsp, code:%s", pJob->queryId, tstrerror(pJob->jobResCode));
 
   (*pJob->userFp)(&pJob->jobRes, pJob->userParam, pJob->jobResCode);
 
@@ -1571,7 +1571,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       SVgroupInfo vgInfo = {0};
       CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, pOut->dbVgroup, pName, &vgInfo));
 
-      ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
+      ctgDebug("tb:%s, will refresh tbmeta, not supposed to be stb, flag:%d", tNameGetTableName(pName), flag);
 
       *vgId = vgInfo.vgId;
       CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
@@ -1756,7 +1756,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       SVgroupInfo vgInfo = {0};
       CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, pOut->dbVgroup, pName, &vgInfo));
 
-      ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
+      ctgTaskDebug("tb:%s, will refresh tbmeta, not supposed to be stb, flag:%d", tNameGetTableName(pName), flag);
 
       *vgId = vgInfo.vgId;
       CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
@@ -1991,7 +1991,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
           ctgTaskError("fail to get the %dth vgInfo, vgSize:%d", i, vgSize);
           CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
         }
-        ctgTaskDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d, vgId:%d",
+        ctgTaskDebug("tb:%s, will refresh tbmeta, not supposed to be stb, flag:%d, vgId:%d",
                      tNameGetTableName(pName), flag, vgInfo->vgId);
         // *vgId = vgInfo->vgId;
         if (i > 0) atomic_add_fetch_32(&ctx->fetchNum, 1);
@@ -3041,7 +3041,7 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTaskReq* tReq, int32_t flag, SName* pName, int
     SVgroupInfo vgInfo = {0};
     CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, &pConn->mgmtEps, dbCache->vgCache.vgInfo, pName, &vgInfo));
 
-    ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(pName), flag);
+    ctgDebug("tb:%s, will refresh tbmeta, not supposed to be stb, flag:%d", tNameGetTableName(pName), flag);
 
     *vgId = vgInfo.vgId;
     CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
