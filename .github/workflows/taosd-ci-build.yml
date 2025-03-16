@@ -116,11 +116,6 @@ jobs:
       - name: Build and install TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          ldconfig -p | grep libdl
-          echo ================
-          nm -S /lib/x86_64-linux-gnu/libdl.so.2
-          echo ================
-          false
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
