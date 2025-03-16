@@ -3,7 +3,6 @@ add_library(transport STATIC ${TRANSPORT_SRC})
 if(${BUILD_WITH_UV_TRANS})
   if(${BUILD_WITH_UV})
 		DEP_ext_libuv(transport)
-    target_link_libraries(transport PUBLIC dl)
 	endif()
 endif()
 target_include_directories(
