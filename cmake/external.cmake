@@ -91,9 +91,11 @@ macro(INIT_EXT name)               # {
             find_package(Threads REQUIRED)
             target_link_libraries(${tgt} PRIVATE Threads::Threads)
         endif()
-        if("z${name}" STREQUAL "zext_libuv")
-            target_link_libraries(${tgt} PUBLIC dl)
-        endif()
+        if(NOT ${TD_WINDOWS})       # {
+          if("z${name}" STREQUAL "zext_libuv")
+              target_link_libraries(${tgt} PUBLIC dl)
+          endif()
+        endif()                     # }
     endmacro()                               # }
     macro(DEP_${name}_LIB tgt)               # {
         if(DEPEND_DIRECTLY)     # {
