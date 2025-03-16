@@ -537,7 +537,7 @@ if(NOT ${TD_WINDOWS})        # {
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/xxhash.Makefile Makefile
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/xxhash.Makefile Makefile
         CONFIGURE_COMMAND ""
         BUILD_COMMAND
             COMMAND make DESTDIR=${_ins}
