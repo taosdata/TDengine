@@ -153,7 +153,7 @@ jobs:
         run: |
           cmake -B debug -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           cmake --build debug -j4 -v
-          sudo make install
+          sudo cmake --install debug
           which taosd
           which taosadapter
           which taoskeeper
@@ -166,7 +166,7 @@ jobs:
           set CL=/MP8
           cmake -B debug -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           cmake --build debug -j4 -v
-          cmake --install .
+          cmake --install debug
 
       - name: Start taosd on Linux and macOS
         if: runner.os != 'Windows'
