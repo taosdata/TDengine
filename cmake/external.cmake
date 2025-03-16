@@ -88,6 +88,8 @@ macro(INIT_EXT name)               # {
         add_definitions(-D_${name})
         if("z${name}" STREQUAL "zext_gtest")
             target_compile_features(${tgt} PUBLIC cxx_std_11)
+            find_package(Threads REQUIRED)
+            target_link_libraries(${tgt} PRIVATE Threads::Threads)
         endif()
     endmacro()                               # }
     macro(DEP_${name}_LIB tgt)               # {
