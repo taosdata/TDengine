@@ -746,6 +746,9 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   // commit the update
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   tqDebug("vgId:%d task:0x%x dropped, remain tasks:%d", vgId, pReq->taskId, numOfTasks);
+  if (numOfTasks == 0) {
+    streamMetaResetStartInfo(&pMeta->startInfo, vgId);
+  }
 
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
