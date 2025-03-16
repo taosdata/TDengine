@@ -123,7 +123,7 @@ bool taosAssertRelease(bool condition);
 #endif
 #endif
 
-void taosLogCrashInfo(const char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
+void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
 void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
 

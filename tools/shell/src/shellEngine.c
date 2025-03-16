@@ -1361,7 +1361,7 @@ TAOS* createConnect(SShellArgs *pArgs) {
   }
 }
 
-int32_t shellExecute() {
+int32_t shellExecute(int argc, char *argv[]) {
   int32_t code = 0;
   printf(shell.info.clientVersion, shell.info.cusName, 
              shell.args.connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
