@@ -291,7 +291,7 @@ if(${BUILD_WCWIDTH})        # {
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_CONTRIB_DIR}/wcwidth.cmake" "${ext_wcwidth_source}/CMakeLists.txt"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/wcwidth.cmake" "${ext_wcwidth_source}/CMakeLists.txt"
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -593,7 +593,7 @@ ExternalProject_Add(ext_lzma2
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     PATCH_COMMAND
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/lzma2.Makefile Makefile
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/lzma2.Makefile Makefile
         # freemine: xxhash.h is now introduced by ext_xxhash
     CONFIGURE_COMMAND ""
     BUILD_COMMAND
@@ -667,7 +667,7 @@ if(NOT ${TD_WINDOWS})       # {
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/tz.Makefile Makefile
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/tz.Makefile Makefile
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
             # COMMAND make CFLAGS+=-fPIC CFLAGS+=-g TZDIR=${TZ_OUTPUT_PATH} clean libtz.a
@@ -778,8 +778,8 @@ if(${BUILD_CRASHDUMP})      # {
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/crashdump.cmake CMakeLists.txt
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/crasher.c.in crasher/crasher.c
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/crashdump.cmake CMakeLists.txt
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/crasher.c.in crasher/crasher.c
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -997,7 +997,7 @@ if(${BUILD_ADDR2LINE})      # {
         CMAKE_ARGS -DDWARF_BASE_DIR:STRING=${ext_dwarf_install}
         CMAKE_ARGS -DZLIB_BASE_DIR:STRING=${ext_zlib_install}
         PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_CONTRIB_DIR}/addr2line.cmake" "${ext_addr2line_source}/CMakeLists.txt"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/addr2line.cmake" "${ext_addr2line_source}/CMakeLists.txt"
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
