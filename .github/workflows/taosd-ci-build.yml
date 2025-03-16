@@ -122,12 +122,11 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          cmake --build . --target queryUtilTest -j1 -v
-          # cmake --build . -j4 -v
-          # sudo make install
-          # which taosd
-          # which taosadapter
-          # which taoskeeper
+          cmake --build . -j4 -v
+          sudo make install
+          which taosd
+          which taosadapter
+          which taoskeeper
 
       - name: Build and install TDengine on Windows
         if: runner.os == 'Windows'
