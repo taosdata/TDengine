@@ -12660,18 +12660,6 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     pStmt->pOptions->ignoreExpired = 1;
     pStmt->pOptions->ignoreUpdate = 1;
 
-    if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-      SIntervalWindowNode* pWindow = (SIntervalWindowNode*)pSelect->pWindow;
-      if (NULL != pWindow->pSliding) {
-//        int64_t interval = ((SValueNode*)pWindow->pInterval)->datum.i;
-//        int64_t sliding = ((SValueNode*)pWindow->pSliding)->datum.i;
-//        if (interval != sliding) {
-//          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-//                                         "When trigger was force window close, Stream unsupported sliding");
-//        }
-      }
-    }
-
     if ((SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta &&
         TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
         !hasTbnameFunction(pSelect->pPartitionByList)) {
