@@ -14,7 +14,8 @@
 1. [Contributing](#12-contributing)
 
 # 1. Introduction
-tdanalytics: an analytic platform for tdengine
+
+TDgpt: an analytic platform for TDengine
 
 # 2. Documentation
 
@@ -70,7 +71,7 @@ cd script && ./release.sh
 After the packaging is completed, you will find the tarball in the `release` directory.
 
 ```bash
-ls -lht /root/tdanalytics/release
+ls -lht release
 
 -rw-rw-r-- 1 root root 74K Feb 21 17:04 TDengine-enterprise-anode-1.0.1.tar.gz
 ```
@@ -111,16 +112,16 @@ http = 127.0.0.1:6090
 The command `rmtaosanode` will remove the installed taosanode from your system. Note that the python environment won't removed by this script, you need to remove it mannually.
 
 # 8. Testing
-we use github Actions to run the test suit. Please refer to the file [.github/workflows/python-package.yml](https://github.com/taosdata/tdanalytics/.github/workflows/python-package.yml) for more details.
 
+We use Github Actions to run the test suite. Please refer to the workflow definition yaml file in [.github/workflows](../../.github/workflows/) for details.
 
 # 9 Releasing
+
 For the complete list of taosanode Releases, please see Releases.
 
 # 10 CI/CD
 
-We use github Actions for CI/CD workflow configuration. Please refer to the file .github/workflows/python-package.yml for more details.
-
+We use Github Actions for CI/CD workflow configuration. Please refer to the workflow definition yaml file in [.github/workflows](../../.github/workflows/) for details.
 
 # 11 Coverage
 

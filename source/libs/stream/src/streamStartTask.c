@@ -147,7 +147,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     // negotiate the consensus checkpoint id for current task
     code = streamTaskSendNegotiateChkptIdMsg(pTask);
 
-    // this task may has no checkpoint, but others tasks may generate checkpoint already?
+    // this task may have no checkpoint, but others tasks may generate checkpoint already?
     streamMetaReleaseTask(pMeta, pTask);
   }
 

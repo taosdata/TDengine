@@ -200,6 +200,7 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeEqual((const SGroupingSetNode*)a, (const SGroupingSetNode*)b);
     case QUERY_NODE_REAL_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
     case QUERY_NODE_ORDER_BY_EXPR:

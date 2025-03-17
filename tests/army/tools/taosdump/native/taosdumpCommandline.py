@@ -177,14 +177,12 @@ class TDTestCase(TBase):
 
         # executes 
         for item in checkItems:
-            self.clearPath(tmpdir)
+            self.clearPath(tmpdir) # clear tmp
             command = item[0]
             results = item[1]
             rlist = self.taosdump(command)
             for result in results:
                 self.checkListString(rlist, result)
-            # clear tmp    
-
     
     # check except
     def checkExcept(self, command):
@@ -214,6 +212,31 @@ class TDTestCase(TBase):
         self.checkExcept(taosdump + f" -t 2 -k 2 -z 1 -C https://not-exist.com:80/cloud -D test -o {tmpdir}")
         self.checkExcept(taosdump + f" -P 65536")
 
+    # password
+    def checkPassword(self, tmpdir):
+        # 255 char max password
+        user    = "test_user"
+        pwd     = ""
+        pwdFile = "cmdline/data/pwdMax.txt"
+        with open(pwdFile) as file:
+            pwd = file.readline()
+        
+        sql = f"create user {user} pass '{pwd}' "
+        tdSql.execute(sql)
+        # enterprise must set
+        sql = f"grant read on test to {user}"
+        tdSql.execute(sql)
+
+        cmds = [
+            f"-u{user} -p'{pwd}'      -D test -o {tmpdir}",  # command pass
+            f"-u{user} -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
+        ]
+
+        for cmd in cmds:
+            self.clearPath(tmpdir)
+            rlist = self.taosdump(cmd)
+            self.checkListString(rlist, "OK: Database test dumped")
+
     # run
     def run(self):
         
@@ -224,20 +247,26 @@ class TDTestCase(TBase):
         # insert data with taosBenchmark
         db, stb, childCount, insertRows = self.insertData(json)
 
+        #
+        # long password
+        #
+        self.checkPassword(tmpdir)
+        tdLog.info("1. check long password ................................. [Passed]")
+
         # dumpInOut
         modes = ["", "-R" , "--cloud=http://localhost:6041"]
         for mode in modes:
             self.dumpInOutMode(mode, db , json, tmpdir)
 
-        tdLog.info("1. native rest ws dumpIn Out  .......................... [Passed]")
+        tdLog.info("2. native rest ws dumpIn Out  .......................... [Passed]")
 
         # basic commandline
         self.basicCommandLine(tmpdir)
-        tdLog.info("2. basic command line  .................................. [Passed]")
+        tdLog.info("3. basic command line  .................................. [Passed]")
 
         # except commandline
         self.exceptCommandLine(taosdump, db, stb, tmpdir)
-        tdLog.info("3. except command line  ................................. [Passed]")
+        tdLog.info("4. except command line  ................................. [Passed]")
 
         #
         # varbinary and geometry for native
@@ -247,7 +276,8 @@ class TDTestCase(TBase):
         db, stb, childCount, insertRows = self.insertData(json)
         # dump in/out
         self.dumpInOutMode("", db , json, tmpdir)
-        tdLog.info("4. native varbinary geometry ........................... [Passed]")
+        tdLog.info("5. native varbinary geometry ........................... [Passed]")
+
 
 
     def stop(self):

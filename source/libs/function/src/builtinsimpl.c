@@ -15,6 +15,7 @@
 
 #include "builtinsimpl.h"
 #include "cJSON.h"
+#include "decimal.h"
 #include "function.h"
 #include "functionResInfoInt.h"
 #include "query.h"
@@ -103,6 +104,21 @@ typedef enum {
       (_res) += (d)[i];                                                  \
       (numOfElem)++;                                                     \
     }                                                                    \
+  } while (0)
+
+#define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)                                  \
+  do {                                                                                                \
+    _t*                d = (_t*)(_col->pData);                                                        \
+    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                                  \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                                         \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {                              \
+        continue;                                                                                     \
+      };                                                                                              \
+      overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, DECIMAL_WORD_NUM(_t)); \
+      if (overflow) break;                                                                            \
+      pOps->add(_res, d + i, DECIMAL_WORD_NUM(_t));                                                   \
+      (numOfElem)++;                                                                                  \
+    }                                                                                                 \
   } while (0)
 
 #define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)             \
@@ -619,9 +635,10 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
   int32_t               type = pInput->pData[0]->info.type;
+  pCtx->inputType = type;
 
-  SSumRes* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pSumRes->type = type;
+  void* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, type);
 
   if (IS_NULL_TYPE(type)) {
     numOfElem = 0;
@@ -632,11 +649,19 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
     numOfElem = pInput->numOfRows - pAgg->numOfNull;
 
     if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      pSumRes->isum += pAgg->sum;
+      SUM_RES_INC_ISUM(pSumRes, pAgg->sum);
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      pSumRes->usum += pAgg->sum;
+      SUM_RES_INC_USUM(pSumRes, pAgg->sum);
     } else if (IS_FLOAT_TYPE(type)) {
-      pSumRes->dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
+      SUM_RES_INC_DSUM(pSumRes, GET_DOUBLE_VAL((const char*)&(pAgg->sum)));
+    } else if (IS_DECIMAL_TYPE(type)) {
+      SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
+      const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+      if (pAgg->overflow || decimal128AddCheckOverflow((Decimal*)&SUM_RES_GET_DECIMAL_SUM(pSumRes),
+                                                       &pAgg->decimal128Sum, DECIMAL_WORD_NUM(Decimal))) {
+        return TSDB_CODE_DECIMAL_OVERFLOW;
+      }
+      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->decimal128Sum, DECIMAL_WORD_NUM(Decimal));
     }
   } else {  // computing based on the true data block
     SColumnInfoData* pCol = pInput->pData[0];
@@ -646,33 +671,42 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
     if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
       if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
-        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int8_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int8_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_SMALLINT) {
-        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int16_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int16_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_INT) {
-        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int32_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int32_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_BIGINT) {
-        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int64_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int64_t, numOfElem);
       }
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
       if (type == TSDB_DATA_TYPE_UTINYINT) {
-        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint8_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint8_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_USMALLINT) {
-        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint16_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint16_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_UINT) {
-        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint32_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint32_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_UBIGINT) {
-        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint64_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint64_t, numOfElem);
       }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, double, numOfElem);
+      LIST_ADD_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, double, numOfElem);
     } else if (type == TSDB_DATA_TYPE_FLOAT) {
-      LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, float, numOfElem);
+      LIST_ADD_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, float, numOfElem);
+    } else if (IS_DECIMAL_TYPE(type)) {
+      SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
+      int32_t overflow = false;
+      if (TSDB_DATA_TYPE_DECIMAL64 == type) {
+        LIST_ADD_DECIMAL_N(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pCol, start, numOfRows, Decimal64, numOfElem);
+      } else if (TSDB_DATA_TYPE_DECIMAL == type) {
+        LIST_ADD_DECIMAL_N(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pCol, start, numOfRows, Decimal128, numOfElem);
+      }
+      if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
     }
   }
 
   // check for overflow
-  if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
+  if (IS_FLOAT_TYPE(type) && (isinf(SUM_RES_GET_DSUM(pSumRes)) || isnan(SUM_RES_GET_DSUM(pSumRes)))) {
     numOfElem = 0;
   }
 
@@ -750,26 +784,30 @@ int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
 
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  SSumRes*             pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  void*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int16_t              type = SUM_RES_GET_TYPE(pDBuf, pDestCtx->inputType);
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  SSumRes*             pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
+  void*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  type = (type == TSDB_DATA_TYPE_NULL) ? SUM_RES_GET_TYPE(pSBuf, pDestCtx->inputType) : type;
 
   if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
-    pDBuf->isum += pSBuf->isum;
+    SUM_RES_INC_ISUM(pDBuf, SUM_RES_GET_ISUM(pSBuf));
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->usum += pSBuf->usum;
+    SUM_RES_INC_USUM(pDBuf, SUM_RES_GET_USUM(pSBuf));
+  } else if (IS_DECIMAL_TYPE(type)) {
+    bool overflow = false;
+    SUM_RES_INC_DECIMAL_SUM(pDBuf, &SUM_RES_GET_DECIMAL_SUM(pSBuf), type);
   } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
-    pDBuf->dsum += pSBuf->dsum;
+    SUM_RES_INC_DSUM(pDBuf, SUM_RES_GET_DSUM(pSBuf));
   }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
 }
 
-bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(SSumRes);
+bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = SUM_RES_GET_SIZE(pFunc->node.resType.type);
   return true;
 }
 
@@ -824,6 +862,7 @@ int32_t minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
 }
 
 bool getMinmaxFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  COMPILE_TIME_ASSERT(sizeof(SMinmaxResInfo) == sizeof(SOldMinMaxResInfo));
   pEnv->calcMemSize = sizeof(SMinmaxResInfo);
   return true;
 }
@@ -904,12 +943,18 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         }
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64:
+        code = colDataSetVal(pCol, currentRow, (const char*)&pRes->v, false);
+        break;
+      case TSDB_DATA_TYPE_DECIMAL:
+        code = colDataSetVal(pCol, currentRow, (void*)pRes->dec, false);
+        break;
     }
   } else {
     colDataSetNULL(pCol, currentRow);
   }
 
-  taosMemoryFreeClear(pRes->str);
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) taosMemoryFreeClear(pRes->str);
   if (pCtx->subsidiaries.num > 0) {
     if (pEntryInfo->numOfRes > 0) {
       code = setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
@@ -1037,7 +1082,6 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
   int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
 
   switch (type) {
-    case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT:
       if (pSBuf->assign && (COMPARE_MINMAX_DATA(int64_t) || !pDBuf->assign)) {
@@ -1071,6 +1115,7 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
         pDBuf->assign = true;
       }
       break;
+    case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_FLOAT: {
       if (pSBuf->assign && (COMPARE_MINMAX_DATA(double) || !pDBuf->assign)) {
         pDBuf->v = pSBuf->v;
@@ -1079,9 +1124,25 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
       }
       break;
     }
-    default:
-      if (pSBuf->assign && (strcmp((char*)&pDBuf->v, (char*)&pSBuf->v) || !pDBuf->assign)) {
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      const SDecimalOps* pOps = getDecimalOps(type);
+      if (pSBuf->assign && ((pOps->lt(&pDBuf->v, &pSBuf->v, DECIMAL_WORD_NUM(Decimal64)) ^ isMinFunc) || !pDBuf->assign)) {
         pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+    } break;
+    case TSDB_DATA_TYPE_DECIMAL: {
+      const SDecimalOps* pOps = getDecimalOps(type);
+      if (pSBuf->assign && (pOps->lt(pDBuf->dec, pSBuf->dec, DECIMAL_WORD_NUM(Decimal)) ^ isMinFunc) || !pDBuf->assign) {
+        memcpy(pDBuf->dec, pSBuf->dec, DECIMAL128_BYTES);
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+    } break;
+    default:
+      if (pSBuf->assign && (strcmp(pDBuf->str, pSBuf->str) || !pDBuf->assign)) {
+        memcpy(pDBuf->str, pSBuf->str, varDataLen(pSBuf->str));
         replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
         pDBuf->assign = true;
       }
@@ -1532,8 +1593,10 @@ int32_t leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
 
   SLeastSQRInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
-  GET_TYPED_DATA(pInfo->startVal, double, pCtx->param[1].param.nType, &pCtx->param[1].param.i);
-  GET_TYPED_DATA(pInfo->stepVal, double, pCtx->param[2].param.nType, &pCtx->param[2].param.i);
+  GET_TYPED_DATA(pInfo->startVal, double, pCtx->param[1].param.nType, &pCtx->param[1].param.i,
+                 typeGetTypeModFromCol(pCtx->param[1].pCol));
+  GET_TYPED_DATA(pInfo->stepVal, double, pCtx->param[2].param.nType, &pCtx->param[2].param.i,
+                 typeGetTypeModFromCol(pCtx->param[2].pCol));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1828,7 +1891,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       pResInfo->complete = true;
       return TSDB_CODE_SUCCESS;
     } else {
-      code = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval, pCtx->hasWindowOrGroup,
+      code = tMemBucketCreate(pCol->info.bytes, type, typeGetTypeModFromColInfo(&pCol->info), pInfo->minval, pInfo->maxval, pCtx->hasWindowOrGroup,
                               &pInfo->pMemBucket, pInfo->numOfElems);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
@@ -1871,7 +1934,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         char* data = colDataGetData(pCol, i);
 
         double v = 0;
-        GET_TYPED_DATA(v, double, type, data);
+        GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
         if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
           SET_DOUBLE_VAL(&pInfo->minval, v);
         }
@@ -1926,7 +1989,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       for (int32_t i = 1; i < pCtx->numOfParams; ++i) {
         SVariant* pVal = &pCtx->param[i].param;
 
-        GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+        GET_TYPED_DATA(v, double, pVal->nType, &pVal->i, typeGetTypeModFromCol(pCtx->param[i].pCol));
 
         code = getPercentile((*pMemBucket), v, &ppInfo->result);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1958,7 +2021,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     } else {
       SVariant* pVal = &pCtx->param[1].param;
 
-      GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+      GET_TYPED_DATA(v, double, pVal->nType, &pVal->i, typeGetTypeModFromCol(pCtx->param[1].pCol));
 
       code = getPercentile((*pMemBucket), v, &ppInfo->result);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2027,7 +2090,7 @@ int32_t apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRes
 
   SVariant* pVal = &pCtx->param[1].param;
   pInfo->percent = 0;
-  GET_TYPED_DATA(pInfo->percent, double, pVal->nType, &pVal->i);
+  GET_TYPED_DATA(pInfo->percent, double, pVal->nType, &pVal->i, typeGetTypeModFromCol(pCtx->param[1].pCol));
 
   if (pCtx->numOfParams == 2) {
     pInfo->algo = APERCT_ALGO_DEFAULT;
@@ -2074,7 +2137,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
 
       double  v = 0;  // value
       int64_t w = 1;  // weigth
-      GET_TYPED_DATA(v, double, type, data);
+      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
       int32_t code = tdigestAdd(pInfo->pTDigest, v, w);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -2095,7 +2158,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
       char* data = colDataGetData(pCol, i);
 
       double v = 0;
-      GET_TYPED_DATA(v, double, type, data);
+      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
       int32_t code = tHistogramAdd(&pInfo->pHisto, v);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -2310,16 +2373,16 @@ static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal
   char numVal[8] = {0};
   switch (pkType) {
     case TSDB_DATA_TYPE_INT:
-      *(int32_t*)numVal = (int32_t)pVal->val;
+      *(int32_t*)numVal = (int32_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_UINT:
-      *(uint32_t*)numVal = (uint32_t)pVal->val;
+      *(uint32_t*)numVal = (uint32_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      *(int64_t*)numVal = (int64_t)pVal->val;
+      *(int64_t*)numVal = (int64_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      *(uint64_t*)numVal = (uint64_t)pVal->val;
+      *(uint64_t*)numVal = (uint64_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     default:
       break;
@@ -4148,7 +4211,7 @@ int32_t spreadFunction(SqlFunctionCtx* pCtx) {
       char* data = colDataGetData(pCol, i);
 
       double v = 0;
-      GET_TYPED_DATA(v, double, type, data);
+      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
       if (v < GET_DOUBLE_VAL(&pInfo->min)) {
         SET_DOUBLE_VAL(&pInfo->min, v);
       }
@@ -4703,7 +4766,7 @@ static int32_t histogramFunctionImpl(SqlFunctionCtx* pCtx, bool isPartial) {
 
     char*  data = colDataGetData(pCol, i);
     double v;
-    GET_TYPED_DATA(v, double, type, data);
+    GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
 
     for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
       if (v > pInfo->bins[k].lower && v <= pInfo->bins[k].upper) {
@@ -5340,7 +5403,7 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
     char* data = colDataGetData(pInputCol, i);
     if (IS_SIGNED_NUMERIC_TYPE(type)) {
       int64_t v;
-      GET_TYPED_DATA(v, int64_t, type, data);
+      GET_TYPED_DATA(v, int64_t, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
       pSumRes->isum += v;
       code = colDataSetVal(pOutput, pos, (char*)&pSumRes->isum, false);
       if (TSDB_CODE_SUCCESS != code) {
@@ -5348,7 +5411,7 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       }
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
       uint64_t v;
-      GET_TYPED_DATA(v, uint64_t, type, data);
+      GET_TYPED_DATA(v, uint64_t, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
       pSumRes->usum += v;
       code = colDataSetVal(pOutput, pos, (char*)&pSumRes->usum, false);
       if (TSDB_CODE_SUCCESS != code) {
@@ -5356,7 +5419,7 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       }
     } else if (IS_FLOAT_TYPE(type)) {
       double v;
-      GET_TYPED_DATA(v, double, type, data);
+      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
       pSumRes->dsum += v;
       // check for overflow
       if (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)) {
@@ -5442,7 +5505,7 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
 
     char*  data = colDataGetData(pInputCol, i);
     double v;
-    GET_TYPED_DATA(v, double, type, data);
+    GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
     if (!pInfo->pointsMeet && (pInfo->pos < pInfo->numOfPoints - 1)) {
       pInfo->points[pInfo->pos] = v;
@@ -6134,7 +6197,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
       last->key = row.ts;
 
-      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData);
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
 
       pInfo->dOutput += twa_get_area(pCtx->start, *last);
       pInfo->win.skey = pCtx->start.key;
@@ -6156,7 +6219,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
       last->key = row.ts;
 
-      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData);
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
 
       pInfo->win.skey = last->key;
       pInfo->numOfElems++;
@@ -6612,12 +6675,12 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   uint64_t totalDiskSize = pData->dataInDiskSize;
   uint64_t rawDataSize = pData->rawDataSize;
-  double   compressRadio = 0;
+  double   compressRatio = 0;
   if (rawDataSize != 0) {
-    compressRadio = totalDiskSize * 100 / (double)rawDataSize;
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[%.2f%]", compressRadio);
+    compressRatio = totalDiskSize * 100 / (double)rawDataSize;
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[%.2f%]", compressRatio);
   } else {
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[NULL]");
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[NULL]");
   }
 
   varDataSetLen(st, len);
@@ -6689,7 +6752,7 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
       }
 
       char* d = row.pData;
-      GET_TYPED_DATA(v, double, pInputCol->info.type, d);
+      GET_TYPED_DATA(v, double, pInputCol->info.type, d, typeGetTypeModFromColInfo(&pInputCol->info));
 
       int32_t pos = pCtx->offset + numOfElems;
       if (!pDerivInfo->valueSet) {  // initial value is not set yet
@@ -6745,7 +6808,7 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
       }
 
       char* d = row.pData;
-      GET_TYPED_DATA(v, double, pInputCol->info.type, d);
+      GET_TYPED_DATA(v, double, pInputCol->info.type, d, typeGetTypeModFromColInfo(&pInputCol->info));
 
       int32_t pos = pCtx->offset + numOfElems;
       if (!pDerivInfo->valueSet) {  // initial value is not set yet
@@ -6903,7 +6966,7 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
 
     char*  data = row.pData;
     double v = 0;
-    GET_TYPED_DATA(v, double, type, data);
+    GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
     if (INT64_MIN == pRateInfo->lastKey) {
       doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);

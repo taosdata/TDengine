@@ -25,6 +25,15 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
 ,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_drop.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_meta.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_create.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_select.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
@@ -75,6 +84,11 @@
 ,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
 ,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py -B
 ,,n,army,python3 ./test.py -f whole/checkErrorCode.py
+,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py
+,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py
+,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
 
 #
 # army/tools
@@ -216,6 +230,7 @@
 #
 # system test
 #
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
@@ -317,6 +332,16 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2
@@ -826,7 +851,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaBasic.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sma_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TS-3724.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml-TD19291.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varbinary.py
@@ -1546,7 +1570,7 @@
 ,,y,script,./test.sh -f tsim/table/table.sim
 ,,y,script,./test.sh -f tsim/table/tinyint.sim
 ,,y,script,./test.sh -f tsim/table/vgroup.sim
-,,n,script,./test.sh -f tsim/stream/basic0.sim -g
+,,y,script,./test.sh -f tsim/stream/basic0.sim
 ,,y,script,./test.sh -f tsim/stream/basic1.sim
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
 ,,y,script,./test.sh -f tsim/stream/basic3.sim
@@ -1590,6 +1614,8 @@
 ,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreCheckUpdate.sim
 ,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
+,,y,script,./test.sh -f tsim/stream/nonblockIntervalBasic.sim
+,,y,script,./test.sh -f tsim/stream/nonblockIntervalHistory.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby1.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnOther.sim
@@ -1677,9 +1703,6 @@
 ,,y,script,./test.sh -f tsim/stable/tag_rename.sim
 ,,y,script,./test.sh -f tsim/stable/values.sim
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
-,,n,script,./test.sh -f tsim/sma/drop_sma.sim
-,,y,script,./test.sh -f tsim/sma/sma_leak.sim
-,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
 
@@ -1801,7 +1824,6 @@
 ,,y,script,./test.sh -f tsim/tag/change_multi_tag.sim
 ,,y,script,./test.sh -f tmp/monitor.sim
 ,,y,script,./test.sh -f tsim/tagindex/add_index.sim
-,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ,,y,script,./test.sh -f tsim/tagindex/indexOverflow.sim
 ,,y,script,./test.sh -f tsim/view/view.sim
 ,,y,script,./test.sh -f tsim/query/cache_last.sim

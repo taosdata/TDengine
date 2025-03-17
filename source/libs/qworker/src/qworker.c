@@ -91,7 +91,7 @@ int32_t qwSendQueryRsp(QW_FPARAMS_DEF, int32_t msgType, SQWTaskCtx *ctx, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
+int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool processOneBlock) {
   int32_t        code = 0;
   bool           qcontinue = true;
   uint64_t       useconds = 0;
@@ -124,7 +124,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
       qwDbgSimulateSleep();
 
       taosEnableMemPoolUsage(ctx->memPoolSession);
-      code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch);
+      code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch, processOneBlock);
       taosDisableMemPoolUsage();
 
       if (code) {
@@ -876,7 +876,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   QW_ERR_JRET(qwSaveTbVersionInfo(pTaskInfo, ctx));
 
   if (!ctx->dynamicTask) {
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
+    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL, false));
   } else {
     ctx->queryExecDone = true;
     ctx->queryEnd = true;
@@ -915,15 +915,19 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 0);
     atomic_store_8((int8_t *)&ctx->queryContinue, 0);
 
+    uint64_t flag = 0;
+    if (ctx->sinkHandle) {
+      (void)dsGetSinkFlags(ctx->sinkHandle, &flag);
+    }
     if (!queryStop) {
-      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
+      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop, flag & DS_FLAG_PROCESS_ONE_BLOCK));
     }
 
     if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
       QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput));
 
-      if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
+      if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus) && !(flag & DS_FLAG_PROCESS_ONE_BLOCK)) {
         QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
 
         atomic_store_8((int8_t *)&ctx->queryContinue, 1);
@@ -1406,7 +1410,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
 
   ctx.sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
 
-  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx, NULL));
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx, NULL, false));
 
   QW_ERR_JRET(qwGetDeleteResFromSink(QW_FPARAMS(), &ctx, pRes));
 
@@ -1623,7 +1627,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
-  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL, false));
 
 _return:
 
@@ -1665,7 +1669,7 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
     QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput));
 
     if (NULL == rsp) {
-      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
+      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop, false));
 
       continue;
     } else {

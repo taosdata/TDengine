@@ -608,6 +608,14 @@ TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
   return taosQueryImplWithReqid(taos, sql, false, reqid);
 }
 
+TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res) {
+  if (taos_num_fields(res) == 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+    return NULL;
+  }
+  SReqResultInfo* pResInfo = tscGetCurResInfo(res);
+  return pResInfo->fields;
+}
+
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   if (res == NULL) {
     return NULL;
@@ -639,7 +647,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     }
 
     if (pResultInfo->current < pResultInfo->numOfRows) {
-      doSetOneRowPtr(pResultInfo);
+      doSetOneRowPtr(pResultInfo, false);
       pResultInfo->current += 1;
       return pResultInfo->row;
     } else {
@@ -647,7 +655,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
         return NULL;
       }
 
-      doSetOneRowPtr(pResultInfo);
+      doSetOneRowPtr(pResultInfo, false);
       pResultInfo->current += 1;
       return pResultInfo->row;
     }
@@ -760,6 +768,14 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
 
       case TSDB_DATA_TYPE_BOOL:
         len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        break;
+      case TSDB_DATA_TYPE_DECIMAL64:
+      case TSDB_DATA_TYPE_DECIMAL: {
+        uint32_t decimalLen = strlen(row[i]);
+        uint32_t copyLen = TMIN(size - len - 1, decimalLen);
+        (void)memcpy(str + len, row[i], copyLen);
+        len += copyLen;
+      } break;
       default:
         break;
     }
@@ -1269,7 +1285,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     if (pQuery->haveResultSet) {
-      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols);
+      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema, pRequest->isStmtBind);
       setResPrecision(&pRequest->body.resInfo, pQuery->precision);
     }
   }
@@ -1427,7 +1443,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt};
+                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
+                           .streamRunHistory = pRequest->streamRunHistory};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;
@@ -2219,16 +2236,17 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       }
     }
 
+    SVCreateTbReq *pCreateTbReq = NULL;
     if (bindv->tags && bindv->tags[i]) {
-      code = stmtSetTbTags2(stmt, bindv->tags[i]);
-      if (code) {
-        goto out;
-      }
-    } else if (pStmt->bInfo.tbType == TSDB_CHILD_TABLE && pStmt->sql.autoCreateTbl) {
-      code = stmtSetTbTags2(stmt, NULL);
-      if (code) {
-        return code;
-      }
+      code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
+    } else if (pStmt->sql.autoCreateTbl || pStmt->bInfo.needParse) {
+      code = stmtCheckTags2(stmt, &pCreateTbReq);
+    } else {
+      pStmt->sql.autoCreateTbl = false;
+    }
+
+    if (code) {
+      goto out;
     }
 
     if (bindv->bind_cols && bindv->bind_cols[i]) {
@@ -2248,7 +2266,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         goto out;
       }
 
-      code = stmtBindBatch2(stmt, bind, col_idx);
+      code = stmtBindBatch2(stmt, bind, col_idx, pCreateTbReq);
       if (TSDB_CODE_SUCCESS != code) {
         goto out;
       }
