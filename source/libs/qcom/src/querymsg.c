@@ -81,6 +81,8 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
   STableInfoReq infoReq = {0};
   infoReq.option = pInput->option;
   infoReq.header.vgId = pInput->vgId;
+  infoReq.autoCreateCtb = pInput->autoCreateCtb;
+
   if (pInput->dbFName) {
     tstrncpy(infoReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
   }
