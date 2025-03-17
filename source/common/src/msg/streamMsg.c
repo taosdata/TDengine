@@ -35,6 +35,8 @@ typedef struct STaskCkptInfo {
   int64_t consensusTs;       //
 } STaskCkptInfo;
 
+
+
 typedef struct STaskStatusEntry {
   STaskId       id;
   int32_t       status;
