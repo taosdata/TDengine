@@ -14,13 +14,7 @@ pub struct DaCollectConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaNodeConfig {
-    tag: String,
-}
-
-impl DaNodeConfig {
-    pub fn new(tag: String) -> Self {
-        Self { tag }
-    }
+    pub tag: String,
 }
 
 impl DaCollectConfig {

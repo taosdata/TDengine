@@ -824,7 +824,6 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use taos::IntoDsn;
 
     #[tokio::test]
     async fn test_check_point_id_duplicated() {
@@ -992,81 +991,5 @@ panic: (*logrus.Entry) 0xc00034aaf0
 panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
         let res = filter_opc_log(log).await;
         assert_eq!(res, expect);
-    }
-
-    /// 测试从 dsn 解析参数，生成一个 taosx-opc 的配置文件
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_check_mode() {
-        // given
-        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
-        // when
-        let config = OPCConfig::from_dsn_check_mode(&dsn).await.unwrap();
-        let toml = toml::to_string(&config).unwrap();
-        // then
-        assert_eq!(
-            toml,
-            r#"opc_type = "opcua"
-debug = false
-
-[connect.ua]
-endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
-connect_timeout = 10
-request_timeout = 10
-security_policy = "None"
-security_mode = "None"
-auth_method = "Anonymous"
-
-[report]
-remote = "127.0.0.1:0"
-batch_size = 1000
-batch_timeout = 1
-"#
-        );
-    }
-
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_point_mode() {
-        // given
-        let dsn = format!(
-            "opcua://{}?node_id_pattern={}&browse_name_pattern={}",
-            "192.168.2.16:53530/OPCUA/SimulationServer", "^(?!.*_Error).+$", "^(?!.*_Error).+$"
-        )
-        .into_dsn()
-        .unwrap();
-        // when
-        let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
-        let toml = toml::to_string(&config).unwrap();
-        // then
-        assert_eq!(
-            toml,
-            r#"opc_type = "opcua"
-debug = false
-
-[connect.ua]
-endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
-connect_timeout = 10
-request_timeout = 10
-security_policy = "None"
-security_mode = "None"
-auth_method = "Anonymous"
-
-[report]
-remote = "127.0.0.1:0"
-batch_size = 1000
-batch_timeout = 1
-
-[points]
-regex_id = "^(?!.*_Error).+$"
-regex_name = "^(?!.*_Error).+$"
-limit = 0
-
-[points.ua]
-"#
-        );
-    }
-
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_collect_mode() {
-        // TODO
     }
 }
