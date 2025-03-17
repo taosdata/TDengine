@@ -898,7 +898,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME) &&
+       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME || pMsg->msgType == TDMT_VND_VSUBTABLES_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -925,6 +925,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
+    case TDMT_VND_VSUBTABLES_META:
+      return vnodeGetVSubtablesMeta(pVnode, pMsg);
 #ifdef TD_ENTERPRISE
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
@@ -1563,6 +1565,9 @@ _exit:
     taosMemoryFree(vMetaRsp.pSchemas);
     taosMemoryFree(vMetaRsp.pSchemaExt);
   }
+  if (vMetaRsp.pColRefs) {
+    taosMemoryFree(vMetaRsp.pColRefs);
+  }
   return 0;
 }
 
@@ -1800,11 +1805,11 @@ static int32_t vnodeCellValConvertToColVal(STColumn *pCol, SCellVal *pCellVal, S
     pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
   } else if (TSDB_DATA_TYPE_FLOAT == pCol->type) {
     float f = GET_FLOAT_VAL(pCellVal->val);
-    memcpy(&pColVal->value.val, &f, sizeof(f));
+    valueSetDatum(&pColVal->value, pCol->type, &f, sizeof(f));
   } else if (TSDB_DATA_TYPE_DOUBLE == pCol->type) {
     taosSetPInt64Aligned(&pColVal->value.val, (int64_t *)pCellVal->val);
   } else {
-    GET_TYPED_DATA(pColVal->value.val, int64_t, pCol->type, pCellVal->val);
+    valueSetDatum(&pColVal->value, pCol->type, pCellVal->val, tDataTypes[pCol->type].bytes);
   }
 
   pColVal->flag = CV_FLAG_VALUE;

@@ -2929,6 +2929,11 @@ void tsortGetValue(STupleHandle* pVHandle, int32_t colIndex, void** pVal) {
   }
 }
 
+void tsortGetColumnInfo(STupleHandle* pVHandle, int32_t colIndex, SColumnInfoData** pColInfo) {
+  *pColInfo = TARRAY_GET_ELEM(pVHandle->pBlock->pDataBlock, colIndex);
+}
+
+size_t tsortGetColNum(STupleHandle* pVHandle) { return blockDataGetNumOfCols(pVHandle->pBlock); }
 uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
 void tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pBlockInfo) { *pBlockInfo = pVHandle->pBlock->info; }
 

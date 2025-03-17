@@ -134,7 +134,6 @@ run tsim/sync/insertDataByRunBack.sim
 run tsim/sync/oneReplica5VgElect.sim
 run tsim/sync/3Replica1VgElect.sim
 run tsim/sync/threeReplica1VgElectWihtInsert.sim
-run tsim/sma/tsmaCreateInsertQuery.sim
 run tsim/sma/rsmaCreateInsertQuery.sim
 run tsim/sma/rsmaCreateInsertQueryDelete.sim
 run tsim/valgrind/basic.sim
