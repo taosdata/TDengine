@@ -18,7 +18,10 @@ import datetime
 import random
 import copy
 import json
+import tempfile
+import uuid
 
+import frame.eos
 import frame.etool
 import frame.eutil
 from frame.log import *
@@ -427,6 +430,42 @@ class TBase:
 
         return db, stb, child_count, insert_rows
     
+    # insert & check
+    def benchInsert(self, jsonFile, options = "", results = None):
+        # exe insert 
+        benchmark = frame.etool.benchMarkFile()
+        cmd   = f"{benchmark} {options} -f {jsonFile}"
+        rlist = frame.eos.runRetList(cmd, True, True, True)
+        if results != None:
+            for result in results:
+                self.checkListString(rlist, result)
+        
+        # open json
+        with open(jsonFile, "r") as file:
+            data = json.load(file)
+        
+        # read json
+        dbs = data["databases"]
+        for db in dbs:
+            dbName = db["dbinfo"]["name"]        
+            stbs   = db["super_tables"]
+            for stb in stbs:
+                stbName        = stb["name"]
+                child_count    = stb["childtable_count"]
+                insert_rows    = stb["insert_rows"]
+                timestamp_step = stb["timestamp_step"]
+
+                # check result
+
+                # count
+                sql = f"select count(*) from {dbName}.{stbName}"
+                tdSql.checkAgg(sql, child_count * insert_rows)
+                # diff
+                sql = f"select * from (select diff(ts) as dif from {dbName}.{stbName} partition by tbname) where dif != {timestamp_step};"
+                tdSql.query(sql)
+                tdSql.checkRows(0)
+                # show 
+                tdLog.info(f"insert check passed. db:{dbName} stb:{stbName} child_count:{child_count} insert_rows:{insert_rows}\n")
 
     # tmq
     def tmqBenchJson(self, jsonFile, options="", checkStep=False):
@@ -440,3 +479,48 @@ class TBase:
         print(rlist)
 
         return rlist
+
+    # generate new json file
+    def genNewJson(self, jsonFile, modifyFunc=None):
+        try:
+            with open(jsonFile, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            tdLog.info(f"the specified json file '{jsonFile}' was not found.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error reading the json file: {e}")
+            return None
+        
+        if callable(modifyFunc):
+            modifyFunc(data)
+        
+        tempDir = os.path.join(tempfile.gettempdir(), 'json_templates')
+        try:
+            os.makedirs(tempDir, exist_ok=True)
+        except PermissionError:
+            tdLog.info(f"no sufficient permissions to create directory at '{tempDir}'.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error creating temporary directory: {e}")
+            return None
+        
+        tempPath = os.path.join(tempDir, f"temp_{uuid.uuid4().hex}.json")
+
+        try:
+            with open(tempPath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            tdLog.info(f"error writing to temporary json file: {e}")
+            return None
+
+        tdLog.info(f"create temporary json file successfully, file: {tempPath}")
+        return tempPath
+
+    # delete file
+    def deleteFile(self, filename):
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception as err:
+            raise Exception(err)

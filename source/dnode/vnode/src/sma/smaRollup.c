@@ -288,7 +288,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
         TAOS_RETURN(terrno);
       }
       if (taosMulMkDir(s) != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         taosMemoryFree(s);
         TAOS_RETURN(code);
       }
@@ -692,7 +692,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
   while (1) {
     uint64_t ts;
     bool     hasMore = false;
-    code = qExecTaskOpt(taskInfo, pResList, &ts, &hasMore, NULL);
+    code = qExecTaskOpt(taskInfo, pResList, &ts, &hasMore, NULL, false);
     if (code == TSDB_CODE_QRY_IN_EXEC) {
       code = 0;
       break;

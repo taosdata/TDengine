@@ -65,7 +65,6 @@ ASIN(expr)
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
-
 #### ATAN
 
 ```sql
@@ -83,7 +82,6 @@ ATAN(expr)
 **适用于**：表和超级表。
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
 
 #### CEIL
 
@@ -121,6 +119,66 @@ COS(expr)
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
+#### DEGREES
+
+```sql
+DEGREES(expr)
+```
+
+**功能说明**：计算指定参数由弧度值转为角度后的值。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 如果 `expr` 为 NULL，则返回 NULL。
+- degree = radian * 180 / π。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**举例**：
+```sql
+taos> select degrees(PI());
+       degrees(pi())       |
+============================
+       180.000000000000000 |
+```
+
+#### EXP
+
+```sql
+EXP(expr)
+```
+**功能说明**：返回 e（自然对数的底）的指定乘方后的值。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 如果 `expr` 为 NULL，返回 NULL。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**举例**：
+```sql
+taos> select exp(2);
+          exp(2)           |
+============================
+         7.389056098930650 |
+```
+
 #### FLOOR
 
 ```sql
@@ -128,7 +186,69 @@ FLOOR(expr)
 ```
 
 **功能说明**：获得指定字段的向下取整数的结果。
- 其他使用说明参见 CEIL 函数描述。
+ 其他使用说明参见 [CEIL](#ceil) 函数描述。
+
+#### GREATEST
+```sql
+GREATEST(expr1, expr2[, expr]...)
+```
+
+**功能说明**：获得输入的所有参数中的最大值。该函数最小参数个数为 2 个。
+
+**使用说明**：ver-3.3.6.0
+
+**返回结果类型**：参考比较规则，比较类型即为最终返回类型。
+
+**适用数据类型**：
+- 数值类型：包括 bool 型，整型和浮点型
+- 字符串类型：包括 nchar 和 varchar 类型。
+
+**比较规则**：以下规则描述了比较操作的转换方式：
+- 如果有任何一个参数为 NULL，则比较结果为 NULL。
+- 如果比较操作中的所有参数都是字符串类型，按照字符串类型比较
+- 如果所有参数都是数值类型，则将它们作为数值类型进行比较。
+- 如果参数中既有字符串类型，也有数值类型，根据 compareAsStrInGreatest 配置项，统一作为字符串或者数值进行比较。默认按照字符串比较。
+- 在所有情况下，不同类型比较，比较类型会选择范围更大的类型进行比较，例如作为整数类型比较时，如果存在 BIGINT 类型，必定会选择 BIGINT 作为比较类型。
+
+**相关配置项**：客户端配置，compareAsStrInGreatest 为 1 表示同时存在字符串类型和数值类型统一转为字符串比较，为 0 表示统一转为数值类型比较。默认为 1。
+
+#### LEAST
+```sql
+LEAST(expr1, expr2[, expr]...)
+```
+
+**功能说明**：获得输入的所有参数中的最小值。其余部分说明同 [GREATEST](#greatest) 函数。
+
+#### LN
+
+```sql
+LN(expr)
+```
+
+**功能说明**：返回指定参数的自然对数。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 如果 `expr` 为 NULL，返回 NULL。
+- 如果 `epxr` 小于等于 0，返回 NULL。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**举例**：
+```sql
+taos> select ln(10);
+          ln(10)           |
+============================
+         2.302585092994046 |
+```
 
 #### LOG
 
@@ -148,6 +268,71 @@ LOG(expr1[, expr2])
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
+#### MOD
+
+```sql
+MOD(expr1, expr2)
+```
+
+**功能说明**：计算 expr1 % expr2 的结果。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 如果 `expr2` 为 0 则返回 NULL。
+- 如果 `expr1` 或 `expr2` 为 NULL，返回 NULL。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**举例**：
+``` sql
+taos> select mod(10,3);
+         mod(10,3)         |
+============================
+         1.000000000000000 |
+
+taos> select mod(1,0);
+         mod(1,0)          |
+============================
+ NULL                      |
+```
+
+#### PI
+
+```sql
+PI()
+```
+
+**功能说明**：返回圆周率 π 的值。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：DOUBLE。
+
+**适用数据类型**：无。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- π ≈ 3.141592653589793。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**举例**：
+```sql
+taos> select pi();
+           pi()            |
+============================
+         3.141592653589793 |
+```
 
 #### POW
 
@@ -167,8 +352,85 @@ POW(expr1, expr2)
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
+#### RADIANS
+
+```sql
+RADIANS(expr)
+```
+
+**功能说明**：计算指定参数由角度值转为弧度后的值。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 如果 `expr` 为 NULL，则返回 NULL。
+- radian = degree * π / 180。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**举例**：
+```sql
+taos> select radians(180);
+       radians(180)        |
+============================
+         3.141592653589793 |
+```
+
+#### RAND
+
+```sql
+RAND([seed])
+```
+
+**功能说明**：返回一个从0到1均匀分布的随机数。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：DOUBLE。
+
+**适用数据类型**：
+- `seed`：INTEGER。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 如果指定了 `seed` 值，那么将会用指定的 `seed` 作为随机种子，确保生成的随机数序列具有确定性。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**举例**：
+``` sql
+taos> select rand();
+          rand()           |
+============================
+         0.202092426923147 |
+         
+taos> select rand();
+          rand()           |
+============================
+         0.131537788143166 |
+         
+taos> select rand(1);
+          rand(1)          |
+============================
+         0.000007826369259 |
+         
+taos> select rand(1);
+          rand(1)          |
+============================
+         0.000007826369259 |
+```
 
 #### ROUND
+
 ```sql
 ROUND(expr[, digits])
 ```
@@ -206,6 +468,49 @@ taos> select round(8888.88,-1);
      round(8888.88,-1)     |
 ============================
       8890.000000000000000 |
+```
+
+#### SIGN
+
+```sql
+SIGN(expr)
+```
+
+**功能说明**：返回指定参数的符号。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：与指定字段的原始数据类型一致。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 如果 `expr` 为负，返回 -1。
+- 如果 `expr` 为正，返回 1。
+- 如果 `expr` 为 0，返回 0。
+- 如果 `expr` 为 NULL，返回 NULL。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**举例**：
+```sql
+taos> select sign(-1);
+       sign(-1)        |
+========================
+                    -1 |
+
+taos> select sign(1);
+        sign(1)        |
+========================
+                     1 |
+
+taos> select sign(0);
+        sign(0)        |
+========================
+                     0 |
 ```
 
 #### SIN
@@ -262,36 +567,8 @@ TAN(expr)
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
-#### PI
-```sql
-PI()
-```
-
-**功能说明**：返回圆周率 π 的值。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：DOUBLE。
-
-**适用数据类型**：无。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- π ≈ 3.141592653589793。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-**举例**：
-```sql
-taos> select pi();
-           pi()            |
-============================
-         3.141592653589793 |
-```
-
 ##### TRUNCATE
+
 ```sql
 TRUNCATE(expr, digits)
 ```
@@ -332,248 +609,87 @@ taos> select truncate(8888.88, -1);
     8880.000000000000000 |
 ```
 
-#### EXP
-```sql
-EXP(expr)
-```
-**功能说明**：返回 e（自然对数的底）的指定乘方后的值。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：DOUBLE。
-
-**适用数据类型**：数值类型。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 如果 `expr` 为 NULL，返回 NULL。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-**举例**：
-```sql
-taos> select exp(2);
-          exp(2)           |
-============================
-         7.389056098930650 |
-```
-
-#### LN
-```sql
-LN(expr)
-```
-
-**功能说明**：返回指定参数的自然对数。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：DOUBLE。
-
-**适用数据类型**：数值类型。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 如果 `expr` 为 NULL，返回 NULL。
-- 如果 `epxr` 小于等于 0，返回 NULL。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-**举例**：
-```sql
-taos> select ln(10);
-          ln(10)           |
-============================
-         2.302585092994046 |
-```
-
-#### MOD
-```sql
-MOD(expr1, expr2)
-```
-
-**功能说明**：计算 expr1 % expr2 的结果。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：DOUBLE。
-
-**适用数据类型**：数值类型。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 如果 `expr2` 为 0 则返回 NULL。
-- 如果 `expr1` 或 `expr2` 为 NULL，返回 NULL。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-**举例**：
-``` sql
-taos> select mod(10,3);
-         mod(10,3)         |
-============================
-         1.000000000000000 |
-
-taos> select mod(1,0);
-         mod(1,0)          |
-============================
- NULL                      |
-```
-
-#### RAND
-```sql
-RAND([seed])
-```
-
-**功能说明**：返回一个从0到1均匀分布的随机数。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：DOUBLE。
-
-**适用数据类型**：
-- `seed`：INTEGER。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 如果指定了 `seed` 值，那么将会用指定的 `seed` 作为随机种子，确保生成的随机数序列具有确定性。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-**举例**：
-``` sql
-taos> select rand();
-          rand()           |
-============================
-         0.202092426923147 |
-         
-taos> select rand();
-          rand()           |
-============================
-         0.131537788143166 |
-         
-taos> select rand(1);
-          rand(1)          |
-============================
-         0.000007826369259 |
-         
-taos> select rand(1);
-          rand(1)          |
-============================
-         0.000007826369259 |
-```
-
-#### SIGN
-```sql
-SIGN(expr)
-```
-
-**功能说明**：返回指定参数的符号。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：与指定字段的原始数据类型一致。
-
-**适用数据类型**：数值类型。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 如果 `expr` 为负，返回 -1。
-- 如果 `expr` 为正，返回 1。
-- 如果 `expr` 为 0，返回 0。
-- 如果 `expr` 为 NULL，返回 NULL。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-**举例**：
-```sql
-taos> select sign(-1);
-       sign(-1)        |
-========================
-                    -1 |
-
-taos> select sign(1);
-        sign(1)        |
-========================
-                     1 |
-
-taos> select sign(0);
-        sign(0)        |
-========================
-                     0 |
-```
-
-#### DEGREES
-```sql
-DEGREES(expr)
-```
-
-**功能说明**：计算指定参数由弧度值转为角度后的值。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：DOUBLE。
-
-**适用数据类型**：数值类型。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 如果 `expr` 为 NULL，则返回 NULL。
-- degree = radian * 180 / π。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-**举例**：
-```sql
-taos> select degrees(PI());
-       degrees(pi())       |
-============================
-       180.000000000000000 |
-```
-
-#### RADIANS
-```sql
-RADIANS(expr)
-```
-
-**功能说明**：计算指定参数由角度值转为弧度后的值。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：DOUBLE。
-
-**适用数据类型**：数值类型。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 如果 `expr` 为 NULL，则返回 NULL。
-- radian = degree * π / 180。
-- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
-
-**举例**：
-```sql
-taos> select radians(180);
-       radians(180)        |
-============================
-         3.141592653589793 |
-```
 ### 字符串函数
 
 字符串函数的输入参数为字符串类型，返回结果为数值类型或字符串类型。
+
+#### ASCII
+
+```sql
+ASCII(expr)
+```
+
+**功能说明**：返回字符串第一个字符的 ASCII 码。
+
+**版本**：v3.3.3.0
+
+**返回结果数据类型**：BIGINT。
+
+**适用数据类型**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 如果 `expr` 为 NULL，返回 NULL。
+- 如果 `expr` 的第一个字符为多字节字符，只会返回该字符第一个字节的值对应的 ASCII 码。
+
+**举例**：
+```sql
+taos> select ascii('testascii');
+ ascii('testascii') |
+=====================
+                116 |
+```
+
+#### CHAR
+
+```sql
+CHAR(expr1 [, expr2] [, epxr3] ...)
+```
+
+**功能说明**：将输入参数当作整数，并返回这些整数在 ASCII 编码中对应的字符。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：VARCHAR。
+
+**适用数据类型**：整数类型,VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 输入的值超过 255 会被转化成多字节的结果，如 `CHAR(256)` 等同于 `CHAR(1,0)`、`CHAR(256 * 256)` 等同于 `CHAR(1,0,0)`。
+- 输入参数的 NULL 值会被跳过。
+- 输入参数若为字符串类型，会将其转换为数值类型处理。
+- 若输入的参数对应的字符为不可打印字符，返回值中仍有该参数对应的字符，但是可能无法显示出来。
+- 输入参数的个数上限为 2^31 - 1 个。
+
+**举例**：
+```sql
+taos> select char(77);
+ char(77) |
+===========
+ M        |
+ 
+taos> select char(77,77);
+ char(77,77) |
+==============
+ MM          |
+ 
+taos> select char(77 * 256 + 77);
+ char(77 * 256 + 77) |
+======================
+ MM                  |
+ 
+taos> select char(77,NULL,77);
+ char(77,null,77) |
+===================
+ MM               |
+```
 
 #### CHAR_LENGTH
 
@@ -628,7 +744,6 @@ CONCAT(expr1, expr2 [, expr] ... )
 
 **适用于**：表和超级表。
 
-
 #### CONCAT_WS
 
 ```sql
@@ -645,7 +760,6 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 
 **适用于**：表和超级表。
 
-
 #### LENGTH
 
 ```sql
@@ -661,7 +775,6 @@ LENGTH(expr)
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
 **适用于**：表和超级表。
-
 
 #### LOWER
 
@@ -696,6 +809,120 @@ LTRIM(expr)
 
 **适用于**：表和超级表。
 
+#### POSITION
+
+```sql
+POSITION(expr1 IN expr2)
+```
+
+**功能说明**：计算字符串 `expr1` 在字符串 `expr2` 中的位置。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：BIGINT。
+
+**适用数据类型**：
+- `expr1`：VARCHAR、NCHAR。
+- `expr2`：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 若 `expr1` 或 `expr2` 为 NULL，返回 NULL。
+- 若 `expr1` 在 `expr2` 中不存在，返回 0。
+- 若 `expr1` 为空串，认为 `expr1` 在 `expr2` 中总能匹配成功，返回 1。
+- 返回的位置是 1-base 的。
+- 该函数是多字节安全的。
+
+**举例**：
+```sql
+taos> select position('a' in 'cba');
+ position('a' in 'cba') |
+=========================
+                      3 |
+ 
+ 
+taos> select position('' in 'cba');
+ position('' in 'cba') |
+========================
+                     1 |
+ 
+taos> select position('d' in 'cba');
+ position('d' in 'cba') |
+=========================
+                      0 |
+```
+
+#### REPEAT
+
+```sql
+REPEAT(expr, count)
+```
+**功能说明**：返回将字符串重复指定次数得到的字符串。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：与输入字段 `expr` 的原始类型相同。
+
+**适用数据类型**：
+- `expr`：VARCHAR、NCHAR。
+- `count`：INTEGER。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 若 `count < 1`，返回空串。
+- 若 `expr` 或 `count` 为 NULL，返回 NULL。
+
+**举例**：
+```sql
+taos> select repeat('abc',5);
+      repeat('abc',5)      |
+============================
+ abcabcabcabcabc           |
+            
+taos> select repeat('abc',-1);
+ repeat('abc',-1) |
+===================
+                  |
+```
+
+#### REPLACE
+
+```sql
+REPLACE(expr, from_str, to_str)
+```
+**功能说明**：将字符串中的 `from_str` 全部替换为 `to_str`。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：与输入字段 `expr` 的原始类型相同。
+
+**适用数据类型**：
+- `expr`：VARCHAR、NCHAR。
+- `from_str`：VARCHAR、NCHAR。
+- `to_str`：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 该函数是大小写敏感的。
+- 任意参数为 NULL，返回 NULL。
+- 该函数是多字节安全的。
+
+**举例**：
+```sql
+taos> select replace('aabbccAABBCC', 'AA', 'DD');
+ replace('aabbccAABBCC', 'AA', 'DD') |
+======================================
+ aabbccDDBBCC                        |
+```
 
 #### RTRIM
 
@@ -713,62 +940,8 @@ RTRIM(expr)
 
 **适用于**：表和超级表。
 
-#### TRIM
-```sql
-TRIM([{LEADING | TRAILING | BOTH} [remstr] FROM] expr)
-TRIM([remstr FROM] expr)
-```
-
-**功能说明**：返回去掉了所有 remstr 前缀或后缀的字符串 epxr。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：与输入字段 epxr 的原始类型相同。
-
-**适用数据类型**：
-- remstr：VARCHAR、NCHAR。
-- epxr：VARCHAR、NCHAR。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 第一个可选变量 [LEADING | BOTH | TRAILING] 指定要剪裁字符串的哪一侧：
-  - LEADING 将移除字符串开头的指定字符。
-  - TRAILING 将移除字符串末尾的指定字符。
-  - BOTH（默认值）将移除字符串开头和末尾的指定字符。
-- 第二个可选变量[remstr]指定要裁剪掉的字符串：
-  - 如果不指定 remstr，默认裁剪空格。
-  - remstr 可以指定多个字符，如 trim('ab' from 'abacd')，此时会将 'ab' 看做一个整体来裁剪，得到裁剪结果 'acd'。
-- 若 expr 为 NULL，返回 NULL。
-- 该函数是多字节安全的。
-
-**举例**：
-```sql
-taos> select trim('        a         ');
- trim('        a         ') |
-=============================
- a                          |
- 
-taos> select trim(leading from '        a         ');
- trim(leading from '        a         ') |
-==========================================
- a                                       |
- 
-
-taos> select trim(leading 'b' from 'bbbbbbbba         ');
- trim(leading 'b' from 'bbbbbbbba         ') |
-==============================================
- a                                           |
- 
-taos> select trim(both 'b' from 'bbbbbabbbbbb');
- trim(both 'b' from 'bbbbbabbbbbb') |
-=====================================
- a                                  |
-```
-
 #### SUBSTRING/SUBSTR
+
 ```sql
 SUBSTRING/SUBSTR(expr, pos [, len])
 SUBSTRING/SUBSTR(expr FROM pos [FOR len])
@@ -826,6 +999,7 @@ taos> select substring('tdengine', -3,-3);
 ```
 
 #### SUBSTRING_INDEX
+
 ```sql
 SUBSTRING_INDEX(expr, delim, count)
 ```
@@ -864,6 +1038,62 @@ taos> select substring_index('www.taosdata.com','.',-2);
  taosdata.com                               |
 ```
 
+#### TRIM
+
+```sql
+TRIM([{LEADING | TRAILING | BOTH} [remstr] FROM] expr)
+TRIM([remstr FROM] expr)
+```
+
+**功能说明**：返回去掉了所有 remstr 前缀或后缀的字符串 epxr。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：与输入字段 epxr 的原始类型相同。
+
+**适用数据类型**：
+- remstr：VARCHAR、NCHAR。
+- epxr：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 第一个可选变量[LEADING | BOTH | TRAILING]指定要剪裁字符串的哪一侧：
+  - LEADING 将移除字符串开头的指定字符。
+  - TRAILING 将移除字符串末尾的指定字符。
+  - BOTH（默认值）将移除字符串开头和末尾的指定字符。
+- 第二个可选变量[remstr]指定要裁剪掉的字符串：
+  - 如果不指定 remstr，默认裁剪空格。
+  - remstr 可以指定多个字符，如trim('ab' from 'abacd')，此时会将 'ab' 看做一个整体来裁剪，得到裁剪结果 'acd'。
+- 若 expr 为 NULL，返回 NULL。
+- 该函数是多字节安全的。
+
+**举例**：
+```sql
+taos> select trim('        a         ');
+ trim('        a         ') |
+=============================
+ a                          |
+ 
+taos> select trim(leading from '        a         ');
+ trim(leading from '        a         ') |
+==========================================
+ a                                       |
+ 
+
+taos> select trim(leading 'b' from 'bbbbbbbba         ');
+ trim(leading 'b' from 'bbbbbbbba         ') |
+==============================================
+ a                                           |
+ 
+taos> select trim(both 'b' from 'bbbbbabbbbbb');
+ trim(both 'b' from 'bbbbbabbbbbb') |
+=====================================
+ a                                  |
+```
+
 #### UPPER
 
 ```sql
@@ -880,193 +1110,6 @@ UPPER(expr)
 
 **适用于**：表和超级表。
 
-#### CHAR
-```sql
-CHAR(expr1 [, expr2] [, epxr3] ...)
-```
-
-**功能说明**：将输入参数当作整数，并返回这些整数在 ASCII 编码中对应的字符。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：VARCHAR。
-
-**适用数据类型**：整数类型,VARCHAR、NCHAR。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 输入的值超过 255 会被转化成多字节的结果，如 `CHAR(256)` 等同于 `CHAR(1,0)`、`CHAR(256 * 256)` 等同于 `CHAR(1,0,0)`。
-- 输入参数的 NULL 值会被跳过。
-- 输入参数若为字符串类型，会将其转换为数值类型处理。
-- 若输入的参数对应的字符为不可打印字符，返回值中仍有该参数对应的字符，但是可能无法显示出来。
-- 输入参数的个数上限为 2^31 - 1 个。
-
-**举例**：
-```sql
-taos> select char(77);
- char(77) |
-===========
- M        |
- 
-taos> select char(77,77);
- char(77,77) |
-==============
- MM          |
- 
-taos> select char(77 * 256 + 77);
- char(77 * 256 + 77) |
-======================
- MM                  |
- 
-taos> select char(77,NULL,77);
- char(77,null,77) |
-===================
- MM               |
-```
-
-#### ASCII
-```sql
-ASCII(expr)
-```
-
-**功能说明**：返回字符串第一个字符的 ASCII 码。
-
-**版本**：v3.3.3.0
-
-**返回结果数据类型**：BIGINT。
-
-**适用数据类型**：VARCHAR、NCHAR。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 如果 `expr` 为 NULL，返回 NULL。
-- 如果 `expr` 的第一个字符为多字节字符，只会返回该字符第一个字节的值对应的 ASCII 码。
-
-**举例**：
-```sql
-taos> select ascii('testascii');
- ascii('testascii') |
-=====================
-                116 |
-```
-
-#### POSITION
-```sql
-POSITION(expr1 IN expr2)
-```
-
-**功能说明**：计算字符串 `expr1` 在字符串 `expr2` 中的位置。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：BIGINT。
-
-**适用数据类型**：
-- `expr1`：VARCHAR、NCHAR。
-- `expr2`：VARCHAR、NCHAR。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 若 `expr1` 或 `expr2` 为 NULL，返回 NULL。
-- 若 `expr1` 在 `expr2` 中不存在，返回 0。
-- 若 `expr1` 为空串，认为 `expr1` 在 `expr2` 中总能匹配成功，返回 1。
-- 返回的位置是 1-base 的。
-- 该函数是多字节安全的。
-
-**举例**：
-```sql
-taos> select position('a' in 'cba');
- position('a' in 'cba') |
-=========================
-                      3 |
- 
- 
-taos> select position('' in 'cba');
- position('' in 'cba') |
-========================
-                     1 |
- 
-taos> select position('d' in 'cba');
- position('d' in 'cba') |
-=========================
-                      0 |
-```
-
-#### REPLACE
-```sql
-REPLACE(expr, from_str, to_str)
-```
-**功能说明**：将字符串中的 `from_str` 全部替换为 `to_str`。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：与输入字段 `expr` 的原始类型相同。
-
-**适用数据类型**：
-- `expr`：VARCHAR、NCHAR。
-- `from_str`：VARCHAR、NCHAR。
-- `to_str`：VARCHAR、NCHAR。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 该函数是大小写敏感的。
-- 任意参数为 NULL，返回 NULL。
-- 该函数是多字节安全的。
-
-**举例**：
-```sql
-taos> select replace('aabbccAABBCC', 'AA', 'DD');
- replace('aabbccAABBCC', 'AA', 'DD') |
-======================================
- aabbccDDBBCC                        |
-```
-
-#### REPEAT
-```sql
-REPEAT(expr, count)
-```
-**功能说明**：返回将字符串重复指定次数得到的字符串。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：与输入字段 `expr` 的原始类型相同。
-
-**适用数据类型**：
-- `expr`：VARCHAR、NCHAR。
-- `count`：INTEGER。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 若 `count < 1`，返回空串。
-- 若 `expr` 或 `count` 为 NULL，返回 NULL。
-
-**举例**：
-```sql
-taos> select repeat('abc',5);
-      repeat('abc',5)      |
-============================
- abcabcabcabcabc           |
-            
-taos> select repeat('abc',-1);
- repeat('abc',-1) |
-===================
-                  |
-```
 ### 转换函数
 
 转换函数将值从一种数据类型转换为另一种数据类型。
@@ -1094,72 +1137,6 @@ CAST(expr AS type_name)
   - 字符串类型转换数值类型时可能出现的无效字符情况，例如 "a" 可能转为 0，但不会报错。
   - 转换到数值类型时，数值大于 type_name 可表示的范围时，则会溢出，但不会报错。
   - 转换到字符串类型时，如果转换后长度超过 type_name 中指定的长度，则会截断，但不会报错。
-
-#### TO_ISO8601
-
-```sql
-TO_ISO8601(expr [, timezone])
-```
-
-**功能说明**：将时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
-
-**返回结果数据类型**：VARCHAR 类型。
-
-**适用数据类型**：INTEGER、TIMESTAMP。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-
-- timezone 参数允许输入的时区格式为：[z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
-- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒.
-
-
-#### TO_JSON
-
-```sql
-TO_JSON(str_literal)
-```
-
-**功能说明**：将字符串常量转换为 JSON 类型。
-
-**返回结果数据类型**：JSON。
-
-**适用数据类型**：JSON 字符串，形如 '\{ "literal" : literal }'。'\{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal 中不支持转义符。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-
-#### TO_UNIXTIMESTAMP
-
-```sql
-TO_UNIXTIMESTAMP(expr [, return_timestamp])
-
-return_timestamp: {
-    0
-  | 1
-}
-```
-
-**功能说明**：将日期时间格式的字符串转换成为时间戳。
-
-**返回结果数据类型**：BIGINT、TIMESTAMP。
-
-**应用字段**：VARCHAR、NCHAR。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-
-- 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 NULL。
-- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
-- return_timestamp 指定函数返回值是否为时间戳类型，设置为 1 时返回 TIMESTAMP 类型，设置为 0 时返回 BIGINT 类型。如不指定缺省返回 BIGINT 类型。
 
 #### TO_CHAR
 
@@ -1222,6 +1199,43 @@ TO_CHAR(ts, format_str_literal)
 - 推荐在时间格式中带时区信息，如果不带则默认输出的时区为服务端或客户端所配置的时区。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
 
+#### TO_ISO8601
+
+```sql
+TO_ISO8601(expr [, timezone])
+```
+
+**功能说明**：将时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
+
+**返回结果数据类型**：VARCHAR 类型。
+
+**适用数据类型**：INTEGER、TIMESTAMP。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- timezone 参数允许输入的时区格式为：[z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒.
+
+#### TO_JSON
+
+```sql
+TO_JSON(str_literal)
+```
+
+**功能说明**：将字符串常量转换为 JSON 类型。
+
+**返回结果数据类型**：JSON。
+
+**适用数据类型**：JSON 字符串，形如 '\{ "literal" : literal }'。'\{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal 中不支持转义符。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
 #### TO_TIMESTAMP
 
 ```sql
@@ -1252,12 +1266,67 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 - `to_timestamp` 转换具有一定的容错机制，在格式串和时间戳串不完全对应时，有时也可转换，如 `to_timestamp('200101/2', 'yyyyMM1/dd')`，格式串中多出来的1会被丢弃。格式串与时间戳串中多余的空格字符(空格、tab 等)也会被自动忽略，如 `to_timestamp('  23 年 - 1 月 - 01 日  ', 'yy 年-MM月-dd日')` 可以被成功转换。虽然 `MM` 等字段需要两个数字对应(只有一位时前面补 0), 在 `to_timestamp` 时，一个数字也可以成功转换。
 - 输出时间戳的精度与查询表的精度相同，若查询未指定表，则输出精度为毫秒，如 `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')` 的输出将会把微秒和纳秒进行截断、如果指定一张纳秒表，那么就不会发生截断，如 `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`。
 
+#### TO_UNIXTIMESTAMP
+
+```sql
+TO_UNIXTIMESTAMP(expr [, return_timestamp])
+
+return_timestamp: {
+    0
+  | 1
+}
+```
+
+**功能说明**：将日期时间格式的字符串转换成为时间戳。
+
+**返回结果数据类型**：BIGINT、TIMESTAMP。
+
+**应用字段**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 NULL。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- return_timestamp 指定函数返回值是否为时间戳类型，设置为 1 时返回 TIMESTAMP 类型，设置为 0 时返回 BIGINT 类型。如不指定缺省返回 BIGINT 类型。
 
 ### 时间和日期函数
 
 时间和日期函数对时间戳类型进行操作。
 
 所有返回当前时间的函数，如 NOW、TODAY 和 TIMEZONE，在一条 SQL 语句中不论出现多少次都只会被计算一次。
+
+#### DAYOFWEEK
+```sql
+DAYOFWEEK(expr)
+```
+**功能说明**：返回输入日期是周几。
+
+**版本**：v3.3.3.0
+
+**返回结果类型**：BIGINT。
+
+**适用数据类型**：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+- 返回值 1 代表周日，2 代表周一 ... 7 代表周六
+- 若 `expr` 为 NULL，返回 NULL。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
+  
+**举例**：
+```sql
+taos> select dayofweek('2000-01-01');
+ dayofweek('2000-01-01') |
+==========================
+                       7 |
+```
 
 #### NOW
 
@@ -1280,7 +1349,6 @@ NOW()
 - 支持时间加减操作，如 NOW() + 1s，支持的时间单位如下：
         b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
-
 
 #### TIMEDIFF
 
@@ -1355,7 +1423,6 @@ use_current_timezone: {
 - 当将时间值截断到一周（1w）时，timetruncate 的计算是基于 Unix 时间戳（1970年1月1日00:00:00 UTC）进行的。Unix 时间戳始于星期四，
   因此所有截断后的日期都是星期四。
 
-
 #### TIMEZONE
 
 ```sql
@@ -1369,7 +1436,6 @@ TIMEZONE()
 **应用字段**：无。
 
 **适用于**：表和超级表。
-
 
 #### TODAY
 
@@ -1392,6 +1458,7 @@ TODAY()
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 #### WEEK
+
 ```sql
 WEEK(expr [, mode])
 ```
@@ -1454,35 +1521,6 @@ taos> select week('2000-01-01',3);
                     52 |
 ```
 
-#### WEEKOFYEAR
-```sql
-WEEKOFYEAR(expr)
-```
-**功能说明**：返回输入日期的周数。
-
-**版本**：v3.3.3.0
-
-**返回结果类型**：BIGINT。
-
-**适用数据类型**：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
-
-**嵌套子查询支持**：适用于内层查询和外层查询。
-
-**适用于**：表和超级表。
-
-**使用说明**：
-- 等同于`WEEK(expr, 3)`，即在每周第一天是周一，返回值范围为 1-53，第一个包含四天及以上的周为第 1 周的条件下判断输入日期的周数。
-- 若 `expr` 为 NULL，返回 NULL。
-- 输入时间戳的精度由所查询表的精度确定，未未指定表，则精度为毫秒。
-
-**举例**：
-```sql
-taos> select weekofyear('2000-01-01');
- weekofyear('2000-01-01') |
-===========================
-                       52 |
-```
-
 #### WEEKDAY
 ```sql
 WEEKDAY(expr)
@@ -1512,11 +1550,12 @@ taos> select weekday('2000-01-01');
                      5 |
 ```
 
-#### DAYOFWEEK
+#### WEEKOFYEAR
+
 ```sql
-DAYOFWEEK(expr)
+WEEKOFYEAR(expr)
 ```
-**功能说明**：返回输入日期是周几。
+**功能说明**：返回输入日期的周数。
 
 **版本**：v3.3.3.0
 
@@ -1529,18 +1568,17 @@ DAYOFWEEK(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
-- 返回值 1 代表周日，2 代表周一 ... 7 代表周六。
+- 等同于`WEEK(expr, 3)`，即在每周第一天是周一，返回值范围为 1 - 53，第一个包含四天及以上的周为第 1 周的条件下判断输入日期的周数。
 - 若 `expr` 为 NULL，返回 NULL。
-- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
-  
+- 输入时间戳的精度由所查询表的精度确定，未指定表，则精度为毫秒。
+
 **举例**：
 ```sql
-taos> select dayofweek('2000-01-01');
- dayofweek('2000-01-01') |
-==========================
-                       7 |
+taos> select weekofyear('2000-01-01');
+ weekofyear('2000-01-01') |
+===========================
+                       52 |
 ```
-
 
 ## 聚合函数
 
@@ -1586,7 +1624,6 @@ AVG(expr)
 
 **适用于**：表和超级表。
 
-
 ### COUNT
 
 ```sql
@@ -1605,7 +1642,6 @@ COUNT({* | expr})
 
 - 可以使用星号 (\*) 来替代具体的字段，使用星号 (\*) 返回全部记录数量。
 - 如果统计字段是具体的列，则返回该列中非 NULL 值的记录数量。
-
 
 ### ELAPSED
 
@@ -1632,6 +1668,50 @@ ELAPSED(ts_primary_key [, time_unit])
 - 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如 `select elapsed(ts) from (select diff(value) from sub1)` 语句，diff 函数会让内层查询输出隐式时间戳列，此为主键列，可以用于 elapsed 函数的第一个参数。相反，例如 `select elapsed(ts) from (select * from sub1)` 语句，ts 列输出到外层时已经没有了主键列的含义，无法使用 elapsed 函数。此外，elapsed 函数作为一个与时间线强依赖的函数，形如 `select elapsed(ts) from (select diff(value) from st group by tbname)` 尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
 - 不支持与 leastsquares、diff、derivative、top、bottom、last_row、interp 等函数混合使用。
 
+### HISTOGRAM
+
+```sql
+HISTOGRAM(expr，bin_type, bin_description, normalized)
+```
+
+**功能说明**：统计数据按照用户指定区间的分布。
+
+**返回结果类型**：如归一化参数 normalized 设置为 1，返回结果为 DOUBLE 类型，否则为 BIGINT 类型。
+
+**适用数据类型**：数值型字段。
+
+**适用于**：表和超级表。
+
+**详细说明**：
+- bin_type 用户指定的分桶类型，有效输入类型为 "user_input"、"linear_bin"、"log_bin"。
+- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：
+    - "user_input": "[1, 3, 5, 7]"
+       用户指定 bin 的具体数值。
+
+    - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"width" 表示每次 bin 偏移量，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
+       生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
+
+    - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
+       生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
+- normalized 是否将返回结果归一化到 0~1 之间。有效输入为 0 和 1。
+
+### HYPERLOGLOG
+
+```sql
+HYPERLOGLOG(expr)
+```
+
+**功能说明**：
+  - 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。
+  - 在数据量较少的时候该算法不是很准确，可以使用 `select count(data) from (select unique(col) as data from table)` 的方法。
+
+**返回结果类型**：INTEGER。
+
+**适用数据类型**：任何类型。
+
+**适用于**：表和超级表。
 
 ### LEASTSQUARES
 
@@ -1647,6 +1727,26 @@ LEASTSQUARES(expr, start_val, step_val)
 
 **适用于**：表。
 
+
+### PERCENTILE
+
+```sql
+PERCENTILE(expr, p [, p1] ... )
+```
+
+**功能说明**：统计表中某列的值百分比分位数。
+
+**返回数据类型**：该函数最小参数个数为 2 个，最大参数个数为 11 个。可以最多同时返回 10 个百分比分位数。当参数个数为 2 时，返回一个分位数，类型为DOUBLE，当参数个数大于 2 时，返回类型为VARCHAR，格式为包含多个返回值的JSON数组。
+
+**应用字段**：数值类型。
+
+**适用于**：表。
+
+**使用说明**：
+
+- *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
+- 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
+  比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。
 
 ### SPREAD
 
@@ -1696,7 +1796,23 @@ taos> select stddev_pop(id) from test_stddev;
 ============================
          1.414213562373095 |
 ```
+
+### SUM
+
+```sql
+SUM(expr)
+```
+
+**功能说明**：统计表/超级表中某列的和。
+
+**返回数据类型**：DOUBLE、BIGINT。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
 ### VAR_POP
+
 ```sql
 VAR_POP(expr)
 ```
@@ -1727,88 +1843,6 @@ taos> select var_pop(id) from test_var;
 ============================
          2.000000000000000 |
 ```
-### SUM
-
-```sql
-SUM(expr)
-```
-
-**功能说明**：统计表/超级表中某列的和。
-
-**返回数据类型**：DOUBLE、BIGINT。
-
-**适用数据类型**：数值类型。
-
-**适用于**：表和超级表。
-
-
-### HYPERLOGLOG
-
-```sql
-HYPERLOGLOG(expr)
-```
-
-**功能说明**：
-  - 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。
-  - 在数据量较少的时候该算法不是很准确，可以使用 `select count(data) from (select unique(col) as data from table)` 的方法。
-
-**返回结果类型**：INTEGER。
-
-**适用数据类型**：任何类型。
-
-**适用于**：表和超级表。
-
-
-### HISTOGRAM
-
-```sql
-HISTOGRAM(expr，bin_type, bin_description, normalized)
-```
-
-**功能说明**：统计数据按照用户指定区间的分布。
-
-**返回结果类型**：如归一化参数 normalized 设置为 1，返回结果为 DOUBLE 类型，否则为 BIGINT 类型。
-
-**适用数据类型**：数值型字段。
-
-**适用于**：表和超级表。
-
-**详细说明**：
-- bin_type 用户指定的分桶类型，有效输入类型为 "user_input"、"linear_bin"、"log_bin"。
-- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：
-    - "user_input": "[1, 3, 5, 7]"
-       用户指定 bin 的具体数值。
-
-    - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
-       "start" 表示数据起始点，"width" 表示每次 bin 偏移量，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
-       生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
-
-    - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
-       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
-       生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
-- normalized 是否将返回结果归一化到 0~1 之间。有效输入为 0 和 1。
-
-
-### PERCENTILE
-
-```sql
-PERCENTILE(expr, p [, p1] ... )
-```
-
-**功能说明**：统计表中某列的值百分比分位数。
-
-**返回数据类型**：该函数最小参数个数为 2 个，最大参数个数为 11 个。可以最多同时返回 10 个百分比分位数。当参数个数为 2 时，返回一个分位数，类型为DOUBLE，当参数个数大于 2 时，返回类型为VARCHAR，格式为包含多个返回值的JSON数组。
-
-**应用字段**：数值类型。
-
-**适用于**：表。
-
-**使用说明**：
-
-- *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
-- 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
-  比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。
-
 
 ## 选择函数
 
@@ -1855,42 +1889,6 @@ FIRST(expr)
 - 如果结果集中所有列全部为 NULL 值，则不返回结果。
 - 对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
 
-### INTERP
-
-```sql
-INTERP(expr [, ignore_null_values])
-
-ignore_null_values: {
-    0
-  | 1
-}
-```
-
-**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。
-
-**返回数据类型**：同字段类型。
-
-**适用数据类型**：数值类型。
-
-**适用于**：表和超级表。
-
-**使用说明**
-
-- INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
-- INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
-- INTERP SQL 查询需要同时与 RANGE、EVERY 和 FILL 关键字一起使用；流计算不能使用 RANGE，需要 EVERY 和 FILL 关键字一起使用。
-- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
-- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值。
-- INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
-- INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)。
-- INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
-- INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(v3.0.2.0 以后支持)。
-- INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(v3.0.3.0 以后支持)。
-- INTERP 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
-- INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在流计算中和窗口查询中不支持。例如 SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)(v3.3.4.9 及以后支持)。
-- INTERP 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`。`_irowts_origin` 在 v3.3.4.9 以后支持。
-- INTERP `RANGE`子句从 v3.3.4.9 开始支持时间范围的扩展，如 `RANGE('2023-01-01 00:00:00', 10s)` 表示只能使用时间点 '2023-01-01 00:00:00' 周边 10s 内的数据进行插值，FILL PREV/NEXT/NEAR 分别表示从时间点开始向前/向后/前后在时间范围内查找数据，若时间点周边在指定时间范围内没有数据，则使用 FILL 指定的默认值进行插值，因此此时 FILL 子句必须同时指定默认值。例如 SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1)。从 v3.3.6.0 开始支持时间区间和时间范围的组合，对于时间区间内的每个断面进行插值时都需要满足时间范围的要求，在此之前的版本仅支持时间点和时间范围的组合。时间范围的值域规则与 EVERY 类似，单位不能是年或月，值必须大于 0，不能带引号。使用该扩展时，不支持除 `FILL PREV/NEXT/NEAR` 外的其他 FILL 模式。
-
 ### LAST
 
 ```sql
@@ -1911,7 +1909,6 @@ LAST(expr)
 - 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；如果结果集中所有列全部为 NULL 值，则不返回结果。
 - 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
 - 对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
-
 
 ### LAST_ROW
 
@@ -1981,7 +1978,6 @@ MODE(expr)
 
 **适用于**：表和超级表。
 
-
 ### SAMPLE
 
 ```sql
@@ -1998,7 +1994,6 @@ SAMPLE(expr, k)
 
 **适用于**：表和超级表。
 
-
 ### TAIL
 
 ```sql
@@ -2014,7 +2009,6 @@ TAIL(expr, k [, offset_rows])
 **适用数据类型**：适合于除时间主键列外的任何类型。
 
 **适用于**：表、超级表。
-
 
 ### TOP
 
@@ -2093,10 +2087,8 @@ CSUM(expr)
 **适用于**：表和超级表。
 
 **使用说明**：
-
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 只能与聚合（Aggregation）函数一起使用。该函数可以应用在普通表和超级表上。
-
 
 ### DERIVATIVE
 
@@ -2159,6 +2151,34 @@ ignore_option: {
 - 当没有复合主键时，如果不同的子表有相同时间戳的数据，会提示 "Duplicate timestamps not allowed"。
 - 当使用复合主键时，不同子表的时间戳和主键组合可能相同，使用哪一行取决于先找到哪一行，这意味着在这种情况下多次运行 diff() 的结果可能会不同。
 
+### INTERP
+
+```sql
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
+```
+
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。
+
+**返回数据类型**：同字段类型。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法(interp_clause)，语法介绍[参考链接](../select/#interp) 。
+- 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
+- INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
+- INTERP 可以与伪列 `_irowts` 一起使用，返回插值点所对应的时间戳(v3.0.2.0 以后支持)。
+- INTERP 可以与伪列 `_isfilled` 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(v3.0.3.0 以后支持)。
+- 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值, 则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。
+- 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
+
 ### IRATE
 
 ```sql
@@ -2172,7 +2192,6 @@ IRATE(expr)
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
-
 
 ### MAVG
 
@@ -2194,7 +2213,6 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
-
 
 ### STATECOUNT
 
@@ -2220,7 +2238,6 @@ STATECOUNT(expr, oper, val)
 **使用说明**：
 
 - 不能和窗口操作一起使用，例如 `interval/state_window/session_window`。
-
 
 ### STATEDURATION
 
@@ -2248,7 +2265,6 @@ STATEDURATION(expr, oper, val, unit)
 
 - 不能和窗口操作一起使用，例如 interval、state_window、session_window。
 
-
 ### TWA
 
 ```sql
@@ -2263,17 +2279,7 @@ TWA(expr)
 
 **适用于**：表和超级表。
 
-
 ## 系统信息函数
-
-### DATABASE
-
-```sql
-SELECT DATABASE();
-```
-
-**说明**：返回当前登录的数据库。如果登录的时候没有指定默认数据库，且没有使用 USE 命令切换数据库，则返回 NULL。
-
 
 ### CLIENT_VERSION
 
@@ -2283,13 +2289,21 @@ SELECT CLIENT_VERSION();
 
 **说明**：返回客户端版本。
 
-### SERVER_VERSION
+### CURRENT_USER
 
 ```sql
-SELECT SERVER_VERSION();
+SELECT CURRENT_USER();
 ```
 
-**说明**：返回服务端版本。
+**说明**：获取当前用户。
+
+### DATABASE
+
+```sql
+SELECT DATABASE();
+```
+
+**说明**：返回当前登录的数据库。如果登录的时候没有指定默认数据库，且没有使用 USE 命令切换数据库，则返回 NULL。
 
 ### SERVER_STATUS
 
@@ -2299,14 +2313,13 @@ SELECT SERVER_STATUS();
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。如果想要查询集群的状态，推荐使用 `SHOW CLUSTER ALIVE` 与 `SELECT SERVER_STATUS()` 不同，当集群中的部分节点不可用时，它不会返回错误，而是返回不同的状态码，详见：[SHOW CLUSTER ALIVE](https://docs.taosdata.com/reference/taos-sql/show/#show-cluster-alive)
 
-### CURRENT_USER
+### SERVER_VERSION
 
 ```sql
-SELECT CURRENT_USER();
+SELECT SERVER_VERSION();
 ```
 
-**说明**：获取当前用户。
-
+**说明**：返回服务端版本。
 
 ## Geometry 函数
 
@@ -2348,70 +2361,6 @@ ST_AsText(GEOMETRY geom)
 
 ### Geometry 关系函数
 
-#### ST_Intersects
-
-```sql
-ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
-```
-
-##功能说明**：比较两个几何对象，并在它们相交时返回 true。
-
-**返回值类型**：BOOL。
-
-**适用数据类型**：GEOMETRY、GEOMETRY。
-
-**适用表类型**：标准表和超表。
-
-**使用说明**：如果两个几何对象有任何一个共享点，则它们相交。
-
-#### ST_Equals
-
-```sql
-ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
-```
-
-**功能说明**：如果给定的几何对象是“空间相等”的，则返回 TRUE。
-
-**返回值类型**：BOOL。
-
-**适用数据类型**：GEOMETRY、GEOMETRY。
-
-**适用表类型**：标准表和超表。
-
-**使用说明**："空间相等"意味着 ST_Contains(A,B) = true 和 ST_Contains(B,A) = true，并且点的顺序可能不同，但表示相同的几何结构。
-
-#### ST_Touches
-
-```sql
-ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
-```
-
-**功能说明**：如果 A 和 B 相交，但它们的内部不相交，则返回 TRUE。
-
-**返回值类型**：BOOL。
-
-**适用数据类型**：GEOMETRY、GEOMETRY。
-
-**适用表类型**：标准表和超表。
-
-**使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。
-
-#### ST_Covers
-
-```sql
-ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
-```
-
-**功能说明**：如果 B 中的每个点都位于几何形状 A 内部（与内部或边界相交），则返回 TRUE。
-
-**返回值类型**：BOOL。
-
-**适用数据类型**：GEOMETRY、GEOMETRY。
-
-**适用表类型**：标准表和超表。
-
-**使用说明**：A 包含 B 意味着 B 中的没有点位于 A 的外部（在外部）。
-
 #### ST_Contains
 
 ```sql
@@ -2443,3 +2392,68 @@ ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
 **适用表类型**：标准表和超表。
 
 **使用说明**：B 的没有点位于 A 的边界或外部。
+
+#### ST_Covers
+
+```sql
+ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 B 中的每个点都位于几何形状 A 内部（与内部或边界相交），则返回 TRUE。
+
+**返回值类型**：BOOL。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：A 包含 B 意味着 B 中的没有点位于 A 的外部（在外部）。
+
+#### ST_Equals
+
+```sql
+ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果给定的几何对象是"空间相等"的，则返回 TRUE。
+
+**返回值类型**：BOOL。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**："空间相等"意味着 ST_Contains(A,B) = true 和 ST_Contains(B,A) = true，并且点的顺序可能不同，但表示相同的几何结构。
+
+
+#### ST_Intersects
+
+```sql
+ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+##功能说明**：比较两个几何对象，并在它们相交时返回 true。
+
+**返回值类型**：BOOL。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：如果两个几何对象有任何一个共享点，则它们相交。
+
+#### ST_Touches
+
+```sql
+ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**功能说明**：如果 A 和 B 相交，但它们的内部不相交，则返回 TRUE。
+
+**返回值类型**：BOOL。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。

@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 
 from taosanalytics.conf import app_logger, conf
-from taosanalytics.misc.train_model import create_sequences
 from taosanalytics.service import AbstractAnomalyDetectionService
+from taosanalytics.util import create_sequences
 
 
 class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):

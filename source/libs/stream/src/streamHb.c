@@ -238,11 +238,13 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     }
 
     // not report the status of fill-history task
-    if (pTask->info.fillHistory == 1) {
+    if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
 
+    // todo: this lock may blocked by lock in streamMetaStartOneTask function, which may lock a very long time when
+    // trying to load remote checkpoint data
     streamMutexLock(&pTask->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(pTask);
     streamMutexUnlock(&pTask->lock);

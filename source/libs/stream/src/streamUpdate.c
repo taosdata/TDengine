@@ -58,7 +58,7 @@ int32_t getKeyBuff(TSKEY ts, int64_t tbUid, void* pVal, int32_t len, char* buff)
   return sizeof(TSKEY) + sizeof(int64_t) + len;
 }
 
-int32_t getValueBuff(TSKEY ts, char* pVal, int32_t len, char* buff) {
+static int32_t getValueBuff(TSKEY ts, char* pVal, int32_t len, char* buff) {
   *(TSKEY*)buff = ts;
   if (len == 0) {
     return sizeof(TSKEY);

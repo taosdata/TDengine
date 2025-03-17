@@ -60,7 +60,7 @@ int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size) {
 
   ret = tdbOsFileSize(fd, &szBytes);
   if (ret < 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   *size = szBytes / szPage;
