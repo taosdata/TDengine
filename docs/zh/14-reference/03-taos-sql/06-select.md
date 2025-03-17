@@ -100,11 +100,11 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 | :-----------: | -------------- | -------------------------- | -----------------------------|
 | BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句             |
 | NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句             |
-| SORT_FOR_GROUP| 无             | 采用sort方式进行分组, 与PARTITION_FIRST冲突  | partition by 列表有普通列时  |
-| PARTITION_FIRST| 无             | 在聚合之前使用PARTITION计算分组, 与SORT_FOR_GROUP冲突 | partition by 列表有普通列时  |
-| PARA_TABLES_SORT| 无             | 超级表的数据按时间戳排序时, 不使用临时磁盘空间, 只使用内存。当子表数量多, 行长比较大时候, 会使用大量内存, 可能发生OOM | 超级表的数据按时间戳排序时  |
-| SMALLDATA_TS_SORT| 无             | 超级表的数据按时间戳排序时, 查询列长度大于等于256, 但是行数不多, 使用这个提示, 可以提高性能 | 超级表的数据按时间戳排序时  |
-| SKIP_TSMA | 无 | 用于显示的禁用TSMA查询优化 | 带Agg函数的查询语句 |
+| SORT_FOR_GROUP| 无             | 采用 sort 方式进行分组，与 PARTITION_FIRST 冲突  | partition by 列表有普通列时  |
+| PARTITION_FIRST| 无            | 在聚合之前使用 PARTITION 计算分组，与 SORT_FOR_GROUP 冲突 | partition by 列表有普通列时  |
+| PARA_TABLES_SORT| 无           | 超级表的数据按时间戳排序时，不使用临时磁盘空间，只使用内存。当子表数量多，行长比较大时候，会使用大量内存，可能发生 OOM | 超级表的数据按时间戳排序时  |
+| SMALLDATA_TS_SORT| 无          | 超级表的数据按时间戳排序时，查询列长度大于等于 256，但是行数不多，使用这个提示，可以提高性能 | 超级表的数据按时间戳排序时  |
+| SKIP_TSMA        | 无          | 用于显示的禁用 TSMA 查询优化 | 带 Agg 函数的查询语句 |
 
 举例： 
 
@@ -277,6 +277,16 @@ TDengine 支持基于时间戳主键的 INNER JOIN，规则如下：
 5. JOIN 两侧均支持子查询。
 6. 不支持与 FILL 子句混合使用。
 
+## INTERP
+
+interp 子句是 INTERP 函数(../function/#interp)的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句(window_clause)、分组子句(group_by_clause)也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用；流计算不支持使用 RANGE，但需要与 EVERY 和 FILL 关键字一起使用。
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值。
+- INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](./distinguished#fill-子句)
+- INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
+- INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值. 此模式在流计算中和窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (v3.3.4.9 及以后支持)。
+- INTERP `RANGE`子句支持时间范围的扩展(v3.3.4.9 及以后支持)，如`RANGE('2023-01-01 00:00:00', 10s)`表示在时间点 '2023-01-01 00:00:00' 查找前后 10s 的数据进行插值，FILL PREV/NEXT/NEAR 分别表示从时间点向前/向后/前后查找数据，若时间点周围没有数据，则使用 FILL 指定的值进行插值，因此此时 FILL 子句必须指定值。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1)`。目前仅支持时间点和时间范围的组合，不支持时间区间和时间范围的组合，即不支持 `RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h)`。所指定的时间范围规则与 EVERY 类似，单位不能是年或月，值不能为 0，不能带引号。使用该扩展时，不支持除 `FILL PREV/NEXT/NEAR` 外的其他 FILL 模式，且不能指定 EVERY 子句。
+
 ## GROUP BY
 
 如果在语句中同时指定了 GROUP BY 子句，那么 SELECT 列表只能包含如下表达式：
@@ -322,13 +332,13 @@ NULLS 语法用来指定 NULL 值在排序中输出的位置。NULLS LAST 是升
 
 ## LIMIT
 
-LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。LIMIT 5 OFFSET 2 可以简写为 LIMIT 2, 5，都输出第 3 行到第 7 行数据。
+LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。`LIMIT 5 OFFSET 2` 可以简写为 `LIMIT 2, 5`，都输出第 3 行到第 7 行数据。
 
 在有 PARTITION BY/GROUP BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
 
 ## SLIMIT
 
-SLIMIT 和 PARTITION BY/GROUP BY 子句一起使用，用来控制输出的分片的数量。SLIMIT 5 SOFFSET 2 可以简写为 SLIMIT 2, 5，都表示输出第 3 个到第 7 个分片。
+SLIMIT 和 PARTITION BY/GROUP BY 子句一起使用，用来控制输出的分片的数量。`SLIMIT 5 SOFFSET 2` 可以简写为 SLIMIT `2, 5`，都表示输出第 3 个到第 7 个分片。
 
 需要注意，如果有 ORDER BY 子句，则输出只有一个分片。
 
@@ -485,21 +495,21 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
   - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
 - 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
   - 计算函数部分：
-    - 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP, DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE。
-    - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE。
+    - 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP、DERIVATIVE、IRATE、LAST_ROW、FIRST、LAST、TWA、STATEDURATION、TAIL、UNIQUE。
+    - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES、ELAPSED、INTERP、DERIVATIVE、IRATE、TWA、DIFF、STATECOUNT、STATEDURATION、CSUM、MAVG、TAIL、UNIQUE。
     - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 
 :::
 
-## UNION ALL 子句
+## UNION 子句
 
 ```txt title=语法
 SELECT ...
-UNION ALL SELECT ...
-[UNION ALL SELECT ...]
+UNION [ALL] SELECT ...
+[UNION [ALL] SELECT ...]
 ```
 
-TDengine 支持 UNION ALL 操作符。也就是说，如果多个 SELECT 子句返回结果集的结构完全相同（列名、列类型、列数、顺序），那么可以通过 UNION ALL 把这些结果集合并到一起。目前只支持 UNION ALL 模式，也即在结果集的合并过程中是不去重的。在同一个 sql 语句中，UNION ALL 最多支持 100 个。
+TDengine 支持 UNION [ALL] 操作符。也就是说，如果多个 SELECT 子句返回结果集的结构完全相同（列名、列类型、列数、顺序），那么可以通过 UNION [ALL] 把这些结果集合并到一起。
 
 ## SQL 示例
 
@@ -521,7 +531,7 @@ SELECT * FROM tb1 WHERE ts >= NOW - 1h;
 SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
 ```
 
-查询 col1 与 col2 的和，并取名 complex, 时间大于 2018-06-01 08:00:00.000, col2 大于 1.2，结果输出仅仅 10 条记录，从第 5 条开始：
+查询 col1 与 col2 的和，并取名 complex，时间大于 2018-06-01 08:00:00.000，col2 大于 1.2，结果输出仅仅 10 条记录，从第 5 条开始：
 
 ```
 SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;

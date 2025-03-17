@@ -383,7 +383,7 @@ static void processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
     return;
   }
   SVCreateStbReq req = {0};
-  SDecoder       coder;
+  SDecoder       coder = {0};
 
   uDebug("create stable data:%p", metaRsp);
   // decode and process req
@@ -799,7 +799,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
           if (vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY) {
             bufSize = vAlterTbReq.nTagVal * 2 + 2 + 3;
           } else {
-            bufSize = vAlterTbReq.nTagVal + 3;
+            bufSize = vAlterTbReq.nTagVal + 32;
           }
           buf = taosMemoryCalloc(bufSize, 1);
           RAW_NULL_CHECK(buf);
@@ -1020,7 +1020,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
     return TSDB_CODE_INVALID_PARA;
   }
   SVCreateStbReq req = {0};
-  SDecoder       coder;
+  SDecoder       coder = {0};
   SMCreateStbReq pReq = {0};
   int32_t        code = TSDB_CODE_SUCCESS;
   SRequestObj*   pRequest = NULL;
@@ -2315,8 +2315,6 @@ static void processSimpleMeta(SMqMetaRsp* pMetaRsp, cJSON** meta) {
     processAlterTable(pMetaRsp, meta);
   } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_TABLE) {
     processDropTable(pMetaRsp, meta);
-  } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_TABLE) {
-    processDropTable(pMetaRsp, meta);
   } else if (pMetaRsp->resMsgType == TDMT_VND_DELETE) {
     processDeleteTable(pMetaRsp, meta);
   }
@@ -2327,7 +2325,7 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     uError("invalid parameter in %s", __func__);
     return;
   }
-  SDecoder        coder;
+  SDecoder        coder = {0};
   SMqBatchMetaRsp rsp = {0};
   int32_t         code = 0;
   cJSON*          pJson = NULL;
@@ -2572,6 +2570,7 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
     SET_ERROR_MSG("taos:%p or data:%p is NULL or raw_len <= 0", taos, raw.raw);
     return TSDB_CODE_INVALID_PARA;
   }
+  taosClearErrMsg(); // clear global error message
 
   return writeRawImpl(taos, raw.raw, raw.raw_len, raw.raw_type);
 }

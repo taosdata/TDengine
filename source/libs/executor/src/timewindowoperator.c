@@ -17,7 +17,9 @@
 #include "function.h"
 #include "functionMgt.h"
 #include "operator.h"
+#include "query.h"
 #include "querytask.h"
+#include "taoserror.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -1016,6 +1018,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       continue;
     }
+    if (pStateColInfoData->pData == NULL) {
+      qError("%s:%d state column data is null", __FILE__, __LINE__);
+      pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    }
 
     char* val = colDataGetData(pStateColInfoData, j);
 
@@ -1417,15 +1424,15 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   pInfo->interval = interval;
   pInfo->twAggSup = as;
   pInfo->binfo.mergeResultBlock = pPhyNode->window.mergeDataBlock;
-  if (pPhyNode->window.node.pLimit) {
+  if (pPhyNode->window.node.pLimit && ((SLimitNode*)pPhyNode->window.node.pLimit)->limit) {
     SLimitNode* pLimit = (SLimitNode*)pPhyNode->window.node.pLimit;
     pInfo->limited = true;
-    pInfo->limit = pLimit->limit + pLimit->offset;
+    pInfo->limit = pLimit->limit->datum.i + (pLimit->offset ? pLimit->offset->datum.i : 0);
   }
-  if (pPhyNode->window.node.pSlimit) {
+  if (pPhyNode->window.node.pSlimit && ((SLimitNode*)pPhyNode->window.node.pSlimit)->limit) {
     SLimitNode* pLimit = (SLimitNode*)pPhyNode->window.node.pSlimit;
     pInfo->slimited = true;
-    pInfo->slimit = pLimit->limit + pLimit->offset;
+    pInfo->slimit = pLimit->limit->datum.i + (pLimit->offset ? pLimit->offset->datum.i : 0);
     pInfo->curGroupId = UINT64_MAX;
   }
 
@@ -1582,7 +1589,6 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   SOptrBasicInfo*          pBInfo = &pInfo->binfo;
   SExprSupp*               pSup = &pOperator->exprSupp;
 
-  pInfo->cleanGroupResInfo = false;
   if (pOperator->status == OP_RES_TO_RETURN) {
     while (1) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
@@ -1609,6 +1615,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
+  pInfo->cleanGroupResInfo = false;
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {

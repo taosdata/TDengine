@@ -176,7 +176,9 @@ typedef struct SSyncFSM {
   void (*FpRollBackCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, SFsmCbMeta* pMeta);
 
   void (*FpRestoreFinishCb)(const struct SSyncFSM* pFsm, const SyncIndex commitIdx);
+  void (*FpAfterRestoredCb)(const struct SSyncFSM* pFsm, const SyncIndex commitIdx);
   void (*FpReConfigCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, SReConfigCbMeta* pMeta);
+
   void (*FpLeaderTransferCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, SFsmCbMeta* pMeta);
   bool (*FpApplyQueueEmptyCb)(const struct SSyncFSM* pFsm);
   int32_t (*FpApplyQueueItems)(const struct SSyncFSM* pFsm);

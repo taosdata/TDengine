@@ -47,10 +47,10 @@ taos> select sum(cast(10000000000 as bigint unsigned))
 taos> select sum(cast(1.1 as float))
   sum(cast(1.1 as float))  |
 ============================
-         1.100000023841858 |
+          1.10000002384186 |
 
 taos> select sum(cast(1.1 as double))
  sum(cast(1.1 as double))  |
 ============================
-         1.100000000000000 |
+                       1.1 |
 

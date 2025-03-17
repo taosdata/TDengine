@@ -13,7 +13,7 @@ Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批�
 ## 前置条件 
 
 准备以下环境：
-- TDengine 集群已部署并正常运行（企业及社区版均可）
+- TDengine 服务已部署并正常运行（企业及社区版均可）
 - taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
 - Apache Flink v1.19.0 或以上版本已安装。安装 Apache Flink 请参考 [官方文档](https://flink.apache.org/)
 
@@ -24,7 +24,10 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 ## 版本历史
 | Flink Connector 版本 |                   主要变化         |   TDengine 版本   |
 | ------------------| ------------------------------------ | ---------------- |
-|        2.0.0      | 1. 支持 SQL 查询 TDengine 数据库中的数据<br/> 2. 支持 CDC 订阅 TDengine 数据库中的数据<br/> 3. 支持 Table SQL 方式读取和写入 TDengine 数据库| 3.3.5.0 及以上版本 |
+|        2.1.0      | 修复不同数据源varchar类型写入问题| - |
+|        2.0.2      | Table Sink 支持 RowKind.UPDATE_BEFORE、RowKind.UPDATE_AFTER 和 RowKind.DELETE 类型| - |
+|        2.0.1      | Sink 支持对所有继承自 RowData 并已实现的类型进行数据写入| - |
+|        2.0.0      | 1. 支持 SQL 查询 TDengine 数据库中的数据<br/> 2. 支持 CDC 订阅 TDengine 数据库中的数据<br/> 3. 支持 Table SQL 方式读取和写入 TDengine 数据库| 3.3.5.1 及以上版本 |
 |        1.0.0      | 支持 Sink 功能，将来着其他数据源的数据写入到 TDengine| 3.3.2.0 及以上版本|
 
 ## 异常和错误码
@@ -82,7 +85,8 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Flink RowD
 | SMALLINT          | Short         |
 | TINYINT           | Byte          |
 | BOOL              | Boolean       |
-| BINARY            | byte[]        |
+| VARCHAR           | StringData    |
+| BINARY            | StringData    |
 | NCHAR             | StringData    |
 | JSON              | StringData    |
 | VARBINARY         | byte[]        |
@@ -111,7 +115,7 @@ env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
 <dependency>
     <groupId>com.taosdata.flink</groupId>
     <artifactId>flink-connector-tdengine</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
 </dependency>
 ```
 
@@ -218,7 +222,7 @@ Properties 中配置参数如下：
 - TDengineCdcParams.VALUE_DESERIALIZER：结果集反序列化方法，如果接收结果集类型是 `Flink` 的 `RowData`，仅需要设置为 `RowData`即可。可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。
 - TDengineCdcParams.TMQ_BATCH_MODE：此参数用于批量将数据推送给下游算子，如果设置为 True，创建 `TDengineCdcSource` 对象时需要指定数据类型为 `ConsumerRecords` 类型的泛型形式。
 - TDengineCdcParams.GROUP_ID：消费组 ID，同一消费组共享消费进度。最大长度：192。
-- TDengineCdcParams.AUTO_OFFSET_RESET： 消费组订阅的初始位置 （ `earliest` 从头开始订阅, `latest` 仅从最新数据开始订阅, 默认 `latest`）。
+- TDengineCdcParams.AUTO_OFFSET_RESET：消费组订阅的初始位置（ `earliest` 从头开始订阅, `latest` 仅从最新数据开始订阅, 默认 `latest`）。
 - TDengineCdcParams.ENABLE_AUTO_COMMIT：是否启用消费位点自动提交，true: 自动提交；false：依赖 `checkpoint` 时间来提交， 默认 false。
 > **注意**：自动提交模式reader获取完成数据后自动提交，不管下游算子是否正确的处理了数据，存在数据丢失的风险，主要用于为了追求高效的无状态算子场景或是数据一致性要求不高的场景。
 
@@ -228,7 +232,7 @@ Properties 中配置参数如下：
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 true 时生效。
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 true 时生效。
 - TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS：`consumer` 心跳丢失后超时时间，超时后会触发 `rebalance` 逻辑，成功后该 `consumer` 会被删除（从3.3.3.0版本开始支持）， 默认值为 12000，取值范围 [6000， 1800000]。
-- TDengineCdcParams.TMQ_MAX_POLL_INTERVAL_MS：`consumer poll` 拉取数据间隔的最长时间，超过该时间，会认为该 `consumer` 离线，触发 `rebalance` 逻辑，成功后该 `consumer` 会被删除。 默认值为 300000，[1000，INT32_MAX]。
+- TDengineCdcParams.TMQ_MAX_POLL_INTERVAL_MS：`consumer poll` 拉取数据间隔的最长时间，超过该时间，会认为该 `consumer` 离线，触发 `rebalance` 逻辑，成功后该 `consumer` 会被删除。默认值为 300000，[1000，INT32_MAX]。
 
 #### 使用 CDC 连接器
 
@@ -275,9 +279,9 @@ Properties 中配置参数如下：
 - TDengineConfigParams.TD_SUPERTABLE_NAME：写入的超级表名称。接收的数据必须有 tbname 字段，确定写入那张子表。
 - TDengineConfigParams.TD_TABLE_NAME：写入子表或普通表的表名，此参数和TD_SUPERTABLE_NAME 仅需要设置一个即可。
 - TDengineConfigParams.VALUE_DESERIALIZER：接收结果集反序列化方法, 如果接收结果集类型是 `Flink` 的 `RowData`，仅需要设置为 `RowData`即可。也可继承 `TDengineSinkRecordSerializer` 并实现 `serialize` 方法，根据 接收的数据类型自定义反序列化方式。
-- TDengineConfigParams.TD_BATCH_SIZE：设置一次写入 `TDengine` 数据库的批大小 | 当到达批的数量后进行写入，或是一个checkpoint的时间也会触发写入数据库。 
+- TDengineConfigParams.TD_BATCH_SIZE：设置一次写入 `TDengine` 数据库的批大小 | 当到达批的数量后进行写入，或是一个checkpoint的时间也会触发写入数据库。
 - TDengineConfigParams.TD_BATCH_MODE：接收批量数据当设置为 True 时，如果数据来源是 `TDengine Source`，则使用 `SourceRecords` 泛型类型来创建 `TDengineSink` 对象；若来源是 `TDengine CDC`，则使用 `ConsumerRecords` 泛型来创建 `TDengineSink` 对象。
-- TDengineConfigParams.TD_SOURCE_TYPE：设置数据来源。 当数据来源是 `TDengine Source` 是设置为 'tdengine_source', 当来源是 `TDengine CDC` 设置为 'tdengine_cdc'。当配置 `TD_BATCH_MODE` 为 True 生效。
+- TDengineConfigParams.TD_SOURCE_TYPE：设置数据来源。当数据来源是 `TDengine Source` 是设置为 'tdengine_source', 当来源是 `TDengine CDC` 设置为 'tdengine_cdc'。当配置 `TD_BATCH_MODE` 为 True 生效。
 - TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。true: 启用，false: 不启用。默认为 false。
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。true: 启用，false: 不启用。默认为 false。
@@ -351,7 +355,7 @@ Properties 中配置参数如下：
 | bootstrap.servers| string | 服务器地址。| 
 | topic | string | 订阅主题。||
 | td.jdbc.mode | strng | 连接器类型, cdc, sink。| 
-| group.id| string| 消费组 ID，同一消费组共享消费进度。 | 
+| group.id| string| 消费组 ID，同一消费组共享消费进度。| 
 | auto.offset.reset| string| 消费组订阅的初始位置。<br/>`earliest`: 从头开始订阅 <br/> `latest`: 仅从最新数据开始订阅。<br/> 默认 `latest`。|
 | poll.interval_ms| integer| 拉取数据间隔, 默认 500ms。|
 | sink.db.name|string| 目标数据库名称。|

@@ -146,4 +146,11 @@ sql_error create stream streams2 trigger max_delay 4s ignore update 0 ignore exp
 sql create stream streams3 trigger max_delay 5000a ignore update 0 ignore expired 0 into streamtST3 as select  _wstart, count(*) from st interval(5s);
 sql create stream streams4 trigger max_delay 5s ignore update 0 ignore expired 0 into streamtST4 as select  _wstart, count(*) from st interval(5s);
 
+
+sql_error create stream streams5 trigger at_once ignore update 0 ignore expired 0 into streamtST5 as select  _wstart, count(*) from st interval(5s) having count(*) > 2;
+sql_error create stream streams6 trigger at_once ignore update 0 ignore expired 0 into streamtST6 as select  _wstart, count(*) from st session(ts, 5s) having count(*) > 2;
+sql_error create stream streams7 trigger at_once ignore update 0 ignore expired 1 into streamtST7 as select  _wstart, count(*) from st count_window(10) having count(*) > 2;
+sql_error create stream streams8 trigger at_once ignore update 0 ignore expired 0 into streamtST8 as select  _wstart, count(*) from st state_window(a) having count(*) > 2;
+sql_error create stream streams9 trigger at_once ignore update 0 ignore expired 0 into streamtST9 as select  _wstart, count(*) from st event_window start with a = 0 end with b = 9 having count(*) > 2;
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

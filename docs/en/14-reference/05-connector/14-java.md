@@ -33,6 +33,8 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                               | TDengine Version   |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.5.3                   | Support unsigned data types in WebSocket connections.                                                                                                                                                                                                                                                                                                                                                       | -                  |
+| 3.5.2                   | Fixed WebSocket result set free bug.                                                                                                                                                                                                                                                                                                                                                                        | -                  |
 | 3.5.1                   | Fixed the getObject issue in data subscription.                                                                                                                                                                                                                                                                                                                                                             | -                  |
 | 3.5.0                   | 1. Optimized the performance of WebSocket connection parameter binding, supporting parameter binding queries using binary data. <br/> 2. Optimized the performance of small queries in WebSocket connection. <br/> 3. Added support for setting time zone and app info on WebSocket connection.                                                                                                             | 3.3.5.0 and higher |
 | 3.4.0                   | 1. Replaced fastjson library with jackson. <br/> 2. WebSocket uses a separate protocol identifier. <br/> 3. Optimized background thread usage to avoid user misuse leading to timeouts.                                                                                                                                                                                                                     | -                  |
@@ -127,24 +129,27 @@ Please refer to the specific error codes:
 
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Java type conversions are as follows:
 
-| TDengine DataType | JDBCType           |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte array         |
-| NCHAR             | java.lang.String   |
-| JSON              | java.lang.String   |
-| VARBINARY         | byte[]             |
-| GEOMETRY          | byte[]             |
+| TDengine DataType | JDBCType             | Remark                                  |
+| ----------------- | -------------------- | --------------------------------------- |
+| TIMESTAMP         | java.sql.Timestamp   |                                         |
+| BOOL              | java.lang.Boolean    |                                         |
+| TINYINT           | java.lang.Byte       |                                         |
+| TINYINT UNSIGNED  | java.lang.Short      | only supported in WebSocket connections |
+| SMALLINT          | java.lang.Short      |                                         |
+| SMALLINT UNSIGNED | java.lang.Integer    | only supported in WebSocket connections |
+| INT               | java.lang.Integer    |                                         |
+| INT UNSIGNED      | java.lang.Long       | only supported in WebSocket connections |
+| BIGINT            | java.lang.Long       |                                         |
+| BIGINT UNSIGNED   | java.math.BigInteger | only supported in WebSocket connections |
+| FLOAT             | java.lang.Float      |                                         |
+| DOUBLE            | java.lang.Double     |                                         |
+| BINARY            | byte array           |                                         |
+| NCHAR             | java.lang.String     |                                         |
+| JSON              | java.lang.String     | only supported in tags                  |
+| VARBINARY         | byte[]               |                                         |
+| GEOMETRY          | byte[]               |                                         |
 
-**Note**: JSON type is only supported in tags.  
-Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
+**Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
 For the WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 For the Java connector, you can use the jts library to conveniently create GEOMETRY type objects, serialize them, and write to TDengine. Here is an example [Geometry Example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  

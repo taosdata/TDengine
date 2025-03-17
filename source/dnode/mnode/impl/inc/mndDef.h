@@ -328,12 +328,12 @@ typedef struct {
   };
 } SConfigObj;
 
-int32_t     tEncodeSConfigObj(SEncoder* pEncoder, const SConfigObj* pObj);
-int32_t     tDecodeSConfigObj(SDecoder* pDecoder, SConfigObj* pObj);
-SConfigObj* mndInitConfigObj(SConfigItem* pItem);
-SConfigObj* mndInitConfigVersion();
-int32_t     mndUpdateObj(SConfigObj* pObj, const char* name, char* value);
-void        tFreeSConfigObj(SConfigObj* obj);
+int32_t    tEncodeSConfigObj(SEncoder* pEncoder, const SConfigObj* pObj);
+int32_t    tDecodeSConfigObj(SDecoder* pDecoder, SConfigObj* pObj);
+int32_t    mndInitConfigObj(SConfigItem* pItem, SConfigObj* pObj);
+SConfigObj mndInitConfigVersion();
+int32_t    mndUpdateObj(SConfigObj* pObj, const char* name, char* value);
+void       tFreeSConfigObj(SConfigObj* obj);
 
 typedef struct {
   int32_t maxUsers;

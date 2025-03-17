@@ -94,7 +94,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableTagsByUid = metaGetTableTagsByUids;
 
   pMeta->getTableUidByName = metaGetTableUidByName;
-  pMeta->getTableTypeByName = metaGetTableTypeByName;
+  pMeta->getTableTypeSuidByName = metaGetTableTypeSuidByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
   pMeta->getTableSchema = vnodeGetTableSchema;
@@ -166,6 +166,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateCheck = streamStateCheck;
   pStore->streamStateGetByPos = streamStateGetByPos;
   pStore->streamStateDel = streamStateDel;
+  pStore->streamStateDelByGroupId = streamStateDelByGroupId;
   pStore->streamStateClear = streamStateClear;
   pStore->streamStateSaveInfo = streamStateSaveInfo;
   pStore->streamStateGetInfo = streamStateGetInfo;

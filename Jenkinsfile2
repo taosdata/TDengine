@@ -70,7 +70,7 @@ def check_docs(){
             returnStdout: true
         )
         
-        def file_no_doc_changed = sh (
+        file_no_doc_changed = sh (
             script: '''
                 cd ${WKC}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" || :
@@ -111,16 +111,6 @@ def build_pre_docs(){
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD 
-        '''
-
-        sh '''
-             cd ${DOC_WKC}/${tools_repo}
-            git reset --hard
-            git clean -f
-            git fetch
-            git remote prune origin
-            git checkout ''' + env.CHANGE_TARGET + '''
-            git pull >/dev/null
         '''
     }
 }
@@ -368,8 +358,8 @@ def pre_test_build_win() {
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%/tests/ci
-        pip3 install taospy==2.7.16 
-        pip3 install taos-ws-py==0.3.5
+        pip3 install taospy==2.7.21 
+        pip3 install taos-ws-py==0.3.8
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1

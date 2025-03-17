@@ -1,0 +1,2 @@
+select last_row(*) from stb
+select count(*) from stb_0

@@ -223,6 +223,13 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       // Use window output ts order instead.
       order = pNode->outputTsOrder;
       break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      if (projectCouldMergeUnsortDataBlock((SProjectLogicNode*)pNode)) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
+      pNode->outputTsOrder = order;
+      break;
     default:
       pNode->outputTsOrder = order;
       break;
@@ -628,7 +635,9 @@ static EDealRes pdcJoinIsCrossTableCond(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     if (pdcJoinColInTableList(pNode, pCxt->pLeftTbls)) {
       pCxt->havaLeftCol = true;
-    } else if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
+    } 
+
+    if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
       pCxt->haveRightCol = true;
     }
     return pCxt->havaLeftCol && pCxt->haveRightCol ? DEAL_RES_END : DEAL_RES_CONTINUE;
@@ -2103,12 +2112,15 @@ static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProjec
   if (NULL != pProject->node.pLimit || NULL != pProject->node.pSlimit) {
     return TSDB_CODE_SUCCESS;
   }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+  if(pChild->pLimit != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pProjCond = NULL;
   code = rewriteProjectCondForPushDown(pCxt, pProject, &pProjCond);
   if (TSDB_CODE_SUCCESS == code) {
-    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
     code = pdcPushDownCondToChild(pCxt, pChild, &pProjCond);
   }
 
@@ -2802,10 +2814,17 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  if (pJoin->pPrimKeyEqCond && QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyEqCond)) {
+    SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+    if ((pOp->pLeft && QUERY_NODE_COLUMN != nodeType(pOp->pLeft)) || (pOp->pRight && QUERY_NODE_COLUMN != nodeType(pOp->pRight))) {
+      return false;
+    }
+  }
+
   return true;
 }
 
-static void joinCondMergeScanRand(STimeWindow* pDst, STimeWindow* pSrc) {
+static void joinCondMergeScanRange(STimeWindow* pDst, STimeWindow* pSrc) {
   if (pSrc->skey > pDst->skey) {
     pDst->skey = pSrc->skey;
   }
@@ -2833,7 +2852,7 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       }
       SNode*      pNode = NULL;
       STimeWindow scanRange = TSWINDOW_INITIALIZER;
-      FOREACH(pNode, pScanList) { joinCondMergeScanRand(&scanRange, &((SScanLogicNode*)pNode)->scanRange); }
+      FOREACH(pNode, pScanList) { joinCondMergeScanRange(&scanRange, &((SScanLogicNode*)pNode)->scanRange); }
       FOREACH(pNode, pScanList) {
         ((SScanLogicNode*)pNode)->scanRange.skey = scanRange.skey;
         ((SScanLogicNode*)pNode)->scanRange.ekey = scanRange.ekey;
@@ -2850,7 +2869,7 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       if (NULL == pLScan || NULL == pRScan) {
         return TSDB_CODE_SUCCESS;
       }
-      joinCondMergeScanRand(&pRScan->scanRange, &pLScan->scanRange);
+      joinCondMergeScanRange(&pRScan->scanRange, &pLScan->scanRange);
       break;
     }
     case JOIN_TYPE_RIGHT: {
@@ -2862,7 +2881,7 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       if (NULL == pLScan || NULL == pRScan) {
         return TSDB_CODE_SUCCESS;
       }
-      joinCondMergeScanRand(&pLScan->scanRange, &pRScan->scanRange);
+      joinCondMergeScanRange(&pLScan->scanRange, &pRScan->scanRange);
       break;
     }
     default:
@@ -3698,8 +3717,14 @@ static int32_t rewriteTailOptCreateLimit(SNode* pLimit, SNode* pOffset, SNode** 
   if (NULL == pLimitNode) {
     return code;
   }
-  pLimitNode->limit = NULL == pLimit ? -1 : ((SValueNode*)pLimit)->datum.i;
-  pLimitNode->offset = NULL == pOffset ? 0 : ((SValueNode*)pOffset)->datum.i;
+  code = nodesMakeValueNodeFromInt64(NULL == pLimit ? -1 : ((SValueNode*)pLimit)->datum.i, (SNode**)&pLimitNode->limit);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  code = nodesMakeValueNodeFromInt64(NULL == pOffset ? 0 : ((SValueNode*)pOffset)->datum.i, (SNode**)&pLimitNode->offset);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   *pOutput = (SNode*)pLimitNode;
   return TSDB_CODE_SUCCESS;
 }

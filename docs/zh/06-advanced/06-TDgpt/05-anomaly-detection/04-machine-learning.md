@@ -12,6 +12,11 @@ FROM foo
 ANOMALY_WINDOW(col1, 'algo=encoder, model=ad_autoencoder_foo');
 ```
 
+后续添加机器（深度）学习异常检测算法
+- Isolation Forest
+- One-Class Support Vector Machines (SVM)
+- Prophet
+
 ### 参考文献
 
 1. https://en.wikipedia.org/wiki/Autoencoder

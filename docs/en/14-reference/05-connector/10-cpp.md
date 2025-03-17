@@ -509,8 +509,8 @@ For the OpenTSDB text protocol, the parsing of timestamps follows its official p
   - **Interface Description**: Used for polling to consume data. Each consumer can only call this interface in a single thread.
     - tmq: [Input] Points to a valid ws_tmq_t structure pointer, which represents a TMQ consumer object.
     - timeout: [Input] Polling timeout in milliseconds, a negative number indicates a default timeout of 1 second.
-  - **Return Value**: Non-`NULL`: Success, returns a pointer to a WS_RES structure, which contains the received message. `NULL`: Failure, indicates no data. WS_RES results are consistent with taos_query results, and information in WS_RES can be obtained through various query interfaces, such as schema, etc.
-
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to a WS_RES structure, which contains the received message. `NULL`: indicates no data, the error code can be obtained through ws_errno (NULL), please refer to the reference manual for specific error message. WS_RES results are consistent with taos_query results, and information in WS_RES can be obtained through various query interfaces, such as schema, etc.
+  
 - `int32_t ws_tmq_consumer_close(ws_tmq_t *tmq)`
   - **Interface Description**: Used to close the ws_tmq_t structure. Must be used in conjunction with ws_tmq_consumer_new.
     - tmq: [Input] Points to a valid ws_tmq_t structure pointer, which represents a TMQ consumer object.
@@ -1195,8 +1195,8 @@ In addition to using SQL or parameter binding APIs to insert data, you can also 
   - **Interface Description**: Used to poll for consuming data, each consumer can only call this interface in a single thread.
     - tmq: [Input] Points to a valid tmq_t structure pointer, representing a TMQ consumer object.
     - timeout: [Input] Polling timeout in milliseconds, a negative number indicates a default timeout of 1 second.
-  - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_RES structure containing the received messages. `NULL`: Failure, indicates no data. TAOS_RES results are consistent with taos_query results, and information in TAOS_RES can be obtained through various query interfaces, such as schema, etc.
-
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_RES structure containing the received messages. `NULL`: indicates no data, the error code can be obtained through taos_errno (NULL), please refer to the reference manual for specific error message. TAOS_RES results are consistent with taos_query results, and information in TAOS_RES can be obtained through various query interfaces, such as schema, etc.
+  
 - `int32_t tmq_consumer_close(tmq_t *tmq)`
   - **Interface Description**: Used to close a tmq_t structure. Must be used in conjunction with tmq_consumer_new.
     - tmq: [Input] Points to a valid tmq_t structure pointer, which represents a TMQ consumer object.

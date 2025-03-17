@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 
-#include "syncPipeline.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
+#include "syncPipeline.h"
 #include "syncRaftCfg.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
@@ -732,7 +732,11 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
            pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), code, retry);
     if (retry) {
       taosMsleep(10);
-      sError("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, tstrerror(code), pEntry->index);
+      if (code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+        sError("vgId:%d, failed to execute fsm since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+      } else {
+        sDebug("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+      }
     }
   } while (retry);
 
@@ -787,6 +791,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   bool            inBuf = false;
   SSyncRaftEntry* pNextEntry = NULL;
   bool            nextInBuf = false;
+  bool            restoreFinishAtThisCommit = false;
 
   if (commitIndex <= pBuf->commitIndex) {
     sDebug("vgId:%d, stale commit index. current:%" PRId64 ", notified:%" PRId64 "", vgId, pBuf->commitIndex,
@@ -907,6 +912,7 @@ _out:
       currentTerm <= pEntry->term) {
     pNode->pFsm->FpRestoreFinishCb(pNode->pFsm, pBuf->commitIndex);
     pNode->restoreFinish = true;
+    restoreFinishAtThisCommit = true;
     sInfo("vgId:%d, restore finished. term:%" PRId64 ", log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
           pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   }
@@ -920,6 +926,12 @@ _out:
     pNextEntry = NULL;
   }
   (void)taosThreadMutexUnlock(&pBuf->mutex);
+
+  if (restoreFinishAtThisCommit && pNode->pFsm->FpAfterRestoredCb != NULL) {
+    pNode->pFsm->FpAfterRestoredCb(pNode->pFsm, pBuf->commitIndex);
+    sInfo("vgId:%d, after restore finished callback executed)", pNode->vgId);
+  }
+
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   TAOS_RETURN(code);
 }
@@ -1128,26 +1140,29 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
 
 int32_t syncLogReplProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncHeartbeatReply* pMsg) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pMgr->mutex);
   if (pMsg->startTime != 0 && pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl in heartbeat. peer:%" PRIx64 ", start time:%" PRId64 ", old:%" PRId64 "",
           pNode->vgId, pMsg->srcId.addr, pMsg->startTime, pMgr->peerStartTime);
     syncLogReplReset(pMgr);
     pMgr->peerStartTime = pMsg->startTime;
   }
-  (void)taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pMgr->mutex);
   return 0;
 }
 
 int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pMgr->mutex);
   if (pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl in appendlog reply. peer:%" PRIx64 ", start time:%" PRId64 ", old:%" PRId64,
           pNode->vgId, pMsg->srcId.addr, pMsg->startTime, pMgr->peerStartTime);
     syncLogReplReset(pMgr);
     pMgr->peerStartTime = pMsg->startTime;
   }
+  (void)taosThreadMutexUnlock(&pMgr->mutex);
+
+  (void)taosThreadMutexLock(&pBuf->mutex);
 
   int32_t code = 0;
   if (pMgr->restored) {
@@ -1312,6 +1327,12 @@ SSyncLogReplMgr* syncLogReplCreate() {
     return NULL;
   }
 
+  int32_t code = taosThreadMutexInit(&pMgr->mutex, NULL);
+  if (code) {
+    terrno = code;
+    return NULL;
+  }
+
   return pMgr;
 }
 
@@ -1319,6 +1340,7 @@ void syncLogReplDestroy(SSyncLogReplMgr* pMgr) {
   if (pMgr == NULL) {
     return;
   }
+  (void)taosThreadMutexDestroy(&pMgr->mutex);
   taosMemoryFree(pMgr);
   return;
 }

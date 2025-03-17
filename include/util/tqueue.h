@@ -55,6 +55,7 @@ typedef struct {
 typedef enum {
   DEF_QITEM = 0,
   RPC_QITEM = 1,
+  APPLY_QITEM = 2,
 } EQItype;
 
 typedef void (*FItem)(SQueueInfo *pInfo, void *pItem);

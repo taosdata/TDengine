@@ -35,6 +35,12 @@ class TDTestCase(TBase):
 
         time.sleep(1)
 
+        tdSql.execute("use db;")
+
+        tdSql.execute("CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);")
+
+        tdSql.execute("CREATE TABLE d0 USING meters TAGS (\"California.SanFrancisco\", 2);");
+
         count = 0
 
         while count < 100:        
@@ -71,6 +77,8 @@ class TDTestCase(TBase):
             time.sleep(1)
 
             count += 1
+
+        tdSql.execute("INSERT INTO d0 VALUES (NOW, 10.3, 219, 0.31);")
 
     def stop(self):
         tdSql.close()

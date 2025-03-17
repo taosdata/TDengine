@@ -130,7 +130,7 @@ pip3 install kafka-python
 python3 kafka_example_consumer.py
 
 # 21
-pip3 install taos-ws-py==0.3.5
+pip3 install taos-ws-py==0.3.8
 python3 conn_websocket_pandas.py
 
 # 22

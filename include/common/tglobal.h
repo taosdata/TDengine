@@ -34,6 +34,9 @@ extern "C" {
 #define GLOBAL_CONFIG_FILE_VERSION 1
 #define LOCAL_CONFIG_FILE_VERSION  1
 
+#define RPC_MEMORY_USAGE_RATIO   0.1
+#define QUEUE_MEMORY_USAGE_RATIO 0.6
+
 typedef enum {
   DND_CA_SM4 = 1,
 } EEncryptAlgor;
@@ -110,6 +113,7 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
+extern int64_t tsApplyMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
 
 extern int32_t tsNumOfCompactThreads;
@@ -322,7 +326,6 @@ int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
 int32_t setAllConfigs(SConfig *pCfg);
 void    printConfigNotMatch(SArray *array);
 
-int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 

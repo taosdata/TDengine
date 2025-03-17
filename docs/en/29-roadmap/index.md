@@ -1,0 +1,14 @@
+---
+title: Product Roadmap
+---
+
+The 2025 roadmap for TDengine OSS is described in the following table.
+
+|  Quarter   |  Feature  |
+| :----- | :----- |
+| 2025Q1 | <ol><li>Virtual tables</li><li>Query engine: conditional expressions in <code>REGEXP</code>, <code>GREATEST</code>, <code>LEAST</code>, and <code>CAST</code> functions; improvements in single-row selection functions; time range interpolation with <code>INTERP</code></li><li>Storage engine: support for writing query results into supertables; <code>KEEP</code> parameter for supertables; performance improvements for the parameter binding interface</li><li>Stream processing: support for virtual tables; decreased compute resource usage; new mechanism for event notification; faster stream creation</li><li>Data types: support for the decimal data type</li><li>High availability: faster recovery from downtime; improved client failover</li><li>Stability: LTS release TDengine 3.3.6.x</li><li>JDBC driver: more efficient data ingestion</li><li>Ecosystem: integration with Microsoft Excel</li></ol> |
+| 2025Q2 | <ol><li>Query engine: relaxed restrictions on <code>JOIN</code> queries; support for all mathematical functions in MySQL; integral, integral average, and continuous variance functions; optimization of the <code>CSUM</code> function; support for <code>COUNT(DISTINCT)</code> syntax; enhancements to event windows; faster filtering by tag; faster <code>INTERP</code> queries</li><li>Storage engine: decreased compute resource usage for TSMAs; improved write jitter</li><li>Stream processing: high availability of snodes</li><li>Data types: support for the blob data type</li><li>Data subscription: support for the MQTT protocol</li><li>High availability: faster replica configuration changes; faster recovery from downtime for clusters; improved data recovery after power outage</li><li>Observability: diagnostic tool for data ingestion</li></ol> |
+| 2025Q3 | <ol><li>Query engine: more subqueries; support for all operators in MySQL; support for all time functions in MySQL; improved window calculation; reduced jitter in query performance; support for specifying columns in count windows</li><li>Storage engine: faster ingestion in SQL mode</li><li>Observability: diagnostic tool for queries; improved <code>EXPLAIN</code> output; monitoring of long-running tasks</li></ol> |
+| 2025Q4 | <ol><li>Query engine: window functions (i.e. the <code>OVER</code> clause); support for all string, aggregation, and conditional functions in MySQL; sorting within groups for partition queries; controls for query resource usage; faster aggregate queries on subtables; time range interpolation in <code>INTERVAL</code> windows</li><li>Data types: support for variable-length strings</li><li>Caching: faster row-oriented caching</li><li>Observability: more insight into operations and maintenance</li></ol> |
+
+For more information, see [TDengine Public Roadmap](https://github.com/orgs/taosdata/projects/4).

@@ -49,14 +49,12 @@ int main(int argc, char *argv[]) {
   shell.args.local = false;
 #endif
 
-#if 0
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
 #endif
   taosSetSignal(SIGABRT, shellCrashHandler);
   taosSetSignal(SIGFPE, shellCrashHandler);
   taosSetSignal(SIGSEGV, shellCrashHandler);
-#endif
 
   if (shellCheckIntSize() != 0) {
     return -1;

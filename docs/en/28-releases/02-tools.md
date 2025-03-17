@@ -4,7 +4,7 @@ title: taosTools Release History and Download Links
 slug: /release-history/taostools
 ---
 
-Download links for various versions of taosTools are as follows:
+Starting from version 3.0.6.0, taosTools has been integrated into the TDengine installation package and is no longer provided separately. Download links for  various versions of taosTools (corresponding to TDengine 3.0.5.2 and earlier) are as follows:
 
 For other historical versions, please visit [here](https://tdengine.com/downloads/historical)
 

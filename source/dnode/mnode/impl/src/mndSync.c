@@ -309,9 +309,6 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
     } else {
       mInfo("vgId:1, sync restore finished, repeat call");
     }
-    if (sdbAfterRestored(pMnode->pSdb) != 0) {
-      mError("failed to prepare sdb while start mnode");
-    }
   } else {
     mInfo("vgId:1, sync restore finished");
   }
@@ -326,6 +323,17 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
     mError("vgId:1, failed to sync restore, commitIdx:%" PRId64 " is not equal to appliedIdx:%" PRId64, commitIdx,
            fsmIndex);
     mndSetRestored(pMnode, false);
+  }
+}
+
+void mndAfterRestored(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
+  SMnode *pMnode = pFsm->data;
+
+  if (!pMnode->deploy) {
+    if (sdbAfterRestored(pMnode->pSdb) != 0) {
+      mError("failed to prepare sdb while start mnode");
+    }
+    mInfo("vgId:1, sync restore finished and restore sdb success");
   }
 }
 
@@ -443,6 +451,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
+  pFsm->FpAfterRestoredCb = mndAfterRestored;
   pFsm->FpLeaderTransferCb = NULL;
   pFsm->FpApplyQueueEmptyCb = mndApplyQueueEmpty;
   pFsm->FpApplyQueueItems = mndApplyQueueItems;

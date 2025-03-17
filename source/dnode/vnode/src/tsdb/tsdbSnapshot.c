@@ -559,6 +559,7 @@ struct STsdbSnapWriter {
     SIterMerger*   tombIterMerger;
 
     // writer
+    bool         toSttOnly;
     SFSetWriter* fsetWriter;
   } ctx[1];
 };
@@ -622,6 +623,7 @@ static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  writer->ctx->toSttOnly = false;
   if (writer->ctx->fset) {
 #if 0
     // open data reader
@@ -656,6 +658,14 @@ static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
     // open stt reader array
     SSttLvl* lvl;
     TARRAY2_FOREACH(writer->ctx->fset->lvlArr, lvl) {
+      if (lvl->level != 0) {
+        if (TARRAY2_SIZE(lvl->fobjArr) > 0) {
+          writer->ctx->toSttOnly = true;
+        }
+
+        continue;  // Only merge level 0
+      }
+
       STFileObj* fobj;
       TARRAY2_FOREACH(lvl->fobjArr, fobj) {
         SSttFileReader*      reader;
@@ -782,7 +792,7 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
 
   SFSetWriterConfig config = {
       .tsdb = writer->tsdb,
-      .toSttOnly = false,
+      .toSttOnly = writer->ctx->toSttOnly,
       .compactVersion = writer->compactVersion,
       .minRow = writer->minRow,
       .maxRow = writer->maxRow,
@@ -791,7 +801,7 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
       .fid = writer->ctx->fid,
       .cid = writer->commitID,
       .did = writer->ctx->did,
-      .level = 0,
+      .level = writer->ctx->toSttOnly ? 1 : 0,
   };
   // merge stt files to either data or a new stt file
   if (writer->ctx->fset) {

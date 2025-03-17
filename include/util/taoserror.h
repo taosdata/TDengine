@@ -47,6 +47,7 @@ const char* terrstr();
 
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
+void     taosClearErrMsg();
 int32_t* taosGetErrno();
 int32_t* taosGetErrln();
 int32_t  taosGetErrSize();
@@ -1013,6 +1014,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT         TAOS_DEF_ERROR_CODE(0, 0x4014)
 #define TSDB_CODE_TMQ_NO_TABLE_QUALIFIED         TAOS_DEF_ERROR_CODE(0, 0x4015)
 #define TSDB_CODE_TMQ_NO_NEED_REBALANCE          TAOS_DEF_ERROR_CODE(0, 0x4016)
+#define TSDB_CODE_TMQ_INVALID_STATUS             TAOS_DEF_ERROR_CODE(0, 0x4017)
 
 // stream
 #define TSDB_CODE_STREAM_TASK_NOT_EXIST          TAOS_DEF_ERROR_CODE(0, 0x4100)

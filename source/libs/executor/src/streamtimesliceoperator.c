@@ -151,7 +151,7 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
     pInfo->pOperator = NULL;
   }
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
+
   resetPrevAndNextWindow(pInfo->pFillSup);
   destroyStreamFillSupporter(pInfo->pFillSup);
   destroyStreamFillInfo(pInfo->pFillInfo);
@@ -166,7 +166,7 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->scalarSup);
   taosArrayDestroy(pInfo->historyPoints);
 
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  taosArrayDestroy(pInfo->pUpdated);
   pInfo->pUpdated = NULL;
 
   tSimpleHashCleanup(pInfo->pUpdatedMap);
@@ -174,11 +174,12 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->pDelWins);
   tSimpleHashCleanup(pInfo->pDeletedMap);
-  clearGroupResInfo(&pInfo->groupResInfo);
+  clearGroupResArray(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
 
   taosArrayDestroy(pInfo->pCloseTs);
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   taosMemoryFreeClear(param);
 }

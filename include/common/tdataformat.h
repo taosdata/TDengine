@@ -57,9 +57,9 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define ONE               ((uint8_t)1)
 #define THREE             ((uint8_t)3)
 #define DIV_8(i)          ((i) >> 3)
-#define MOD_8(i)          ((i) & 7)
+#define MOD_8(i)          ((i)&7)
 #define DIV_4(i)          ((i) >> 2)
-#define MOD_4(i)          ((i) & 3)
+#define MOD_4(i)          ((i)&3)
 #define MOD_4_TIME_2(i)   (MOD_4(i) << 1)
 #define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
 #define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
@@ -201,8 +201,10 @@ int32_t tColDataSortMerge(SArray **arr);
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data);
 // for encode/decode
-int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
-int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
+int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
+int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
+int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
 // STRUCT ================================
 struct STColumn {

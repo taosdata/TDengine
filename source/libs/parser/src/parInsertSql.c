@@ -2751,6 +2751,9 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     if (TSDB_CODE_SUCCESS == code && hasData) {
       code = parseInsertTableClause(pCxt, pStmt, &token);
     }
+    if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pCxt->preCtbname) {
+      code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
