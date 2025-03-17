@@ -5,12 +5,12 @@ import os
 import taostest
 import logging
 from utils.log import testLog
-from utils.sql import tdSql
+from utils import tdSql, etool, testLog
 from utils.before_test import BeforeTest
 
 from utils.pytest.util.sql import tdSql as tdSql_pytest
 from utils.army.frame.sql import tdSql as tdSql_army
-from utils.taos_components import run_taosbenchMark
+#from utils.taos_components import run_taosbenchMark
 import taos
 import taosrest
 import taosws
@@ -43,7 +43,7 @@ def pytest_addoption(parser):
     parser.addoption("--skip_test", action="store_true",
                     help="Only do deploy or install without running test")
     parser.addoption("--skip_deploy", action="store_true",
-                    help="Only do deploy or install without running test")
+                    help="Only run test without start TDengine")
     parser.addoption("--debug_log", action="store_true",
                     help="Enable debug log output.")
     #parser.addoption("--setup_all", action="store_true",
@@ -532,7 +532,7 @@ def add_common_methods(request):
     def insertBenchJson(self, jsonFile, options="", checkStep=False):
         # exe insert 
         cmd = f"{options} -f {jsonFile}"        
-        run_taosbenchMark(command = cmd)
+        etool.runBinFile("taosBenchmark", command = cmd)
 
         #
         # check insert result
