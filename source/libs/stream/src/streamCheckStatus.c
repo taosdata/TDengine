@@ -132,6 +132,31 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
               idstr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, req.reqId);
       code = streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    streamTaskStartMonitorCheckRsp(pTask);
+
+    SArray* pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+    int32_t numTasks = taosArrayGetSize(pTaskInfos);
+    stDebug("s-task:%s check %d vtable downstream tasks, ver:%" PRId64 "-%" PRId64 " window:%" PRId64 "-%" PRId64,
+            idstr, numTasks, pRange->range.minVer, pRange->range.maxVer, pWindow->skey, pWindow->ekey);
+
+    for (int32_t i = 0; i < numTasks; ++i) {
+      STaskDispatcherFixed* pAddr = taosArrayGet(pTaskInfos, i);
+      if (pAddr == NULL) {
+        continue;
+      }
+
+      setCheckDownstreamReqInfo(&req, tGenIdPI64(), pAddr->taskId, pAddr->nodeId);
+      streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, pAddr->taskId, pAddr->nodeId, idstr);
+
+      stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check vtable downstream task:0x%x (vgId:%d), QID:0x%" PRIx64,
+              idstr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, req.reqId);
+      code = streamSendCheckMsg(pTask, &req, pAddr->nodeId, &pAddr->epSet);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("s-task:%s failed to send check msg to vtable downstream task:0x%x (vgId:%d), code:%s", idstr,
+                req.downstreamTaskId, req.downstreamNodeId, tstrerror(code));
+      }
+    }
   } else {  // for sink task, set it ready directly.
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", idstr, pTask->info.nodeId);
     streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, idstr);
@@ -414,6 +439,8 @@ void streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutput
     pInfo->notReadyTasks = 1;
   } else if (pOutputInfo->type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     pInfo->notReadyTasks = taosArrayGetSize(pOutputInfo->shuffleDispatcher.dbInfo.pVgroupInfos);
+  } else if (pOutputInfo->type == TASK_OUTPUT__VTABLE_MAP) {
+    pInfo->notReadyTasks = taosArrayGetSize(pOutputInfo->vtableMapDispatcher.taskInfos);
   }
 
   pInfo->startTs = startTs;
@@ -578,6 +605,26 @@ int32_t doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
                 " re-send check downstream task:0x%x(vgId:%d) (shuffle), idx:%d QID:0x%" PRIx64,
                 id, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i, p->reqId);
         code = streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
+        break;
+      }
+    }
+  } else if (pOutputInfo->type == TASK_OUTPUT__VTABLE_MAP) {
+    SArray* pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+    int32_t numTasks = taosArrayGetSize(pTaskInfos);
+
+    for (int32_t i = 0; i < numTasks; ++i) {
+      STaskDispatcherFixed* pAddr = taosArrayGet(pTaskInfos, i);
+      if (pAddr == NULL) {
+        continue;
+      }
+
+      if (p->taskId == pAddr->taskId) {
+        setCheckDownstreamReqInfo(&req, p->reqId, pAddr->taskId, pAddr->nodeId);
+
+        stDebug("s-task:%s (vgId:%d) stage:%" PRId64
+                " re-send check vtable downstream task:0x%x(vgId:%d), QID:0x%" PRIx64,
+                id, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, p->reqId);
+        code = streamSendCheckMsg(pTask, &req, pAddr->nodeId, &pAddr->epSet);
         break;
       }
     }

@@ -98,6 +98,7 @@ typedef struct SCatalogReq {
   SArray* pTableTSMAs;    // element is STablesReq
   SArray* pTSMAs;         // element is STablesReq
   SArray* pTableName;     // element is STablesReq
+  SArray* pVSubTable;     // element is SName
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
@@ -129,6 +130,7 @@ typedef struct SMetaData {
   SArray*   pView;        // pRes = SViewMeta*
   SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
   SArray*   pTsmas;       // pRes = SArray<STableTSMAInfo*>
+  SArray*   pVSubTables;  // pRes = SVSubTablesRsp
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 

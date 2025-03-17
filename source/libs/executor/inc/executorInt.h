@@ -31,6 +31,7 @@ extern "C" {
 #include "executor.h"
 #include "planner.h"
 #include "scalar.h"
+#include "streamVtableMerge.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tfill.h"
@@ -161,10 +162,13 @@ typedef struct SSortMergeJoinOperatorParam {
 } SSortMergeJoinOperatorParam;
 
 typedef struct SExchangeOperatorBasicParam {
-  int32_t vgId;
-  int32_t srcOpType;
-  bool    tableSeq;
-  SArray* uidList;
+  int32_t        vgId;
+  int32_t        srcOpType;
+  bool           tableSeq;
+  SArray*        uidList;
+  bool           isVtbRefScan;
+  SOrgTbInfo*    colMap;
+  STimeWindow    window;
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -253,6 +257,7 @@ typedef struct STableScanBase {
   STsdbReader*           dataReader;
   SFileBlockLoadRecorder readRecorder;
   SQueryTableDataCond    cond;
+  SQueryTableDataCond    orgCond; // use for virtual super table scan
   SAggOptrPushDownInfo   pdInfo;
   SColMatchInfo          matchInfo;
   SReadHandle            readHandle;
@@ -283,6 +288,9 @@ typedef struct STableScanInfo {
   bool            hasGroupByTag;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
+  SSDataBlock*    pOrgBlock;
+  bool            ignoreTag;
+  bool            virtualStableScan;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -537,6 +545,8 @@ typedef struct SStreamScanInfo {
   int32_t      validBlockIndex;  // Is current data has returned?
   uint64_t     numOfExec;        // execution times
   STqReader*   tqReader;
+
+  SHashObj* pVtableMergeHandles;  // key: vtable uid, value: SStreamVtableMergeHandle
 
   uint64_t            groupId;
   bool                igCheckGroupId;
@@ -1190,6 +1200,7 @@ void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
@@ -1215,6 +1226,21 @@ int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnIn
 bool    getIgoreNullRes(SExprSupp* pExprSup);
 bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
 int64_t getMinWindowSize(struct SOperatorInfo* pOperator);
+
+void    destroyStreamScanOperatorInfo(void* param);
+void    prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex, bool* pRes);
+int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
+bool    hasScanRange(SStreamScanInfo* pInfo);
+bool    isStreamWindow(SStreamScanInfo* pInfo);
+int32_t copyGetResultBlock(SSDataBlock* dest, TSKEY start, TSKEY end);
+int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock);
+int32_t doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBlock);
+int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);
+int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId);
+int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow, bool filter);
+int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType type);
+int32_t doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex,
+                    SSDataBlock** ppRes);
 
 #ifdef __cplusplus
 }

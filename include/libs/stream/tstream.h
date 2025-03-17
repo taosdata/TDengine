@@ -127,6 +127,7 @@ typedef enum {
   TASK_LEVEL__AGG,
   TASK_LEVEL__SINK,
   TASK_LEVEL_SMA,
+  TASK_LEVEL__MERGE,
 } ETASK_LEVEL;
 
 enum {
@@ -135,6 +136,7 @@ enum {
   TASK_OUTPUT__TABLE,
   TASK_OUTPUT__SMA,
   TASK_OUTPUT__FETCH,
+  TASK_OUTPUT__VTABLE_MAP,
 };
 
 enum {
@@ -210,6 +212,11 @@ typedef struct {
   char      stbFullName[TSDB_TABLE_FNAME_LEN];
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
+
+typedef struct {
+  SArray*    taskInfos;  // SArray<STaskDispatcherFixed>
+  SSHashObj* vtableMap;
+} STaskDispatcherVtableMap;
 
 typedef struct {
   int32_t nodeId;
@@ -396,8 +403,9 @@ typedef struct SHistoryTaskInfo {
 
 typedef struct STaskOutputInfo {
   union {
-    STaskDispatcherFixed   fixedDispatcher;
-    STaskDispatcherShuffle shuffleDispatcher;
+    STaskDispatcherFixed     fixedDispatcher;
+    STaskDispatcherShuffle   shuffleDispatcher;
+    STaskDispatcherVtableMap vtableMapDispatcher;
 
     STaskSinkTb    tbSink;
     STaskSinkSma   smaSink;
@@ -466,6 +474,7 @@ struct SStreamTask {
   STaskCheckInfo      taskCheckInfo;
   SNotifyInfo         notifyInfo;
   STaskNotifyEventStat notifyEventStat;
+  SArray*              pVTables;   // for merge task, SArray<SVCTableMergeInfo>
 
   // the followings attributes don't be serialized
   SScanhistorySchedInfo schedHistoryInfo;

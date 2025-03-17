@@ -2403,6 +2403,54 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
+                                           const SReadHandle* readHandle, SArray* colArray) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  pCond->order = TSDB_ORDER_ASC;
+  pCond->numOfCols = (int32_t)taosArrayGetSize(colArray);
+
+  pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
+  QUERY_CHECK_NULL(pCond->colList, code, lino, _return, terrno);
+
+  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
+  QUERY_CHECK_NULL(pCond->pSlotList, code, lino, _return, terrno);
+
+  pCond->twindows = pOrgCond->twindows;
+  pCond->type = pOrgCond->type;
+  pCond->startVersion = -1;
+  pCond->endVersion = -1;
+  pCond->skipRollup = true;
+  pCond->notLoadData = false;
+
+  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+    SColIdPair* pColPair = taosArrayGet(colArray, i);
+    QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);
+
+    bool find = false;
+    for (int32_t j = 0; j < pOrgCond->numOfCols; ++j) {
+      if (pOrgCond->colList[j].colId == pColPair->vtbColId) {
+        pCond->colList[i].type = pOrgCond->colList[j].type;
+        pCond->colList[i].bytes = pOrgCond->colList[j].bytes;
+        pCond->colList[i].colId = pColPair->orgColId;
+        pCond->colList[i].pk = pOrgCond->colList[j].pk;
+        pCond->pSlotList[i] = i;
+        find = true;
+        break;
+      }
+    }
+    QUERY_CHECK_CONDITION(find, code, lino, _return, TSDB_CODE_NOT_FOUND);
+  }
+
+  return code;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(terrno));
+  taosMemoryFreeClear(pCond->colList);
+  taosMemoryFreeClear(pCond->pSlotList);
+  return code;
+}
+
 void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) {
   taosMemoryFreeClear(pCond->colList);
   taosMemoryFreeClear(pCond->pSlotList);
@@ -2995,17 +3043,17 @@ char* getStreamOpName(uint16_t opType) {
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
   if (!pBlock) {
-    qDebug("%s===stream===%s: Block is Null", taskIdStr, flag);
+    qInfo("%s===stream===%s: Block is Null", taskIdStr, flag);
     return;
   } else if (pBlock->info.rows == 0) {
-    qDebug("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
+    qInfo("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
     return;
   }
   if (qDebugFlag & DEBUG_DEBUG) {
     char*   pBuf = NULL;
     int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
     if (code == 0) {
-      qDebug("%s", pBuf);
+      qInfo("%s", pBuf);
       taosMemoryFree(pBuf);
     }
   }
