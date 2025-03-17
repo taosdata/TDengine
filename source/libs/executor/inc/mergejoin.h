@@ -40,6 +40,11 @@ typedef enum EJoinTableType {
   E_JOIN_TB_PROBE
 } EJoinTableType;
 
+typedef enum EPrimExprType {
+  E_PRIM_TIMETRUNCATE = 1,
+  E_PRIM_VALUE
+} EPrimExprType;
+
 
 #define MJOIN_TBTYPE(_type) (E_JOIN_TB_BUILD == (_type) ? "BUILD" : "PROBE")
 #define IS_FULL_OUTER_JOIN(_jtype, _stype) ((_jtype) == JOIN_TYPE_FULL && (_stype) == JOIN_STYPE_OUTER)
@@ -87,9 +92,15 @@ typedef struct SMJoinNMatchCtx {
 
 // for now timetruncate only
 typedef struct SMJoinPrimExprCtx {
-  int64_t truncateUnit;
-  int64_t timezoneUnit;
-  int32_t targetSlotId;
+  EPrimExprType type;
+
+  // FOR TIMETRUNCATE
+  int64_t       truncateUnit;
+  int64_t       timezoneUnit;
+  int32_t       targetSlotId;
+
+  // FOR VALUE
+  int64_t       constTs;
 } SMJoinPrimExprCtx;
 
 typedef struct SMJoinTableCtx {
@@ -336,6 +347,8 @@ typedef struct SMJoinOperatorInfo {
 #define PROBE_TS_NMATCH(_asc, _pts, _bts) (((_asc) && (_pts) < (_bts)) || (!(_asc) && (_pts) > (_bts)))
 #define PROBE_TS_NREACH(_asc, _pts, _bts) (((_asc) && (_pts) > (_bts)) || (!(_asc) && (_pts) < (_bts)))
 #define MJOIN_BUILD_BLK_OOR(_asc, _pts, _pidx, _bts, _bnum) (((_asc) && (*((int64_t*)(_pts) + (_pidx)) > *((int64_t*)(_bts) + (_bnum) - 1))) || ((!(_asc)) && (*((int64_t*)(_pts) + (_pidx)) < *((int64_t*)(_bts) + (_bnum) - 1))))
+
+#define MJOIN_PRIM_EXPR_GOT(_pJoin) ((_pJoin)->probe->primCtx.type > 0 || (_pJoin)->build->primCtx.type > 0)
 
 #define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)

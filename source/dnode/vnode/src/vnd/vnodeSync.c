@@ -573,6 +573,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
+#ifdef USE_STREAM
   SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
   streamMetaWLock(pMeta);
 
@@ -597,7 +598,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
         streamMetaWUnLock(pMeta);
 
         tqInfo("vgId:%d stream task already loaded, start them", vgId);
-        int32_t code = streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+        int32_t code = streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS, false);
         if (code != 0) {
           tqError("vgId:%d failed to sched stream task, code:%s", vgId, tstrerror(code));
         }
@@ -609,6 +610,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   }
 
   streamMetaWUnLock(pMeta);
+#endif
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
@@ -625,12 +627,14 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 
+#ifdef USE_TQ
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, false);
     if (tqStopStreamAllTasksAsync(pVnode->pTq->pStreamMeta, &pVnode->msgCb) != 0) {
       vError("vgId:%d, failed to stop stream tasks", pVnode->config.vgId);
     }
   }
+#endif
 }
 
 static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
@@ -651,17 +655,21 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
+#ifdef USE_TQ
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, true);
   }
+#endif
 }
 
 static void vnodeBecomeAssignedLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become assigned leader", pVnode->config.vgId);
+#ifdef USE_TQ
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, true);
   }
+#endif
 }
 
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {

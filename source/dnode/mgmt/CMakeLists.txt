@@ -9,7 +9,11 @@ add_subdirectory(mgmt_dnode)
 add_subdirectory(test)
 
 aux_source_directory(exe EXEC_SRC)
-add_executable(taosd ${EXEC_SRC})
+if(${TAOSD_INTEGRATED})
+  add_library(taosd ${EXEC_SRC})
+else()
+  add_executable(taosd ${EXEC_SRC})
+endif()
 target_include_directories(
   taosd
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"

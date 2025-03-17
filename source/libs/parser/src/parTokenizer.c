@@ -89,6 +89,7 @@ static SKeyword keywordTable[] = {
     {"DATABASE",             TK_DATABASE},
     {"DATABASES",            TK_DATABASES},
     {"DBS",                  TK_DBS},
+    {"DECIMAL",              TK_DECIMAL},
     {"DELETE",               TK_DELETE},
     {"DELETE_MARK",          TK_DELETE_MARK},
     {"DESC",                 TK_DESC},
@@ -314,8 +315,10 @@ static SKeyword keywordTable[] = {
     {"VGROUPS",              TK_VGROUPS},
     {"VIEW",                 TK_VIEW},
     {"VIEWS",                TK_VIEWS},
+    {"VIRTUAL",              TK_VIRTUAL},
     {"VNODE",                TK_VNODE},
     {"VNODES",               TK_VNODES},
+    {"VTABLE",               TK_VTABLE},
     {"WAL_FSYNC_PERIOD",     TK_WAL_FSYNC_PERIOD},
     {"WAL_LEVEL",            TK_WAL_LEVEL},
     {"WAL_RETENTION_PERIOD", TK_WAL_RETENTION_PERIOD},
@@ -364,6 +367,10 @@ static SKeyword keywordTable[] = {
     {"REGEXP",               TK_REGEXP},
     {"ASSIGN",               TK_ASSIGN},
     {"TRUE_FOR",             TK_TRUE_FOR},
+    {"META_ONLY",            TK_META_ONLY},
+    {"CONTINUOUS_WINDOW_CLOSE", TK_CONTINUOUS_WINDOW_CLOSE},
+    {"RECALCULATE",          TK_RECALCULATE},
+    {"VTABLES",              TK_VTABLES},
     {"META_ONLY",            TK_META_ONLY}
 };
 // clang-format on

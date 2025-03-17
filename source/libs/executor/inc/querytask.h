@@ -71,6 +71,7 @@ typedef struct {
   SVersionRange         fillHistoryVer;
   STimeWindow           fillHistoryWindow;
   SStreamState*         pState;
+  SStreamState*         pOtherState;
   int32_t               eventTypes;          // event types to notify
   SSchemaWrapper*       notifyResultSchema;  // agg result to notify
   char*                 stbFullName;         // used to generate dest child table name

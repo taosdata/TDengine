@@ -25,6 +25,20 @@ extern "C" {
 
 #define TSDB__packed
 
+#if defined(TD_ASTRA_32)
+#define PACK_PUSH_MIN _Pragma("pack(push, 4)")
+#elif defined(WINDOWS)
+#define PACK_PUSH_MIN __pragma(pack(push, 1))
+#else
+#define PACK_PUSH_MIN _Pragma("pack(push, 1)")
+#endif
+
+#if defined(WINDOWS)
+#define PACK_POP __pragma(pack(pop))
+#else
+#define PACK_POP _Pragma("pack(pop)")
+#endif
+
 #define TSKEY             int64_t
 #define TSKEY_MIN         INT64_MIN
 #define TSKEY_MAX         INT64_MAX
@@ -33,7 +47,7 @@ extern "C" {
 #define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[21];
+extern const int32_t TYPE_BYTES[22];
 
 #define CHAR_BYTES      sizeof(char)
 #define SHORT_BYTES     sizeof(int16_t)
@@ -45,6 +59,9 @@ extern const int32_t TYPE_BYTES[21];
 #define M256_BYTES      32
 #define TSDB_KEYSIZE    sizeof(TSKEY)
 #define TSDB_NCHAR_SIZE sizeof(TdUcs4)
+
+#define DECIMAL64_BYTES 8
+#define DECIMAL128_BYTES 16
 
 // NULL definition
 #define TSDB_DATA_BOOL_NULL      0x02
@@ -268,6 +285,7 @@ typedef enum ELogicConditionType {
 #define TSDB_COL_NAME_LEN        65
 #define TSDB_COL_NAME_EXLEN      8
 #define TSDB_COL_FNAME_LEN       (TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_COL_FNAME_EX_LEN    (TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_NAME_LEN)
 #define TSDB_MAX_SAVED_SQL_LEN   TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN    1024
@@ -342,6 +360,8 @@ typedef enum ELogicConditionType {
 #define TSDB_ERROR_MSG_LEN    1024
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
+
+#define TSDB_RESERVE_VALUE_LEN  256
 
 #define TSDB_CLUSTER_VALUE_LEN 1000
 #define TSDB_GRANT_LOG_COL_LEN 15600
@@ -681,6 +701,24 @@ typedef enum {
 } EVersionType;
 
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
+
+// Decimal
+#define TSDB_DECIMAL64_MAX_PRECISION 18
+#define TSDB_DECIMAL64_MAX_SCALE TSDB_DECIMAL64_MAX_PRECISION
+
+#define TSDB_DECIMAL128_MAX_PRECISION 38
+#define TSDB_DECIMAL128_MAX_SCALE TSDB_DECIMAL128_MAX_PRECISION
+
+#define TSDB_DECIMAL_MIN_PRECISION 1
+#define TSDB_DECIMAL_MAX_PRECISION TSDB_DECIMAL128_MAX_PRECISION
+#define TSDB_DECIMAL_MIN_SCALE 0
+#define TSDB_DECIMAL_MAX_SCALE TSDB_DECIMAL_MAX_PRECISION
+#define GET_DEICMAL_MAX_PRECISION(type) (type) == TSDB_DATA_TYPE_DECIMAL64 ? TSDB_DECIMAL64_MAX_PRECISION : TSDB_DECIMAL_MAX_SCALE
+
+typedef uint64_t DecimalWord;
+#define DECIMAL_WORD_NUM(TYPE) (sizeof(TYPE) / sizeof(DecimalWord))
+
+#define COMPILE_TIME_ASSERT(pred) switch(0) {case 0: case pred:;}
 
 #ifdef __cplusplus
 }

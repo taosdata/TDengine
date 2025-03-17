@@ -54,9 +54,9 @@
 
 #define ENV_ERR_RET(c, info)          \
   do {                                \
-    int32_t _code = c;                \
+    int32_t _code = (c);              \
     if (_code != TSDB_CODE_SUCCESS) { \
-      errno = _code;                  \
+      terrno = _code;                 \
       tscInitRes = _code;             \
       tscError(info);                 \
       return;                         \
@@ -128,7 +128,7 @@ static void concatStrings(SArray *list, char *buf, int size) {
     }
   }
 }
-
+#ifdef USE_REPORT
 static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_t reqType, int64_t duration) {
   cJSON  *json = cJSON_CreateObject();
   int32_t code = TSDB_CODE_SUCCESS;
@@ -217,7 +217,7 @@ _end:
   cJSON_Delete(json);
   return code;
 }
-
+#endif
 static bool checkSlowLogExceptDb(SRequestObj *pRequest, char *exceptDb) {
   if (pRequest->pDb != NULL) {
     return strcmp(pRequest->pDb, exceptDb) != 0;
@@ -283,6 +283,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
+#ifdef USE_REPORT
   if (pTscObj->pAppInfo->serverCfg.monitorParas.tsEnableMonitor) {
     if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
       sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
@@ -308,6 +309,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       }
     }
   }
+#endif
 
   releaseTscObj(pTscObj->id);
 }
@@ -789,7 +791,7 @@ void stopAllQueries(SRequestObj *pRequest) {
     }
   }
 }
-
+#ifdef USE_REPORT
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
 
 static void *tscCrashReportThreadFp(void *param) {
@@ -888,15 +890,15 @@ int32_t tscCrashReportInit() {
   TSC_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
   TdThread crashReportThread;
   if (taosThreadCreate(&crashReportThread, &thAttr, tscCrashReportThreadFp, NULL) != 0) {
-    tscError("failed to create crashReport thread since %s", strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    TSC_ERR_RET(errno);
+    tscError("failed to create crashReport thread since %s", strerror(ERRNO));
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    TSC_ERR_RET(terrno);
   }
 
   (void)taosThreadAttrDestroy(&thAttr);
 _return:
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TSC_ERR_RET(terrno);
   }
 
@@ -921,6 +923,113 @@ void tscStopCrashReport() {
 void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT, lastClusterId, appInfo.startTime);
 }
+#endif
+
+#ifdef TAOSD_INTEGRATED
+typedef struct {
+  TdThread pid;
+  int32_t  stat;  // < 0: start failed, 0: init(not start), 1: start successfully
+} SDaemonObj;
+
+extern int  dmStartDaemon(int argc, char const *argv[]);
+extern void dmStopDaemon();
+
+SDaemonObj daemonObj = {0};
+
+typedef struct {
+  int32_t argc;
+  char  **argv;
+} SExecArgs;
+
+static void *dmStartDaemonFunc(void *param) {
+  int32_t    code = 0;
+  SExecArgs *pArgs = (SExecArgs *)param;
+  int32_t    argc = pArgs->argc;
+  char     **argv = pArgs->argv;
+
+  code = dmStartDaemon(argc, (const char **)argv);
+  if (code != 0) {
+    printf("failed to start taosd since %s\r\n", tstrerror(code));
+    goto _exit;
+  }
+
+_exit:
+  if (code != 0) {
+    atomic_store_32(&daemonObj.stat, code);
+  }
+  return NULL;
+}
+
+static int32_t shellStartDaemon(int argc, char *argv[]) {
+  int32_t    code = 0, lino = 0;
+  SExecArgs *pArgs = NULL;
+  int64_t    startMs = taosGetTimestampMs(), endMs = startMs;
+
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
+  pArgs = (SExecArgs *)taosMemoryCalloc(1, sizeof(SExecArgs));
+  if (pArgs == NULL) {
+    code = terrno;
+    TAOS_CHECK_EXIT(code);
+  }
+  pArgs->argc = argc;
+  pArgs->argv = argv;
+
+#ifndef TD_AS_LIB
+  tsLogEmbedded = 1;
+#endif
+
+  TAOS_CHECK_EXIT(taosThreadCreate(&daemonObj.pid, &thAttr, dmStartDaemonFunc, pArgs));
+
+  while (true) {
+    if (atomic_load_64(&tsDndStart)) {
+      atomic_store_32(&daemonObj.stat, 1);
+      break;
+    }
+    int32_t daemonstat = atomic_load_32(&daemonObj.stat);
+    if (daemonstat < 0) {
+      code = daemonstat;
+      TAOS_CHECK_EXIT(code);
+    }
+
+    if (daemonstat > 1) {
+      code = TSDB_CODE_APP_ERROR;
+      TAOS_CHECK_EXIT(code);
+    }
+    taosMsleep(1000);
+  }
+
+_exit:
+  endMs = taosGetTimestampMs();
+  (void)taosThreadAttrDestroy(&thAttr);
+  taosMemoryFreeClear(pArgs);
+  if (code) {
+    printf("\r\n The daemon start failed at line %d since %s, cost %" PRIi64 " ms\r\n", lino, tstrerror(code),
+           endMs - startMs);
+  } else {
+    printf("\r\n The daemon started successfully, cost %" PRIi64 " ms\r\n", endMs - startMs);
+  }
+#ifndef TD_AS_LIB
+  tsLogEmbedded = 0;
+#endif
+  return code;
+}
+
+void shellStopDaemon() {
+#ifndef TD_AS_LIB
+  tsLogEmbedded = 1;
+#endif
+  dmStopDaemon();
+  if (taosCheckPthreadValid(daemonObj.pid)) {
+    (void)taosThreadJoin(daemonObj.pid, NULL);
+    taosThreadClear(&daemonObj.pid);
+  }
+}
+#endif
 
 void taos_init_imp(void) {
 #if defined(LINUX)
@@ -938,7 +1047,8 @@ void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   (void)atexit(taos_cleanup);
-  errno = TSDB_CODE_SUCCESS;
+  SET_ERRNO(TSDB_CODE_SUCCESS);
+  terrno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
 
   appInfo.pid = taosGetPId();
@@ -956,20 +1066,26 @@ void taos_init_imp(void) {
   const char *logName = CUS_PROMPT "log";
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
   if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
+    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
     tscInitRes = terrno;
     return;
   }
 
+#ifdef TAOSD_INTEGRATED
+  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0), "failed to init cfg");
+#else
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
+#endif
 
   initQueryModuleMsgHandle();
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     tscInitRes = terrno;
     tscError("failed to init conv");
     return;
   }
-#ifndef WINDOWS
+#endif
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   ENV_ERR_RET(tzInit(), "failed to init timezone");
 #endif
   ENV_ERR_RET(monitorInit(), "failed to init monitor");
@@ -997,9 +1113,13 @@ void taos_init_imp(void) {
 
   ENV_ERR_RET(taosGetAppName(appInfo.appName, NULL), "failed to get app name");
   ENV_ERR_RET(taosThreadMutexInit(&appInfo.mutex, NULL), "failed to init thread mutex");
+#ifdef USE_REPORT  
   ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
+#endif
   ENV_ERR_RET(qInitKeywordsTable(), "failed to init parser keywords table");
-
+#ifdef TAOSD_INTEGRATED
+  ENV_ERR_RET(shellStartDaemon(0, NULL), "failed to start taosd daemon");
+#endif
   tscInfo("TAOS driver is initialized successfully");
 }
 

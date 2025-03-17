@@ -160,7 +160,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   TAOS_CHECK_EXIT(taosCloseFile(&pFile));
@@ -175,7 +175,8 @@ _exit:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    sError("vgId:%d, failed to write sync cfg file:%s since %s", pNode->vgId, realfile, tstrerror(code));
+    sError("vgId:%d, failed at line %d to write sync cfg file:%s since %s", pNode->vgId, lino, realfile,
+           tstrerror(code));
   }
 
   TAOS_RETURN(code);

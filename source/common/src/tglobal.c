@@ -61,8 +61,12 @@ int32_t tsMaxShellConns = 50000;
 int32_t tsShellActivityTimer = 3;  // second
 
 // memory pool
-int8_t  tsMemPoolFullFunc = 0;
-int8_t  tsQueryUseMemoryPool = 1;
+int8_t tsMemPoolFullFunc = 0;
+#ifndef TD_ASTRA
+int8_t tsQueryUseMemoryPool = 1;
+#else
+int8_t tsQueryUseMemoryPool = 0;
+#endif
 int32_t tsQueryBufferPoolSize = 0;       // MB
 int32_t tsSingleQueryMaxMemorySize = 0;  // MB
 int32_t tsMinReservedMemorySize = 0;     // MB
@@ -116,9 +120,9 @@ bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 
 // arbitrator
-int32_t tsArbHeartBeatIntervalSec = 5;
-int32_t tsArbCheckSyncIntervalSec = 10;
-int32_t tsArbSetAssignedTimeoutSec = 30;
+int32_t tsArbHeartBeatIntervalSec = 2;
+int32_t tsArbCheckSyncIntervalSec = 3;
+int32_t tsArbSetAssignedTimeoutSec = 6;
 
 // dnode
 int64_t tsDndStart = 0;
@@ -130,24 +134,41 @@ uint32_t tsEncryptionKeyChksum = 0;
 int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
 int8_t   tsGrant = 1;
 
+bool tsCompareAsStrInGreatest = true;
+
 // monitor
-bool     tsEnableMonitor = true;
+#ifdef USE_MONITOR
+bool tsEnableMonitor = true;
+#else
+bool tsEnableMonitor = false;
+#endif
 int32_t  tsMonitorInterval = 30;
 char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 bool     tsMonitorLogProtocol = false;
-bool     tsMonitorForceV2 = true;
+#ifdef USE_MONITOR
+bool tsMonitorForceV2 = true;
+#else
+bool tsMonitorForceV2 = false;
+#endif
 
 // audit
+#ifdef USE_AUDIT
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
 bool    tsEnableAuditDelete = true;
 int32_t tsAuditInterval = 5000;
+#else
+bool    tsEnableAudit = false;
+bool    tsEnableAuditCreateTable = false;
+bool    tsEnableAuditDelete = false;
+int32_t tsAuditInterval = 200000;
+#endif
 
 // telem
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || !defined(USE_REPORT)
 bool tsEnableTelem = false;
 #else
 bool    tsEnableTelem = true;
@@ -157,7 +178,7 @@ char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || !defined(USE_REPORT)
 bool tsEnableCrashReport = false;
 #else
 bool    tsEnableCrashReport = true;
@@ -286,7 +307,7 @@ bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or origina
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
-#ifdef WINDOWS
+#if defined(WINDOWS) || !defined(USE_UDF)
 bool tsStartUdfd = false;
 #else
 bool    tsStartUdfd = true;
@@ -320,11 +341,21 @@ int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // taosudf resident funcs that teardown when taosudf exits
 char    tsUdfdLdLibPath[512] = "";
-bool    tsDisableStream = false;
+#ifdef USE_STREAM
+bool tsDisableStream = false;
+#else
+bool tsDisableStream = true;
+#endif
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
+int64_t tsStreamFailedTimeout = 30 * 60 * 1000;
 bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
+bool    tsStreamRunHistoryAsync = false;
+
+char     tsAdapterFqdn[TSDB_FQDN_LEN] = "localhost";
+uint16_t tsAdapterPort = 6041;
+char     tsAdapterToken[512] = "cm9vdDp0YW9zZGF0YQ==";
 
 bool tsUpdateCacheBatch = true;
 
@@ -359,6 +390,10 @@ void   *pTimezoneNameMap = NULL;
 int32_t tsStreamNotifyMessageSize = 8 * 1024;  // KB, default 8MB
 int32_t tsStreamNotifyFrameSize = 256;         // KB, default 256KB
 
+int32_t tsStreamVirtualMergeMaxDelayMs = 10 * 1000;  // 10s
+int32_t tsStreamVirtualMergeMaxMemKb = 16 * 1024;    // 16MB
+int32_t tsStreamVirtualMergeWaitMode = 0;            // 0 wait forever, 1 wait for max delay, 2 wait for max mem
+
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
@@ -380,7 +415,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
   tsDiskCfg[0].disable = 0;
   tstrncpy(tsDataDir, pItem->str, PATH_MAX);
   if (taosMulMkDir(tsDataDir) != 0) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);
+    int32_t code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to create dataDir:%s, since:%s", tsDataDir, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -748,6 +783,11 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "streamCoverage", tsStreamCoverage, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "streamRunHistoryAsync", tsStreamRunHistoryAsync, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -939,6 +979,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamFailedTimeout", tsStreamFailedTimeout, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamAggCnt", tsStreamAggCnt, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1800, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
@@ -971,6 +1012,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyMessageSize", tsStreamNotifyMessageSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyFrameSize", tsStreamNotifyFrameSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "adapterFqdn", tsAdapterFqdn, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "adapterPort", tsAdapterPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "adapterToken", tsAdapterToken, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeMaxDelay", tsStreamVirtualMergeMaxDelayMs, 500, 10 * 60 * 1000, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeMaxMem", tsStreamVirtualMergeMaxMemKb, 8 * 1024, 1 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeWaitMode", tsStreamVirtualMergeWaitMode, 0, 2, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
   // clang-format on
 
@@ -1359,7 +1408,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalTmpDirGB");
   tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
   if (taosMulMkDir(tsTempDir) != 0) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);
+    int32_t code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to create tempDir:%s since %s", tsTempDir, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -1484,6 +1533,12 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamCoverage");
   tsStreamCoverage = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamRunHistoryAsync");
+  tsStreamRunHistoryAsync = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
+  tsCompareAsStrInGreatest = pItem->bval;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -1613,6 +1668,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosSetSlowLogScope(pItem->str, &scope));
   tsSlowLogScope = scope;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryRspPolicy");
+  tsQueryRspPolicy = pItem->i32;
+#ifdef USE_MONITOR
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitor");
   tsEnableMonitor = pItem->bval;
 
@@ -1632,15 +1690,13 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorComp");
   tsMonitorComp = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryRspPolicy");
-  tsQueryRspPolicy = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorLogProtocol");
   tsMonitorLogProtocol = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorForceV2");
   tsMonitorForceV2 = pItem->i32;
-
+#endif
+#ifdef USE_AUDIT
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "audit");
   tsEnableAudit = pItem->bval;
 
@@ -1652,12 +1708,21 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
-
+#endif
+#ifdef USE_REPORT
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryReporting");
   tsEnableTelem = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "crashReporting");
   tsEnableCrashReport = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryInterval");
+  tsTelemInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryServer");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+  tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
+#endif
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ttlChangeOnWrite");
   tsTtlChangeOnWrite = pItem->bval;
@@ -1665,15 +1730,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ttlFlushThreshold");
   tsTtlFlushThreshold = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryInterval");
-  tsTelemInterval = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rsyncPort");
   tsRsyncPort = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryServer");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
-  tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snodeAddress");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
@@ -1766,7 +1824,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableWhiteList");
   tsEnableWhiteList = pItem->bval;
-
+#ifdef USE_UDF
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "udf");
   tsStartUdfd = pItem->bval;
 
@@ -1780,7 +1838,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
-
+#endif
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "cacheLazyLoadThreshold");
   tsCacheLazyLoadThreshold = pItem->i32;
 
@@ -1809,6 +1867,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamBufferSize");
   tsStreamBufferSize = pItem->i64;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamFailedTimeout");
+  tsStreamFailedTimeout = pItem->i64;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamAggCnt");
   tsStreamAggCnt = pItem->i32;
 
@@ -1832,7 +1893,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minDiskFreeSize");
   tsMinDiskFreeSize = pItem->i64;
-
+#ifdef USE_S3
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateIntervalSec");
   tsS3MigrateIntervalSec = pItem->i32;
 
@@ -1844,7 +1905,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3UploadDelaySec");
   tsS3UploadDelaySec = pItem->i32;
-
+#endif
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "experimental");
   tsExperimental = pItem->bval;
 
@@ -1869,6 +1930,26 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyFrameSize");
   tsStreamNotifyFrameSize = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "adapterFqdn");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+  tstrncpy(tsAdapterFqdn, pItem->str, TSDB_FQDN_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "adapterPort");
+  tsAdapterPort = (uint16_t)pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "adapterToken");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, tListLen(tsAdapterToken)));
+  tstrncpy(tsAdapterToken, pItem->str, tListLen(tsAdapterToken));
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVirtualMergeMaxDelay");
+  tsStreamVirtualMergeMaxDelayMs = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVirtualMergeMaxMem");
+  tsStreamVirtualMergeMaxMemKb = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVirtualMergeWaitMode");
+  tsStreamVirtualMergeWaitMode = pItem->i32;
+
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -1881,11 +1962,16 @@ int32_t taosSetReleaseCfg(SConfig *pCfg);
 
 static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag);
 
+static int8_t tsLogCreated = 0;
+
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
+  int32_t  mode = tsc ? LOG_MODE_TAOSC : LOG_MODE_TAOSD;
   SConfig *pCfg = NULL;
+
+  if (atomic_val_compare_exchange_8(&tsLogCreated, 0, 1) != 0) return 0;
 
   if (tsCfg == NULL) {
     TAOS_CHECK_GOTO(osDefaultInit(), &lino, _exit);
@@ -1893,12 +1979,14 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   TAOS_CHECK_GOTO(cfgInit(&pCfg), &lino, _exit);
 
-  if (tsc) {
-    tsLogEmbedded = 0;
-    TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
-  } else {
-    tsLogEmbedded = 1;
-    TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
+#ifdef TAOSD_INTEGRATED
+  mode |= LOG_MODE_TAOSD;
+  tsLogEmbedded = 1;
+#else
+  tsLogEmbedded = (mode & LOG_MODE_TAOSC) ? 0 : 1;
+#endif
+  TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
+  if (mode & LOG_MODE_TAOSD) {
     TAOS_CHECK_GOTO(taosAddServerLogCfg(pCfg), &lino, _exit);
   }
 
@@ -1912,10 +2000,8 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     goto _exit;
   }
 
-  if (tsc) {
-    TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
-  } else {
-    TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
+  if (mode & LOG_MODE_TAOSD) {
     TAOS_CHECK_GOTO(taosSetServerLogCfg(pCfg), &lino, _exit);
   }
 
@@ -1928,7 +2014,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     goto _exit;
   }
 
-  if ((code = taosInitLog(logname, logFileNum, tsc)) != 0) {
+  if ((code = taosInitLog(logname, logFileNum, mode)) != 0) {
     (void)printf("failed to init log file since %s\n", tstrerror(code));
     goto _exit;
   }
@@ -2161,6 +2247,10 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
     uError("failed to stat file:%s , since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
   }
+  if (fileSize == 0) {
+    uInfo("config file:%s is empty", filename);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
   TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
   if (pFile == NULL) {
     code = terrno;
@@ -2307,7 +2397,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
   char   *name = pItem->name;
   for (int32_t d = 0; d < optionSize; ++d) {
     const char *optName = pOptions[d].optionName;
-    if (strcasecmp(name, optName) != 0) continue;
+    if (taosStrcasecmp(name, optName) != 0) continue;
     code = TSDB_CODE_SUCCESS;
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
@@ -2741,7 +2831,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         tstrncpy(tsTempDir, pItem->str, PATH_MAX);
         TAOS_CHECK_GOTO(taosExpandDir(tsTempDir, tsTempDir, PATH_MAX), &lino, _out);
         if (taosMulMkDir(tsTempDir) != 0) {
-          code = TAOS_SYSTEM_ERROR(errno);
+          code = TAOS_SYSTEM_ERROR(ERRNO);
           uError("failed to create tempDir:%s since %s", tsTempDir, tstrerror(code));
           goto _out;
         }
@@ -2789,7 +2879,9 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"numOfRpcSessions", &tsNumOfRpcSessions},
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
-                                         {"streamCoverage", &tsStreamCoverage}};
+                                         {"streamRunHistoryAsync", &tsStreamRunHistoryAsync},
+                                         {"streamCoverage", &tsStreamCoverage},
+                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2826,7 +2918,7 @@ int32_t taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVa
 static int taosLogVarComp(void const *lp, void const *rp) {
   SLogVar *lpVar = (SLogVar *)lp;
   SLogVar *rpVar = (SLogVar *)rp;
-  return strcasecmp(lpVar->name, rpVar->name);
+  return taosStrcasecmp(lpVar->name, rpVar->name);
 }
 
 static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {
@@ -3062,7 +3154,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
       taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
 
   if (pConfigFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to open file:%s since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -3071,7 +3163,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
 
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to write file:%s since %s", filename, tstrerror(code));
     goto _exit;
   }

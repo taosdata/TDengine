@@ -185,7 +185,7 @@ void initLogFile() {
   char filename[256];
   char tmpString[128];
 
-  pid_t process_id = getpid();
+  pid_t process_id = taosGetPId();
 
   if (0 != strlen(g_stConfInfo.topic)) {
     sprintf(filename, "/tmp/tmqlog-%d-%s.txt", process_id, getCurrentTimeString(tmpString));
