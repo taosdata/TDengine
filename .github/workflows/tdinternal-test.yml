@@ -1,4 +1,4 @@
-name: TDinternal CI Pipelines
+name: TDinternal Test
 
 on:
   pull_request:
