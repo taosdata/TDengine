@@ -735,6 +735,7 @@ _exit:
   }
   return code;
 }
+#endif
 
 int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   int32_t code = 0;
