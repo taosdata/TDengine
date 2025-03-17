@@ -749,7 +749,7 @@ void taosStopQueryImpl(SRequestObj *pRequest) {
   }
 
   schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
-  tscTrace("QID:0x%" PRIx64 ", killed", pRequest->requestId);
+  tscDebug("QID:0x%" PRIx64 ", killed", pRequest->requestId);
 }
 
 void stopAllQueries(SRequestObj *pRequest) {
