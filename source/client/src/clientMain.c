@@ -2242,7 +2242,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     if (bindv->tags && bindv->tags[i]) {
       code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
     } else if (pStmt->sql.autoCreateTbl || pStmt->bInfo.needParse) {
-      tscDebug("stmt2 autoCreateTbl:%d or sql needParse:%d, but tags is NULL", pStmt->sql.autoCreateTbl,
+      STMT_DLOG("stmt2 autoCreateTbl:%d or sql needParse:%d, but tags is NULL", pStmt->sql.autoCreateTbl,
                pStmt->bInfo.needParse);
       code = stmtCheckTags2(stmt, &pCreateTbReq);
     } else {
