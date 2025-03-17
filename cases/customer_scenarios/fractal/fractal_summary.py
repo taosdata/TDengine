@@ -2,15 +2,17 @@ import json
 import os
 from taostest import TDCase, T
 from taostest.util.remote import Remote
+from taostest.util.common import TDCom
 import re
 import requests
 from taostest.util.rest import TDRest
 
-
 class FractalQuery(TDCase):
     def init(self):
         self._remote: Remote = Remote(self.logger)
+        self.tdRest = TDRest(env_setting=self.env_setting)
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
+        self.tdCom = TDCom(self.tdSql, self.env_setting)
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
@@ -20,51 +22,21 @@ class FractalQuery(TDCase):
         self.summary_log_path = f'{self.log_path}/summary'
         self._remote.cmd("localhost", [f'mkdir -p {self.detail_log_path}', f'mkdir -p {self.summary_log_path}'])
         self.report_file = f'{self.log_path}/perf_report_{self.case_config["test_start_time"]}.txt'
-        self.tdRest = TDRest(env_setting=self.env_setting)
         self.test_robot_url = (
     "https://open.feishu.cn/open-apis/bot/v2/hook/11e9e452-34a0-4c88-b014-10e21cb521dd"
 )
 
-#     def get_query_result(self):
-#         query_log = f'{self.log_path}/details/query_result.txt'
-#         with open(query_log, 'r') as file:
-#             log_content = file.read()
-
-#         qps_pattern = r"the QPS of all threads:\s*(\d+\.\d+)"
-#         qps_match = re.search(qps_pattern, log_content)
-#         qps = qps_match.group(1) if qps_match else "N/A"
-
-#         total_queries_pattern = r"Total specified queries:\s*(\d+)"
-#         total_queries_match = re.search(total_queries_pattern, log_content)
-#         total_queries = total_queries_match.group(1) if total_queries_match else "N/A"
-
-#         time_spend_pattern = r"Spend\s*(\d+\.\d+)\s*second"
-#         time_spend_match = re.search(time_spend_pattern, log_content)
-#         time_spend = time_spend_match.group(1) if time_spend_match else "N/A"
-#         query_res = {
-#     "QPS": qps,
-#     "Total Queries": total_queries,
-#     "Time Spend": time_spend
-# }
-#         with open(self.report_file, 'a') as output_file:
-#             output_file.write(f"Query Performance Summary:")
-#             output_file.write("\n")
-#             json.dump(query_res, output_file, indent=4)
-#             output_file.write("\n\n")
 
     def get_query_detail_result(self):
         query_log = f'{self.log_path}/details/query_result.txt'
         with open(query_log, 'r') as file:
             log_content = file.read()
-        # 正则表达式匹配查询性能
         query_pattern = r"complete query with (\d+) threads and (\d+) query delay avg:\s+([\d.]+)s min:\s+([\d.]+)s max:\s+([\d.]+)s p90:\s+([\d.]+)s p95:\s+([\d.]+)s p99:\s+([\d.]+)s SQL command: (.+);"
         total_pattern = r"Spend ([\d.]+) second completed total queries: (\d+), the QPS of all threads:\s+([\d.]+)"
 
-        # 提取查询性能
         query_matches = re.findall(query_pattern, log_content)
         total_match = re.search(total_pattern, log_content)
 
-        # 将结果转换为 JSON 格式
         results = []
         for match in query_matches:
             threads, query_times, avg, min_, max_, p90, p95, p99, sql = match
@@ -80,7 +52,6 @@ class FractalQuery(TDCase):
                 "p99": float(p99)
             })
 
-        # 提取汇总结果
         if total_match:
             spent, total_query, qps = total_match.groups()
             summary = {
@@ -95,16 +66,11 @@ class FractalQuery(TDCase):
                 "total_query": None
             }
 
-        # 合并结果
         final_result = {
             "summary": summary,
             "queries": results
         }
         return final_result
-        print(final_result)
-        # 保存为 JSON 文件
-        with open(self.report_file, "a") as f:
-            json.dump(final_result, f, indent=4)
 
     def get_insert_result(self):
         insert_res_list = list()
@@ -117,16 +83,15 @@ class FractalQuery(TDCase):
         return insert_res_list
 
     def get_compression_ratio(self):
-        taosd_url = f'http://{self.fqdn}:6041/rest/sql'
-        self.tdRest.request(data="flush database center_db;",method="POST",url=taosd_url)
-        cluster_resp = self.tdRest.request(data="show table distributed center_db.site_topic6_u2_193\G;",method="POST",url=taosd_url)
-        resp = cluster_resp.json()
-        query_res = resp["data"][0][0]
-        pattern = r"Compression_Ratio=$$([\d.]+) %$$"
-        match = re.search(pattern, query_res)
+        self.tdRest.request(f'flush database center_db;')
+        self.tdRest.request(data=f"show table distributed center_db.site_topic6_u2_193;")
+        query_res = self.tdRest.resp['data'][0][0]
+
+        pattern = r"Compression_Ratio=.*"
+        match = re.search(pattern, str(query_res))
         if match:
-            compression_ratio = match.group(1) + "%"
-            return {"Compression_Ratio": compression_ratio}
+            compression_ratio = match.group(0).split("=")[1].replace("[", "").replace("]", "")
+            return compression_ratio
         else:
             return {"Compression_Ratio": "N/A"}
 
@@ -136,10 +101,10 @@ class FractalQuery(TDCase):
     def get_test_specs(self):
         return {
             "td_version": self.case_config["td_version"],
-            "edge_dnode_count": self.case_config["edge_dnode_count"],
-            "center_dnode_count": self.case_config["center_dnode_count"],
-            "exec_time": self.case_config["exec_time"],
-            "source_interval": self.case_config["source_interval"],
+            "edge_dnode_count": int(self.case_config["edge_dnode_count"]),
+            "center_dnode_count": int(self.case_config["center_dnode_count"]),
+            "exec_time": f'{self.case_config["exec_time"]}s',
+            "source_interval": f'{self.case_config["source_interval"]}ms',
             "enable_compression": self.case_config["enable_compression"],
             "test_start_time": self.case_config["test_start_time"],
         }
@@ -191,8 +156,6 @@ class FractalQuery(TDCase):
             "Grafana URL": grafana_url
         }
 
-        # self.get_query_result()
-        # self.get_grafana_url()
         with open(self.report_file, 'w') as file:
             json.dump(final_res_dict, file, indent=4)
         self.send_msg(self.test_robot_url, self.get_msg(final_res_dict))
