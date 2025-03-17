@@ -27,7 +27,7 @@ class Start(TDCase):
         print(self.workflow_config)
         end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
         url = (
-            f"http://grafana.tdengine.net:3000/d/dedq3n2zhlypsd/named-processes"
+            f"http://grafana.tdengine.net:3000/d/deg3yoj2k1ybkb/named-processes"
             f"?var-interval=10m&orgId=1&from={start_time.isoformat(timespec='milliseconds')}Z&to={end_time.isoformat(timespec='milliseconds')}Z"
             f"&timezone=browser&var-processes=$__all&refresh=5s"
         )
