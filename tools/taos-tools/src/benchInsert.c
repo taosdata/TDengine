@@ -285,6 +285,11 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
                            colIndex);
                 return -1;
             }
+        } else if (col->type == TSDB_DATA_TYPE_DECIMAL
+                || col->type == TSDB_DATA_TYPE_DECIMAL64) {
+            n = snprintf(colsBuf + len, col_buffer_len - len,
+                    ",%s %s(%d,%d)", col->name,
+                    convertDatatypeToString(col->type), col->precision, col->scale);
         } else {
             n = snprintf(colsBuf + len, col_buffer_len - len,
                     ",%s %s", col->name,
@@ -368,6 +373,11 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
                 len += n;
             }
             goto skip;
+        } else if (tag->type == TSDB_DATA_TYPE_DECIMAL
+                || tag->type == TSDB_DATA_TYPE_DECIMAL64) {
+            n = snprintf(tagsBuf + len, tag_buffer_len - len,
+                    ",%s %s(%d,%d)", tag->name,
+                    convertDatatypeToString(tag->type), tag->precision, tag->scale);
         } else {
             n = snprintf(tagsBuf + len, tag_buffer_len - len,
                     "%s %s,", tag->name,

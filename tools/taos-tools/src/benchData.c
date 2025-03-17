@@ -12,14 +12,17 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+
 
 #include <bench.h>
 #include "benchLog.h"
 #include <math.h>
 #include <benchData.h>
 #include "decimal.h"
+
 
 const char charset[] =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
@@ -761,7 +764,7 @@ float tmpFloatImpl(Field *field, int i, int32_t angle, int32_t k) {
     return floatTmp;
 }
 
-double tmpDoubleScalingImpl(Field *field, int32_t angle, int32_t k,) {
+double tmpDoubleScalingImpl(Field *field, int32_t angle, int32_t k) {
     double doubleTmp = field->minInDbl;
     if (field->funType != FUNTYPE_NONE) {
         doubleTmp = funValueDouble(field, angle, k);
@@ -838,136 +841,177 @@ static int tmpJson(char *sampleDataBuf,
     return n;
 }
 
-Decimal64 tmpDecimal64Impl(Field *field, int32_t angle, int32_t k) {
-    double doubleTmp = tmpDoubleImpl(field, angle, k);
-    int64_t scaledInt = (int64_t)(doubleTmp * field->scalingFactor);
 
-    DECIMAL64_SET_VALUE(&result, scaledInt);
+static uint64_t generateRandomUint64(uint64_t range) {
+    uint64_t randomValue;
 
-    // const bool exceedMax = (scaledInt > DECIMAL64_GET_VALUE(&DECIMAL64_MAX));
-    // const bool belowMin = (scaledInt < DECIMAL64_GET_VALUE(&DECIMAL64_MIN));
-
-    // Decimal64 result;
-    // if (exceedMax) {
-    //     DECIMAL64_CLONE(&result, &DECIMAL64_MAX);
-    // } else if (belowMin) {
-    //     DECIMAL64_CLONE(&result, &DECIMAL64_MIN);
-    // } else {
-    //     DECIMAL64_SET_VALUE(&result, scaledInt);
-    // }
-
-    return result;
-}
-
-Decimal128 tmpDecimal128Impl(Field *field, int32_t angle, int32_t k) {
-    double doubleTmp = tmpDoubleImpl(field, angle, k);
-    int64_t scaledInt = (int64_t)(doubleTmp * field->scalingFactor);
-
-    uint64_t low = (uint64_t)(scaledInt & UINT64_MAX);
-    int64_t high = (scaledInt >= 0) ? 0 : -1;
-
-    Decimal128 result;
-    DECIMAL128_SET_LOW_WORD(&result, low);
-    DECIMAL128_SET_HIGH_WORD(&result, high);
-
-    // const bool exceedMax = (scaledInt > (int64_t)DECIMAL128_LOW_WORD(&DECIMAL128_MAX));
-    // const bool belowMin = (scaledInt < (int64_t)DECIMAL128_LOW_WORD(&DECIMAL128_MIN));
-    
-    // Decimal128 result;
-    // if (exceedMax) {
-    //     DECIMAL128_CLONE(&result, &DECIMAL128_MAX);
-    // } else if (belowMin) {
-    //     DECIMAL128_CLONE(&result, &DECIMAL128_MIN);
-    // } else {
-    //     DECIMAL128_SET_LOW_WORD(&result, low);
-    //     DECIMAL128_SET_HIGH_WORD(&result, high);
-    // }
-
-    return result;
-}
-
-int decimalToString(char* buf, size_t size, const void* dec, uint32_t scale, bool is128) {
-    bool negative = false;
-    char numStr[DECIMAL_BUFF_LEN] = {0};
-    char* p = numStr;
-
-
-    if (is128) {
-        int64_t high = DECIMAL128_HIGH_WORD((const Decimal128*)dec);
-        uint64_t low = DECIMAL128_LOW_WORD((const Decimal128*)dec);
-
-        negative = (high < 0);
-        if (negative) {
-            high = ~high;
-            low = ~low;
-            if (++low == 0) ++high;
+    if (range <= (uint64_t)RAND_MAX) {
+        randomValue = (uint64_t)rand() % range;
+    } else {
+        int bitsPerRand = 0;
+        for (uint64_t r = RAND_MAX; r > 0; r >>= 1) {
+            bitsPerRand++;
         }
 
-        uint64_t val = low;
+        uint64_t result;
+        uint64_t threshold;
+
         do {
-            *p++ = '0' + (val % 10);
-            val /= 10;
-        } while (val > 0);
-        
-    } else {
-        int64_t value = DECIMAL64_GET_VALUE((const Decimal64*)dec);
-        negative = (value < 0);
-        uint64_t absValue = negative ? (uint64_t)(-value) : (uint64_t)value;
-        
-        do {
-            *p++ = '0' + (absValue % 10);
-            absValue /= 10;
-        } while (absValue > 0);
+            result = 0;
+            int bitsAccumulated = 0;
+
+            while (bitsAccumulated < 64) {
+                uint64_t part = (uint64_t)rand();
+                int bits = (64 - bitsAccumulated) < bitsPerRand ? (64 - bitsAccumulated) : bitsPerRand;
+                part &= (1ULL << bits) - 1;
+                result |= part << bitsAccumulated;
+                bitsAccumulated += bits;
+            }
+
+            // rejecting sample
+            threshold = (UINT64_MAX / range) * range;
+            threshold = (threshold == 0) ? 0 : threshold - 1;
+
+        } while (result > threshold);
+
+        randomValue = result % range;
     }
 
-    const size_t len = p - numStr;
-    for (size_t i = 0; i < len/2; ++i) {
-        char tmp = numStr[i];
-        numStr[i] = numStr[len-1-i];
-        numStr[len-1-i] = tmp;
+    return randomValue;
+}
+
+
+static uint64_t randUint64(uint64_t min, uint64_t max) {
+    if (min >= max || (max - min) == UINT64_MAX) {
+        return min;
     }
 
-    const size_t totalLen   = len;
-    const size_t intLen     = (scale >= totalLen) ? 1 : (totalLen - scale);
-    const size_t fracLen    = scale;
-    const size_t reqLen     = negative + intLen + (fracLen ? 1 : 0) + fracLen + 1;
+    uint64_t range = max - min + 1;
+    return min + generateRandomUint64(range);
+}
 
-    if (size < reqLen) return -1;
 
-    char* out = buf;
-    if (negative) *out++ = '-';
+static int64_t randInt64(int64_t min, int64_t max) {
+    if (min >= max || (uint64_t)(max - min) == UINT64_MAX) {
+        return min;
+    }
+
+    uint64_t range = max - min + 1;
+    return (int64_t)(min + generateRandomUint64(range));
+}
+
+
+static void decimal64Rand(Decimal64* result, const Decimal64* min, const Decimal64* max) {
+    int64_t temp = 0;
     
-    if (totalLen <= scale) {
-        *out++ = '0';
-    } else {
-        memcpy(out, numStr, intLen);
-        out += intLen;
-    }
+    do {
+        temp = randInt64(DECIMAL64_GET_VALUE(min), DECIMAL64_GET_VALUE(max));
+    } while (temp < DECIMAL64_GET_VALUE(min) || temp > DECIMAL64_GET_VALUE(max));
 
-    if (scale > 0) {
-        *out++ = '.';
-        if (totalLen < scale) {
-            memset(out, '0', scale - totalLen);
-            out += scale - totalLen;
-            memcpy(out, numStr, totalLen);
-            out += totalLen;
+    DECIMAL64_SET_VALUE(result, temp);
+}
+
+
+static int decimal128Compare(const Decimal128* a, const Decimal128* b) {
+    if (DECIMAL128_HIGH_WORD(a) != DECIMAL128_HIGH_WORD(b)) {
+        return DECIMAL128_HIGH_WORD(a) < DECIMAL128_HIGH_WORD(b) ? -1 : 1;
+    } else {
+        return DECIMAL128_LOW_WORD(a) < DECIMAL128_LOW_WORD(b) ? -1 : (DECIMAL128_LOW_WORD(a) > DECIMAL128_LOW_WORD(b));
+    }
+}
+
+
+static void decimal128Rand(Decimal128* result, const Decimal128* min, const Decimal128* max) {
+    int64_t  high   = 0;
+    uint64_t low    = 0;
+    bool sign       = true;
+    Decimal128 temp = {0};
+
+    int64_t minHigh = DECIMAL128_HIGH_WORD(min);
+    int64_t maxHigh = DECIMAL128_HIGH_WORD(max);
+    uint64_t minLow = DECIMAL128_LOW_WORD(min);
+    uint64_t maxLow = DECIMAL128_LOW_WORD(max);
+
+    do {
+        // high byte
+        high = randInt64(minHigh, maxHigh);
+        sign = high >= 0;
+
+        // low byte
+        if (high == minHigh && high == maxHigh) {
+            if (sign) {
+                low = randUint64(minLow, maxLow);
+            } else {
+                low = randUint64(maxLow, minLow);
+            }      
+        } else if (high == minHigh) {
+            if (sign) {
+                low = randUint64(minLow, UINT64_MAX);
+            } else {
+                low = randUint64(0, minLow);
+            }
+        } else if (high == maxHigh) {
+            if (sign) {
+                low = randUint64(0, maxLow);
+            } else {
+                low = randUint64(maxLow, UINT64_MAX);
+            }
         } else {
-            memcpy(out, numStr + intLen, fracLen);
-            out += fracLen;
+            low = randUint64(0, UINT64_MAX);
         }
-    }
 
-    *out = '\0';
-    return reqLen - 1;
+        DECIMAL128_SET_HIGH_WORD(&temp, high);
+        DECIMAL128_SET_LOW_WORD(&temp, low);
+
+    } while (decimal128Compare(&temp, min) < 0 || decimal128Compare(&temp, max) > 0);
+
+    *result = temp;
 }
 
-int decimal64ToString(char* buf, size_t size, const Decimal64* dec, uint32_t scale) {
-    return decimalToString(buf, size, dec, scale, false);
+
+void doubleToDecimal64(double val, int precision, int scale, Decimal64* dec) {
+    char buf[DECIMAL64_BUFF_LEN] = {0};
+    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
+    decimal64FromStr(buf, strlen(buf), precision, scale, dec);
 }
 
-int decimal128ToString(char* buf, size_t size, const Decimal128* dec, uint32_t scale) {
-    return decimalToString(buf, size, dec, scale, true);
+
+void doubleToDecimal128(double val, int precision, int scale, Decimal128* dec) {
+    char buf[DECIMAL_BUFF_LEN] = {0};
+    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
+    decimal128FromStr(buf, strlen(buf), precision, scale, dec);
 }
+
+
+Decimal64 tmpDecimal64Impl(Field* field, int32_t angle, int32_t k) {
+    (void)angle;
+    (void)k;
+
+    Decimal64 result = {0};
+    decimal64Rand(&result, &field->decMin.dec64, &field->decMax.dec64);
+    return result;
+}
+
+
+Decimal128 tmpDecimal128Impl(Field* field, int32_t angle, int32_t k) {
+    (void)angle;
+    (void)k;
+
+    Decimal128 result = {0};
+    decimal128Rand(&result, &field->decMin.dec128, &field->decMax.dec128);
+    return result;
+}
+
+
+int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
+    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL64, precision, scale, buf, size);
+}
+
+
+int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
+    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL, precision, scale, buf, size);
+}
+
 
 static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                      int64_t bufLen,
@@ -1065,10 +1109,29 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     break;
                 }
                 case TSDB_DATA_TYPE_DECIMAL: {
-                    uint32_t scale = field->scale;
-                    Decimal128 dec =  tmpDecimal128Impl(field, angle, k);
-                    int n1 = snprintf(sampleDataBuf + pos, bufLen - pos,
-                                        "%" PRId64 ",", dec);
+                    Decimal128 dec = tmpDecimal128Impl(field, angle, k);
+                    int ret = decimal128ToString(&dec, field->precision, field->scale, sampleDataBuf + pos, bufLen - pos);
+                    if (ret != 0) {
+                        errorPrint("%s() LN%d precision: %d, scale: %d, high: %" PRId64 ", low: %" PRIu64 "\n",
+                                __func__, __LINE__, field->precision, field->scale, DECIMAL128_HIGH_WORD(&dec), DECIMAL128_LOW_WORD(&dec));
+                        return -1;
+                    }
+                    size_t decLen = strlen(sampleDataBuf + pos);
+                    n = snprintf(sampleDataBuf + pos + decLen, bufLen - pos - decLen, ",");
+                    n += decLen;
+                    break;
+                }
+                case TSDB_DATA_TYPE_DECIMAL64: {
+                    Decimal64 dec = tmpDecimal64Impl(field, angle, k);
+                    int ret = decimal64ToString(&dec, field->precision, field->scale, sampleDataBuf + pos, bufLen - pos);
+                    if (ret != 0) {
+                        errorPrint("%s() LN%d precision: %d, scale: %d, value: %" PRId64 "\n",
+                                __func__, __LINE__, field->precision, field->scale, DECIMAL64_GET_VALUE(&dec));
+                        return -1;
+                    }
+                    size_t decLen = strlen(sampleDataBuf + pos);
+                    n = snprintf(sampleDataBuf + pos + decLen, bufLen - pos - decLen, ",");
+                    n += decLen;
                     break;
                 }
                 case TSDB_DATA_TYPE_BINARY:

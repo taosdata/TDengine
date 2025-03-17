@@ -72,6 +72,7 @@
 #include <stdarg.h>
 
 #include <taos.h>
+#include "decimal.h"
 #include <toolsdef.h>
 #include <taoserror.h>
 
@@ -402,6 +403,11 @@ typedef struct SChildField {
 #define ARG_OPT_THREAD 0x0000000000000002
 extern uint64_t g_argFlag;
 
+typedef union {
+    Decimal64 dec64;
+    Decimal128 dec128;
+} BDecimal;
+
 typedef struct SField {
     uint8_t  type;
     char     name[TSDB_COL_NAME_LEN + 1];
@@ -413,9 +419,13 @@ typedef struct SField {
     int64_t  min;
     double   maxInDbl;
     double   minInDbl;
-    uint32_t scale;
+    uint8_t precision;
+    uint8_t scale;
     uint32_t scalingFactor;
     tools_cJSON *  values;
+
+    BDecimal decMax;
+    BDecimal decMin;
 
     // fun
     uint8_t  funType;
@@ -1032,6 +1042,8 @@ int64_t tmpInt64Impl(Field *field, int32_t angle, int32_t k);
 uint64_t tmpUint64Impl(Field *field, int32_t angle, int64_t k);
 float tmpFloatImpl(Field *field, int i, int32_t angle, int32_t k);
 double tmpDoubleImpl(Field *field, int32_t angle, int32_t k);
+Decimal64 tmpDecimal64Impl(Field* field, int32_t angle, int32_t k);
+Decimal128 tmpDecimal128Impl(Field* field, int32_t angle, int32_t k);
 int tmpStr(char *tmp, int iface, Field *field, int64_t k);
 int tmpGeometry(char *tmp, int iface, Field *field, int64_t k);
 int tmpInt32ImplTag(Field *field, int i, int k);
@@ -1063,5 +1075,12 @@ void *queryKiller(void *arg);
 int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
+
+
+
+void doubleToDecimal64(double val, int precision, int scale, Decimal64* dec);
+void doubleToDecimal128(double val, int precision, int scale, Decimal128* dec);
+
+
 
 #endif   // INC_BENCH_H_

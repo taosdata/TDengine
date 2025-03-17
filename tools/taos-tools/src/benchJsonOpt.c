@@ -15,6 +15,9 @@
 #include <bench.h>
 #include "benchLog.h"
 
+#include "tdef.h"
+#include "decimal.h"
+
 extern char      g_configDir[MAX_PATH_LEN];
 
 char funsName [FUNTYPE_CNT] [32] = {
@@ -201,9 +204,12 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         int64_t min = 0;
         double  maxInDbl = max;
         double  minInDbl = min;
+        uint8_t precision = TSDB_DECIMAL128_MAX_PRECISION;
         uint8_t scale = 0;
         uint32_t scalingFactor = 1;
-        int32_t length = 4;
+        BDecimal decMax = {0};
+        BDecimal decMin = {0};
+        int32_t length  = 4;
         // fun type
         uint8_t funType = FUNTYPE_NONE;
         float   multiple = 0;
@@ -283,6 +289,32 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             min = minInDbl * scalingFactor;
         }
 
+        if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64) {
+            tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(column, "precision");
+            if (tools_cJSON_IsNumber(dataPrecision)) {
+                precision = dataPrecision->valueint;
+            } else {
+                precision = TSDB_DECIMAL128_MAX_PRECISION;
+            }
+
+            if (type == TSDB_DATA_TYPE_DECIMAL) {
+                if (precision > TSDB_DECIMAL128_MAX_PRECISION) {
+                    precision = TSDB_DECIMAL128_MAX_PRECISION;
+                }
+
+                doubleToDecimal128(maxInDbl, precision, scale, &decMax.dec128);
+                doubleToDecimal128(minInDbl, precision, scale, &decMin.dec128);
+            } else {
+                if (precision > TSDB_DECIMAL64_MAX_PRECISION) {
+                    precision = TSDB_DECIMAL64_MAX_PRECISION;
+                }
+
+                doubleToDecimal64(maxInDbl, precision, scale, &decMax.dec64);
+                doubleToDecimal64(minInDbl, precision, scale, &decMin.dec64);
+            }
+        }
+
+
         // gen
         tools_cJSON *dataGen = tools_cJSON_GetObjectItem(column, "gen");
         if (tools_cJSON_IsString(dataGen)) {
@@ -358,8 +390,11 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             col->min = min;
             col->maxInDbl = maxInDbl;
             col->minInDbl = minInDbl;
+            col->precision = precision;
             col->scale = scale;
             col->scalingFactor = scalingFactor;
+            col->decMax = decMax;
+            col->decMin = decMin;
             col->gen = gen;
             col->fillNull = fillNull;
             col->values = dataValues;
@@ -433,8 +468,11 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         int64_t min = 0;
         double  maxInDbl = max;
         double  minInDbl = min;
+        uint8_t precision = TSDB_DECIMAL128_MAX_PRECISION;
         uint8_t scale = 0;
         uint32_t scalingFactor = 1;
+        BDecimal decMax = {0};
+        BDecimal decMin = {0};
         int32_t length = 4;
         tools_cJSON *tagObj = tools_cJSON_GetArrayItem(tags, k);
         if (!tools_cJSON_IsObject(tagObj)) {
@@ -522,6 +560,37 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             min = minInDbl * scalingFactor;
         }
 
+
+        if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64) {
+            tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(tagObj, "precision");
+            if (tools_cJSON_IsNumber(dataPrecision)) {
+                precision = dataPrecision->valueint;
+            } else {
+                precision = TSDB_DECIMAL128_MAX_PRECISION;
+            }
+
+            if (type == TSDB_DATA_TYPE_DECIMAL) {
+                if (precision > TSDB_DECIMAL128_MAX_PRECISION) {
+                    precision = TSDB_DECIMAL128_MAX_PRECISION;
+                }
+
+                Decimal128 decOne = {{1LL, 0}};
+                doubleToDecimal128(maxInDbl, precision, scale, &decMax.dec128);
+                decimal128Subtract(&decMax.dec128, &decOne, WORD_NUM(Decimal128));
+                doubleToDecimal128(minInDbl, precision, scale, &decMin.dec128);
+            } else {
+                if (precision > TSDB_DECIMAL64_MAX_PRECISION) {
+                    precision = TSDB_DECIMAL64_MAX_PRECISION;
+                }
+
+                Decimal64 decOne = {{1LL}};
+                doubleToDecimal64(maxInDbl, precision, scale, &decMax.dec64);
+                decimal64Subtract(&decMax.dec64, &decOne, WORD_NUM(Decimal64));
+                doubleToDecimal64(minInDbl, precision, scale, &decMin.dec64);
+            }
+        }
+
+
         tools_cJSON *dataValues = tools_cJSON_GetObjectItem(tagObj, "values");
 
         tools_cJSON * dataLen = tools_cJSON_GetObjectItem(tagObj, "len");
@@ -554,6 +623,8 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             tag->minInDbl = minInDbl;
             tag->scale = scale;
             tag->scalingFactor = scalingFactor;
+            tag->decMax = decMax;
+            tag->decMin = decMin;
             tag->values = dataValues;
             if (customName) {
                 if (n >= 1) {
