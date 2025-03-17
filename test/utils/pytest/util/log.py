@@ -15,36 +15,36 @@ import sys
 import os
 import time
 import datetime
-
+import logging
 from distutils.log import warn as printf
-
+logger = logging.getLogger(__name__)
 
 class TDLog:
     def __init__(self):
         self.path = ""
 
     def info(self, info):
-        print("%s %s\n" % (datetime.datetime.now(), info))
+        logger.info(info)
 
     def sleep(self, sec):
-        print("%s sleep %d seconds" % (datetime.datetime.now(), sec))
+        logger.info(f"sleep {sec} seconds")
         time.sleep(sec)
 
     def debug(self, err):
-        print("\033[1;36m%s %s\033[0m" % (datetime.datetime.now(), err))
+        logger.debug(err)
 
     def success(self, info):
-        printf("\033[1;32m%s %s\033[0m" % (datetime.datetime.now(), info))
+        logger.info(info)
 
     def notice(self, err):
-        print("\033[1;33m%s %s\033[0m" % (datetime.datetime.now(), err))
+        logger.info(err)
 
     def exit(self, err):
-        print("\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err))
+        logger.error(err)
         sys.exit(1)
 
     def printNoPrefix(self, info):
-        print("\033[1;36m%s\033[0m" % (info))
+        logger.info(info)
 
 
 tdLog = TDLog()

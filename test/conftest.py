@@ -3,7 +3,8 @@ import subprocess
 import sys
 import os
 import taostest
-from utils.log import TDLog
+import logging
+from utils.log import testLog
 from utils.sql import tdSql
 from utils.before_test import BeforeTest
 
@@ -14,7 +15,7 @@ import taos
 import taosrest
 import taosws
 import yaml
-import logging
+
 
 def pytest_addoption(parser):
     parser.addoption("--yaml_file", action="store",
@@ -31,42 +32,53 @@ def pytest_addoption(parser):
                     help="set disk number on each level. range 1 ~ 10")
     parser.addoption("-L", action="store",
                     help="set multiple level number. range 1 ~ 3")
+    parser.addoption("-C", action="store",
+                    help="create Dnode Numbers in one cluster")
     parser.addoption("-I", action="store",
                     help="independentMnode Mnode")
     parser.addoption("--replica", action="store",
                     help="the number of replicas")
+    parser.addoption("--tsim", action="store",
+                    help="tsim test file")
     parser.addoption("--skip_test", action="store_true",
                     help="Only do deploy or install without running test")
     parser.addoption("--skip_deploy", action="store_true",
                     help="Only do deploy or install without running test")
     parser.addoption("--debug_log", action="store_true",
                     help="Enable debug log output.")
-    parser.addoption("--setup_all", action="store_true",
-                    help="Setup environment once before all tests running")
+    #parser.addoption("--setup_all", action="store_true",
+    #                help="Setup environment once before all tests running")
 
 
 def pytest_configure(config):
     log_level = logging.DEBUG if config.getoption("--debug_log") else logging.INFO
     logging.basicConfig(level=log_level, format='%(asctime)s [%(levelname)s]: %(message)s')
 
+    config.addinivalue_line(
+        "markers",
+        "tsim: mark test to have its name dynamically modified based on --tsim file name"
+    )
+
 
 @pytest.fixture(scope="session", autouse=True)
 def before_test_session(request):
     before_test = BeforeTest(request)
     request.session.before_test = before_test
+    request.session.root_dir = request.config.rootdir
     # 获取yaml文件，缓存到servers变量中，供cls使用
     if request.config.getoption("--yaml_file"):
         root_dir = request.config.rootdir
+        request.session.yaml_file = request.config.getoption("--yaml_file")
         yaml_file = request.config.getoption("--yaml_file")
         # 构建 env 目录下的 yaml_file 路径
-        yaml_file_path = os.path.join(root_dir, 'env', yaml_file)
+        yaml_file_path = os.path.join(root_dir, 'env', request.session.yaml_file)
 
         # 检查文件是否存在
         if not os.path.isfile(yaml_file_path):
             raise pytest.UsageError(f"YAML file '{yaml_file_path}' does not exist.")
 
         request.session.before_test.get_config_from_yaml(request, yaml_file_path)
-    # 解析入参，存入session变量
+    # 配置参数解析，存入session变量
     else:
         if request.config.getoption("-N"):
             request.session.denodes_num = int(request.config.getoption("-N"))
@@ -85,85 +97,102 @@ def before_test_session(request):
             request.session.independentMnode = bool(request.config.getoption("-I"))
         else:
             request.session.independentMnode = False
-        request.session.host = "localhost"
-        request.session.port = 6030
-        yaml_file = "ci_default.yaml"
+        if request.config.getoption("-D"):
+            request.session.disk = int(request.config.getoption("-D"))
+        else:
+            request.session.disk = 1
+        if request.config.getoption("-L"):
+            request.session.level = int(request.config.getoption("-L"))
+        else:
+            request.session.level = 1
+        if request.config.getoption("-C"):
+            request.session.create_dnode_num = int(request.config.getoption("-C"))
+        else:
+            request.session.create_dnode_num = request.session.denodes_num
+        
+        request.session.before_test.get_config_from_param(request)
+    # 部署参数解析，存入session变量
     if request.config.getoption("-M"):
         request.session.mnodes_num = int(request.config.getoption("-M"))
     else:
         request.session.mnodes_num = 1
+    if request.config.getoption("--tsim"):
+        request.session.tsim_file = request.config.getoption("--tsim")
+    else:
+        request.session.tsim_file = None
     if request.config.getoption("--replica"):
         request.session.replicaVar = int(request.config.getoption("--replica"))
     else:
         request.session.replicaVar = 1
-    if not request.config.getoption("--setup_all"):
-        request.session.setup_all = False
-    else:
-        request.session.setup_all = True
     if request.config.getoption("--skip_deploy"):
         request.session.skip_deploy = True
     else:
         request.session.skip_deploy = False
-    if request.config.getoption("-D"):
-        request.session.disk = int(request.config.getoption("-D"))
-    else:
-        request.session.disk = 1
-    if request.config.getoption("-L"):
-        request.session.level = int(request.config.getoption("-L"))
-    else:
-        request.session.level = 1
-
-    request.session.root_dir = request.config.rootdir
-    request.session.yaml_file = yaml_file
 
 
 @pytest.fixture(scope="class", autouse=True)
 def before_test_class(request):
     '''
     获取session中的配置，建立连接
-    断开连接
+    测试结束后断开连接，清理环境
     '''
-    logger = logging.getLogger(__name__)
-    logger.debug(f"Current class name: {request.cls.__name__}")
-
-    if request.config.getoption("--yaml_file"):
-        request.cls.yaml_file = request.session.yaml_file
-        request.cls.host = request.session.host
-        request.cls.port = request.session.port
-        request.cls.cfg_path = request.session.cfg_path
-    else:
-        request.session.before_test.ci_init_config(request)
-        request.cls.yaml_file = 'ci_default.yaml'
-        request.cls.host = "localhost"
-        request.cls.port = 6030
-        request.cls.cfg_path = os.path.join(os.path.dirname(request.session.root_dir), 'sim', 'dnode0', 'cfg')
+    testLog.debug(f"Current class name: {request.cls.__name__}")
     
-    if hasattr(request.cls, "updatecfgDict"):
-        request.session.before_test.update_cfg(request.cls.updatecfgDict)
-    if not request.session.setup_all and not request.session.skip_deploy:
-        request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num)
-    
+    # 获取用例中可能需要用到的session变量
+    request.cls.yaml_file = request.session.yaml_file
+    request.cls.host = request.session.host
+    request.cls.port = request.session.port
+    request.cls.cfg_path = request.session.cfg_path
     request.cls.dnode_nums = request.session.denodes_num
     request.cls.mnode_nums = request.session.mnodes_num
     request.cls.restful = request.session.restful
     request.cls.query_policy = request.session.query_policy
-    request.cls.conn = request.session.before_test.get_taos_conn(request.cls.host, request.cls.port)
-    request.cls.tdSql = request.session.before_test.get_tdsql(request.cls.conn)
     request.cls.replicaVar = request.session.replicaVar
-    # 为老用例兼容，初始化部分实例
-    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
+    request.cls.tsim_file = request.session.tsim_file
+    request.cls.tsim_path = request.session.tsim_path
+    request.cls.bin_path = request.session.bin_path
+    request.cls.lib_path = request.session.lib_path
+    request.cls.ci_workdir = request.session.ci_workdir
     
-    tdSql_pytest.init(request.cls.conn.cursor())
-    tdSql_army.init(request.cls.conn.cursor())
+    # 如果用例中定义了updatecfgDict，则更新配置
+    if hasattr(request.cls, "updatecfgDict"):
+        request.session.before_test.update_cfg(request.cls.updatecfgDict)
 
-    # 兼容army caseBase
+    # 部署taosd，包括启动dnode，mnode，adapter
+    if not request.session.skip_deploy:
+        request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num)
+   
+        # 建立连接
+        request.cls.conn = request.session.before_test.get_taos_conn(request.cls.host, request.cls.port)
+        request.cls.tdSql = request.session.before_test.get_tdsql(request.cls.conn)
+
+        # 为兼容老用例，初始化原框架连接
+        tdSql_pytest.init(request.cls.conn.cursor())
+        tdSql_army.init(request.cls.conn.cursor())
+
+        # 处理-C参数，如果-C参数小于denodes_num，则drop多余的dnode
+        if request.session.create_dnode_num < request.session.denodes_num: 
+            for i in range(request.session.create_dnode_num + 1, request.session.denodes_num + 1):
+                request.cls.tdSql.execute(f"drop dnode {i}")
+
+        # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
+        if request.session.query_policy != 1:
+            request.cls.tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
+            request.cls.tdSql.execute("create qnode on dnode 1")
+            request.cls.tdSql.execute("show local variables")
+    
+        # 为老用例兼容，初始化老框架部分实例
+        request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
+    
+    # ============================
+    # 兼容army 初始化caseBase
     request.cls.tmpdir = "tmp"
 
     # record server information
-    request.cls.dnodeNum = 0
-    request.cls.mnodeNum = 0
-    request.cls.mLevel = 0
-    request.cls.mLevelDisk = 0
+    request.cls.dnodeNum = request.session.denodes_num
+    request.cls.mnodeNum = request.session.mnodes_num
+    request.cls.mLevel = request.session.level
+    request.cls.mLevelDisk = request.session.disk
     # test case information
     request.cls.db     = "db"
     request.cls.stb    = "stb"
@@ -175,18 +204,21 @@ def before_test_class(request):
     request.cls.sqlAvg = f"select avg({request.cls.checkColName}) from {request.cls.stb}"
     request.cls.sqlFirst = f"select first(ts) from {request.cls.stb}"
     request.cls.sqlLast  = f"select last(ts) from {request.cls.stb}"
-
+    # ============================
 
     yield
 
-    request.cls.tdSql.close()
-    tdSql_pytest.close()
-    tdSql_army.close()
-    request.cls.conn.close()
-    request.session.before_test.destroy(request.cls.yaml_file)
+    # 测试结束后断开连接，清理环境
+    if not request.session.skip_deploy:
+        request.cls.tdSql.close()
+        tdSql_pytest.close()
+        tdSql_army.close()
+        request.cls.conn.close()
+        request.session.before_test.destroy(request.cls.yaml_file)
 
 @pytest.fixture(scope="class", autouse=True)
 def add_common_methods(request):
+    # 兼容原老框架，添加CaseBase方法
 
     def stop(self):
         request.cls.tdSql.close()
@@ -198,9 +230,6 @@ def add_common_methods(request):
         request.cls.tdSql.execute(sql, show=True)
     
     request.cls.createDb = createDb
-#
-#   db action
-#         
 
     def trimDb(self, show = False):
         request.cls.tdSql.execute(f"trim database {self.db}", show = show)
@@ -569,3 +598,16 @@ def add_common_methods(request):
         return db, stb,child_count, insert_rows
 
     request.cls.insertBenchJson = insertBenchJson
+
+
+
+def pytest_collection_modifyitems(config, items):
+    tsim_path = config.getoption("--tsim")
+    if tsim_path:
+        for item in items:
+            if item.get_closest_marker("tsim"):
+                tsim_name = f"{os.path.split(os.path.dirname(tsim_path))[-1]}_{os.path.splitext(os.path.basename(tsim_path))[0]}"
+                item.name = f"{tsim_name}"  # 有效，名称可以修改
+                item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{tsim_name}"  # 有效，名称可以修改
+                testLog.debug(item.name)
+                testLog.debug(item._nodeid)
