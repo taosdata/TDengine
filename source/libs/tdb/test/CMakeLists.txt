@@ -1,10 +1,12 @@
 # tdbTest
-add_executable(tdbTest "tdbTest.cpp")
-target_link_libraries(tdbTest tdb gtest_main)
-add_test(
-    NAME tdbTest
-    COMMAND tdbTest
-)
+if(${TD_LINUX})
+    add_executable(tdbTest "tdbTest.cpp")
+    target_link_libraries(tdbTest tdb gtest_main)
+    add_test(
+        NAME tdbTest
+        COMMAND tdbTest
+    )
+endif()
 
 # tdbUtilTest
 add_executable(tdbUtilTest "tdbUtilTest.cpp")
