@@ -124,7 +124,7 @@ enum {
   TMQ_MSG_TYPE__POLL_RAW_DATA_RSP,
 };
 
-static const char* tmqMsgTypeStr[] = {
+static const char* const tmqMsgTypeStr[] = {
     "data", "meta", "ask ep", "meta data", "wal info", "batch meta", "raw data"
 };
 
@@ -132,7 +132,7 @@ enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
   STREAM_INPUT__MERGED_SUBMIT,
-  STREAM_INPUT__TQ_SCAN,
+  STREAM_INPUT__RECALCULATE,
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__GET_RES,
   STREAM_INPUT__CHECKPOINT,
@@ -162,17 +162,42 @@ typedef enum EStreamType {
   STREAM_GET_RESULT,
   STREAM_DROP_CHILD_TABLE,
   STREAM_NOTIFY_EVENT,
+  STREAM_RECALCULATE_DATA,
+  STREAM_RECALCULATE_DELETE,
+  STREAM_RECALCULATE_START,
+  STREAM_RECALCULATE_END,
 } EStreamType;
 
 #pragma pack(push, 1)
 typedef struct SColumnDataAgg {
-  int16_t colId;
+  int32_t colId;
   int16_t numOfNull;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
+  union {
+    struct {
+      int64_t sum;
+      int64_t max;
+      int64_t min;
+    };
+    struct {
+      uint64_t decimal128Sum[2];
+      uint64_t decimal128Max[2];
+      uint64_t decimal128Min[2];
+      uint8_t  overflow;
+    };
+  };
 } SColumnDataAgg;
 #pragma pack(pop)
+
+#define DECIMAL_AGG_FLAG 0x80000000
+
+#define COL_AGG_GET_SUM_PTR(pAggs, dataType) \
+  (!IS_DECIMAL_TYPE(dataType) ? (void*)&pAggs->sum : (void*)pAggs->decimal128Sum)
+
+#define COL_AGG_GET_MAX_PTR(pAggs, dataType) \
+  (!IS_DECIMAL_TYPE(dataType) ? (void*)&pAggs->max : (void*)pAggs->decimal128Max)
+
+#define COL_AGG_GET_MIN_PTR(pAggs, dataType) \
+  (!IS_DECIMAL_TYPE(dataType) ? (void*)&pAggs->min : (void*)pAggs->decimal128Min)
 
 typedef struct SBlockID {
   // The uid of table, from which current data block comes. And it is always 0, if current block is the
@@ -428,6 +453,14 @@ static inline bool isTsmaResSTb(const char* stbName) {
     return true;
   }
   return false;
+}
+
+static inline STypeMod typeGetTypeModFromColInfo(const SColumnInfo* pCol) {
+  return typeGetTypeMod(pCol->type, pCol->precision, pCol->scale, pCol->bytes);
+}
+
+static inline STypeMod typeGetTypeModFromCol(const SColumn* pCol) {
+  return typeGetTypeMod(pCol->type, pCol->precision, pCol->scale, pCol->bytes);
 }
 
 #ifdef __cplusplus

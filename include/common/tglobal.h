@@ -302,6 +302,13 @@ extern int8_t  tsS3EpNum;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern bool    tsCompareAsStrInGreatest;
+extern int32_t tsStreamVirtualMergeMaxDelayMs;
+extern int32_t tsStreamVirtualMergeMaxMemKb;
+extern int32_t tsStreamVirtualMergeWaitMode;
+
+extern char     tsAdapterFqdn[];
+extern uint16_t tsAdapterPort;
+extern char     tsAdapterToken[];
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
