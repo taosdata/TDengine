@@ -29,6 +29,7 @@ typedef struct SKeyword {
 // clang-format off
 // keywords in sql string
 static SKeyword keywordTable[] = {
+    {"ASYNC",                TK_ASYNC},
     {"ACCOUNT",              TK_ACCOUNT},
     {"ACCOUNTS",             TK_ACCOUNTS},
     {"ADD",                  TK_ADD},
@@ -115,7 +116,6 @@ static SKeyword keywordTable[] = {
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
     {"FILL_HISTORY",         TK_FILL_HISTORY},
-    {"ASYNC",                TK_ASYNC},
     {"FIRST",                TK_FIRST},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
