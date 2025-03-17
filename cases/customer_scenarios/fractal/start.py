@@ -27,7 +27,7 @@ class Start(TDCase):
         print(self.workflow_config)
         end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
         url = (
-            f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
+            f"http://grafana.tdengine.net:3000/d/dedq3n2zhlypsd/named-processes"
             f"?var-interval=10m&orgId=1&from={start_time.isoformat(timespec='milliseconds')}Z&to={end_time.isoformat(timespec='milliseconds')}Z"
             f"&timezone=browser&var-processes=$__all&refresh=5s"
         )
@@ -52,7 +52,7 @@ class Start(TDCase):
         self._remote.cmd(host,"systemctl stop taosx")
         self._remote.cmd(host,"systemctl start taosx")
     def run(self) -> bool:
-        
+
         # start mqtt simulator
         self.start_mqtt_simulator()
         # start taosx service
