@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#ifdef USE_STREAM
 #ifndef _STREAM_INC_H_
 #define _STREAM_INC_H_
 
@@ -243,11 +243,10 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
                                int64_t checkpointId, SRpcMsg* pMsg);
 
 int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
-int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
+int32_t streamCreateTriggerBlock(SStreamTrigger** pTrigger, int32_t type, int32_t blockType);
 int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
                                        STimeWindow* pLatestWindow, const char* id);
-// inject stream errors
-void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
+int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlock, int32_t type);
 
 // inject stream errors
 void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
@@ -265,3 +264,4 @@ int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId
 #endif
 
 #endif /* ifndef _STREAM_INC_H_ */
+#endif /* USE_STREAM */

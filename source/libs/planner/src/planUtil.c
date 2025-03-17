@@ -28,6 +28,12 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "Not supported join conditions";
     case TSDB_CODE_PAR_NOT_SUPPORT_JOIN:
       return "Not supported join since '%s'";
+    case TSDB_CODE_PLAN_SLOT_NOT_FOUND:
+      return "not found slot id by slot key";
+    case TSDB_CODE_PLAN_INVALID_TABLE_TYPE:
+      return "Planner invalid table type";
+    case TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE:
+      return "Planner invalid query control plan type";
     default:
       break;
   }

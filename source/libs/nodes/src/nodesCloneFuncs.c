@@ -133,6 +133,11 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(numOfPKs);
   COPY_SCALAR_FIELD(projRefIdx);
   COPY_SCALAR_FIELD(resIdx);
+  COPY_SCALAR_FIELD(hasDep);
+  COPY_SCALAR_FIELD(hasRef);
+  COPY_CHAR_ARRAY_FIELD(refDbName);
+  COPY_CHAR_ARRAY_FIELD(refTableName);
+  COPY_CHAR_ARRAY_FIELD(refColName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -199,7 +204,14 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
     }
+    case TSDB_DATA_TYPE_DECIMAL64:
+      COPY_SCALAR_FIELD(datum.d);
+      break;
     case TSDB_DATA_TYPE_DECIMAL:
+      pDst->datum.p = taosMemCalloc(1, pSrc->node.resType.bytes);
+      if (!pDst->datum.p) return terrno;
+      memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes);
+      break;
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     default:
@@ -234,6 +246,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(pkBytes);
   COPY_SCALAR_FIELD(hasOriginalFunc);
   COPY_SCALAR_FIELD(originalFuncId);
+  COPY_OBJECT_FIELD(srcFuncInputType, sizeof(SDataType));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -459,6 +472,13 @@ static int32_t windowOffsetCopy(const SWindowOffsetNode* pSrc, SWindowOffsetNode
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t virtualTableNodeCopy(const SVirtualTableNode * pSrc, SVirtualTableNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
+  CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+  CLONE_NODE_LIST_FIELD(refTables);
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
@@ -522,6 +542,21 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(smallDataTsSort);
   COPY_SCALAR_FIELD(needSplit);
   COPY_SCALAR_FIELD(noPseudoRefAfterGrp);
+  COPY_SCALAR_FIELD(virtualStableScan);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtualScanLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  COPY_SCALAR_FIELD(scanAllCols);
+  CLONE_NODE_LIST_FIELD(pScanCols);
+  CLONE_NODE_LIST_FIELD(pScanPseudoCols);
+  COPY_SCALAR_FIELD(tableType);
+  COPY_SCALAR_FIELD(tableId);
+  COPY_SCALAR_FIELD(stableId);
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+  COPY_SCALAR_FIELD(scanType);
+  COPY_OBJECT_FIELD(tableName, sizeof(SName));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -654,6 +689,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(windowSliding);
   CLONE_NODE_FIELD(pAnomalyExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
+  COPY_SCALAR_FIELD(recalculateInterval);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -735,6 +771,9 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   CLONE_NODE_LIST_FIELD(stbJoin.pVgList);
   CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
   COPY_OBJECT_FIELD(stbJoin.srcScan, sizeof(pDst->stbJoin.srcScan));
+  COPY_SCALAR_FIELD(vtbScan.scanAllCols);
+  COPY_SCALAR_FIELD(vtbScan.suid);
+  CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -744,6 +783,7 @@ static int32_t logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) 
   COPY_SCALAR_FIELD(subplanType);
   COPY_SCALAR_FIELD(level);
   COPY_SCALAR_FIELD(splitFlag);
+  COPY_SCALAR_FIELD(processOneBlock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -767,6 +807,15 @@ static int32_t physiScanCopy(const SScanPhysiNode* pSrc, SScanPhysiNode* pDst) {
   COPY_SCALAR_FIELD(tableType);
   COPY_OBJECT_FIELD(tableName, sizeof(SName));
   COPY_SCALAR_FIELD(groupOrderScan);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVirtualScanPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
+  CLONE_NODE_LIST_FIELD(pGroupTags);
+  COPY_SCALAR_FIELD(groupSort);
+  COPY_SCALAR_FIELD(scanAllCols);
+  CLONE_NODE_LIST_FIELD(pTargets);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1058,6 +1107,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = windowOffsetCopy((const SWindowOffsetNode*)pNode, (SWindowOffsetNode*)pDst);
       break;
+    case QUERY_NODE_VIRTUAL_TABLE:
+      code = virtualTableNodeCopy((const SVirtualTableNode*)pNode, (SVirtualTableNode*)pDst);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);
       break;
@@ -1112,6 +1164,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
       code = logicDynQueryCtrlCopy((const SDynQueryCtrlLogicNode*)pNode, (SDynQueryCtrlLogicNode*)pDst);
       break;
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      code = logicVirtualScanCopy((const SVirtualScanLogicNode *)pNode, (SVirtualScanLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_SUBPLAN:
       code = logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
       break;
@@ -1132,15 +1187,23 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
       code = physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
       code = physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
       code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      code = physiVirtualTableScanCopy((const SVirtualScanPhysiNode*)pNode, (SVirtualScanPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);

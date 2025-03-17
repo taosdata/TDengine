@@ -87,10 +87,10 @@ static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, i
   if (uid == 0) {
     uid = tGenIdPI64();
   }
-  *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+  taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), uid);
 
   // btime
-  *(int64_t *)(pCoder->data + pCoder->pos + 8) = btime;
+  taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos + 8), btime);
 
   tEndDecode(pCoder);
 
@@ -274,7 +274,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+    taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), uid);
     pCoder->pos += sizeof(int64_t);
   } else {
     if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
@@ -353,8 +353,12 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
       SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += pRow->len;
-
+#ifndef NO_UNALIGNED_ACCESS
       if (pRow->ts < minKey || pRow->ts > maxKey) {
+#else
+      TSKEY ts = taosGetInt64Aligned(&pRow->ts);
+      if (ts < minKey || ts > maxKey) {
+#endif
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
@@ -362,7 +366,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (!tDecodeIsEnd(pCoder)) {
-    *(int64_t *)(pCoder->data + pCoder->pos) = ctimeMs;
+    taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), ctimeMs);
     pCoder->pos += sizeof(int64_t);
   }
 
@@ -687,6 +691,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     /* TQ */
+#if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
       if (tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
@@ -757,6 +762,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
 
     } break;
+#endif
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
@@ -882,7 +888,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_TMQ_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_CONSUME_PUSH:
-      return tqProcessPollPush(pVnode->pTq, pMsg);
+      return tqProcessPollPush(pVnode->pTq);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -892,7 +898,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME) &&
+       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME || pMsg->msgType == TDMT_VND_VSUBTABLES_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -919,25 +925,28 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
+    case TDMT_VND_VSUBTABLES_META:
+      return vnodeGetVSubtablesMeta(pVnode, pMsg);
 #ifdef TD_ENTERPRISE
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
 #endif
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
+#ifdef USE_TQ
     case TDMT_VND_TMQ_VG_WALINFO:
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_COMMITTEDINFO:
       return tqProcessVgCommittedInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_SEEK:
       return tqProcessSeekReq(pVnode->pTq, pMsg);
-
+#endif
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
   }
 }
-
+#ifdef USE_STREAM
 int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in stream queue is processing", pVnode->config.vgId, pMsg);
 
@@ -1035,6 +1044,7 @@ int32_t vnodeProcessStreamChkptMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pI
       return TSDB_CODE_APP_ERROR;
   }
 }
+#endif
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
@@ -1555,6 +1565,9 @@ _exit:
     taosMemoryFree(vMetaRsp.pSchemas);
     taosMemoryFree(vMetaRsp.pSchemaExt);
   }
+  if (vMetaRsp.pColRefs) {
+    taosMemoryFree(vMetaRsp.pColRefs);
+  }
   return 0;
 }
 
@@ -1792,11 +1805,11 @@ static int32_t vnodeCellValConvertToColVal(STColumn *pCol, SCellVal *pCellVal, S
     pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
   } else if (TSDB_DATA_TYPE_FLOAT == pCol->type) {
     float f = GET_FLOAT_VAL(pCellVal->val);
-    memcpy(&pColVal->value.val, &f, sizeof(f));
+    valueSetDatum(&pColVal->value, pCol->type, &f, sizeof(f));
   } else if (TSDB_DATA_TYPE_DOUBLE == pCol->type) {
-    pColVal->value.val = *(int64_t *)pCellVal->val;
+    taosSetPInt64Aligned(&pColVal->value.val, (int64_t *)pCellVal->val);
   } else {
-    GET_TYPED_DATA(pColVal->value.val, int64_t, pCol->type, pCellVal->val);
+    valueSetDatum(&pColVal->value, pCol->type, pCellVal->val, tDataTypes[pCol->type].bytes);
   }
 
   pColVal->flag = CV_FLAG_VALUE;
@@ -1974,7 +1987,12 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
       SRowKey lastRowKey;
       for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+#ifndef NO_UNALIGNED_ACCESS
         if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey) {
+#else
+        TSKEY ts = taosGetInt64Aligned(&(aRow[iRow]->ts));
+        if (ts < minKey || ts > maxKey) {
+#endif
           code = TSDB_CODE_INVALID_MSG;
           vError("vgId:%d %s failed 2 since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code), ver);
           goto _exit;
@@ -2183,6 +2201,7 @@ _exit:
 }
 
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+#ifdef USE_TSMA
   SVCreateTSmaReq req = {0};
   SDecoder        coder = {0};
 
@@ -2217,6 +2236,9 @@ _err:
   vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
          TD_VID(pVnode), req.indexName, req.indexUid, ver, req.tableUid, terrstr());
   return terrno;
+#else
+  return TSDB_CODE_INTERNAL_ERROR;
+#endif
 }
 
 /**
@@ -2300,10 +2322,10 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (pVnode->config.szCache != req.pages) {
-    if (metaAlterCache(pVnode->pMeta, req.pages) < 0) {
+    if ((terrno = metaAlterCache(pVnode->pMeta, req.pages)) < 0) {
       vError("vgId:%d, failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
-             pVnode->config.szCache, req.pages, tstrerror(errno));
-      return errno;
+             pVnode->config.szCache, req.pages, tstrerror(terrno));
+      return terrno;
     } else {
       vInfo("vgId:%d, vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
       pVnode->config.szCache = req.pages;
@@ -2373,7 +2395,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
       int32_t ret = tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
       if (ret != 0) {
-        vError("vgId:%d, failed to disable bg task since %s", TD_VID(pVnode), tstrerror(errno));
+        vError("vgId:%d, failed to disable bg task since %s", TD_VID(pVnode), tstrerror(ERRNO));
       }
 
       pVnode->config.sttTrigger = req.sttTrigger;
@@ -2394,7 +2416,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
   if (walChanged) {
     if (walAlter(pVnode->pWal, &pVnode->config.walCfg) != 0) {
-      vError("vgId:%d, failed to alter wal config since %s", TD_VID(pVnode), tstrerror(errno));
+      vError("vgId:%d, failed to alter wal config since %s", TD_VID(pVnode), tstrerror(ERRNO));
     }
   }
 

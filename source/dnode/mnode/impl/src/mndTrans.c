@@ -795,7 +795,7 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
     if (pIter == NULL) break;
 
     if (pTrans->oper == oper) {
-      if (strcasecmp(dbname, pTrans->dbname) == 0) {
+      if (taosStrcasecmp(dbname, pTrans->dbname) == 0) {
         mInfo("trans:%d, db:%s oper:%d matched with input", pTrans->id, dbname, oper);
         taosWLockLatch(&pTrans->lockRpcArray);
         if (pTrans->pRpcArray == NULL) {
@@ -874,13 +874,13 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
 
 static bool mndCheckDbConflict(const char *conflict, STrans *pTrans) {
   if (conflict[0] == 0) return false;
-  if (strcasecmp(conflict, pTrans->dbname) == 0) return true;
+  if (taosStrcasecmp(conflict, pTrans->dbname) == 0) return true;
   return false;
 }
 
 static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
   if (conflict[0] == 0) return false;
-  if (strcasecmp(conflict, pTrans->stbname) == 0) return true;
+  if (taosStrcasecmp(conflict, pTrans->stbname) == 0) return true;
   return false;
 }
 
@@ -996,7 +996,7 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
       thisConflict = true;
     }
     if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-      if (strcasecmp(pTrans->dbname, pCompact->dbname) == 0) thisConflict = true;
+      if (taosStrcasecmp(pTrans->dbname, pCompact->dbname) == 0) thisConflict = true;
     }
 
     if (thisConflict) {
@@ -1292,10 +1292,14 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
 int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
   int32_t code = 0;
   SMnode *pMnode = pRsp->info.node;
+#ifndef TD_ASTRA_32
   int64_t signature = (int64_t)(pRsp->info.ahandle);
   int32_t transId = (int32_t)(signature >> 32);
   int32_t action = (int32_t)((signature << 32) >> 32);
-
+#else
+  int32_t transId = (int32_t)(pRsp->info.ahandle);
+  int32_t action = (int32_t)(pRsp->info.ahandleEx);
+#endif
   STrans *pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -1418,11 +1422,18 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
     TAOS_RETURN(TSDB_CODE_MND_TRANS_CTX_SWITCH);
   }
 
+#ifndef TD_ASTRA_32
   int64_t signature = pTrans->id;
   signature = (signature << 32);
   signature += pAction->id;
 
   SRpcMsg rpcMsg = {.msgType = pAction->msgType, .contLen = pAction->contLen, .info.ahandle = (void *)signature};
+#else
+  SRpcMsg rpcMsg = {.msgType = pAction->msgType,
+                    .contLen = pAction->contLen,
+                    .info.ahandle = (void *)pTrans->id,
+                    .info.ahandleEx = (void *)pAction->id};
+#endif
   rpcMsg.pCont = rpcMallocCont(pAction->contLen);
   if (rpcMsg.pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

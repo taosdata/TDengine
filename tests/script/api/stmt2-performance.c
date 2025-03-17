@@ -5,9 +5,9 @@
 #include <unistd.h>
 #include "taos.h"
 
-int CTB_NUMS = 1;
-int ROW_NUMS = 1;
-int CYC_NUMS = 2;
+int CTB_NUMS = 10000;
+int ROW_NUMS = 10;
+int CYC_NUMS = 1;
 
 void do_query(TAOS* taos, const char* sql) {
   TAOS_RES* result = taos_query(taos, sql);
@@ -44,10 +44,10 @@ void initEnv(TAOS* taos) {
   do_query(taos, "use db");
 }
 
-void do_stmt(TAOS* taos, const char* sql) {
+void do_stmt(TAOS* taos, const char* sql, bool hasTag) {
   initEnv(taos);
 
-  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2_OPTION option = {0, false, true, NULL, NULL};
 
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
   int         code = taos_stmt2_prepare(stmt, sql, 0);
@@ -74,8 +74,11 @@ void do_stmt(TAOS* taos, const char* sql) {
   for (int i = 0; i < CTB_NUMS; i++) {
     tbs[i] = (char*)malloc(sizeof(char) * 20);
     sprintf(tbs[i], "ctb_%d", i);
-    // createCtb(taos, tbs[i]);
+    createCtb(taos, tbs[i]);
   }
+
+  double bind_time = 0;
+  double exec_time = 0;
   for (int r = 0; r < CYC_NUMS; r++) {
     // col params
     int64_t** ts = (int64_t**)malloc(CTB_NUMS * sizeof(int64_t*));
@@ -100,9 +103,6 @@ void do_stmt(TAOS* taos, const char* sql) {
     int t2len = 3;
     //   TAOS_STMT2_BIND* tagv[2] = {&tags[0][0], &tags[1][0]};
 
-    clock_t start, end;
-    double  cpu_time_used;
-
     // bind params
     TAOS_STMT2_BIND** paramv = (TAOS_STMT2_BIND**)malloc(CTB_NUMS * sizeof(TAOS_STMT2_BIND*));
     TAOS_STMT2_BIND** tags = (TAOS_STMT2_BIND**)malloc(CTB_NUMS * sizeof(TAOS_STMT2_BIND*));
@@ -118,26 +118,32 @@ void do_stmt(TAOS* taos, const char* sql) {
       paramv[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, ROW_NUMS};
     }
     // bind
-    start = clock();
-    TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, tags, paramv};
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);  // 获取开始时间
+    TAOS_STMT2_BINDV bindv;
+    if (hasTag) {
+      bindv = (TAOS_STMT2_BINDV){CTB_NUMS, tbs, tags, paramv};
+    } else {
+      bindv = (TAOS_STMT2_BINDV){CTB_NUMS, tbs, NULL, paramv};
+    }
     if (taos_stmt2_bind_param(stmt, &bindv, -1)) {
       printf("failed to execute taos_stmt2_bind_param statement.error:%s\n", taos_stmt2_error(stmt));
       taos_stmt2_close(stmt);
       return;
     }
-    end = clock();
-    cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
-    printf("stmt2-bind [%s] insert Time used: %f seconds\n", sql, cpu_time_used);
-    start = clock();
+
+    clock_gettime(CLOCK_MONOTONIC, &end);  // 获取开始时间    TAOS_STMT2_BINDV bindv;
+    bind_time += ((double)(end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);  // 获取开始时间
     // exec
     if (taos_stmt2_exec(stmt, NULL)) {
       printf("failed to execute taos_stmt2_exec statement.error:%s\n", taos_stmt2_error(stmt));
       taos_stmt2_close(stmt);
       return;
     }
-    end = clock();
-    cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
-    printf("stmt2-exec [%s] insert Time used: %f seconds\n", sql, cpu_time_used);
+    clock_gettime(CLOCK_MONOTONIC, &end);  // 获取开始时间
+    exec_time += ((double)(end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9);
 
     for (int i = 0; i < CTB_NUMS; i++) {
       free(tags[i]);
@@ -152,6 +158,10 @@ void do_stmt(TAOS* taos, const char* sql) {
     free(paramv);
     free(tags);
   }
+
+  printf("stmt2-bind [%s] insert Time used: %f seconds\n", sql, bind_time);
+  printf("stmt2-exec [%s] insert Time used: %f seconds\n", sql, exec_time);
+
   for (int i = 0; i < CTB_NUMS; i++) {
     free(tbs[i]);
   }
@@ -217,8 +227,12 @@ int main() {
     exit(1);
   }
 
-  do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)");
-  // do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)");
+  // do_stmt(taos, "insert into `db`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", true);
+  // printf("no interlace\n");
+  do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", true);
+
+  do_stmt(taos, "insert into db.? values(?,?)", false);
+
   // do_taosc(taos);
   taos_close(taos);
   taos_cleanup();

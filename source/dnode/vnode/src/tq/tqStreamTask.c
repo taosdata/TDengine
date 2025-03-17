@@ -300,7 +300,11 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
     return false;
   }
 
-  if (pInfo->taskLevel == TASK_LEVEL__SOURCE && pInfo->trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+  if (pInfo->trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    return false;
+  }
+
+  if (pInfo->fillHistory == STREAM_RECALCUL_TASK) {
     return false;
   }
 
@@ -311,8 +315,8 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
     return false;
   }
 
-  // fill-history task has entered into the last phase, no need to anything
-  if ((pInfo->fillHistory == 1) && pTask->status.appendTranstateBlock) {
+  // fill-history task has entered into the last phase, no need to do anything
+  if ((pInfo->fillHistory == STREAM_HISTORY_TASK) && pTask->status.appendTranstateBlock) {
     // the maximum version of data in the WAL has reached already, the step2 is done
     tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);

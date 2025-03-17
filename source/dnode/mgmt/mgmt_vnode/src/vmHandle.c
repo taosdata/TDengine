@@ -183,7 +183,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
       if ((pRetention->freq >= 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
     }
   }
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   pCfg->tsdbCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   if (pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4) {
     tstrncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
@@ -199,7 +199,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.retentionSize = pCreate->walRetentionSize;
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   pCfg->walCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   if (pCfg->walCfg.encryptAlgorithm == DND_CA_SM4) {
     tstrncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
@@ -208,7 +208,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.encryptAlgorithm = 0;
 #endif
 
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   pCfg->tdbEncryptAlgorithm = pCreate->encryptAlgorithm;
   if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
     tstrncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
@@ -966,6 +966,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_TABLE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_UPDATE_TAG_VAL, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_VSUBTABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_CFG, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_BATCH_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;

@@ -64,7 +64,7 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
     n--;
   }
 
-  errno = 0;
+  SET_ERRNO(0);
   char *endPtr = NULL;
   if (z[0] == '0' && n > 2) {
     if (z[1] == 'b' || z[1] == 'B') {
@@ -75,7 +75,7 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
     if (z[1] == 'x' || z[1] == 'X') {
       // parsing as hex
       *value = taosStr2UInt64(z, &endPtr, 16);
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      if (ERRNO == ERANGE || ERRNO == EINVAL || endPtr - z != n) {
         return TSDB_CODE_FAILED;
       }
       return TSDB_CODE_SUCCESS;
@@ -85,11 +85,11 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
   if (parseFloat) {
     // parsing as double
     double val = taosStr2Double(z, &endPtr);
-    if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+    if (ERRNO == ERANGE || ERRNO == EINVAL || endPtr - z != n) {
       return TSDB_CODE_FAILED;
     }
     if (val > (double)UINT64_MAX) {
-      errno = ERANGE;
+      SET_ERRNO(ERANGE);
       return TSDB_CODE_FAILED;
     }
     *value = round(val);
@@ -101,14 +101,14 @@ static int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint
 
 int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double *value) {
   if (n == 0) {
-    errno = EINVAL;
+    SET_ERRNO(EINVAL);
     return TSDB_CODE_FAILED;
   }
 
-  errno = 0;
+  SET_ERRNO(0);
   char *endPtr = NULL;
   *value = taosStr2Double(z, &endPtr);  // 0x already converted here
-  if (errno == ERANGE || errno == EINVAL) return TSDB_CODE_FAILED;
+  if (ERRNO == ERANGE || ERRNO == EINVAL) return TSDB_CODE_FAILED;
   if (endPtr - z == n) return TSDB_CODE_SUCCESS;
 
   if (type == TK_NK_BIN || type == TK_NK_STRING) {
@@ -124,12 +124,12 @@ int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double *value) {
 }
 
 int32_t toIntegerPure(const char *z, int32_t n, int32_t base, int64_t *value) {
-  errno = 0;
+  SET_ERRNO(0);
 
   char *endPtr = NULL;
   *value = taosStr2Int64(z, &endPtr, base);
   if (endPtr - z == n) {
-    if (errno == ERANGE || errno == EINVAL) {
+    if (ERRNO == ERANGE || ERRNO == EINVAL) {
       return TSDB_CODE_FAILED;
     }
     return TSDB_CODE_SUCCESS;
@@ -159,12 +159,12 @@ int32_t toIntegerPure(const char *z, int32_t n, int32_t base, int64_t *value) {
 }
 
 int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
-  errno = 0;
+  SET_ERRNO(0);
   char *endPtr = NULL;
   switch (type) {
     case TK_NK_INTEGER: {
       *value = taosStr2Int64(z, &endPtr, 10);
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      if (ERRNO == ERANGE || ERRNO == EINVAL || endPtr - z != n) {
         return TSDB_CODE_FAILED;
       }
       return TSDB_CODE_SUCCESS;
@@ -174,7 +174,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
       if (val < (double)INT64_MIN || val > (double)INT64_MAX) {
         return TSDB_CODE_FAILED;
       }
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      if (ERRNO == ERANGE || ERRNO == EINVAL || endPtr - z != n) {
         return TSDB_CODE_FAILED;
       }
       *value = val;
@@ -185,18 +185,18 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
   }
 
   if (n == 0) {
-    errno = EINVAL;
+    SET_ERRNO(EINVAL);
     return TSDB_CODE_FAILED;
   }
 
   // 1. try to parse as integer
   *value = taosStr2Int64(z, &endPtr, 10);
   if (endPtr - z == n) {
-    if (errno == ERANGE || errno == EINVAL) {
+    if (ERRNO == ERANGE || ERRNO == EINVAL) {
       return TSDB_CODE_FAILED;
     }
     return TSDB_CODE_SUCCESS;
-  } else if (errno == 0 && *endPtr == '.') {
+  } else if (ERRNO == 0 && *endPtr == '.') {
     // pure decimal part
     const char *s = endPtr + 1;
     const char *end = z + n;
@@ -254,7 +254,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
 }
 
 int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
-  errno = 0;
+  SET_ERRNO(0);
   char       *endPtr = NULL;
   const char *p = z;
   switch (type) {
@@ -263,7 +263,7 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
       if (*p == '-' && *value) {
         return TSDB_CODE_FAILED;
       }
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      if (ERRNO == ERANGE || ERRNO == EINVAL || endPtr - z != n) {
         return TSDB_CODE_FAILED;
       }
       return TSDB_CODE_SUCCESS;
@@ -273,7 +273,7 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
       if (val < 0 || val > (double)UINT64_MAX) {
         return TSDB_CODE_FAILED;
       }
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      if (ERRNO == ERANGE || ERRNO == EINVAL || endPtr - z != n) {
         return TSDB_CODE_FAILED;
       }
       *value = val;
@@ -284,7 +284,7 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
   }
 
   if (n == 0) {
-    errno = EINVAL;
+    SET_ERRNO(EINVAL);
     return TSDB_CODE_FAILED;
   }
 
@@ -292,11 +292,11 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
   *value = taosStr2UInt64(p, &endPtr, 10);
 
   if (endPtr - z == n) {
-    if (errno == ERANGE || errno == EINVAL || (*p == '-' && *value)) {
+    if (ERRNO == ERANGE || ERRNO == EINVAL || (*p == '-' && *value)) {
       return TSDB_CODE_FAILED;
     }
     return TSDB_CODE_SUCCESS;
-  } else if (errno == 0 && *endPtr == '.') {
+  } else if (ERRNO == 0 && *endPtr == '.') {
     const char *s = endPtr + 1;
     const char *end = z + n;
     bool        pure = true;
@@ -331,12 +331,12 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
 }
 
 int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value) {
-  errno = 0;
+  SET_ERRNO(0);
   char *endPtr = NULL;
 
   *value = taosStr2Int64(z, &endPtr, base);
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-    errno = 0;
+  if (ERRNO == ERANGE || ERRNO == EINVAL || endPtr - z != n) {
+    SET_ERRNO(0);
     return TSDB_CODE_FAILED;
   }
 
@@ -344,7 +344,7 @@ int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value) {
 }
 
 int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value) {
-  errno = 0;
+  SET_ERRNO(0);
   char *endPtr = NULL;
 
   const char *p = z;
@@ -354,8 +354,8 @@ int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value) {
   }
 
   *value = taosStr2UInt64(z, &endPtr, base);
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-    errno = 0;
+  if (ERRNO == ERANGE || ERRNO == EINVAL || endPtr - z != n) {
+    SET_ERRNO(0);
     return TSDB_CODE_FAILED;
   }
   return TSDB_CODE_SUCCESS;

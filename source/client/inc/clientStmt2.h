@@ -102,6 +102,8 @@ typedef struct {
   SHashObj         *pVgHash;
   SBindInfo2       *pBindInfo;
   bool              bindRowFormat;
+  bool              fixValueTags;
+  SVCreateTbReq    *fixValueTbReq;
 
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo2;
@@ -234,8 +236,9 @@ int         stmtClose2(TAOS_STMT2 *stmt);
 int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
-int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags);
-int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx);
+int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, SVCreateTbReq **pCreateTbReq);
+int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
+int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx, SVCreateTbReq *pCreateTbReq);
 int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
 int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
 int         stmtIsInsert2(TAOS_STMT2 *stmt, int *insert);
