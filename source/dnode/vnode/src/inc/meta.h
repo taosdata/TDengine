@@ -71,7 +71,8 @@ int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo);
 int32_t metaStatsCacheDrop(SMeta* pMeta, int64_t uid);
 int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
-void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol);
+int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid);
+void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 
 struct SMeta {
@@ -164,7 +165,8 @@ int32_t metaFilterTableName(void* pVnode, SMetaFltParam* param, SArray* pUids);
 int32_t metaFilterTtl(void* pVnode, SMetaFltParam* param, SArray* pUids);
 
 int32_t metaGetColCmpr(SMeta* pMeta, tb_uid_t uid, SHashObj** colCmprObj);
-#ifndef META_REFACT
+int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t add, SColRef *pColRef);
+#if !defined(META_REFACT) && !defined(TD_ASTRA)
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);

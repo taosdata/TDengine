@@ -43,6 +43,8 @@ typedef struct SColData   SColData;
 
 typedef struct SRowKey      SRowKey;
 typedef struct SValueColumn SValueColumn;
+struct SColumnDataAgg;
+typedef struct SColumnDataAgg* SColumnDataAggPtr;
 
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
@@ -95,13 +97,13 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
-#define tRowGetKey(_pRow, _pKey)           \
-  do {                                     \
-    (_pKey)->ts = (_pRow)->ts;             \
-    (_pKey)->numOfPKs = 0;                 \
-    if ((_pRow)->numOfPKs > 0) {           \
-      tRowGetPrimaryKey((_pRow), (_pKey)); \
-    }                                      \
+#define tRowGetKey(_pRow, _pKey)                       \
+  do {                                                 \
+    (_pKey)->ts = taosGetInt64Aligned(&((_pRow)->ts)); \
+    (_pKey)->numOfPKs = 0;                             \
+    if ((_pRow)->numOfPKs > 0) {                       \
+      tRowGetPrimaryKey((_pRow), (_pKey));             \
+    }                                                  \
   } while (0)
 
 // SValueColumn ================================
@@ -187,7 +189,7 @@ uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 void    tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key);
 
-extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
+extern void (*tColDataCalcSMA[])(SColData *pColData, SColumnDataAggPtr pAggs);
 
 int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer *output, SBuffer *assist);
 int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *colData, SBuffer *assist);
@@ -244,6 +246,8 @@ typedef struct {
   uint32_t offset;
 } SPrimaryKeyIndex;
 
+#define DATUM_MAX_SIZE 16
+
 struct SValue {
   int8_t type;
   union {
@@ -254,6 +258,16 @@ struct SValue {
     };
   };
 };
+
+#define VALUE_GET_DATUM(pVal, type)  \
+  (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) ? (pVal)->pData : (void*)&(pVal)->val
+
+#define VALUE_GET_TRIVIAL_DATUM(pVal) ((pVal)->val)
+#define VALUE_SET_TRIVIAL_DATUM(pVal, v) (pVal)->val = v
+
+void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len);
+void valueCloneDatum(SValue *pDst, const SValue *pSrc, int8_t type);
+void valueClearDatum(SValue *pVal, int8_t type);
 
 #define TD_MAX_PK_COLS 2
 struct SRowKey {

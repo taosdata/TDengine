@@ -72,6 +72,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2
 #define TD_FILE_ACCESS_WRITE_OK 0x4
+#define TD_FILE_ACCESS_EXEC_OK  0x8
 
 #define TD_TMP_FILE_PREFIX "tdengine-"
 
