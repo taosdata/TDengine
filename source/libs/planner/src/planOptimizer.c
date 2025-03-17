@@ -2653,22 +2653,34 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   EOrder          targetOrder = 0;
   SSHashObj*      pTables = NULL;
 
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) &&
-      ((SScanLogicNode*)pLeft)->node.outputTsOrder != SCAN_ORDER_BOTH) {
-    pScan = (SScanLogicNode*)pLeft;
-    pChild = pRight;
-    pChildPos = &pJoin->node.pChildren->pTail->pNode;
-    targetOrder = pScan->node.outputTsOrder;
-  } else if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) &&
-             ((SScanLogicNode*)pRight)->node.outputTsOrder != SCAN_ORDER_BOTH) {
-    pScan = (SScanLogicNode*)pRight;
-    pChild = pLeft;
-    pChildPos = &pJoin->node.pChildren->pHead->pNode;
-    targetOrder = pScan->node.outputTsOrder;
+  if (pJoin->node.inputTsOrder) {
+    targetOrder = pJoin->node.inputTsOrder;
+    if (pRight->inputTsOrder == pJoin->node.inputTsOrder) {
+      pChild = pLeft;
+      pChildPos = &pJoin->node.pChildren->pHead->pNode;
+    } else {
+      pChild = pRight;
+      pChildPos = &pJoin->node.pChildren->pTail->pNode;
+    }
   } else {
-    pChild = pRight;
-    pChildPos = &pJoin->node.pChildren->pTail->pNode;
-    targetOrder = pLeft->outputTsOrder;
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) &&
+        ((SScanLogicNode*)pLeft)->node.outputTsOrder != SCAN_ORDER_BOTH) {
+      pScan = (SScanLogicNode*)pLeft;
+      pChild = pRight;
+      pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      targetOrder = pScan->node.outputTsOrder;
+    } else if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) &&
+               ((SScanLogicNode*)pRight)->node.outputTsOrder != SCAN_ORDER_BOTH) {
+      pScan = (SScanLogicNode*)pRight;
+      pChild = pLeft;
+      pChildPos = &pJoin->node.pChildren->pHead->pNode;
+      targetOrder = pScan->node.outputTsOrder;
+    } else {
+      pChild = pRight;
+      pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      targetOrder = pLeft->outputTsOrder;
+    }
+    pJoin->node.inputTsOrder = targetOrder;
   }
 
   if (QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
