@@ -19,8 +19,6 @@ jobs:
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
     with:
       tdinternal: true
-      run_function_test: true
-      run_tdgpt_test: false
 
   run-tests-on-mac:
     uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
