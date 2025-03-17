@@ -105,6 +105,9 @@ int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, 
 int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
 int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
 TSKEY   compareTs(void* pKey);
+void    clearGroupResArray(SGroupResInfo* pGroupResInfo);
+void    clearSessionGroupResInfo(SGroupResInfo* pGroupResInfo);
+void    destroyResultWinInfo(void* pRes);
 
 #ifdef __cplusplus
 }

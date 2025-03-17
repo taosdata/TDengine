@@ -2896,31 +2896,18 @@ _end:
 }
 
 // Construct the child table name in the form of <ctbName>_<stbName>_<groupId> and store it in `ctbName`.
-// If the name length exceeds TSDB_TABLE_NAME_LEN, first convert <stbName>_<groupId> to an MD5 value and then
-// concatenate. If the length is still too long, convert <ctbName> to an MD5 value as well.
 int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId, size_t cap) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
   char      tmp[TSDB_TABLE_NAME_LEN] = {0};
-  char*     suffix = tmp;
-  size_t    suffixCap = sizeof(tmp);
-  size_t    suffixLen = 0;
-  size_t    prefixLen = 0;
-  T_MD5_CTX context;
 
   if (ctbName == NULL || cap < TSDB_TABLE_NAME_LEN) {
     code = TSDB_CODE_INTERNAL_ERROR;
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  prefixLen = strlen(ctbName);
-
   if (stbName == NULL) {
-    suffixLen = snprintf(suffix, suffixCap, "%" PRIu64, groupId);
-    if (suffixLen >= suffixCap) {
-      code = TSDB_CODE_INTERNAL_ERROR;
-      TSDB_CHECK_CODE(code, lino, _end);
-    }
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
   } else {
     int32_t i = strlen(stbName) - 1;
     for (; i >= 0; i--) {
@@ -2928,52 +2915,12 @@ int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t grou
         break;
       }
     }
-    suffixLen = snprintf(suffix, suffixCap, "%s_%" PRIu64, stbName + i + 1, groupId);
-    if (suffixLen >= suffixCap) {
-      suffixCap = suffixLen + 1;
-      suffix = taosMemoryMalloc(suffixCap);
-      TSDB_CHECK_NULL(suffix, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-      suffixLen = snprintf(suffix, suffixCap, "%s_%" PRIu64, stbName + i + 1, groupId);
-      if (suffixLen >= suffixCap) {
-        code = TSDB_CODE_INTERNAL_ERROR;
-        TSDB_CHECK_CODE(code, lino, _end);
-      }
-    }
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%" PRIu64, stbName + i + 1, groupId);
   }
 
-  if (prefixLen + suffixLen + 1 >= TSDB_TABLE_NAME_LEN) {
-    // If the name length exceeeds the limit, convert the suffix to MD5 value.
-    tMD5Init(&context);
-    tMD5Update(&context, (uint8_t*)suffix, suffixLen);
-    tMD5Final(&context);
-    suffixLen = snprintf(suffix, suffixCap, "%016" PRIx64 "%016" PRIx64, *(uint64_t*)context.digest,
-                         *(uint64_t*)(context.digest + 8));
-    if (suffixLen >= suffixCap) {
-      code = TSDB_CODE_INTERNAL_ERROR;
-      TSDB_CHECK_CODE(code, lino, _end);
-    }
-  }
-
-  if (prefixLen + suffixLen + 1 >= TSDB_TABLE_NAME_LEN) {
-    // If the name is still too long, convert the ctbName to MD5 value.
-    tMD5Init(&context);
-    tMD5Update(&context, (uint8_t*)ctbName, prefixLen);
-    tMD5Final(&context);
-    prefixLen = snprintf(ctbName, cap, "t_%016" PRIx64 "%016" PRIx64, *(uint64_t*)context.digest,
-                         *(uint64_t*)(context.digest + 8));
-    if (prefixLen >= cap) {
-      code = TSDB_CODE_INTERNAL_ERROR;
-      TSDB_CHECK_CODE(code, lino, _end);
-    }
-  }
-
-  if (prefixLen + suffixLen + 1 >= TSDB_TABLE_NAME_LEN) {
-    code = TSDB_CODE_INTERNAL_ERROR;
-    TSDB_CHECK_CODE(code, lino, _end);
-  }
-
-  ctbName[prefixLen] = '_';
-  tstrncpy(&ctbName[prefixLen + 1], suffix, cap - prefixLen - 1);
+  ctbName[cap - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
+  size_t prefixLen = strlen(ctbName);
+  ctbName = strncat(ctbName, tmp, cap - prefixLen - 1);
 
   for (char* p = ctbName; *p; ++p) {
     if (*p == '.') *p = '_';
@@ -2982,9 +2929,6 @@ int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t grou
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  if (suffix != tmp) {
-    taosMemoryFree(suffix);
   }
   return code;
 }
