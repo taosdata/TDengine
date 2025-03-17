@@ -235,9 +235,10 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
         TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));
         output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize);
         TAOS_MEMCPY(output->tbMeta->colRef, output->vctbMeta->colRef, colRefSize);
-      } else  {
-        TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta) + colRefSize);
-        output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + sizeof(SVCTableMeta));
+      } else {
+        ctgError("tb:%s, tbmeta got, but tbMeta is NULL", output->tbName);
+        taosMemoryFreeClear(output->vctbMeta);
+        CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
       output->tbMeta->numOfColRefs = output->vctbMeta->numOfColRefs;
       taosMemoryFreeClear(output->vctbMeta);
