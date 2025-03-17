@@ -22,16 +22,16 @@
 [![LinkedIn](https://img.shields.io/badge/Follow_LinkedIn--white?logo=linkedin&style=social)](https://www.linkedin.com/company/tdengine)
 [![StackOverflow](https://img.shields.io/badge/Ask_StackOverflow--white?logo=stackoverflow&style=social&logoColor=orange)](https://stackoverflow.com/questions/tagged/tdengine)
 
-English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine.com) | [Learn more about TSDB](https://tdengine.com/tsdb/)
+English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine.com) | [Learn more about TSDB](https://tdengine.com/time-series-database/)
 
 # Table of Contents
 
 1. [Introduction](#1-introduction)
 1. [Documentation](#2-documentation)
 1. [Prerequisites](#3-prerequisites)
-    - [3.1 Prerequisites On Linux](#31-on-linux)
-    - [3.2 Prerequisites On macOS](#32-on-macos)
-    - [3.3 Prerequisites On Windows](#33-on-windows) 
+    - [3.1 Prerequisites On Linux](#31-prerequisites-on-linux)
+    - [3.2 Prerequisites On macOS](#32-prerequisites-on-macos)
+    - [3.3 Prerequisites On Windows](#33-prerequisites-on-windows)
     - [3.4 Clone the repo](#34-clone-the-repo) 
 1. [Building](#4-building)
     - [4.1 Build on Linux](#41-build-on-linux)
@@ -82,7 +82,9 @@ For contributing/building/testing TDengine Connectors, please check the followin
 
 At the moment, TDengine server supports running on Linux/Windows/MacOS systems. Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service. TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
 
-## 3.1 On Linux
+If you want to compile taosAdapter or taosKeeper, you need to install Go 1.18 or above.
+
+## 3.1 Prerequisites on Linux
 
 <details>
 
@@ -91,7 +93,7 @@ At the moment, TDengine server supports running on Linux/Windows/MacOS systems. 
 ### For Ubuntu 18.04、20.04、22.04
 
 ```bash
-sudo apt-get udpate
+sudo apt-get update
 sudo apt-get install -y gcc cmake build-essential git libjansson-dev \
   libsnappy-dev liblzma-dev zlib1g-dev pkg-config
 ```
@@ -107,7 +109,7 @@ yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig libatom
 
 </details>
 
-## 3.2 On macOS
+## 3.2 Prerequisites on macOS
 
 <details>
 
@@ -121,7 +123,7 @@ brew install argp-standalone gflags pkgconfig
 
 </details>
 
-## 3.3 On Windows
+## 3.3 Prerequisites on Windows
 
 <details>
 
@@ -146,7 +148,7 @@ cd TDengine
 
 TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
 
-To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in the project directory.
+TDengine requires [GCC](https://gcc.gnu.org/) 9.3.1 or higher and [CMake](https://cmake.org/) 3.13.0 or higher for building.
 
 ## 4.1 Build on Linux
 
@@ -167,6 +169,10 @@ mkdir debug && cd debug
 cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
 make
 ```
+
+If you want to compile taosAdapter, you need to add the `-DBUILD_HTTP=false` option.
+
+If you want to compile taosKeeper, you need to add the `--DBUILD_KEEPER=true` option.
 
 You can use Jemalloc as memory allocator instead of glibc:
 
@@ -195,6 +201,10 @@ Please install XCode command line tools and cmake. Verified with XCode 11.4+ on 
 mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
+
+If you want to compile taosAdapter, you need to add the `-DBUILD_HTTP=false` option.
+
+If you want to compile taosKeeper, you need to add the `--DBUILD_KEEPER=true` option.
 
 </details>
 

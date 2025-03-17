@@ -82,6 +82,7 @@ typedef struct SDatabaseOptions {
   int32_t     minRowsPerBlock;
   SNodeList*  pKeep;
   int64_t     keep[3];
+  SValueNode* pKeepTimeOffsetNode;
   int32_t     keepTimeOffset;
   int32_t     pages;
   int32_t     pagesize;

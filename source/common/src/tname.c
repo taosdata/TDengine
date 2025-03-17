@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "tname.h"
 #include "tcommon.h"
-#include "tstrbuild.h"
 
 #define VALID_NAME_TYPE(x) ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 
@@ -234,43 +233,38 @@ static int compareKv(const void* p1, const void* p2) {
  * use stable name and tags to grearate child table name
  */
 int32_t buildChildTableName(RandTableName* rName) {
-  SStringBuilder sb = {0};
-  taosStringBuilderAppendStringLen(&sb, rName->stbFullName, rName->stbFullNameLen);
-  if (sb.buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
   taosArraySort(rName->tags, compareKv);
+
+  T_MD5_CTX context;
+  tMD5Init(&context);
+
+  // add stable name
+  tMD5Update(&context, (uint8_t*)rName->stbFullName, rName->stbFullNameLen);
+
+  // add tags
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
-    taosStringBuilderAppendChar(&sb, ',');
     SSmlKv* tagKv = taosArrayGet(rName->tags, j);
     if (tagKv == NULL) {
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
-    taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
-    taosStringBuilderAppendChar(&sb, '=');
+    tMD5Update(&context, (uint8_t*)",", 1);
+    tMD5Update(&context, (uint8_t*)tagKv->key, tagKv->keyLen);
+    tMD5Update(&context, (uint8_t*)"=", 1);
+
     if (IS_VAR_DATA_TYPE(tagKv->type)) {
-      taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->length);
+      tMD5Update(&context, (uint8_t*)tagKv->value, tagKv->length);
     } else {
-      taosStringBuilderAppendStringLen(&sb, (char*)(&(tagKv->value)), tagKv->length);
+      tMD5Update(&context, (uint8_t*)(&(tagKv->value)), tagKv->length);
     }
   }
 
-  size_t    len = 0;
-  char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
-  T_MD5_CTX context;
-  tMD5Init(&context);
-  tMD5Update(&context, (uint8_t*)keyJoined, (uint32_t)len);
   tMD5Final(&context);
 
-  char temp[8] = {0};
   rName->ctbShortName[0] = 't';
   rName->ctbShortName[1] = '_';
-  for (int i = 0; i < 16; i++) {
-    (void)sprintf(temp, "%02x", context.digest[i]);
-    (void)strcat(rName->ctbShortName, temp);
-  }
-  taosStringBuilderDestroy(&sb);
+  taosByteArrayToHexStr(context.digest, 16, rName->ctbShortName + 2);
+  rName->ctbShortName[34] = 0;
+
   return TSDB_CODE_SUCCESS;
 }

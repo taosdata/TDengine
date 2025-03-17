@@ -1167,6 +1167,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pOptions->pCompactIntervalNode);
       nodesDestroyList(pOptions->pCompactTimeRangeList);
       nodesDestroyNode((SNode*)pOptions->pCompactTimeOffsetNode);
+      nodesDestroyNode((SNode*)pOptions->pKeepTimeOffsetNode);
       break;
     }
     case QUERY_NODE_TABLE_OPTIONS: {

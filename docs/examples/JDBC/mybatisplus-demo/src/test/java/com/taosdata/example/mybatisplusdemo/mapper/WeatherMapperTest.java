@@ -52,7 +52,7 @@ public class WeatherMapperTest {
         one.setTemperature(random.nextFloat() * 50);
         one.setHumidity(random.nextInt(100));
         one.setLocation("望京");
-        int affectRows = mapper.insert(one);
+        int affectRows = mapper.insertOne(one);
         Assert.assertEquals(1, affectRows);
     }
 
@@ -82,7 +82,7 @@ public class WeatherMapperTest {
 
     @Test
     public void testSelectCount() {
-        int count = mapper.selectCount(null);
+        long count = mapper.selectCount(null);
 //        Assert.assertEquals(5, count);
         System.out.println(count);
     }

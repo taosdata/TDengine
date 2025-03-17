@@ -699,13 +699,13 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
-        len += tsnprintf(str + len, size - len, "%f", fv);
+        len += snprintf(str + len, size - len, "%.*g", FLT_DIG, fv);
       } break;
 
       case TSDB_DATA_TYPE_DOUBLE: {
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
-        len += tsnprintf(str + len, size - len, "%lf", dv);
+        len += snprintf(str + len, size - len, "%.*g", DBL_DIG, dv);
       } break;
 
       case TSDB_DATA_TYPE_VARBINARY: {
@@ -888,6 +888,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 
   if (db == NULL || strlen(db) == 0) {
     releaseTscObj(*(int64_t *)taos);
+    tscError("invalid parameter for %s", db == NULL ? "db is NULL" : "db is empty");
     terrno = TSDB_CODE_TSC_INVALID_INPUT;
     return terrno;
   }

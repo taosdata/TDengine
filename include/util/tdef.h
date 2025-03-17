@@ -17,6 +17,7 @@
 #define _TD_UTIL_DEF_H_
 
 #include "os.h"
+#include "cus_name.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,14 +78,6 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_DEFAULT_PASS "prodb"
 #else
 #define TSDB_DEFAULT_PASS "taosdata"
-#endif
-
-#ifndef TD_PRODUCT_NAME
-#ifdef TD_ENTERPRISE
-#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
-#else
-#define TD_PRODUCT_NAME "TDengine Community Edition"
-#endif
 #endif
 
 #define TSDB_TRUE  1
@@ -660,9 +653,9 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define AUDIT_OPERATION_LEN 20
 
 typedef enum {
-  ANAL_ALGO_TYPE_ANOMALY_DETECT = 0,
-  ANAL_ALGO_TYPE_FORECAST = 1,
-  ANAL_ALGO_TYPE_END,
+  ANALY_ALGO_TYPE_ANOMALY_DETECT = 0,
+  ANALY_ALGO_TYPE_FORECAST = 1,
+  ANALY_ALGO_TYPE_END,
 } EAnalAlgoType;
 
 typedef enum {

@@ -60,7 +60,7 @@ func EscapeInfluxProtocol(s string) string {
 }
 
 func GetCfg() *config.Config {
-	c := &config.Config{
+	return &config.Config{
 		InstanceID: 64,
 		Port:       6043,
 		LogLevel:   "trace",
@@ -87,7 +87,6 @@ func GetCfg() *config.Config {
 			ReservedDiskSize: 1073741824,
 		},
 	}
-	return c
 }
 
 func SafeSubstring(s string, n int) string {
@@ -123,8 +122,7 @@ func GetQidOwn() uint64 {
 		atomic.StoreUint64(&globalCounter64, 1)
 		id = 1
 	}
-	qid64 := uint64(config.Conf.InstanceID)<<56 | id
-	return qid64
+	return uint64(config.Conf.InstanceID)<<56 | id
 }
 
 func GetMd5HexStr(str string) string {
@@ -138,7 +136,6 @@ func isValidChar(r rune) bool {
 
 func ToValidTableName(input string) string {
 	var builder strings.Builder
-
 	for _, r := range input {
 		if isValidChar(r) {
 			builder.WriteRune(unicode.ToLower(r))
@@ -146,7 +143,5 @@ func ToValidTableName(input string) string {
 			builder.WriteRune('_')
 		}
 	}
-
-	result := builder.String()
-	return result
+	return builder.String()
 }

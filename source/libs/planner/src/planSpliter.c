@@ -768,7 +768,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
         SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
         pSubplan->id.groupId = pCxt->groupId;
         pSubplan->id.queryId = pCxt->queryId;
-        pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
+        //pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
         splSetSubplanVgroups(pSubplan, pSubplan->pNode);
         code = stbSplCreatePartWindowNode((SWindowLogicNode*)pSubplan->pNode, &pPartWindow);
         if (TSDB_CODE_SUCCESS == code) {
@@ -892,7 +892,7 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
   if (TSDB_CODE_SUCCESS == code) {
     stbSplSetTableMergeScan(pChild);
     pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
-    SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
+    //SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
     ++(pCxt->groupId);
   } else {
     nodesDestroyList(pMergeKeys);
@@ -1201,7 +1201,7 @@ static int32_t stbSplSplitAggNodeForCrossTableMulSubplan(SSplitContext* pCxt, SS
         SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
         pSubplan->id.groupId = pCxt->groupId;
         pSubplan->id.queryId = pCxt->queryId;
-        pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
+        //pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
         splSetSubplanVgroups(pSubplan, pSubplan->pNode);
         code = stbSplCreatePartAggNode((SAggLogicNode*)pSubplan->pNode, &pPartAgg);
         if (code) break;

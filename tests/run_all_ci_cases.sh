@@ -41,7 +41,7 @@ function get_DIR() {
         CODE_DIR=$(pwd)
         if [[ "$CODE_DIR" == *"/community/"*  ]]; then
             PROJECT_DIR=$(realpath ../..)
-            TDENGINE_DIR="$PROJECT_DIR"
+            TDENGINE_DIR="$PROJECT_DIR/community"
             BUILD_DIR="$PROJECT_DIR/debug"
             TDENGINE_ALLCI_REPORT="$TDENGINE_DIR/tests/all-ci-report-$today.log"
             BACKUP_DIR="$TDENGINE_DIR/tests/ci_bak"

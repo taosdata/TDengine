@@ -237,6 +237,29 @@ static void doDeleteWindow(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId)
 
 static int32_t getChildIndex(SSDataBlock* pBlock) { return pBlock->info.childId; }
 
+static void doDeleteWindowByGroupId(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  SStorageAPI*                 pAPI = &pOperator->pTaskInfo->storageAPI;
+  SStreamIntervalOperatorInfo* pInfo = pOperator->info;
+
+  SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t* pGroupIdData = (uint64_t*)pGpIdCol->pData;
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    uint64_t groupId = pGroupIdData[i];
+    void*   pIte = NULL;
+    int32_t iter = 0;
+    while ((pIte = tSimpleHashIterate(pInfo->aggSup.pResultRowHashTable, pIte, &iter)) != NULL) {
+      size_t keyLen = 0;
+      SWinKey* pKey = tSimpleHashGetKey(pIte, &keyLen);
+      if (pKey->groupId == groupId) {
+        int32_t tmpRes = tSimpleHashIterateRemove(pInfo->aggSup.pResultRowHashTable, pKey, keyLen, &pIte, &iter);
+        qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
+      }
+    }
+
+    pAPI->stateStore.streamStateDelByGroupId(pInfo->pState, groupId);
+  }
+}
+
 static int32_t doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, SSDataBlock* pBlock, SArray* pUpWins,
                                SSHashObj* pUpdatedMap, SHashObj* pInvalidWins) {
   int32_t                      code = TSDB_CODE_SUCCESS;
@@ -444,7 +467,7 @@ _end:
 
 void destroyFlusedPos(void* pRes) {
   SRowBuffPos* pPos = (SRowBuffPos*)pRes;
-  if (!pPos->needFree && !pPos->pRowBuff) {
+  if (pPos->needFree && !pPos->pRowBuff) {
     taosMemoryFreeClear(pPos->pKey);
     taosMemoryFree(pPos);
   }
@@ -456,14 +479,15 @@ void destroyFlusedppPos(void* ppRes) {
 }
 
 void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
-  if (pGroupResInfo->freeItem) {
-    int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+  int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+  if (pGroupResInfo->index >= 0 && pGroupResInfo->index < size) {
     for (int32_t i = pGroupResInfo->index; i < size; i++) {
       void* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
       destroyFlusedPos(pPos);
     }
-    pGroupResInfo->freeItem = false;
   }
+
+  pGroupResInfo->freeItem = false;
   taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->pRows = NULL;
   pGroupResInfo->index = 0;
@@ -2109,6 +2133,27 @@ void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
   taosMemoryFreeClear(pSup->pDummyCtx);
 }
 
+void destroyResultWinInfo(void* pRes) {
+  SResultWindowInfo* pWinRes = (SResultWindowInfo*)pRes;
+  destroyFlusedPos(pWinRes->pStatePos);
+}
+
+void clearSessionGroupResInfo(SGroupResInfo* pGroupResInfo) {
+  int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+  if (pGroupResInfo->index >= 0 && pGroupResInfo->index < size) {
+    for (int32_t i = pGroupResInfo->index; i < size; i++) {
+      SResultWindowInfo* pRes = (SResultWindowInfo*) taosArrayGet(pGroupResInfo->pRows, i);
+      destroyFlusedPos(pRes->pStatePos);
+      pRes->pStatePos = NULL;
+    }
+  }
+
+  pGroupResInfo->freeItem = false;
+  taosArrayDestroy(pGroupResInfo->pRows);
+  pGroupResInfo->pRows = NULL;
+  pGroupResInfo->index = 0;
+}
+
 void destroyStreamSessionAggOperatorInfo(void* param) {
   if (param == NULL) {
     return;
@@ -2120,11 +2165,12 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
+
   cleanupExprSupp(&pInfo->scalarSupp);
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -4230,10 +4276,11 @@ void destroyStreamStateOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   cleanupExprSupp(&pInfo->scalarSupp);
   if (pInfo->pChildren != NULL) {
@@ -5232,7 +5279,12 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
       code = getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
-    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE || pBlock->info.type == STREAM_DROP_CHILD_TABLE) {
+    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+      printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pBlock;
+      return code;
+    } else if (pBlock->info.type == STREAM_DROP_CHILD_TABLE) {
+      doDeleteWindowByGroupId(pOperator, pBlock);
       printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       (*ppRes) = pBlock;
       return code;

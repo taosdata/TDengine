@@ -27,6 +27,7 @@
 #include "scheduler.h"
 #include "tcache.h"
 #include "tcompare.h"
+#include "tconv.h"
 #include "tglobal.h"
 #include "thttp.h"
 #include "tmsg.h"
@@ -36,15 +37,8 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
-#include "tconv.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
-#endif
-
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -69,13 +63,13 @@
     }                                 \
   } while (0)
 
-STscDbg  tscDbg = {0};
-SAppInfo appInfo;
-int64_t  lastClusterId = 0;
-int32_t  clientReqRefPool = -1;
-int32_t  clientConnRefPool = -1;
-int32_t  clientStop = -1;
-SHashObj* pTimezoneMap = NULL;
+STscDbg   tscDbg = {0};
+SAppInfo  appInfo;
+int64_t   lastClusterId = 0;
+int32_t   clientReqRefPool = -1;
+int32_t   clientConnRefPool = -1;
+int32_t   clientStop = -1;
+SHashObj *pTimezoneMap = NULL;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -974,7 +968,7 @@ void taos_init_imp(void) {
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
-  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     tscInitRes = terrno;
     tscError("failed to init conv");
     return;
