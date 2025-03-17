@@ -3804,7 +3804,7 @@ FETCH_NEXT_BLOCK:
         pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
         pInfo->updateResIndex = 0;
         pInfo->lastScanRange = pBlock->info.window;
-        TSKEY endKey = taosTimeGetIntervalEnd(pBlock->info.window.skey, &pInfo->interval);
+        TSKEY endKey = getNextTimeWindowStart(&pInfo->interval, pBlock->info.window.skey, TSDB_ORDER_ASC) - 1;
         if (pInfo->useGetResultRange == true) {
           endKey = pBlock->info.window.ekey;
         }
