@@ -53,10 +53,11 @@ void destroyStreamEventOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   cleanupExprSupp(&pInfo->scalarSupp);
   if (pInfo->pChildren != NULL) {

@@ -629,8 +629,9 @@ static int32_t doUpdateCheckpointInfoCheck(SStreamTask* pTask, bool restored, SV
           code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
 
           int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-          stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
-                  id, vgId, pReq->taskId, numOfTasks);
+          stDebug("s-task:%s vgId:%d related fill-history task:0x%" PRIx64
+                  " dropped in update checkpointInfo, remain tasks:%d",
+                  id, vgId, pReq->hTaskId, numOfTasks);
 
           //todo: task may not exist, commit anyway, optimize this later
           code = streamMetaCommit(pMeta);
@@ -814,15 +815,17 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
 }
 
 int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type) {
-  int32_t code = 0;
-  char*   path = NULL;
-
+  int32_t      code = 0;
+  char*        path = NULL;
+  int64_t      chkptSize = 0;
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  idStr = pTask->id.idStr;
   int64_t      now = taosGetTimestampMs();
 
   SArray* toDelFiles = taosArrayInit(4, POINTER_BYTES);
   if (toDelFiles == NULL) {
+    stError("s-task:%s failed to prepare array list during upload checkpoint, code:%s", pTask->id.idStr,
+            tstrerror(terrno));
     return terrno;
   }
 
@@ -848,11 +851,11 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     }
   }
 
-  if (code == TSDB_CODE_SUCCESS) {
-    int32_t size = taosArrayGetSize(toDelFiles);
-    stDebug("s-task:%s remove redundant %d files", idStr, size);
+  int32_t num = taosArrayGetSize(toDelFiles);
+  if (code == TSDB_CODE_SUCCESS && num > 0) {
+    stDebug("s-task:%s remove redundant %d files", idStr, num);
 
-    for (int i = 0; i < size; i++) {
+    for (int i = 0; i < num; i++) {
       char* pName = taosArrayGetP(toDelFiles, i);
       code = deleteCheckpointFile(idStr, pName);
       if (code != 0) {
@@ -868,12 +871,13 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
   double el = (taosGetTimestampMs() - now) / 1000.0;
 
   if (code == TSDB_CODE_SUCCESS) {
-    stDebug("s-task:%s complete update checkpointId:%" PRId64 ", elapsed time:%.2fs remove local checkpoint data %s",
-            idStr, checkpointId, el, path);
-    taosRemoveDir(path);
+    code = taosGetDirSize(path, &chkptSize);
+    stDebug("s-task:%s complete upload checkpointId:%" PRId64
+            ", elapsed time:%.2fs, checkpointSize:%.2fKiB local dir:%s",
+            idStr, checkpointId, el, SIZE_IN_KiB(chkptSize), path);
   } else {
-    stDebug("s-task:%s failed to upload checkpointId:%" PRId64 " keep local checkpoint data, elapsed time:%.2fs", idStr,
-            checkpointId, el);
+    stDebug("s-task:%s failed to upload checkpointId:%" PRId64 " elapsed time:%.2fs, checkpointSize:%.2fKiB", idStr,
+            checkpointId, el, SIZE_IN_KiB(chkptSize));
   }
 
   taosMemoryFree(path);
@@ -883,7 +887,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
 int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointId) {
   ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
   if (type == DATA_UPLOAD_DISABLE) {
-    stDebug("s-task:%s not allowed to upload checkpoint data", pTask->id.idStr);
+    stDebug("s-task:%s not config to backup checkpoint data at snode, checkpointId:%"PRId64, pTask->id.idStr, checkpointId);
     return 0;
   }
 
@@ -925,6 +929,9 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s gen checkpoint:%" PRId64 " failed, code:%s", id, ckId, tstrerror(terrno));
     }
+
+    int64_t et = taosGetTimestampMs();
+    stDebug("s-task:%s gen local checkpoint completed, elapsed time:%.2fs", id, (et - startTs) / 1000.0);
   }
 
   // TODO: monitoring the checkpoint-source msg
@@ -1580,17 +1587,26 @@ int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
   streamTaskSetReqConsenChkptId(pTask, taosGetTimestampMs());
   streamMutexUnlock(&pTask->lock);
 
+  // 1. stop the executo at first
+  if (pTask->exec.pExecutor != NULL) {
+    // we need to make sure the underlying operator is stopped right, otherwise, SIGSEG may occur,
+    // waiting at most for 10min
+    if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
+      int32_t code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 600000);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("s-task:%s failed to kill task related query handle, code:%s", pTask->id.idStr, tstrerror(code));
+      }
+    }
+
+    qDestroyTask(pTask->exec.pExecutor);
+    pTask->exec.pExecutor = NULL;
+  }
+
+  // 2. destroy backend after stop executor
   if (pTask->pBackend != NULL) {
     streamFreeTaskState(pTask, p);
     pTask->pBackend = NULL;
   }
-
-  streamMetaWLock(pTask->pMeta);
-  if (pTask->exec.pExecutor != NULL) {
-    qDestroyTask(pTask->exec.pExecutor);
-    pTask->exec.pExecutor = NULL;
-  }
-  streamMetaWUnLock(pTask->pMeta);
 
   return 0;
 }
