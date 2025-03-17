@@ -447,7 +447,7 @@ int32_t tableGet(STable *pTable, uint64_t offset, uint64_t key, uint8_t **pValue
   }
 _err:
   if (code != 0) {
-    bseError("failed to get value by key %" PRIu64 "since %s", key, tstrerror(code));
+    bseError("failed to get value by key %" PRIu64 " since %s at line ", key, tstrerror(code), line);
   }
   return code;
 }

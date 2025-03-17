@@ -595,37 +595,39 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
-static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *pTSchema, SVnode *pVnode) {
-  int32_t    code = 0;
-  int32_t    lino = 0;
-  uint64_t   seq = 0;
+static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSubmitTbData) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  uint64_t seq = 0;
+
+  int32_t    nr = 0;
   SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
-  for (int32_t i = 0; i < taosArrayGetSize(pSubmitTbData->aRowP); i++) {
-    SRow   **pRow = taosArrayGet(pSubmitTbData->aRowP, i);
-    uint8_t *data = (pBlobRow)->data;
 
-    for (int32_t j = 0; j < pTSchema->numOfCols; j++) {
-      STColumn *pTColumn = pTSchema->columns + j;
-      if (IS_STR_DATA_BLOB(pTColumn->type)) {
-        SColVal  colVal = {0};
-        uint64_t seq = 0;
+  SRow **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+  void  *pIter = taosHashIterate(pBlobRow->pSeqTable, NULL);
+  while (pIter) {
+    SBlobValue *p = (SBlobValue *)pIter;
+    code = bseAppend(pVnode->pBse, &seq, pBlobRow->data + p->offset, p->len);
+    memcpy(pRow[nr]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-        tRowGetBlobSeq(*pRow, pTSchema, j, &colVal, &seq);
-        SBlobValue *pBlobValue = taosHashGet(pBlobRow->pSeqTable, &seq, sizeof(seq));
-        if (pBlobValue != NULL) {
-          code = bseAppend(pVnode->pBse, &seq, data + pBlobValue->offset, pBlobValue->len);
-          if (code == 0) {
-            memcpy(colVal.value.pData, &seq, sizeof(uint64_t));
-          }
-        } else {
-          // ASSERT(0);
-        }
-      }
-    }
+    pIter = taosHashIterate(pBlobRow->pSeqTable, pIter);
+    nr += 1;
   }
 _exit:
   if (code != 0) {
     vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t inline vnodeSubmitBlobData(SVnode *pVnode, SSubmitReq2 *pReq) {
+  int32_t code = 0;
+  for (int32_t i = 0; i < TARRAY_SIZE(pReq->aSubmitTbData); ++i) {
+    SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
+    if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) {
+      code = vnodeSubmitSubBlobData(pVnode, pSubmitTbData);
+    }
   }
   return code;
 }
@@ -2098,20 +2100,10 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
     }
 
-    // if (hasBlob) {
-    //   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
-    //     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
-    //     if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) {
-    //       STSchema *pTSchema = NULL;
-    //       code = metaGetTbTSchemaEx(pVnode->pMeta, pSubmitTbData->suid, pSubmitTbData->uid, pSubmitTbData->sver,
-    //                                 &pTSchema);
-    //       TAOS_CHECK_EXIT(code);
-
-    //       updateSubmitData(pSubmitTbData, pTSchema, pVnode);
-    //       taosMemFreeClear(pTSchema);
-    //     }
-    //   }
-    // }
+    if (hasBlob) {
+      code = vnodeSubmitBlobData(pVnode, pSubmitReq);
+      if (code) goto _exit;
+    }
     // insert data
     int32_t affectedRows;
     code = tsdbInsertTableData(pVnode->pTsdb, ver, pSubmitTbData, &affectedRows);

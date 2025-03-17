@@ -1136,7 +1136,7 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
     } else {
       if (IS_STR_DATA_BLOB(pColVal->value.type)) {
         code = doGetValueFromBseBySeq(pSup->args, pColVal->value.pData, sizeof(uint64_t), &pValue, &len);
-        TSDB_CHECK_CODE(code, lino, _end);
+        // TSDB_CHECK_CODE(code, lino, _end);
 
         varDataSetLen(pSup->buildBuf[colIndex], len);
         if ((len + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {

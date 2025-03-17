@@ -360,13 +360,13 @@ _exit:
 static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
   int32_t code = 0;
   int64_t seq = 0;
-  uint8_t rewrite = 0;
-  SRpcMsg newMsg = {0};
-  if (vnodeRebuildSubmitMsg(pVnode, pMsg, &newMsg, &rewrite) < 0) {
-    return TSDB_CODE_INVALID_MSG;
-  } else {
-    if (rewrite) pMsg = &newMsg;
-  }
+  // kuint8_t rewrite = 0;
+  // SRpcMsg newMsg = {0};
+  //  if (vnodeRebuildSubmitMsg(pVnode, pMsg, &newMsg, &rewrite) < 0) {
+  //    return TSDB_CODE_INVALID_MSG;
+  //  } else {
+  //    if (rewrite) pMsg = &newMsg;
+  //  }
   (void)taosThreadMutexLock(&pVnode->lock);
   code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
   bool wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
@@ -389,10 +389,10 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
 
   if (wait) vnodeWaitBlockMsg(pVnode, pMsg);
 
-  if (rewrite) {
-    rpcFreeCont(newMsg.pCont);
-    newMsg.pCont = NULL;
-  }
+  // if (rewrite) {
+  //   rpcFreeCont(newMsg.pCont);
+  //   newMsg.pCont = NULL;
+  // }
   return code;
 }
 
