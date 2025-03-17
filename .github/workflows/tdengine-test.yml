@@ -42,54 +42,27 @@ env:
 jobs:
   run-tests-on-linux:
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'}}
     with:
       tdinternal: false
-      specified_source_branch: 'unavailable'
-      specified_target_branch: 'unavailable'
-      specified_pr_number: 'unavailable'
-
-  run-tests-on-linux-manually:
-    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    with:
-      tdinternal: false
-      specified_source_branch: ${{ github.event.inputs.specified_source_branch }}
-      specified_target_branch: ${{ github.event.inputs.specified_target_branch }}
-      specified_pr_number: ${{ github.event.inputs.specified_pr_number }}
+      specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_pr_number }}
 
   run-tests-on-mac:
     uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
     if: ${{ github.event_name == 'pull_request' }}
     with:
       tdinternal: false
-      specified_source_branch: 'unavailable'
-      specified_target_branch: 'unavailable'
-      specified_pr_number: 'unavailable'
-  
-  run-tests-on-mac-munually:
-    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    with:
-      tdinternal: false
-      specified_source_branch: ${{ github.event.inputs.specified_source_branch }}
-      specified_target_branch: ${{ github.event.inputs.specified_target_branch }}
-      specified_pr_number: ${{ github.event.inputs.specified_pr_number }}
+      specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_pr_number }}
 
   run-tests-on-windows:
     uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
     if: ${{ github.event_name == 'pull_request' }}
     with:
       tdinternal: false
-      specified_source_branch: 'unavailable'
-      specified_target_branch: 'unavailable'
-      specified_pr_number: 'unavailable'
-  
-  run-tests-on-windows-manually:
-    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    with:
-      tdinternal: false
-      specified_source_branch: ${{ github.event.inputs.specified_source_branch }}
-      specified_target_branch: ${{ github.event.inputs.specified_target_branch }}
-      specified_pr_number: ${{ github.event.inputs.specified_pr_number }}
+      specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_pr_number }}
