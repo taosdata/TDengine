@@ -486,6 +486,7 @@ void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
       destroyFlusedPos(pPos);
     }
   }
+
   pGroupResInfo->freeItem = false;
   taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->pRows = NULL;
@@ -2132,6 +2133,27 @@ void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
   taosMemoryFreeClear(pSup->pDummyCtx);
 }
 
+void destroyResultWinInfo(void* pRes) {
+  SResultWindowInfo* pWinRes = (SResultWindowInfo*)pRes;
+  destroyFlusedPos(pWinRes->pStatePos);
+}
+
+void clearSessionGroupResInfo(SGroupResInfo* pGroupResInfo) {
+  int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+  if (pGroupResInfo->index >= 0 && pGroupResInfo->index < size) {
+    for (int32_t i = pGroupResInfo->index; i < size; i++) {
+      SResultWindowInfo* pRes = (SResultWindowInfo*) taosArrayGet(pGroupResInfo->pRows, i);
+      destroyFlusedPos(pRes->pStatePos);
+      pRes->pStatePos = NULL;
+    }
+  }
+
+  pGroupResInfo->freeItem = false;
+  taosArrayDestroy(pGroupResInfo->pRows);
+  pGroupResInfo->pRows = NULL;
+  pGroupResInfo->index = 0;
+}
+
 void destroyStreamSessionAggOperatorInfo(void* param) {
   if (param == NULL) {
     return;
@@ -2145,8 +2167,8 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   }
 
   cleanupExprSupp(&pInfo->scalarSupp);
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
   destroyStreamAggSupporter(&pInfo->streamAggSup);
 
@@ -4255,8 +4277,8 @@ void destroyStreamStateOperatorInfo(void* param) {
     pInfo->pOperator = NULL;
   }
 
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
   destroyStreamAggSupporter(&pInfo->streamAggSup);
 
