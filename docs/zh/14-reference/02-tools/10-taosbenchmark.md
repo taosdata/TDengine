@@ -253,27 +253,44 @@ taosBenchmark -f <json file>
 ### 查询配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
+
+`query_mode`  查询连接方式，取值为：  
+ - “taosc”: 通过 Native  连接方式查询。  
+ - “rest” : 通过 restful 连接方式查询。  
+
 `query_times` 指定运行查询的次数，数值类型。
 
-查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒。
-interval 控制休眠时间，避免持续查询慢查询消耗 CPU，单位为秒。
 
-其它通用参数详见 [通用配置参数](#通用配置参数)
+其它通用参数详见 [通用配置参数](#通用配置参数)。
 
 #### 执行指定查询语句
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
-- **mixed_query**：查询模式  
-  “yes”：`混合查询`  
-  "no"(默认值)：`普通查询`  
-  `普通查询`：`sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql   
+- **mixed_query**：混合查询开关。  
+  “yes”: 开启 “混合查询”。   
+  “no” : 关闭 “混合查询” ，即 “普通查询”。  
+
+  - 普通查询：
+
+  `sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql   
   `查询总次数` = `sqls` 个数 * `query_times` * `threads`   
   
-  `混合查询`：`sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组， 每个 sql 都需执行 `query_times` 次查询  
+  - 混合查询：
+
+  `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组， 每个 sql 都需执行 `query_times` 次查询  
   `查询总次数` = `sqls` 个数 * `query_times` 
 
+- **batch_query**：批查询功开关。  
+  取值范围 “yes” 表示开启，"no" 不开启，其它值报错。  
+  批查询是指 `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 只执行一次查询后退出，主线程等待所有线程都执行完，再判断是否设置有 `query_interval` 参数，如果有需要 sleep 指定时间，再启动各线程组重复前面的过程，直到查询次数耗尽为止。  
+  功能限制条件：  
+   - 只支持 `mixed_query` 为 "yes" 的场景。  
+   - 不支持 restful 查询，即 `query_mode` 不能为 "rest"。  
+
 - **query_interval**：查询时间间隔，单位：millisecond，默认值为 0。
+  "batch_query" 开关打开时，表示是每批查询完间隔时间；关闭时，表示每个 sql 查询完间隔时间
+  如果执行查询的时间超过间隔时间，那么将不再等待，如果执行查询的时间不足间隔时间，需等待补足间隔时间
 
 - **threads**：执行查询 SQL 的线程数，默认值为 1。
 
