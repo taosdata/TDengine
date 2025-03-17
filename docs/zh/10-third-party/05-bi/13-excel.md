@@ -19,22 +19,22 @@ title: 与 Excel 集成
    
 **第 2 步**，在 Windows 系统环境下启动 Excel，之后选择【数据】->【获取数据】->【自其他源】->【从ODBC】。 
 
-![excel-odbc](./excel/odbc-menu.jpg) 
+![excel-odbc](./excel/odbc-menu.webp) 
 
 **第 3 步**，在弹出窗口的【数据源名称(DSN)】下拉列表中选择需要连接的数据源后，点击【确定】按钮。
 
-![excel-odbc](./excel/odbc-select.jpg) 
+![excel-odbc](./excel/odbc-select.webp) 
 
 **第 4 步**，输入 TDengine 的用户名密码。
 
-![excel-odbc](./excel/odbc-config.jpg) 
+![excel-odbc](./excel/odbc-config.webp) 
 
 **第 5 步**，在弹出的【导航器】对话框中，选择要加载的库表, 并点击【加载】完成数据加载。
 
-![excel-odbc](./excel/odbc-load.jpg)
+![excel-odbc](./excel/odbc-load.webp)
 
 ## 数据分析
 
 选中导入的数据，在【插入】选项卡中选择柱状图，并且在右侧的【数据透视图】中配置数据字段。
 
-![excel-odbc](./excel/odbc-data.jpg)
+![excel-odbc](./excel/odbc-data.webp)

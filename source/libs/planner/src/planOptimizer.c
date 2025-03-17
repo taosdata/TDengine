@@ -2112,12 +2112,15 @@ static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProjec
   if (NULL != pProject->node.pLimit || NULL != pProject->node.pSlimit) {
     return TSDB_CODE_SUCCESS;
   }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+  if(pChild->pLimit != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pProjCond = NULL;
   code = rewriteProjectCondForPushDown(pCxt, pProject, &pProjCond);
   if (TSDB_CODE_SUCCESS == code) {
-    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
     code = pdcPushDownCondToChild(pCxt, pChild, &pProjCond);
   }
 
