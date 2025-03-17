@@ -172,3 +172,4 @@ tzfile.h
 coverage.info
 taos
 taosd
+!test/requirements.txt
