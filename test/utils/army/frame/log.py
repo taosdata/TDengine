@@ -48,3 +48,4 @@ class TDLog:
 
 
 tdLog = TDLog()
+testLog = TDLog()

@@ -3,7 +3,6 @@ import sys
 import os
 import taostest
 
-from utils.sql import tdSql
 import taos
 import taosrest
 import taosws
@@ -11,7 +10,8 @@ import yaml
 import logging
 import socket
 import configparser
-from utils.log import testLog
+#from utils.log import testLog
+from utils import tdSql, etool, tdLog, testLog
 from utils.pytest.util.cluster import cluster as cluster_pytest, ClusterDnodes as ClusterDnodes_pytest
 from utils.pytest.util.dnodes import tdDnodes as tdDnodes_pytest
 from utils.pytest.util.taosadapter import tAdapter as tAdapter_pytest
@@ -156,10 +156,10 @@ class BeforeTest:
         cfg_path = os.path.join(ci_path, 'cfg')
         bin_path = os.path.dirname(self.getPath("taosd"))
         lib_path = os.path.join(os.path.dirname(bin_path), 'lib')
-        testLog.info(f"lib_path: {lib_path}")
+        testLog.debug(f"lib_path: {lib_path}")
         os.environ["LD_LIBRARY_PATH"] = f"{lib_path}:{os.environ['LD_LIBRARY_PATH']}"
         libso_file = os.path.basename(subprocess.check_output([f"ls -l {lib_path}/libtaos.so.3.3* | awk '{{print $9}}'"], shell=True).splitlines()[0].decode())
-        testLog.info(f"libso_file: {libso_file}")
+        testLog.debug(f"libso_file: {libso_file}")
         if os.path.exists("/usr/lib/libtaos.so"):
             subprocess.run([f"rm -rf /usr/lib/libtaos.so && ln -s {lib_path}/libtaos.so /usr/lib/libtaos.so"], check=True, text=True, shell=True)
             subprocess.run([f"rm -rf /usr/lib/libtaos.so.1 && ln -s {lib_path}/{libso_file} /usr/lib/libtaos.so.1"], check=True, text=True, shell=True)
@@ -283,6 +283,8 @@ class BeforeTest:
             request.session.adapter = adapter
         request.session.yaml_data = yaml_data
         request.session.yaml_file = 'ci_default.yaml'
+        if not os.path.exists(os.path.join(self.root_dir, 'env')):
+            os.makedirs(os.path.join(self.root_dir, 'env'))
         with open(os.path.join(self.root_dir, 'env', request.session.yaml_file), 'w') as file:
             yaml.dump(yaml_data, file)
         request.session.host = servers[0]["host"]
