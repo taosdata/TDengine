@@ -20,6 +20,7 @@
 #include "tcompare.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "tutil.h"
 
 #define kMaxEncodeLen 20
 #define kEncodeLen    (2 * (kMaxEncodeLen) + 8)
@@ -379,7 +380,7 @@ int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t le
 
   info.offset = offset;
   info.size = len;
-  code = taosHashPut(pTable->pCache, &key, sizeof(key), &info, sizeof(SValueInfo));
+  code = taosHashPut(pTable->pCache, &key, sizeof(key), &info, sizeof(info));
 
   TAOS_CHECK_GOTO(code, &line, _err);
 
@@ -940,6 +941,106 @@ _err:
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
+
+int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch) {
+  int32_t code = 0;
+  taosThreadMutexLock(&pBse->mutex);
+  taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
+
+int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SBseBatch *p = taosMemoryMalloc(sizeof(SBseBatch));
+  if (p == NULL) {
+    TSDB_CHECK_CODE(terrno, lino, _error);
+  }
+  uint64_t sseq = 0;
+
+  // atomic later
+  taosThreadMutexLock(&pBse->mutex);
+  sseq = pBse->seq;
+  pBse->seq += nKeys;
+  taosThreadMutexUnlock(&pBse->mutex);
+
+  p->pBse = pBse;
+  p->len = 0;
+  p->seq = sseq++;
+  p->cap = 1024;
+  p->buf = taosMemCalloc(1, p->cap);
+  if (p->buf == NULL) {
+    TSDB_CHECK_CODE(terrno, lino, _error);
+  }
+
+  p->pOffset = taosHashInit(nKeys, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (p->pOffset == NULL) {
+    TSDB_CHECK_CODE(terrno, lino, _error);
+  }
+
+  *pBatch = p;
+_error:
+  if (code != 0) {
+    bseError("failed to build batch since %s", tstrerror(code));
+    bseBatchDestroy(p);
+  }
+  return code;
+}
+int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t len) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t offset = pBatch->len;
+
+  int64_t aseq = pBatch->seq;
+
+  pBatch->seq++;
+  pBatch->num++;
+
+  code = bseBatchMayResize(pBatch, pBatch->len + sizeof(uint64_t) + sizeof(uint32_t) + len);
+  TSDB_CHECK_CODE(terrno, lino, _error);
+
+  uint8_t *p = pBatch->buf + pBatch->len;
+  offset = pBatch->len;
+  offset += taosEncodeVariantU64((void **)&p, aseq);
+  offset += taosEncodeVariantI32((void **)&p, len);
+  offset += taosEncodeBinary((void **)&p, value, len);
+
+  SValueInfo info = {.offset = pBatch->len, .size = len};
+  pBatch->len = offset;
+
+  code = taosHashPut(pBatch->pOffset, &aseq, sizeof((aseq)), &info, sizeof(info));
+
+_error:
+  if (code != 0) {
+    bseError("failed to put value by seq %" PRId64 " since %s at lino %d", aseq, tstrerror(code), lino);
+  }
+  return code;
+}
+
+int32_t bseBatchGet(SBseBatch *pBatch, uint64_t seq, uint8_t **pValue, int32_t *len) {
+  int32_t code = 0;
+  return 0;
+}
+
+int32_t bseBatchCommit(SBseBatch *pBatch) {
+  int32_t code = 0;
+  SBse   *pBse = pBatch->pBse;
+  taosThreadMutexLock(&pBse->mutex);
+
+  taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
+
+int32_t bseBatchDestroy(SBseBatch *pBatch) {
+  if (pBatch == NULL) return 0;
+
+  int32_t code = 0;
+  taosMemoryFree(pBatch->buf);
+  taosHashCleanup(pBatch->pOffset);
+
+  taosMemFree(pBatch);
+  return code;
+}
 int32_t bseFileSetCmprFn(const void *p1, const void *p2) {
   SBseFileInfo *k1 = (SBseFileInfo *)p1;
   SBseFileInfo *k2 = (SBseFileInfo *)p2;
@@ -1240,5 +1341,27 @@ _err:
     }
   }
   taosMemFree(buf);
+  return code;
+}
+
+int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen) {
+  int32_t lino = 0;
+  int32_t code = 0;
+  if (alen > pBatch->cap) {
+    int32_t cap = pBatch->cap;
+    while (alen > cap) {
+      cap = cap * 2;
+    }
+    uint8_t *buf = taosMemRealloc(pBatch->buf, cap);
+    if (buf == NULL) {
+      TSDB_CHECK_CODE(terrno, lino, _error);
+    }
+    pBatch->cap = cap;
+    pBatch->buf = buf;
+  }
+_error:
+  if (code != 0) {
+    bseError("failed to resize batch buffer since %s at line %d", tstrerror(code), lino);
+  }
   return code;
 }

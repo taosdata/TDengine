@@ -603,17 +603,30 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
   int32_t    nr = 0;
   SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
 
+  int32_t    sz = taosHashGetSize(pBlobRow->pSeqTable);
+  SBseBatch *pBatch = NULL;
+
+  code = bseBatchInit(pVnode->pBse, &pBatch, sz);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   SRow **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
   void  *pIter = taosHashIterate(pBlobRow->pSeqTable, NULL);
   while (pIter) {
     SBlobValue *p = (SBlobValue *)pIter;
-    code = bseAppend(pVnode->pBse, &seq, pBlobRow->data + p->offset, p->len);
-    memcpy(pRow[nr]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
+
+    code = bseBatchPut(pBatch, &seq, pBlobRow->data + p->offset, p->len);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    memcpy(pRow[nr]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
 
     pIter = taosHashIterate(pBlobRow->pSeqTable, pIter);
     nr += 1;
   }
+
+  code = bseBatchCommit(pBatch);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = bseBatchDestroy(pBatch);
 _exit:
   if (code != 0) {
     vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
