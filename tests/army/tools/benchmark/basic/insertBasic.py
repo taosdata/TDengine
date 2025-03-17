@@ -80,6 +80,7 @@ class TDTestCase(TBase):
                 cmdVG = arr[1]
 
         # vgropus
+        vgroups = None
         try:
             if cmdVG != None:
                 # command special vgroups first priority

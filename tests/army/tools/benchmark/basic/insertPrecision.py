@@ -31,6 +31,7 @@ class TDTestCase(TBase):
         # exe insert 
         cmd = f"{benchmark} {options} -f {jsonFile}"
         os.system(cmd)
+        precision = None
         
         #
         # check insert result
