@@ -629,8 +629,9 @@ static int32_t doUpdateCheckpointInfoCheck(SStreamTask* pTask, bool restored, SV
           code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
 
           int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-          stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
-                  id, vgId, pReq->taskId, numOfTasks);
+          stDebug("s-task:%s vgId:%d related fill-history task:0x%" PRIx64
+                  " dropped in update checkpointInfo, remain tasks:%d",
+                  id, vgId, pReq->hTaskId, numOfTasks);
 
           //todo: task may not exist, commit anyway, optimize this later
           code = streamMetaCommit(pMeta);
@@ -1586,17 +1587,26 @@ int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
   streamTaskSetReqConsenChkptId(pTask, taosGetTimestampMs());
   streamMutexUnlock(&pTask->lock);
 
+  // 1. stop the executo at first
+  if (pTask->exec.pExecutor != NULL) {
+    // we need to make sure the underlying operator is stopped right, otherwise, SIGSEG may occur,
+    // waiting at most for 10min
+    if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
+      int32_t code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 600000);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("s-task:%s failed to kill task related query handle, code:%s", pTask->id.idStr, tstrerror(code));
+      }
+    }
+
+    qDestroyTask(pTask->exec.pExecutor);
+    pTask->exec.pExecutor = NULL;
+  }
+
+  // 2. destroy backend after stop executor
   if (pTask->pBackend != NULL) {
     streamFreeTaskState(pTask, p);
     pTask->pBackend = NULL;
   }
-
-  streamMetaWLock(pTask->pMeta);
-  if (pTask->exec.pExecutor != NULL) {
-    qDestroyTask(pTask->exec.pExecutor);
-    pTask->exec.pExecutor = NULL;
-  }
-  streamMetaWUnLock(pTask->pMeta);
 
   return 0;
 }

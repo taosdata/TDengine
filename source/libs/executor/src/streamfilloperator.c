@@ -135,6 +135,13 @@ void destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
   taosMemoryFree(pFillInfo);
 }
 
+void clearGroupResArray(SGroupResInfo* pGroupResInfo) {
+  pGroupResInfo->freeItem = false;
+  taosArrayDestroy(pGroupResInfo->pRows);
+  pGroupResInfo->pRows = NULL;
+  pGroupResInfo->index = 0;
+}
+
 static void destroyStreamFillOperatorInfo(void* param) {
   SStreamFillOperatorInfo* pInfo = (SStreamFillOperatorInfo*)param;
   destroyStreamFillInfo(pInfo->pFillInfo);
@@ -148,7 +155,7 @@ static void destroyStreamFillOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->matchInfo.pList);
   pInfo->matchInfo.pList = NULL;
   taosArrayDestroy(pInfo->pUpdated);
-  clearGroupResInfo(&pInfo->groupResInfo);
+  clearGroupResArray(&pInfo->groupResInfo);
   taosArrayDestroy(pInfo->pCloseTs);
 
   if (pInfo->stateStore.streamFileStateDestroy != NULL) {
