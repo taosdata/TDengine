@@ -429,9 +429,8 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % 5 == 0) {
     mndStreamConsensusChkpt(pMnode);
   }
-#endif
-#ifdef USE_REPORT
-  if (sec % tsTelemInterval == (TMIN(86400, (tsTelemInterval - 1)))) {
+
+  if (tsTelemInterval > 0 && sec % tsTelemInterval == 0) {
     mndPullupTelem(pMnode);
   }
 #endif

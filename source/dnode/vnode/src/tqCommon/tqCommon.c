@@ -1391,17 +1391,6 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
       if (ret) {
         tqError("s-task:0x%x failed add check downstream failed, core:%s", req.taskId, tstrerror(ret));
       }
-
-//      STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
-//      int32_t ret1 = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
-//      if (ret1 == 0 && pTask != NULL) {
-//        SStreamTaskState s = streamTaskGetStatus(pTask);
-//        if (s.state == TASK_STATUS__STOP) {
-//          tqDebug("s-task:0x%x status:%s wait for it become init", req.taskId, s.name);
-//          streamMetaReleaseTask(pMeta, pTask);
-//          return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-//        }
-//      }
     } else {
       tqDebug("vgId:%d task:0x%x stopped in follower node, not set the consensus checkpointId:%" PRId64 " transId:%d",
               pMeta->vgId, req.taskId, req.checkpointId, req.transId);
