@@ -35,14 +35,13 @@ typedef struct SPhysiPlanContext {
   bool          hasSysScan;
 } SPhysiPlanContext;
 
-
-#define planFatal(param, ...)  qFatal(param ", plan", ##__VA_ARGS__)
-#define planError(param, ...)  qError(param ", plan", ##__VA_ARGS__)
-#define planWarn(param, ...)   qWarn (param ", plan", ##__VA_ARGS__)
-#define planInfo(param, ...)   qInfo (param ", plan", ##__VA_ARGS__)
-#define planDebug(param, ...)  qDebug(param ", plan", ##__VA_ARGS__)
-#define planDebugL(param, ...) qDebugL(param ", plan", ##__VA_ARGS__)
-#define planTrace(param, ...)  qTrace(param ", plan", ##__VA_ARGS__)
+#define planFatal(param, ...)  qFatal ("plan " param, ##__VA_ARGS__)
+#define planError(param, ...)  qError ("plan " param, ##__VA_ARGS__)
+#define planWarn(param, ...)   qWarn  ("plan " param, ##__VA_ARGS__)
+#define planInfo(param, ...)   qInfo  ("plan " param, ##__VA_ARGS__)
+#define planDebug(param, ...)  qDebug ("plan " param, ##__VA_ARGS__)
+#define planDebugL(param, ...) qDebugL("plan " param, ##__VA_ARGS__)
+#define planTrace(param, ...)  qTrace ("plan " param, ##__VA_ARGS__)
 
 #define PLAN_ERR_RET(c)                \
   do {                                 \
