@@ -320,7 +320,6 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t interv
   int64_t         ts = taosGetTimestamp(pInterval->precision);
   int64_t         skey = pLatestWindow->skey + pInterval->sliding;
 
-  stError("s-task:%s interval:%d, pInterval->sliding:%"PRId64 ",pInterval->interval:%"PRId64, id, interval, pInterval->sliding, pInterval->interval);
   int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
   if (code) {
     stError("s-task:%s failed to create force_window trigger, code:%s", id, tstrerror(code));
