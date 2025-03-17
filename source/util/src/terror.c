@@ -380,7 +380,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,      "Xnode already exists"
 TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,       "Xnode already deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_DEPLOYED,           "Xnode not deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_NOT_EXIST,          "Xnode not there")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TOO_LONG_URL,       "Xnode too long url")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,              "Xnode not found")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")

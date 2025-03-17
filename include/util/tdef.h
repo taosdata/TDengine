@@ -16,8 +16,8 @@
 #ifndef _TD_UTIL_DEF_H_
 #define _TD_UTIL_DEF_H_
 
-#include "os.h"
 #include "cus_name.h"
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -290,15 +290,15 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_JSON_TAG_LEN 16384
 #define TSDB_MAX_JSON_KEY_LEN 256
 
-#define TSDB_AUTH_LEN          16
-#define TSDB_PASSWORD_MIN_LEN  8
+#define TSDB_AUTH_LEN              16
+#define TSDB_PASSWORD_MIN_LEN      8
 #define TSDB_PASSWORD_MAX_LEN      255
-#define TSDB_PASSWORD_LEN      32
-#define TSDB_USET_PASSWORD_LEN 129
+#define TSDB_PASSWORD_LEN          32
+#define TSDB_USET_PASSWORD_LEN     129
 #define TSDB_USET_PASSWORD_LONGLEN 256
-#define TSDB_VERSION_LEN       32
-#define TSDB_LABEL_LEN         16
-#define TSDB_JOB_STATUS_LEN    32
+#define TSDB_VERSION_LEN           32
+#define TSDB_LABEL_LEN             16
+#define TSDB_JOB_STATUS_LEN        32
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_MACHINE_ID_LEN       24
@@ -319,8 +319,8 @@ typedef enum ELogicConditionType {
 #define TSDB_ANALYTIC_ALGO_URL_LEN    (TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN + 1)
 #define TSDB_ANALYTIC_ALGO_OPTION_LEN 256
 
-#define TSDB_XNODE_URL_LEN   128
-#define XNODE_OPTION_PROTOCOL_MAX (32)
+#define TSDB_XNODE_URL_LEN            128
+#define XNODE_OPTION_PROTOCOL_MAX     (32)
 #define XNODE_OPTION_PROTOCOL_DEFAULT (1)
 
 #define TSDB_MAX_EP_NUM 10

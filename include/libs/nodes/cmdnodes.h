@@ -370,7 +370,7 @@ typedef struct {
 typedef struct SXnodeOptions {
   ENodeType  type;
   SNodeList* pProtocol;
-  int64_t    protocol[XNODE_OPTION_PROTOCOL_MAX];
+  int8_t     protocol[XNODE_OPTION_PROTOCOL_MAX];
 } SXnodeOptions;
 
 typedef struct {

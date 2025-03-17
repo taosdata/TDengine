@@ -237,7 +237,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000451 | Xnode already deployed | 已部署                       | 确认操作是否正确   |
 | 0x80000452 | Xnode not deployed     | 内部错误                     | 上报 issue         |
 | 0x80000453 | Xnode not there        | 不在线                       | 确认操作是否正确   |
-| 0x80000454 | Xnode too long url     | 地址太长                     | 检查地址长度       |
+| 0x80000454 | Xnode not found        | 内部错误                     | 上报 issue         |
 
 
 ## dnode

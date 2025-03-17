@@ -230,7 +230,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000451 | Xnode already deployed | Already deployed             | Confirm if correct |
 | 0x80000452 | Xnode not deployed     | Internal error               | Report issue       |
 | 0x80000453 | Xnode not there        | Offline                      | Confirm if correct |
-| 0x80000454 | Xnode too long url     | url too long                 | Check url length   |
+| 0x80000454 | Xnode not found        | Internal error               | Report issue       |
 
 
 ## dnode

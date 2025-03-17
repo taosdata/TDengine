@@ -542,12 +542,10 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
       break;
     case TDMT_DND_CREATE_XNODE:
-      // TODO:
-      // code = dmProcessCreateXnode(pMgmt, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(XNODE, pMsg);
       break;
     case TDMT_DND_DROP_XNODE:
-      // TODO:
-      // code = dmProcessDropXnode(pMgmt, pMsg);
+      code = (*pMgmt->processDropNodeFp)(XNODE, pMsg);
       break;
     case TDMT_DND_ALTER_MNODE_TYPE:
       code = (*pMgmt->processAlterNodeTypeFp)(MNODE, pMsg);
