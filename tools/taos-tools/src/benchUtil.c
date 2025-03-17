@@ -1776,3 +1776,25 @@ int fetchChildTableName(char *dbName, char *stbName) {
     // succ
     return 0;
 }
+
+// skip prefix blank
+int trimCaseCmp(char *str1,char *str2) {
+    char *p = str1;
+    while (*p == ' ') {
+        p++;
+    }
+
+    if (strncasecmp(p, str2, strlen(str2)) == 0) {
+        // end is all blank
+        p = p + strlen(str2);
+        while(*p != '\0') {
+            if (*p != ' ') {
+                return -1;
+            }
+            p++;
+        }
+        return 0;
+    }
+
+    return -1;
+}
