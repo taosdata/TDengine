@@ -983,6 +983,16 @@ void doubleToDecimal128(double val, int precision, int scale, Decimal128* dec) {
 }
 
 
+void strToDecimal64(const char* str, int precision, int scale, Decimal64* dec) {
+    decimal64FromStr(str, strlen(str), precision, scale, dec);
+}
+
+
+void strToDecimal128(const char* str, int precision, int scale, Decimal128* dec) {
+    decimal128FromStr(str, strlen(str), precision, scale, dec);
+}
+
+
 Decimal64 tmpDecimal64Impl(Field* field, int32_t angle, int32_t k) {
     (void)angle;
     (void)k;

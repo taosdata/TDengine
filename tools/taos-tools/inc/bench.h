@@ -1081,7 +1081,8 @@ int fetchChildTableName(char *dbName, char *stbName);
 
 void doubleToDecimal64(double val, int precision, int scale, Decimal64* dec);
 void doubleToDecimal128(double val, int precision, int scale, Decimal128* dec);
-
+void strToDecimal64(const char* str, int precision, int scale, Decimal64* dec);
+void strToDecimal128(const char* str, int precision, int scale, Decimal128* dec);
 
 
 #endif   // INC_BENCH_H_
