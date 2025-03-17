@@ -1777,24 +1777,29 @@ int fetchChildTableName(char *dbName, char *stbName) {
     return 0;
 }
 
-// skip prefix blank
-int trimCaseCmp(char *str1,char *str2) {
-    char *p = str1;
-    while (*p == ' ') {
-        p++;
+// skip prefix suffix blank
+int trimCaseCmp(char *str1, char *str2) {
+    // Skip leading whitespace in str1
+    while (isblank((unsigned char)*str1)) {
+        str1++;
     }
 
-    if (strncasecmp(p, str2, strlen(str2)) == 0) {
-        // end is all blank
-        p = p + strlen(str2);
-        while(*p != '\0') {
-            if (*p != ' ') {
-                return -1;
-            }
-            p++;
+    // Compare characters case-insensitively
+    while (*str2 != '\0') {
+        if (tolower((unsigned char)*str1) != tolower((unsigned char)*str2)) {
+            return -1;
         }
-        return 0;
+        str1++;
+        str2++;
     }
 
-    return -1;
+    // Check if the remaining characters in str1 are all whitespace
+    while (*str1 != '\0') {    
+        if (!isblank((unsigned char)*str1)) {
+            return -1;
+        }
+        str1++;
+    }
+
+    return 0;
 }
