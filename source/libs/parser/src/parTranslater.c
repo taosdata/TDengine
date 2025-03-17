@@ -12606,10 +12606,8 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     }
 
     if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      if (pStmt->pOptions->fillHistory) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                       "When trigger was force window close, Stream interp unsupported Fill history");
-      } else if (pSelect->pFill != NULL) {
+      pStmt->pOptions->fillHistory = 0;
+      if (pSelect->pFill != NULL) {
         EFillMode mode = ((SFillNode*)(pSelect->pFill))->mode;
         if (mode == FILL_MODE_NEXT) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
@@ -12658,30 +12656,19 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
   }
 
   if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-    if (pStmt->pOptions->fillHistory) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "When trigger was force window close, Stream unsupported Fill history");
-    }
-
-    if (pStmt->pOptions->ignoreExpired != 1) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "When trigger was force window close, Stream must not set  ignore expired 0");
-    }
-
-    if (pStmt->pOptions->ignoreUpdate != 1) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "When trigger was force window close, Stream must not set  ignore update 0");
-    }
+    pStmt->pOptions->fillHistory = 0;
+    pStmt->pOptions->ignoreExpired = 1;
+    pStmt->pOptions->ignoreUpdate = 1;
 
     if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
       SIntervalWindowNode* pWindow = (SIntervalWindowNode*)pSelect->pWindow;
       if (NULL != pWindow->pSliding) {
-        int64_t interval = ((SValueNode*)pWindow->pInterval)->datum.i;
-        int64_t sliding = ((SValueNode*)pWindow->pSliding)->datum.i;
-        if (interval != sliding) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                         "When trigger was force window close, Stream unsupported sliding");
-        }
+//        int64_t interval = ((SValueNode*)pWindow->pInterval)->datum.i;
+//        int64_t sliding = ((SValueNode*)pWindow->pSliding)->datum.i;
+//        if (interval != sliding) {
+//          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+//                                         "When trigger was force window close, Stream unsupported sliding");
+//        }
       }
     }
 
