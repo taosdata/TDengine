@@ -113,8 +113,6 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
     taosMemoryFree(pReq);
     return code;
   }
-
-  mDebug("set the resume action for trans:%d", pTrans->id);
   return code;
 }
 
@@ -438,6 +436,8 @@ int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pSt
     return code;
   }
 
+  mDebug("transId:%d start to create resume actions", pTrans->id);
+
   while (streamTaskIterNextTask(pIter)) {
     SStreamTask *pTask = NULL;
     code = streamTaskIterGetCurrent(pIter, &pTask);
@@ -624,7 +624,7 @@ int32_t doSetCheckpointIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* pTa
     return code;
   }
 
-  code = setTransAction(pTrans, pBuf, tlen, TDMT_STREAM_CONSEN_CHKPT, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
+  code = setTransAction(pTrans, pBuf, tlen, TDMT_STREAM_CONSEN_CHKPT, &epset, TSDB_CODE_STREAM_TASK_IVLD_STATUS, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBuf);
   }
