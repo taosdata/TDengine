@@ -31,6 +31,8 @@ def pytest_addoption(parser):
                     help="set disk number on each level. range 1 ~ 10")
     parser.addoption("-L", action="store",
                     help="set multiple level number. range 1 ~ 3")
+    parser.addoption("-I", action="store",
+                    help="independentMnode Mnode")
     parser.addoption("--replica", action="store",
                     help="the number of replicas")
     parser.addoption("--skip_test", action="store_true",
@@ -63,39 +65,7 @@ def before_test_session(request):
         if not os.path.isfile(yaml_file_path):
             raise pytest.UsageError(f"YAML file '{yaml_file_path}' does not exist.")
 
-        with open(yaml_file_path, "r") as f:
-            yaml_data = yaml.safe_load(f)
-
-        # 解析settings中name=taosd的配置
-        servers = []
-        request.session.restful = False
-        for setting in yaml_data.get("settings", []):
-            if setting.get("name") == "taosd":
-                for dnode in setting["spec"]["dnodes"]:
-                    endpoint = dnode["endpoint"]
-                    host, port = endpoint.split(":")
-                    server = {
-                        "host": host,
-                        "port": int(port),
-                        "cfg_path": dnode["config_dir"],
-                        "endpoint": endpoint,
-                        "log_dir": dnode["config"]["logDir"],
-                        "data_dir": dnode["config"]["dataDir"],
-                        "config": dnode["config"]
-                    }
-                    servers.append(server)
-            if setting.get("name") == "taosAdapter":
-                # TODO: 解析taosAdapter的配置
-                request.session.restful = True
-        request.session.host = servers[0]["host"]
-        request.session.port = servers[0]["port"]
-        request.session.user = "root"
-        request.session.password = "taosdata"
-        request.session.cfg_path = servers[0]["cfg_path"]
-        request.session.servers = servers
-        request.session.denodes_num = len(servers)
-        request.session.query_policy = 1
-        request.session.yaml_data = yaml_data
+        request.session.before_test.get_config_from_yaml(request, yaml_file_path)
     # 解析入参，存入session变量
     else:
         if request.config.getoption("-N"):
@@ -111,6 +81,10 @@ def before_test_session(request):
             request.session.query_policy = int(request.config.getoption("-Q"))
         else:
             request.session.query_policy = 1
+        if request.config.getoption("-I"):   
+            request.session.independentMnode = bool(request.config.getoption("-I"))
+        else:
+            request.session.independentMnode = False
         request.session.host = "localhost"
         request.session.port = 6030
         yaml_file = "ci_default.yaml"
@@ -206,7 +180,10 @@ def before_test_class(request):
     yield
 
     request.cls.tdSql.close()
+    tdSql_pytest.close()
+    tdSql_army.close()
     request.cls.conn.close()
+    request.session.before_test.destroy(request.cls.yaml_file)
 
 @pytest.fixture(scope="class", autouse=True)
 def add_common_methods(request):

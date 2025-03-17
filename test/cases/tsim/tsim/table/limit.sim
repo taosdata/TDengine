@@ -1,0 +1,89 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================ dnode1 start
+
+$i = 0
+$dbPrefix = ob_tl_db
+$tbPrefix = ob_tl_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =================== step 0
+sql create database $db vgroups 8
+sql use $db
+sql show vgroups
+if $rows != 8 then 
+  return -1
+endi
+
+$N = 256
+
+print =================== step 1
+$x = $N
+$y = 0
+while $x > $y
+  $table = a . $x
+  sql create table $table (ts timestamp, speed int, i float, d double, b bigint, c binary(20))
+  $x = $x - 1
+endw 
+
+sql show vgroups
+if $rows != 8 then 
+  return -1
+endi
+
+print =================== step 2
+
+$x = $N
+$y = 0
+while $x > $y
+  $table = b . $x
+  sql create table $table (ts timestamp, speed int, i float, d double, b bigint, c binary(20))
+  $x = $x - 1
+endw 
+
+sql show vgroups
+if $rows != 8 then 
+  return -1
+endi
+
+print =================== step 3
+
+$x = $N
+$y = 0
+while $x > $y
+  $table = c . $x
+  sql create table $table (ts timestamp, speed int, i float, d double, b bigint, c binary(20))
+  $x = $x - 1
+endw 
+
+sql show vgroups
+if $rows != 8 then 
+  return -1
+endi
+
+print =================== step 4
+
+$x = $N
+$y = 0
+while $x > $y
+  $table = d . $x
+  sql create table $table (ts timestamp, speed int, i float, d double, b bigint, c binary(20))
+  $x = $x - 1
+endw 
+
+sql show vgroups
+if $rows != 8 then 
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

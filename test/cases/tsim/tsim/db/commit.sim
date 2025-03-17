@@ -1,0 +1,123 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+
+print ========= start dnode1 as master
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sql connect
+
+print ========= start other dnodes
+sql create dnode $hostname port 7200
+
+$x = 0
+step1:
+	$ = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+
+print ======== step1 create db
+sql create database commitdb replica 1 duration 7 keep 30
+sql use commitdb
+sql create table tb (ts timestamp, i int)
+
+$x = 1
+while $x < 41
+  $time = $x . m
+  sql insert into tb values (now + $time , $x )
+  $x = $x + 1
+endw
+
+sql select * from tb order by ts desc
+print ===> rows $rows
+print ===> last $data01
+
+if $rows != 40 then
+	return -1
+endi
+if $data01 != 40 then
+	return -1
+endi
+
+print ======== step2 stop dnode
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 3000
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+
+sql select * from tb order by ts desc
+print ===> rows $rows
+print ===> last $data01
+
+if $rows != 40 then
+	return -1
+endi
+if $data01 != 40 then
+	return -1
+endi
+
+$oldnum = $rows
+$num = $rows + 2
+
+print ======== step3 import old data
+sql import into tb values (now - 10d , -10 )
+sql import into tb values (now - 11d , -11 )
+sql select * from tb order by ts desc
+print ===> rows $rows expect $num
+print ===> last $data01 expect  $data01
+
+if $rows != $num then
+	return -1
+endi
+if $data01 != 40 then
+	return -1
+endi
+
+print ======== step4 import new data
+#sql_error import into tb values (now + 30d , 30 )
+#sql_error import into tb values (now + 31d , 31 )
+
+sql select * from tb order by ts desc
+print ===> rows $rows
+print ===> last $data01
+
+if $rows != $num then
+	return -1
+endi
+if $data01 != 40 then
+	return -1
+endi
+
+print ======== step5 stop dnode
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s start
+
+sql select * from tb
+print ===> rows $rows
+print ===> last $data01
+
+sql select * from tb order by ts desc
+if $rows != $num then
+	return -1
+endi
+if $data01 != 40 then
+	return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT

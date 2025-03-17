@@ -1,0 +1,57 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database test;
+sql use test;
+
+sql create table t(ts timestamp, f int);
+sql insert into t values(now,0)(now+1s, 1)(now+2s, 2)(now+3s,3)(now+4s,4)(now+5s,5)(now+6s,6)(now+7s,7)(now+8s,8)(now+9s,9)
+sql select * from (select * from t order by ts desc limit 3 offset 2) order by ts;
+print $data01 $data11 $data21
+if $data01 != 5 then
+  return -1
+endi
+if $data11 != 6 then
+  return -1
+endi
+if $data21 != 7 then
+  return -1
+endi
+sql select * from (select * from t order by ts limit 3 offset 2) order by ts desc;
+print $data01 $data11 $data21
+if $data01 != 4 then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+sql select * from (select * from t order by ts desc limit 3 offset 2) order by ts desc;
+print $data01 $data11 $data21
+if $data01 != 7 then
+  return -1
+endi
+if $data11 != 6 then
+  return -1
+endi
+if $data21 != 5 then
+  return -1
+endi
+sql select * from (select * from t order by ts limit 3 offset 2) order by ts;
+print $data01 $data11 $data21
+if $data01 != 2 then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

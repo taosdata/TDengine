@@ -1,0 +1,141 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_pe_db
+$tbPrefix = m_pe_tb
+$mtPrefix = m_pe_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select percentile(tbcol, 10) from $tb
+print ===> $data00
+if $data00 != 1.900000000 then
+  return -1
+endi
+
+sql select percentile(tbcol, 20) from $tb
+print ===> $data00
+if $data00 != 3.800000000 then
+  return -1
+endi
+
+sql select percentile(tbcol, 100) from $tb
+print ===> $data00
+if $data00 != 19.000000000 then
+  return -1
+endi
+
+sql select percentile(tbcol, 110) from $tb -x step2
+  return -1
+step2:
+
+print =============== step3
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select percentile(tbcol, 1) from $tb where ts > $ms
+print ===> $data00
+if $data00 != 5.140000000 then
+  return -1
+endi
+
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select percentile(tbcol, 5) from $tb where ts > $ms
+print ===> $data00
+if $data00 != 5.700000000 then
+  return -1
+endi
+
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select percentile(tbcol, 0) from $tb where ts > $ms
+print ===> $data00
+if $data00 != 5.000000000 then
+  return -1
+endi
+
+print =============== step4
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select percentile(tbcol, 1) as c from $tb where ts > $ms
+print ===> $data00
+if $data00 != 5.140000000 then
+  return -1
+endi
+
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select percentile(tbcol, 5) as c from $tb where ts > $ms
+print ===> $data00
+if $data00 != 5.700000000 then
+  return -1
+endi
+
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select percentile(tbcol, 0) as c from $tb where ts > $ms
+print ===> $data00
+if $data00 != 5.000000000 then
+  return -1
+endi
+
+sql select _wstart, percentile(tbcol, 10) as c from $tb interval(1d)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @20-10-01 00:00:00.000@ then
+  return -1
+endi
+if $data01 != @1.900000000@ then
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
