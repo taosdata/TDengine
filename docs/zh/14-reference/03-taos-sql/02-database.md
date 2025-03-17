@@ -96,23 +96,23 @@ database_option: {
   - 当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的后缀；
   - 例如：假定表名为 "v30001"，当 TSDB_SUFFIX = 2 时，使用 "v300" 来决定分配到哪个 vgroup ，当 TSDB_SUFFIX = -2 时使用 "01" 来决定分配到哪个 vgroup。
 - TSDB_PAGESIZE：一个 vnode 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
-- DNODES：指定 vnode 所在的 DNODE 列表，如 '1,2,3'，以逗号区分且字符间不能有空格<b style="color:#F53F3F;">（仅企业版支持）</b>。
+- DNODES：指定 vnode 所在的 DNODE 列表，如 '1,2,3'，以逗号区分且字符间不能有空格 （**仅企业版支持**）
 - WAL_LEVEL：WAL 级别，默认为 1。
   - 1：写 WAL，但不执行 fsync。
   - 2：写 WAL，而且执行 fsync。
 - WAL_FSYNC_PERIOD：当 WAL_LEVEL 参数设置为 2 时，用于设置落盘的周期。默认为 3000，单位毫秒。最小为 0，表示每次写入立即落盘；最大为 180000，即三分钟。
 - WAL_RETENTION_PERIOD：为了数据订阅消费，需要 WAL 日志文件额外保留的最大时长策略。WAL 日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 3600，表示在 WAL 保留最近 3600 秒的数据，请根据数据订阅的需要修改这个参数为适当值。
 - WAL_RETENTION_SIZE：为了数据订阅消费，需要 WAL 日志文件额外保留的最大累计大小策略。单位为 KB。默认为 0，表示累计大小无上限。
-- COMPACT_INTERVAL：自动 compact 触发周期（从 1970-01-01T00:00:00Z 开始切分的时间周期)（<b style="color:#F53F3F;">仅企业版 3.3.5.0 版本开始支持</b>）。
+- COMPACT_INTERVAL：自动 compact 触发周期（从 1970-01-01T00:00:00Z 开始切分的时间周期)（**仅企业版 3.3.5.0 版本开始支持**）。
   - 取值范围：0 或 [10m, keep2]，单位：m（分钟），h（小时），d（天）；
   - 不加时间单位默认单位为天，默认值为 0，即不触发自动 compact 功能；
   - 如果 db 中有未完成的 compact 任务，不重复下发 compact 任务。
-- COMPACT_TIME_RANGE：自动 compact 任务触发的 compact 时间范围（<b style="color:#F53F3F;">仅企业版 3.3.5.0 版本开始支持</b>）。
+- COMPACT_TIME_RANGE：自动 compact 任务触发的 compact 时间范围（**仅企业版 3.3.5.0 版本开始支持**）。
   - 取值范围：[-keep2, -duration]，单位：m（分钟），h（小时），d（天）；
   - 不加时间单位时默认单位为天，默认值为 [0, 0]；
   - 取默认值 [0, 0] 时，如果 COMPACT_INTERVAL 大于 0，会按照 [-keep2, -duration] 下发自动 compact；
   - 因此，要关闭自动 compact 功能，需要将 COMPACT_INTERVAL 设置为 0。
-- COMPACT_TIME_OFFSET：自动 compact 任务触发的 compact 时间相对本地时间的偏移量（<b style="color:#F53F3F;">仅企业版 3.3.5.0 版本开始支持</b>）。取值范围：[0, 23]，单位：h（小时），默认值为 0。以 UTC 0 时区为例：
+- COMPACT_TIME_OFFSET：自动 compact 任务触发的 compact 时间相对本地时间的偏移量（**仅企业版 3.3.5.0 版本开始支持**）。取值范围：[0, 23]，单位：h（小时），默认值为 0。以 UTC 0 时区为例：
   - 如果 COMPACT_INTERVAL 为 1d，当 COMPACT_TIME_OFFSET 为 0 时，在每天 0 点下发自动 compact；
   - 如果 COMPACT_TIME_OFFSET 为 2，在每天 2 点下发自动 compact。
 
@@ -245,7 +245,7 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 BALANCE VGROUP LEADER;
 ```
 
-触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载均衡操作。<b style="color:#F53F3F;">（企业版功能）</b>
+触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载均衡操作。（**企业版功能**）
 
 ## 查看数据库工作状态
 
