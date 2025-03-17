@@ -869,6 +869,10 @@ static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool con
     }
   }
 
+  if (constAsPrim && ((pJoin->leftNoOrderedSubQuery && !pJoin->leftConstPrimGot) || (pJoin->rightNoOrderedSubQuery && !pJoin->rightConstPrimGot))) {
+    res = false;
+  }
+
   tSimpleHashCleanup(pLeftTables);
   tSimpleHashCleanup(pRightTables);
 
@@ -932,14 +936,19 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppInpu
       *ppInput = NULL;
       return TSDB_CODE_SUCCESS;
     }
+    
     nodesDestroyNode(pTempOnCond);
-    planError("no primary key equal cond found, condListNum:%d", pLogicCond->pParameterList->length);
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    if (!constAsPrim) {
+      planError("no primary key equal cond found, condListNum:%d", pLogicCond->pParameterList->length);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
   } else {
     nodesDestroyList(pOnConds);
     nodesDestroyNode(pTempOnCond);
     return code;
   }
+
+  return code;
 }
 
 static int32_t pdcJoinSplitPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
@@ -1417,7 +1426,7 @@ static int32_t pdcJoinSplitConstPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNod
   if (TSDB_CODE_SUCCESS == code) {
     pJoin->pPrimKeyEqCond = pPrimKeyEqCond;
     *ppCond = pJoinOnCond;
-    if (pJoin->rightConstPrimGot || pJoin->leftConstPrimGot) {
+    if (pJoin->pPrimKeyEqCond && (pJoin->rightConstPrimGot || pJoin->leftConstPrimGot)) {
       code = scalarConvertOpValueNodeTs((SOperatorNode*)pJoin->pPrimKeyEqCond);
     }    
   } else {
@@ -1485,7 +1494,8 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
       }
     }
 
-    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                     "Join requires valid time series input and primary timestamp equal condition");
   }
 
   if (IS_ASOF_JOIN(pJoin->subType)) {

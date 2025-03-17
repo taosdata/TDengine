@@ -5156,24 +5156,6 @@ int32_t mergeInnerJoinConds(SNode** ppDst, SNode** ppSrc) {
   return code;
 }
 
-bool isColumnExpr(SNode* pNode) {
-  SExprNode* pExpr = (SExprNode*)pNode;
-  if (QUERY_NODE_COLUMN != nodeType(pNode) && QUERY_NODE_FUNCTION != nodeType(pNode)) {
-    return false;
-  }
-  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
-    SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType && strcasecmp(((SFunctionNode*)pNode)->functionName, "timetruncate")) {
-      return false;
-    }
-    if (!nodesContainsColumn(nodesListGetNode(pFunc->pParameterList, 0))) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 int32_t splitJoinColPrimaryCond(SNode** ppSrc, SNode** ppDst) {
   if (NULL == *ppSrc) {
     return TSDB_CODE_SUCCESS;
@@ -5186,7 +5168,7 @@ int32_t splitJoinColPrimaryCond(SNode** ppSrc, SNode** ppDst) {
       if (OP_TYPE_EQUAL != pOp->opType) {
         break;
       }
-      if (isColumnExpr(pOp->pLeft) && isColumnExpr(pOp->pRight)) {
+      if (nodesContainsColumn(pOp->pLeft) && nodesContainsColumn(pOp->pRight)) {
         TSWAP(*ppSrc, *ppDst);
       }
       break;
