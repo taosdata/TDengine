@@ -1026,6 +1026,11 @@ function installProduct() {
       install_adapter_config
       install_taosx_config
       install_explorer_config
+
+      if [ "${verMode}" == "cluster" ]; then
+        install_taosinspect_config
+      fi
+      
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
