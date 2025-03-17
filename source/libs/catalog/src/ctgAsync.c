@@ -3087,27 +3087,6 @@ int32_t ctgLaunchGetTbMetaTask(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool isAutoCreateChildTable(SName* pName, SCtgFetch* pFetch, SArray* pNames,bool autoCreate) {
-  if (!autoCreate) {
-    return false;
-  }
-  STablesReq* pReq = (STablesReq*)taosArrayGet(pNames, pFetch->dbIdx);
-  if (NULL == pReq) {
-    qError("fail to get the %dth tb in pTables, tbNum:%d", pFetch->tbIdx, (int32_t)taosArrayGetSize(pReq->pTables));
-    return false;
-  }
-
-  SName* childTable = (SName*)taosArrayGet(pReq->pTables, 1);
-  if (NULL == childTable) {
-    qError("fail to get the 1th tb in pTables, tbNum:%d", (int32_t)taosArrayGetSize(pReq->pTables));
-    return false;
-  }
-  if (strcmp(childTable->tname, pName->tname) == 0) {
-    return true;
-  }
-  return false;
-}
-
 int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
   SCatalog*         pCtg = pTask->pJob->pCtg;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
@@ -3128,7 +3107,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
     autoCreate = pReq->autoCreate;
 
     ctgDebug("start to check tb metas in db:%s, tbNum:%d", pReq->dbFName, (int32_t)taosArrayGetSize(pReq->pTables));
-    CTG_ERR_RET(ctgGetTbMetasFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
+    CTG_ERR_RET(ctgGetTbMetasFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables,autoCreate));
     baseResIdx += taosArrayGetSize(pReq->pTables);
   }
 
@@ -3166,7 +3145,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
     }
 
     SCtgTaskReq tReq;
-    tReq.autoCreateCtb = isAutoCreateChildTable(pName,pFetch, pCtx->pNames,autoCreate) ? 1 : 0;
+    tReq.autoCreateCtb = pFetch->flag & CTG_FLAG_NOT_STB ? 1 : 0;
     tReq.pTask = pTask;
     tReq.msgIdx = pFetch->fetchIdx;
     CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pFetch->flag, pName, &pFetch->vgId));

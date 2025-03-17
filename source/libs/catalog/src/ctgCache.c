@@ -3419,7 +3419,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
 #endif
 
 int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMetasCtx *ctx, int32_t dbIdx,
-                               int32_t *fetchIdx, int32_t baseResIdx, SArray *pList) {
+                               int32_t *fetchIdx, int32_t baseResIdx, SArray *pList,bool autoCreate) {
   int32_t     tbNum = taosArrayGetSize(pList);
   char        dbFName[TSDB_DB_FNAME_LEN] = {0};
   int32_t     flag = CTG_FLAG_UNKNOWN_STB;
@@ -3460,6 +3460,11 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     if (NULL == pName) {
       ctgError("fail to get the %dth SName from tableList, tableNum:%d", i, (int32_t)taosArrayGetSize(pList));
       CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+    
+    // for auto create, the second table is child table
+    if (autoCreate && i == 1) {
+      CTG_FLAG_SET_STB(flag, TSDB_CHILD_TABLE);
     }
 
     pCache = taosHashAcquire(dbCache->tbCache, pName->tname, strlen(pName->tname));
