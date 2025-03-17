@@ -40,7 +40,7 @@ int32_t createStreamTaskIter(SStreamObj *pStream, SStreamTaskIter **pIter) {
   (*pIter)->level = -1;
   (*pIter)->ordinalIndex = 0;
   (*pIter)->pStream = pStream;
-  (*pIter)->totalLevel = taosArrayGetSize(pStream->tasks);
+  (*pIter)->totalLevel = taosArrayGetSize(pStream->pTaskList);
   (*pIter)->pTask = NULL;
 
   return 0;
@@ -57,7 +57,7 @@ bool streamTaskIterNextTask(SStreamTaskIter *pIter) {
   }
 
   while (pIter->level < pIter->totalLevel) {
-    SArray *pList = taosArrayGetP(pIter->pStream->tasks, pIter->level);
+    SArray *pList = taosArrayGetP(pIter->pStream->pTaskList, pIter->level);
     if (pIter->ordinalIndex >= taosArrayGetSize(pList)) {
       pIter->level += 1;
       pIter->ordinalIndex = 0;
@@ -394,8 +394,8 @@ int32_t mndGetStreamTask(STaskId *pId, SStreamObj *pStream, SStreamTask **pTask)
 
 int32_t mndGetNumOfStreamTasks(const SStreamObj *pStream) {
   int32_t num = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pStream->tasks); ++i) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pStream->pTaskList); ++i) {
+    SArray *pLevel = taosArrayGetP(pStream->pTaskList, i);
     num += taosArrayGetSize(pLevel);
   }
 
@@ -1110,7 +1110,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
   TSDB_CHECK_CODE(code, lino, _end);
 
   int8_t streamStatus = atomic_load_8(&pStream->status);
-  if (isPaused && pStream->tasks != NULL) {
+  if (isPaused && pStream->pTaskList != NULL) {
     streamStatus = STREAM_STATUS__PAUSE;
   }
   mndShowStreamStatus(status2, streamStatus);
