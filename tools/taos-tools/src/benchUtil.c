@@ -1036,7 +1036,7 @@ int32_t strCompareN(char *str1, char *str2, int length) {
     }
 }
 
-int convertStringToDatatype(char *type, int length) {
+int convertStringToDatatype(char *type, int length, void* ctx) {
     // compare with length
     if (0 == strCompareN(type, "binary", length)) {
         return TSDB_DATA_TYPE_BINARY;
@@ -1083,9 +1083,11 @@ int convertStringToDatatype(char *type, int length) {
     } else if (0 == strCompareN(type, "geometry", length)) {
         return TSDB_DATA_TYPE_GEOMETRY;
     } else if (0 == strCompareN(type, "decimal", length)) {
-        return TSDB_DATA_TYPE_DECIMAL;
-    } else if (0 == strCompareN(type, "decimal64", length)) {
-        return TSDB_DATA_TYPE_DECIMAL64;
+        uint8_t precision = *(uint8_t*)ctx;
+        if (precision > TSDB_DECIMAL64_MAX_PRECISION)
+            return TSDB_DATA_TYPE_DECIMAL;
+        else
+            return TSDB_DATA_TYPE_DECIMAL64;
     } else {
         errorPrint("unknown data type: %s\n", type);
         exit(EXIT_FAILURE);

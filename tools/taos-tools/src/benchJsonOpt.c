@@ -247,7 +247,19 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         if (!tools_cJSON_IsString(dataType)) {
             goto PARSE_OVER;
         }
-        type = convertStringToDatatype(dataType->valuestring, 0);
+        if (0 == strCompareN(dataType->valuestring, "decimal", 0)) {
+            tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(column, "precision");
+            if (tools_cJSON_IsNumber(dataPrecision)) {
+                precision = dataPrecision->valueint;
+                if (precision > TSDB_DECIMAL128_MAX_PRECISION || precision < 1) {
+                    errorPrint("Invalid precision value in json, precision: %d\n", precision);
+                    goto PARSE_OVER;
+                }
+            } else {
+                precision = TSDB_DECIMAL128_MAX_PRECISION;
+            }
+        }
+        type = convertStringToDatatype(dataType->valuestring, 0, &precision);
 
         tools_cJSON *dataMax = tools_cJSON_GetObjectItem(column, "max");
         if (tools_cJSON_IsNumber(dataMax)) {
@@ -270,38 +282,36 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE
             || type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64) {
             double valueRange = maxInDbl - minInDbl;
+            uint8_t maxScale = 0;
+            if (type == TSDB_DATA_TYPE_FLOAT) maxScale = 6;
+            else if (type == TSDB_DATA_TYPE_DOUBLE) maxScale = 15;
+            else maxScale = precision;
+            
             tools_cJSON *dataScale = tools_cJSON_GetObjectItem(column, "scale");
             if (tools_cJSON_IsNumber(dataScale)) {
                 scale = dataScale->valueint;
-                if (!(1< scale && scale <= 6)) {
-                    scale = 0;
+                if (scale > maxScale) {
+                    errorPrint("Invalid scale value in json, precision: %d, scale: %d\n", precision, scale);
+                    goto PARSE_OVER;
                 }
             } else {
-                if (0 < valueRange && valueRange <= 1) {
-                    scale = 3;
-                } else {
+                if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64 || valueRange > 1) {
                     scale = 0;
+                } else {
+                    scale = 3;
                 }
             }
 
-            scalingFactor = pow(10, scale);
-            max = maxInDbl * scalingFactor;
-            min = minInDbl * scalingFactor;
+            if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+                scalingFactor = pow(10, scale);
+                max = maxInDbl * scalingFactor;
+                min = minInDbl * scalingFactor;
+            }
         }
 
         if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64) {
-            tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(column, "precision");
-            if (tools_cJSON_IsNumber(dataPrecision)) {
-                precision = dataPrecision->valueint;
-            } else {
-                precision = TSDB_DECIMAL128_MAX_PRECISION;
-            }
 
             if (type == TSDB_DATA_TYPE_DECIMAL) {
-                if (precision > TSDB_DECIMAL128_MAX_PRECISION) {
-                    precision = TSDB_DECIMAL128_MAX_PRECISION;
-                }
-
                 doubleToDecimal128(maxInDbl, precision, scale, &decMax.dec128);
                 doubleToDecimal128(minInDbl, precision, scale, &decMin.dec128);
             } else {
@@ -495,7 +505,19 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         if (!tools_cJSON_IsString(dataType)) {
             goto PARSE_OVER;
         }
-        type = convertStringToDatatype(dataType->valuestring, 0);
+        if (0 == strCompareN(dataType->valuestring, "decimal", 0)) {
+            tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(tagObj, "precision");
+            if (tools_cJSON_IsNumber(dataPrecision)) {
+                precision = dataPrecision->valueint;
+                if (precision > TSDB_DECIMAL128_MAX_PRECISION || precision < 1) {
+                    errorPrint("Invalid precision value in json, precision: %d\n", precision);
+                    goto PARSE_OVER;
+                }
+            } else {
+                precision = TSDB_DECIMAL128_MAX_PRECISION;
+            }
+        }
+        type = convertStringToDatatype(dataType->valuestring, 0, &precision);
 
         if(type == TSDB_DATA_TYPE_JSON) {
             if (tagSize > 1) {
@@ -541,42 +563,39 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE
             || type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64) {
             double valueRange = maxInDbl - minInDbl;
+            uint8_t maxScale = 0;
+            if (type == TSDB_DATA_TYPE_FLOAT) maxScale = 6;
+            else if (type == TSDB_DATA_TYPE_DOUBLE) maxScale = 15;
+            else maxScale = precision;
+
             tools_cJSON *dataScale = tools_cJSON_GetObjectItem(tagObj, "scale");
             if (tools_cJSON_IsNumber(dataScale)) {
                 scale = dataScale->valueint;
-                if (!(1< scale && scale <= 6)) {
-                    scale = 0;
+                if (scale > maxScale) {
+                    errorPrint("Invalid scale value in json, precision: %d, scale: %d\n", precision, scale);
+                    goto PARSE_OVER;
                 }
             } else {
-                if (0 < valueRange && valueRange <= 1) {
-                    scale = 3;
-                } else {
+                if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64 || valueRange > 1) {
                     scale = 0;
+                } else {
+                    scale = 3;
                 }
             }
 
-            scalingFactor = pow(10, scale);
-            max = maxInDbl * scalingFactor;
-            min = minInDbl * scalingFactor;
+            if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+                scalingFactor = pow(10, scale);
+                max = maxInDbl * scalingFactor;
+                min = minInDbl * scalingFactor;
+            }
         }
 
 
         if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64) {
-            tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(tagObj, "precision");
-            if (tools_cJSON_IsNumber(dataPrecision)) {
-                precision = dataPrecision->valueint;
-            } else {
-                precision = TSDB_DECIMAL128_MAX_PRECISION;
-            }
-
             if (type == TSDB_DATA_TYPE_DECIMAL) {
-                if (precision > TSDB_DECIMAL128_MAX_PRECISION) {
-                    precision = TSDB_DECIMAL128_MAX_PRECISION;
-                }
-
                 Decimal128 decOne = {{1LL, 0}};
                 doubleToDecimal128(maxInDbl, precision, scale, &decMax.dec128);
-                decimal128Subtract(&decMax.dec128, &decOne, WORD_NUM(Decimal128));
+                decimal128Subtract(&decMax.dec128, &decOne, DECIMAL_WORD_NUM(Decimal128));
                 doubleToDecimal128(minInDbl, precision, scale, &decMin.dec128);
             } else {
                 if (precision > TSDB_DECIMAL64_MAX_PRECISION) {
@@ -585,7 +604,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
 
                 Decimal64 decOne = {{1LL}};
                 doubleToDecimal64(maxInDbl, precision, scale, &decMax.dec64);
-                decimal64Subtract(&decMax.dec64, &decOne, WORD_NUM(Decimal64));
+                decimal64Subtract(&decMax.dec64, &decOne, DECIMAL_WORD_NUM(Decimal64));
                 doubleToDecimal64(minInDbl, precision, scale, &decMin.dec64);
             }
         }

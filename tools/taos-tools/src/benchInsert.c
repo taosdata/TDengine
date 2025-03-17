@@ -91,6 +91,17 @@ static int getSuperTableFromServerTaosc(
     bool isTitleRow = true;
     uint32_t tag_count = 0;
     uint32_t col_count = 0;
+
+    int fieldsNum = taos_num_fields(res);
+    TAOS_FIELD_E* fields = taos_fetch_fields_e(res);
+
+    if (fieldsNum < TSDB_MAX_DESCRIBE_METRIC || !fields) {
+        errorPrint("%s", "failed to fetch fields\n");
+        taos_free_result(res);
+        closeBenchConn(conn);
+        return TSDB_CODE_FAILED;
+    }
+
     while ((row = taos_fetch_row(res)) != NULL) {
         if (isTitleRow) {
             isTitleRow = false;
@@ -113,7 +124,7 @@ static int getSuperTableFromServerTaosc(
             }
             uint8_t tagType = convertStringToDatatype(
                     (char *) row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                    lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX]);
+                    lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX], &(fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].precision));
             char *tagName = (char *) row[TSDB_DESCRIBE_METRIC_FIELD_INDEX];
             if (!searchBArray(stbInfo->tags, tagName,
                               lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX], tagType)) {
@@ -132,7 +143,7 @@ static int getSuperTableFromServerTaosc(
             }
             uint8_t colType = convertStringToDatatype(
                     (char *) row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                    lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX]);
+                    lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX], &(fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].precision));
             char * colName = (char *) row[TSDB_DESCRIBE_METRIC_FIELD_INDEX];
             if (!searchBArray(stbInfo->cols, colName,
                               lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX], colType)) {

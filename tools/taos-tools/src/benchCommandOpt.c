@@ -47,10 +47,30 @@ void parseFieldDatatype(char *dataType, BArray *fields, bool isTag) {
             char type[DATATYPE_BUFF_LEN];
             char length[BIGINT_BUFF_LEN];
             sscanf(dataType, "%[^(](%[^)]", type, length);
-            field->type = convertStringToDatatype(type, 0);
+            field->type = convertStringToDatatype(type, 0, NULL);
             field->length = atoi(length);
+        } else if (1 == regexMatch(dataType,
+                    "^DECIMAL\\s*\\(\\s*([1-9]\\d{0,1})\\s*,\\s*([0-9]\\d{0,1})\\s*\\)$",
+                    REG_ICASE | REG_EXTENDED)) {
+            char precision[DECIMAL_BUFF_LEN] = {0};
+            char scale[DECIMAL_BUFF_LEN] = {0};
+            sscanf(dataType, "DECIMAL(%[^,],%[^)])", precision, scale);
+            int precisionValue = atoi(precision);
+            int scaleValue = atoi(scale);
+            if (precisionValue > TSDB_DECIMAL128_MAX_PRECISION || precisionValue <= 0) {
+                errorPrint("Invalid precision, precision: %s\n", precision);
+                exit(EXIT_FAILURE);
+            }
+            if (scaleValue > precisionValue) {
+                errorPrint("Invalid scale, precision: %s, scale: %s\n", precision, scale);
+                exit(EXIT_FAILURE);
+            }
+            field->precision = precisionValue;
+            field->scale = scaleValue;
+            field->type = convertStringToDatatype("DECIMAL", 0, &field->precision);
+            field->length = convertTypeToLength(field->type);
         } else {
-            field->type = convertStringToDatatype(dataType, 0);
+            field->type = convertStringToDatatype(dataType, 0, NULL);
             field->length = convertTypeToLength(field->type);
         }
         field->min = convertDatatypeToDefaultMin(field->type);
@@ -71,10 +91,30 @@ void parseFieldDatatype(char *dataType, BArray *fields, bool isTag) {
                 char type[DATATYPE_BUFF_LEN];
                 char length[BIGINT_BUFF_LEN];
                 sscanf(token, "%[^(](%[^)]", type, length);
-                field->type = convertStringToDatatype(type, 0);
+                field->type = convertStringToDatatype(type, 0, NULL);
                 field->length = atoi(length);
+            } else if (1 == regexMatch(token,
+                                "^DECIMAL\\s*\\(\\s*([1-9]\\d{0,1})\\s*,\\s*([0-9]\\d{0,1})\\s*\\)$",
+                                REG_ICASE | REG_EXTENDED)) {
+                char precision[DECIMAL_BUFF_LEN] = {0};
+                char scale[DECIMAL_BUFF_LEN] = {0};
+                sscanf(token, "DECIMAL(%[^,],%[^)])", precision, scale);
+                int precisionValue = atoi(precision);
+                int scaleValue = atoi(scale);
+                if (precisionValue > TSDB_DECIMAL128_MAX_PRECISION || precisionValue <= 0) {
+                    errorPrint("Invalid precision, precision: %s\n", precision);
+                    exit(EXIT_FAILURE);
+                }
+                if (scaleValue > precisionValue) {
+                    errorPrint("Invalid scale, precision: %s, scale: %s\n", precision, scale);
+                    exit(EXIT_FAILURE);
+                }
+                field->precision = precisionValue;
+                field->scale = scaleValue;
+                field->type = convertStringToDatatype("DECIMAL", 0, &field->precision);
+                field->length = convertTypeToLength(field->type);
             } else {
-                field->type = convertStringToDatatype(token, 0);
+                field->type = convertStringToDatatype(token, 0, NULL);
                 field->length = convertTypeToLength(field->type);
             }
             field->max = convertDatatypeToDefaultMax(field->type);
