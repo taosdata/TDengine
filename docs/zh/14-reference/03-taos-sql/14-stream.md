@@ -14,7 +14,7 @@ stream_options: {
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
- FILL_HISTORY   [0|1]
+ FILL_HISTORY   [0|1] [ASYNC]
  IGNORE UPDATE  [0|1]
 }
 
@@ -34,7 +34,7 @@ subquery: SELECT select_list
 
 stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的 schema 信息。详见 [写入已存在的超级表](#写入已存在的超级表)。
 
-TAGS 子句定义了流计算中创建TAG的规则，可以为每个 partition 对应的子表生成自定义的TAG值，详见 [自定义 TAG](#自定义 TAG)
+TAGS 子句定义了流计算中创建TAG的规则，可以为每个 partition 对应的子表生成自定义的TAG值，详见 [自定义 TAG](#自定义-TAG)
 ```sql
 create_definition:
     col_name column_definition
@@ -42,7 +42,7 @@ column_definition:
     type_name [COMMENT 'string_value']
 ```
 
-subtable 子句定义了流式计算中创建的子表的命名规则，详见 [流式计算的 partition](#流式计算的 partition)。
+subtable 子句定义了流式计算中创建的子表的命名规则，详见 [流式计算的 partition](#流式计算的-partition)。
 
 ```sql
 window_clause: {
@@ -126,6 +126,13 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 ```
 
 如果该流任务已经彻底过期，并且您不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
+
+注意：
+- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
+
+- 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
+
+- 另外，不要同时异步创建多个流，可能由于事务冲突导致后面创建的流失败。
 
 ## 删除流式计算
 
