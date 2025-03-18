@@ -167,14 +167,18 @@ impl PointsUpdater {
             OpcType::OPCUA => {
                 let mut ua_nodes = vec![];
                 for p in points {
-                    ua_nodes.push(UANodeConfig::new(p.clone()));
+                    ua_nodes.push(UANodeConfig {
+                        id: p.replace("\"", "\\\""),
+                    });
                 }
                 (Some(ua_nodes), None)
             }
             OpcType::OPCDA => {
                 let mut da_nodes = vec![];
                 for p in points {
-                    da_nodes.push(DaNodeConfig::new(p.clone()));
+                    da_nodes.push(DaNodeConfig {
+                        tag: p.replace("\"", "\\\""),
+                    });
                 }
                 (None, Some(da_nodes))
             }
