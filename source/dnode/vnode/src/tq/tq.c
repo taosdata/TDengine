@@ -736,7 +736,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
               req.vgId, req.subKey, req.newConsumerId, req.oldConsumerId);
     }
     if (req.newConsumerId == -1) {
-      tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
+      tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64, req.vgId, req.newConsumerId);
       ret = TSDB_CODE_INVALID_PARA;
       goto end;
     }
