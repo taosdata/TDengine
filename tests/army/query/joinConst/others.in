@@ -99,3 +99,25 @@ select * from (select today() as ts1, * from a1 order by ts desc) a join (select
 select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts) b on a.ts1 = b.ts1 and a.ts = b.ts;
 select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts desc) b on a.ts1 = b.ts1 and a.ts = b.ts;
 select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts1 and a.ts = b.ts;
+
+
+select * from view1 a join (select * from b1 order by ts) b on a.ts = b.ts;
+select * from view1 a join (select * from b1 order by ts desc) b on a.ts = b.ts;
+select * from view1 a join (select * from b1 order by ts) b on a.ts1 = b.ts;
+select * from view1 a join (select * from b1 order by ts desc) b on a.ts1 = b.ts;
+
+select * from view1 a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;
+select * from view1 a join (select today() as ts1, * from b1 order by ts desc) b on a.ts = b.ts;
+select * from view1 a join (select today() as ts1, * from b1 order by ts) b on a.ts1 = b.ts;
+select * from view1 a join (select today() as ts1, * from b1 order by ts desc) b on a.ts1 = b.ts;
+
+select * from view1 a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts1;
+select * from view1 a join (select today() as ts1, * from b1 order by ts desc) b on a.ts = b.ts1;
+select * from view1 a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts1;
+select * from view1 a join (select today() as ts1, * from b1 order by ts) b on a.ts1 = b.ts1;
+select * from view1 a join (select today() as ts1, * from b1 order by ts desc) b on a.ts1 = b.ts1;
+select * from view1 a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts1;
+
+select * from view1 a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts1 where a.ts1 is null;
+select * from view1 a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts1 where a.ts1 is not null;
+select * from view1 a, (select today() as ts1, * from b1 order by f) b where a.ts1 = b.ts1;

@@ -63,6 +63,8 @@ class TDTestCase(TBase):
         tdSql.execute(f"insert into b2 using stb tags(1, 2, 4) values('{self.tomorrow_ts}',      403, 4013);")
         tdSql.execute(f"insert into b2 using stb tags(1, 2, 4) values('{self.tomorrow_ts}' + 3s, 404, 4014);")
 
+        tdSql.execute(f"create view view1 as select today() as ts1, * from a1;")
+
     def replace_string(self, input_file, output_file, old_str, new_str):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         with open(f"{script_dir}/joinConst/{input_file}", 'r') as f_in, open(f"{script_dir}/joinConst/{output_file}", 'w') as f_out:

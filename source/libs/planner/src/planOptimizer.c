@@ -2656,12 +2656,17 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
 
   if (pJoin->node.inputTsOrder) {
     targetOrder = pJoin->node.inputTsOrder;
-    if (pRight->inputTsOrder == pJoin->node.inputTsOrder) {
+    
+    if (pRight->outputTsOrder == pJoin->node.inputTsOrder) {
       pChild = pLeft;
       pChildPos = &pJoin->node.pChildren->pHead->pNode;
+    } else if (pLeft->outputTsOrder == pJoin->node.inputTsOrder) {
+      pChild = pRight;
+      pChildPos = &pJoin->node.pChildren->pTail->pNode;
     } else {
       pChild = pRight;
       pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      targetOrder = pLeft->outputTsOrder;
     }
   } else {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) &&
