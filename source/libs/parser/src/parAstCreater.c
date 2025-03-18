@@ -3814,7 +3814,7 @@ _err:
   return NULL;
 }
 
-SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pTopicName) {
+SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pTopicName, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTopicName(pCxt, pTopicName));
   SDropTopicStmt* pStmt = NULL;
@@ -3822,12 +3822,13 @@ SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->force = force;
   return (SNode*)pStmt;
 _err:
   return NULL;
 }
 
-SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pCGroupId, SToken* pTopicName) {
+SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pCGroupId, SToken* pTopicName, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTopicName(pCxt, pTopicName));
   CHECK_NAME(checkCGroupName(pCxt, pCGroupId));
@@ -3835,6 +3836,7 @@ SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToke
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_CGROUP_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->force = force;
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   COPY_STRING_FORM_ID_TOKEN(pStmt->cgroup, pCGroupId);
   return (SNode*)pStmt;
