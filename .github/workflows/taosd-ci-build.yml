@@ -28,7 +28,7 @@ jobs:
         os:
           - ubuntu-20.04
           - ubuntu-22.04
-          # - ubuntu-24.04
+          - ubuntu-24.04
           # - macos-14
           # - macos-15
           # - windows-2022
@@ -147,7 +147,7 @@ jobs:
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=OFF
           g++ --version
           /usr/bin/c++ --version
           ./build.sh bld -v --target benchmarkTest -j1
