@@ -163,9 +163,12 @@ class DecimalColumnAggregator:
         self.last = None
         self.firsts = []
         self.lasts = []
+        self.last_row = None
+        self.last_rows = []
         for i in range(ctb_num):
             self.firsts.append(None)
             self.lasts.append(None)
+            self.last_rows.append(None)
     def is_stb(self):
         return self.firsts[1] is not None
     
@@ -173,6 +176,11 @@ class DecimalColumnAggregator:
         if self.is_stb():
             return self.lasts
         return self.last
+    
+    def get_last_row(self):
+        if self.is_stb():
+            return self.last_rows
+        return self.last_row
     
     def get_first(self):
         if self.is_stb():
@@ -183,16 +191,22 @@ class DecimalColumnAggregator:
         self.count += 1
         if value == "NULL":
             self.null_num += 1
+            self.last_row = None
+            self.last_rows[int((self.count - 1) / tb_insert_rows)] = None
         elif value == "None":
             self.none_num += 1
+            self.last_row = None
+            self.last_rows[int((self.count - 1) / tb_insert_rows)] = None
         else:
             v: Decimal = get_decimal(value, scale)
+            self.last_row = v
             if self.first is None:
                 self.first = v
             if self.firsts[int((self.count - 1) / tb_insert_rows)] is None:
                 self.firsts[int((self.count - 1) / tb_insert_rows)] = v
             self.last = v
             self.lasts[int((self.count - 1) / tb_insert_rows)] = v
+            self.last_rows[int((self.count - 1) / tb_insert_rows)] = v
             self.sum += v
             if v > self.max:
                 self.max = v
@@ -447,7 +461,7 @@ class DataType:
         return 0
 
     ## TODO generate NULL, None
-    def generate_value(self) -> str:
+    def generate_value(self, has_null = False) -> str:
         if self.type == TypeEnum.BOOL:
             return ['true', 'false'][secrets.randbelow(2)]
         if self.type == TypeEnum.TINYINT:
@@ -586,9 +600,12 @@ class DecimalType(DataType):
     def __repr__(self):
         return f"DecimalType({self.precision_}, {self.scale()})"
 
-    def generate_value(self) -> str:
+    def generate_value(self, has_null = True) -> str:
+        tmp = self.generator_config.with_corner_case
+        self.generator_config.with_corner_case = has_null
         val = self.decimal_generator.generate(self.generator_config)
         self.aggregator.add_value(val, self.scale()) ## convert to Decimal first
+        self.generator_config.with_corner_case = tmp
         # self.values.append(val)  ## save it into files maybe
         return val
 
@@ -732,8 +749,8 @@ class Column:
             return len(res)
 
     ## tbName: for normal table, pass the tbname, for child table, pass the child table name
-    def generate_value(self, tbName: str = '', save: bool = True):
-        val = self.type_.generate_value()
+    def generate_value(self, tbName: str = '', save: bool = True, has_null = True):
+        val = self.type_.generate_value(has_null=has_null)
         if save:
             if tbName not in self.saved_vals:
                 self.saved_vals[tbName] = []
@@ -1152,7 +1169,7 @@ class DecimalFirstLastFunction(DecimalAggFunction):
         if len(query_col_res) == 0:
             tdLog.exit(f"query got no output: {self}, py calc: {self.get_func_res()}")
         else:
-            v = Decimal(query_col_res[0])
+            v = get_decimal(query_col_res[0], self.query_col.type_.scale())
             decimal_type: DecimalType = self.query_col.type_
             if decimal_type.aggregator.is_stb():
                 return v in self.get_func_res()
@@ -1164,7 +1181,7 @@ class DecimalLastRowFunction(DecimalFirstLastFunction):
         super().__init__("last_row({0})", DecimalLastRowFunction.execute_last_row, "last_row")
     def get_func_res(self):
         decimal_type: DecimalType = self.query_col.type_
-        return decimal_type.aggregator.get_last()
+        return decimal_type.aggregator.get_last_row()
     def execute_last_row(self, params):
         pass
 
@@ -1893,7 +1910,7 @@ class TDTestCase:
         rows = []
         row = []
         for col in self.norm_tb_columns:
-            v = col.generate_value(self.norm_table_name)
+            v = col.generate_value(self.norm_table_name, has_null=False)
             cols_vals.append(v)
             row.append(v)
         rows.append(row)
@@ -1903,7 +1920,7 @@ class TDTestCase:
         ts = ts + timedelta(seconds=6)
         cols_vals = []
         for col in self.norm_tb_columns:
-            v = col.generate_value(self.norm_table_name)
+            v = col.generate_value(self.norm_table_name, has_null=False)
             cols_vals.append(v)
             row.append(v)
         rows.append(row)
@@ -1915,7 +1932,7 @@ class TDTestCase:
         time.sleep(10)
         cols_vals = []
         for col in self.norm_tb_columns:
-            v = col.generate_value(self.norm_table_name)
+            v = col.generate_value(self.norm_table_name, has_null=False)
             cols_vals.append(v)
             row.append(v)
         rows.append(row)
@@ -2337,12 +2354,28 @@ class TDTestCase:
         self.log_test("start to test decimal having")
         self.test_query_decimal_group_by_with_having(self.norm_table_name, self.norm_tb_columns)
         self.test_query_decimal_group_by_with_having(self.stable_name, self.stb_columns)
-
+    
     def test_query_decimal_interval_fill(self):
-        pass
+        self.test_query_decimal_interval_fill_for_tb(self.norm_table_name)
+        self.test_query_decimal_interval_fill_for_tb(self.stable_name)
 
-    def test_query_decimal_partition_by(self):
-        pass
+    def test_query_decimal_interval_fill_for_tb(self, tbname):
+        sql = f"select _wstart, count(*), avg(c1),tbname from {self.db_name}.{tbname} where ts >= '2018-09-17 01:00:00.000' and ts < '2018-09-17 01:00:05.000' partition by tbname interval(200a) fill(value,0,1.234)"
+        res = TaosShell().query(sql)
+        wstart_col = res[0]
+        count_col = res[1]
+        avg_col = res[2]
+        for wstart, count, avg in zip(wstart_col, count_col, avg_col):
+            if int(count) == 0:
+                if Decimal(avg) != Decimal('1.234'):
+                    tdLog.exit(f"sql: {sql} wstart: {wstart} count is 0, but avg is not 1.234")
+        
+        fill_prev_res = TaosShell().query(f"select _wstart, count(*), avg(c1),tbname from {self.db_name}.{tbname} where ts >= '2018-09-17 01:00:00.000' and ts < '2018-09-17 01:00:05.000' partition by tbname interval(200a) fill(prev)")
+        fill_prev_avg_col = fill_prev_res[2]
+        for i in range(len(wstart_col)):
+            if int(count_col[i]) == 0:
+                if i > 0 and fill_prev_avg_col[i] != fill_prev_avg_col[i-1]:
+                    tdLog.exit(f"sql: {sql} count is 0, but avg is not same as previous row")
 
     def test_query_decimal_case_when(self):
         self.log_test("start to test decimal case when")
@@ -2427,6 +2460,7 @@ class TDTestCase:
         self.test_query_decimal_case_when()
         self.test_query_decimal_group_by_clause()
         self.test_query_decimal_having_clause()
+        self.test_query_decimal_interval_fill()
 
 
 event = threading.Event()

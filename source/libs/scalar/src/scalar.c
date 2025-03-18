@@ -335,7 +335,7 @@ void sclDowngradeValueType(SValueNode *valueNode) {
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       float f = valueNode->datum.d;
-      if (FLT_EQUAL(f, valueNode->datum.d)) {
+      if (DBL_EQUAL(f, valueNode->datum.d)) {
         valueNode->node.resType.type = TSDB_DATA_TYPE_FLOAT;
         *(float *)&valueNode->typeData = f;
         break;

@@ -170,7 +170,7 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
     return 0x7fc00000;
   }
 
-  if (FLT_EQUAL(f, 0.0)) {
+  if (DBL_EQUAL(f, 0.0)) {
     return 0;
   }
   if (fabs(f) < DBL_MAX / BASE - DLT) {
