@@ -157,7 +157,7 @@ make
 
 如果你想要编译 taosAdapter，需要添加 `-DBUILD_HTTP=false` 选项。
 
-如果你想要编译 taosKeeper，需要添加 `--DBUILD_KEEPER=true` 选项。
+如果你想要编译 taosKeeper，需要添加 `-DBUILD_KEEPER=true` 选项。
 
 可以使用Jemalloc作为内存分配器，而不是使用glibc:
 
@@ -188,7 +188,7 @@ cmake .. && cmake --build .
 
 如果你想要编译 taosAdapter，需要添加 `-DBUILD_HTTP=false` 选项。
 
-如果你想要编译 taosKeeper，需要添加 `--DBUILD_KEEPER=true` 选项。
+如果你想要编译 taosKeeper，需要添加 `-DBUILD_KEEPER=true` 选项。
 
 </details>
 
