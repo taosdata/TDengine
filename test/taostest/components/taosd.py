@@ -24,6 +24,7 @@ class TaosD:
         self.taosc_valgrind = False
         self.reserve_dnode_list = None
         self.record_dnode = None
+        self.logger = remote._logger
         if self._opts is not None:
             if self._opts.taosd_valgrind:
                 self.taosd_valgrind = True
@@ -78,7 +79,7 @@ class TaosD:
         win.run_cmd('sc create taosd binpath= C:/TDengine/taosd.exe type= own start= auto displayname= taosd')
         win.run_cmd('net start taosd')
         
-    def _configure_and_start(self, tmp_dir, dnode, common_cfg):
+    def _configure_and_start(self, tmp_dir, dnode, common_cfg, index):
         cfg = common_cfg.copy()
         cfg["fqdn"], cfg["serverPort"] = dnode["endpoint"].split(":")
         cfg.update(dnode["config"])
@@ -95,10 +96,12 @@ class TaosD:
                 self._remote.mkdir(cfg["fqdn"], cfg["dataDir"])
         if "logDir" in cfg:
             self._remote.mkdir(cfg["fqdn"], cfg["logDir"])
+            self._run_log_dir = cfg["logDir"]
         cfgPath = os.path.join(tmp_dir, "taos.cfg")
         self._remote.put(cfg["fqdn"], cfgPath, dnode["config_dir"])
         createDnode = "show dnodes"
-        self._run_log_dir
+    
+        
         # valgrind_cmdline = f"valgrind --log-file=/var/log/valgrind/valgrind_{self.run_time}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
         valgrind_cmdline = f"valgrind --log-file={self._run_log_dir}/valgrind_taosd.log --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
         if dnode["endpoint"] != cfg["firstEP"]:
@@ -112,11 +115,39 @@ class TaosD:
                           start_cmd,
                           "sleep 0.1",
                           "taos -c {0} -s \"{1}\";".format(dnode["config_dir"], createDnode)])
+        
+        if self.taosd_valgrind == 0:
+            time.sleep(0.1)
+            key = 'from offline to online'
+            bkey = bytes(key, encoding="utf8")
+            logFile = self._run_log_dir + "/taosdlog.0"
+            i = 0
+            while not os.path.exists(logFile):
+                time.sleep(0.1)
+                i += 1
+                if i > 50:
+                    break
+            with open(logFile) as f:
+                timeout = time.time() + 10 * 2
+                while True:
+                    line = f.readline().encode('utf-8')
+                    if bkey in line:
+                        break
+                    if time.time() > timeout:
+                        self.logger.exit('wait too long for taosd start')
+                self.logger.debug("the dnode:%d has been started." % (index))
+        else:
+            self.logger.debug(
+                "wait 10 seconds for the dnode:%d to start." %(index))
+            time.sleep(10)
 
     def configure_and_start(self, tmp_dir, nodeDict):
         threads = []
 
-        for dnode in nodeDict["spec"]["dnodes"]:
+        # 调试信息，检查 nodeDict["spec"]["dnodes"] 的内容
+        self.logger.debug(f"nodeDict['spec']['dnodes']: {nodeDict['spec']['dnodes']}")
+
+        for index, dnode in enumerate(nodeDict["spec"]["dnodes"]):
             common_cfg: dict = nodeDict["spec"]["config"] if 'config' in nodeDict['spec'] else {
             }
             if "system" in dnode.keys() and dnode["system"].lower() == "windows":
@@ -124,7 +155,7 @@ class TaosD:
                 pass
             else:
                 #t = Thread(target = self._configure_and_start, args = (tmp_dir, dnode, common_cfg))
-                self._configure_and_start(tmp_dir, dnode, common_cfg)
+                self._configure_and_start(tmp_dir, dnode, common_cfg, index)
             #t.start()
             #threads.append(t)
         #for thread in threads:
