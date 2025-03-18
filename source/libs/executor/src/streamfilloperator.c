@@ -1739,7 +1739,8 @@ static void setValueForFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo*
   }
 }
 
-int32_t getDownStreamInfo(SOperatorInfo* downstream, int8_t* triggerType, SInterval* pInterval, int16_t* pOperatorFlag) {
+int32_t getDownStreamInfo(SOperatorInfo* downstream, int8_t* triggerType, SInterval* pInterval,
+                          int16_t* pOperatorFlag) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (IS_NORMAL_INTERVAL_OP(downstream)) {
@@ -1747,17 +1748,16 @@ int32_t getDownStreamInfo(SOperatorInfo* downstream, int8_t* triggerType, SInter
     *triggerType = pInfo->twAggSup.calTrigger;
     *pInterval = pInfo->interval;
     *pOperatorFlag = pInfo->basic.operatorFlag;
-  } else if (IS_CONTINUE_INTERVAL_OP(downstream)) {
+  } else {
     SStreamIntervalSliceOperatorInfo* pInfo = downstream->info;
     *triggerType = pInfo->twAggSup.calTrigger;
     *pInterval = pInfo->interval;
     pInfo->hasFill = true;
     *pOperatorFlag = pInfo->basic.operatorFlag;
-  } else {
-    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
+
   QUERY_CHECK_CODE(code, lino, _end);
-  
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
