@@ -358,7 +358,7 @@ static void stmtResetQueueTableBuf(STableBufInfo* pTblBuf, SStmtQueue* pQueue) {
 static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClean) {
   if (pStmt->sql.stbInterlaceMode) {
     if (deepClean) {
-      STMT_DLOG("stmt2 stbInterlaceMode deep clean exec info: exec.pBlockHash %p, exec.pCurrBlock:%p",
+      STMT_DLOG("[prk]stmt2 stbInterlaceMode deep clean exec info: exec.pBlockHash %p, exec.pCurrBlock:%p",
                pStmt->exec.pBlockHash, pStmt->exec.pCurrBlock);
       taosHashCleanup(pStmt->exec.pBlockHash);
       pStmt->exec.pBlockHash = NULL;
@@ -407,7 +407,7 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
       return TSDB_CODE_SUCCESS;
     }
 
-    STMT_DLOG("stmt2 clean exec info: exec.pBlockHash %p", pStmt->exec.pBlockHash);
+    STMT_DLOG("[prk]stmt2 clean exec info: exec.pBlockHash %p", pStmt->exec.pBlockHash);
     taosHashCleanup(pStmt->exec.pBlockHash);
     pStmt->exec.pBlockHash = NULL;
 
@@ -817,7 +817,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (NULL != pOptions) {
     (void)memcpy(&pStmt->options, pOptions, sizeof(pStmt->options));
     if (pOptions->singleStbInsert && pOptions->singleTableBindOnce) {
-      STMT_DLOG_E("interlace mode insert");
+      STMT_DLOG_E("[prk]interlace mode insert");
       pStmt->stbInterlaceMode = true;
     }
 
@@ -995,6 +995,7 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
 
   if (!pStmt->sql.stbInterlaceMode || NULL == pStmt->sql.siInfo.pDataCtx) {
     STMT_ERR_RET(stmtCreateRequest(pStmt));
+    STMT_DLOG_E("[prk]stmtSetTbName2");
 
     STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
                               pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
@@ -1060,6 +1061,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
   if (pStmt->exec.pCurrBlock) {
     pDataBlock = &pStmt->exec.pCurrBlock;
   } else {
+    STMT_DLOG_E("[prk]stmtSetTbTags2");
     STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, pStmt->bInfo.tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
                               pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
     STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));
@@ -1139,6 +1141,7 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
   if (pStmt->exec.pCurrBlock) {
     pDataBlock = &pStmt->exec.pCurrBlock;
   } else {
+    STMT_DLOG_E("[prk]stmtCheckTags2");
     STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, pStmt->bInfo.tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
                             pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
     STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));

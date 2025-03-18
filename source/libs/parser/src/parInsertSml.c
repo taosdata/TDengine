@@ -19,12 +19,13 @@
 #include "ttime.h"
 
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
+    parserDebug("[prk]insGetStmtTableVgUid", pTbData->tbName);
                      int32_t msgBufLen) {
   SMsgBuf    msg = {.buf = msgBuf, .len = msgBufLen};
   SToken  sToken = {0};
   int      code  = TSDB_CODE_SUCCESS;
   int32_t  lino  = 0;
-
+  uDebug("[prk]before create sname for db:%s, tbname:%s, addId:%d", pName->dbname, pName->tname,acctId);
   NEXT_TOKEN(pTableName, sToken);
   TSDB_CHECK_CONDITION(sToken.n != 0, code, lino, end, TSDB_CODE_TSC_INVALID_OPERATION);
   code = insCreateSName(pName, &sToken, acctId, dbName, &msg);
@@ -34,7 +35,8 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 
 end:
   if (code != 0){
-    uError("%s failed at %d since %s", __func__, lino, tstrerror(code));
+    uDebug("[prk]create sname fail db:%s, tbname:%s, addId:%d", pName->dbname, pName->tname,acctId);
+    uError("[prk] %s failed at %d since %s", __func__, lino, tstrerror(code));
   }
   return TSDB_CODE_SUCCESS;
 }
