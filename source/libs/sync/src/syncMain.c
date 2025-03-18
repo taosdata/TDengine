@@ -2420,6 +2420,7 @@ void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) 
     sError("vgId:%d, failed to vote for term, term:%" PRId64 ", storeTerm:%" PRId64, pSyncNode->vgId, term, storeTerm);
     return;
   }
+  sTrace("vgId:%d, begin hasVoted", pSyncNode->vgId);
   bool voted = raftStoreHasVoted(pSyncNode);
   if (voted) {
     sError("vgId:%d, failed to vote for term since not voted", pSyncNode->vgId);
@@ -3582,7 +3583,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   SRpcMsg rpcMsg = {0};
   TAOS_CHECK_RETURN(syncBuildHeartbeatReply(&rpcMsg, ths->vgId));
-  SyncTerm currentTerm = raftStoreGetTerm(ths);
+  SyncTerm currentTerm = raftStoreTryGetTerm(ths);
 
   SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
   pMsgReply->destId = pMsg->srcId;
@@ -3592,8 +3593,17 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->startTime = ths->startTime;
   pMsgReply->timeStamp = tsMs;
 
-  sGTrace(&pRpcMsg->info.traceId,
-          "vgId:%d, process sync-heartbeat msg from dnode:%d, cluster:%d, msgterm:%" PRId64 " currentTerm:%" PRId64,
+  // reply
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+  trace = &(rpcMsg.info.traceId);
+  sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64,
+          ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp);
+
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
+
+  if (currentTerm == 0) currentTerm = raftStoreGetTerm(ths);
+  sGTrace(&rpcMsg.info.traceId,
+          "vgId:%d, process sync-heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64,
           ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
   if (pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
@@ -3651,9 +3661,6 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       }
     }
   }
-
-  // reply
-  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
