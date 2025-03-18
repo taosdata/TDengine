@@ -101,7 +101,7 @@ class TDTestCase:
                     "name": "minDiskFreeSize",
                     "alias": "tsMinDiskFreeSize",
                     "values": ["51200K", "100M", "1G"],
-                    "check_values": ["52428800", "104857600", "1073741824"],
+                    "check_values": ["52428800", "2199023255552", "2199023255552"],
                     "except_values": ["1024K", "1.1G", "1T"]
                 },
                 {
