@@ -162,9 +162,9 @@ remove_service_of() {
 remove_tools_of() {
   _tool=$1
   kill_service_of ${_tool}
-  [ -e "${bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${bin_link_dir}/${_tool} || :
+  [ -L "${bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${bin_link_dir}/${_tool} || :
   [ -e "${installDir}/bin/${_tool}" ] && ${csudo}rm -rf ${installDir}/bin/${_tool} || :
-  [ -e "${local_bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${local_bin_link_dir}/${_tool} || :
+  [ -L "${local_bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${local_bin_link_dir}/${_tool} || :
 }
 
 remove_bin() {
@@ -257,7 +257,7 @@ while getopts "e:h" opt; do
         echo "Remove all the data, log, and configuration files."
       elif [ "$OPTARG" == "no" ]; then
         remove_flag="false"
-        echo "Do NOT remove the data, log, and configuration files."
+        echo "Do not remove the data, log, and configuration files."
       else
         echo "Invalid option for -e: $OPTARG"
         usage
