@@ -889,6 +889,9 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
   if (pStmt->exec.pRequest->pDb == NULL) {
     return terrno;
   }
+  if (pStmt->sql.stbInterlaceMode) {
+    pStmt->sql.siInfo.dbname = pStmt->db;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
