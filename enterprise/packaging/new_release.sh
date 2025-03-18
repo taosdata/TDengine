@@ -505,7 +505,7 @@ function update_connectors() {
     fi
 }
 
-function prepare_tdinspect() {
+function prepare_taosinspect() {
     cd ${baseDir}/${branch}
     # GitHub API token
     GITHUB_TOKEN="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"
@@ -518,44 +518,46 @@ function prepare_tdinspect() {
     latest_release=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
     "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest")
 
-    # Extract the asset ID for tdinspect.tar.gz
-    asset_id=$(echo "$latest_release" | jq -r '.assets[] | select(.name == "tdinspect.tar.gz") | .id')
+    # Extract the asset ID for taosinspect.tar.gz
+    asset_id=$(echo "$latest_release" | jq -r '.assets[] | select(.name == "taosinspect.tar.gz") | .id')
 
     # Check if asset ID was found
     if [ -z "$asset_id" ]; then
-    echo "Error: tdinspect.tar.gz not found in the latest release."
-    exit 1
+        echo "Error: taosinspect.tar.gz not found in the latest release."
+        exit 1
     fi
 
     # Download the asset using the asset ID
-    curl -L -o tdinspect.tar.gz \
+    curl -L -o taosinspect.tar.gz \
     -H "Accept: application/octet-stream" \
     -H "Authorization: Bearer $GITHUB_TOKEN" \
     "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/assets/$asset_id"
-    echo "tdinspect.tar.gz has been downloaded successfully."
+    echo "taosinspect.tar.gz has been downloaded successfully."
 
-    tar -xvf tdinspect.tar.gz 
-    echo "tdinspect.tar.gz has been extracted successfully."
+    tar -xvf taosinspect.tar.gz 
+    echo "taosinspect.tar.gz has been extracted successfully."
 }
 
 function preparepkg() {
     header_files="${communityDir}/include/client/taos.h ${communityDir}/include/common/taosdef.h ${communityDir}/include/util/taoserror.h ${communityDir}/include/util/tdef.h ${communityDir}/include/libs/function/taosudf.h"
     wsheader_files="${debugDir}/build/include/taosws.h"
 
-    prepare_tdinspect
-    cd ${baseDir}/${branch}    
-    rm -rf ${install_dir}/*
-    mkdir -p ${install_dir}/bin ${install_dir}/cfg ${install_dir}/inc ${install_dir}/init.d
-    
-    # copy tdinspect
-    cp -r tdinspect_tool/tdinspect  ${install_dir}/bin/ || :
-    cp -r tdinspect_tool/inspect.cfg ${install_dir}/cfg/  || :
-    cp -r tdinspect_tool/user_guide.txt ${install_dir}/cfg/  || :
-    rm -rf tdinspect_tool
+    prepare_taosinspect
+    cd ${baseDir}/${branch}
+    rm -rf ${install_dir}/* 
+
+    mkdir -p ${install_dir}/bin ${install_dir}/cfg ${install_dir}/inc ${install_dir}/init.d ${install_dir}/taosinspect_tool
+
+    # copy taosinspect
+    if ! cp taosinspect_tool/* ${install_dir}/taosinspect_tool ; then
+        echo "copy taosinspect_tool failed"
+        exit 1
+    fi
+    rm -rf taosinspect_tool
     
     # copy bin files
     serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}keeper ${prefix}Benchmark ${prefix}dump taosudf)
-    
+
     for bin in "${serverBin[@]}"; do
         if [ -f "${debugDir}/build/bin/${bin}" ]; then
             cp ${debugDir}/build/bin/${bin} ${install_dir}/bin || :
@@ -698,7 +700,7 @@ function preparepkg() {
         cusDomain=`echo "${productEmail}" | sed 's/^[^@]*@//'`
         sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" ${install_dir}/install.sh
 
-        sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh
+        sed -i's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh
         sed -i "s/PREFIX=\"taos\"/PREFIX=\"${prefix}\"/g" ${install_dir}/bin/remove.sh
         sed -i "s/productName=\"TDengine\"/productName=\"${productName}\"/g" ${install_dir}/bin/remove.sh
 
@@ -763,12 +765,20 @@ function make_linux_pkg() {
             cp -r jemalloc/ ${install_dir}/${serverPackageName}
         fi
 
+        # cp taosinspect_tool in server package
+        if [ "${versionType}" != "community" ]; then
+            echo "copy taosinspect_tool to ${serverPackageName} in server package"
+            cp taosinspect_tool/taosinspect  ${install_dir}/${serverPackageName}/bin/
+            cp taosinspect_tool/inspect.cfg ${install_dir}/${serverPackageName}/cfg/
+        fi
+        
         cd ${serverPackageName}
         tar -zcv -f package.tar.gz * --remove-files ||:
 
         cd ${install_dir}
         cp -r connector/ driver/ examples/ ${serverPackageName}/ || :
         if [ "${versionType}" != "community" ]; then
+            echo "copy taosx to ${serverPackageName}"
             cp -r taosx/ ${serverPackageName}/
         fi
         cp start-all.sh stop-all.sh install.sh README.md ${serverPackageName}/
@@ -799,6 +809,13 @@ function make_linux_pkg() {
         # cp jemalloc
         if [ "${versionType}" != "community" ] && [ "$allocator" == "jemalloc" ] ; then
             cp -r jemalloc/ ${install_dir}/${serverPackageName}
+        fi
+
+        # copy taosinspect in client package
+        if [ "${versionType}" != "community" ]; then
+            echo "copy taosinspect_tool to ${clientPackageName} in client package"
+            cp taosinspect_tool/taosinspect  ${install_dir}/${clientPackageName}/bin/
+            cp taosinspect_tool/inspect.cfg ${install_dir}/${clientPackageName}/cfg/
         fi
 
         cd ${clientPackageName}
@@ -1073,7 +1090,7 @@ pid1=$!
 build_taosx &
 pid2=$!
 update_connectors &
-pid4=$!
+pid3=$!
 
 wait $pid1
 if [ $? -ne 0 ]; then
@@ -1087,13 +1104,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# wait $pid3
-# if [ $? -ne 0 ]; then
-#     echo "build taoskeeper failed"
-#     exit 1
-# fi
-
-wait $pid4
+wait $pid3
 if [ $? -ne 0 ]; then
     echo "update connectors failed"
     exit 1
