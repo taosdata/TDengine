@@ -147,9 +147,11 @@ jobs:
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=OFF
+          rm -rf .externals
           g++ --version
           /usr/bin/c++ --version
+          cmake --version
+          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=OFF
           ./build.sh bld -v --target benchmarkTest -j1
           ./build.sh install
           which taosd
