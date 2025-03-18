@@ -930,10 +930,11 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppInpu
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyNode(*ppInput);
+    *ppInput = NULL;
+
     if (NULL != *ppPrimEqCond) {
       *ppOnCond = pTempOnCond;
-      nodesDestroyNode(*ppInput);
-      *ppInput = NULL;
       return TSDB_CODE_SUCCESS;
     }
     
