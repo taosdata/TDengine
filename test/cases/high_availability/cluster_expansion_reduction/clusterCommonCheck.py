@@ -11,22 +11,15 @@
 
 # -*- coding: utf-8 -*-
 import pytest
-import logging
-from collections import defaultdict
-import random
-import string
-import threading
-import requests
 import time
-# import socketfrom
 
-import taos
-from utils.sql import *
+from utils.pytest.util.log import *
+from utils.pytest.util.sql import *
 from utils.pytest.util.cases import *
 from utils.pytest.util.dnodes import *
 from utils.pytest.util.common import *
 
-logger = logging.getLogger(__name__)
+
 
 # class actionType(Enum):
 #     CREATE_DATABASE = 0
@@ -36,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 class ClusterComCheck:
     def init(self, conn, logSql=False):
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkDnodes(self,dnodeNumbers, timeout=100):

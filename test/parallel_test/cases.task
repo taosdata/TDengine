@@ -1,0 +1,3 @@
+#tsim test
+,,y,.,pytest cases/tsim/test_tsim.py --tsim=tsim/query/timeline.sim --skip_deploy --alluredir=allure_results
+,,y,.,pytest cases/data_write/sql_statement/test_insert_double.py

@@ -16,22 +16,21 @@ import taos
 import sys
 import time
 import os
-
+from utils.pytest.util.sql import tdSql
+from utils.pytest.util.log import tdLog
 from utils.pytest.util.dnodes import *
 from utils.pytest.util.dnodes import TDDnodes
 from utils.pytest.util.dnodes import TDDnode
 from utils.pytest.util.cluster import *
 # from test import tdDnodes
-sys.path.append("./6-cluster")
 
 from clusterCommonCheck import *
 
-logger = logging.getLogger(__name__)
 
 class Test5dnode3mnodeStop:
 
     def setup_class(cls):
-        logger.debug(f"start to excute {__file__}")
+        tdLog.debug(f"start to excute {__file__}")
 
 
     def getBuildPath(self):
@@ -50,7 +49,26 @@ class Test5dnode3mnodeStop:
                     break
         return buildPath
 
+
+    @pytest.mark.cluster
+    @pytest.mark.ci
     def test_five_dnode_three_mnode(self):
+        """测试多节点集群缩扩容后mnode状态
+
+        5节点集群停止、启动各个dnode后，检查mnode状态
+
+        Since: v3.3.0.0
+
+        Labels: cluster,ci
+
+        Jira: 
+
+        History:
+            - 2024-2-6 Feng Chao Created
+            - 2025-3-10 Huo Hong Migrated to new test framework
+
+        """
+
         dnodenumbers = self.dnode_nums
         mnodeNums = self.mnode_nums
         restartNumber = 1
@@ -79,13 +97,13 @@ class Test5dnode3mnodeStop:
         dbNumbers = int(dnodenumbers * restartNumber)
 
         logger.info("first check dnode and mnode")
-        self.tdSql.query("select * from information_schema.ins_dnodes;")
-        self.tdSql.checkData(0,1,'%s:6030'%self.host)
-        self.tdSql.checkData(4,1,'%s:6430'%self.host)
+        tdSql.query("select * from information_schema.ins_dnodes;")
+        tdSql.checkData(0,1,'%s:6030'%self.host)
+        tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodenumbers)
         
         #check mnode status
-        logger.info("check mnode status")
+        tdLog.info("check mnode status")
         clusterComCheck.checkMnodeStatus(mnodeNums)
 
         # # fisr add three mnodes;
@@ -96,17 +114,17 @@ class Test5dnode3mnodeStop:
         # clusterComCheck.checkMnodeStatus(3)
 
         # add some error operations and
-        logger.info("Confirm the status of the dnode again")
-        self.tdSql.error("create mnode on dnode 2")
-        self.tdSql.query("select * from information_schema.ins_dnodes;")
+        tdLog.info("Confirm the status of the dnode again")
+        tdSql.error("create mnode on dnode 2")
+        tdSql.query("select * from information_schema.ins_dnodes;")
         # print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodenumbers)
         # restart all taosd
         tdDnodes=cluster.dnodes
-        logger.info(f"tdDnodes: {tdDnodes}")
-        logger.info(f"tdDnodes[1].running: {tdDnodes[1].running}")
-        logger.info(f"tdDnodes[1].index: {tdDnodes[1].index}")
-        logger.info(f"tdDnodes[1].cfgDict: {tdDnodes[1].cfgDict}")
+        tdLog.info(f"tdDnodes: {tdDnodes}")
+        tdLog.info(f"tdDnodes[1].running: {tdDnodes[1].running}")
+        tdLog.info(f"tdDnodes[1].index: {tdDnodes[1].index}")
+        tdLog.info(f"tdDnodes[1].cfgDict: {tdDnodes[1].cfgDict}")
         tdDnodes[1].stoptaosd()
         clusterComCheck.check3mnodeoff(2,3)
         tdDnodes[1].starttaosd()
@@ -123,10 +141,6 @@ class Test5dnode3mnodeStop:
         clusterComCheck.checkMnodeStatus(3)
 
 
-    def run(self):
-        # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)
-
     def teardown_class(cls):
-        logger.info(f"{__file__} successfully executed")
+        tdLog.info(f"{__file__} successfully executed")
 
