@@ -115,8 +115,10 @@ class TDTestCase:
             self.des_select_str = self.tdCom.ext_tb_source_select_str
         else:
             self.des_select_str = self.tdCom.stb_source_select_str
-        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.tdCom.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.des_select_str}  from {self.stb_name} partition by {partition} {partition_elm_alias} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="continuous_window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=stb_subtable_value, fill_value=fill_value, use_exist_stb=use_exist_stb, tag_value=tag_value)
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name} partition by {partition} {partition_elm_alias} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="continuous_window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=ctb_subtable_value, fill_value=fill_value, use_exist_stb=use_exist_stb)
+        recalculatetime = 60000
+        recalculatetimeStr = f"recalculate {recalculatetime}s"
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.tdCom.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.des_select_str}  from {self.stb_name} partition by {partition} {partition_elm_alias} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="continuous_window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=stb_subtable_value, fill_value=fill_value, use_exist_stb=use_exist_stb, tag_value=tag_value, max_delay=recalculatetimeStr)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name} partition by {partition} {partition_elm_alias} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="continuous_window_close", watermark=watermark_value, ignore_expired=ignore_expired, subtable_value=ctb_subtable_value, fill_value=fill_value, use_exist_stb=use_exist_stb, max_delay=recalculatetimeStr)
 
         # wait and check stream_task status is ready
         tdSql.query("show streams")
