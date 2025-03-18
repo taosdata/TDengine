@@ -51,7 +51,6 @@ pysim/
 tests/script/api/batchprepare
 taosadapter
 taosadapter-debug
-tools/taos-tools/*
 tools/taosws-rs/*
 tools/taosadapter/*
 tools/upx*
@@ -140,7 +139,6 @@ tags
 *CMakeCache*
 *CMakeFiles*
 .history/
-*.txt
 *.tcl
 *.pc
 contrib/geos

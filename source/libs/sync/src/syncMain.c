@@ -855,7 +855,7 @@ int32_t syncIsCatchUp(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -883,7 +883,7 @@ ESyncRole syncGetRole(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -899,7 +899,7 @@ int64_t syncGetTerm(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -1080,7 +1080,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   if (!taosDirExist((char*)(pSyncInfo->path))) {
     if (taosMkDir(pSyncInfo->path) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       sError("vgId:%d, failed to create dir:%s since %s", pSyncInfo->vgId, pSyncInfo->path, terrstr());
       goto _error;
     }
@@ -1339,7 +1339,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   // init peer heartbeat timer
   for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {
     if ((code = syncHbTimerInit(pSyncNode, &(pSyncNode->peerHeartbeatTimerArr[i]), (pSyncNode->replicasId)[i])) != 0) {
-      errno = code;
+      terrno = code;
       goto _error;
     }
   }
@@ -2421,6 +2421,7 @@ void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) 
     sError("vgId:%d, failed to vote for term, term:%" PRId64 ", storeTerm:%" PRId64, pSyncNode->vgId, term, storeTerm);
     return;
   }
+  sTrace("vgId:%d, begin hasVoted", pSyncNode->vgId);
   bool voted = raftStoreHasVoted(pSyncNode);
   if (voted) {
     sError("vgId:%d, failed to vote for term since not voted", pSyncNode->vgId);
@@ -3578,7 +3579,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   SRpcMsg rpcMsg = {0};
   TAOS_CHECK_RETURN(syncBuildHeartbeatReply(&rpcMsg, ths->vgId));
-  SyncTerm currentTerm = raftStoreGetTerm(ths);
+  SyncTerm currentTerm = raftStoreTryGetTerm(ths);
 
   SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
   pMsgReply->destId = pMsg->srcId;
@@ -3588,6 +3589,15 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->startTime = ths->startTime;
   pMsgReply->timeStamp = tsMs;
 
+  // reply
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+  trace = &(rpcMsg.info.traceId);
+  sGTrace("vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64, ths->vgId,
+          DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp);
+
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
+
+  if (currentTerm == 0) currentTerm = raftStoreGetTerm(ths);
   sGTrace("vgId:%d, process sync-heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64,
           ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
@@ -3646,9 +3656,6 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       }
     }
   }
-
-  // reply
-  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);
   return 0;

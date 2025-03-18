@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#ifdef USE_GEOS
 #include <geos_c.h>
 #include <tpcre2.h>
 
@@ -41,6 +42,7 @@ typedef struct SGeosContext {
 SGeosContext *acquireThreadLocalGeosCtx();
 int32_t       getThreadLocalGeosCtx(SGeosContext **ppCtx);
 const char   *getGeosErrMsg(int32_t code);
+#endif
 
 #ifdef __cplusplus
 }

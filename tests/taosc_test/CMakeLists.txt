@@ -21,7 +21,11 @@ target_include_directories(
     taoscTest
     PUBLIC "${TD_SOURCE_DIR}/include/os"
 )
-add_test(
-    NAME taoscTest
-    COMMAND taoscTest
-)
+
+if(${TD_LINUX})
+    add_test(
+        NAME taoscTest
+        COMMAND taoscTest
+    )
+endif(${TD_LINUX})
+

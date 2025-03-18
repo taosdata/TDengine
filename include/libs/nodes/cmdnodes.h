@@ -25,10 +25,12 @@ extern "C" {
 
 #define DESCRIBE_RESULT_COLS               4
 #define DESCRIBE_RESULT_COLS_COMPRESS      7
+#define DESCRIBE_RESULT_COLS_REF           5
 #define DESCRIBE_RESULT_FIELD_LEN          (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_TYPE_LEN           (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN           (16 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_COPRESS_OPTION_LEN (TSDB_CL_COMPRESS_OPTION_LEN + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_COL_REF_LEN         (TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -55,9 +57,10 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
-#define BIT_FLAG_MASK(n)              (1 << n)
-#define BIT_FLAG_SET_MASK(val, mask)  ((val) |= (mask))
-#define BIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
+#define BIT_FLAG_MASK(n)               (1 << n)
+#define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
+#define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
+#define BIT_FLAG_TEST_MASK(val, mask)  (((val) & (mask)) != 0)
 
 #define PRIVILEGE_TYPE_ALL       BIT_FLAG_MASK(0)
 #define PRIVILEGE_TYPE_READ      BIT_FLAG_MASK(1)
@@ -183,6 +186,7 @@ typedef struct SCompactVgroupsStmt {
 
 typedef struct STableOptions {
   ENodeType  type;
+  bool       virtualStb;
   bool       commentNull;
   char       comment[TSDB_TB_COMMENT_LEN];
   SNodeList* pMaxDelay;
@@ -197,6 +201,8 @@ typedef struct STableOptions {
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
+  SValueNode* pKeepNode;
+  int32_t     keep;
 } STableOptions;
 
 typedef struct SColumnOptions {
@@ -207,7 +213,12 @@ typedef struct SColumnOptions {
   char      compress[TSDB_CL_COMPRESS_OPTION_LEN];
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
   bool      bPrimaryKey;
+  bool      hasRef;
+  char      refDb[TSDB_DB_NAME_LEN];
+  char      refTable[TSDB_TABLE_NAME_LEN];
+  char      refColumn[TSDB_COL_NAME_LEN];
 } SColumnOptions;
+
 typedef struct SColumnDefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
@@ -225,6 +236,27 @@ typedef struct SCreateTableStmt {
   SNodeList*     pTags;
   STableOptions* pOptions;
 } SCreateTableStmt;
+
+typedef struct SCreateVTableStmt {
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pCols;
+} SCreateVTableStmt;
+
+typedef struct SCreateVSubTableStmt {
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  char           useDbName[TSDB_DB_NAME_LEN];
+  char           useTableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pSpecificTags;
+  SNodeList*     pValsOfTags;
+  SNodeList*     pSpecificColRefs;
+  SNodeList*     pColRefs;
+} SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
   ENodeType      type;
@@ -275,6 +307,14 @@ typedef struct SDropSuperTableStmt {
   bool      withOpt;
 } SDropSuperTableStmt;
 
+typedef struct SDropVirtualTableStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+  bool      withOpt;
+} SDropVirtualTableStmt;
+
 typedef struct SAlterTableStmt {
   ENodeType       type;
   char            dbName[TSDB_DB_NAME_LEN];
@@ -287,6 +327,9 @@ typedef struct SAlterTableStmt {
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
   SNodeList*      pNodeListTagValue;
+  char            refDbName[TSDB_DB_NAME_LEN];
+  char            refTableName[TSDB_TABLE_NAME_LEN];
+  char            refColName[TSDB_COL_NAME_LEN];
 } SAlterTableStmt;
 
 typedef struct SAlterTableMultiStmt {
@@ -563,7 +606,9 @@ typedef struct SStreamOptions {
   SNode*    pDelay;
   SNode*    pWatermark;
   SNode*    pDeleteMark;
+  SNode*    pRecInterval;
   int8_t    fillHistory;
+  bool      runHistoryAsync;
   int8_t    ignoreExpired;
   int8_t    ignoreUpdate;
   int64_t   setFlag;
