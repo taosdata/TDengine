@@ -153,9 +153,9 @@ jobs:
           date
           ls -lrt .externals/install/ext_gtest/Debug/lib
           ls -lrt .externals/install/ext_gtest/Debug/include
-          find .externals/install/ext_gtest/Debug/include/ -type f -print0 | xargs -0 ls -lrt {} \;
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=OFF
           ./build.sh bld -v --target benchmarkTest -j1
+          ls -lrt .externals/install/ext_gtest/Debug/lib
           ./build.sh install
           which taosd
           which taosadapter
