@@ -241,6 +241,7 @@ typedef struct SRestoreCheckpointInfo {
   int32_t  transId;        // transaction id of the update the consensus-checkpointId transaction
   int32_t  taskId;
   int32_t  nodeId;
+  int32_t  term;
 } SRestoreCheckpointInfo;
 
 int32_t tEncodeRestoreCheckpointInfo(SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);

@@ -755,7 +755,11 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
 
   int fd = 0;
   if (tsLogObj.outputType == LOG_OUTPUT_FILE) {
+#ifndef TAOSD_INTEGRATED    
+    if (dflag & DEBUG_SCREEN) fd = 1;
+#else
     if ((dflag & DEBUG_SCREEN) && tsLogEmbedded) fd = 1;
+#endif
   } else if (tsLogObj.outputType == LOG_OUTPUT_STDOUT) {
     fd = 1;
   } else if (tsLogObj.outputType == LOG_OUTPUT_STDERR) {
