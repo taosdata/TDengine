@@ -753,18 +753,20 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->hasInterpoFunc = windowinterpNeeded(pExpSup->pCtx, numOfExprs);
   initNonBlockAggSupptor(&pInfo->nbSup, &pInfo->interval, NULL);
 
-  setOperatorInfo(pOperator, "StreamIntervalSliceOperator", pPhyNode->type, true, OP_NOT_OPENED, pInfo, pTaskInfo);
+  setOperatorInfo(pOperator, "StreamIntervalSliceOperator", nodeType(pPhyNode), true, OP_NOT_OPENED, pInfo, pTaskInfo);
   code = initStreamBasicInfo(&pInfo->basic, pOperator);
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pIntervalPhyNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    qDebug("create continuous interval operator. op type:%d, task type:%d, task id:%s", nodeType(pPhyNode),
+           pHandle->fillHistory, GET_TASKID(pTaskInfo));
     if (pHandle->fillHistory == STREAM_HISTORY_OPERATOR) {
       setFillHistoryOperatorFlag(&pInfo->basic);
     } else if (pHandle->fillHistory == STREAM_RECALCUL_OPERATOR) {
       setRecalculateOperatorFlag(&pInfo->basic);
     }
     pInfo->nbSup.pWindowAggFn = doStreamIntervalNonblockAggImpl;
-    if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL) {
+    if (nodeType(pPhyNode) == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL) {
       setSingleOperatorFlag(&pInfo->basic);
     }
     pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamIntervalNonblockAggNext, NULL,

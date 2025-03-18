@@ -182,6 +182,20 @@ void doBuildNonblockFillResult(SOperatorInfo* pOperator, SStreamFillSupporter* p
     }
   }
 
+  if (pBlock->info.rows > 0) {
+    SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+    void*          tbname = NULL;
+    int32_t        winCode = TSDB_CODE_SUCCESS;
+    code = pInfo->stateStore.streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname,
+                                                   false, &winCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (winCode != TSDB_CODE_SUCCESS) {
+      pBlock->info.parTbName[0] = 0;
+    } else {
+      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+    }
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -402,8 +416,6 @@ int32_t doStreamNonblockFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
       case STREAM_INVALID: {
         code = doApplyStreamScalarCalculation(pOperator, pBlock, pInfo->pSrcBlock);
         QUERY_CHECK_CODE(code, lino, _end);
-
-        memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
         pInfo->srcRowIndex = -1;
       } break;
       case STREAM_CHECKPOINT: {
