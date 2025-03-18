@@ -23,7 +23,7 @@ SELECT _frowts, FORECAST(i32, "algo=mlp") from foo
 "rows": fc_rows,  // 返回结果的行数
 "period": period, // 返回结果的周期性，同输入
 "alpha": alpha,   // 返回结果的置信区间，同输入
-"algo": "mlp",  // 返回结果使用的算法
+"algo": "mlp",    // 返回结果使用的算法
 "mse": mse,       // 拟合输入时间序列时候生成模型的最小均方误差(MSE)
 "res": res        // 列模式的结果
 }
