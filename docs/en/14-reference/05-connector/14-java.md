@@ -148,6 +148,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | JSON              | java.lang.String     | only supported in tags                  |
 | VARBINARY         | byte[]               |                                         |
 | GEOMETRY          | byte[]               |                                         |
+| DECIMAL           | java.math.BigDecimal |                                         |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
