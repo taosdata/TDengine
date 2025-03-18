@@ -15,14 +15,7 @@ pub struct UaCollectConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UANodeConfig {
-    id: String,
-    // value_type: String,
-}
-
-impl UANodeConfig {
-    pub fn new(id: String) -> Self {
-        Self { id }
-    }
+    pub id: String,
 }
 
 impl UaCollectConfig {
