@@ -1,6 +1,6 @@
 ---
-title: "ARIMA"
-sidebar_label: "ARIMA"
+title: "LSTM"
+sidebar_label: "LSTM"
 ---
 
 本节说明 LSTM 模型的使用方法。
