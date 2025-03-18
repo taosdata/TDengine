@@ -20,7 +20,3 @@ TEST(jsonTest, taosBenchmarkTest) {
   printf("hello world taosBenchmark unit test for C \n");
 }
 
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}

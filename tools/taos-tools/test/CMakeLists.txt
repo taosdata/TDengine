@@ -4,7 +4,7 @@ MESSAGE(STATUS "build taos-tools unit test")
 IF(TD_LINUX)
 
     # GoogleTest requires at least C++11
-    SET(CMAKE_CXX_STANDARD 11)
+    # SET(CMAKE_CXX_STANDARD 11)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     # benchmark

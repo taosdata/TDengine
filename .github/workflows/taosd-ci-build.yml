@@ -148,7 +148,9 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          ./build.sh bld -v -j1
+          g++ --version
+          /usr/bin/c++ --version
+          ./build.sh bld -v --target benchmarkTest -j1
           ./build.sh install
           which taosd
           which taosadapter
