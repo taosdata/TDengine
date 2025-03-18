@@ -576,6 +576,7 @@ typedef struct SDropTopicStmt {
   ENodeType type;
   char      topicName[TSDB_TOPIC_NAME_LEN];
   bool      ignoreNotExists;
+  bool      force;
 } SDropTopicStmt;
 
 typedef struct SDropCGroupStmt {
@@ -583,6 +584,7 @@ typedef struct SDropCGroupStmt {
   char      topicName[TSDB_TOPIC_NAME_LEN];
   char      cgroup[TSDB_CGROUP_LEN];
   bool      ignoreNotExists;
+  bool      force;
 } SDropCGroupStmt;
 
 typedef struct SAlterClusterStmt {

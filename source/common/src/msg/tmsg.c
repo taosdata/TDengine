@@ -6766,6 +6766,8 @@ int32_t tSerializeSMDropTopicReq(void *buf, int32_t bufLen, SMDropTopicReq *pReq
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
   ENCODESQL();
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->force));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -6789,6 +6791,9 @@ int32_t tDeserializeSMDropTopicReq(void *buf, int32_t bufLen, SMDropTopicReq *pR
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->force));
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -6809,6 +6814,7 @@ int32_t tSerializeSMDropCgroupReq(void *buf, int32_t bufLen, SMDropCgroupReq *pR
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->topic));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->cgroup));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->force));
   tEndEncode(&encoder);
 
 _exit:
@@ -6831,6 +6837,9 @@ int32_t tDeserializeSMDropCgroupReq(void *buf, int32_t bufLen, SMDropCgroupReq *
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->topic));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->cgroup));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->force));
+  }
   tEndDecode(&decoder);
 
 _exit:

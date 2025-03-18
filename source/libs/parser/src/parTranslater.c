@@ -11818,6 +11818,7 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
 
   snprintf(dropReq.name, sizeof(dropReq.name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
   dropReq.igNotExists = pStmt->ignoreNotExists;
+  dropReq.force = pStmt->force;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
   tFreeSMDropTopicReq(&dropReq);
@@ -11833,6 +11834,7 @@ static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pSt
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, dropReq.topic);
   dropReq.igNotExists = pStmt->ignoreNotExists;
+  dropReq.force = pStmt->force;
   tstrncpy(dropReq.cgroup, pStmt->cgroup, TSDB_CGROUP_LEN);
 
   return buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_CGROUP, (FSerializeFunc)tSerializeSMDropCgroupReq, &dropReq);
