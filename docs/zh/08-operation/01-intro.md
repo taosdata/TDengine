@@ -36,7 +36,7 @@ taosAdapter 提供了以下功能：
 - RESTful 接口；
 - WebSocket 连接；
 - 兼容 InfluxDB v1 格式写入；
-- 兼容 OpenTSDB JSON 和 Telnet 格式写入；
+- 兼容 OpenTSDB JSON 和 TELNET 格式写入；
 - 无缝连接到 Telegraf；
 - 无缝连接到 collectd；
 - 无缝连接到 StatsD；
@@ -44,9 +44,9 @@ taosAdapter 提供了以下功能：
 
 ## taosKeeper
 
-taosKeeper 是 TDengine 3.0 版本中新增的监控指标导出工具，旨在方便用户对TDengine 的运行状态和性能指标进行实时监控。通过简单的配置，TDengine 能够将其运行状态、指标等信息上报给 taosKeeper。当接收到监控数据后，taosKeeper 会利用 taosAdapter 提供的 RESTful 接口，将这些数据存储到 TDengine 中。
+taosKeeper 是 TDengine 3.0 版本中新增的监控指标导出工具，旨在方便用户对 TDengine 的运行状态和性能指标进行实时监控。通过简单的配置，TDengine 能够将其运行状态、指标等信息上报给 taosKeeper。当接收到监控数据后，taosKeeper 会利用 taosAdapter 提供的 RESTful 接口，将这些数据存储到 TDengine 中。
 
-taosKeeper 的一个重要价值在于，它能够将多个甚至一批 TDengine 集群的监控数据集中存储在一个统一的平台上。这使得监控软件能够轻松获取这些数据，从而实现对 TDengine 集群的全面监控和实时分析。通过 taosKeeper，用户可以更加便捷地掌握TDengine 的运行状况，及时发现并解决潜在问题，确保系统的稳定性和高效性。
+taosKeeper 的一个重要价值在于，它能够将多个甚至一批 TDengine 集群的监控数据集中存储在一个统一的平台上。这使得监控软件能够轻松获取这些数据，从而实现对 TDengine 集群的全面监控和实时分析。通过 taosKeeper，用户可以更加便捷地掌握 TDengine 的运行状况，及时发现并解决潜在问题，确保系统的稳定性和高效性。
 
 ## taosExplorer
 
@@ -60,7 +60,7 @@ taosKeeper 的一个重要价值在于，它能够将多个甚至一批 TDengine
 
 taosX 作为 TDengine Enterprise 的数据管道功能组件，旨在为用户提供一种无须编写代码即可轻松对接第三方数据源的方法，实现数据的便捷导入。目前，taosX 已支持众多主流数据源，包括 AVEVA PI System、AVEVA Historian、OPC-UA/DA、InfluxDB、OpenTSDB、MQTT、Kafka、CSV、TDengine 2.x、TDengine 3.x、MySQL、PostgreSQL和 Oracle 等。
 
-在实际使用中， 用户通常无须直接与 taosX 进行交互。 相反， 他们可以通 过taosExplorer 提供的浏览器用户界面轻松访问和使用 taosX 的强大功能。这种设计简化了操作流程，降低了使用门槛，使得用户能够更加专注于数据处理和分析，从而提高工作效率。
+在实际使用中，用户通常无须直接与 taosX 进行交互。 相反， 他们可以通过 taosExplorer 提供的浏览器用户界面轻松访问和使用 taosX 的强大功能。这种设计简化了操作流程，降低了使用门槛，使得用户能够更加专注于数据处理和分析，从而提高工作效率。
 
 ## taosX Agent
 

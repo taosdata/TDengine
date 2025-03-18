@@ -16,6 +16,7 @@
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
+#ifndef TD_ASTRA_RPC
 static char* notify = "a";
 
 typedef struct {
@@ -1532,7 +1533,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
 
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     tError("invalid ip/port, %d:%d since %s", srv->ip, srv->port, terrstr());
     goto End;
   }
@@ -1684,7 +1685,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   if (code == 0) {
     tDebug("success to create accept-thread");
   } else {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     tError("failed  to create accept-thread since %s", tstrerror(code));
 
     goto End;
@@ -1903,8 +1904,8 @@ int32_t transReleaseSrvHandle(void* handle, int32_t status) {
   m->msg = tmsg;
   m->type = Normal;
 
-  tDebug("%s conn:%p, start to send %s, sid:%" PRId64 "", transLabel(pThrd->pInst), exh->handle, TMSG_INFO(tmsg.msgType),
-         qId);
+  tDebug("%s conn:%p, start to send %s, sid:%" PRId64 "", transLabel(pThrd->pInst), exh->handle,
+         TMSG_INFO(tmsg.msgType), qId);
   if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
     transReleaseExHandle(info->refIdMgt, refId);
@@ -2071,3 +2072,39 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   }
   return code;
 }
+#else
+int32_t transReleaseSrvHandle(void *handle, int32_t status) {
+  tDebug("rpc start to release svr handle");
+  return 0;
+}
+void transRefSrvHandle(void *handle) { return; }
+
+void    transUnrefSrvHandle(void *handle) { return; }
+int32_t transSendResponse(STransMsg *msg) {
+  int32_t code = 0;
+  if (rpcIsReq(msg->info.msgType) && msg->info.msgType != 0) {
+    msg->msgType = msg->info.msgType + 1;
+  }
+  if (msg->info.noResp) {
+    rpcFreeCont(msg->pCont);
+    return 0;
+  }
+  int32_t svrVer = 0;
+  code = taosVersionStrToInt(td_version, &svrVer);
+  msg->info.cliVer = svrVer;
+  msg->type = msg->info.connType;
+  return transSendResp(msg);
+}
+int32_t transRegisterMsg(const STransMsg *msg) {
+  rpcFreeCont(msg->pCont);
+  return 0;
+}
+int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }
+
+void *transInitServer(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
+void  transCloseServer(void *arg) {
+  // impl later
+  return;
+}
+
+#endif

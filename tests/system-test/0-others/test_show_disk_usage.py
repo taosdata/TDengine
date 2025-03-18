@@ -102,7 +102,8 @@ class TDTestCase:
             elif "Compress_radio=" in item[0]:
                 value = item[0].split("=")[1].split(" ")[0].replace("[", "").replace("]", "")
                 if value != 'NULL': 
-                    compress_radio = float(value)
+                    tValue = value[0:len(value) - 1]
+                    compress_radio = float(tValue)
                 #tdLog.debug("compress_occupied: %s" % compress_radio)
         return disk_occupied, compress_radio 
 

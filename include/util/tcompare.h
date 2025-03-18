@@ -47,6 +47,7 @@ typedef struct SPatternCompareInfo {
 
 int32_t InitRegexCache();
 void    DestroyRegexCache();
+int32_t rawStrPatternMatch(const char *pattern, const char *str);
 int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo);
 int32_t checkRegexPattern(const char *pPattern);
 void    DestoryThreadLocalRegComp();
@@ -59,11 +60,13 @@ int32_t setChkInBytes1(const void *pLeft, const void *pRight);
 int32_t setChkInBytes2(const void *pLeft, const void *pRight);
 int32_t setChkInBytes4(const void *pLeft, const void *pRight);
 int32_t setChkInBytes8(const void *pLeft, const void *pRight);
+int32_t setChkInDecimalHash(const void* pLeft, const void* pRight);
 
 int32_t setChkNotInBytes1(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes2(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes4(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes8(const void *pLeft, const void *pRight);
+int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight);
 
 int32_t compareChkInString(const void *pLeft, const void *pRight);
 int32_t compareChkNotInString(const void *pLeft, const void *pRight);
@@ -84,6 +87,12 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
 int32_t compareLenBinaryVal(const void *pLeft, const void *pRight);
+
+int32_t compareDecimal64(const void* pleft, const void* pright);
+int32_t compareDecimal128(const void* pleft, const void* pright);
+
+int32_t compareDecimal64SameScale(const void* pleft, const void* pright);
+int32_t compareDecimal128SameScale(const void* pleft, const void* pright);
 
 int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
 int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);

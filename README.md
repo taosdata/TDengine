@@ -29,9 +29,9 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 1. [Introduction](#1-introduction)
 1. [Documentation](#2-documentation)
 1. [Prerequisites](#3-prerequisites)
-    - [3.1 Prerequisites On Linux](#31-on-linux)
-    - [3.2 Prerequisites On macOS](#32-on-macos)
-    - [3.3 Prerequisites On Windows](#33-on-windows) 
+    - [3.1 Prerequisites On Linux](#31-prerequisites-on-linux)
+    - [3.2 Prerequisites On macOS](#32-prerequisites-on-macos)
+    - [3.3 Prerequisites On Windows](#33-prerequisites-on-windows)
     - [3.4 Clone the repo](#34-clone-the-repo) 
 1. [Building](#4-building)
     - [4.1 Build on Linux](#41-build-on-linux)
@@ -70,6 +70,8 @@ TDengine is an open source, high-performance, cloud native [time-series database
 
 For a full list of TDengine competitive advantages, please [check here](https://tdengine.com/tdengine/). The easiest way to experience TDengine is through [TDengine Cloud](https://cloud.tdengine.com).
 
+For the latest TDengine component TDgpt, please refer to [TDgpt README](./tools/tdgpt/README.md) for details.
+
 # 2. Documentation
 
 For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com))
@@ -84,7 +86,7 @@ At the moment, TDengine server supports running on Linux/Windows/MacOS systems. 
 
 If you want to compile taosAdapter or taosKeeper, you need to install Go 1.18 or above.
 
-## 3.1 On Linux
+## 3.1 Prerequisites on Linux
 
 <details>
 
@@ -109,7 +111,7 @@ yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig libatom
 
 </details>
 
-## 3.2 On macOS
+## 3.2 Prerequisites on macOS
 
 <details>
 
@@ -123,7 +125,7 @@ brew install argp-standalone gflags pkgconfig
 
 </details>
 
-## 3.3 On Windows
+## 3.3 Prerequisites on Windows
 
 <details>
 
@@ -177,7 +179,7 @@ If you want to compile taosKeeper, you need to add the `--DBUILD_KEEPER=true` op
 You can use Jemalloc as memory allocator instead of glibc:
 
 ```bash
-cmake .. -DJEMALLOC_ENABLED=true
+cmake .. -DJEMALLOC_ENABLED=ON
 ```
 
 TDengine build script can auto-detect the host machine's architecture on x86, x86-64, arm64 platform.

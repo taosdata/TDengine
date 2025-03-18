@@ -168,11 +168,6 @@ class TDTestCase:
         sql = f"create table db.st(ts timestamp, c1 int, c2 bigint, ts1 timestamp) tags(area int)"
         tdSql.execute(sql, 5, True)
 
-        sql = f"create sma index sma_test on db.st function(max(c1),max(c2),min(c1),min(c2)) {self.smaClause};"
-        tdLog.info(sql)
-        tdSql.error(sql)
-
-
         # create database  db
         sql = f"create database @db_name vgroups {self.vgroups1} replica 1"
         self.exeDouble(sql)
@@ -185,13 +180,6 @@ class TDTestCase:
         for i in range(self.childCnt):
             sql = f"create table @db_name.t{i} using @db_name.st tags({i}) "
             self.exeDouble(sql)
-
-        # create sma index on db2
-        sql = f"use {self.db2}"
-        tdSql.execute(sql)
-        sql = f"create sma index sma_index_maxmin on {self.db2}.st function(max(c1),max(c2),min(c1),min(c2)) {self.smaClause};"
-        tdLog.info(sql)
-        tdSql.execute(sql)
 
         # insert data
         self.insertData()

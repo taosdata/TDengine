@@ -130,6 +130,9 @@
   TD_DEF_MSG_TYPE(TDMT_MND_UPDATE_ANODE, "update-anode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_ANODE, "drop-anode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RETRIEVE_ANAL_ALGO, "retrieve-anal-algo", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_FAILED_STREAM, "create-stream-failed", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CHECK_STREAM_TIMER, "check-stream-status", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_GET_DB_INFO, "get-db-info", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -263,6 +266,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG, "init-config", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG_SDB, "config-sdb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RESET_STREAM, "reset-stream", NULL, NULL)
+  // do not add new message type here, since mnode msg overload. you can add new message type after dnode msg
   TD_CLOSE_MSG_SEG(TDMT_END_MND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_VND_MSG)  // 2<<8
@@ -319,6 +323,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_ARB_CHECK_SYNC, "vnode-arb-check-sync", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FETCH_TTL_EXPIRED_TBS, "vnode-fetch-ttl-expired-tbs", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TABLE_NAME, "vnode-table-name", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_VSUBTABLES_META, "vnode-virtual_stables-meta", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8
@@ -355,6 +360,7 @@
   TD_DEF_MSG_TYPE(TDMT_STREAM_DROP, "stream-drop", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_RETRIEVE_TRIGGER, "stream-retri-trigger", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_CONSEN_CHKPT, "stream-consen-chkpt", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_CHKPT_EXEC, "stream-exec-chkpt", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_STREAM_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MON_MSG)  //5 << 8

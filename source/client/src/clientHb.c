@@ -187,7 +187,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
   for (int32_t j = 0; j < rsp->vgNum; ++j) {
     SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
     if (taosHashPut(vgInfo->vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
-      tscError("hash push failed, errno:%d", errno);
+      tscError("hash push failed, terrno:%d", terrno);
       code = terrno;
       goto _return;
     }
@@ -608,6 +608,8 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   pInst->serverCfg.monitorParas = pRsp.monitorParas;
   pInst->serverCfg.enableAuditDelete = pRsp.enableAuditDelete;
+  pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
+  tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
@@ -1399,16 +1401,19 @@ static int32_t hbCreateThread() {
   TdThreadAttr thAttr;
   TSC_ERR_JRET(taosThreadAttrInit(&thAttr));
   TSC_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
+#ifdef TD_COMPACT_OS
+  TSC_ERR_JRET(taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL));
+#endif
 
   if (taosThreadCreate(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TSC_ERR_RET(terrno);
   }
   (void)taosThreadAttrDestroy(&thAttr);
 _return:
 
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TSC_ERR_RET(terrno);
   }
 
@@ -1429,12 +1434,12 @@ static void hbStopThread() {
   if (clientHbMgr.quitByKill) {
     code = taosThreadKill(clientHbMgr.thread, 0);
     if (TSDB_CODE_SUCCESS != code) {
-      tscError("taosThreadKill failed since %s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+      tscError("taosThreadKill failed since %s", tstrerror(code));
     }
   } else {
     code = taosThreadJoin(clientHbMgr.thread, NULL);
     if (TSDB_CODE_SUCCESS != code) {
-      tscError("taosThreadJoin failed since %s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      tscError("taosThreadJoin failed since %s", tstrerror(code));
     }
   }
 

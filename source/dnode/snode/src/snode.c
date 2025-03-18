@@ -43,17 +43,17 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   tqSetRestoreVersionInfo(pTask);
 
   char *p = streamTaskGetStatus(pTask).name;
-  if (pTask->info.fillHistory) {
+  if (pTask->info.fillHistory == STREAM_HISTORY_TASK) {
     sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
-            " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64 " ms",
+            " child id:%d, level:%d, status:%s taskType:%d, related stream task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pTask, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
             (int32_t)pTask->streamTaskId.taskId, pTask->info.delaySchedParam);
   } else {
     sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
-            " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64 " ms",
+            " child id:%d, level:%d, status:%s taskType:%d, related helper-task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pTask, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
             (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.delaySchedParam);
@@ -72,7 +72,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   code = startRsync();
   if (code != 0) {
     terrno = code;
-    goto FAIL;
+    goto _ERR;
   }
 
   pSnode->msgCb = pOption->msgCb;
@@ -80,19 +80,19 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
                         taosGetTimestampMs(), tqStartTaskCompleteCallback, &pSnode->pMeta);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    goto FAIL;
+    goto _ERR;
   }
 
   streamMetaLoadAllTasks(pSnode->pMeta);
   return pSnode;
 
-FAIL:
+_ERR:
   taosMemoryFree(pSnode);
   return NULL;
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  if (streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS) != 0) {
+  if (streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS, false) != 0) {
     sndError("failed to start all tasks");
   }
   return 0;
@@ -138,6 +138,8 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamTaskProcessRetrieveTriggerReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
       return tqStreamTaskProcessRetrieveTriggerRsp(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_CHKPT_EXEC:
+      return tqStreamTaskProcessRunReq(pSnode->pMeta, pMsg, true);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       return TSDB_CODE_INVALID_MSG;

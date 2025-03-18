@@ -356,7 +356,9 @@ static int32_t tsdbRetention(void *arg) {
   // do retention
   if (rtner.fset) {
     if (rtnArg->s3Migrate) {
+#ifdef USE_S3
       TAOS_CHECK_GOTO(tsdbDoS3Migrate(&rtner), &lino, _exit);
+#endif
     } else {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
     }
@@ -426,6 +428,7 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
   return code;
 }
 
+#ifdef USE_S3
 static int32_t tsdbS3FidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3KeepLocal, int64_t nowSec) {
   int32_t localFid;
   TSKEY   key;
@@ -758,29 +761,5 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   return code;
 }
 
-static int32_t tsdbGetS3SizeImpl(STsdb *tsdb, int64_t *size) {
-  int32_t code = 0;
+#endif
 
-  SVnodeCfg *pCfg = &tsdb->pVnode->config;
-  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
-
-  STFileSet *fset;
-  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
-    if (fobj) {
-      int32_t lcn = fobj->f->lcn;
-      if (lcn > 1) {
-        *size += ((lcn - 1) * chunksize);
-      }
-    }
-  }
-
-  return code;
-}
-int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
-  int32_t code = 0;
-  (void)taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbGetS3SizeImpl(tsdb, size);
-  (void)taosThreadMutexUnlock(&tsdb->mutex);
-  return code;
-}

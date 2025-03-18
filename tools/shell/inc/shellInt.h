@@ -65,7 +65,7 @@ typedef struct {
   const char* commands;
   const char* netrole;
   char        file[PATH_MAX];
-  char        password[TSDB_USET_PASSWORD_LEN];
+  char        password[TSDB_USET_PASSWORD_LONGLEN];
   bool        is_gen_auth;
   bool        is_bi_mode;
   bool        is_raw_time;
@@ -129,7 +129,7 @@ int32_t shellParseArgs(int32_t argc, char* argv[]);
 int32_t shellReadCommand(char* command);
 
 // shellEngine.c
-int32_t shellExecute();
+int32_t shellExecute(int argc, char *argv[]);
 int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
 void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
 void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);

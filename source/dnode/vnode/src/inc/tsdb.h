@@ -334,6 +334,7 @@ struct STsdbFS {
 };
 
 typedef struct {
+#ifdef USE_ROCKSDB
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
   rocksdb_block_based_table_options_t *tableoptions;
@@ -343,6 +344,7 @@ typedef struct {
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
   TdThreadMutex                        writeBatchMutex;
+#endif
   int32_t                              sver;
   tb_uid_t                             suid;
   tb_uid_t                             uid;
@@ -960,7 +962,7 @@ int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
-int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size);
+int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
