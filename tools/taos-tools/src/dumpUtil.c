@@ -215,3 +215,99 @@ TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code) {
 void engineError(char * module, char * fun, int32_t code) {
     errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
 }
+
+
+//
+//  ---------------  DB's table schema change  ------------------
+//
+
+
+
+//
+// -----------------------  hash32 map  --------------------------
+//
+
+// BKDR hash algorithm
+uint32_t bkdrHash(const char *str) {
+    uint32_t seed = 131;
+    uint32_t hash = 0;
+    while (*str) {
+        hash = hash * seed + (*str++);
+    }
+    return hash;
+}
+
+// Initialize the hash table
+void hashMapInit(HashMap *map) {
+    memset(map->buckets, 0, sizeof(map->buckets));
+    pthread_mutex_init(&map->lock, NULL);
+}
+
+// Insert a key-value pair
+bool hashMapInsert(HashMap *map, const char *key, void *value) {
+    pthread_mutex_lock(&map->lock);
+    uint32_t hash = bkdr_hash(key) % HASH32_MAP_MAX_BUCKETS;
+    HashMapEntry *entry = (HashMapEntry *)malloc(sizeof(HashMapEntry));
+    if (entry == NULL) {
+        pthread_mutex_unlock(&map->lock);
+        return false;
+    }
+    entry->key = strdup(key);
+    entry->value = value;
+    entry->next = map->buckets[hash];
+    map->buckets[hash] = entry;
+    pthread_mutex_unlock(&map->lock);
+    return true;
+}
+
+// Find the value based on the key
+void *hashMapFind(HashMap *map, const char *key) {
+    uint32_t hash = bkdr_hash(key) % HASH32_MAP_MAX_BUCKETS;
+    HashMapEntry *entry = map->buckets[hash];
+    while (entry != NULL) {
+        if (strcmp(entry->key, key) == 0) {
+            return entry->value;
+        }
+        entry = entry->next;
+    }
+    return NULL;
+}
+
+// Destroy the hash table
+void hashMapDestroy(HashMap *map) {
+    for (int i = 0; i < HASH32_MAP_MAX_BUCKETS; i++) {
+        HashMapEntry *entry = map->buckets[i];
+        while (entry != NULL) {
+            HashMapEntry *next = entry->next;
+            free(entry->key);
+            free(entry);
+            entry = next;
+        }
+    }
+    pthread_mutex_destroy(&map->lock);
+} 
+
+
+//
+// -----------------  dbChagne -------------------------
+//
+
+
+// find tag, return true not exist else false
+bool tagDeleted(DBChange *pDbChange, char *stbName, char* tagName) {
+    // TODO
+    if (pDbChange == NULL) {
+        // no changed
+        return false;
+    }
+
+    // find stb
+    
+
+
+
+
+
+
+    return false;
+}

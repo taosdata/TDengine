@@ -40,6 +40,7 @@
 #include <taoserror.h>
 #include <toolsdef.h>
 #include "../../inc/pub.h"
+#include "dumpUtil.h"
 
 
 //
@@ -253,6 +254,24 @@ enum enAVROTYPE {
     AVRO_INVALID
 };
 
+// record db table schema changed
+typedef struct StbChange {
+    // main
+    TableDes *tableDes;
+    
+    // bellow create by tableDes
+    char * strTags;
+    char * strCols;
+} StbChange;
+
+
+// record db table schema changed
+typedef struct DBChange {
+    int16_t version;
+    // record all stb
+    HashMap  stbMap;
+} DBChange;
+
 typedef enum enAVROTYPE AVROTYPE;
 
 typedef struct {
@@ -274,6 +293,7 @@ typedef struct {
     int64_t   recFailed;
     AVROTYPE  avroType;
     char      dbPath[MAX_DIR_LEN];
+    DBChange  *pDbChange;
 } threadInfo;
 
 typedef struct {
@@ -318,6 +338,10 @@ typedef struct RecordSchema_S {
     char name[RECORD_NAME_LEN];
     char *fields;
     int  num_fields;
+    // for add & del schema feat
+    char stbName[TSDB_TABLE_NAME_LEN]; 
+    char* cols;
+    int  num_cols;
 } RecordSchema;
 
 /* avro section end */
@@ -487,4 +511,6 @@ extern char      g_dbName[TSDB_DB_NAME_LEN];
 extern char      g_stbName[TSDB_TABLE_NAME_LEN];
 extern int64_t g_totalDumpOutRows;
 extern SDbInfo **g_dbInfos;
+
+
 #endif  // INC_DUMP_H_

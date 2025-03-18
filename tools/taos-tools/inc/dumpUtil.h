@@ -53,8 +53,6 @@ SNode *mallocNode(const char* name, int32_t len);
 // free nodes
 void freeNodes(SNode* head);
 
-
-
 //
 // ---------------  native ------------------
 //
@@ -65,5 +63,46 @@ TAOS *taosConnect(const char *dbName);
 // query
 TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code);
 
+
+//
+// ---------------- hash map -----------------
+//
+
+// Define the maximum number of buckets
+#define HASH32_MAP_MAX_BUCKETS 1024
+
+// Define the key-value pair structure
+typedef struct HashMapEntry {
+    char *key;
+    void *value;
+    struct HashMapEntry *next;
+} HashMapEntry;
+
+// Define the hash table structure
+typedef struct HashMap {
+    HashMapEntry *buckets[HASH32_MAP_MAX_BUCKETS];
+    pthread_mutex_t lock;
+} HashMap;
+
+// Initialize the hash table
+HashMap* hashMapCreate();
+
+// Insert a key-value pair
+bool hashMapInsert(HashMap *map, const char *key, void *value);
+
+// Find the value based on the key
+void *hashMapFind(HashMap *map, const char *key);
+
+// Destroy the hash table
+void hashMapDestroy(HashMap *map);
+
+
+//
+// -----------------  dbChagne -------------------------
+//
+struct DBChange;
+
+// find tag, return true not exist else false
+bool tagDeleted(DBChange *pDbChange, char *stbName, char* tagName);
 
 #endif  // INC_DUMPUTIL_H_
