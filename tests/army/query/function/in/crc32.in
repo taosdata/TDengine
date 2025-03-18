@@ -1,0 +1,10 @@
+select CRC32('hello')
+select CRC32('hello world')
+select CRC32('hello world!')
+select CRC32('hello,world.你好，世界。')
+select CRC32('北京涛思数据科技有限公司')
+select CRC32('hello') from ts_4893.meters limit 5
+select CRC32('hello') + 1 from ts_4893.meters limit 1
+select CRC32('hello') + CRC32('hello') from ts_4893.meters limit 1
+select cast(CRC32('hello') as VARCHAR)
+select crc32('')
