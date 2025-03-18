@@ -70,7 +70,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // but they won't be looked at, so it doesn't matter.
   if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
     if (ths->pVotesRespond->term != pMsg->term) {
-      sNError(ths, "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64 "",
+      sNError(ths, "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64,
               ths->pVotesRespond->term, pMsg->term);
 
       TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
