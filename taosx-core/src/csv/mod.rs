@@ -1559,6 +1559,9 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
 }
 
 pub async fn set_breakpoint(task_id: Option<i64>, path: &str, amount: usize) -> anyhow::Result<()> {
+    if task_id.map_or(true, |id| id == -1 || id == 0) {
+        return Ok(());
+    }
     let task_id = format!("{}", task_id.unwrap_or(0));
     let amount = format!("{}", amount);
     // set breakpoint, if failed, retry after 1s
@@ -1573,6 +1576,9 @@ pub async fn set_breakpoint(task_id: Option<i64>, path: &str, amount: usize) -> 
 }
 
 pub fn get_breakpoint(task_id: Option<i64>) -> anyhow::Result<HashMap<String, usize>> {
+    if task_id.map_or(true, |id| id == -1 || id == 0) {
+        return Ok(HashMap::new());
+    }
     let task_id = format!("{}", task_id.unwrap_or(0));
     let result = breakpoints::breakpoints_get_all(&task_id);
     match result {
@@ -1925,12 +1931,39 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    #[tokio::test]
+    async fn test_set_breakpoint_taskid_none() {
+        let task_id = None;
+        let path = "test.csv";
+        let amount = 100;
+        let result = set_breakpoint(task_id, path, amount).await;
+        assert!(result.is_ok());
+    }
+
     #[test]
     fn test_get_breakpoint() {
         let task_id = Some(1);
         let result = get_breakpoint(task_id);
         dbg!(&result);
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_breakpoint_taskid_none() {
+        let _ = set_breakpoint(None, "test.csv", 100).await;
+        let result = get_breakpoint(None);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+
+        let _ = set_breakpoint(Some(0), "test.csv", 100).await;
+        let result = get_breakpoint(Some(0));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+
+        let _ = set_breakpoint(Some(-1), "test.csv", 100).await;
+        let result = get_breakpoint(Some(-1));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
     }
 
     #[test]
