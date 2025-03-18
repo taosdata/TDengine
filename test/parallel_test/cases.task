@@ -13,3 +13,4 @@
 ,,y,.,pytest cases/stream/test_max_delay_interval.py
 ,,y,.,pytest cases/tmq/test_drop_lost_comsumers.py
 ,,y,.,pytest cases/tmq/test_tmq_params.py
+,,y,.,pytest cases/tmq/test_tmq_params.py -R

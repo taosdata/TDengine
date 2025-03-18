@@ -132,7 +132,7 @@ class BeforeTest:
 
     def get_taos_conn(self, request):
         if request.session.restful:
-            return taosrest.connect(host=request.session.host, port=request.session.port)
+            return taosrest.connect(url=f"http://{request.session.host}:6041", timezone="utc")
         else:
             return taos.connect(host=request.session.host, port=request.session.port)
 
@@ -269,9 +269,9 @@ class BeforeTest:
                     "taos_config": {
                         "firstEP": "localhost:6030",
                         "logDir": taos_log_dir
-                    }
-                },
-                "taosadapterPath": self.getPath("taosadapter")
+                    },
+                    "taosadapterPath": self.getPath("taosadapter")
+                }
             }
             yaml_data["settings"].append(restful_dict)
             adapter = {}
