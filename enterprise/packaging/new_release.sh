@@ -518,24 +518,33 @@ function prepare_taosinspect() {
     latest_release=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
     "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest")
 
-    # Extract the asset ID for taosinspect.tar.gz
-    asset_id=$(echo "$latest_release" | jq -r '.assets[] | select(.name == "taosinspect.tar.gz") | .id')
+    if [ os_arch="x64" ];then
+        pkg_name="taosinspect_x64.tar.gz" 
+    elif [ os_arch="arm64" ];then
+        pkg_name="taosinspect_arm64.tar.gz"
+    else
+        echo "unsupported os_arch"
+        return 0
+    fi
+
+    asset_id=$(echo "$latest_release" | jq -r ".assets[] | select(.name == \"${pkg_name}\") | .id")
+
 
     # Check if asset ID was found
     if [ -z "$asset_id" ]; then
-        echo "Error: taosinspect.tar.gz not found in the latest release."
+        echo "Error: ${pkg_name} not found in the latest release."
         exit 1
     fi
 
     # Download the asset using the asset ID
-    curl -L -o taosinspect.tar.gz \
+    curl -L -o ${pkg_name} \
     -H "Accept: application/octet-stream" \
     -H "Authorization: Bearer $GITHUB_TOKEN" \
     "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/assets/$asset_id"
-    echo "taosinspect.tar.gz has been downloaded successfully."
+    echo "${pkg_name} has been downloaded successfully."
 
-    tar -xvf taosinspect.tar.gz 
-    echo "taosinspect.tar.gz has been extracted successfully."
+    tar -xvf ${pkg_name} 
+    echo "${pkg_name} has been extracted successfully."
 }
 
 function preparepkg() {
