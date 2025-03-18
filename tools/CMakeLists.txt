@@ -232,7 +232,7 @@ ELSE()
         get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
         ExternalProject_Add(ext_taosadapter
             GIT_REPOSITORY ${_git_url}
-            GIT_TAG 3.0
+            GIT_TAG main   # freemine: better not use branch name
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
