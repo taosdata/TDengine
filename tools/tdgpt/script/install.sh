@@ -482,6 +482,14 @@ function install_service_on_systemd() {
   ${csudo}systemctl daemon-reload
 }
 
+function is_container() {
+  if [[ -f /.dockerenv ]] || grep -q "docker\|kubepods" /proc/1/cgroup || [[ -n "$KUBERNETES_SERVICE_HOST" || "$container" == "docker" ]]; then
+    return 0  # container env
+  else
+    return 1  # not container env
+  fi
+}
+
 function install_service() {
   if ((${service_mod} == 0)); then
     install_service_on_systemd $1
@@ -615,7 +623,9 @@ function updateProduct() {
 
   if [ -z $1 ]; then
     install_bin
-    install_services
+    if ! is_container; then
+      install_services
+    fi
 
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${global_conf_dir}/${configFile}"
@@ -659,7 +669,9 @@ function installProduct() {
   install_module
 
   install_bin_and_lib
-  install_services
+  if ! is_container; then
+    install_services
+  fi
 
   echo
   echo -e "\033[44;32;1m${productName} is installed successfully!${NC}"
