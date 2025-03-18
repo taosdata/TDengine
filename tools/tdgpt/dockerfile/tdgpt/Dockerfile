@@ -7,5 +7,5 @@ ADD ${pkgFile} /apps
 RUN cd ${dirName}/ && /bin/bash install.sh -e no && cd .. && rm -rf ${dirName}
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
-EXPOSE 6090
+EXPOSE 6090 8387
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
