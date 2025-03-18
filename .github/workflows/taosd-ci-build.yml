@@ -113,42 +113,42 @@ jobs:
         run: |
           choco install jom --yes
 
-      - name: Cache externals built
-        uses: actions/cache@v4
-        id: cache-ext
-        with:
-          path: ${{ github.workspace }}/.externals
-          key: ${{ runner.os }}-build-ext-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
+      # - name: Cache externals built
+      #   uses: actions/cache@v4
+      #   id: cache-ext
+      #   with:
+      #     path: ${{ github.workspace }}/.externals
+      #     key: ${{ runner.os }}-build-ext-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
 
-      - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
-        name: Build externals on Linux and macOS
-        continue-on-error: false
-        run: |
-          # TODO: later we'll use ./build.sh
-          cmake -B debug                     \
-            -DBUILD_TOOLS=true               \
-            -DBUILD_KEEPER=true              \
-            -DBUILD_HTTP=false               \
-            -DBUILD_TEST=true                \
-            -DBUILD_DEPENDENCY_TESTS=false
-          cmake --build debug --target build_externals -j4
+      # - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
+      #   name: Build externals on Linux and macOS
+      #   continue-on-error: false
+      #   run: |
+      #     # TODO: later we'll use ./build.sh
+      #     cmake -B debug                     \
+      #       -DBUILD_TOOLS=true               \
+      #       -DBUILD_KEEPER=true              \
+      #       -DBUILD_HTTP=false               \
+      #       -DBUILD_TEST=true                \
+      #       -DBUILD_DEPENDENCY_TESTS=false
+      #     cmake --build debug --target build_externals -j4
 
-      - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
-        name: Build externals on Windows
-        continue-on-error: false
-        shell: cmd
-        run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-          set CL=/MP8
-          # TODO: later we'll use ./build.bat
-          cmake -B debug                       ^
-            -G "NMake Makefiles JOM"           ^
-            -DBUILD_TOOLS=true                 ^
-            -DBUILD_KEEPER=true                ^
-            -DBUILD_HTTP=false                 ^
-            -DBUILD_TEST=false                 ^
-            -DBUILD_DEPENDENCY_TESTS=false
-          cmake --build debug --target build_externals -j4
+      # - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
+      #   name: Build externals on Windows
+      #   continue-on-error: false
+      #   shell: cmd
+      #   run: |
+      #     call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+      #     set CL=/MP8
+      #     # TODO: later we'll use ./build.bat
+      #     cmake -B debug                       ^
+      #       -G "NMake Makefiles JOM"           ^
+      #       -DBUILD_TOOLS=true                 ^
+      #       -DBUILD_KEEPER=true                ^
+      #       -DBUILD_HTTP=false                 ^
+      #       -DBUILD_TEST=false                 ^
+      #       -DBUILD_DEPENDENCY_TESTS=false
+      #     cmake --build debug --target build_externals -j4
 
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
