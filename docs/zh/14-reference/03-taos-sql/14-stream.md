@@ -128,7 +128,7 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 如果该流任务已经彻底过期，并且您不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
 
 注意：
-- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（3.3.6.0版本开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
+- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
 
 - 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
 

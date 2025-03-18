@@ -3358,6 +3358,7 @@ typedef struct {
   int8_t  igNotExists;
   int32_t sqlLen;
   char*   sql;
+  int8_t  force;
 } SMDropTopicReq;
 
 int32_t tSerializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
@@ -3368,6 +3369,7 @@ typedef struct {
   char   topic[TSDB_TOPIC_FNAME_LEN];
   char   cgroup[TSDB_CGROUP_LEN];
   int8_t igNotExists;
+  int8_t force;
 } SMDropCgroupReq;
 
 int32_t tSerializeSMDropCgroupReq(void* buf, int32_t bufLen, SMDropCgroupReq* pReq);
