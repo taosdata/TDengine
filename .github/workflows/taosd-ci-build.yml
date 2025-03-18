@@ -124,14 +124,8 @@ jobs:
         name: Build externals on Linux and macOS
         continue-on-error: false
         run: |
-          # TODO: later we'll use ./build.sh
-          cmake -B debug                     \
-            -DBUILD_TOOLS=true               \
-            -DBUILD_KEEPER=true              \
-            -DBUILD_HTTP=false               \
-            -DBUILD_TEST=true                \
-            -DBUILD_DEPENDENCY_TESTS=false
-          cmake --build debug --target build_externals -j4
+          ./build.sh gen
+          ./build.sh bld --target build_externals -v
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
         name: Build externals on Windows
@@ -153,16 +147,9 @@ jobs:
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          # TODO: later we'll use ./build.sh
-          cmake -B debug                     \
-            -DBUILD_TOOLS=true               \
-            -DBUILD_KEEPER=true              \
-            -DBUILD_HTTP=false               \
-            -DBUILD_TEST=true                \
-            -DBUILD_DEPENDENCY_TESTS=false   \
-            -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          cmake --build debug -j4 -v
-          sudo cmake --install debug
+          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          ./build.sh bld -v
+          ./build.sh install
           which taosd
           which taosadapter
           which taoskeeper
