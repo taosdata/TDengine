@@ -97,10 +97,12 @@ typedef struct {
   SBlkData     bufBlk;
   STableFooter footer;
   SHashObj    *pCache;
+  SArray      *pSeqToBlock;
   int32_t      blockId;
   uint64_t     initSeq;
   uint8_t      commited;
   uint8_t      fileOpened;
+  int64_t      seq;
 } STable;
 
 typedef struct {

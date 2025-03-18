@@ -57,6 +57,12 @@ static char *bseFilexSuffix[] = {
 };
 static int32_t kBlockCap = 8 * 1024 * 1024;
 
+typedef struct {
+  int64_t seq;
+  int32_t len;
+  int32_t blockId;
+} BlockInfo;
+
 static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
 static void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
 static void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
@@ -201,6 +207,17 @@ int32_t blockAddMeta(SBlkData *blk, uint64_t key, SValueInfo *pValue, uint64_t *
   blk->dataNum++;
   return code;
 }
+int32_t blockAddMeta2(SBlkData *blk, BlockInfo *pInfo) {
+  int32_t    code = 0;
+  SBlkData2 *pBlk = blk->pData;
+  uint8_t   *p = pBlk->data + pBlk->len;
+
+  pBlk->len += taosEncodeVariantU64((void **)&p, pInfo->seq);
+  pBlk->len += taosEncodeVariantI32((void **)&p, pInfo->len);
+  pBlk->len += taosEncodeVariantI32((void **)&p, pInfo->blockId);
+  blk->dataNum++;
+  return 0;
+}
 
 // 0 not flush,1 flush
 int8_t blockShouldFlush(SBlkData *data, int32_t len) {
@@ -214,7 +231,7 @@ int8_t blockShouldFlush(SBlkData *data, int32_t len) {
 
 int8_t blockShouldFlush2(SBlkData *data, int32_t len) {
   SBlkData2 *pBlkData = data->pData;
-  return sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM) > data->cap;
+  return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) > data->cap;
 }
 int8_t blockMetaShouldFlush(SBlkData *data, int32_t len) {
   //
@@ -222,6 +239,13 @@ int8_t blockMetaShouldFlush(SBlkData *data, int32_t len) {
   int32_t    estimite = taosEncodeVariantU64(NULL, sizeof(UINT64_MAX));
   estimite += taosEncodeVariantU64(NULL, len);
   return (estimite + sizeof(SBlkData2) + pBlkData->len + sizeof(TSCKSUM)) > data->cap;
+}
+int8_t blockMetaShouldFlush2(SBlkData *data, BlockInfo *pInfo) {
+  SBlkData2 *pBlkData = data->pData;
+  int32_t    len = taosEncodeVariantU64(NULL, pInfo->seq);
+  len += taosEncodeVariantI32(NULL, pInfo->len);
+  len += taosEncodeVariantI32(NULL, pInfo->blockId);
+  return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) > data->cap;
 }
 
 int32_t blockReset(SBlkData *data, uint8_t type, int32_t blockId) {
@@ -264,6 +288,34 @@ static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, ui
   return code;
 }
 
+static int32_t blockSeekSeq(SBlkData *data, int64_t seq, uint8_t **pValue, int32_t *len) {
+  int32_t    code = 0;
+  int32_t    tlen = 0;
+  uint64_t   tkey = 0;
+  int8_t     found = 0;
+  SBlkData2 *pBlkData = data->pData;
+  uint8_t   *pos = (uint8_t *)pBlkData->data;
+  uint8_t   *start = (uint8_t *)pBlkData->data;
+  do {
+    pos = taosDecodeVariantU64(pos, &tkey);
+    if (tkey == seq) {
+      pos = taosDecodeVariantI32(pos, &tlen);
+      pos = taosDecodeBinary(pos, (void **)pValue, tlen);
+      found = 1;
+      break;
+    }
+    pos = taosDecodeVariantI32(pos, &tlen);
+    pos += tlen;
+  } while ((pos - start) < data->len);
+
+  if (found) {
+    *len = tlen;
+  } else {
+    code = TSDB_CODE_NOT_FOUND;
+  }
+  return code;
+}
+
 static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *buf) {
   // build data file name
   // snprintf(name, strlen(name), "%s/%s020"."BSE_DATA_SUFFIX, ver, pBse->path);
@@ -294,10 +346,16 @@ int32_t tableOpen(const char *name, STable **ppTable, uint8_t openFile) {
   if (pTable->pCache == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _err);
   }
+  pTable->pSeqToBlock = taosArrayInit(4096, sizeof(BlockInfo));
 
   pTable->blockId = 0;
   code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->data);
   TAOS_CHECK_GOTO(code, &line, _err);
+
+  BlockInfo info = {0};
+  if (taosArrayPush(pTable->pSeqToBlock, &info) == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _err);
+  }
 
   code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->bufBlk);
   TAOS_CHECK_GOTO(code, &line, _err);
@@ -323,6 +381,10 @@ _err:
   return code;
 }
 
+int32_t tableSetSeq(STable *pTable, int64_t seq) {
+  pTable->initSeq = seq;
+  return 0;
+}
 int32_t tableClear(STable *pTable) {
   int32_t code = 0;
   pTable->commited = 0;
@@ -333,6 +395,8 @@ int32_t tableClear(STable *pTable) {
   pTable->blockId = 0;
   pTable->initSeq = 0;
   taosHashClear(pTable->pCache);
+  taosArrayDestroy(pTable->pSeqToBlock);
+  pTable->pSeqToBlock = NULL;
 
   pTable->pDataFile = NULL;
   pTable->pIdxFile = NULL;
@@ -365,6 +429,8 @@ int32_t tableClose(STable *pTable, uint8_t clear) {
   TAOS_CHECK_GOTO(code, &line, _err);
   taosHashCleanup(pTable->pCache);
 
+  taosArrayDestroy(pTable->pSeqToBlock);
+
   code = taosCloseFile(&pTable->pDataFile);
   pTable->fileOpened = 0;
   TAOS_CHECK_GOTO(code, &line, _err);
@@ -378,10 +444,10 @@ _err:
 }
 
 int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len) {
-  int32_t    line = 0;
-  int32_t    code = 0;
-  uint32_t   offset = 0;
-  SValueInfo info;
+  int32_t  line = 0;
+  int32_t  code = 0;
+  uint32_t offset = 0;
+  // SValueInfo info;
 
   if (blockShouldFlush(&pTable->data, len)) {
     TAOS_CHECK_GOTO(tableFlushBlock(pTable), &line, _err);
@@ -392,11 +458,14 @@ int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t le
   code = blockAdd(&pTable->data, key, value, len, &offset);
   TAOS_CHECK_GOTO(code, &line, _err);
 
-  info.offset = offset;
-  info.size = len;
-  code = taosHashPut(pTable->pCache, &key, sizeof(key), &info, sizeof(info));
-
-  TAOS_CHECK_GOTO(code, &line, _err);
+  BlockInfo info = {.seq = key, .len = 0};
+  if (taosArrayPush(pTable->pSeqToBlock, &info) == NULL) {
+    code = terrno;
+  }
+  // info.offset = offset;
+  // info.size = len;
+  // code = taosHashPut(pTable->pCache, &key, sizeof(key), &info, sizeof(info));
+  // TAOS_CHECK_GOTO(code, &line, _err);
 
 _err:
   if (code != 0) {
@@ -405,10 +474,10 @@ _err:
   return code;
 }
 int32_t tableAppendData2(STable *pTable, uint64_t key, uint8_t *value, int32_t len) {
-  int32_t    line = 0;
-  int32_t    code;
-  uint32_t   offset;
-  SValueInfo info;
+  int32_t  line = 0;
+  int32_t  code;
+  uint32_t offset;
+
   if (blockShouldFlush2(&pTable->data, len)) {
     code = tableFlushBlock(pTable);
     TAOS_CHECK_GOTO(code, &line, _error);
@@ -416,10 +485,15 @@ int32_t tableAppendData2(STable *pTable, uint64_t key, uint8_t *value, int32_t l
     TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_DATA_TYPE, pTable->blockId), &line, _error);
   }
   code = blockAdd2(&pTable->data, key, value, len, &offset);
-  info.offset = offset;
-  info.size = len;
-  // code = taosHashPut(pTable->pCache, &key, sizeof(key), &info, sizeof(info));
+
+  BlockInfo info = {.seq = key, .len = 0};
+  if (taosArrayPush(pTable->pSeqToBlock, &info) == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _error);
+  }
 _error:
+  if (code != 0) {
+    bseError("failed to append data since %s at line", tstrerror(code), line);
+  }
   return code;
 }
 
@@ -455,26 +529,21 @@ int32_t tableAppendMeta(STable *pTable) {
   TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_META_TYPE, pTable->blockId), &line, _err);
 
   SBlkData2 *pBlk = pTable->data.pData;
-  void      *pIter = taosHashIterate(pTable->pCache, NULL);
-  while (pIter) {
-    key = *(uint64_t *)taosHashGetKey(pIter, NULL);
-    SValueInfo *value = (SValueInfo *)pIter;
-
-    if (blockMetaShouldFlush(&pTable->data, value->offset)) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTable->pSeqToBlock); i++) {
+    BlockInfo *pBlockInfo = taosArrayGet(pTable->pSeqToBlock, i);
+    if (blockMetaShouldFlush2(&pTable->data, pBlockInfo)) {
       code = tableFlushBlock(pTable);
+      TAOS_CHECK_GOTO(code, &line, _err);
       TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_META_TYPE, pTable->blockId), &line, _err);
     }
-
-    code = blockAddMeta(&pTable->data, key, value, &offset);
-    pIter = taosHashIterate(pTable->pCache, pIter);
+    code = blockAddMeta2(&pTable->data, pBlockInfo);
   }
-
   code = tableFlushBlock(pTable);
   TAOS_CHECK_GOTO(code, &line, _err);
 
   TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_DATA_TYPE, pTable->blockId), &line, _err);
 
-  taosHashClear(pTable->pCache);
+  taosArrayClear(pTable->pSeqToBlock);
   taosCloseFile(&pTable->pDataFile);
 _err:
   if (code != 0) {
@@ -506,18 +575,42 @@ _err:
   return code;
 }
 
+int32_t tableGetByBlock(STable *pTable, BlockInfo *pInfo, int64_t key, uint8_t **pValue, int32_t *len) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (pInfo == NULL) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+
+  if (pTable->data.id == pInfo->blockId) {
+    code = blockSeekSeq(&pTable->data, key, pValue, len);
+  } else {
+    code = tableLoadBlk(pTable, pInfo->blockId, &pTable->bufBlk);
+    TAOS_CHECK_GOTO(code, &lino, _err);
+
+    code = blockSeekSeq(&pTable->bufBlk, key, pValue, len);
+  }
+
+_err:
+  if (code != 0) {
+    bseError("failed to load block since %s at line %d", tstrerror(code), lino);
+  }
+  return code;
+}
+
 int32_t tableFlushBlock(STable *pTable) {
   /// do write to file
   // Do CRC and write to table
-  int32_t code = 0;
-  int32_t line = 0;
-
-  SBlkData2 *pBlk = pTable->data.pData;
+  int32_t    code = 0;
+  int32_t    line = 0;
+  SBlkData  *pData = &pTable->data;
+  SBlkData2 *pBlk = pData->pData;
   if (pBlk->len == 0) {
     return 0;
   }
   // serialize or not
-  pBlk->len = pTable->data.dataNum;
+  pBlk->len = pData->dataNum;
 
   code = taosCalcChecksumAppend(0, (uint8_t *)pBlk, kBlockCap);
   TAOS_CHECK_GOTO(code, &line, _err);
@@ -567,13 +660,16 @@ int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk) {
 }
 
 int32_t tableLoadBySeq(STable *pTable, uint64_t key, uint8_t **pValue, int32_t *len) {
-  int32_t     code = 0;
-  SValueInfo *pInfo = taosHashGet(pTable->pCache, &key, sizeof(uint64_t));
-  if (pInfo == NULL) {
-    return TSDB_CODE_NOT_FOUND;
+  int32_t    code = 0;
+  BlockInfo *p = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(pTable->pSeqToBlock); i++) {
+    BlockInfo *pInfo = taosArrayGet(pTable->pSeqToBlock, i);
+    if (pInfo->seq >= key) {
+      p = pInfo;
+      break;
+    }
   }
-
-  return tableGet(pTable, pInfo->offset, key, pValue, len);
+  return tableGetByBlock(pTable, p, key, pValue, len);
 }
 
 int32_t bseLoadMeta(SBse *pBse) {
@@ -906,11 +1002,11 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   code = taosMkDir(p->path);
   TAOS_CHECK_GOTO(code, &lino, _err);
 
-  code = bseInitLock(p);
-  TAOS_CHECK_GOTO(code, &lino, _err);
-
   // init table
   code = bseRecover(p);
+  TAOS_CHECK_GOTO(code, &lino, _err);
+
+  code = bseInitLock(p);
   TAOS_CHECK_GOTO(code, &lino, _err);
 
   p->inUse = 0;
@@ -924,12 +1020,18 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   code = tableOpen(buf, &p->pTable[p->inUse], 1);
   TAOS_CHECK_GOTO(code, &lino, _err);
 
+  tableSetSeq(p->pTable[p->inUse], p->seq);
+  TAOS_CHECK_GOTO(code, &lino, _err);
+
   bseBuildDataFullName(p, p->seq + 1, buf);
   code = tableOpen(buf, &p->pTable[1 - p->inUse], 0);
   TAOS_CHECK_GOTO(code, &lino, _err);
 
-  p->pTable[p->inUse]->initSeq = p->seq;
-  p->pTable[1 - p->inUse]->initSeq = p->seq + 1;
+  tableSetSeq(p->pTable[1 - p->inUse], p->seq + 1);
+  TAOS_CHECK_GOTO(code, &lino, _err);
+
+  // p->pTable[p->inUse]->initSeq = p->seq;
+  // p->pTable[1 - p->inUse]->initSeq = p->seq + 1;
 
   // init other mutex
   taosThreadMutexInit(&p->mutex, NULL);
