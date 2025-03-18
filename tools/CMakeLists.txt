@@ -66,7 +66,8 @@ IF(TD_WEBSOCKET)
         get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
         ExternalProject_Add(ext_taosws
             GIT_REPOSITORY ${_git_url}
-            GIT_TAG 3.0
+            GIT_TAG 3.0           # freemine: better not use branch name!!!
+            GIT_SHALLOW TRUE
             PREFIX "${_base}"
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
@@ -83,7 +84,6 @@ IF(TD_WEBSOCKET)
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${websocket_lib_file} ${_ins}/lib/${websocket_lib_file}
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${_ins}/include/taosws.h
 
-            GIT_SHALLOW TRUE
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
@@ -233,6 +233,7 @@ ELSE()
         ExternalProject_Add(ext_taosadapter
             GIT_REPOSITORY ${_git_url}
             GIT_TAG main   # freemine: better not use branch name
+            GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
@@ -258,7 +259,6 @@ ELSE()
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.service
                 # COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter-debug"
                 # COMMAND "${CMAKE_COMMAND}" -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
-            GIT_SHALLOW TRUE
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )

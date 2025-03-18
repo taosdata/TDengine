@@ -166,13 +166,13 @@ get_from_local_repo_if_exists("https://github.com/madler/zlib.git")
 ExternalProject_Add(ext_zlib
     GIT_REPOSITORY ${_git_url}
     GIT_TAG 5a82f71ed1dfc0bec044d9702463dbdf84ea3b71
+    GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}                # let default INSTALL step use
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON            # linking consistent
     CMAKE_ARGS -DZLIB_BUILD_SHARED:BOOL=OFF
     CMAKE_ARGS -DZLIB_BUILD_TESTING:BOOL=ON
-    GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -194,6 +194,7 @@ if(${BUILD_PTHREAD})        # {
     ExternalProject_Add(ext_pthread
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 3309f4d6e7538f349ae450347b02132ecb0606a7
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -205,7 +206,6 @@ if(${BUILD_PTHREAD})        # {
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${_ins}/bin/${ext_pthread_dll} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${ext_pthread_dll}
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -227,6 +227,7 @@ if(${BUILD_WITH_ICONV})     # {
     ExternalProject_Add(ext_iconv
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 9f98392dfecadffd62572e73e9aba878e03496c4
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -237,7 +238,6 @@ if(${BUILD_WITH_ICONV})     # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -259,6 +259,7 @@ if(${BUILD_MSVCREGEX})      # {
     ExternalProject_Add(ext_msvcregex
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 1a6514dd59bac8173ad4a55f63727d36269043cd
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ""
@@ -267,7 +268,6 @@ if(${BUILD_MSVCREGEX})      # {
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/regex.h" "${_ins}/include/regex.h"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/${ext_msvcregex_static}" "${_ins}/lib/${ext_msvcregex_static}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -289,6 +289,7 @@ if(${BUILD_WCWIDTH})        # {
     ExternalProject_Add(ext_wcwidth
         GIT_REPOSITORY ${_git_url}
         GIT_TAG a1b1e2c346a563f6538e46e1d29c265bdd5b1c9a
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -298,7 +299,6 @@ if(${BUILD_WCWIDTH})        # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -320,6 +320,7 @@ if(${BUILD_WINGETOPT})      # {
     ExternalProject_Add(ext_wingetopt
         GIT_REPOSITORY ${_git_url}
         GIT_TAG e8531ed21b44f5a723c1dd700701b2a58ce3ea01
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -327,7 +328,6 @@ if(${BUILD_WINGETOPT})      # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -357,6 +357,7 @@ if(${BUILD_TEST})           # {
     ExternalProject_Add(ext_gtest
         GIT_REPOSITORY ${_git_url}
         GIT_TAG release-1.12.0
+        GIT_SHALLOW TRUE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -365,7 +366,6 @@ if(${BUILD_TEST})           # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -395,6 +395,7 @@ if(${BUILD_TEST})           # {
     ExternalProject_Add(ext_cppstub
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -404,7 +405,6 @@ if(${BUILD_TEST})           # {
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/src/stub.h ${_ins}/include/stub.h
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/${_platform_dir}/addr_any.h ${_ins}/include/addr_any.h
         # freemine: TODO: seems only .h files are exported
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -429,6 +429,7 @@ get_from_local_repo_if_exists("https://github.com/lz4/lz4.git")
 ExternalProject_Add(ext_lz4
     GIT_REPOSITORY ${_git_url}
     GIT_TAG v1.10.0
+    GIT_SHALLOW TRUE
     PREFIX "${_base}"
     SOURCE_SUBDIR build/cmake
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -439,7 +440,6 @@ ExternalProject_Add(ext_lz4
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-    GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -463,6 +463,7 @@ get_from_local_repo_if_exists("https://github.com/DaveGamble/cJSON.git")
 ExternalProject_Add(ext_cjson
     GIT_REPOSITORY ${_git_url}
     GIT_TAG 12c4bf1986c288950a3d06da757109a6aa1ece38
+    GIT_SHALLOW FALSE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -474,7 +475,6 @@ ExternalProject_Add(ext_cjson
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-    GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -498,6 +498,7 @@ get_from_local_repo_if_exists("https://github.com/xz-mirror/xz.git")
 ExternalProject_Add(ext_xz
     GIT_REPOSITORY ${_git_url}
     GIT_TAG v5.4.4
+    GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -505,7 +506,6 @@ ExternalProject_Add(ext_xz
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-    GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -534,6 +534,7 @@ if(NOT ${TD_WINDOWS})        # {
     ExternalProject_Add(ext_xxhash
         GIT_REPOSITORY ${_git_url}
         GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -545,7 +546,6 @@ if(NOT ${TD_WINDOWS})        # {
             COMMAND make DESTDIR=${_ins}
         INSTALL_COMMAND
             COMMAND make DESTDIR=${_ins} install
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -557,6 +557,7 @@ else()                       # }{
     ExternalProject_Add(ext_xxhash
         GIT_REPOSITORY ${_git_url}
         GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         SOURCE_SUBDIR cmake_unofficial
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -566,7 +567,6 @@ else()                       # }{
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -585,6 +585,7 @@ if(${TD_LINUX})
     ExternalProject_Add(ext_lzma2
         GIT_REPOSITORY ${_git_url}
         GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -597,7 +598,6 @@ if(${TD_LINUX})
             COMMAND make DESTDIR=${_ins}
         INSTALL_COMMAND
             COMMAND make DESTDIR=${_ins} install
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -623,6 +623,7 @@ if(${BUILD_WITH_UV})        # {
     ExternalProject_Add(ext_libuv
         GIT_REPOSITORY ${_git_url}
         GIT_TAG v1.50.0
+        GIT_SHALLOW TRUE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -633,7 +634,6 @@ if(${BUILD_WITH_UV})        # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -660,6 +660,7 @@ if(NOT ${TD_WINDOWS})       # {
     ExternalProject_Add(ext_tz
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 2025a
+        GIT_SHALLOW TRUE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -673,7 +674,6 @@ if(NOT ${TD_WINDOWS})       # {
             COMMAND make "CFLAGS=${_c_flags}" DESTDIR=${_ins}
         INSTALL_COMMAND
             COMMAND make "CFLAGS=${_c_flags}" DESTDIR=${_ins} install
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -701,6 +701,7 @@ if(${JEMALLOC_ENABLED})     # {
     ExternalProject_Add(ext_jemalloc
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 5.3.0
+        GIT_SHALLOW TRUE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -716,7 +717,6 @@ if(${JEMALLOC_ENABLED})     # {
         INSTALL_COMMAND
             COMMAND make install
         # freemine: TODO: always refreshed!!!
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -742,6 +742,7 @@ if(${BUILD_WITH_SQLITE})    # {
     ExternalProject_Add(ext_sqlite
         GIT_REPOSITORY ${_git_url}
         GIT_TAG version-3.36.0
+        GIT_SHALLOW TRUE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -749,10 +750,8 @@ if(${BUILD_WITH_SQLITE})    # {
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
         # freemine: TODO: seems no use at all
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
-        GIT_PROGRESS TRUE
     )
     add_dependencies(build_externals ext_sqlite)     # this is for github workflow in cache-miss step.
 endif(${BUILD_WITH_SQLITE}) # }
@@ -772,6 +771,7 @@ if(${BUILD_CRASHDUMP})      # {
     ExternalProject_Add(ext_crashdump
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 149b43c10debdf28a2c50d79dee5ff344d83bd06
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -782,7 +782,6 @@ if(${BUILD_CRASHDUMP})      # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -816,6 +815,7 @@ if(NOT ${TD_WINDOWS})       # {
     ExternalProject_Add(ext_ssl
         URL ${_url}
         URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
+        # GIT_SHALLOW TRUE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -827,7 +827,6 @@ if(NOT ${TD_WINDOWS})       # {
             COMMAND make -j4
         INSTALL_COMMAND
             COMMAND make install_sw -j4
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -851,6 +850,7 @@ if(NOT ${TD_WINDOWS})       # {
     ExternalProject_Add(ext_curl
         URL ${_url}
         URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        # GIT_SHALLOW TRUE
         DEPENDS ext_ssl
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
@@ -867,7 +867,6 @@ if(NOT ${TD_WINDOWS})       # {
             COMMAND make -j4
         INSTALL_COMMAND
             COMMAND make install
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -897,6 +896,7 @@ if(${BUILD_GEOS})           # {
     ExternalProject_Add(ext_geos
         GIT_REPOSITORY ${_git_url}
         GIT_TAG c1a3d838ced34c29f2d4ba9982dbde31f79b2a05
+        GIT_SHALLOW FALSE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -907,7 +907,6 @@ if(${BUILD_GEOS})           # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -947,6 +946,7 @@ if(${BUILD_ADDR2LINE})      # {
     ExternalProject_Add(ext_dwarf
         GIT_REPOSITORY ${_git_url}
         GIT_TAG libdwarf-0.3.1
+        GIT_SHALLOW TRUE
         DEPENDS ext_zlib
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -964,7 +964,6 @@ if(${BUILD_ADDR2LINE})      # {
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                     "${ext_dwarf_source}/src/lib/libdwarf/dwarf.h"
                     "${ext_dwarf_install}/include/libdwarf/dwarf.h"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -988,6 +987,7 @@ if(${BUILD_ADDR2LINE})      # {
     ExternalProject_Add(ext_addr2line
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 9d76b420f9d1261fa7feada3a209e605f54ba859
+        GIT_SHALLOW FALSE
         DEPENDS ext_dwarf
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -1000,7 +1000,6 @@ if(${BUILD_ADDR2LINE})      # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1028,6 +1027,7 @@ if(${BUILD_PCRE2})          # {
         GIT_REPOSITORY ${_git_url}
         # GIT_TAG db3b532aa0cc9bbaf804927b1f15566cadb4917a
         GIT_TAG pcre2-10.45
+        GIT_SHALLOW TRUE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1042,7 +1042,6 @@ if(${BUILD_PCRE2})          # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -1067,6 +1066,7 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
     ExternalProject_Add(ext_rocksdb
         URL ${_url}
         URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+        # GIT_SHALLOW TRUE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1088,7 +1088,6 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )

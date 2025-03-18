@@ -229,19 +229,6 @@ if(${BUILD_PTHREAD})
     # freemine: target_link_libraries(pthread INTERFACE libpthreadVC3)
 endif()
 
-# jemalloc
-if(${JEMALLOC_ENABLED})
-    include(ExternalProject)
-    ExternalProject_Add(jemalloc
-        PREFIX "jemalloc"
-        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
-        BUILD_IN_SOURCE 1
-        CONFIGURE_COMMAND ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --disable-initial-exec-tls
-        BUILD_COMMAND ${MAKE}
-    )
-    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
-endif()
-
 # crashdump
 if(${BUILD_CRASHDUMP})
     # freemine: add_executable(dumper "crashdump/dumper/dumper.c")
