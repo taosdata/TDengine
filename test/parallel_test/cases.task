@@ -11,4 +11,5 @@
 ,,y,.,pytest cases/query/window/test_tsma.py
 ,,y,.,pytest cases/storage/multilevel/test_mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,.,pytest cases/stream/test_max_delay_interval.py
-,,y,.,
+,,y,.,pytest cases/tmq/test_drop_lost_comsumers.py
+,,y,.,pytest cases/tmq/test_tmq_params.py
