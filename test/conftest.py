@@ -65,6 +65,25 @@ def before_test_session(request):
     before_test = BeforeTest(request)
     request.session.before_test = before_test
     request.session.root_dir = request.config.rootdir
+
+    # 部署参数解析，存入session变量
+    if request.config.getoption("-M"):
+        request.session.mnodes_num = int(request.config.getoption("-M"))
+    else:
+        request.session.mnodes_num = 1
+    if request.config.getoption("--tsim"):
+        request.session.tsim_file = request.config.getoption("--tsim")
+    else:
+        request.session.tsim_file = None
+    if request.config.getoption("--replica"):
+        request.session.replicaVar = int(request.config.getoption("--replica"))
+    else:
+        request.session.replicaVar = 1
+    if request.config.getoption("--skip_deploy"):
+        request.session.skip_deploy = True
+    else:
+        request.session.skip_deploy = False
+    
     # 获取yaml文件，缓存到servers变量中，供cls使用
     if request.config.getoption("--yaml_file"):
         root_dir = request.config.rootdir
@@ -111,23 +130,7 @@ def before_test_session(request):
             request.session.create_dnode_num = request.session.denodes_num
         
         request.session.before_test.get_config_from_param(request)
-    # 部署参数解析，存入session变量
-    if request.config.getoption("-M"):
-        request.session.mnodes_num = int(request.config.getoption("-M"))
-    else:
-        request.session.mnodes_num = 1
-    if request.config.getoption("--tsim"):
-        request.session.tsim_file = request.config.getoption("--tsim")
-    else:
-        request.session.tsim_file = None
-    if request.config.getoption("--replica"):
-        request.session.replicaVar = int(request.config.getoption("--replica"))
-    else:
-        request.session.replicaVar = 1
-    if request.config.getoption("--skip_deploy"):
-        request.session.skip_deploy = True
-    else:
-        request.session.skip_deploy = False
+    
 
 
 @pytest.fixture(scope="class", autouse=True)
@@ -163,7 +166,7 @@ def before_test_class(request):
         request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num)
    
         # 建立连接
-        request.cls.conn = request.session.before_test.get_taos_conn(request.cls.host, request.cls.port)
+        request.cls.conn = request.session.before_test.get_taos_conn(request)
         request.cls.tdSql = request.session.before_test.get_tdsql(request.cls.conn)
 
         # 为兼容老用例，初始化原框架连接

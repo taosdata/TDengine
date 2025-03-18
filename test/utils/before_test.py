@@ -130,8 +130,11 @@ class BeforeTest:
             conn.close()
 
 
-    def get_taos_conn(self, host, port):
-        return taos.connect(host=host, port=port)
+    def get_taos_conn(self, request):
+        if request.session.restful:
+            return taosrest.connect(host=request.session.host, port=request.session.port)
+        else:
+            return taos.connect(host=request.session.host, port=request.session.port)
 
     def get_tdsql(self, conn):
         tdSql.init(conn.cursor())
