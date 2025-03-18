@@ -62,7 +62,7 @@ If you no longer need to subscribe to the data, you can delete the topic. If the
 
 ```sql
 /* Delete topic */
-DROP TOPIC [IF EXISTS] topic_name;
+DROP TOPIC [IF EXISTS] [FORCE] topic_name;
 ```
 
 At this point, if there are consumers on this subscription topic, they will receive an error.

@@ -102,7 +102,7 @@ Displays information about all consumers in the current database, including the 
 When creating a consumer, a consumer group is assigned to the consumer. Consumers cannot be explicitly deleted, but the consumer group can be deleted. If there are consumers in the current consumer group who are consuming, the FORCE syntax can be used to force deletion. After forced deletion, subscribed consumers will consume data with errors (FORCE syntax supported from version 3.3.6.0).
 
 ```sql
-DROP CONSUMER GROUP [IF EXISTS] 【FORCE] cgroup_name ON topic_name;
+DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
 ```
 
 ## Data Subscription
