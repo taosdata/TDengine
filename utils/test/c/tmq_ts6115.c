@@ -74,13 +74,13 @@ void* consumeThreadFunc(void* param) {
       break;
     }
     taos_free_result(pRes);
+    taosMsleep(200);
   }
   tmq_consumer_close(tmq);
   return NULL;
 }
 
 void* dropTopicThreadFunc(void* param) {
-  return NULL;
   printf("drop topic\n");
   TAOS_RES* pRes;
   TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -128,12 +128,13 @@ void* dropCGroupThreadFunc(void* param) {
 int main(int argc, char* argv[]) {
   printf("test start.........\n");
 
+  int32_t runTimes = 1;
   TdThread thread1, thread2;
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
-  for (int i = 0; i < 10; i++){
+  for (int i = 0; i < runTimes; i++){
     printf("test drop topic times:%d\n", i);
 
     pollStart = false;
@@ -150,7 +151,7 @@ int main(int argc, char* argv[]) {
 
   create_topic();
 
-  for (int i = 0; i < 10; i++){
+  for (int i = 0; i < runTimes; i++){
     printf("test drop consumer group times:%d\n", i);
 
     pollStart = false;

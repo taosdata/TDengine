@@ -1419,7 +1419,7 @@ END:
   return code;
 }
 
-int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName) {
+int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName, bool force) {
   if (pMnode == NULL || pTrans == NULL || topicName == NULL) return TSDB_CODE_INVALID_PARA;
   SSdb            *pSdb = pMnode->pSdb;
   int32_t          code = 0;
@@ -1438,7 +1438,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     }
 
     // iter all vnode to delete handle
-    if (taosHashGetSize(pSub->consumerHash) != 0) {
+    if (!force && taosHashGetSize(pSub->consumerHash) != 0) {
       code = TSDB_CODE_MND_IN_REBALANCE;
       goto END;
     }
