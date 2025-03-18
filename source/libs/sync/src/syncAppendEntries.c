@@ -195,8 +195,9 @@ _SEND_RESPONSE:
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp));
 
   // commit index, i.e. leader notice me
-  if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
-    sError("vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
+  if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
+      syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, &pRpcMsg->info.traceId) < 0) {
+    sGError(&pRpcMsg->info.traceId, "vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
   }
 
   if (resetElect) syncNodeResetElectTimer(ths);

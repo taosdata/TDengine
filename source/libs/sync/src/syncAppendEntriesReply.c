@@ -63,7 +63,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       return TSDB_CODE_SYN_WRONG_TERM;
     }
 
-    sGDebug(&pRpcMsg->info.traceId, "vgId:%d, received append entries reply, srcId:0x%016" PRIx64 ", term:%" PRId64 ", matchIndex:%" PRId64,
+    sGDebug(&pRpcMsg->info.traceId, "vgId:%d, received append entries reply, src addr:0x%" PRIx64 ", term:%" PRId64 ", matchIndex:%" PRId64,
             pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
 
     if (pMsg->success) {
@@ -74,13 +74,13 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
       // commit if needed
       SyncIndex indexLikely = TMIN(pMsg->matchIndex, ths->pLogBuf->matchIndex);
-      SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
+      SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely, &pRpcMsg->info.traceId);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
           syncNodeStepDown(ths, pMsg->term, pMsg->destId);
         }
       } else {
-        TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex));
+        TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex, &pRpcMsg->info.traceId));
       }
     }
 
@@ -89,7 +89,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (pMgr == NULL) {
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      sError("vgId:%d, failed to get log repl mgr for src addr: 0x%016" PRIx64, ths->vgId, pMsg->srcId.addr);
+      sError("vgId:%d, failed to get log repl mgr for src addr:0x%" PRIx64, ths->vgId, pMsg->srcId.addr);
       TAOS_RETURN(code);
     }
     TAOS_CHECK_RETURN(syncLogReplProcessReply(pMgr, ths, pMsg));

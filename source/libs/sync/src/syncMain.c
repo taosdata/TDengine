@@ -744,7 +744,7 @@ int32_t syncUpdateArbTerm(int64_t rid, SyncTerm arbTerm) {
 }
 
 SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex) {
-  if (!(pSyncNode->raftCfg.configIndexCount >= 1)) {
+  if (pSyncNode->raftCfg.configIndexCount < 1) {
     sError("vgId:%d, failed get snapshot config index, configIndexCount:%d", pSyncNode->vgId,
            pSyncNode->raftCfg.configIndexCount);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -758,8 +758,8 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
       lastIndex = (pSyncNode->raftCfg.configIndexArr)[i];
     }
   }
-  sTrace("vgId:%d, sync get last config index, index:%" PRId64 " lcindex:%" PRId64, pSyncNode->vgId,
-         snapshotLastApplyIndex, lastIndex);
+  sTrace("vgId:%d, index:%" PRId64 ", get last snapshot config index:%" PRId64, pSyncNode->vgId, snapshotLastApplyIndex,
+         lastIndex);
 
   return lastIndex;
 }
@@ -1010,7 +1010,7 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
     pData->logicClock = pSyncTimer->logicClock;
     pData->execTime = tsNow + pSyncTimer->timerMS;
 
-    sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:%" PRId64 " at %d", pSyncNode->vgId, pData->rid,
+    sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:0x%" PRIx64 " at %d", pSyncNode->vgId, pData->rid,
            pData->destId.addr, pSyncTimer->timerMS);
 
     bool stopped = taosTmrResetPriority(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid),
@@ -1474,7 +1474,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   sInfo("vgId:%d, restore began, and keep syncing until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
   if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-      (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex)) < 0) {
+      (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex, NULL)) < 0) {
     TAOS_RETURN(code);
   }
 
@@ -1821,7 +1821,7 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg
   }
 
   if (code < 0) {
-    sError("vgId:%d, failed to send sync msg since %s. epset:%p dnode:%d addr:%" PRId64, pNode->vgId, tstrerror(code),
+    sError("vgId:%d, failed to send sync msg since %s. epset:%p dnode:%d addr:0x%" PRIx64, pNode->vgId, tstrerror(code),
            epSet, DID(destRaftId), destRaftId->addr);
     rpcFreeCont(pMsg->pCont);
   }
@@ -2754,7 +2754,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
     return;
   }
 
-  sTrace("vgId:%d, peer hb timer execution, rid:%" PRId64 " addr:%" PRId64, pSyncNode->vgId, hbDataRid,
+  sTrace("vgId:%d, peer hb timer execution, rid:%" PRId64 " addr:0x%" PRIx64, pSyncNode->vgId, hbDataRid,
          pData->destId.addr);
 
   if (pSyncNode->totalReplicaNum > 1) {
@@ -2949,7 +2949,7 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
   }
 
   for (int32_t i = 0; i < ths->peersNum; ++i) {
-    sInfo("vgId:%d, %s, peersId%d, addr:%" PRId64, ths->vgId, str, i, ths->peersId[i].addr);
+    sInfo("vgId:%d, %s, peersId%d, addr:0x%" PRIx64, ths->vgId, str, i, ths->peersId[i].addr);
   }
 
   for (int32_t i = 0; i < ths->raftCfg.cfg.totalReplicaNum; ++i) {
@@ -2960,7 +2960,7 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
   }
 
   for (int32_t i = 0; i < ths->raftCfg.cfg.totalReplicaNum; ++i) {
-    sInfo("vgId:%d, %s, replicasId%d, addr:%" PRId64, ths->vgId, str, i, ths->replicasId[i].addr);
+    sInfo("vgId:%d, %s, replicasId%d, addr:0x%" PRIx64, ths->vgId, str, i, ths->replicasId[i].addr);
   }
 }
 
@@ -3198,7 +3198,7 @@ void syncNodeChangeToVoter(SSyncNode* ths) {
   ths->replicaNum = ths->raftCfg.cfg.replicaNum;
   sDebug("vgId:%d, totalReplicaNum:%d", ths->vgId, ths->totalReplicaNum);
   for (int32_t i = 0; i < ths->totalReplicaNum; ++i) {
-    sDebug("vgId:%d, i:%d, replicaId.addr:%" PRIx64, ths->vgId, i, ths->replicasId[i].addr);
+    sDebug("vgId:%d, i:%d, replicaId.addr:0x%" PRIx64, ths->vgId, i, ths->replicasId[i].addr);
   }
 
   // pMatchIndex, pNextIndex, only need to change replicaNum when 1->3
@@ -3430,9 +3430,10 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
 _out:;
   // proceed match index, with replicating on needed
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append", pMsg);
+  const STraceId* trace = pEntry ? &pEntry->originRpcTraceId : NULL;
 
   if (pEntry != NULL) {
-    sGDebug(&pEntry->originRpcTraceId,
+    sGDebug(trace,
             "vgId:%d, index:%" PRId64 ", append raft entry, msg:%p term:%" PRId64 " buf:[%" PRId64 " %" PRId64
             " %" PRId64 ", %" PRId64 ")",
             ths->vgId, pEntry->index, pMsg, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
@@ -3441,14 +3442,12 @@ _out:;
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     int64_t index = syncNodeUpdateAssignedCommitIndex(ths, matchIndex);
-    sGTrace(pEntry ? &pEntry->originRpcTraceId : NULL, "vgId:%d, index:%" PRId64 ", update assigned commit, msg:%p",
-            ths->vgId, index, pMsg);
+    sGTrace(trace, "vgId:%d, index:%" PRId64 ", update assigned commit, msg:%p", ths->vgId, index, pMsg);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-        syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex) < 0) {
-      sGError(pEntry ? &pEntry->originRpcTraceId : NULL,
-              "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64, ths->vgId, index, pMsg,
-              ths->commitIndex);
+        syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex, trace) < 0) {
+      sGError(trace, "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64, ths->vgId, index,
+              pMsg, ths->commitIndex);
       code = TSDB_CODE_SYN_INTERNAL_ERROR;
     }
   }
@@ -3460,13 +3459,12 @@ _out:;
 
   // single replica
   SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, matchIndex);
-  sGTrace(pEntry ? &pEntry->originRpcTraceId : NULL,
-          "vgId:%d, index:%" PRId64 ", raft entry update commit, msg:%p return index:%" PRId64, ths->vgId, matchIndex,
-          pMsg, returnIndex);
+  sGTrace(trace, "vgId:%d, index:%" PRId64 ", raft entry update commit, msg:%p return index:%" PRId64, ths->vgId,
+          matchIndex, pMsg, returnIndex);
 
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-      (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex)) < 0) {
-    sGError(pEntry ? &pEntry->originRpcTraceId : NULL,
+      (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, trace)) < 0) {
+    sGError(trace,
             "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64 " return index:%" PRId64,
             ths->vgId, matchIndex, pMsg, ths->commitIndex, returnIndex);
   }
@@ -3720,7 +3718,8 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
       sTrace("vgId:%d, raft entry update commit return index:%" PRId64, ths->vgId, returnIndex);
     }
-    if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
+    if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
+        syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, &pRpcMsg->info.traceId) < 0) {
       sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64, ths->vgId, terrstr(),
              ths->commitIndex);
     }
