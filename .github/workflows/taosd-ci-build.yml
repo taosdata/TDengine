@@ -29,10 +29,9 @@ jobs:
           - ubuntu-20.04
           - ubuntu-22.04
           - ubuntu-24.04
-          # - macos-14
-          # - macos-15
-          # - windows-2022
-
+          - macos-14
+          - macos-15
+          - windows-2022
 
     steps:
       - name: Checkout the repository
@@ -91,8 +90,6 @@ jobs:
             pkg-config \
             zlib1g
 
-
-
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
         run: |
@@ -147,15 +144,8 @@ jobs:
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          g++ --version
-          /usr/bin/c++ --version
-          cmake --version
-          date
-          ls -lrt .externals/install/ext_gtest/Debug/lib
-          ls -lrt .externals/install/ext_gtest/Debug/include
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          ./build.sh bld -v --target benchmarkTest -j1
-          ls -lrt .externals/install/ext_gtest/Debug/lib
+          ./build.sh bld -v
           ./build.sh install
           which taosd
           which taosadapter
