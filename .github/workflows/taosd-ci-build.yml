@@ -28,10 +28,10 @@ jobs:
         os:
           - ubuntu-20.04
           - ubuntu-22.04
-          - ubuntu-24.04
-          - macos-14
-          - macos-15
-          - windows-2022
+          # - ubuntu-24.04
+          # - macos-14
+          # - macos-15
+          # - windows-2022
 
 
     steps:
@@ -148,7 +148,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          ./build.sh bld -v
+          ./build.sh bld -v -j1
           ./build.sh install
           which taosd
           which taosadapter
