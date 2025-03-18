@@ -21,6 +21,7 @@ class FractalQuery(TDCase):
         self.detail_log_path = f'{self.log_path}/details'
         self.summary_log_path = f'{self.log_path}/summary'
         self._remote.cmd("localhost", [f'mkdir -p {self.detail_log_path}', f'mkdir -p {self.summary_log_path}'])
+        self.dbname = "center_db"
         self.report_file = f'{self.log_path}/perf_report_{self.case_config["test_start_time"]}.txt'
         self.test_robot_url = (
     "https://open.feishu.cn/open-apis/bot/v2/hook/11e9e452-34a0-4c88-b014-10e21cb521dd"
@@ -83,17 +84,13 @@ class FractalQuery(TDCase):
         return insert_res_list
 
     def get_compression_ratio(self):
-        self.tdRest.request(f'flush database center_db;')
+        self.tdRest.request(f'flush database {self.dbname};')
         self.tdRest.request(data=f"show table distributed center_db.site_topic6_u2_193;")
-        query_res = self.tdRest.resp['data'][0][0]
+        self.tdRest.request(f'show {self.dbname}.disk_info;')
 
-        pattern = r"Compression_Ratio=.*"
-        match = re.search(pattern, str(query_res))
-        if match:
-            compression_ratio = match.group(0).split("=")[1].replace("[", "").replace("]", "")
-            return compression_ratio
-        else:
-            return {"Compression_Ratio": "N/A"}
+        query_res = self.tdRest.resp['data'][0][0]
+        compression_ratio = query_res.split("=")[1].replace("[", "").replace("]", "") + "%"
+        return compression_ratio
 
     def get_grafana_url(self):
         return self.case_config['grafana_url']
@@ -158,7 +155,7 @@ class FractalQuery(TDCase):
 
         with open(self.report_file, 'w') as file:
             json.dump(final_res_dict, file, indent=4)
-        self.send_msg(self.test_robot_url, self.get_msg(final_res_dict))
+        self.send_msg(self.test_robot_url, self.get_msg(json.dumps(final_res_dict, indent=4)))
         self._remote.cmd("localhost", f'cp {self.report_file} {self.env_root}')
 
 
