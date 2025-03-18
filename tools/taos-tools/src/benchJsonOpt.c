@@ -325,14 +325,14 @@ static int getColumnAndTagTypeFromInsertJsonFile(
                 Decimal128 decOne = {{1LL, 0}};
 
                 if (strDecMax) {
-                    strToDecimal128(strDecMax, precision, scale, &decMax.dec128);
+                    stringToDecimal128(strDecMax, precision, scale, &decMax.dec128);
                 } else {
                     doubleToDecimal128(maxInDbl, precision, scale, &decMax.dec128);
                 }
                 decimal128Subtract(&decMax.dec128, &decOne, DECIMAL_WORD_NUM(Decimal128));
 
                 if (strDecMin) {
-                    strToDecimal128(strDecMin, precision, scale, &decMin.dec128);
+                    stringToDecimal128(strDecMin, precision, scale, &decMin.dec128);
                 } else {
                     doubleToDecimal128(minInDbl, precision, scale, &decMin.dec128);
                 }
@@ -344,14 +344,14 @@ static int getColumnAndTagTypeFromInsertJsonFile(
                 Decimal64 decOne = {{1LL}};
 
                 if (strDecMax) {
-                    strToDecimal64(strDecMax, precision, scale, &decMax.dec64);
+                    stringToDecimal64(strDecMax, precision, scale, &decMax.dec64);
                 } else {
                     doubleToDecimal64(maxInDbl, precision, scale, &decMax.dec64);
                 }
                 decimal64Subtract(&decMax.dec64, &decOne, DECIMAL_WORD_NUM(Decimal64));
 
                 if (strDecMin) {
-                    strToDecimal64(strDecMin, precision, scale, &decMin.dec64);
+                    stringToDecimal64(strDecMin, precision, scale, &decMin.dec64);
                 } else {
                     doubleToDecimal64(minInDbl, precision, scale, &decMin.dec64);
                 }
@@ -641,14 +641,14 @@ static int getColumnAndTagTypeFromInsertJsonFile(
                 Decimal128 decOne = {{1LL, 0}};
 
                 if (strDecMax) {
-                    strToDecimal128(strDecMax, precision, scale, &decMax.dec128);
+                    stringToDecimal128(strDecMax, precision, scale, &decMax.dec128);
                 } else {
                     doubleToDecimal128(maxInDbl, precision, scale, &decMax.dec128);
                 }
                 decimal128Subtract(&decMax.dec128, &decOne, DECIMAL_WORD_NUM(Decimal128));
 
                 if (strDecMin) {
-                    strToDecimal128(strDecMin, precision, scale, &decMin.dec128);
+                    stringToDecimal128(strDecMin, precision, scale, &decMin.dec128);
                 } else {
                     doubleToDecimal128(minInDbl, precision, scale, &decMin.dec128);
                 }
@@ -660,14 +660,14 @@ static int getColumnAndTagTypeFromInsertJsonFile(
                 Decimal64 decOne = {{1LL}};
 
                 if (strDecMax) {
-                    strToDecimal64(strDecMax, precision, scale, &decMax.dec64);
+                    stringToDecimal64(strDecMax, precision, scale, &decMax.dec64);
                 } else {
                     doubleToDecimal64(maxInDbl, precision, scale, &decMax.dec64);
                 }
                 decimal64Subtract(&decMax.dec64, &decOne, DECIMAL_WORD_NUM(Decimal64));
 
                 if (strDecMin) {
-                    strToDecimal64(strDecMin, precision, scale, &decMin.dec64);
+                    stringToDecimal64(strDecMin, precision, scale, &decMin.dec64);
                 } else {
                     doubleToDecimal64(minInDbl, precision, scale, &decMin.dec64);
                 }
@@ -705,6 +705,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             tag->min = min;
             tag->maxInDbl = maxInDbl;
             tag->minInDbl = minInDbl;
+            tag->precision = precision;
             tag->scale = scale;
             tag->scalingFactor = scalingFactor;
             tag->decMax = decMax;

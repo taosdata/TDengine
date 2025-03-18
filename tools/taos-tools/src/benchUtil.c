@@ -913,7 +913,7 @@ char *convertDatatypeToString(int type) {
         case TSDB_DATA_TYPE_DECIMAL:
             return "decimal";
         case TSDB_DATA_TYPE_DECIMAL64:
-            return "decimal64";
+            return "decimal";
         default:
             break;
     }
