@@ -13,7 +13,7 @@ LSTM模型即长短期记忆网络(Long Short Term Memory)，是一种特殊的�
 
 完整的调用SQL语句如下：
 ```SQL
-SELECT _frowts, FORECAST(i32, "algo=lstm,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5") from foo
+SELECT _frowts, FORECAST(i32, "algo=lstm") from foo
 ```
 
 ```json5
