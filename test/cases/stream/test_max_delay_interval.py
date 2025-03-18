@@ -3,17 +3,17 @@ import logging
 import sys
 import threading
 from utils.pytest.util.common import *
+from utils.pytest.util.log import tdLog
 
-logger = logging.getLogger(__name__)
 
 class TestMaxDelayInterval:
     updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
     def setup_class(cls):
-        logger.info("start to execute %s" % __file__)
+        tdLog.info("start to execute %s" % __file__)
         cls.tdCom = tdCom
 
     def watermark_max_delay_interval(self, interval, max_delay, watermark=None, fill_value=None, delete=False):
-        logger.info(f"*** testing stream max_delay+interval: interval: {interval}, watermark: {watermark}, fill_value: {fill_value}, delete: {delete} ***")
+        tdLog.info(f"*** testing stream max_delay+interval: interval: {interval}, watermark: {watermark}, fill_value: {fill_value}, delete: {delete} ***")
         self.delete = delete
         self.tdCom.case_name = sys._getframe().f_code.co_name
         if watermark is not None:
@@ -151,4 +151,4 @@ class TestMaxDelayInterval:
             self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
 
     def teardown_class(cls):
-        logger.info(f"{__file__} successfully executed")
+        tdLog.info(f"{__file__} successfully executed")

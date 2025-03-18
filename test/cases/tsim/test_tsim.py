@@ -64,7 +64,7 @@ class TestTsim:
         cls.env_vars["DATA_DIR"] = cls.DATA_DIR
         cls.env_vars["ASAN_DIR"] = cls.ASAN_DIR
         cls.env_vars["CODE_DIR"] = cls.CODE_DIR
-        tdLog.info(f"env_vars: {cls.env_vars}")
+        tdLog.debug(f"env_vars: {cls.env_vars}")
 
     @pytest.mark.tsim
     def test_tsim_file(self):
@@ -77,7 +77,7 @@ class TestTsim:
         lib_path = self.lib_path
         asan_path = os.path.join(self.ci_workdir, "asan", "tsim.asan")
         os.makedirs(os.path.join(self.ci_workdir, "asan"), exist_ok=True)
-        tdLog.info(f"tsim_file: {tsim_file}, tsim_path: {tsim_path}, bin_path: {bin_path}, lib_path: {lib_path}, asan_path: {asan_path}")
+        tdLog.debug(f"tsim_file: {tsim_file}, tsim_path: {tsim_path}, bin_path: {bin_path}, lib_path: {lib_path}, asan_path: {asan_path}")
 
         with open(asan_path, "w") as f:
             result = subprocess.run([f"{tsim_path} -f {tsim_file} -c {self.CFG_DIR}"], check=True, text=True, shell=True, stdout=f, stderr=f, cwd=os.path.dirname(__file__), env=self.env_vars)

@@ -27,12 +27,8 @@ import ctypes
 
 class Test5dnode3mnodeAdd1Dnode:
 
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        self.TDDnodes = None
-        tdSql.init(conn.cursor())
-        self.host = socket.gethostname()
-        self.replicaVar = int(replicaVar)
 
 
     def getBuildPath(self):
