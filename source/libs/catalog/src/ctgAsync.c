@@ -3267,9 +3267,10 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
     }
     autoCreate = pReq->autoCreate;
 
-    ctgTrace("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", check tb metas in db:%s, tbNum:%d", pTask->pJob->queryId,
+    ctgDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", check tb metas in db:%s, tbNum:%d", pTask->pJob->queryId,
              pTask->pJob->refId, pReq->dbFName, (int32_t)taosArrayGetSize(pReq->pTables));
-    CTG_ERR_RET(ctgGetTbMetasFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
+    CTG_ERR_RET(ctgGetTbMetasFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables, autoCreate));
+
     baseResIdx += taosArrayGetSize(pReq->pTables);
   }
 
@@ -3307,7 +3308,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
     }
 
     SCtgTaskReq tReq;
-    tReq.autoCreateCtb = (autoCreate && i == pCtx->fetchNum - 1) ? 1 : 0;
+    tReq.autoCreateCtb = (pFetch->flag & CTG_FLAG_NOT_STB) ? 1 : 0;
     tReq.pTask = pTask;
     tReq.msgIdx = pFetch->fetchIdx;
     CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pFetch->flag, pName, &pFetch->vgId));
