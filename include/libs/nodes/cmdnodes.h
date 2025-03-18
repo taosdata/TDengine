@@ -608,6 +608,7 @@ typedef struct SStreamOptions {
   SNode*    pDeleteMark;
   SNode*    pRecInterval;
   int8_t    fillHistory;
+  bool      runHistoryAsync;
   int8_t    ignoreExpired;
   int8_t    ignoreUpdate;
   int64_t   setFlag;
