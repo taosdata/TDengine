@@ -217,12 +217,15 @@ ELSE()
         if(${TD_LINUX})
             set(ext_taosadapter_static taosadapter.a)
             set(taosadapter_exe        taosadapter)
+            set(_rpath                 "-Wl,-rpath=\$ORIGIN/../lib")
         elseif(${TD_DARWIN})
             set(ext_taosadapter_static taosadapter.a)
             set(taosadapter_exe        taosadapter)
+            set(_rpath                 "")
         elseif(${TD_WINDOWS})
             set(ext_taosadapter_static taosadapter.lib)
             set(taosadapter_exe        taosadapter.exe)
+            set(_rpath                 "")
         endif()
         # GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
         # GIT_TAG 3.0
@@ -242,7 +245,7 @@ ELSE()
             BUILD_COMMAND
                 # freemine: remove -a option
                 COMMAND "${CMAKE_COMMAND}" -E env CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client
-                                                  CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib
+                                                  "CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
                         go build -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
                 # COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
             INSTALL_COMMAND
