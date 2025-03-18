@@ -224,17 +224,12 @@ ELSE()
             set(ext_taosadapter_static taosadapter.lib)
             set(taosadapter_exe        taosadapter.exe)
         endif()
-        INIT_EXT(ext_taosadapter
-            INC_DIR          include
-            LIB              lib/${ext_taosadapter_static}
-        )
         # GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
         # GIT_TAG 3.0
         get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
         ExternalProject_Add(ext_taosadapter
             GIT_REPOSITORY ${_git_url}
             GIT_TAG 3.0
-            PREFIX "${_base}"
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
@@ -254,7 +249,7 @@ ELSE()
                 # COMMAND "${CMAKE_COMMAND}" -E echo "Comparessing taosadapter.exe"
                 # COMMAND upx taosadapter || :
                 COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter"
-                COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${taosadapter_exe} ${CMAKE_BINARY_DIR}/build/bin/${taosadapter_exe}
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${taosadapter_exe} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${taosadapter_exe}
                 COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter.toml"
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.toml
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.service
@@ -264,8 +259,6 @@ ELSE()
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
-        # add_dependencies(build_externals ext_taosadapter)     # this is for github workflow in cache-miss step.
-				# freemine: make ext_taosadapter buildable
 				add_custom_target(build_ext_taosadapter ALL)
 				add_dependencies(build_ext_taosadapter ext_taosadapter)
     # freemine: ENDIF()
