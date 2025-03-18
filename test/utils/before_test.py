@@ -157,7 +157,7 @@ class BeforeTest:
         bin_path = os.path.dirname(self.getPath("taosd"))
         lib_path = os.path.join(os.path.dirname(bin_path), 'lib')
         testLog.debug(f"lib_path: {lib_path}")
-        os.environ["LD_LIBRARY_PATH"] = f"{lib_path}:{os.environ['LD_LIBRARY_PATH']}"
+        #os.environ["LD_LIBRARY_PATH"] = f"{lib_path}:{os.environ['LD_LIBRARY_PATH']}"
         libso_file = os.path.basename(subprocess.check_output([f"ls -l {lib_path}/libtaos.so.3.3* | awk '{{print $9}}'"], shell=True).splitlines()[0].decode())
         testLog.debug(f"libso_file: {libso_file}")
         if os.path.exists("/usr/lib/libtaos.so"):
@@ -459,7 +459,15 @@ class BeforeTest:
                 if sys.platform == "win32":
                     return f"C:\\TDengine\\bin\\{binary}.exe"
                 elif sys.platform == "darwin":
-                    return f"/usr/local/bin/{binary}"
+                    if os.path.exists("/usr/local/bin/{binary}"):
+                        return f"/usr/local/bin/{binary}"
+                    else:
+                        testLog.error(f"taosd binary not found in /usr/local/bin/{binary}")
+                        raise Exception(f"taosd binary not found in debug/build/bin or /usr/local/bin/{binary}")
                 else:
-                    return f"/usr/bin/{binary}"
+                    if os.path.exists("/usr/bin/{binary}"):
+                        return f"/usr/bin/{binary}"
+                    else:
+                        testLog.error(f"taosd binary not found in /usr/bin/{binary}")
+                        raise Exception(f"taosd binary not found in debug/build/bin or /usr/bin/{binary}")
         return paths[0]
