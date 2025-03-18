@@ -147,10 +147,13 @@ jobs:
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          rm -rf .externals
           g++ --version
           /usr/bin/c++ --version
           cmake --version
+          date
+          ls -lrt .externals/install/ext_gtest/Debug/lib
+          ls -lrt .externals/install/ext_gtest/Debug/include
+          find .externals/install/ext_gtest/Debug/include/ -type f -print0 | xargs -0 ls -lrt {} \;
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=OFF
           ./build.sh bld -v --target benchmarkTest -j1
           ./build.sh install
