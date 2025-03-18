@@ -118,7 +118,7 @@ jobs:
         id: cache-ext
         with:
           path: ${{ github.workspace }}/.externals
-          key: ${{ runner.os }}-build-ext-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
+          key: ${{ runner.os }}-${{ matrix.os }}-build-ext-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
         name: Build externals on Linux and macOS
@@ -153,7 +153,7 @@ jobs:
           date
           ls -lrt .externals/install/ext_gtest/Debug/lib
           ls -lrt .externals/install/ext_gtest/Debug/include
-          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=OFF
+          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           ./build.sh bld -v --target benchmarkTest -j1
           ls -lrt .externals/install/ext_gtest/Debug/lib
           ./build.sh install
