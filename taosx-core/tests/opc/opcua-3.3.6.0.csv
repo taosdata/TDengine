@@ -2,3 +2,4 @@
 1,ns=3;i=1005,1,opc_{type},t_{ns}_{id},val,val * 1.8 + 32,int,quality,ts,qts,rts,ts + 8 * 3600 * 1000,qts + 8 * 3600 * 1000,rts + 8 * 3600 * 1000,入库温度
 2,ns=3;i=1006,1,opc_{type},t_{ns}_{id},val,val + 10,,quality,ts,qts,rts,ts + 8 * 3600 * 1000,qts + 8 * 3600 * 1000,rts + 8 * 3600 * 1000,减压阀压力
 3,ns=3;i=1007,0,opc_{type},t_{ns}_{id},val,,,quality,ts,qts,rts,ts + 8 * 3600 * 1000,qts + 8 * 3600 * 1000,rts + 8 * 3600 * 1000,总线电流
+4,ns=3;s="数据块_1"."Tag101",1,opc_{type},t_{ns}_{id},val,,,quality,ts,qts,rts,ts + 8 * 3600 * 1000,qts + 8 * 3600 * 1000,rts + 8 * 3600 * 1000,Tag101
