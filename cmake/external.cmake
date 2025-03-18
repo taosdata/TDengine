@@ -121,12 +121,15 @@ macro(INIT_EXT name)               # {
     endmacro()                               # }
 endmacro()                         # }
 
+set(LOCAL_REPO "" CACHE STRING "local repositories storage to use")
+set(LOCAL_URL "" CACHE STRING "local archives storage to use")
+
 # get_from_local_repo_if_exists/get_from_local_if_exists
 # is for local storage of externals only
 macro(get_from_local_repo_if_exists git_url)              # {
   # if LOCAL_REPO is set as: -DLOCAL_REPO:STRING=ssh://host/path-to-local-repo
   # then _git_url would be: ssh://host/path-to-local-repo/<git_url-name>.git
-  if(NOT DEFINED LOCAL_REPO)
+  if("z${LOCAL_REPO}" STREQUAL "z")
     set(_git_url "${git_url}")
   else()
     string(FIND ${git_url} "/" _pos REVERSE)
@@ -136,7 +139,7 @@ macro(get_from_local_repo_if_exists git_url)              # {
 endmacro()                                                # }
 
 macro(get_from_local_if_exists url)                       # {
-  if(NOT DEFINED LOCAL_URL)
+  if("z${LOCAL_URL}" STREQUAL "z")
     set(_url "${url}")
   else()
     string(FIND ${url} "/" _pos REVERSE)

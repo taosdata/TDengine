@@ -6,11 +6,13 @@ TD_CONFIG=${TD_CONFIG:-Debug}
 
 do_gen() {
   cmake -B debug -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG} \
-        -DBUILD_TOOLS=true \
-        -DBUILD_KEEPER=true \
-        -DBUILD_HTTP=false \
-        -DBUILD_TEST=true \
-        -DBUILD_DEPENDENCY_TESTS=false \
+        -DBUILD_TOOLS=true                              \
+        -DBUILD_KEEPER=true                             \
+        -DBUILD_HTTP=false                              \
+        -DBUILD_TEST=true                               \
+        -DBUILD_DEPENDENCY_TESTS=false                  \
+        -DLOCAL_REPO:STRING=${LOCAL_REPO}               \
+        -DLOCAL_URL:STRING=${LOCAL_URL}                 \
         "$@"
 }
 
