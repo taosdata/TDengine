@@ -11,6 +11,15 @@ if [ ! -f "$CONFIG_FILE" ]; then
   exit 1
 fi
 
+echo "Starting taos_ts_server..."
+python3 /apps/taos_ts_server.py --action server &
+TAOS_TS_PID=$!
+
+if ! ps -p $TAOS_TS_PID > /dev/null; then
+  echo "Error: taos_ts_server failed to start!"
+  exit 1
+fi
+
 echo "Starting uWSGI with config: $CONFIG_FILE"
 exec /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE"
 
