@@ -34,6 +34,34 @@ jobs:
           - windows-2022
 
     steps:
+      name: Get CPU Cores
+
+on: [push]
+
+jobs:
+  get-cpu-cores:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Get CPU Cores
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            CPU_CORES=$(nproc)
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            CPU_CORES=$(sysctl -n hw.ncpu)
+          elif [ "${{ runner.os }}" == "Windows" ]; then
+            CPU_CORES=$(powershell -Command "(Get-CimInstance -ClassName Win32_Processor).NumberOfCores")
+          fi
+          echo "CPU Cores: $CPU_CORES"
+          echo "CPU_CORES=$CPU_CORES" >> $GITHUB_ENV
+
+      - name: Dump CPU Cores
+        run: |
+          echo "The number of CPU cores is: ${{ env.CPU_CORES }}"
+
       - name: Checkout the repository
         uses: actions/checkout@v4
 
@@ -122,7 +150,7 @@ jobs:
         continue-on-error: false
         run: |
           ./build.sh gen
-          ./build.sh bld --target build_externals -v
+          ./build.sh bld -j4 --target build_externals -v
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
         name: Build externals on Windows
@@ -145,7 +173,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          ./build.sh bld -v
+          ./build.sh bld -j4 -v
           ./build.sh install
           which taosd
           which taosadapter
