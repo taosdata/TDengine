@@ -160,7 +160,6 @@ INIT_EXT(ext_zlib
     INC_DIR          include
     LIB              lib/${ext_zlib_static}
 )
-# freemine: original from taosdata-contrib
 # GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
 # GIT_TAG        v1.2.11
 get_from_local_repo_if_exists("https://github.com/madler/zlib.git")
