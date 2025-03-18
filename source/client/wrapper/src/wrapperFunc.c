@@ -402,6 +402,11 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   return (*fp_taos_fetch_fields)(res);
 }
 
+TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res) {
+  CHECK_PTR(fp_taos_fetch_fields_e);
+  return (*fp_taos_fetch_fields_e)(res);
+}
+
 int taos_select_db(TAOS *taos, const char *db) {
   CHECK_INT(fp_taos_select_db);
   return (*fp_taos_select_db)(taos, db);

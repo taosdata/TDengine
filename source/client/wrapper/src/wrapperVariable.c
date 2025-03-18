@@ -79,6 +79,7 @@ int (*fp_taos_affected_rows)(TAOS_RES *res) = NULL;
 int64_t (*fp_taos_affected_rows64)(TAOS_RES *res) = NULL;
 
 TAOS_FIELD *(*fp_taos_fetch_fields)(TAOS_RES *res) = NULL;
+TAOS_FIELD_E *(*fp_taos_fetch_fields_e)(TAOS_RES *res) = NULL;
 int (*fp_taos_select_db)(TAOS *taos, const char *db) = NULL;
 int (*fp_taos_print_row)(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) = NULL;
 int (*fp_taos_print_row_with_size)(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) = NULL;

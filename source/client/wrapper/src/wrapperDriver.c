@@ -144,6 +144,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_affected_rows64, "taos_affected_rows64");
 
   LOAD_FUNC(fp_taos_fetch_fields, "taos_fetch_fields");
+  LOAD_FUNC(fp_taos_fetch_fields_e, "taos_fetch_fields_e");
   LOAD_FUNC(fp_taos_select_db, "taos_select_db");
   LOAD_FUNC(fp_taos_print_row, "taos_print_row");
   LOAD_FUNC(fp_taos_print_row_with_size, "taos_print_row_with_size");
