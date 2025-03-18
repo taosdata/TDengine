@@ -43,6 +43,9 @@ class TDLog:
         logger.error(err)
         sys.exit(1)
 
+    def error(self, err):
+        logger.error(err)
+
     def printNoPrefix(self, info):
         logger.info(info)
 

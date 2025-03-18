@@ -200,7 +200,7 @@ class Remote:
 
     def put(self, host, file, path, password="") -> bool:
         self._logger.info("put %s to %s:%s", file, host, path)
-        if host == platform.node():
+        if host == platform.node() or host == "localhost":
             os.system("mkdir -p {0}".format(path))
             os.system("cp -rf {0} {1}".format(file, path))
             return True

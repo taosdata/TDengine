@@ -212,7 +212,7 @@ def main(params: dict):
         init_test_root(opts.test_root)
         if opts.env_init:
             init_default_env()
-        return 1
+        return 0
 
     if not check_opts(opts):
         return 1
