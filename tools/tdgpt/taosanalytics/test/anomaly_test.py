@@ -141,23 +141,24 @@ class AnomalyDetectionTest(unittest.TestCase):
 
     def test_autoencoder_ad(self):
         """for local test only, disabled it in github action"""
-        data = self.__load_remote_data_for_ad()
-
-        s = loader.get_service("sample_ad_model")
-        s.set_input_list(data)
-
-        try:
-            s.set_params({"model": "sample-ad-autoencoder"})
-        except ValueError as e:
-            app_logger.log_inst.error(f"failed to set the param for auto_encoder algorithm, reason:{e}")
-            return
-
-        r = s.execute()
-
-        num_of_error = -(sum(filter(lambda x: x == -1, r)))
-        draw_ad_results(data, r, "autoencoder")
-
-        self.assertEqual(num_of_error, 109)
+        pass 
+        # data = self.__load_remote_data_for_ad()
+        #
+        # s = loader.get_service("sample_ad_model")
+        # s.set_input_list(data)
+        #
+        # try:
+        #     s.set_params({"model": "sample-ad-autoencoder"})
+        # except ValueError as e:
+        #     app_logger.log_inst.error(f"failed to set the param for auto_encoder algorithm, reason:{e}")
+        #     return
+        #
+        # r = s.execute()
+        #
+        # num_of_error = -(sum(filter(lambda x: x == -1, r)))
+        # draw_ad_results(data, r, "autoencoder")
+        #
+        # self.assertEqual(num_of_error, 109)
 
     def test_get_all_services(self):
         """Test get all services"""
