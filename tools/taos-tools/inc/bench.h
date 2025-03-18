@@ -1079,11 +1079,16 @@ int fetchChildTableName(char *dbName, char *stbName);
 
 
 
-void doubleToDecimal64(double val, int precision, int scale, Decimal64* dec);
-void doubleToDecimal128(double val, int precision, int scale, Decimal128* dec);
-void stringToDecimal64(const char* str, int precision, int scale, Decimal64* dec);
-void stringToDecimal128(const char* str, int precision, int scale, Decimal128* dec);
+void doubleToDecimal64(double val, uint8_t precision, uint8_t scale, Decimal64* dec);
+void doubleToDecimal128(double val, uint8_t precision, uint8_t scale, Decimal128* dec);
+void stringToDecimal64(const char* str, uint8_t precision, uint8_t scale, Decimal64* dec);
+void stringToDecimal128(const char* str, uint8_t precision, uint8_t scale, Decimal128* dec);
 int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size);
 int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size);
+void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec);
+void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec);
+void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec);
+void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec);
+
 
 #endif   // INC_BENCH_H_

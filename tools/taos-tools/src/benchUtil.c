@@ -1027,6 +1027,99 @@ int64_t convertDatatypeToDefaultMax(uint8_t type) {
     return ret;
 }
 
+
+void doubleToDecimal64(double val, uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char buf[DECIMAL64_BUFF_LEN] = {0};
+    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
+    decimal64FromStr(buf, strlen(buf), precision, scale, dec);
+}
+
+
+void doubleToDecimal128(double val, uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char buf[DECIMAL_BUFF_LEN] = {0};
+    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
+    decimal128FromStr(buf, strlen(buf), precision, scale, dec);
+}
+
+
+void stringToDecimal64(const char* str, uint8_t precision, uint8_t scale, Decimal64* dec) {
+    decimal64FromStr(str, strlen(str), precision, scale, dec);
+}
+
+
+void stringToDecimal128(const char* str, uint8_t precision, uint8_t scale, Decimal128* dec) {
+    decimal128FromStr(str, strlen(str), precision, scale, dec);
+}
+
+
+int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
+    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL64, precision, scale, buf, size);
+}
+
+
+int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
+    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL, precision, scale, buf, size);
+}
+
+
+void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char maxStr[DECIMAL64_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL64_BUFF_LEN - 1);
+    for(int i = 0; i < precision; ++i) {
+        maxStr[i] = '9';
+    }
+    maxStr[precision] = '\0';
+    
+    stringToDecimal64(maxStr, precision, scale, dec);
+    return dec;
+}
+
+
+void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char minStr[DECIMAL64_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL64_BUFF_LEN - 2);
+    minStr[0] = '-';
+    for(int i = 1; i <= precision; ++i) {
+        minStr[i] = '9';
+    }
+    minStr[precision + 1] = '\0';
+    
+    stringToDecimal64(minStr, precision, scale, dec);
+    return dec;
+}
+
+
+void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char maxStr[DECIMAL_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL_BUFF_LEN - 1);
+    for(int i = 0; i < precision; ++i) {
+        maxStr[i] = '9';
+    }
+    maxStr[precision] = '\0';
+    
+    stringToDecimal128(maxStr, precision, scale, dec);
+    return dec;
+}
+
+
+void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char minStr[DECIMAL_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL_BUFF_LEN - 2);
+    minStr[0] = '-';
+    for(int i = 1; i <= precision; ++i) {
+        minStr[i] = '9';
+    }
+    minStr[precision + 1] = '\0';
+    
+    stringToDecimal128(minStr, precision, scale, dec);
+    return dec;
+}
+
+
 // compare str with length
 int32_t strCompareN(char *str1, char *str2, int length) {
     if (length == 0) {

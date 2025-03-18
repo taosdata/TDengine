@@ -261,8 +261,10 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         }
         type = convertStringToDatatype(dataType->valuestring, 0, &precision);
 
+        bool existMax = false;
         tools_cJSON *dataMax = tools_cJSON_GetObjectItem(column, "max");
         if (tools_cJSON_IsNumber(dataMax)) {
+            existMax = true;
             max = dataMax->valueint;
             maxInDbl = dataMax->valuedouble;
         } else {
@@ -270,8 +272,10 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             maxInDbl = max;
         }
 
+        bool existMin = false;
         tools_cJSON *dataMin = tools_cJSON_GetObjectItem(column, "min");
         if (tools_cJSON_IsNumber(dataMin)) {
+            existMin = true;
             min = dataMin->valueint;
             minInDbl = dataMin->valuedouble;
         } else {
@@ -326,16 +330,20 @@ static int getColumnAndTagTypeFromInsertJsonFile(
 
                 if (strDecMax) {
                     stringToDecimal128(strDecMax, precision, scale, &decMax.dec128);
-                } else {
+                } else if (existMax == true) {
                     doubleToDecimal128(maxInDbl, precision, scale, &decMax.dec128);
+                } else {
+                    getDecimal128DefaultMax(precision, scale, &decMax.dec128);
                 }
                 const SDecimalOps* ops = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
                 ops->subtract(&decMax.dec128, &decOne, DECIMAL_WORD_NUM(Decimal128));
 
                 if (strDecMin) {
                     stringToDecimal128(strDecMin, precision, scale, &decMin.dec128);
-                } else {
+                } else if (existMin == true) {
                     doubleToDecimal128(minInDbl, precision, scale, &decMin.dec128);
+                } else {
+                    getDecimal128DefaultMin(precision, scale, &decMin.dec128);
                 }
             } else {
                 if (precision > TSDB_DECIMAL64_MAX_PRECISION) {
@@ -346,20 +354,24 @@ static int getColumnAndTagTypeFromInsertJsonFile(
 
                 if (strDecMax) {
                     stringToDecimal64(strDecMax, precision, scale, &decMax.dec64);
-                } else {
+                } else if (existMax == true) {
                     doubleToDecimal64(maxInDbl, precision, scale, &decMax.dec64);
+                } else {
+                    getDecimal64DefaultMax(precision, scale, &decMax.dec64);
                 }
+
                 const SDecimalOps* ops = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
                 ops->subtract(&decMax.dec64, &decOne, DECIMAL_WORD_NUM(Decimal64));
 
                 if (strDecMin) {
                     stringToDecimal64(strDecMin, precision, scale, &decMin.dec64);
-                } else {
+                } else if (existMin == true) {
                     doubleToDecimal64(minInDbl, precision, scale, &decMin.dec64);
+                } else {
+                    getDecimal64DefaultMin(precision, scale, &decMin.dec64);
                 }
             }
         }
-
 
         // gen
         tools_cJSON *dataGen = tools_cJSON_GetObjectItem(column, "gen");

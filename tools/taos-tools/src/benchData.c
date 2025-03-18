@@ -969,30 +969,6 @@ static void decimal128Rand(Decimal128* result, const Decimal128* min, const Deci
 }
 
 
-void doubleToDecimal64(double val, int precision, int scale, Decimal64* dec) {
-    char buf[DECIMAL64_BUFF_LEN] = {0};
-    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
-    decimal64FromStr(buf, strlen(buf), precision, scale, dec);
-}
-
-
-void doubleToDecimal128(double val, int precision, int scale, Decimal128* dec) {
-    char buf[DECIMAL_BUFF_LEN] = {0};
-    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
-    decimal128FromStr(buf, strlen(buf), precision, scale, dec);
-}
-
-
-void stringToDecimal64(const char* str, int precision, int scale, Decimal64* dec) {
-    decimal64FromStr(str, strlen(str), precision, scale, dec);
-}
-
-
-void stringToDecimal128(const char* str, int precision, int scale, Decimal128* dec) {
-    decimal128FromStr(str, strlen(str), precision, scale, dec);
-}
-
-
 Decimal64 tmpDecimal64Impl(Field* field, int32_t angle, int32_t k) {
     (void)angle;
     (void)k;
@@ -1010,16 +986,6 @@ Decimal128 tmpDecimal128Impl(Field* field, int32_t angle, int32_t k) {
     Decimal128 result = {0};
     decimal128Rand(&result, &field->decMin.dec128, &field->decMax.dec128);
     return result;
-}
-
-
-int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
-    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL64, precision, scale, buf, size);
-}
-
-
-int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
-    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL, precision, scale, buf, size);
 }
 
 
