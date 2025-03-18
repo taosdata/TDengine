@@ -119,7 +119,7 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         int64_t childTblCountOfSuperTbl) {
     char cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
     snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
-             "select distinct tbname from %s.`%s` limit %" PRId64 "",
+             "select distinct tbname from %s.`%s` limit %" PRId64,
             dbName, stbName, childTblCountOfSuperTbl);
     TAOS_RES *res = taos_query(taos, cmd);
     int32_t   code = taos_errno(res);

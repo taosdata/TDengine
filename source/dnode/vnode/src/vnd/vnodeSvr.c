@@ -617,7 +617,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   (void)taosThreadMutexUnlock(&pVnode->mutex);
 
   if (ver <= pVnode->state.applied) {
-    vError("vgId:%d, duplicate write request. ver: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), ver,
+    vError("vgId:%d, duplicate write request. ver: %" PRId64 ", applied: %" PRId64, TD_VID(pVnode), ver,
            pVnode->state.applied);
     return terrno = TSDB_CODE_VND_DUP_REQUEST;
   }

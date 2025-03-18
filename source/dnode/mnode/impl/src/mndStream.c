@@ -1183,7 +1183,7 @@ int64_t mndStreamGenChkptId(SMnode *pMnode, bool lock) {
     if (pIter == NULL) break;
 
     maxChkptId = TMAX(maxChkptId, pStream->checkpointId);
-    mDebug("stream:%p, %s id:0x%" PRIx64 " checkpoint %" PRId64 "", pStream, pStream->name, pStream->uid,
+    mDebug("stream:%p, %s id:0x%" PRIx64 " checkpoint %" PRId64, pStream, pStream->name, pStream->uid,
            pStream->checkpointId);
     sdbRelease(pSdb, pStream);
   }
@@ -1257,7 +1257,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
     goto _ERR;
   }
 
-  mDebug("start to trigger checkpoint for stream:%s, checkpoint: %" PRId64 "", pStream->name, checkpointId);
+  mDebug("start to trigger checkpoint for stream:%s, checkpoint: %" PRId64, pStream->name, checkpointId);
 
   taosWLockLatch(&pStream->lock);
   pStream->currentTick = 1;

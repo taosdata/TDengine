@@ -3357,7 +3357,7 @@ static int32_t rewriteQueryTimeFunc(STranslateContext* pCxt, int64_t val, SNode*
   if (NULL == pStr) {
     return terrno;
   }
-  snprintf(pStr, 20, "%" PRId64 "", val);
+  snprintf(pStr, 20, "%" PRId64, val);
   int32_t code = rewriteFuncToValue(pCxt, &pStr, pNode);
   if (TSDB_CODE_SUCCESS != code) taosMemoryFree(pStr);
   return code;
