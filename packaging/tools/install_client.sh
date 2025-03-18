@@ -32,6 +32,8 @@ benchmarkName2="${clientName2}Benchmark"
 dumpName2="${clientName2}dump"
 demoName2="${clientName2}demo"
 uninstallScript2="rm${clientName2}"
+inspect_name="${clientName2}inspect"
+
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -106,12 +108,15 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  ${csudo}rm -f ${bin_link_dir}/${clientName}         || :
+  ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   if [ "$osType" != "Darwin" ]; then
       ${csudo}rm -f ${bin_link_dir}/taosdemo || :
+      ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
   fi
-  ${csudo}rm -f ${bin_link_dir}/${uninstallScript}       || :
-  ${csudo}rm -f ${bin_link_dir}/set_core     || :
+  ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
+  ${csudo}rm -f ${bin_link_dir}/set_core || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
 
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
@@ -119,6 +124,7 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${clientName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName2} ${bin_link_dir}/${clientName2} || :
   if [ "$osType" != "Darwin" ]; then
       [ -x ${install_main_dir}/bin/${demoName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName2} ${bin_link_dir}/${demoName2}  || :
+      [ -x ${install_main_dir}/bin/${inspect_name} ] && ${csudo}ln -s ${install_main_dir}/bin/${inspect_name} ${bin_link_dir}/${inspect_name} || :
   fi
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :  
@@ -246,16 +252,34 @@ function install_jemalloc() {
 }
 
 function install_config() {
-    if [ ! -f ${cfg_install_dir}/${configFile} ]; then
+    file_name=${cfg_install_dir}/${configFile}
+    if [ -f ${file_name} ]; then
+        echo "The configuration file ${file_name} already exists"
+        ${csudo}cp ${file_name} ${cfg_install_dir}/${configFile}.new
+    else
         ${csudo}mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/cfg/${configFile} ] && ${csudo}cp ${script_dir}/cfg/${configFile} ${cfg_install_dir}
         ${csudo}chmod 644 ${cfg_install_dir}/*
+     ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
     fi
 
-    ${csudo}cp -f ${script_dir}/cfg/${configFile} ${install_main_dir}/cfg/${configFile}.org
-    ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
+   
 }
 
+function install_taosinspect_config() {
+  file_name="${script_dir}/cfg/inspect.cfg"
+  if [ -f ${file_name} ]; then
+    if [ -f "${cfg_install_dir}/inspect.cfg" ]; then
+      ${csudo}cp ${file_name} ${cfg_install_dir}/inspect.cfg.new
+    else
+      ${csudo}mkdir -p ${cfg_install_dir}
+      ${csudo}cp ${file_name} ${cfg_install_dir}/inspect.cfg
+    fi
+    ${csudo}ln -sf ${cfg_install_dir}/inspect.cfg ${install_main_dir}/cfg
+  fi
+
+  
+}
 
 function install_log() {
     ${csudo}rm -rf ${log_dir}  || :
@@ -302,6 +326,7 @@ function update_TDengine() {
     install_jemalloc
     if [ "$verMode" == "cluster" ]; then
         install_connector
+        install_taosinspect_config
     fi
     install_examples
     install_bin
@@ -329,6 +354,7 @@ function install_TDengine() {
     install_jemalloc
     if [ "$verMode" == "cluster" ]; then
         install_connector
+        install_taosinspect_config
     fi
     install_examples
     install_bin
