@@ -298,8 +298,8 @@ SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool f
 SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const SToken* pConfig, const SToken* pValue);
 SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
 SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode);
-SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode, bool updateAll);
-SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl, SNode* pOptions);
+SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SNode* pOptions);
+SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeID);
 SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode);
 SNode* createDefaultXnodeOptions(SAstCreateContext* pCxt);
 SNode* setXnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EXnodeOptionType type, void* pVal);

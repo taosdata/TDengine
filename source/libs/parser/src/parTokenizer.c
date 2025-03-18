@@ -251,6 +251,7 @@ static SKeyword keywordTable[] = {
     {"SNODES",               TK_SNODES},
     {"XNODE",                TK_XNODE},
     {"XNODES",               TK_XNODES},
+    {"PROTOCOL",             TK_PROTOCOL},
     {"SORT_FOR_GROUP",       TK_SORT_FOR_GROUP},
     {"SOFFSET",              TK_SOFFSET},
     {"SPLIT",                TK_SPLIT},
