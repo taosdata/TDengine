@@ -10,6 +10,16 @@ if(${TD_DARWIN})
     target_compile_options(${TAOS_LIB} PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
+# jni include
+INCLUDE_DIRECTORIES(jni)
+if(TD_WINDOWS)
+    INCLUDE_DIRECTORIES(jni/windows)
+    INCLUDE_DIRECTORIES(jni/windows/win32)
+    INCLUDE_DIRECTORIES(jni/windows/win32/bridge)
+else()
+    INCLUDE_DIRECTORIES(jni/linux)
+endif()
+
 target_include_directories(
     ${TAOS_LIB}
     PUBLIC "${TD_SOURCE_DIR}/include/client"
