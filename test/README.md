@@ -2,14 +2,11 @@
 
 1. [Introduction](#1-introduction)
 1. [Prerequisites](#2-prerequisites)
-1. [Testing Guide](#3-testing-guide)
-    - [3.1 Unit Test](#31-unit-test)
-    - [3.2 System Test](#32-system-test)
-    - [3.3 Legacy Test](#33-legacy-test)
-    - [3.4 Smoke Test](#34-smoke-test)
-    - [3.5 Chaos Test](#35-chaos-test)
-    - [3.6 CI Test](#36-ci-test)
-    - [3.7 TSBS Test](#37-tsbs-test)
+1. [Project Structure](#3-Project-Structure)
+1. [Run Test Cases](#4-Run-Test-Cases)
+1. [Add New Case](#5-Add-New-Case)
+1. [Add New Case to CI](#6-Add-New-Case-to-CI)
+
 
 # 1. Introduction
 
@@ -31,7 +28,7 @@ apt install python3-pip
 - Install Python dependencies
 
 ```bash
-pip3 install -f requirements.txt
+pip3 install -r requirements.txt
 ```
 
 - Building
