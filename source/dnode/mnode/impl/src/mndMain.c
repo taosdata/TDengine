@@ -854,11 +854,11 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   const STraceId *trace = &pMsg->info.traceId;
-  mGTrace("vgId:1, sync msg:%p will be processed, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  mGTrace("vgId:1, process sync msg:%p, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t code = syncProcessMsg(pMgmt->sync, pMsg);
   if (code != 0) {
-    mGError("vgId:1, failed to process sync msg:%p type:%s, reason: %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
+    mGError("vgId:1, failed to process sync msg:%p type:%s since %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
             tstrerror(code), code);
   }
 
