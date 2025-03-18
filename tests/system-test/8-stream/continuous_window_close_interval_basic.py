@@ -7,7 +7,7 @@ from util.common import *
 
 
 class TDTestCase:
-    updatecfgDict = {"qDebugFlag": 135, "asynclog": 0, "ratioOfVnodeStreamThreads": 4}
+    updatecfgDict = {"debugFlag": 135, "asynclog": 0, "ratioOfVnodeStreamThreads": 4}
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -204,20 +204,27 @@ class TDTestCase:
             self.docontinuous(
                 interval=random.randint(10, 15),
                 partition="tbname",
-                fill_value=fill_value
+                fill_value=fill_value,
             )
-        for partition_value in ["c1"]:
+        for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", None]:    
             self.docontinuous(
                 interval=random.randint(10, 12),
-                partition=partition_value,
-                fill_value=None
+                partition="t1 as t5,t2 as t11,t3 as t13, t4",
+                fill_value=fill_value,
             )
+        
+        self.docontinuous(
+            interval=random.randint(10, 12),
+            partition="c1",
+            fill_value=None
+        )
+
         self.docontinuous(
             interval=random.randint(10, 12),
             partition="t1 as t5,t2 as t11,t3 as t13, t4",
             fill_value=None,
             use_exist_stb=True,
-            tag_value="t5,t11,t13",
+            tag_value="t5,t11,t13"
         )
 
     def stop(self):
