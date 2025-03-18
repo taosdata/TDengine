@@ -14,7 +14,7 @@ if(${TD_DARWIN})
     target_compile_options(${TAOS_NATIVE_LIB} PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
-INCLUDE_DIRECTORIES(jni)
+
 
 target_include_directories(
     ${TAOS_NATIVE_LIB}
@@ -30,14 +30,6 @@ target_link_libraries(
     INTERFACE api
     PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal
 )
-
-if(TD_WINDOWS)
-    INCLUDE_DIRECTORIES(jni/windows)
-    INCLUDE_DIRECTORIES(jni/windows/win32)
-    INCLUDE_DIRECTORIES(jni/windows/win32/bridge)
-else()
-    INCLUDE_DIRECTORIES(jni/linux)
-endif()
 
 set_target_properties(
     ${TAOS_NATIVE_LIB}
