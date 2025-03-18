@@ -46,13 +46,13 @@ case $1 in
     gen)
         shift 1
         do_gen "$@" &&
-        echo "Generated for '${TD_CONFIG}'"
+        echo "Generated for '${TD_CONFIG}'" &&
         echo ==Done==
         ;;
     bld)
         shift 1
         do_bld "$@" &&
-        echo "Built for '${TD_CONFIG}'"
+        echo "Built for '${TD_CONFIG}'" &&
         echo ==Done==
         ;;
     install)

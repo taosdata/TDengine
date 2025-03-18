@@ -124,11 +124,12 @@ jobs:
         name: Build externals on Linux and macOS
         continue-on-error: false
         run: |
-          cmake -B debug        \
-            -DBUILD_TOOLS=true  \
-            -DBUILD_KEEPER=true \
-            -DBUILD_HTTP=false  \
-            -DBUILD_TEST=true   \
+          # TODO: later we'll use ./build.sh
+          cmake -B debug                     \
+            -DBUILD_TOOLS=true               \
+            -DBUILD_KEEPER=true              \
+            -DBUILD_HTTP=false               \
+            -DBUILD_TEST=true                \
             -DBUILD_DEPENDENCY_TESTS=false
           cmake --build debug --target build_externals -j4
 
@@ -139,6 +140,7 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
+          # TODO: later we'll use ./build.bat
           cmake -B debug                       ^
             -G "NMake Makefiles JOM"           ^
             -DBUILD_TOOLS=true                 ^
@@ -151,7 +153,14 @@ jobs:
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          cmake -B debug -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          # TODO: later we'll use ./build.sh
+          cmake -B debug                     \
+            -DBUILD_TOOLS=true               \
+            -DBUILD_KEEPER=true              \
+            -DBUILD_HTTP=false               \
+            -DBUILD_TEST=true                \
+            -DBUILD_DEPENDENCY_TESTS=false   \
+            -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           cmake --build debug -j4 -v
           sudo cmake --install debug
           which taosd
@@ -164,7 +173,15 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
-          cmake -B debug -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          # TODO: later we'll use ./build.bat
+          cmake -B debug                       ^
+            -G "NMake Makefiles JOM"           ^
+            -DBUILD_TOOLS=true                 ^
+            -DBUILD_KEEPER=true                ^
+            -DBUILD_HTTP=false                 ^
+            -DBUILD_TEST=false                 ^
+            -DBUILD_DEPENDENCY_TESTS=false     ^
+            -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           cmake --build debug -j4 -v
           cmake --install debug
 
