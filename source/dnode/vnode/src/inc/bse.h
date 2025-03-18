@@ -43,6 +43,7 @@ extern "C" {
 typedef struct {
   uint64_t offset;
   int32_t  size;
+  int32_t  vlen;
 } SValueInfo;
 
 typedef struct {

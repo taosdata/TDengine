@@ -178,6 +178,16 @@ int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint3
   blk->dataNum++;
   return code;
 }
+int32_t blockAdd2(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset) {
+  int32_t    code = 0;
+  SBlkData2 *pBlk = blk->pData;
+  uint8_t   *p = pBlk->data + pBlk->len;
+  *offset = pBlk->id * kBlockCap + pBlk->len;
+
+  memcpy(p, value, len);
+  pBlk->len += len;
+  return 0;
+}
 
 int32_t blockAddMeta(SBlkData *blk, uint64_t key, SValueInfo *pValue, uint64_t *offset) {
   int32_t    code = 0;
@@ -201,6 +211,11 @@ int8_t blockShouldFlush(SBlkData *data, int32_t len) {
   estimite += len;
   return (estimite + sizeof(SBlkData2) + pBlkData->len + sizeof(TSCKSUM)) > data->cap;
 }
+
+int8_t blockShouldFlush2(SBlkData *data, int32_t len) {
+  SBlkData2 *pBlkData = data->pData;
+  return sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM) > data->cap;
+}
 int8_t blockMetaShouldFlush(SBlkData *data, int32_t len) {
   //
   SBlkData2 *pBlkData = data->pData;
@@ -218,7 +233,6 @@ int32_t blockReset(SBlkData *data, uint8_t type, int32_t blockId) {
   data->id = blockId;
   data->dataNum = 0;
 
-  // memset(pBlkData->head, 0, sizeof(pBlkData->head));
   pBlkData->id = blockId;
   pBlkData->len = 0;
   pBlkData->head[3] = type;
@@ -387,6 +401,45 @@ int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t le
 _err:
   if (code != 0) {
     bseError("bse file %s failed to append value at line since %s", pTable->name, tstrerror(code));
+  }
+  return code;
+}
+int32_t tableAppendData2(STable *pTable, uint64_t key, uint8_t *value, int32_t len) {
+  int32_t    line = 0;
+  int32_t    code;
+  uint32_t   offset;
+  SValueInfo info;
+  if (blockShouldFlush2(&pTable->data, len)) {
+    code = tableFlushBlock(pTable);
+    TAOS_CHECK_GOTO(code, &line, _error);
+    pTable->blockId++;
+    TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_DATA_TYPE, pTable->blockId), &line, _error);
+  }
+  code = blockAdd2(&pTable->data, key, value, len, &offset);
+  info.offset = offset;
+  info.size = len;
+  // code = taosHashPut(pTable->pCache, &key, sizeof(key), &info, sizeof(info));
+_error:
+  return code;
+}
+
+int32_t tableAppendBatch(STable *pTable, SBseBatch *pBatch) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  uint32_t offset = 0;
+  void    *pIter = taosHashIterate(pBatch->pOffset, NULL);
+  while (pIter) {
+    uint64_t   *seq = taosHashGetKey(pIter, NULL);
+    SValueInfo *pInfo = (SValueInfo *)pIter;
+
+    code = tableAppendData2(pTable, *seq, pBatch->buf + pInfo->offset, pInfo->size);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    pIter = taosHashIterate(pBatch->pOffset, pIter);
+  }
+_error:
+  if (code != 0) {
+    bseError("failed to append batch since %s at line %d", tstrerror(code), lino);
   }
   return code;
 }
@@ -709,6 +762,7 @@ _err:
   if (code != 0) {
     bseError("bse table file %s failed to recover at line %d since %s", path, line, tstrerror(code));
   }
+  taosCloseFile(&fd);
   taosMemFree(blockBuf);
   return code;
 }
@@ -945,7 +999,9 @@ _err:
 int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
   taosThreadMutexLock(&pBse->mutex);
+  code = tableAppendBatch(pBse->pTable[pBse->inUse], pBatch);
   taosThreadMutexUnlock(&pBse->mutex);
+
   return code;
 }
 
@@ -1005,9 +1061,10 @@ int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t le
   offset += taosEncodeVariantI32((void **)&p, len);
   offset += taosEncodeBinary((void **)&p, value, len);
 
-  SValueInfo info = {.offset = pBatch->len, .size = len};
+  SValueInfo info = {.offset = pBatch->len, .size = offset - pBatch->len, .vlen = len};
   pBatch->len = offset;
 
+  *seq = aseq;
   code = taosHashPut(pBatch->pOffset, &aseq, sizeof((aseq)), &info, sizeof(info));
 
 _error:
@@ -1022,14 +1079,7 @@ int32_t bseBatchGet(SBseBatch *pBatch, uint64_t seq, uint8_t **pValue, int32_t *
   return 0;
 }
 
-int32_t bseBatchCommit(SBseBatch *pBatch) {
-  int32_t code = 0;
-  SBse   *pBse = pBatch->pBse;
-  taosThreadMutexLock(&pBse->mutex);
-
-  taosThreadMutexUnlock(&pBse->mutex);
-  return code;
-}
+int32_t bseBatchCommit(SBseBatch *pBatch) { return bseAppendBatch(pBatch->pBse, pBatch); }
 
 int32_t bseBatchDestroy(SBseBatch *pBatch) {
   if (pBatch == NULL) return 0;
@@ -1039,6 +1089,37 @@ int32_t bseBatchDestroy(SBseBatch *pBatch) {
   taosHashCleanup(pBatch->pOffset);
 
   taosMemFree(pBatch);
+  return code;
+}
+
+int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen) {
+  int32_t lino = 0;
+  int32_t code = 0;
+  if (alen > pBatch->cap) {
+    int32_t cap = (pBatch->cap == 0) ? 1 : pBatch->cap;
+    if (cap > (INT32_MAX >> 1)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    cap--;
+    cap |= cap >> 1;
+    cap |= cap >> 2;
+    cap |= cap >> 4;
+    cap |= cap >> 8;
+    cap |= cap >> 16;
+    cap++;
+    cap = (cap < alen) ? cap << 1 : cap;
+
+    uint8_t *buf = taosMemRealloc(pBatch->buf, cap);
+    if (buf == NULL) {
+      TSDB_CHECK_CODE(terrno, lino, _error);
+    }
+    pBatch->cap = cap;
+    pBatch->buf = buf;
+  }
+_error:
+  if (code != 0) {
+    bseError("failed to resize batch buffer since %s at line %d", tstrerror(code), lino);
+  }
   return code;
 }
 int32_t bseFileSetCmprFn(const void *p1, const void *p2) {
@@ -1341,27 +1422,5 @@ _err:
     }
   }
   taosMemFree(buf);
-  return code;
-}
-
-int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen) {
-  int32_t lino = 0;
-  int32_t code = 0;
-  if (alen > pBatch->cap) {
-    int32_t cap = pBatch->cap;
-    while (alen > cap) {
-      cap = cap * 2;
-    }
-    uint8_t *buf = taosMemRealloc(pBatch->buf, cap);
-    if (buf == NULL) {
-      TSDB_CHECK_CODE(terrno, lino, _error);
-    }
-    pBatch->cap = cap;
-    pBatch->buf = buf;
-  }
-_error:
-  if (code != 0) {
-    bseError("failed to resize batch buffer since %s at line %d", tstrerror(code), lino);
-  }
   return code;
 }
