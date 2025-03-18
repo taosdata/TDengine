@@ -236,21 +236,55 @@ function remove_data_and_config() {
   [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
 }
 
-echo 
-echo "Do you want to remove all the data, log and configuration files? [y/n]"
-read answer
-remove_flag=false
-if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
-  confirmMsg="I confirm that I would like to delete all data, log and configuration files"
-  echo "Please enter '${confirmMsg}' to continue"
+# 解析命令行参数
+interactive_remove="yes"
+while getopts "e:h" opt; do
+  case $opt in
+    e)
+      if [ "$OPTARG" == "yes" ]; then
+        interactive_remove="no"
+        remove_flag=false
+        echo "It will remove only the binary files and keep all the data, log, and configuration files."
+      elif [ "$OPTARG" == "no" ]; then
+        interactive_remove="no"
+        remove_flag=true
+        echo "It will remove the binary files and all the data, log, and configuration files."
+      else
+        echo "Invalid option for -e: $OPTARG"
+        exit 1
+      fi
+      ;;
+    h)
+      echo "Usage: $(basename $0)  -e [yes | no] "
+      echo "                      select 'yes' to skip prompt and remove only the binary files and keep all the data, log, and configuration files."
+      echo "                      select 'no' to skip prompt and  remove the binary files and all the data, log, and configuration files"
+
+      exit 0
+      ;;
+    *)
+      echo "Invalid option: -$opt"
+      exit 1
+      ;;
+  esac
+done
+
+if [ "$interactive_remove" == "yes" ]; then
+  echo 
+  echo "Do you want to remove all the data, log and configuration files? [y/n]"
   read answer
-  if [ X"$answer" == X"${confirmMsg}" ]; then    
-    remove_flag=true    
-  else    
-    echo "answer doesn't match, skip this step"    
+  remove_flag=false
+  if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+    confirmMsg="I confirm that I would like to delete all data, log and configuration files"
+    echo "Please enter '${confirmMsg}' to continue"
+    read answer
+    if [ X"$answer" == X"${confirmMsg}" ]; then    
+      remove_flag=true    
+    else    
+      echo "answer doesn't match, skip this step"    
+    fi
   fi
+  echo 
 fi
-echo 
 
 if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
   if [ X$remove_flag == X"true" ]; then  
@@ -259,7 +293,6 @@ if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
     bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all false
   fi
 fi
-
 
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
@@ -298,7 +331,6 @@ elif echo $osinfo | grep -qwi "centos"; then
   #  echo "this is centos system"
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
-
 
 command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 
 echo 
