@@ -195,6 +195,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   int32_t      numOfTasks = streamMetaGetNumOfTasks(pMeta);
   SMetaHbInfo* pInfo = pMeta->pHbInfo;
   int32_t      code = 0;
+  bool         setReqCheckpointId = false;
 
   // not recv the hb msg rsp yet, send current hb msg again
   if (pInfo->msgSendTs > 0) {
@@ -238,12 +239,12 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     }
 
     // not report the status of fill-history task
-    if (pTask->info.fillHistory == 1) {
+    if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
 
-    // todo: this lock may blocked by lock in streamMetaStartOneTask function, which may lock a very long time when
+    // todo: this lock may be blocked by lock in streamMetaStartOneTask function, which may lock a very long time when
     // trying to load remote checkpoint data
     streamMutexLock(&pTask->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(pTask);
@@ -274,7 +275,8 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     streamMutexLock(&pTask->lock);
     entry.checkpointInfo.consensusChkptId = streamTaskCheckIfReqConsenChkptId(pTask, pMsg->ts);
     if (entry.checkpointInfo.consensusChkptId) {
-      entry.checkpointInfo.consensusTs = pMsg->ts;
+      entry.checkpointInfo.consensusTs = pTask->status.consenChkptInfo.statusTs;
+      setReqCheckpointId = true;
     }
     streamMutexUnlock(&pTask->lock);
 
@@ -292,6 +294,20 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     }
 
     streamMetaReleaseTask(pMeta, pTask);
+  }
+
+  if (setReqCheckpointId) {
+    if (pMeta->startInfo.curStage != START_MARK_REQ_CHKPID) {
+      stError("vgId:%d internal unknown error, current stage is:%d expected:%d", pMeta->vgId, pMeta->startInfo.curStage,
+              START_MARK_REQ_CHKPID);
+    }
+
+    pMeta->startInfo.curStage = START_WAIT_FOR_CHKPTID;
+    SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = pMsg->ts};
+    taosArrayPush(pMeta->startInfo.pStagesList, &info);
+
+    stDebug("vgId:%d mark_req stage -> wait_for_chkptId stage, reqTs:%" PRId64 " , numOfStageHist:%d", pMeta->vgId,
+            info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
   }
 
   pMsg->numOfTasks = taosArrayGetSize(pMsg->pTaskStatus);
@@ -317,7 +333,6 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   SStreamMeta* pMeta = taosAcquireRef(streamMetaRefPool, rid);
   if (pMeta == NULL) {
     stError("invalid meta rid:%" PRId64 " failed to acquired stream-meta", rid);
-//    taosMemoryFree(param);
     return;
   }
 
@@ -345,7 +360,6 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     } else {
       stError("vgId:%d role:%d not leader not send hb to mnode, failed to release meta rid:%" PRId64, vgId, role, rid);
     }
-//    taosMemoryFree(param);
     return;
   }
 
@@ -381,7 +395,10 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!send) {
-    stError("vgId:%d failed to send hmMsg to mnode, retry again in 5s, code:%s", pMeta->vgId, tstrerror(code));
+    stError("vgId:%d failed to send hbMsg to mnode due to acquire lock failure, retry again in 5s", pMeta->vgId);
+  }
+  if (code) {
+    stError("vgId:%d failed to send hbMsg to mnode, retry in 5, code:%s", pMeta->vgId, tstrerror(code));
   }
 
   streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,

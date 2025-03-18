@@ -72,12 +72,6 @@ The TDengine client driver provides all the APIs needed for application programm
 | tempDir         |                   |Supported, effective immediately  | Specifies the directory for generating temporary files during operation, default on Linux platform is /tmp |
 | minimalTmpDirGB |                   |Supported, effective immediately  | Minimum space required to be reserved in the directory specified by tempDir, in GB, default value: 1 |
 
-### Stream Related
-
-| Parameter Name        |Supported Version|Dynamic Modification| Description                                                                                                                                                                |
-|-----------------------|----------|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| streamRunHistoryAsync |    3.3.6.0        |Supported, effective immediately  | When creating a stream with the fill_history parameter, should the stream statement be executed asynchronously. Boolean value, async if true, sync if false. default is false |
-
 ### Log Related
 
 |Parameter Name|Supported Version|Dynamic Modification|Description|

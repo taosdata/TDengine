@@ -58,8 +58,8 @@ void destroyStreamCountAggOperatorInfo(void* param) {
 
   destroyStreamBasicInfo(&pInfo->basic);
   cleanupExprSupp(&pInfo->scalarSupp);
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
   destroyStreamAggSupporter(&pInfo->streamAggSup);
 
@@ -984,7 +984,7 @@ int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
 
   if (downstream) {
     code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
-                          &pInfo->twAggSup, &pInfo->basic);
+                          &pInfo->twAggSup, &pInfo->basic, 0);
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = appendDownstream(pOperator, &downstream, 1);

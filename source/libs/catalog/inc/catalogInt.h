@@ -72,6 +72,7 @@ typedef enum {
   CTG_CI_SVR_VER,
   CTG_CI_VIEW,
   CTG_CI_TBL_TSMA,
+  CTG_CI_VSUB_TBLS,
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -133,6 +134,7 @@ typedef enum {
   CTG_TASK_GET_TB_TSMA,
   CTG_TASK_GET_TSMA,
   CTG_TASK_GET_TB_NAME,
+  CTG_TASK_GET_V_SUBTABLES,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -307,6 +309,20 @@ typedef struct SCtgTbTSMACtx {
   SArray* pFetches;
 } SCtgTbTSMACtx;
 
+typedef struct SCtgVSubTablesCtx {
+  SArray* pNames;
+
+  STableMeta* pMeta;
+ 
+  int32_t vgNum;
+  bool    clonedVgroups;
+  SArray* pVgroups;
+  
+  SVSubTablesRsp* pResList;
+  int32_t         resIdx;
+} SCtgVSubTablesCtx;
+
+
 typedef STableIndexRsp STableIndex;
 typedef STableTSMAInfo STSMACache;
 
@@ -433,6 +449,7 @@ typedef struct SCtgJob {
   int32_t          tbTsmaNum;
   int32_t          tsmaNum;  // currently, only 1 is possible
   int32_t          tbNameNum;
+  int32_t          vsubTbNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -777,10 +794,12 @@ typedef struct SCtgCacheItemInfo {
 
 #define CTG_META_NHIT_INC() CTG_CACHE_NHIT_INC(CTG_CI_OTHERTABLE_META, 1)
 
-#define CTG_IS_META_NULL(type)   ((type) == META_TYPE_NULL_TABLE)
-#define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
-#define CTG_IS_META_TABLE(type)  ((type) == META_TYPE_TABLE)
-#define CTG_IS_META_BOTH(type)   ((type) == META_TYPE_BOTH_TABLE)
+#define CTG_IS_META_NULL(type)    ((type) == META_TYPE_NULL_TABLE)
+#define CTG_IS_META_CTABLE(type)  ((type) == META_TYPE_CTABLE)
+#define CTG_IS_META_VCTABLE(type) ((type) == META_TYPE_VCTABLE)
+#define CTG_IS_META_TABLE(type)   ((type) == META_TYPE_TABLE)
+#define CTG_IS_META_BOTH(type)    ((type) == META_TYPE_BOTH_TABLE)
+#define CTG_IS_META_VBOTH(type)   ((type) == META_TYPE_BOTH_VTABLE)
 
 #define CTG_FLAG_STB          0x1
 #define CTG_FLAG_NOT_STB      0x2
@@ -828,19 +847,19 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_CACHE_OVERFLOW(_csize, _maxsize) ((_maxsize >= 0) ? ((_csize) >= (_maxsize)*1048576L * 0.9) : false)
 #define CTG_CACHE_LOW(_csize, _maxsize)      ((_maxsize >= 0) ? ((_csize) <= (_maxsize)*1048576L * 0.75) : true)
 
-#define ctgFatal(param, ...) qFatal("CTG:%p, " param, pCtg, __VA_ARGS__)
-#define ctgError(param, ...) qError("CTG:%p, " param, pCtg, __VA_ARGS__)
-#define ctgWarn(param, ...)  qWarn ("CTG:%p, " param, pCtg, __VA_ARGS__)
-#define ctgInfo(param, ...)  qInfo ("CTG:%p, " param, pCtg, __VA_ARGS__)
-#define ctgDebug(param, ...) qDebug("CTG:%p, " param, pCtg, __VA_ARGS__)
-#define ctgTrace(param, ...) qTrace("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgFatal(param, ...) qFatal(param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgError(param, ...) qError(param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgWarn(param, ...)  qWarn (param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgInfo(param, ...)  qInfo (param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgDebug(param, ...) qDebug(param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgTrace(param, ...) qTrace(param ", ctg:%p" , __VA_ARGS__, pCtg)
 
-#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskError(param, ...) qError("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskWarn(param, ...)  qWarn ("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskInfo(param, ...)  qInfo ("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskFatal(param, ...) qFatal("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskError(param, ...) qError("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskWarn(param, ...)  qWarn ("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskInfo(param, ...)  qInfo ("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskDebug(param, ...) qDebug("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskTrace(param, ...) qTrace("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
 
 #define CTG_LOCK_DEBUG(...)     \
   do {                          \
@@ -870,9 +889,9 @@ typedef struct SCtgCacheItemInfo {
         qError("invalid lock value before read lock");                                               \
         break;                                                                                       \
       }                                                                                              \
-      CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg rlock:%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                         \
-      CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg rlock:%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       if (atomic_load_32((_lock)) <= 0) {                                                            \
         qError("invalid lock value after read lock");                                                \
         break;                                                                                       \
@@ -882,9 +901,9 @@ typedef struct SCtgCacheItemInfo {
         qError("invalid lock value before write lock");                                              \
         break;                                                                                       \
       }                                                                                              \
-      CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg wlock:%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                         \
-      CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg wlock:%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                   \
         qError("invalid lock value after write lock");                                               \
         break;                                                                                       \
@@ -899,9 +918,9 @@ typedef struct SCtgCacheItemInfo {
         qError("invalid lock value before read unlock");                                              \
         break;                                                                                        \
       }                                                                                               \
-      CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg rulock:%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                        \
-      CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg rulock:%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       if (atomic_load_32((_lock)) < 0) {                                                              \
         qError("invalid lock value after read unlock");                                               \
         break;                                                                                        \
@@ -911,9 +930,9 @@ typedef struct SCtgCacheItemInfo {
         qError("invalid lock value before write unlock");                                             \
         break;                                                                                        \
       }                                                                                               \
-      CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg wulock:%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                        \
-      CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg wulock:%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       if (atomic_load_32((_lock)) < 0) {                                                              \
         qError("invalid lock value after write unlock");                                              \
         break;                                                                                        \
@@ -950,20 +969,20 @@ typedef struct SCtgCacheItemInfo {
   do {                                               \
     int32_t __code = c;                              \
     CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);            \
-    CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api leave %s", __FUNCTION__); \
     CTG_RET(__code);                                 \
   } while (0)
 
 #define CTG_API_NLEAVE()                             \
   do {                                               \
     CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);            \
-    CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api leave %s", __FUNCTION__); \
     return;                                          \
   } while (0)
 
 #define CTG_API_ENTER()                              \
   do {                                               \
-    CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api enter %s", __FUNCTION__); \
     CTG_LOCK(CTG_READ, &gCtgMgmt.lock);              \
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {    \
       CTG_API_LEAVE(TSDB_CODE_CTG_OUT_OF_SERVICE);   \
@@ -972,7 +991,7 @@ typedef struct SCtgCacheItemInfo {
 
 #define CTG_API_NENTER()                             \
   do {                                               \
-    CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api enter %s", __FUNCTION__); \
     CTG_LOCK(CTG_READ, &gCtgMgmt.lock);              \
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {    \
       CTG_API_NLEAVE();                              \
@@ -981,7 +1000,7 @@ typedef struct SCtgCacheItemInfo {
 
 #define CTG_API_JENTER()                             \
   do {                                               \
-    CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api enter %s", __FUNCTION__); \
     CTG_LOCK(CTG_READ, &gCtgMgmt.lock);              \
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {    \
       CTG_ERR_JRET(TSDB_CODE_CTG_OUT_OF_SERVICE);    \
@@ -991,13 +1010,13 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_API_LEAVE_NOLOCK(c)                      \
   do {                                               \
     int32_t __code = c;                              \
-    CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api leave %s", __FUNCTION__); \
     CTG_RET(__code);                                 \
   } while (0)
 
 #define CTG_API_ENTER_NOLOCK()                            \
   do {                                                    \
-    CTG_API_DEBUG("CTG API enter %s", __FUNCTION__);      \
+    CTG_API_DEBUG("ctg api enter %s", __FUNCTION__);      \
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {         \
       CTG_API_LEAVE_NOLOCK(TSDB_CODE_CTG_OUT_OF_SERVICE); \
     }                                                     \
@@ -1011,7 +1030,7 @@ int32_t ctgdShowStatInfo(void);
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
-                               int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
+                               int32_t* fetchIdx, int32_t baseResIdx, SArray* pList, bool autoCreate);
 int32_t ctgGetTbNamesFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbNamesCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst);
@@ -1074,6 +1093,7 @@ int32_t ctgOpUpdateTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpClearCache(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateViewMeta(SCtgCacheOperation* operation);
 int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char* tableName, int32_t* tbType);
+int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *tbType, int64_t* suid);
 int32_t ctgGetTbHashVgroupFromCache(SCatalog* pCtg, const SName* pTableName, SVgroupInfo** pVgroup);
 int32_t ctgGetViewsFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgViewsCtx* ctx, int32_t dbIdx,
                              int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
@@ -1112,6 +1132,7 @@ int32_t ctgLaunchJob(SCtgJob* pJob);
 int32_t ctgMakeAsyncRes(SCtgJob* pJob);
 int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
 int32_t ctgGetTbCfgCb(SCtgTask* pTask);
+int32_t ctgGetVSubTablesCb(SCtgTask* pTask);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
 void    ctgFreeSViewMeta(SViewMeta* pMeta);
@@ -1210,8 +1231,10 @@ bool     isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache);
 int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName,
                                        SVgroupInfo* vgroupInfo, SStreamProgressRsp* out, SCtgTaskReq* tReq,
                                        void* bInput);
+int32_t ctgGetVSubTablesFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);                                       
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
+int32_t ctgBuildNormalChildVtbList(SCtgVSubTablesCtx* pCtx);                        
 int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
 int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId,
                                       bool syncOper);
