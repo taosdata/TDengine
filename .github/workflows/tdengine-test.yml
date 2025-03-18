@@ -44,7 +44,6 @@ env:
 jobs:
   run-tests-on-linux:
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'}}
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
@@ -53,7 +52,6 @@ jobs:
 
   run-tests-on-mac:
     uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
-    if: ${{ github.event_name == 'pull_request' }}
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
@@ -62,7 +60,6 @@ jobs:
 
   run-tests-on-windows:
     uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
-    if: ${{ github.event_name == 'pull_request' }}
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}

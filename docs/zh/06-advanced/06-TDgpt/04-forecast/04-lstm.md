@@ -7,6 +7,14 @@ sidebar_label: "LSTM"
 
 ## 功能概述
 
+LSTM模型即长短期记忆网络(Long Short Term Memory)，是一种特殊的循环神经网络，适用于处理时间序列数据、自然语言处理等任务，通过其独特的门控机制，能够有效捕捉长期依赖关系，
+解决传统RNN的梯度消失问题，从而对序列数据进行准确预测，不过它不直接提供计算的置信区间范围结果。
+
+
+完整的调用SQL语句如下：
+```SQL
+SELECT _frowts, FORECAST(i32, "algo=lstm") from foo
+=======
 LSTM 模型即长短期记忆网络(Long Short Term Memory)，是一种特殊的循环神经网络，适用于处理时间序列数据、自然语言处理等任务，通过其独特的门控机制，能够有效捕捉长期依赖关系，
 解决传统 RNN 的梯度消失问题，从而对序列数据进行准确预测，不过它不直接提供计算的置信区间范围结果。
 
@@ -14,6 +22,7 @@ LSTM 模型即长短期记忆网络(Long Short Term Memory)，是一种特殊的
 完整的调用 SQL 语句如下：
 ```SQL
 SELECT _frowts, FORECAST(i32, "algo=lstm,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5") from foo
+>>>>>>> 3.0
 ```
 
 ```json5

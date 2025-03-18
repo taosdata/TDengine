@@ -952,7 +952,7 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
     if (ctg && (*ctg)) {
       *catalogHandle = *ctg;
       CTG_STAT_HIT_INC(CTG_CI_CLUSTER, 1);
-      qDebug("CTG:%p, get catalog handle from cache, clusterId:0x%" PRIx64, *ctg, clusterId);
+      qTrace("ctg:%p, get catalog handle from cache, clusterId:0x%" PRIx64, *ctg, clusterId);
       CTG_API_LEAVE(TSDB_CODE_SUCCESS);
     }
 
@@ -992,11 +992,11 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
         continue;
       }
 
-      qError("taosHashPut CTG to cache failed, clusterId:0x%" PRIx64, clusterId);
+      qError("taosHashPut catalog to cache failed, clusterId:0x%" PRIx64, clusterId);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    qDebug("CTG:%p, add CTG to cache, clusterId:0x%" PRIx64, clusterCtg, clusterId);
+    qDebug("ctg:%p, add catalog to cache, clusterId:0x%" PRIx64, clusterCtg, clusterId);
 
     break;
   }
