@@ -41,9 +41,12 @@ class _GPTService(AbstractForecastService):
             app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ", str(e))
             raise e
 
-        if response.status_code != 200:
+        if response.status_code == 404:
             app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ")
             raise ValueError("invalid host url")
+        elif response.status_code != 200:
+            app_logger.log_inst.error(f"failed to request the service: {self.service_host}, reason: {response.text}")
+            raise ValueError(f"failed to request the service, {response.text}")
 
         pred_y = response.json()['output']
 
