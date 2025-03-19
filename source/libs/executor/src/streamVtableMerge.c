@@ -50,6 +50,7 @@ typedef struct SStreamVtableMergeHandle {
   SSDataBlock* datablock;  // Does not store data, only used to save the schema of input/output data blocks
 
   SMultiwayMergeTreeInfo* pMergeTree;
+  int32_t                 numEmptySources;
   int64_t                 globalLatestTs;
 } SStreamVtableMergeHandle;
 
@@ -90,6 +91,9 @@ static int32_t svmSourceFlushInput(SStreamVtableMergeSource* pSource, const char
 
   // check data block size
   pBlock = pSource->pInputDataBlock;
+  if (blockDataGetNumOfRows(pBlock) == 0) {
+    goto _end;
+  }
   int32_t size = blockDataGetSize(pBlock) + sizeof(int32_t) + taosArrayGetSize(pBlock->pDataBlock) * sizeof(int32_t);
   QUERY_CHECK_CONDITION(size <= getBufPageSize(pSource->pBuf), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
@@ -123,8 +127,6 @@ _end:
 static int32_t svmSourceAddBlock(SStreamVtableMergeSource* pSource, SSDataBlock* pDataBlock, const char* idstr) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
-  int32_t      pageSize = 0;
-  int32_t      holdSize = 0;
   SSDataBlock* pInputDataBlock = NULL;
 
   QUERY_CHECK_NULL(pDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -139,21 +141,25 @@ static int32_t svmSourceAddBlock(SStreamVtableMergeSource* pSource, SSDataBlock*
 
   int32_t start = 0;
   int32_t nrows = blockDataGetNumOfRows(pDataBlock);
+  int32_t pageSize =
+      getBufPageSize(pSource->pBuf) - sizeof(int32_t) - taosArrayGetSize(pInputDataBlock->pDataBlock) * sizeof(int32_t);
   while (start < nrows) {
     int32_t holdSize = blockDataGetSize(pInputDataBlock);
     QUERY_CHECK_CONDITION(holdSize < pageSize, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    int32_t stop = 0;
+    int32_t stop = start;
     code = blockDataSplitRows(pDataBlock, pDataBlock->info.hasVarCol, start, &stop, pageSize - holdSize);
-    QUERY_CHECK_CODE(code, lino, _end);
     if (stop == start - 1) {
       // If pInputDataBlock cannot hold new rows, ignore the error and write pInputDataBlock to the buffer
     } else {
+      QUERY_CHECK_CODE(code, lino, _end);
       // append new rows to pInputDataBlock
       if (blockDataGetNumOfRows(pInputDataBlock) == 0) {
         // set expires time for the first block
         pSource->currentExpireTimeMs = taosGetTimestampMs() + tsStreamVirtualMergeMaxDelayMs;
       }
       int32_t numOfRows = stop - start + 1;
+      code = blockDataEnsureCapacity(pInputDataBlock, pInputDataBlock->info.rows + numOfRows);
+      QUERY_CHECK_CODE(code, lino, _end);
       code = blockDataMergeNRows(pInputDataBlock, pDataBlock, start, numOfRows);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -176,6 +182,17 @@ _end:
 
 static bool svmSourceIsEmpty(SStreamVtableMergeSource* pSource) { return listNEles(pSource->pageInfoList) == 0; }
 
+static int64_t svmSourceGetExpireTime(SStreamVtableMergeSource* pSource) {
+  SListNode* pn = tdListGetHead(pSource->pageInfoList);
+  if (pn != NULL) {
+    SVMBufPageInfo* pageInfo = (SVMBufPageInfo*)pn->data;
+    if (pageInfo != NULL) {
+      return pageInfo->expireTimeMs;
+    }
+  }
+  return INT64_MAX;
+}
+
 static int32_t svmSourceReadBuf(SStreamVtableMergeSource* pSource, const char* idstr) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -188,6 +205,11 @@ static int32_t svmSourceReadBuf(SStreamVtableMergeSource* pSource, const char* i
   QUERY_CHECK_NULL(pSource->pOutputDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   blockDataCleanup(pSource->pOutputDataBlock);
+  int32_t numOfCols = taosArrayGetSize(pSource->pOutputDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; i++) {
+    SColumnInfoData* pCol = taosArrayGet(pSource->pOutputDataBlock->pDataBlock, i);
+    pCol->hasNull = true;
+  }
 
   pn = tdListGetHead(pSource->pageInfoList);
   QUERY_CHECK_NULL(pn, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -215,21 +237,14 @@ static int32_t svmSourceCurrentTs(SStreamVtableMergeSource* pSource, const char*
   SColumnInfoData* tsCol = NULL;
 
   QUERY_CHECK_NULL(pSource, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(!svmSourceIsEmpty(pSource), code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pSource->pOutputDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  if (blockDataGetNumOfRows(pSource->pOutputDataBlock) == 0) {
-    code = svmSourceReadBuf(pSource, idstr);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-  QUERY_CHECK_CONDITION(pSource->rowIndex < blockDataGetNumOfRows(pSource->pOutputDataBlock), code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pSource->rowIndex >= 0 && pSource->rowIndex < blockDataGetNumOfRows(pSource->pOutputDataBlock),
+                        code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   tsCol = taosArrayGet(pSource->pOutputDataBlock->pDataBlock, 0);
   QUERY_CHECK_NULL(tsCol, code, lino, _end, terrno);
 
   *pTs = ((int64_t*)tsCol->pData)[pSource->rowIndex];
-  pSource->latestTs = TMAX(*pTs, pSource->latestTs);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -238,55 +253,54 @@ _end:
   return code;
 }
 
-static int32_t svmSourceMoveNext(SStreamVtableMergeSource* pSource, const char* idstr, SVM_NEXT_RESULT* pRes) {
+static int32_t svmSourceMoveNext(SStreamVtableMergeSource* pSource, const char* idstr) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   SListNode* pn = NULL;
   void*      page = NULL;
-  int64_t    latestTs = 0;
 
   QUERY_CHECK_NULL(pSource, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pSource->pOutputDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  *pRes = SVM_NEXT_NOT_READY;
-  latestTs = pSource->latestTs;
-
   while (true) {
-    if (svmSourceIsEmpty(pSource)) {
-      pSource->rowIndex = 0;
-      break;
+    if (pSource->rowIndex >= 0) {
+      QUERY_CHECK_CONDITION(pSource->rowIndex < blockDataGetNumOfRows(pSource->pOutputDataBlock), code, lino, _end,
+                            TSDB_CODE_INVALID_PARA);
+      pSource->rowIndex++;
+      if (pSource->rowIndex >= blockDataGetNumOfRows(pSource->pOutputDataBlock)) {
+        // Pop the page from the list and recycle it
+        pn = tdListPopHead(pSource->pageInfoList);
+        QUERY_CHECK_NULL(pn, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_NULL(pn->data, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        SVMBufPageInfo* pageInfo = (SVMBufPageInfo*)pn->data;
+        page = getBufPage(pSource->pBuf, pageInfo->pageId);
+        QUERY_CHECK_NULL(page, code, lino, _end, terrno);
+        code = dBufSetBufPageRecycled(pSource->pBuf, page);
+        QUERY_CHECK_CODE(code, lino, _end);
+        (*pSource->pTotalPages)--;
+        taosMemoryFreeClear(pn);
+        pSource->rowIndex = -1;
+      }
     }
 
-    QUERY_CHECK_CONDITION(pSource->rowIndex < blockDataGetNumOfRows(pSource->pOutputDataBlock), code, lino, _end,
-                          TSDB_CODE_INVALID_PARA);
-
-    pSource->rowIndex++;
-    if (pSource->rowIndex >= blockDataGetNumOfRows(pSource->pOutputDataBlock)) {
-      // Pop the page from the list and recycle it
-      pn = tdListPopHead(pSource->pageInfoList);
-      QUERY_CHECK_NULL(pn, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      QUERY_CHECK_NULL(pn->data, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      SVMBufPageInfo* pageInfo = (SVMBufPageInfo*)pn->data;
-      page = getBufPage(pSource->pBuf, pageInfo->pageId);
-      QUERY_CHECK_NULL(page, code, lino, _end, terrno);
-      code = dBufSetBufPageRecycled(pSource->pBuf, page);
+    if (pSource->rowIndex == -1) {
+      if (svmSourceIsEmpty(pSource)) {
+        break;
+      }
+      // Read the first page from the list
+      code = svmSourceReadBuf(pSource, idstr);
       QUERY_CHECK_CODE(code, lino, _end);
-      (*pSource->pTotalPages)--;
-      taosMemoryFreeClear(pn);
       pSource->rowIndex = 0;
     }
 
-    if (svmSourceIsEmpty(pSource)) {
-      pSource->rowIndex = 0;
-      break;
-    }
-
-    int64_t ts = 0;
-    code = svmSourceCurrentTs(pSource, idstr, &ts);
-    QUERY_CHECK_CODE(code, lino, _end);
-    if (ts > latestTs && ts >= *pSource->pGlobalLatestTs) {
-      *pRes = SVM_NEXT_FOUND;
-      break;
+    // Check the timestamp of the current row
+    int64_t currentTs = INT64_MIN;
+    code = svmSourceCurrentTs(pSource, idstr, &currentTs);
+    if (currentTs > pSource->latestTs) {
+      pSource->latestTs = currentTs;
+      if (currentTs >= *pSource->pGlobalLatestTs) {
+        break;
+      }
     }
   }
 
@@ -305,6 +319,12 @@ static int32_t svmSourceCompare(const void* pLeft, const void* pRight, void* par
   SArray*                   pValidSources = param;
   SStreamVtableMergeSource* pLeftSource = *(SStreamVtableMergeSource**)taosArrayGet(pValidSources, left);
   SStreamVtableMergeSource* pRightSource = *(SStreamVtableMergeSource**)taosArrayGet(pValidSources, right);
+
+  if (svmSourceIsEmpty(pLeftSource)) {
+    return 1;
+  } else if (svmSourceIsEmpty(pRightSource)) {
+    return -1;
+  }
 
   int64_t leftTs = 0;
   code = svmSourceCurrentTs(pLeftSource, "", &leftTs);
@@ -339,6 +359,7 @@ static SStreamVtableMergeSource* svmAddSource(SStreamVtableMergeHandle* pHandle,
   QUERY_CHECK_NULL(pSource->pageInfoList, code, lino, _end, terrno);
   code = createOneDataBlock(pHandle->datablock, false, &pSource->pOutputDataBlock);
   QUERY_CHECK_CODE(code, lino, _end);
+  pSource->rowIndex = -1;
   pSource->latestTs = INT64_MIN;
   pSource->pGlobalLatestTs = &pHandle->globalLatestTs;
   code = taosHashPut(pHandle->pSources, &uid, sizeof(uid), &pSource, POINTER_BYTES);
@@ -387,14 +408,16 @@ static int32_t svmBuildTree(SStreamVtableMergeHandle* pHandle, SVM_NEXT_RESULT* 
   pIter = taosHashIterate(pHandle->pSources, NULL);
   while (pIter != NULL) {
     SStreamVtableMergeSource* pSource = *(SStreamVtableMergeSource**)pIter;
-    if (svmSourceIsEmpty(pSource)) {
-      code = svmSourceFlushInput(pSource, idstr);
+    code = svmSourceFlushInput(pSource, idstr);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pSource->rowIndex == -1) {
+      code = svmSourceMoveNext(pSource, idstr);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     if (!svmSourceIsEmpty(pSource)) {
       px = taosArrayPush(pReadySources, &pSource);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      globalExpireTimeMs = TMIN(globalExpireTimeMs, pSource->currentExpireTimeMs);
+      globalExpireTimeMs = TMIN(globalExpireTimeMs, svmSourceGetExpireTime(pSource));
     }
     pIter = taosHashIterate(pHandle->pSources, pIter);
   }
@@ -427,6 +450,7 @@ static int32_t svmBuildTree(SStreamVtableMergeHandle* pHandle, SVM_NEXT_RESULT* 
   void* param = NULL;
   code = tMergeTreeCreate(&pHandle->pMergeTree, taosArrayGetSize(pReadySources), pReadySources, svmSourceCompare);
   QUERY_CHECK_CODE(code, lino, _end);
+  pHandle->numEmptySources = 0;
   pReadySources = NULL;
   *pRes = SVM_NEXT_FOUND;
 
@@ -453,7 +477,7 @@ int32_t streamVtableMergeAddBlock(SStreamVtableMergeHandle* pHandle, SSDataBlock
   QUERY_CHECK_NULL(pHandle, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  pTbUid = pDataBlock->info.id.uid;
+  pTbUid = pDataBlock->info.id.groupId;
   px = taosHashGet(pHandle->pSources, &pTbUid, sizeof(int64_t));
 
   if (px == NULL) {
@@ -480,8 +504,31 @@ _end:
   return code;
 }
 
-int32_t streamVtableMergeNextTuple(SStreamVtableMergeHandle* pHandle, SSDataBlock* pResBlock, SVM_NEXT_RESULT* pRes,
-                                   const char* idstr) {
+int32_t streamVtableMergeCurrent(SStreamVtableMergeHandle* pHandle, SSDataBlock** ppDataBlock, int32_t* pRowIdx,
+                                 const char* idstr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  QUERY_CHECK_NULL(pHandle, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pHandle->pMergeTree, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  int32_t idx = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
+  SArray* pReadySources = pHandle->pMergeTree->param;
+  void*   px = taosArrayGet(pReadySources, idx);
+  QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  SStreamVtableMergeSource* pSource = *(SStreamVtableMergeSource**)px;
+  QUERY_CHECK_NULL(pSource, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  *ppDataBlock = pSource->pOutputDataBlock;
+  *pRowIdx = pSource->rowIndex;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s, id: %s", __func__, lino, tstrerror(code), idstr);
+  }
+  return code;
+}
+
+int32_t streamVtableMergeMoveNext(SStreamVtableMergeHandle* pHandle, SVM_NEXT_RESULT* pRes, const char* idstr) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   void*                     px = NULL;
@@ -489,61 +536,74 @@ int32_t streamVtableMergeNextTuple(SStreamVtableMergeHandle* pHandle, SSDataBloc
   SStreamVtableMergeSource* pSource = NULL;
 
   QUERY_CHECK_NULL(pHandle, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(pResBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pRes, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   *pRes = SVM_NEXT_NOT_READY;
   if (pHandle->pMergeTree == NULL) {
-    SVM_NEXT_RESULT buildRes = SVM_NEXT_NOT_READY;
-    code = svmBuildTree(pHandle, &buildRes, idstr);
+    code = svmBuildTree(pHandle, pRes, idstr);
     QUERY_CHECK_CODE(code, lino, _end);
-    if (buildRes == SVM_NEXT_NOT_READY) {
-      goto _end;
-    }
+    goto _end;
   }
 
-  QUERY_CHECK_NULL(pHandle->pMergeTree, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   int32_t idx = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
   pReadySources = pHandle->pMergeTree->param;
   px = taosArrayGet(pReadySources, idx);
   QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   pSource = *(SStreamVtableMergeSource**)px;
-  code = blockCopyOneRow(pSource->pOutputDataBlock, pSource->rowIndex, &pResBlock);
   QUERY_CHECK_CODE(code, lino, _end);
-  *pRes = SVM_NEXT_FOUND;
   pHandle->globalLatestTs = TMAX(pSource->latestTs, pHandle->globalLatestTs);
 
-  SVM_NEXT_RESULT nextRes = SVM_NEXT_NOT_READY;
-  int32_t         origNumOfPages = pHandle->numOfPages;
-  code = svmSourceMoveNext(pSource, idstr, &nextRes);
+  int32_t origNumOfPages = pHandle->numOfPages;
+  code = svmSourceMoveNext(pSource, idstr);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  bool needDestroy = false;
-  if (nextRes == SVM_NEXT_NOT_READY) {
-    needDestroy = true;
-  } else if (taosArrayGetSize((SArray*)pHandle->pMergeTree->param) != pHandle->nSrcTbls &&
-             pHandle->numOfPages != origNumOfPages) {
-    // The original data for this portion is incomplete. Its merge was forcibly triggered by certain conditions, so we
-    // must recheck if those conditions are still met.
-    if (tsStreamVirtualMergeWaitMode == STREAM_VIRTUAL_MERGE_MAX_DELAY) {
-      int64_t globalExpireTimeMs = INT64_MAX;
-      for (int32_t i = 0; i < taosArrayGetSize(pReadySources); ++i) {
-        px = taosArrayGet(pReadySources, i);
-        QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        pSource = *(SStreamVtableMergeSource**)px;
-        globalExpireTimeMs = TMIN(globalExpireTimeMs, pSource->currentExpireTimeMs);
-      }
-      needDestroy = taosGetTimestampMs() < globalExpireTimeMs;
-    } else if (tsStreamVirtualMergeWaitMode == STREAM_VIRTUAL_MERGE_MAX_MEMORY) {
-      needDestroy = pHandle->numOfPages < pHandle->numPageLimit;
-    } else {
-      code = TSDB_CODE_INTERNAL_ERROR;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+  if (svmSourceIsEmpty(pSource)) {
+    ++pHandle->numEmptySources;
   }
 
+  bool needDestroy = false;
+  if (pHandle->numEmptySources == taosArrayGetSize(pReadySources)) {
+    // all sources are empty
+    needDestroy = true;
+  } else {
+    code = tMergeTreeAdjust(pHandle->pMergeTree, tMergeTreeGetAdjustIndex(pHandle->pMergeTree));
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pHandle->numEmptySources > 0) {
+      if (tsStreamVirtualMergeWaitMode == STREAM_VIRTUAL_MERGE_WAIT_FOREVER) {
+        idx = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
+        px = taosArrayGet(pReadySources, idx);
+        QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        pSource = *(SStreamVtableMergeSource**)px;
+        QUERY_CHECK_NULL(pSource, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        int64_t currentTs = INT64_MIN;
+        code = svmSourceCurrentTs(pSource, idstr, &currentTs);
+        QUERY_CHECK_CODE(code, lino, _end);
+        needDestroy = currentTs > pHandle->globalLatestTs;
+      } else if (pHandle->numOfPages != origNumOfPages) {
+        // The original data for this portion is incomplete. Its merge was forcibly triggered by certain conditions, so
+        // we must recheck if those conditions are still met.
+        if (tsStreamVirtualMergeWaitMode == STREAM_VIRTUAL_MERGE_MAX_DELAY) {
+          int64_t globalExpireTimeMs = INT64_MAX;
+          for (int32_t i = 0; i < taosArrayGetSize(pReadySources); ++i) {
+            px = taosArrayGet(pReadySources, i);
+            QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+            pSource = *(SStreamVtableMergeSource**)px;
+            globalExpireTimeMs = TMIN(globalExpireTimeMs, svmSourceGetExpireTime(pSource));
+          }
+          needDestroy = taosGetTimestampMs() < globalExpireTimeMs;
+        } else if (tsStreamVirtualMergeWaitMode == STREAM_VIRTUAL_MERGE_MAX_MEMORY) {
+          needDestroy = pHandle->numOfPages < pHandle->numPageLimit;
+        } else {
+          code = TSDB_CODE_INTERNAL_ERROR;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
+  }
   if (needDestroy) {
     svmDestroyTree(&pHandle->pMergeTree);
+  } else {
+    *pRes = SVM_NEXT_FOUND;
   }
 
 _end:
@@ -590,7 +650,8 @@ _end:
   return code;
 }
 
-void streamVtableMergeDestroyHandle(SStreamVtableMergeHandle** ppHandle) {
+void streamVtableMergeDestroyHandle(void* ptr) {
+  SStreamVtableMergeHandle** ppHandle = ptr;
   if (ppHandle == NULL || *ppHandle == NULL) {
     return;
   }
@@ -600,7 +661,7 @@ void streamVtableMergeDestroyHandle(SStreamVtableMergeHandle** ppHandle) {
     taosHashCleanup(pHandle->pSources);
     pHandle->pSources = NULL;
   }
-
+  blockDataDestroy(pHandle->datablock);
   svmDestroyTree(&pHandle->pMergeTree);
 
   taosMemoryFreeClear(*ppHandle);

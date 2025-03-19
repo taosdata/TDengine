@@ -3762,8 +3762,19 @@ static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
   SStreamScanInfo* pInfo = pOperator->info;
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+  SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
   qDebug("stream scan started, %s", id);
+
+  if (pVtableInfos != NULL && pStreamInfo->recoverStep != STREAM_RECOVER_STEP__NONE) {
+    qError("stream vtable source scan should not have recovery step: %d", pStreamInfo->recoverStep);
+    pStreamInfo->recoverStep = STREAM_RECOVER_STEP__NONE;
+  }
+
+  if (pVtableInfos != NULL && !pInfo->igCheckUpdate) {
+    qError("stream vtable source scan should have igCheckUpdate");
+    pInfo->igCheckUpdate = false;
+  }
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
       pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
@@ -3863,6 +3874,10 @@ static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 // TODO: refactor
 FETCH_NEXT_BLOCK:
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
+    if (pVtableInfos != NULL) {
+      qInfo("stream vtable source scan would ignore all data blocks");
+      pInfo->validBlockIndex = total;
+    }
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
       (*ppRes) = NULL;
@@ -4013,6 +4028,10 @@ FETCH_NEXT_BLOCK:
     return code;
   } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
     qDebug("stream scan mode:%d, %s", pInfo->scanMode, id);
+    if (pVtableInfos != NULL && pInfo->scanMode != STREAM_SCAN_FROM_READERHANDLE) {
+      qError("stream vtable source scan should not have scan mode: %d", pInfo->scanMode);
+      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+    }
     switch (pInfo->scanMode) {
       case STREAM_SCAN_FROM_RES: {
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -4167,6 +4186,11 @@ FETCH_NEXT_BLOCK:
           continue;
         }
 
+        if (pVtableInfos != NULL && pInfo->pCreateTbRes->info.rows > 0) {
+          qError("stream vtable source scan should not have create table res");
+          blockDataCleanup(pInfo->pCreateTbRes);
+        }
+
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
           qDebug("create table res exists, rows:%" PRId64 " return from stream scan, %s",
@@ -4178,8 +4202,11 @@ FETCH_NEXT_BLOCK:
         code = doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
         QUERY_CHECK_CODE(code, lino, _end);
         setStreamOperatorState(&pInfo->basic, pInfo->pRes->info.type);
-        code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (pVtableInfos == NULL) {
+          // filter should be applied in merge task for vtables
+          code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
 
         code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -4493,6 +4520,14 @@ void destroyStreamScanOperatorInfo(void* param) {
   if (pStreamScan->pVtableMergeHandles) {
     taosHashCleanup(pStreamScan->pVtableMergeHandles);
     pStreamScan->pVtableMergeHandles = NULL;
+  }
+  if (pStreamScan->pVtableMergeBuf) {
+    destroyDiskbasedBuf(pStreamScan->pVtableMergeBuf);
+    pStreamScan->pVtableMergeBuf = NULL;
+  }
+  if (pStreamScan->pVtableReadyHandles) {
+    taosArrayDestroy(pStreamScan->pVtableReadyHandles);
+    pStreamScan->pVtableReadyHandles = NULL;
   }
   if (pStreamScan->matchInfo.pList) {
     taosArrayDestroy(pStreamScan->matchInfo.pList);
@@ -4962,8 +4997,8 @@ _error:
     taosArrayDestroy(pColIds);
   }
 
-  if (pInfo != NULL) {
-    STableScanInfo* p = (STableScanInfo*) pInfo->pTableScanOp->info;
+  if (pInfo != NULL && pInfo->pTableScanOp != NULL) {
+    STableScanInfo* p = (STableScanInfo*)pInfo->pTableScanOp->info;
     if (p != NULL) {
       p->base.pTableListInfo = NULL;
     }
