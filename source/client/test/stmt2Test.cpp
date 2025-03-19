@@ -1167,6 +1167,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
 }
 
 // TD-33419
+// TD-34075
 TEST(stmt2Case, stmt2_insert_db) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
@@ -1177,7 +1178,7 @@ TEST(stmt2Case, stmt2_insert_db) {
            "INSERT INTO `stmt2_testdb_12`.`stb1` (ts,int_tag,tbname)  VALUES "
            "(1591060627000,1,'tb1')(1591060627000,2,'tb2')");
 
-  TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
