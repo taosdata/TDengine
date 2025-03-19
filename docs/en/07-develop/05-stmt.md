@@ -147,7 +147,7 @@ Not supported
 </TabItem>
 <TabItem label="C" value="c">
 
-The example code for binding parameters with stmt2 (Go connector v3.6.0 and above, TDengine v3.3.5.0 and above) is as follows:
+The example code for binding parameters with stmt2 (TDengine v3.3.5.0 or higher is required) is as follows:
 
 ```c
 {{#include docs/examples/c/stmt2_insert_demo.c}}

@@ -142,7 +142,7 @@ stmt 绑定参数的示例代码如下：
 </TabItem>
 <TabItem label="C" value="c">
 
-stmt2 绑定参数的示例代码如下（TDengine v3.3.5.0 及以上）：
+stmt2 绑定参数的示例代码如下（需要 TDengine v3.3.5.0 及以上）：
 
 ```c
 {{#include docs/examples/c/stmt2_insert_demo.c}}
