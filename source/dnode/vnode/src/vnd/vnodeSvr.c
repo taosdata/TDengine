@@ -599,13 +599,12 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
   int32_t  code = 0;
   int32_t  lino = 0;
   uint64_t seq = 0;
+  int32_t  nr = 0;
 
-  int32_t    nr = 0;
   SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
-
   int32_t    sz = taosHashGetSize(pBlobRow->pSeqTable);
-  SBseBatch *pBatch = NULL;
 
+  SBseBatch *pBatch = NULL;
   code = bseBatchInit(pVnode->pBse, &pBatch, sz);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -622,7 +621,7 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
     nr += 1;
   }
 
-  code = bseBatchCommit(pBatch);
+  code = bseAppendBatch(pVnode->pBse, pBatch);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = bseBatchDestroy(pBatch);

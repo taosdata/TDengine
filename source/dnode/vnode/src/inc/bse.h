@@ -175,6 +175,8 @@ int32_t bseEndSnapshot(SBse *pBse);
 int32_t bseStopSnapshot(SBse *pBse);
 void    bseClose(SBse *pBse);
 
+int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch);
+
 int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t len);
 int32_t bseBatchGet(SBseBatch *pBatch, uint64_t seq, uint8_t **pValue, int32_t *len);

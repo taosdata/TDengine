@@ -259,19 +259,14 @@ static int32_t blockSeekSeq(SBlkData *data, int64_t seq, uint8_t **pValue, int32
   SBlkData2 *pBlkData = data->pData;
   uint8_t   *pos = (uint8_t *)pBlkData->data;
   uint8_t   *start = (uint8_t *)pBlkData->data;
-  int64_t    preKey = 0;
   do {
     pos = taosDecodeVariantI64(pos, &tkey);
-    if (preKey != 0 && preKey > tkey) {
-      ASSERT(0);
-    }
     if (tkey == seq) {
       pos = taosDecodeVariantI32(pos, &tlen);
       pos = taosDecodeBinary(pos, (void **)pValue, tlen);
       found = 1;
       break;
     }
-    preKey = tkey;
     pos = taosDecodeVariantI32(pos, &tlen);
     pos += tlen;
   } while ((pos - start) <= pBlkData->len);
@@ -587,7 +582,13 @@ int32_t tableCommit(STable *pTable) {
 int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk) {
   int32_t code = 0;
   int32_t offset = blockId * kBlockCap;
-  taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
+
+  code = taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
+  if (code != 0) {
+    code = terrno;
+    return code;
+  }
+
   SBlkData2 *pBlk = blk->pData;
 
   int64_t len = taosReadFile(pTable->pDataFile, (uint8_t *)pBlk, kBlockCap);
@@ -596,7 +597,7 @@ int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk) {
     return code;
   }
   if (taosCheckChecksumWhole((uint8_t *)pBlk, kBlockCap) == 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_FILE_CORRUPTED;
   }
   return code;
 }
