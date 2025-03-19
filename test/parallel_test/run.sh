@@ -198,9 +198,9 @@ function run_thread() {
         #     case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         # fi
 
-        # if echo "$case_cmd" | grep -q "^./pytest.sh"; then
-        #     case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
-        # fi
+        if echo "$case_cmd" | grep -q "^./pytest.sh"; then
+            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+        fi
 
         # if echo "$case_cmd" | grep -q "\.sim"; then
         #     case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
