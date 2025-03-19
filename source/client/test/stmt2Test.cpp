@@ -634,6 +634,16 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
     printf("case 9 : %s\n", sql);
     getFieldsSuccess(taos, sql, expectedFields, 5);
   }
+  // case 11 : TD-34097
+  {
+    do_query(taos, "use stmt2_testdb_3");
+    const char*    sql = "INSERT INTO ? using stb (t1,t2) TAGS(1,'abc') (ts,b)VALUES(?,?)";
+    TAOS_FIELD_ALL expectedFields[3] = {{"tbname", TSDB_DATA_TYPE_BINARY, 0, 0, 271, TAOS_FIELD_TBNAME},
+                                        {"ts", TSDB_DATA_TYPE_TIMESTAMP, 2, 0, 8, TAOS_FIELD_COL},
+                                        {"b", TSDB_DATA_TYPE_BINARY, 0, 0, 12, TAOS_FIELD_COL}};
+    printf("case 11 : %s\n", sql);
+    getFieldsSuccess(taos, sql, expectedFields, 3);
+  }
 
   // case 10 : test all types
   {
