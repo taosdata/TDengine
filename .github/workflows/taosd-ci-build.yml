@@ -164,6 +164,7 @@ jobs:
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           ./build.sh bld -v
           ./build.sh install
+          ./build.sh stop
           which taosd
           which taosadapter
           which taoskeeper
