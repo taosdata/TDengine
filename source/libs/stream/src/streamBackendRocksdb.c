@@ -3115,7 +3115,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
     STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;                                                   \
     TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));                                                      \
     char toString[128] = {0};                                                                                        \
-    if (stDebugFlag & DEBUG_TRACE) TAOS_UNUSED((ginitDict[i].toStrFunc((void*)key, toString)));                      \
+    TAOS_UNUSED((ginitDict[i].toStrFunc((void*)key, toString)));                      \
     int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                     \
     rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pCf)[ginitDict[i].idx];    \
     rocksdb_writeoptions_t*         opts = wrapper->writeOpt;                                                        \
@@ -4531,8 +4531,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   int32_t klen = ginitDict[cfIdx].enFunc((void*)key, buf);
 
   ginitDict[cfIdx].toStrFunc((void*)key, toString);
-  if (cfIdx == 1)
-    qInfo("[InternalERR] write cfIdx:%d key:%s vlen:%d", cfIdx, toString, vlen);
+  qInfo("[InternalERR] write cfIdx:%d key:%s vlen:%d", cfIdx, toString, vlen);
 
   char*   ttlV = tmpBuf;
   int32_t ttlVLen = ginitDict[cfIdx].enValueFunc(dst, size, ttl, &ttlV);
