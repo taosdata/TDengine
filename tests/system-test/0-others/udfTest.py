@@ -631,11 +631,14 @@ class TDTestCase:
             tdSql.query("select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
-            # stop taosudf cmds
-            get_processID = "ps -ef | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
-            processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
-            stop_udfd = " kill -9 %s" % processID
-            os.system(stop_udfd)
+            
+            env = os.environ.copy()
+            if 'LD_PRELOAD' in env:
+                del env['LD_PRELOAD']
+            # process_id = subprocess.check_output("ps -ef | grep -w udfd | grep -v grep | awk '{print $2}' ", shell=True, text=True, env=env)
+            # print(f"process_id: {process_id}")
+            killCmd = "ps -ef | grep -w udfd | grep -v grep | awk '{print $2}' | xargs kill "
+            subprocess.run(killCmd, shell=True, text=True, env=env)
 
             time.sleep(2)
 
