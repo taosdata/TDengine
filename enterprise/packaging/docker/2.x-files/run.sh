@@ -19,6 +19,7 @@ SLEEP_INTERVAL=${SLEEP_INTERVAL:-10}
 DNODE_CREATED=0
 MNODE_CREATED=0
 SNODE_CREATED=0
+ANODE_CREATED=0
 
 # set the timezone for the TDengine
 if [ "$TZ" != "" ]; then
@@ -339,7 +340,7 @@ function print_service_state_change() {
 function initDnodeAndMnode {
     while true
     do 
-        if [ $DNODE_CREATED -eq 1 ] && [ $MNODE_CREATED -eq 1 ] && [ $SNODE_CREATED -eq 1 ]; then
+        if [ $DNODE_CREATED -eq 1 ] && [ $MNODE_CREATED -eq 1 ] && [ $SNODE_CREATED -eq 1 ]&& [ $ANODE_CREATED -eq 1 ]; then
             break 
         fi
         # first check dnode created
@@ -379,6 +380,26 @@ function initDnodeAndMnode {
         else
             #snode can only be create once;
             SNODE_CREATED=1
+        fi
+        if [ $DNODE_CREATED -eq 1 ] && [ "$FQDN" == "$FIRST_EP_HOST" ]; then
+            #check snode created
+            ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
+            if [[ "$ANODETmp" == "" ]]; then
+                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create anode \"127.0.0.1:6090\";"
+                ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
+                if [[ "$ANODETmp" != "" ]]; then
+                    ANODE_CREATED=1
+                    logger "INFO" "Created the anode"
+                else 
+                    logger "ERROR" "failed to create anode through taos"
+                fi
+            else 
+                ANODE_CREATED=1
+                logger "INFO" "Anode $ANODETmp already created"
+            fi
+        else
+            #anode only be create once;
+            ANODE_CREATED=1
         fi
         if [[ "$FQDN" != "$FIRST_EP_HOST" ]]; then
             # second check mnode created
