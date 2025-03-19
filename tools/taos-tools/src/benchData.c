@@ -293,6 +293,7 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
 
 int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
     char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db);
+    debugPrint("taos_stmt_prepare sql:%s\n", prepare);
     if (taos_stmt_prepare(stmt, prepare, strlen(prepare))) {
         errorPrint("taos_stmt_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt_errstr(stmt));
         tmfree(prepare);
@@ -304,6 +305,7 @@ int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t t
 
 int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
     char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db);
+    debugPrint("taos_stmt2_prepare sql:%s\n", prepare);
     if (taos_stmt2_prepare(stmt2, prepare, strlen(prepare))) {
         errorPrint("taos_stmt2_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt2_error(stmt2));
         tmfree(prepare);
