@@ -292,22 +292,168 @@ void hashMapDestroy(HashMap *map) {
 // -----------------  dbChagne -------------------------
 //
 
+// create 
+DBChange createDbChange(const char *dbPath) {
+    //TOTO
+    DBChange * pDbChange = (DBChange *)calloc(1, sizeof(DBChange));
+    pDbChange->dbPath = dbPath;
 
-// find tag, return true not exist else false
-bool tagDeleted(DBChange *pDbChange, char *stbName, char* tagName) {
+    return pDbChange;
+}
+
+// free
+void freeDBChange(DBChange *pDbChange) {
     // TODO
-    if (pDbChange == NULL) {
-        // no changed
-        return false;
+
+    // free stbChange
+
+    
+    // free 
+    hashMapDestroy(&pDbChange->stbMap);
+}
+
+
+// generate part string
+char * genPartStr(ColDes *colDes, int from , int num) {
+    // TODO
+    return NULL;
+}
+
+
+// return true: schema no changed , false: changed
+bool schemaNoChanged(RecordSchema *recordSchema, TableDes *tableDes) {
+    //TODO
+    return true;
+}
+
+// local schema recordSchema cross with server schema tableDes
+int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchema *recordSchema, TableDes *tableDes) {
+
+    // record old
+    int oldc = tableDes->columns;
+    int oldt = tableDes->tags;
+
+    int newc = 0; // col num
+    int newt = 0; // tag num
+
+    // check schema no change
+    if (schemaNoChanged(recordSchema, tableDes)) {
+        infoPrint("stb:%s schema no changed. server col:%d tag:%d\n", recordSchema->stbName, oldc, oldt);
+        pStbChange->tableDes      = tableDes;
+        pStbChange->schemaChanged = false;
+        return 0;
     }
 
-    // find stb
+    // loop all
+    for (int i = 0; i < oldc + oldt; i++) {
+        ColDes * colDes = tableDes->cols + i;
+        if (i < oldc) {
+            // col
+            if (findFieldInLocal(recordSchema->cols, recordSchema->num_cols, colDes->field)) {
+                moveColDes(tableDes->cols, i, newc);
+                ++newc;
+            }
+        } else {
+            // tag
+            if (findFieldInLocal(recordSchema->fields, recordSchema->num_fields, colDes->field)) {
+                moveColDes(tableDes->cols, i,  newc + newt);
+                ++newt;
+            }
+        }
+    }
+
+    // check valid
+    if (newc == 0) {
+        // col must not zero
+        errorPrint("%s() LN%d, new column zero failed! oldc=%d\n", __func__, __LINE__, oldc);
+        return -1;
+    }
+    if (newt == 0) {
+        // tag must not zero
+        errorPrint("%s() LN%d, new tag zero failed! oldt=%d\n", __func__, __LINE__, oldt);
+        return -1;
+    }
+
+    // set new
+    tableDes->columns = newc;
+    tableDes->tags    = newt;
+
     
+    // save tableDes to StbChange
+    pStbChange->tableDes = tableDes;
+    
+    // gen part str
+    pStbChange->strCols = genPartStr(tableDes->cols, 0, newc);
+    pStbChange->strTags = genPartStr(tableDes->cols, newc, newt);
+
+    pStbChange->schemaChanged = true;
+    // show change log
+    infoPrint("stb:%s have schema changed. server col:%d tag:%d local col:%d tag:%d\n", 
+                recordSchema->stbName, oldc, oldt, newc, newt);
+
+    return 0;
+}
 
 
+// add stb recordSchema to dbChange
+int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchema, StbChange **ppStbChange) {
+    // TODO
+
+    char *stbName = recordSchema->stbName;
+    if (stbName == NULL || stbName[0] == 0) {
+        errorPrint("%s() LN:%d, stbName null or empty.", __func__, __LINE__);
+        return -1;
+    }
+
+    //
+    // server
+    //
+    TableDes *tableDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+    if (NULL == tableDes) {
+        errorPrint("%s() LN%d, mallocDes calloc failed!\n", __func__, __LINE__);
+        return -1;
+    }
+
+    if (getTableDes(taos, pDbChange->dbName, stbName, tableDes, true) < 0) {
+        errorPrint("%s() LN%d getTableDes failed, db:%s stb:%s !\n", __func__, __LINE__, pDbChange->dbName, stbName);
+        return -1;
+    }
+
+    // init
+    StbChange *pStbChange = (StbChange *)calloc(1, sizeof(StbChange));
+
+    //
+    // compare local & server and auto calc 
+    //
+    if (localCrossServer(pDbChange, pStbChange, recordSchema, tableDes)) {
+        errorPrint("%s() LN%d localCrossServer failed, db:%s stb:%s !\n", __func__, __LINE__, pDbChange->dbName, stbName);
+        free(pStbChange);
+        freeTbDes(tableDes, true);
+        return -1;
+    }
+    pStbChange->schemaChanged = true; 
+    
+    // set out
+    if (ppStbChange) {
+        *ppStbChange = pStbChange;
+    }
+
+    // add to DbChange hashMap
+    if (!hashMapInsert(pDbChange->stbMap, pStbChange)) {
+        errorPrint("%s() LN%d add hashMap failed, db:%s stb:%s !\n", __func__, __LINE__, pDbChange->dbName, stbName);
+        free(pStbChange);
+        freeTbDes(tableDes, true);
+        return -1;
+    }
+
+    // free nothing
+
+    return 0;
+}
 
 
-
-
-    return false;
+// find stbChange with stbName
+StbChange * findStbChange(DBChange *pDbChange, char *stbName) {
+    // TODO
+    return NULL;
 }

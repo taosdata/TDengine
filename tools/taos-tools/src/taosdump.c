@@ -4458,18 +4458,22 @@ static int64_t dumpInAvroTbTagsImpl(
     int64_t success = 0;
     int64_t failed = 0;
 
+    // table des
+    TableDes  *tableDes   = NULL;
+    TableDes  *mallocDes  = NULL;    
+
     // 
     // add stb schema changed info to dbChanged
     //
-    StbChange * stbChange = NULL;
-    int code = AddStbChanged(pDbChange, *taos_v, recordSchema, &stbChange);
+    StbChange * pStbChange = NULL;
+    int code = AddStbChanged(pDbChange, *taos_v, recordSchema, &pStbChange);
     if (code) {
         return code;
     }
     // part tags
     char *partTags = "";
-    if (stbChange && stbChange->strTags) {
-        partTags = stbChange->strTags;
+    if (pStbChange && pStbChange->strTags) {
+        partTags = pStbChange->strTags;
     }
 
     char *sqlstr = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
@@ -4478,17 +4482,23 @@ static int64_t dumpInAvroTbTagsImpl(
         return -1;
     }
 
+    
+    if(pStbChange) {
+        // use super table des
+        tableDes = pStbChange->tableDes;
+    }
 
-    //
     // malloc TableDes
-    //
-    TableDes *tableDes = (TableDes *)calloc(1, sizeof(TableDes)
-            + sizeof(ColDes) * TSDB_MAX_COLUMNS);
-    if (NULL == tableDes) {
-        errorPrint("%s() LN%d, memory allocation failed!\n",
-                __func__, __LINE__);
-        free(sqlstr);
-        return -1;
+    if(tableDes == NULL) {
+        // old data format no super table des
+        mallocDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+        if (NULL == mallocDes) {
+            errorPrint("%s() LN%d, mallocDes memory allocation failed!\n", __func__, __LINE__);
+            free(sqlstr);
+            return -1;
+        }
+        // set 
+        tableDes = mallocDes;
     }
 
     avro_value_iface_t *value_class = avro_generic_class_from_schema(schema);
@@ -4544,8 +4554,16 @@ static int64_t dumpInAvroTbTagsImpl(
                 if ((0 == strlen(tableDes->name))
                         || (0 != strcmp(tableDes->name, stbName))) {
                     // from server get tableDes
-                    getTableDes(*taos_v, namespace,
-                                stbName, tableDes, false);
+                    if (mallocDes) {
+                        // only old data format can get des from server
+                        if(getTableDes(*taos_v, namespace, stbName, mallocDes, false) < 0) {
+                            if (mallocDes) {
+                                freeTbDes(mallocDes, true);
+                            }
+                            free(sqlstr);
+                            return -1;
+                        }
+                    }                    
                 }
 
                 // get tbName from avro with "tbname"
@@ -4563,26 +4581,18 @@ static int64_t dumpInAvroTbTagsImpl(
                         namespace, g_escapeChar, tbName, g_escapeChar, partTags,
                         namespace, g_escapeChar, stbName, g_escapeChar);
 
-                debugPrint("%s() LN%d, command buffer: %s\n",
+                debugPrint("%s() LN%d, pre sql: %s\n",
                         __func__, __LINE__, sqlstr);
             } else {
                 // not first
                 FieldStruct *field = (FieldStruct *)
                     (recordSchema->fields + sizeof(FieldStruct)*(i + tagAdjExt));
 
-                // check tag deleted on server
-                if (tagDeleted(pDbChange, stbName, field->name)) {
-                    debugPrint("stbName:%s tag:%s on server not exist.\n", stbName, field->name);
-                    continue;
-                }
-
-                partIdx ++;
-
                 // get tag value
                 if (0 == avro_value_get_by_name(
                             &value, field->name, &field_value, NULL)) {
-                    // get type with tbname
-                                
+
+                    // read value with type            
                     switch (tableDes->cols[tableDes->columns - 1 + i].type) {
                         case TSDB_DATA_TYPE_BOOL:
                             curr_sqlstr_len = dumpInAvroBool(
@@ -4675,7 +4685,9 @@ static int64_t dumpInAvroTbTagsImpl(
 
                 avro_value_decref(&value);
                 avro_value_iface_decref(value_class);
-                freeTbDes(tableDes, true);
+                if (mallocDes) {
+                    freeTbDes(mallocDes, true);
+                }                
                 free(sqlstr);
                 return -1;
             }
@@ -4703,11 +4715,13 @@ static int64_t dumpInAvroTbTagsImpl(
     avro_value_decref(&value);
     avro_value_iface_decref(value_class);
 
-    freeTbDes(tableDes, true);
+    if (mallocDes) {
+        freeTbDes(mallocDes, true);
+    }
     free(sqlstr);
 
     if (failed)
-        return failed;
+        return -1;
     return success;
 }
 
@@ -5417,6 +5431,8 @@ static int64_t dumpInAvroDataImpl(
         RecordSchema *recordSchema,
         DBChange* pDbChange,
         char *fileName) {
+    
+    // init stmt
     TAOS_STMT *stmt = NULL;
     stmt = taos_stmt_init(*taos_v);
     if (NULL == stmt) {
@@ -5426,12 +5442,30 @@ static int64_t dumpInAvroDataImpl(
                 taos_errno(NULL), taos_errstr(NULL));
         return -1;
     }
-    TableDes *tableDes = (TableDes *)calloc(1, sizeof(TableDes)
-            + sizeof(ColDes) * TSDB_MAX_COLUMNS);
-    if (NULL == tableDes) {
-        errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-        taos_stmt_close(stmt);
-        return -1;
+
+    // table des
+    TableDes  *tableDes   = NULL;
+    TableDes  *mallocDes  = NULL;
+    StbChange *pStbChange = NULL;
+    if (pDbChange) {
+        // get pStbChange with schema record stbName
+        pStbChange = findpStbChange(pDbChange, recordSchema->stbName);
+        if(pStbChange) {
+            // use super table des
+            tableDes = pStbChange->tableDes;
+        }
+    }
+
+    if(tableDes == NULL) {
+        // old data format no super table des
+        mallocDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+        if (NULL == mallocDes) {
+            errorPrint("%s() LN%d, mallocDes memory allocation failed!\n", __func__, __LINE__);
+            taos_stmt_close(stmt);
+            return -1;
+        }
+        // set 
+        tableDes = mallocDes;
     }
 
     char *stmtBuffer = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
@@ -5442,8 +5476,14 @@ static int64_t dumpInAvroDataImpl(
         return -1;
     }
 
+    // part cols
+    char *partCols = "";
+    if (pStbChange && pStbChange->strCols) {
+        partCols = pStbChange->strCols;
+    }    
+
     char *pstr = stmtBuffer;
-    pstr += snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN, "INSERT INTO ? VALUES(?");
+    pstr += snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN, "INSERT INTO ? %s VALUES(?", partCols);
 
     int32_t onlyCol = 1;    // at least timestamp
     for (int col = 1; col < recordSchema->num_fields
@@ -5455,6 +5495,7 @@ static int64_t dumpInAvroDataImpl(
     debugPrint("%s() LN%d, stmt buffer: %s\n",
             __func__, __LINE__, stmtBuffer);
 
+    // prepare
     int code;
     if (0 != (code = taos_stmt_prepare(stmt, stmtBuffer, 0))) {
         errorPrint("Failed to execute taos_stmt_prepare(). reason: %s\n",
@@ -5475,7 +5516,9 @@ static int64_t dumpInAvroDataImpl(
     if (NULL == bindArray) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
         free(stmtBuffer);
-        free(tableDes);
+        if (mallocDes) {
+            free(mallocDes);
+        }        
         taos_stmt_close(stmt);
         return -1;
     }
@@ -5522,7 +5565,9 @@ static int64_t dumpInAvroDataImpl(
                 errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
                 free(bindArray);
                 free(stmtBuffer);
-                free(tableDes);
+                if (mallocDes) {
+                    freeTbDes(mallocDes, true);
+                }          
                 tfree(tbName);
                 taos_stmt_close(stmt);
                 return -1;
@@ -5534,6 +5579,7 @@ static int64_t dumpInAvroDataImpl(
             debugPrint("%s() LN%d escaped table: %s\n",
                     __func__, __LINE__, escapedTbName);
 
+            // call set table name
             if (0 != taos_stmt_set_tbname(stmt, escapedTbName)) {
                 errorPrint("Failed to execute taos_stmt_set_tbname(%s)."
                         "reason: %s\n",
@@ -5546,8 +5592,19 @@ static int64_t dumpInAvroDataImpl(
             free(escapedTbName);
             if ((0 == strlen(tableDes->name))
                     || (0 != strcmp(tableDes->name, tbName))) {
-                getTableDes(*taos_v, namespace,
-                            tbName, tableDes, true);
+                if (mallocDes) {
+                    // only old data format can get des from server
+                    if (getTableDes(*taos_v, namespace, tbName, mallocDes, true) < 0) {
+                        free(bindArray);
+                        free(stmtBuffer);
+                        if (mallocDes) {
+                            freeTbDes(mallocDes, true);
+                        }                    
+                        tfree(tbName);
+                        taos_stmt_close(stmt);
+                        return -1;
+                    }
+                }
             }   
         } // tbName
 
@@ -5560,6 +5617,8 @@ static int64_t dumpInAvroDataImpl(
 
         char is_null = 1;
         int64_t ts_debug = -1;
+
+        // cols loop
         for (int i = 0; i < recordSchema->num_fields-colAdj; i++) {
             bind = (TAOS_MULTI_BIND *)((char *)bindArray
                     + (sizeof(TAOS_MULTI_BIND) * i));
@@ -5609,6 +5668,8 @@ static int64_t dumpInAvroDataImpl(
                 }
             } else if (0 == avro_value_get_by_name(
                         &value, field->name, &field_value, NULL)) {
+
+                // switch type read col value
                 switch (tableDes->cols[i].type) {
                     case TSDB_DATA_TYPE_INT:
                         if (field->type != TSDB_DATA_TYPE_INT) {
@@ -5762,8 +5823,9 @@ static int64_t dumpInAvroDataImpl(
                 bind->length = (int32_t *)&bind->buffer_length;
             }
             bind->num = 1;
-        }
+        } // cols loop end
         debugPrint2("%s", "\n");
+        // bind batch
         if (0 != (code = taos_stmt_bind_param_batch(stmt,
                 (TAOS_MULTI_BIND *)bindArray))) {
             errorPrint("%s() LN%d stmt_bind_param_batch() failed! "
@@ -5773,6 +5835,7 @@ static int64_t dumpInAvroDataImpl(
             continue;
         }
 
+        // add batch
         if (0 != (code = taos_stmt_add_batch(stmt))) {
             errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
@@ -5819,7 +5882,9 @@ static int64_t dumpInAvroDataImpl(
     avro_value_iface_decref(value_class);
     tfree(bindArray);
     tfree(stmtBuffer);
-    freeTbDes(tableDes, true);
+    if (mallocDes) {
+        freeTbDes(mallocDes, true);
+    }
     taos_stmt_close(stmt);
     if (failed) {
         if (countTSOutOfRange) {
@@ -8929,12 +8994,6 @@ static int dumpInDbs(const char *dbPath, DBChange **ppDBChange) {
     return 0;
 }
 
-// free DBInfo
-void freeDBChange(DBChange *pDbChange) {
-    if(pDbChange) {
-        hashMapDestroy(&pDbChange->stbMap);
-    }
-}
 
 static int dumpInWithDbPath(const char *dbPath) {
     int ret = 0;
@@ -8947,18 +9006,13 @@ static int dumpInWithDbPath(const char *dbPath) {
         return -1;
     }
 
-    DBChange *pDbChange = createDbChange();
+    // create 
+    DBChange *pDbChange = createDbChange(dbPath);
 
     if (g_args.avro) {
         // create DBChange if table schema changed
         ret = dumpInAvroWorkThreads(dbPath, "avro-tbtags", pDbChange);
         if (0 == ret) {
-            // if no change
-            if (pDbChange && schemaNoChange(pDbChange)) {
-                freeDBChange(pDbChange);
-                pDbChange = NULL;
-            }
-
             // dump in with DBChange
             ret = dumpInAvroWorkThreads(dbPath, "avro-ntb", pDbChange);
 

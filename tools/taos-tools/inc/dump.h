@@ -260,8 +260,9 @@ typedef struct StbChange {
     TableDes *tableDes;
     
     // bellow create by tableDes
-    char * strTags;
-    char * strCols;
+    char *strTags;
+    char *strCols;
+    bool schemaChanged; // col or tag have changed is True else false
 } StbChange;
 
 
@@ -270,6 +271,7 @@ typedef struct DBChange {
     int16_t version;
     // record all stb
     HashMap  stbMap;
+    char     dbName[TSDB_DB_NAME_LEN];
 } DBChange;
 
 typedef enum enAVROTYPE AVROTYPE;
@@ -324,6 +326,8 @@ typedef struct FieldStruct_S {
     bool nullable;
     bool is_array;
     int array_type;
+    // support stbChange
+    int db_type; // tinyint smallint ...
 } FieldStruct;
 
 typedef struct InspectStruct_S {
@@ -335,10 +339,12 @@ typedef struct InspectStruct_S {
 } InspectStruct;
 
 typedef struct RecordSchema_S {
+    int version;
     char name[RECORD_NAME_LEN];
     char *fields;
     int  num_fields;
-    // for add & del schema feat
+
+    // support stbChange
     char stbName[TSDB_TABLE_NAME_LEN]; 
     char* cols;
     int  num_cols;

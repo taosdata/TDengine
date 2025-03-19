@@ -98,11 +98,25 @@ void hashMapDestroy(HashMap *map);
 
 
 //
-// -----------------  dbChagne -------------------------
+// -----------------  dbChange -------------------------
 //
 struct DBChange;
+struct StbChange;
+struct RecordSchema;
 
-// find tag, return true not exist else false
-bool tagDeleted(DBChange *pDbChange, char *stbName, char* tagName);
+// create 
+DBChange createDbChange(const char *dbPath);
+// free
+void freeDBChange(DBChange *pDbChange);
+
+
+
+// add stb recordSchema to dbChange
+int32_t AddStbChanged(DBChange *pDbChange, TAOS taos, RecordSchema *recordSchema, StbChange **ppStbChange);
+
+// find stbChange with stbName
+StbChange * findStbChange(DBChange *pDbChange, char *stbName);
+
+
 
 #endif  // INC_DUMPUTIL_H_
