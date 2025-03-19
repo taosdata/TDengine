@@ -1474,7 +1474,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   sInfo("vgId:%d, restore began, and keep syncing until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
   if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-      (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex, NULL)) < 0) {
+      (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex, NULL, "restore")) < 0) {
     TAOS_RETURN(code);
   }
 
@@ -1708,7 +1708,7 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   (void)atomic_add_fetch_64(&pSyncNode->electTimerLogicClock, 1);
   bool stop = taosTmrStop(pSyncNode->pElectTimer);
-  sDebug("vgId:%d, stop elect timer, stop:%d", pSyncNode->vgId, stop);
+  sTrace("vgId:%d, stop elect timer, stop:%d", pSyncNode->vgId, stop);
   pSyncNode->pElectTimer = NULL;
 
   return code;
@@ -3445,7 +3445,7 @@ _out:;
     sGTrace(trace, "vgId:%d, index:%" PRId64 ", update assigned commit, msg:%p", ths->vgId, index, pMsg);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-        syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex, trace) < 0) {
+        syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex, trace, "append-entry") < 0) {
       sGError(trace, "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64, ths->vgId, index,
               pMsg, ths->commitIndex);
       code = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -3463,7 +3463,7 @@ _out:;
           matchIndex, pMsg, returnIndex);
 
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-      (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, trace)) < 0) {
+      (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, trace, "append-entry")) < 0) {
     sGError(trace,
             "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64 " return index:%" PRId64,
             ths->vgId, matchIndex, pMsg, ths->commitIndex, returnIndex);
@@ -3593,15 +3593,16 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   // reply
   TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
-  sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64,
+  sGDebug(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64,
           ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp);
 
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
 
   if (currentTerm == 0) currentTerm = raftStoreGetTerm(ths);
-  sGTrace(&rpcMsg.info.traceId,
-          "vgId:%d, process sync-heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64,
-          ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
+  sGDebug(&rpcMsg.info.traceId,
+          "vgId:%d, process sync-heartbeat msg from dnode:%d, commit-index:%" PRId64 ", cluster:%d msgTerm:%" PRId64
+          " currentTerm:%" PRId64,
+          ths->vgId, DID(&(pMsg->srcId)), pMsg->commitIndex, CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
   if (pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
     raftStoreSetTerm(ths, pMsg->term);
@@ -3631,8 +3632,9 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           sError("vgId:%d, failed to enqueue commit msg from heartbeat since %s, code:%d", ths->vgId, terrstr(), code);
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
-          sTrace("vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
-                 pMsg->commitIndex, pMsg->term);
+          sGTrace(&rpcMsg.info.traceId,
+                  "vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
+                  pMsg->commitIndex, pMsg->term);
         }
       }
     }
@@ -3716,10 +3718,10 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
     if (pMsg->currentTerm == matchTerm) {
       SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
-      sTrace("vgId:%d, raft entry update commit return index:%" PRId64, ths->vgId, returnIndex);
+      sTrace("vgId:%d, raft entry update commit, return index:%" PRId64, ths->vgId, returnIndex);
     }
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-        syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, &pRpcMsg->info.traceId) < 0) {
+        syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, &pRpcMsg->info.traceId, "heartbeat") < 0) {
       sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64, ths->vgId, terrstr(),
              ths->commitIndex);
     }

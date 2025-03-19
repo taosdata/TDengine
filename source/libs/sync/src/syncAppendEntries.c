@@ -112,6 +112,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncLogRecvAppendEntries(ths, pMsg, "build rsp error", &pRpcMsg->info.traceId);
     goto _IGNORE;
   }
+  rpcRsp.info.traceId = pRpcMsg->info.traceId;
 
   SyncAppendEntriesReply* pReply = rpcRsp.pCont;
   // prepare response msg
@@ -155,7 +156,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  sGTrace(&pRpcMsg->info.traceId, "vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
+  sGDebug(&pRpcMsg->info.traceId,
+          "vgId:%d, index:%" PRId64 ", recv append entries msg, term:%" PRId64 ", preLogIndex:%" PRId64
           ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
           pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
           pEntry->term);
@@ -181,23 +183,25 @@ _SEND_RESPONSE:
     pReply->success = true;
     // update commit index only after matching
     SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
-    sTrace("vgId:%d, update commit return index:%" PRId64, ths->vgId, returnIndex);
+    sGDebug(&rpcRsp.info.traceId, "vgId:%d, index:%" PRId64 ", last commit index:%" PRId64, ths->vgId,
+           pMsg->prevLogIndex + 1, returnIndex);
   }
 
   TRACE_SET_MSGID(&(rpcRsp.info.traceId), tGenIdPI64());
   {
-    sGTrace(&rpcRsp.info.traceId,
-            "vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
-            " to dest:0x%016" PRIx64,
-            ths->vgId, pReply->matchIndex, pReply->term, pReply->lastSendIndex, pReply->destId.addr);
+    sGDebug(&rpcRsp.info.traceId,
+            "vgId:%d, index:%" PRId64 ", send append entries reply, matchIndex:%" PRId64 " term:%" PRId64
+            " lastSendIndex:%" PRId64 " to dest:0x%016" PRIx64,
+            ths->vgId, pMsg->prevLogIndex + 1, pReply->matchIndex, pReply->term, pReply->lastSendIndex,
+            pReply->destId.addr);
   }
   // ack, i.e. send response
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp));
 
   // commit index, i.e. leader notice me
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-      syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, &pRpcMsg->info.traceId) < 0) {
-    sGError(&pRpcMsg->info.traceId, "vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
+      syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, &pRpcMsg->info.traceId, "sync-append-entries") < 0) {
+    sGError(&pRpcMsg->info.traceId, "vgId:%d, failed to commit raft fsm log since %s", ths->vgId, terrstr());
   }
 
   if (resetElect) syncNodeResetElectTimer(ths);

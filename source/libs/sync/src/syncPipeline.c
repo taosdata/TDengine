@@ -725,6 +725,7 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     cbMeta.term = pEntry->term;
     cbMeta.currentTerm = term;
     cbMeta.flag = -1;
+    rpcMsg.info.traceId = pEntry->originRpcTraceId;
 
     int32_t num = syncRespMgrGetAndDel(pNode->pSyncRespMgr, cbMeta.seqNum, &rpcMsg.info);
     sGDebug(&rpcMsg.info.traceId, "vgId:%d, index:%" PRId64 ", get response info, handle:%p seq:%" PRId64 " num:%d",
@@ -787,7 +788,8 @@ int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf) {
   return 0;
 }
 
-int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex, const STraceId *trace) {
+int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex, const STraceId* trace,
+                            const char* src) {
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   (void)taosThreadMutexLock(&pBuf->mutex);
 
@@ -805,14 +807,14 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   bool            restoreFinishAtThisCommit = false;
 
   if (commitIndex <= pBuf->commitIndex) {
-    sGDebug(trace, "vgId:%d, stale commit index:%" PRId64 ", notified:%" PRId64, vgId, commitIndex,
-            pBuf->commitIndex);
+    sGDebug(trace, "vgId:%d, stale commit index:%" PRId64 ", notified:%" PRId64, vgId, commitIndex, pBuf->commitIndex);
     goto _out;
   }
 
-  sGTrace(trace,
-          "vgId:%d, log commit, buffer:[%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 "), role:%d, term:%" PRId64,
-          pNode->vgId, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex, role, currentTerm);
+  sGDebug(trace,
+          "vgId:%d, log commit since %s, buffer:[%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
+          "), role:%d, term:%" PRId64,
+          pNode->vgId, src, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex, role, currentTerm);
 
   // execute in fsm
   for (int64_t index = pBuf->commitIndex + 1; index <= upperIndex; index++) {
@@ -1015,7 +1017,7 @@ int32_t syncLogReplRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 
     bool barrier = false;
     if ((code = syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier)) < 0) {
-      sError("vgId:%d, failed to replicate sync log entry since %s, index:%" PRId64 ", dest addr:%" PRIx64, pNode->vgId,
+      sError("vgId:%d, failed to replicate sync log entry since %s, index:%" PRId64 ", dest addr:0x%" PRIx64, pNode->vgId,
              tstrerror(code), index, pDestId->addr);
       goto _out;
     }
@@ -1210,7 +1212,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
   int64_t nowMs = taosGetMonoTimestampMs();
   int32_t code = 0;
 
-  sTrace("vgId:%d, begin to probe peer addr:%" PRIx64 " with msg of index:%" PRId64 ", repl-mgr:[%" PRId64 ", %" PRId64
+  sTrace("vgId:%d, begin to probe peer addr:0x%" PRIx64 " with msg of index:%" PRId64 ", repl-mgr:[%" PRId64 ", %" PRId64
          ", %" PRId64 "), restored:%d",
          pNode->vgId, pNode->replicasId[pMgr->peerId].addr, index, pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex,
          pMgr->restored);
