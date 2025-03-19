@@ -146,9 +146,19 @@ Not supported
 ```
 </TabItem>
 <TabItem label="C" value="c">
+
+The example code for binding parameters with stmt2 (Go connector v3.6.0 and above, TDengine v3.3.5.0 and above) is as follows:
+
+```c
+{{#include docs/examples/c/stmt2_insert_demo.c}}
+```
+
+The example code for binding parameters with stmt is as follows:
+
 ```c
 {{#include docs/examples/c/stmt_insert_demo.c}}
 ```
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 Not supported
