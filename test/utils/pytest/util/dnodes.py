@@ -176,9 +176,9 @@ class TDDnode:
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
             if ("community" in selfPath):
-                self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")
+                self.execPath = os.path.abspath(self.path + "/community/test/utils/exec.sh")
             else:
-                self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")
+                self.execPath = os.path.abspath(self.path + "/test/utils/exec.sh")
 
     def getDataSize(self):
         totalSize = 0

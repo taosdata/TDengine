@@ -36,6 +36,8 @@ def pytest_addoption(parser):
                     help="create Dnode Numbers in one cluster")
     parser.addoption("-I", action="store",
                     help="independentMnode Mnode")
+    parser.addoption("-A", action="store_true",
+                    help="address sanitizer mode")
     parser.addoption("--replica", action="store",
                     help="the number of replicas")
     parser.addoption("--tsim", action="store",
@@ -128,6 +130,10 @@ def before_test_session(request):
             request.session.create_dnode_num = int(request.config.getoption("-C"))
         else:
             request.session.create_dnode_num = request.session.denodes_num
+        if request.config.getoption("-A"):
+            request.session.asan = True
+        else:
+            request.session.asan = False
         
         request.session.before_test.get_config_from_param(request)
     

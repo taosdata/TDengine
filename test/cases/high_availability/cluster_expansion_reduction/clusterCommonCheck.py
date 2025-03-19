@@ -29,7 +29,7 @@ from utils.pytest.util.common import *
 
 class ClusterComCheck:
     def init(self, conn, logSql=False):
-        #tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkDnodes(self,dnodeNumbers, timeout=100):

@@ -44,9 +44,8 @@ class TaosAdapter:
     def _configure_and_start(self, node, tmp_dir, nodeDict, config_dir, config_file):
         self._remote.cmd(node, ["mkdir -p {}".format(config_dir)])
         self._remote.put(node, os.path.join(tmp_dir, config_file), config_dir)
-        taosadapter_path = nodeDict["taosadapterPath"] if "taosadapterPath" in nodeDict else "/usr/bin/taosadapter"
-        # self._remote.put(node, os.path.join(tmp_dir, "taos.cfg"), config_dir)
-        self._remote.cmd(node, [f"screen -d -m {taosadapter_path} -c {nodeDict['config_dir']}  ", "sleep 5s"])
+        taosadapter_path = nodeDict["spec"]["taosadapterPath"] if "taosadapterPath" in nodeDict["spec"] else "/usr/bin/taosadapter"
+        self._remote.cmd(node, [f"screen -d -m {taosadapter_path} -c {nodeDict['spec']['config_file']}", "sleep 5s"])
 
     def configure_and_start(self, tmp_dir, nodeDict):
         config_dir, config_file = os.path.split(nodeDict["spec"]["config_file"])

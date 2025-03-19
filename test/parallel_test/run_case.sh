@@ -45,6 +45,13 @@ if [ -z "$cmd" ]; then
     exit 0
 fi
 
+# handle the exec_dir is "." specially
+if [ "$exec_dir" = "." ]; then
+    target_dir="test"
+else
+    target_dir="test/$exec_dir"
+fi
+
 if [ $ent -eq 0 ]; then
     export PATH=$PATH:/home/TDengine/debug/build/bin
     export LD_LIBRARY_PATH=/home/TDengine/debug/build/lib
@@ -70,7 +77,7 @@ mkdir -p /var/lib/taos/subscribe
 mkdir -p /var/log/taos
 mkdir -p /var/lib/taos
 
-cd $CONTAINER_TESTDIR/test/$exec_dir
+cd $CONTAINER_TESTDIR/$target_dir || { echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/${target_dir}"; exit 1; }
 ulimit -c unlimited
 
 md5sum /usr/lib/libtaos.so.1
