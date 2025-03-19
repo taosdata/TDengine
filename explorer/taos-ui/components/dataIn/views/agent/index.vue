@@ -155,7 +155,7 @@ watch(
 );
 
 function closeConnect() {
-  connectData.close();
+  connectData.close(dataInProps.agent.webSoketUrl);
   hasConnect.value = false;
 }
 

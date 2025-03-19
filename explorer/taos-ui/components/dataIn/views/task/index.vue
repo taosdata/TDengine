@@ -374,6 +374,11 @@ watch(
 );
 
 async function getList() {
+  const activityOfTask: any = {};
+  taskList.value.forEach(item => {
+    activityOfTask[item.id] = item.activities;
+  });
+
   taskList.value = [];
   const result: any = await dataInProps.task.api.getTask('datain');
   if (result.desc || result.message) {
@@ -405,6 +410,7 @@ async function getList() {
       item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
       item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
+      item['activities'] = reactive(activityOfTask[item.id] || []);
       // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
       return item;
     });
@@ -495,6 +501,7 @@ async function refreshCurrentTask(data: Recordable) {
       return;
     }
     const index = taskList.value.findIndex(item => item.taskid == data.taskid);
+    const theActivities = taskList.value[index]['activities'] || [];
     taskList.value.splice(
       index,
       1,
@@ -505,7 +512,7 @@ async function refreshCurrentTask(data: Recordable) {
         item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
         // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
         item['statusText'] = getStatusText(item.status);
-        item['activities'] = reactive(taskList.value[index]['activities'] || []);
+        item['activities'] = reactive(theActivities);
         return item;
       })[0]
     );
@@ -675,6 +682,10 @@ function handleTaskActivities(activity: ActivitieProps) {
         task.activities = reactive([]);
       }
 
+      if (task.activities.length > 0 && task.activities[0].at === activity.at) {
+        return;
+      }
+
       task.activities.unshift(activity);
 
       // 保持 activities 数组的长度不超过 10 条
@@ -761,7 +772,7 @@ function getStatusClass(status: string) {
 function closeConnect() {
   hasConnect.value = false;
   if (connectData && connectData.close) {
-    connectData.close();
+    connectData.close(dataInProps.agent.webSoketUrl);
   }
 }
 
