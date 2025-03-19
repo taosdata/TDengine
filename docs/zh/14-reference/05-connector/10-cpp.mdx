@@ -1115,10 +1115,14 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - conf：[入参] 指向一个有效的 tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - key：[入参] 数配置项的键名。
     - value：[入参] 配置项的值。
-  - **返回值**：返回一个 tmq_conf_res_t 枚举值，表示配置设置的结果。
-    - TMQ_CONF_OK：成功设置配置项。
-    - TMQ_CONF_INVALID_KEY：键值无效。
-    - TMQ_CONF_UNKNOWN：键名无效。
+  - **返回值**：返回一个 tmq_conf_res_t 枚举值，表示配置设置的结果。tmq_conf_res_t 定义如下：
+    ```
+    typedef enum tmq_conf_res_t {
+         TMQ_CONF_UNKNOWN = -2,  // 键名无效
+         TMQ_CONF_INVALID = -1,  // 键值无效
+         TMQ_CONF_OK = 0,        // 成功设置配置项
+       } tmq_conf_res_t;
+    ```
 
 - `void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
   - **接口说明**：设置 TMQ 配置对象中的自动提交回调函数。
