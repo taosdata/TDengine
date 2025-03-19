@@ -458,7 +458,7 @@ static int32_t doBuildAndSendDropTableMsg(SVnode* pVnode, char* pStbFullname, SS
   tbName[varDataLen(pData) + 1] = 0;
   req.name = tbName;
   if (taosArrayPush(batchReq.pArray, &req) == NULL) {
-    TSDB_CHECK_CODE(terrno, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   SMetaReader mr = {0};
