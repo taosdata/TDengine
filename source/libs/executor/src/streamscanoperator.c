@@ -1514,6 +1514,11 @@ _end:
   return code;
 }
 
+static void destroyStreamRecalculateParam(SStreamRecParam* pParam) {
+  tSimpleHashCleanup(pParam->pColIdMap);
+  pParam->pColIdMap = NULL;
+}
+
 static void destroyStreamDataScanOperatorInfo(void* param) {
   if (param == NULL) {
     return;
@@ -1562,6 +1567,8 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
 
   taosArrayDestroy(pStreamScan->pRecRangeRes);
   pStreamScan->pRecRangeRes = NULL;
+
+  destroyStreamRecalculateParam(&pStreamScan->recParam);
 
   taosMemoryFree(pStreamScan);
 }
@@ -1634,6 +1641,9 @@ static void initStreamRecalculateParam(STableScanPhysiNode* pTableScanNode, SStr
   pParam->sqlCapcity = tListLen(pParam->pSql);
   (void)tsnprintf(pParam->pUrl, tListLen(pParam->pUrl), "http://%s:%d/rest/sql", tsAdapterFqdn, tsAdapterPort);
   (void)tsnprintf(pParam->pAuth, tListLen(pParam->pAuth), "Authorization: Basic %s", tsAdapterToken);
+
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pParam->pColIdMap = tSimpleHashInit(32, hashFn);
 }
 
 int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,

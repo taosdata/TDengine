@@ -191,18 +191,18 @@ class TDTestCase:
                 self.tdCom.check_query_data(f'select wstart, {self.tdCom.stb_output_select_str} from {tbname}{self.tdCom.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {tbname} {additional_options} partition by {partition} interval({self.tdCom.dataDict["interval"]}s) order by wstart', fill_value=fill_value)
 
     def run(self):
-        # for fill_value in [None, "VALUE", "NULL", "PREV", "NEXT", "LINEAR"]:
-        # for fill_value in [None]:
-        #     self.docontinuous(
-        #         interval=random.randint(10, 15),
-        #         partition="tbname",
-        #         fill_value=fill_value
-        #     )
-        self.docontinuous(
-            interval=random.randint(10, 12),
-            partition="t1 as t5,t2 as t11,t3 as t13, t4",
-            fill_value=None
-        )
+        for fill_value in [None, "VALUE", "NULL", "PREV", "NEXT", "LINEAR"]:
+            self.docontinuous(
+                interval=random.randint(10, 15),
+                partition="tbname",
+                fill_value=fill_value
+            )
+        for fill_value in ["VALUE", "NULL", "PREV", "NEXT", "LINEAR", None]:
+            self.docontinuous(
+                interval=random.randint(10, 12),
+                partition="t1 as t5,t2 as t11,t3 as t13, t4",
+                fill_value=fill_value
+            )
 
     def stop(self):
         tdLog.info("stop========================================")
