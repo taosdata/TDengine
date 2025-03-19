@@ -3,8 +3,9 @@ WORKDIR /apps
 ENV DEBIAN_FRONTEND=noninteractive
 ARG pkgFile
 ARG dirName
-ADD http://192.168.1.131/data/nas/TDengine/anode/taos.pth /apps
-ADD http://192.168.1.131/data/nas/TDengine/anode/taos_ts_server.py /apps
+ARG nas_ip
+ADD http://${nas_ip}/data/nas/TDengine/anode/taos.pth /apps
+ADD http://${nas_ip}/data/nas/TDengine/anode/taos_ts_server.py /apps
 ADD ${pkgFile} /apps/
 RUN cd ${dirName}/ && /bin/bash install.sh -e no && cd .. && rm -rf ${dirName}
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
