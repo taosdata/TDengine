@@ -148,6 +148,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | JSON              | java.lang.String     |仅在 tag 中支持|
 | VARBINARY         | byte[]               ||
 | GEOMETRY          | byte[]               ||
+| DECIMAL           | java.math.BigDecimal ||
 
 **注意**：由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
 GEOMETRY类型是little endian字节序的二进制数据，符合WKB规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  

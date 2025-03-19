@@ -168,6 +168,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000038B | Index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x80000396 | Database in creating status                                  | Database is being created                                    | Retry                                                        |
 | 0x8000039A | Invalid system table name                                    | Internal error                                               | Report issue                                                 |
+| 0x8000039F | No VGroup's leader need to be balanced                       | Perform balance leader operation on VGroup                   | There is no VGroup's leader needs to be balanced             |
 | 0x800003A0 | Mnode already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003A1 | Mnode not there                                              | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003A2 | Qnode already exists                                         | Already exists                                               | Confirm if the operation is correct                          |

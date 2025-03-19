@@ -62,7 +62,7 @@ int32_t schedulerInit() {
 }
 
 int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
-  qDebug("QID:0x%" PRIx64 ", scheduler %s exec job will start", pReq->pConn->requestId, pReq->syncReq ? "SYNC" : "ASYNC");
+  qDebug("QID:0x%" PRIx64 ", scheduler job will start, exec:%s", pReq->pConn->requestId, pReq->syncReq ? "SYNC" : "ASYNC");
 
   int32_t  code = 0;
   SSchJob *pJob = NULL;
@@ -168,11 +168,11 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
   SSchJob *pJob = NULL;
   (void)schAcquireJob(*jobId, &pJob);
   if (NULL == pJob) {
-    qDebug("jobId:0x%" PRIx64 ", acquire sch job failed, may be dropped", *jobId);
+    qTrace("jobId:0x%" PRIx64 ", acquire sch job failed, may be dropped", *jobId);
     return;
   }
 
-  SCH_JOB_DLOG("jobId:0x%" PRIx64 ", start to free, code:%s", *jobId, tstrerror(errCode));
+  SCH_JOB_TLOG("jobId:0x%" PRIx64 ", start to free, code:%s", *jobId, tstrerror(errCode));
   (void)schHandleJobDrop(pJob, errCode); // ignore any error
 
   int32_t released = false;

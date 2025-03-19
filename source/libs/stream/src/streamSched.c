@@ -60,7 +60,6 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
       stError("s-task:%s failed to init scheduler info, code:%s", id, tstrerror(code));
       return;
     }
-
     pTask->info.delaySchedParam = interval.sliding;
     pTask->info.watermark = waterMark;
     pTask->info.interval = interval;

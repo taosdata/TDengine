@@ -237,7 +237,7 @@ typedef struct SUdfInterBuf {
 
 #### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/bit_and.c)
 
-bit_add 实现多列的按位与功能。如果只有一列，返回这一列。bit_add 忽略空值。
+bit_and 实现多列的按位与功能。如果只有一列，返回这一列。bit_and 忽略空值。
 
 <details>
 <summary>bit_and.c</summary>
@@ -287,12 +287,46 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 
 </details>
 
+#### 聚合函数示例3 切分字符串求平均值 [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/extract_avg.c)
+
+`extract_avg` 函数是将一个逗号分隔的字符串数列转为一组数值，统计所有行的结果，计算最终平均值。实现时需注意:
+- `interBuf->numOfResult` 需要返回 1 或者 0，不能用于 count 计数。
+- count 计数可使用额外的缓存，例如 `SumCount` 结构体。
+- 字符串的获取需使用`varDataVal`。
+
+创建表：
+```bash
+create table scores(ts timestamp, varStr varchar(128));
+```
+创建自定义函数：
+```bash
+create aggregate function extract_avg as '/root/udf/libextract_avg.so' outputtype double bufsize 16 language 'C'; 
+```
+使用自定义函数：
+```bash
+select extract_avg(valStr) from scores;
+```
+
+生成 `.so` 文件
+```bash
+gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
+```
+
+<details>
+<summary>extract_avg.c</summary>
+
+```c
+{{#include tests/script/sh/extract_avg.c}}
+```
+
+</details>
+
 ## 用 Python 语言开发 UDF
 
 ### 准备环境
   
 准备环境的具体步骤如下：
-- 第 1 步，准备好 Python 运行环境。
+- 第 1 步，准备好 Python 运行环境。本地编译安装 python 注意打开 `--enable-shared` 选项，不然后续安装 taospyudf 会因无法生成共享库而导致失败。
 - 第 2 步，安装 Python 包 taospyudf。命令如下。
     ```shell
     pip3 install taospyudf

@@ -3357,7 +3357,7 @@ static int32_t rewriteQueryTimeFunc(STranslateContext* pCxt, int64_t val, SNode*
   if (NULL == pStr) {
     return terrno;
   }
-  snprintf(pStr, 20, "%" PRId64 "", val);
+  snprintf(pStr, 20, "%" PRId64, val);
   int32_t code = rewriteFuncToValue(pCxt, &pStr, pNode);
   if (TSDB_CODE_SUCCESS != code) taosMemoryFree(pStr);
   return code;
@@ -11755,6 +11755,7 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
 
   snprintf(dropReq.name, sizeof(dropReq.name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
   dropReq.igNotExists = pStmt->ignoreNotExists;
+  dropReq.force = pStmt->force;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
   tFreeSMDropTopicReq(&dropReq);
@@ -11770,6 +11771,7 @@ static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pSt
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, dropReq.topic);
   dropReq.igNotExists = pStmt->ignoreNotExists;
+  dropReq.force = pStmt->force;
   tstrncpy(dropReq.cgroup, pStmt->cgroup, TSDB_CGROUP_LEN);
 
   return buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_CGROUP, (FSerializeFunc)tSerializeSMDropCgroupReq, &dropReq);
@@ -12588,10 +12590,8 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     }
 
     if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      if (pStmt->pOptions->fillHistory) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                       "When trigger was force window close, Stream interp unsupported Fill history");
-      } else if (pSelect->pFill != NULL) {
+      pStmt->pOptions->fillHistory = 0;
+      if (pSelect->pFill != NULL) {
         EFillMode mode = ((SFillNode*)(pSelect->pFill))->mode;
         if (mode == FILL_MODE_NEXT) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
@@ -12640,32 +12640,9 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
   }
 
   if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-    if (pStmt->pOptions->fillHistory) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "When trigger was force window close, Stream unsupported Fill history");
-    }
-
-    if (pStmt->pOptions->ignoreExpired != 1) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "When trigger was force window close, Stream must not set  ignore expired 0");
-    }
-
-    if (pStmt->pOptions->ignoreUpdate != 1) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "When trigger was force window close, Stream must not set  ignore update 0");
-    }
-
-    if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-      SIntervalWindowNode* pWindow = (SIntervalWindowNode*)pSelect->pWindow;
-      if (NULL != pWindow->pSliding) {
-        int64_t interval = ((SValueNode*)pWindow->pInterval)->datum.i;
-        int64_t sliding = ((SValueNode*)pWindow->pSliding)->datum.i;
-        if (interval != sliding) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                         "When trigger was force window close, Stream unsupported sliding");
-        }
-      }
-    }
+    pStmt->pOptions->fillHistory = 0;
+    pStmt->pOptions->ignoreExpired = 1;
+    pStmt->pOptions->ignoreUpdate = 1;
 
     if ((SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta &&
         TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
