@@ -17,7 +17,9 @@ do_gen() {
 }
 
 do_bld() {
-  cmake --build debug --config ${TD_CONFIG} -j$(nproc) "$@"
+  JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  echo "JOBS:${JOBS}"
+  cmake --build debug --config ${TD_CONFIG} -j${JOBS} "$@"
 }
 
 do_test() {

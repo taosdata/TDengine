@@ -139,7 +139,7 @@ jobs:
         continue-on-error: false
         run: |
           ./build.sh gen
-          ./build.sh bld -j4 --target build_externals -v
+          ./build.sh bld --target build_externals -v
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
         name: Build externals on Windows
@@ -162,7 +162,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          ./build.sh bld -j4 -v
+          ./build.sh bld -v
           ./build.sh install
           which taosd
           which taosadapter
