@@ -1,7 +1,6 @@
 name: TDengine Test coverage
 
 on:
-  push:
   pull_request:
     branches:
       - 'test/cover1'
