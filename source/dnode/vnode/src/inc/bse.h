@@ -113,6 +113,7 @@ typedef struct {
   SBlkData     bufBlk;
   STableFooter footer;
   SHashObj    *pCache;
+  SArray      *pSeqToBlock;
   int32_t      blockId;
   uint64_t     initSeq;
   uint64_t     lastSeq;
