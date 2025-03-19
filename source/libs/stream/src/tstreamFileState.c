@@ -960,6 +960,7 @@ int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
 
     if (vlen != pFileState->rowSize) {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      qError("[InternalERR] read key:[skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],vlen:%d, rowSize:%d", key.win.skey, key.win.ekey, key.groupId, vlen, pFileState->rowSize);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

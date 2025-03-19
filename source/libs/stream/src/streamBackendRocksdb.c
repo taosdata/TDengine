@@ -3128,7 +3128,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
       taosMemoryFree(err);                                                                                        \
       code = TSDB_CODE_THIRDPARTY_ERROR;                                                                          \
     } else {                                                                                                      \
-      stTrace("streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d, %p", toString, funcname, vLen, \
+      stInfo("[InternalERR] write streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d, %p", toString, funcname, vLen, \
               ttlVLen, wrapper);                                                                                  \
     }                                                                                                             \
     taosMemoryFree(ttlV);                                                                                         \
@@ -4528,6 +4528,8 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
     }
   }
   int32_t klen = ginitDict[cfIdx].enFunc((void*)key, buf);
+  qInfo("[InternalERR] write streamStatePutBatchOptimiz cfIdx:%d key:%s vlen:%d", cfIdx, buf, vlen);
+
   char*   ttlV = tmpBuf;
   int32_t ttlVLen = ginitDict[cfIdx].enValueFunc(dst, size, ttl, &ttlV);
 
