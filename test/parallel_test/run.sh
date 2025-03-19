@@ -179,6 +179,9 @@ function run_thread() {
         fi
         local exec_dir
         exec_dir=$(echo "$line" | cut -d, -f4)
+        if [[ "$exec_dir" == "." ]]; then
+            exec_dir=""
+        fi
         local case_cmd
         case_cmd=$(echo "$line" | cut -d, -f5)
         local case_file=""
@@ -207,8 +210,10 @@ function run_thread() {
         if [ -z "$case_file" ]; then
             continue
         fi
-        case_sql_file="$exec_dir/${case_file}.sql"
-        case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
+        # case_sql_file="$exec_dir/${case_file}.sql"
+        # case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
+        case_sql_file="${exec_dir:+${exec_dir}/}${case_file}.sql"
+        case_file="${exec_dir:+${exec_dir}/}${case_file}.${index}.${thread_no}.${count}"
         count=$((count + 1))
         local case_path
         case_path=$(dirname "$case_file")
