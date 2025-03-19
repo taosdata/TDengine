@@ -2696,7 +2696,7 @@ void taskDbDestroy(void* pDb, bool flush) {
   }
 
   int64_t et = taosGetTimestampMs();
-  stDebug("%s destroy stream backend:%p completed, elapsed time:%.2fs", wrapper->idstr, wrapper, (et - st) / 1000.0);
+  stDebug("%s destroy stream backend:%p completed, elapsed time:%.2fs", wrapper->idstr, wrapper, (et - st)/1000.0);
 
   taosMemoryFree(wrapper->idstr);
   taosMemoryFree(wrapper->path);

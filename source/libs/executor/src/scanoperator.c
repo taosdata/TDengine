@@ -6546,7 +6546,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   pInfo->mergeLimit = -1;
   bool hasLimit = pInfo->limitInfo.limit.limit != -1 || pInfo->limitInfo.limit.offset != -1;
   if (hasLimit) {
-    pInfo->mergeLimit = pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset;
+    pInfo->mergeLimit = pInfo->limitInfo.limit.offset != -1 ? pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset : pInfo->limitInfo.limit.limit;
     pInfo->mSkipTables = NULL;
   }
 
