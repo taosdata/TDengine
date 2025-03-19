@@ -1,0 +1,48 @@
+name: TDengine Test coverage
+
+on:
+  pull_request:
+    branches:
+      - 'test/cover1'
+    paths-ignore:
+      - 'packaging/**'
+      - 'docs/**'
+      - 'tools/tdgpt/**'
+      - 'source/libs/executor/src/forecastoperator.c'
+      - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'include/common/tanalytics.h'
+      - 'source/common/src/tanalytics.c'
+      - 'tests/parallel/tdgpt_cases.task'
+      - 'tests/script/tsim/analytics'
+      - '**/*.md'
+  workflow_dispatch:
+    inputs:
+      specified_source_branch:
+        description: 'Enter the source branch name of TDengine'
+        required: true
+        type: string
+      specified_target_branch:
+        description: 'Enter the target branch name of TDengine'
+        required: true
+        type: string
+      specified_pr_number:
+        description: 'Enter the PR number of TDengine'
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.inputs.specified_target_branch }}-${{ github.event.inputs.specified_pr_number }}-TDengine
+  cancel-in-progress: true
+
+env:
+  WKC: '/var/lib/jenkins/workspace/TDinternal/community'
+
+jobs:
+  run-tests-on-linux:
+    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'}}
+    with:
+      tdinternal: false
+      specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || github.event.inputs.specified_pr_number }}
