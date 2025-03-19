@@ -5,17 +5,6 @@ on:
   pull_request:
     branches:
       - 'test/cover1'
-    paths-ignore:
-      - 'packaging/**'
-      - 'docs/**'
-      - 'tools/tdgpt/**'
-      - 'source/libs/executor/src/forecastoperator.c'
-      - 'source/libs/executor/src/anomalywindowoperator.c'
-      - 'include/common/tanalytics.h'
-      - 'source/common/src/tanalytics.c'
-      - 'tests/parallel/tdgpt_cases.task'
-      - 'tests/script/tsim/analytics'
-      - '**/*.md'
   workflow_dispatch:
     inputs:
       specified_source_branch:
