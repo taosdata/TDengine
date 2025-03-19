@@ -6,11 +6,12 @@ ARG tdengine_pkgFile
 ARG tdengine_dirName
 ARG tdgpt_pkgFile
 ARG tdgpt_dirName
+ARG nas_ip
 
 ADD ${tdgpt_pkgFile} \
     ${tdengine_pkgFile} \
-    http://192.168.1.131/data/nas/TDengine/anode/taos.pth \
-    http://192.168.1.131/data/nas/TDengine/anode/taos_ts_server.py \
+    http://${nas_ip}/data/nas/TDengine/anode/taos.pth \
+    http://${nas_ip}/data/nas/TDengine/anode/taos_ts_server.py \
     /root/
 
 RUN echo ${tdengine_pkgFile} && \
