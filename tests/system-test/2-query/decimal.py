@@ -28,11 +28,14 @@ class AtomicCounter:
 
 getcontext().prec = 40
 
-def get_decimal(val, scale: int) -> Decimal:
+def get_decimal(val, scale: int):
     if val == 'NULL':
         return None
     getcontext().prec = 100
-    return Decimal(val).quantize(Decimal("1." + "0" * scale), ROUND_HALF_UP)
+    try:
+        return Decimal(val).quantize(Decimal("1." + "0" * scale), ROUND_HALF_UP)
+    except:
+        tdLog.exit(f"faield to convert to decimal for v: {val} scale: {scale}")
 
 syntax_error = -2147473920
 invalid_column = -2147473918
@@ -52,6 +55,7 @@ unary_op_test = True
 binary_op_in_where_test = True
 test_decimal_funcs = False
 cast_func_test_round = 10
+in_op_test_round = 10
 
 class DecimalTypeGeneratorConfig:
     def __init__(self):
@@ -308,8 +312,8 @@ class DecimalColumnExpr:
                 calc_res = float(v_from_calc_in_py)
                 failed = not math.isclose(query_res, calc_res, abs_tol=1e-7)
             else:
-                query_res = Decimal(v_from_query)
-                calc_res = Decimal(v_from_calc_in_py)
+                query_res = get_decimal(v_from_query, self.res_type_.scale())
+                calc_res = get_decimal(v_from_calc_in_py, self.res_type_.scale())
                 failed = query_res != calc_res
             if failed:
                 tdLog.exit(
@@ -438,13 +442,13 @@ class DataType:
         if self.type == TypeEnum.BIGINT:
             return str(secrets.randbelow(9223372036854775808) - 4611686018427387904)
         if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
-            return str(random.random())
+            return str(random.uniform(-1e10, 1e10))
         if (
             self.type == TypeEnum.VARCHAR
             or self.type == TypeEnum.NCHAR
             or self.type == TypeEnum.VARBINARY
         ):
-            return f"'{str(random.random())[0:self.length]}'"
+            return f"'{str(random.uniform(-1e20, 1e20))[0:self.length]}'"
         if self.type == TypeEnum.TIMESTAMP:
             return str(secrets.randbelow(9223372036854775808))
         if self.type == TypeEnum.UTINYINT:
@@ -460,6 +464,29 @@ class DataType:
         if self.type == TypeEnum.GEOMETRY:
             return "'POINT(1.0 1.0)'"
         raise Exception(f"unsupport type {self.type}")
+
+    def generate_sized_val(self, prec: int, scale: int) -> str:
+        weight = prec - scale
+        if self.type == TypeEnum.BOOL:
+            return ['true', 'false'][secrets.randbelow(2)]
+        if self.type == TypeEnum.TINYINT or self.type == TypeEnum.SMALLINT or self.type == TypeEnum.INT or self.type == TypeEnum.BIGINT or self.type == TypeEnum.TIMESTAMP:
+            return str(secrets.randbelow(10 * weight * 2) - 10 * weight)
+        if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
+            return str(random.uniform(-10 * weight, 10 * weight))
+        if (
+            self.type == TypeEnum.VARCHAR
+            or self.type == TypeEnum.NCHAR
+            or self.type == TypeEnum.VARBINARY
+        ):
+            return f"'{str(random.uniform(-(10 * weight + 1), 10 * weight - 1))}'"
+        if self.type == TypeEnum.UTINYINT or self.type == TypeEnum.USMALLINT or self.type == TypeEnum.UINT or self.type == TypeEnum.UBIGINT:
+            return str(secrets.randbelow(10 * weight * 2))
+        if self.type == TypeEnum.JSON:
+            return f'{{"key": "{secrets.token_urlsafe(10)}"}}'
+        if self.type == TypeEnum.GEOMETRY:
+            return "'POINT(1.0 1.0)'"
+        raise Exception(f"unsupport type {self.type}")
+
 
     def check(self, values, offset: int):
         return True
@@ -481,6 +508,8 @@ class DataType:
             return get_decimal(val, self.scale())
         elif isinstance(val, str):
             val = val.strip("'")
+            if len(val) == 0:
+                return 0
         return val
 
     def get_typed_val(self, val):
@@ -513,6 +542,19 @@ class DataType:
             TypeEnum.DECIMAL,
             TypeEnum.DECIMAL64,
         ]
+    
+    @staticmethod
+    def generate_random_type_for(dt: int):
+        if dt == TypeEnum.DECIMAL:
+            prec = random.randint(1, DecimalType.DECIMAL_MAX_PRECISION)
+            return DecimalType(dt, prec, random.randint(0, prec))
+        elif dt == TypeEnum.DECIMAL64:
+            prec = random.randint(1, DecimalType.DECIMAL64_MAX_PRECISION)
+            return DecimalType(dt, prec, random.randint(0, prec))
+        elif dt == TypeEnum.BINARY or dt == TypeEnum.VARCHAR:
+            return DataType(dt, random.randint(16, 255), 0)
+        else:
+            return DataType(dt, 0, 0)
 
 class DecimalType(DataType):
     DECIMAL_MAX_PRECISION = 38
@@ -668,6 +710,25 @@ class Column:
         else:
             return len(self.saved_vals[tbname])
     
+    def seq_scan_col(self, tbname: str, idx: int):
+        if self.is_constant_col():
+            return self.get_constant_val_for_execute(), False
+        elif len(self.saved_vals) > 1:
+            keys = list(self.saved_vals.keys())
+            for i, key in enumerate(keys):
+                l = len(self.saved_vals[key])
+                if idx < l:
+                    return self.get_typed_val_for_execute(self.saved_vals[key][idx]), True
+                else:
+                    idx -= l
+
+            return 1, False
+        else:
+            if idx > len(self.saved_vals[tbname]) - 1:
+                return 1, False
+            v = self.get_typed_val_for_execute(self.saved_vals[tbname][idx])
+            return v, True
+
     @staticmethod
     def comp_key(key1, key2):
         if key1 is None:
@@ -921,23 +982,11 @@ class DecimalCastTypeGenerator:
         else:
             return DataType.get_decimal_op_types()
 
-    def do_generate_type(self, dt: int) ->DataType:
-        if dt == TypeEnum.DECIMAL:
-            prec = random.randint(1, DecimalType.DECIMAL_MAX_PRECISION)
-            return DecimalType(dt, prec, random.randint(0, prec))
-        elif dt == TypeEnum.DECIMAL64:
-            prec = random.randint(1, DecimalType.DECIMAL64_MAX_PRECISION)
-            return DecimalType(dt, prec, random.randint(0, prec))
-        elif dt == TypeEnum.BINARY or dt == TypeEnum.VARCHAR:
-            return DataType(dt, random.randint(16, 255), 0)
-        else:
-            return DataType(dt, 0, 0)
-
     def generate(self, num: int) -> List[DataType]:
         res: list[DataType] = []
         for _ in range(num):
             dt = random.choice(self.get_possible_output_types())
-            dt = self.do_generate_type(dt)
+            dt = DataType.generate_random_type_for(dt)
             res.append(dt)
         res = list(set(res))
         return res
@@ -1303,9 +1352,11 @@ class DecimalBinaryOperator(DecimalColumnExpr):
         return super().generate(format_params)
 
     def should_skip_for_decimal(self, cols: list):
-        left_col = cols[0]
-        right_col = cols[1]
+        left_col: Column = cols[0]
+        right_col: Column = cols[1]
         if not left_col.type_.is_decimal_type() and not right_col.type_.is_decimal_type():
+            return True
+        if not right_col.is_constant_col() and (self.op_ == '%' or self.op_ == '/'):
             return True
         if self.op_ != "%":
             return False
@@ -1556,21 +1607,104 @@ class DecimalUnaryOperator(DecimalColumnExpr):
     def generate_res_type(self):
         self.res_type_ = self.col_type_ = self.params_[0].type_
 
-    def execute_minus(self, params) -> Decimal:
+    def execute_minus(self, params):
         if params[0] is None:
             return 'NULL'
         return -Decimal(params[0])
 
 class DecimalBinaryOperatorIn(DecimalBinaryOperator):
     def __init__(self, op: str):
-        super().__init__(op)
+        self.op_ = op
+        super().__init__("{0} " + self.op_ + " ({1})", self.execute_op, op)
 
-    def execute(self, left, right):
-        if self.op_.lower()() == "in":
-            return left in right
-        if self.op_.lower() == "not in":
-            return left not in right
+    def generate_res_type(self):
+        self.query_col = self.params_[0]
+        self.res_type_ = DataType(TypeEnum.BOOL)
+    
+    def execute_op(self, params):
+        list_exprs: DecimalListExpr = self.params_[1]
+        v, vs = list_exprs.get_converted_vs(params)
+        if v is None:
+            return False
+        b = False
+        if self.op_.lower() == 'in':
+            b = v in vs
+            #if b:
+                #tdLog.debug(f"eval {v} in {list_exprs} got: {b}")
+        else:
+            b = v not in vs
+            #if not b:
+                #tdLog.debug(f"eval {v} not in {list_exprs} got: {b}")
+        return b
 
+    def check(self, res, tbname: str):
+        idx = 0
+        v, has_next = self.query_col.seq_scan_col(tbname, idx)
+        calc_res = []
+        while has_next:
+            keep: bool = self.execute_op(v)
+            if keep:
+                calc_res.append(v)
+            idx += 1
+            v, has_next = self.query_col.seq_scan_col(tbname, idx)
+        calc_res = sorted(calc_res)
+        res = [get_decimal(e, self.query_col.type_.scale()) for e in res]
+        res = sorted(res)
+        for v, calc_v in zip(res, calc_res):
+            if v != calc_v:
+                tdLog.exit(f"check failed for {self}, query got: {v}, expect: {calc_v}, len_query: {len(res)}, len_calc: {len(calc_res)}")
+        return True
+
+class DecimalListExpr:
+    def __init__(self, num: int, col: Column):
+        self.elements_ = []
+        self.num_ = num
+        self.types_ = []
+        self.converted_vs_ = None
+        self.output_float_ = False
+        self.col_in_: Column = col
+
+    @staticmethod
+    def get_all_possible_types():
+        types = DataType.get_decimal_op_types()
+        types.remove(TypeEnum.DECIMAL)
+        types.remove(TypeEnum.DECIMAL64)
+        return types
+
+    def has_output_double_type(self) -> bool:
+        for t in self.types_:
+            if t.is_real_type() or t.is_varchar_type():
+                return True
+        return False
+    
+    def get_converted_vs(self, v):
+        if self.converted_vs_ is None:
+            vs = []
+            for t, saved_v in zip(self.types_, self.elements_):
+                vs.append(t.get_typed_val_for_execute(saved_v, True))
+            if self.has_output_double_type():
+                self.converted_vs_ = [float(e) for e in vs]
+                self.output_float_= True
+            else:
+                self.converted_vs_ = [Decimal(e) for e in vs]
+        if v is None:
+            return None, self.converted_vs_
+        if self.output_float_:
+            return float(v), self.converted_vs_
+        else:
+            return Decimal(v), self.converted_vs_
+
+    def generate(self):
+        types = self.get_all_possible_types()
+        for _ in range(self.num_):
+            type = random.choice(types)
+            dt = DataType.generate_random_type_for(type)
+            self.types_.append(dt)
+            v = dt.generate_sized_val(self.col_in_.type_.prec(), self.col_in_.type_.scale())
+            self.elements_.append(v)
+
+    def __str__(self):
+        return f"{','.join([e for e in self.elements_])}"
 
 class TDTestCase:
     updatecfgDict = {
@@ -2152,44 +2286,64 @@ class TDTestCase:
                     if tdSql.errno != invalid_operation and tdSql.errno != scalar_convert_err:
                         tdLog.exit(f"expected err not occured for sql: {sql}, expect: {invalid_operation} or {scalar_convert_err}, but got {tdSql.errno}")
 
+    def check_decimal_in_op(self, tbname: str, tb_cols: list):
+        for i in range(in_op_test_round):
+            inOp: DecimalBinaryOperatorIn = DecimalBinaryOperatorIn('in')
+            notInOp: DecimalBinaryOperatorIn = DecimalBinaryOperatorIn('not in')
+            for col in tb_cols:
+                if not col.type_.is_decimal_type():
+                    continue
+                list_expr: DecimalListExpr = DecimalListExpr(random.randint(1, 10), col)
+                list_expr.generate()
+                expr = inOp.generate((col, list_expr))
+                sql = f'select {col} from {self.db_name}.{tbname} where {expr}'
+                res = TaosShell().query(sql)
+                if len(res) > 0:
+                    res = res[0]
+                inOp.check(res, tbname)
+
+                expr = notInOp.generate((col, list_expr))
+                sql = f'select {col} from {self.db_name}.{tbname} where {expr}'
+                res = TaosShell().query(sql)
+                if len(res) > 0:
+                    res = res[0]
+                notInOp.check(res, tbname)
+
     def test_decimal_operators(self):
         tdLog.debug("start to test decimal operators")
-        self.test_decimal_unsupported_types()
-        ## tables: meters, nt
-        ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
-        binary_operators = DecimalBinaryOperator.get_all_binary_ops()
+        if True:
+            self.test_decimal_unsupported_types()
+            ## tables: meters, nt
+            ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
+            binary_operators = DecimalBinaryOperator.get_all_binary_ops()
 
-        ## decimal operator with constants of all other types
-        self.run_in_thread(
-            operator_test_round,
-            self.check_decimal_binary_expr_with_const_col_results,
-            (
+            ## decimal operator with constants of all other types
+            self.run_in_thread(
+                operator_test_round,
+                self.check_decimal_binary_expr_with_const_col_results,
+                (
+                    self.db_name,
+                    self.norm_table_name,
+                    self.norm_tb_columns,
+                    Column.get_decimal_oper_const_cols,
+                    DecimalBinaryOperator.get_all_binary_ops,
+                ),
+            )
+
+            ## test decimal column op decimal column
+            for _ in range(operator_test_round):
+                self.check_decimal_binary_expr_with_col_results(
+                    self.db_name, self.norm_table_name, self.norm_tb_columns, binary_operators)
+
+            unary_operators = DecimalUnaryOperator.get_all_unary_ops()
+            self.check_decimal_unary_expr_results(
                 self.db_name,
                 self.norm_table_name,
                 self.norm_tb_columns,
-                Column.get_decimal_oper_const_cols,
-                DecimalBinaryOperator.get_all_binary_ops,
-            ),
-        )
+                unary_operators,)
 
-        ## test decimal column op decimal column
-        for i in range(operator_test_round):
-            self.check_decimal_binary_expr_with_col_results(
-                self.db_name, self.norm_table_name, self.norm_tb_columns, binary_operators)
-
-        unary_operators = DecimalUnaryOperator.get_all_unary_ops()
-        self.check_decimal_unary_expr_results(
-            self.db_name,
-            self.norm_table_name,
-            self.norm_tb_columns,
-            unary_operators,)
-
-
-    def test_decimal_last_first_func(self):
-        pass
-
-    def test_query_decimal_with_sma(self):
-        pass
+        self.check_decimal_in_op(self.norm_table_name, self.norm_tb_columns)
+        self.check_decimal_in_op(self.stable_name, self.stb_columns)
 
     def check_decimal_where_with_binary_expr_with_const_col_results(
         self,

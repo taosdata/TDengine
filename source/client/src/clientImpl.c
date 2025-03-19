@@ -1941,12 +1941,12 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
 //   return taos_connect(ipStr, userStr, passStr, dbStr, port);
 // }
 
-void doSetOneRowPtr(SReqResultInfo* pResultInfo, bool isStmt) {
+void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
     int32_t type = pResultInfo->fields[i].type;
-    int32_t schemaBytes = calcSchemaBytesFromTypeBytes(type, pResultInfo->fields[i].bytes, isStmt);
+    int32_t schemaBytes = calcSchemaBytesFromTypeBytes(type, pResultInfo->userFields[i].bytes, false);
 
     if (IS_VAR_DATA_TYPE(type)) {
       if (!IS_VAR_NULL_TYPE(type, schemaBytes) && pCol->offset[pResultInfo->current] != -1) {
@@ -2012,7 +2012,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
   }
 
   if (setupOneRowPtr) {
-    doSetOneRowPtr(pResultInfo, pRequest->isStmtBind);
+    doSetOneRowPtr(pResultInfo);
     pResultInfo->current += 1;
   }
 
@@ -2059,7 +2059,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     return NULL;
   } else {
     if (setupOneRowPtr) {
-      doSetOneRowPtr(pResultInfo, pRequest->isStmtBind);
+      doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
     }
 
@@ -2135,8 +2135,9 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength, bo
 
 static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
-    TAOS_FIELD_E* pField = pResultInfo->fields + i;
-    int32_t type = pField->type;
+    TAOS_FIELD_E* pFieldE = pResultInfo->fields + i;
+    TAOS_FIELD* pField = pResultInfo->userFields + i;
+    int32_t type = pFieldE->type;
     int32_t bufLen = 0;
     char* p = NULL;
     if (!IS_DECIMAL_TYPE(type) || !pResultInfo->pCol[i].pData) {
@@ -2144,6 +2145,7 @@ static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
     } else {
       bufLen = 64;
       p = taosMemoryRealloc(pResultInfo->convertBuf[i], bufLen * pResultInfo->numOfRows);
+      pFieldE->bytes = bufLen;
       pField->bytes = bufLen;
     }
     if (!p) return terrno;
@@ -2151,7 +2153,7 @@ static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
 
     for (int32_t j = 0; j < pResultInfo->numOfRows; ++j) {
       int32_t code = decimalToStr((DecimalWord*)(pResultInfo->pCol[i].pData + j * tDataTypes[type].bytes), type,
-                                  pField->precision, pField->scale, p, bufLen);
+                                  pFieldE->precision, pFieldE->scale, p, bufLen);
       p += bufLen;
       if (TSDB_CODE_SUCCESS != code) {
         return code;
@@ -2395,6 +2397,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
 }
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isStmt) {
+  bool convertForDecimal = convertUcs4;
   if (pResultInfo == NULL || pResultInfo->numOfCols <= 0 || pResultInfo->fields == NULL) {
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -2507,7 +2510,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
     code = doConvertUCS4(pResultInfo, colLength, isStmt);
   }
 #endif
-  if (TSDB_CODE_SUCCESS == code && convertUcs4) {
+  if (TSDB_CODE_SUCCESS == code && convertForDecimal) {
     code = convertDecimalType(pResultInfo);
   }
   return code;
