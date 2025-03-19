@@ -179,9 +179,6 @@ function run_thread() {
         fi
         local exec_dir
         exec_dir=$(echo "$line" | cut -d, -f4)
-        if [[ "$exec_dir" == "." ]]; then
-            exec_dir=""
-        fi
         local case_cmd
         case_cmd=$(echo "$line" | cut -d, -f5)
         local case_file=""
