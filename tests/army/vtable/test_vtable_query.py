@@ -236,6 +236,7 @@ class TDTestCase(TBase):
         self.test_normal_query("test_vtable_select_test_group")
         self.test_normal_query("test_vtable_select_test_orderby")
 
+
     def test_select_virtual_child_table(self):
         self.test_normal_query("test_vctable_select_test_projection")
         self.test_normal_query("test_vctable_select_test_projection_filter")
