@@ -441,7 +441,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       return code;
     }
 
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1, INT64_MAX);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep);
     setStreamOperatorCompleted(pOperator);
     (*ppRes) = NULL;
     return code;
@@ -533,7 +533,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
       (*ppRes) = pInfo->pCheckpointRes;
       return code;
     }
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1, INT64_MAX);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep);
     setStreamOperatorCompleted(pOperator);
   }
 
