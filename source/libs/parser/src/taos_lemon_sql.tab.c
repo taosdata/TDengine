@@ -13,10 +13,5 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <gtest/gtest.h>
-#include <iostream>
-
-TEST(jsonTest, taosBenchmarkTest) {
-  printf("hello world taosBenchmark unit test for C \n");
-}
+#include "taos_lemon_sql.c"
 

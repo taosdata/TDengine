@@ -20,7 +20,6 @@ target_include_directories(
 
 target_link_libraries(
   az
-  PUBLIC cjson
   PUBLIC os
   PUBLIC util
   PUBLIC common

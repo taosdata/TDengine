@@ -33,8 +33,24 @@ jobs:
           - macos-15
           - windows-2022
 
-          
     steps:
+      - name: Get CPU Cores
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            CPU_CORES=$(nproc)
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            CPU_CORES=$(sysctl -n hw.ncpu)
+          elif [ "${{ runner.os }}" == "Windows" ]; then
+            CPU_CORES=$(powershell -Command "(Get-CimInstance -ClassName Win32_Processor).NumberOfCores")
+          fi
+          echo "CPU Cores: $CPU_CORES"
+          echo "CPU_CORES=$CPU_CORES" >> $GITHUB_ENV
+
+      - name: Dump CPU Cores
+        run: |
+          echo "The number of CPU cores is: ${{ env.CPU_CORES }}"
+
       - name: Checkout the repository
         uses: actions/checkout@v4
 
@@ -91,8 +107,6 @@ jobs:
             pkg-config \
             zlib1g
 
-
-
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
         run: |
@@ -113,20 +127,47 @@ jobs:
         run: |
           choco install jom --yes
 
-      - name: Build and install TDengine on Linux and macOS
+      - name: Cache externals built
+        uses: actions/cache@v4
+        id: cache-ext
+        with:
+          path: ${{ github.workspace }}/.externals
+          key: ${{ runner.os }}-${{ matrix.os }}-build-ext-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
+
+      - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
+        name: Build externals on Linux and macOS
+        continue-on-error: false
+        run: |
+          ./build.sh gen
+          ./build.sh bld --target build_externals -v
+
+      - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
+        name: Build externals on Windows
+        continue-on-error: false
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set CL=/MP8
+          # TODO: later we'll use ./build.bat
+          cmake -B debug                       ^
+            -G "NMake Makefiles JOM"           ^
+            -DBUILD_TOOLS=true                 ^
+            -DBUILD_KEEPER=true                ^
+            -DBUILD_HTTP=false                 ^
+            -DBUILD_TEST=false                 ^
+            -DBUILD_DEPENDENCY_TESTS=false
+          cmake --build debug --target build_externals -j4
+
+      - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          mkdir debug && cd debug
-          cmake .. -DBUILD_TOOLS=true \
-            -DBUILD_KEEPER=true \
-            -DBUILD_HTTP=false \
-            -DBUILD_TEST=true \
-            -DBUILD_DEPENDENCY_TESTS=false
-          make -j4
-          sudo make install
+          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          ./build.sh bld -v
+          ./build.sh install
           which taosd
           which taosadapter
           which taoskeeper
+          taosd --help
 
       - name: Build and install TDengine on Windows
         if: runner.os == 'Windows'
@@ -134,10 +175,17 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
-          mkdir debug && cd debug
-          cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=false -DBUILD_DEPENDENCY_TESTS=false -DBUILD_KEEPER=true
-          jom -j4
-          jom install
+          # TODO: later we'll use ./build.bat
+          cmake -B debug                       ^
+            -G "NMake Makefiles JOM"           ^
+            -DBUILD_TOOLS=true                 ^
+            -DBUILD_KEEPER=true                ^
+            -DBUILD_HTTP=false                 ^
+            -DBUILD_TEST=false                 ^
+            -DBUILD_DEPENDENCY_TESTS=false     ^
+            -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          cmake --build debug -j4 -v
+          cmake --install debug
 
       - name: Start taosd on Linux and macOS
         if: runner.os != 'Windows'
@@ -145,10 +193,10 @@ jobs:
           nohup sudo taosd -c taos.cfg &
           nohup sudo taosadapter &
 
-      - name: Run tests with taosBenchmark 
+      - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
-          taosBenchmark -t 10 -n 10 -y 
+          taosBenchmark -t 10 -n 10 -y
           taos -s "select count(*) from test.meters"
 
       - name: Clean up  on Linux and macOS

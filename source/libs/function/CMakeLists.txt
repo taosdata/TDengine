@@ -37,8 +37,7 @@ target_link_libraries(
     PRIVATE qcom
     PRIVATE scalar
     PRIVATE geometry
-    PRIVATE transport
-    PUBLIC uv_a
+    PUBLIC transport
 )
 
 add_executable(runUdf test/runUdf.c)
@@ -60,7 +59,6 @@ ENDIF()
 
 target_link_libraries(
     runUdf
-    PUBLIC uv_a
     PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )
 
@@ -186,7 +184,7 @@ foreach(index RANGE 0 6)
     )
 endforeach()
 
-# SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
+# SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)
 
 if(${TD_DARWIN})
@@ -211,6 +209,6 @@ ENDIF()
 
 target_link_libraries(
     udfd
-    PUBLIC uv_a
     PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )
+
