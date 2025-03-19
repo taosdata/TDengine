@@ -86,6 +86,7 @@ static int32_t stmtCreateRequest(STscStmt2* pStmt) {
     if (pStmt->reqid != 0) {
       pStmt->reqid++;
     }
+    pStmt->exec.pRequest->type = RES_TYPE__QUERY;
     if (pStmt->db != NULL) {
       taosMemoryFreeClear(pStmt->exec.pRequest->pDb); 
       pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
