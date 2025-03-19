@@ -262,9 +262,11 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
                 "INSERT INTO ? VALUES(?,%s)", colQ);
         } else {
             // websocket
-            colNames = genColNames(stbInfo->cols);
+            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // nomral table
+            colNames = genColNames(stbInfo->cols, !ntb);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
-                "INSERT INTO `%s`.`%s`(%s) VALUES(?,?,%s)", db, stbInfo->stbName, colNames, colQ);
+                "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, stbInfo->stbName, colNames,
+                ntb ? "?" : "?,?", colQ);
         }
     }
     len += n;
@@ -298,6 +300,7 @@ int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t t
         tmfree(prepare);
         return -1;
     }
+    debugPrint("succ call taos_stmt_prepare sql:%s\n", prepare);
     tmfree(prepare);
     return 0;
 }
