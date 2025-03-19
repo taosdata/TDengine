@@ -117,14 +117,14 @@ class ForecastTest(unittest.TestCase):
         data, ts = self.get_input_list()
         pass
 
-        s = loader.get_service("td_gpt_fc")
-        s.set_input_list(data, ts)
-
-        s.set_params({"host":'192.168.2.90:5000/ds_predict', 'fc_rows': 10, 'start_ts': 171000000, 'time_step': 86400*30})
-        r = s.execute()
-
-        rows = len(r["res"][0])
-        draw_fc_results(data, False, r["res"], rows, "gpt")
+        # s = loader.get_service("td_gpt_fc")
+        # s.set_input_list(data, ts)
+        #
+        # s.set_params({"host":'192.168.2.90:5000/ds_predict', 'fc_rows': 10, 'start_ts': 171000000, 'time_step': 86400*30})
+        # r = s.execute()
+        #
+        # rows = len(r["res"][0])
+        # draw_fc_results(data, False, r["res"], rows, "gpt")
 
 
 if __name__ == '__main__':
