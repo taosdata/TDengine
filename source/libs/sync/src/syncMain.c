@@ -3435,7 +3435,7 @@ _out:;
 
   if (pEntry != NULL) {
     sGDebug(trace,
-            "vgId:%d, index:%" PRId64 ", append raft entry, msg:%p term:%" PRId64 " buf:[%" PRId64 " %" PRId64
+            "vgId:%d, index:%" PRId64 ", raft entry appended, msg:%p term:%" PRId64 " buf:[%" PRId64 " %" PRId64
             " %" PRId64 ", %" PRId64 ")",
             ths->vgId, pEntry->index, pMsg, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
             ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
