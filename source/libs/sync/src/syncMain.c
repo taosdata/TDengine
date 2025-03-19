@@ -2790,6 +2790,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
         // send msg
         TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+        TRACE_SET_ROOTID(&(rpcMsg.info.traceId), tGenIdPI64());
         sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId,
                 DID(&(pSyncMsg->destId)));
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
@@ -3590,6 +3591,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->privateTerm = 8864;  // magic number
   pMsgReply->startTime = ths->startTime;
   pMsgReply->timeStamp = tsMs;
+  rpcMsg.info.traceId = pRpcMsg->info.traceId;
 
   // reply
   TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
@@ -3619,6 +3621,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER || ths->state == TAOS_SYNC_STATE_LEARNER) {
       SRpcMsg rpcMsgLocalCmd = {0};
       TAOS_CHECK_RETURN(syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId));
+      rpcMsgLocalCmd.info.traceId = rpcMsg.info.traceId;
 
       SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
       pSyncMsg->cmd =
@@ -3644,6 +3647,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER)) {
     SRpcMsg rpcMsgLocalCmd = {0};
     TAOS_CHECK_RETURN(syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId));
+    rpcMsgLocalCmd.info.traceId = rpcMsg.info.traceId;
 
     SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
     pSyncMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
