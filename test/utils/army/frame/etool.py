@@ -25,6 +25,11 @@ from utils.army.frame.log import *
 
 # taosdump
 def taosDumpFile():
+    """Get the path to the `taosdump` binary file.
+
+    Returns:
+        str: The full path to the `taosdump` binary file, with `.exe` appended if on Windows.
+    """
     bmFile = utils.army.frame.epath.binFile("taosdump")
     if utils.army.frame.eos.isWin():
         bmFile += ".exe"
@@ -32,6 +37,11 @@ def taosDumpFile():
 
 # taosBenchmark
 def benchMarkFile():
+    """Get the path to the `taosBenchmark` binary file.
+
+    Returns:
+        str: The full path to the `taosBenchmark` binary file, with `.exe` appended if on Windows.
+    """
     bmFile = utils.army.frame.epath.binFile("taosBenchmark")
     if utils.army.frame.eos.isWin():
         bmFile += ".exe"
@@ -39,6 +49,11 @@ def benchMarkFile():
 
 # taosAdapter
 def taosAdapterFile():
+    """Get the path to the `taosAdapter` binary file.
+
+    Returns:
+        str: The full path to the `taosAdapter` binary file, with `.exe` appended if on Windows.
+    """
     bmFile = utils.army.frame.epath.binFile("taosAdapter")
     if utils.army.frame.eos.isWin():
         bmFile += ".exe"
@@ -46,6 +61,15 @@ def taosAdapterFile():
 
 # run taosBenchmark with command or json file mode
 def benchMark(command = "", json = "") :
+    """Run the `taosBenchmark` binary with a command or JSON file.
+
+    Args:
+        command (str, optional): The command to execute. Defaults to an empty string.
+        json (str, optional): The path to a JSON file for execution. Defaults to an empty string.
+
+    Raises:
+        SystemExit: If the execution of the JSON file fails.
+    """
     # get taosBenchmark path
     bmFile = benchMarkFile()
 
@@ -62,11 +86,30 @@ def benchMark(command = "", json = "") :
 
 # get current directory file name
 def curFile(fullPath, filename):
+    """Get the full path to a file in the current directory.
+
+    Args:
+        fullPath (str): The full path to the current directory.
+        filename (str): The name of the file.
+
+    Returns:
+        str: The full path to the file in the current directory.
+    """
     return os.path.dirname(fullPath) + "/" + filename
 
 
 # run build/bin file
 def runBinFile(fname, command, show=True):
+    """Run a binary file with the specified command.
+
+    Args:
+        fname (str): The name of the binary file.
+        command (str): The command to execute.
+        show (bool, optional): Whether to log the command. Defaults to True.
+
+    Returns:
+        list: The output of the command as a list of strings.
+    """
     binFile = utils.army.frame.epath.binFile(fname)
     if utils.army.frame.eos.isWin():
         binFile += ".exe"
@@ -78,6 +121,25 @@ def runBinFile(fname, command, show=True):
 
 # exe build/bin file
 def exeBinFile(fname, command, wait=True, show=True):
+    """Execute a binary file with the specified command.
+
+    This method uses `utils.army.frame.eos.exe` or `utils.army.frame.eos.exeNoWait` 
+    to execute the binary file. The `exe` function waits for the command to finish, 
+    while `exeNoWait` runs the command in the background and returns immediately.
+
+    Args:
+        fname (str): The name of the binary file.
+        command (str): The command to execute.
+        wait (bool, optional): Whether to wait for the command to finish. Defaults to True.
+            - If True, uses `utils.army.frame.eos.exe`.
+            - If False, uses `utils.army.frame.eos.exeNoWait`.
+        show (bool, optional): Whether to log the command. Defaults to True.
+
+    Returns:
+        int: The exit status of the command execution. A return value of `0` indicates success, 
+             while a non-zero value indicates failure.
+             - If `wait` is False, the return value is the exit status of the `nohup` or `mintty` command.
+    """
     binFile = utils.army.frame.epath.binFile(fname)
     if utils.army.frame.eos.isWin():
         binFile += ".exe"

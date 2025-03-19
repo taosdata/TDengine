@@ -35,6 +35,15 @@ class srvCtl:
 
     # start idx base is 1 
     def dnodeStart(self, idx):
+        """
+        Starts a dnode.
+
+        Args:
+            idx (int): The index of the dnode to start.
+
+        Returns:
+            bool: True if the dnode was started successfully, False otherwise.
+        """
         if clusterDnodes.getModel() == 'cluster':
             return clusterDnodes.starttaosd(idx)
 
@@ -42,12 +51,27 @@ class srvCtl:
 
     # stop idx base is 1 
     def dnodeStop(self, idx):
+        """
+        Stops a dnode.
+
+        Args:
+            idx (int): The index of the dnode to stop.
+
+        Returns:
+            bool: True if the dnode was stopped successfully, False otherwise.
+        """
         if clusterDnodes.getModel() == 'cluster':
             return clusterDnodes.stoptaosd(idx)
 
         return tdDnodes.stoptaosd(idx)
 
     def dnodeStopAll(self):
+        """
+        Stops all dnodes.
+
+        Returns:
+            bool: True if all dnodes were stopped successfully, False otherwise.
+        """
         if clusterDnodes.getModel() == 'cluster':
             return clusterDnodes.stopAll()
 
@@ -58,6 +82,12 @@ class srvCtl:
 
     # get cluster root path like /root/TDinternal/sim/ 
     def clusterRootPath(self):
+        """
+        Gets the root path of the cluster.
+
+        Returns:
+            str: The root path of the cluster.
+        """
         if clusterDnodes.getModel() == 'cluster':
             return clusterDnodes.getDnodesRootDir()
 
@@ -65,6 +95,15 @@ class srvCtl:
     
     # get taosd path
     def taosdFile(self, idx):
+        """
+        Gets the path to the taosd file for a specific dnode.
+
+        Args:
+            idx (int): The index of the dnode.
+
+        Returns:
+            str: The path to the taosd file.
+        """
         if clusterDnodes.getModel() == 'cluster':
             return clusterDnodes.taosdFile(idx)
 
@@ -74,6 +113,15 @@ class srvCtl:
 
     # return dnode data files list
     def dnodeDataFiles(self, idx):
+        """
+        Gets the data files for a specific dnode.
+
+        Args:
+            idx (int): The index of the dnode.
+
+        Returns:
+            list: A list of data files for the dnode.
+        """
         files = []
         return files
     
@@ -83,6 +131,15 @@ class srvCtl:
 
     # taos.cfg position
     def dnodeCfgPath(self, idx):
+        """
+        Gets the configuration path for a specific dnode.
+
+        Args:
+            idx (int): The index of the dnode.
+
+        Returns:
+            str: The configuration path for the dnode.
+        """
         if clusterDnodes.getModel() == 'cluster':
             return clusterDnodes.getDnodeCfgPath(idx)
         return tdDnodes.getDnodeCfgPath(idx)
