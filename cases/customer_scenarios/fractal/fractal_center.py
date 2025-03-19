@@ -49,8 +49,8 @@ class FractalCenter(TDCase):
         # 创建legacy datain任务,每个edge侧的mqtt_datain数据库都会有一个legacy datain任务
         for edge_host in self.edge_hosts:
             case_data = {
-                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s",
-                "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}?{self.compression_param}",
+                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s&compression={self.compression_param}",
+                "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}",
                 "labels": self.case_data_org["from"]["labels"]
             }
             response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks',header=headers)
