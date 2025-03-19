@@ -22,6 +22,7 @@
 
 #include "executorInt.h"
 #include "streamexecutorInt.h"
+#include "streamsession.h"
 #include "streaminterval.h"
 #include "tcommon.h"
 #include "thash.h"
@@ -1891,6 +1892,10 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
     initNonBlockAggSupptor(&pInfo->nbSup, &pInfo->pFillSup->interval, downstream);
     code = initStreamBasicInfo(&pInfo->basic, pOperator);
     QUERY_CHECK_CODE(code, lino, _error);
+
+    code = streamClientCheckCfg(&pInfo->nbSup.recParam);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     pInfo->basic.operatorFlag = opFlag;
     if (isFinalOperator(&pInfo->basic)) {
       pInfo->nbSup.numOfKeep++;

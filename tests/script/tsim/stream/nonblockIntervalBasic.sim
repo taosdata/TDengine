@@ -13,6 +13,13 @@ sql use test;
 sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
+
+
+sql_error create stream streams_er1 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et1 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname session(ts, 10s);
+sql_error create stream streams_er2 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et2 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname state_window(a) ;
+sql_error create stream streams_er3 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et3 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname count_window(10);
+sql_error create stream streams_er4 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et4 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname event_window start with a = 0 end with b = 9;
+
 sql create stream streams1 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt1 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname interval(10s) ;
 
 run tsim/stream/checkTaskStatus.sim
