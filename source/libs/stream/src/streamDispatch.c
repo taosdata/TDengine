@@ -244,11 +244,12 @@ void destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups) {
 
 void clearBufferedDispatchMsg(SStreamTask* pTask) {
   SDispatchMsgInfo* pMsgInfo = &pTask->msgInfo;
+
+  streamMutexLock(&pMsgInfo->lock);
+
   if (pMsgInfo->pData != NULL) {
     destroyDispatchMsg(pMsgInfo->pData, streamTaskGetNumOfDownstream(pTask));
   }
-
-  streamMutexLock(&pMsgInfo->lock);
 
   pMsgInfo->checkpointId = -1;
   pMsgInfo->transId = -1;
