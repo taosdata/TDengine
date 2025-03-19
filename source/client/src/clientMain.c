@@ -647,7 +647,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     }
 
     if (pResultInfo->current < pResultInfo->numOfRows) {
-      doSetOneRowPtr(pResultInfo, false);
+      doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
       return pResultInfo->row;
     } else {
@@ -655,7 +655,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
         return NULL;
       }
 
-      doSetOneRowPtr(pResultInfo, false);
+      doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
       return pResultInfo->row;
     }

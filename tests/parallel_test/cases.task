@@ -46,6 +46,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
+,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
@@ -342,6 +343,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2

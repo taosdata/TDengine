@@ -1018,6 +1018,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   if (qwMsg->msg) {
     code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
+    qwMsg->msg = NULL;
     goto _return;
   }
 
@@ -1061,6 +1062,10 @@ _return:
 
   if (locked) {
     QW_UNLOCK(QW_WRITE, &ctx->lock);
+  }
+
+  if (qwMsg->msg) {
+    qDestroyOperatorParam(qwMsg->msg);
   }
 
   input.code = code;

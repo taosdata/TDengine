@@ -56,7 +56,7 @@ taosdump -u user1 -pAb1\!\@\#\$\%\^\&\*\(\)\-\_\+\=\[\]\{\} -D test
 ```
 
 </TabItem>
-<TabItem label="taosBenchmark" value="benchmark">
+<TabItem label="Benchmark" value="benchmark">
 
 In [taosBenchmark](../../tdengine-reference/tools/taosbenchmark/), note the following:
 
@@ -79,14 +79,11 @@ When using `taosBenchmark -f <JSON>`, there are no restrictions on the password 
 Example of exporting data with user `user1`:
 
 ```shell
-taosx -f 'taos://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6030?query=select * from test.t1' -t 'csv:./test.csv'
+taosx -f 'taos://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6030?query=select * from test.t1' \
+  -t 'csv:./test.csv'
 ```
 
 Note that if the password can be URL decoded, the URL decoded result will be used as the password. For example: `taos+ws://user1:Ab1%21%40%23%24%25%5E%26%2A%28%29-_%2B%3D%5B%5D%7B%7D@localhost:6041` is equivalent to `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6041`.
-
-</TabItem>
-
-<TabItem label="Explorer" value="explorer">
 
 No special handling is required in [Explorer](../../tdengine-reference/components/taosexplorer/), just use it directly.
 
@@ -232,6 +229,8 @@ let connection = TaosBuilder::from_dsn(&dsn)?.build().await?;
 </TabItem>
 <TabItem label="Node.js" value="node">
 
+Starting from version 3.1.5, the Node.js connector supports passwords containing all valid characters.
+
 ```js
 const taos = require("@tdengine/websocket");
 
@@ -246,7 +245,7 @@ async function createConnect() {
         console.log("Connected to " + dsn + " successfully.");
         return conn;
     } catch (err) {
-        console.log("Failed to connect to " + dsn + ", ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.log("Connection failed with code: " + err.code + ", message: " + err.message);
         throw err;
     }
 }
@@ -278,7 +277,7 @@ TAOS *taos = taos_connect("localhost", "user1", "Ab1!@#$%^&*()-_+=[]{}", NULL, 6
 ```
 
 </TabItem>
-<TabItem label="REST API" value="rest">
+<TabItem label="REST" value="rest">
 
 When using passwords in REST API, note the following:
 
@@ -288,8 +287,10 @@ When using passwords in REST API, note the following:
 The following two methods are equivalent:
 
 ```shell
-curl -u'user1:Ab1!@#$%^&*()-_+=[]{}' -d 'show databases' http://localhost:6041/rest/sql
-curl -H 'Authorization: Basic dXNlcjE6QWIxIUAjJCVeJiooKS1fKz1bXXt9' -d 'show databases' http://localhost:6041/rest/sql
+curl -u'user1:Ab1!@#$%^&*()-_+=[]{}' \
+  -d 'show databases' http://localhost:6041/rest/sql
+curl -H 'Authorization: Basic dXNlcjE6QWIxIUAjJCVeJiooKS1fKz1bXXt9' \
+  -d 'show databases' http://localhost:6041/rest/sql
 ```
 
 </TabItem>
