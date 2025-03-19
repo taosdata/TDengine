@@ -2135,8 +2135,9 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength, bo
 
 static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
-    TAOS_FIELD_E* pField = pResultInfo->fields + i;
-    int32_t type = pField->type;
+    TAOS_FIELD_E* pFieldE = pResultInfo->fields + i;
+    TAOS_FIELD* pField = pResultInfo->userFields + i;
+    int32_t type = pFieldE->type;
     int32_t bufLen = 0;
     char* p = NULL;
     if (!IS_DECIMAL_TYPE(type) || !pResultInfo->pCol[i].pData) {
@@ -2144,6 +2145,7 @@ static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
     } else {
       bufLen = 64;
       p = taosMemoryRealloc(pResultInfo->convertBuf[i], bufLen * pResultInfo->numOfRows);
+      pFieldE->bytes = bufLen;
       pField->bytes = bufLen;
     }
     if (!p) return terrno;
@@ -2151,7 +2153,7 @@ static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
 
     for (int32_t j = 0; j < pResultInfo->numOfRows; ++j) {
       int32_t code = decimalToStr((DecimalWord*)(pResultInfo->pCol[i].pData + j * tDataTypes[type].bytes), type,
-                                  pField->precision, pField->scale, p, bufLen);
+                                  pFieldE->precision, pFieldE->scale, p, bufLen);
       p += bufLen;
       if (TSDB_CODE_SUCCESS != code) {
         return code;

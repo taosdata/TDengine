@@ -32,7 +32,10 @@ def get_decimal(val, scale: int) -> Decimal:
     if val == 'NULL':
         return None
     getcontext().prec = 100
-    return Decimal(val).quantize(Decimal("1." + "0" * scale), ROUND_HALF_UP)
+    try:
+        return Decimal(val).quantize(Decimal("1." + "0" * scale), ROUND_HALF_UP)
+    except Exception as e:
+        tdLog.exit(f"failed to convert {val} to decimal, {e}")
 
 syntax_error = -2147473920
 invalid_column = -2147473918
