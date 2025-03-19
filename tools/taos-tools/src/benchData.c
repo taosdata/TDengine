@@ -262,7 +262,8 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
                 "INSERT INTO ? VALUES(?,%s)", colQ);
         } else {
             // websocket
-            colNames = genColNames(stbInfo->cols);
+            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // nomral table
+            colNames = genColNames(stbInfo->cols, !ntb);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO `%s`.`%s`(%s) VALUES(?,?,%s)", db, stbInfo->stbName, colNames, colQ);
         }

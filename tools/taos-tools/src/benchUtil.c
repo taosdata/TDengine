@@ -858,11 +858,16 @@ char* genQMark( int32_t QCnt) {
     return buf;
 }
 
-// get colNames , first is tbname
-char *genColNames(BArray *cols) {
+// get colNames , first is tbname if tbName is true
+char *genColNames(BArray *cols, bool tbName) {
     // reserve tbname,ts and "," space
     char * buf = benchCalloc(TSDB_TABLE_NAME_LEN + 1, cols->size + 1, false);
-    strcpy(buf, "tbname,ts");
+    if (tbName) {
+        strcpy(buf, "tbname,ts");
+    } else {
+        strcpy(buf, "ts");
+    }
+   
     for (int32_t i = 0; i < cols->size; i++) {
         Field * col = benchArrayGet(cols, i);
         strcat(buf, ",");
