@@ -21,6 +21,10 @@ MNODE_CREATED=0
 SNODE_CREATED=0
 ANODE_CREATED=0
 
+# Add for TDgpt
+CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
+TS_SERVER_FILE="/root/taos_ts_server.py "
+
 # set the timezone for the TDengine
 if [ "$TZ" != "" ]; then
     ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
@@ -53,7 +57,7 @@ function logger() {
     echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh: [$logLevel] $logMsg" 2>&1 | tee -a /var/log/run.log
 }
 logger "INFO" "FQDN is $FQDN, FIRSTEP is $FIRST_EP_HOST and ENDPOINT is $ENDPOINT"
-                      
+
 ulimit -c unlimited
 # set core files pattern, maybe failed
 sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
@@ -107,12 +111,12 @@ function check_taosd() {
                 fi
                 logger "INFO" "sleep 5s to generate core file"
                 sleep 5
-                # generate core file 
+                # generate core file
                 taosdTID=$(pidof taosd)
-                if gcore -a -o "$BACKUP_CORE_FOLDER/taosd.core.$SUFFIX" "$taosdTID"; then 
+                if gcore -a -o "$BACKUP_CORE_FOLDER/taosd.core.$SUFFIX" "$taosdTID"; then
                     logger "INFO" "generated corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"
                 else
-                    logger "ERROR" "failed to generate corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"  
+                    logger "ERROR" "failed to generate corefile ${BACKUP_CORE_FOLDER}/taosd.core.${SUFFIX} for taosd $taosdTID"
                 fi
                 # alert the message
                 post_error_msg
@@ -123,7 +127,7 @@ function check_taosd() {
                     logger "ERROR" "failed to kill the taosd $taosdTID with -15 and try to kill it with -9"
                     kill -9 $taosdTID;
                 fi
-            fi 
+            fi
         fi
     else
         set_service_state "ready" "ok"
@@ -332,6 +336,7 @@ function run_taosadapter() {
     check_process_exit_type "adapter"
     post_adapter_error_msg
 }
+
 function print_service_state_change() {
     if [ "x$1" != "x${service_state}" ]; then
         logger "INFO" "service state: ${service_state}, ${service_msg}"
@@ -339,14 +344,14 @@ function print_service_state_change() {
 }
 function initDnodeAndMnode {
     while true
-    do 
+    do
         if [ $DNODE_CREATED -eq 1 ] && [ $MNODE_CREATED -eq 1 ] && [ $SNODE_CREATED -eq 1 ]&& [ $ANODE_CREATED -eq 1 ]; then
-            break 
+            break
         fi
         # first check dnode created
         DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
         if [[ "$DNODETmp" == "" ]]; then
-            timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0;"  
+            timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0;"
             DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$DNODETmp" != "" ]]; then
                 DNODE_CREATED=1
@@ -369,11 +374,11 @@ function initDnodeAndMnode {
                     if [[ "$SNODETmp" != "" ]]; then
                         SNODE_CREATED=1
                         logger "INFO" "Created the snode for dnode $DNODEID"
-                    else 
+                    else
                         logger "ERROR" "failed to create snode for dnode $ENDPOINT through taos"
                     fi
                 fi
-            else 
+            else
                 SNODE_CREATED=1
                 logger "INFO" "Snode $SNODETmp already created"
             fi
@@ -390,10 +395,10 @@ function initDnodeAndMnode {
                 if [[ "$ANODETmp" != "" ]]; then
                     ANODE_CREATED=1
                     logger "INFO" "Created the anode"
-                else 
+                else
                     logger "ERROR" "failed to create anode through taos"
                 fi
-            else 
+            else
                 ANODE_CREATED=1
                 logger "INFO" "Anode $ANODETmp already created"
             fi
@@ -412,11 +417,11 @@ function initDnodeAndMnode {
                     if [[ "$MNODETmp" != "" ]]; then
                         MNODE_CREATED=1
                         logger "INFO" "Created the mnode for dnode $DNODEID"
-                    else 
+                    else
                         logger "ERROR" "failed to create mnode for dnode $ENDPOINT through taos"
                     fi
                 fi
-            else 
+            else
                 MNODE_CREATED=1
                 logger "INFO" "Mnode $MNODETmp already created"
             fi
@@ -424,7 +429,7 @@ function initDnodeAndMnode {
             # check admin_user created or not
             ADMINUSER=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "show users;" | grep -E "admin_user" -o)
             if [[ "$ADMINUSER" == "" ]]; then
-                timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"  
+                timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"
                 logger "INFO" "created admin_user"
             fi
             MNODE_CREATED=1
@@ -432,6 +437,28 @@ function initDnodeAndMnode {
         fi
     done
 }
+
+function run_taos_ts_server() {
+    logger "INFO" "Starting taos_ts_server..."
+    python3 /root/taos_ts_server.py --action server &
+    TAOS_TS_PID=$!
+    if ! ps -p $TAOS_TS_PID > /dev/null; then
+        logger "ERROR" "taos_ts_server failed to start!"
+    fi
+}
+
+function run_tdgpt() {
+    if [ ! -f "$CONFIG_FILE" ]; then
+        logger "ERROR" "Configuration file $CONFIG_FILE not found!"
+    fi
+    logger "INFO" "Starting uWSGI with config: $CONFIG_FILE"
+    /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE" &
+    UWSGI_PID=$!
+    if ! ps -p $UWSGI_PID > /dev/null ; then
+        logger "ERROR" "Error: uWSGI failed to start!"
+    fi
+}
+
 taosd_start_time=`date +%s`
 taosadapter_start_time=$taosd_start_time
 while ((1))
@@ -474,15 +501,17 @@ do
     fi
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ]; then
+        run_taos_ts_server
+        run_tdgpt
         initDnodeAndMnode
         if [ "$clustercheckneeded"x = "0"x ]; then
             td_cluster_check "no"
             if [ $? -eq 0 ]; then
                 clustercheckneeded="1"
                 logger "INFO" "the cluster is ready to write/read in dnode $FQDN and set status to 6 and clustercheckneeded to 1"
-            else 
+            else
                 logger "ERROR" "the cluster status check failed"
-            fi 
+            fi
         fi
     fi
             #logger "INFO" "enable to generate test db: $TAOS_RUN_TAOSBENCHMARK_TEST; already generated test db: $TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"
@@ -500,29 +529,29 @@ do
                         createTest="0"
                         logger "INFO" "test database existed but meters stable does not exist"
                     fi
-                else 
+                else
                     createTest="2"
                     logger "ERROR" "failed to query meters stable from information_schema"
                 fi
-            else 
+            else
                 createTest="1"
             fi
             if [ "$createTest"x = "0"x ] || [ "$createTest"x = "1"x ]; then
                 if [ "$createTest"x = "0"x ]; then
-                    taosBenchmark -Q -t 1000 -n 1000 -S 1000 -H 200 -y 
-                else 
+                    taosBenchmark -Q -t 1000 -n 1000 -S 1000 -H 200 -y
+                else
                     taosBenchmark -t 1000 -n 1000 -S 1000 -H 200 -y
                 fi
                 taos -s "alter database test WAL_RETENTION_PERIOD 3600;GRANT ALL on test.* to admin_user;"
                 TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
                 logger "INFO" "taosBenchmark executed to generate test database"
-            else 
+            else
                 if [ "$createTest"x = ""x ]; then
                     TAOS_RUN_TAOSBENCHMARK_TEST_ONCE=1
                     logger "INFO" "test database existed and no need to check to create test database"
                 fi
             fi
-        else 
+        else
             logger "ERROR" "failed to show all databases"
         fi
     fi
