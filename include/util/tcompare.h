@@ -36,6 +36,12 @@ extern "C" {
 #define FLT_GREATEREQUAL(_x, _y) (FLT_EQUAL((_x), (_y)) || ((_x) > (_y)))
 #define FLT_LESSEQUAL(_x, _y)    (FLT_EQUAL((_x), (_y)) || ((_x) < (_y)))
 
+#define DBL_EQUAL(_x, _y)        fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * DBL_EPSILON)
+#define DBL_GREATER(_x, _y)      (!DBL_EQUAL((_x), (_y)) && ((_x) > (_y)))
+#define DBL_LESS(_x, _y)         (!DBL_EQUAL((_x), (_y)) && ((_x) < (_y)))
+#define DBL_GREATEREQUAL(_x, _y) (DBL_EQUAL((_x), (_y)) || ((_x) > (_y)))
+#define DBL_LESSEQUAL(_x, _y)    (DBL_EQUAL((_x), (_y)) || ((_x) < (_y)))
+
 #define PATTERN_COMPARE_INFO_INITIALIZER { '%', '_', L'%', L'_' }
 
 typedef struct SPatternCompareInfo {
