@@ -44,6 +44,7 @@ typedef struct {
   uint64_t offset;
   int32_t  size;
   int32_t  vlen;
+  int32_t  seq;
 } SValueInfo;
 
 typedef struct {
@@ -161,6 +162,7 @@ typedef struct {
 
   SBse     *pBse;
   SHashObj *pOffset;
+  SArray   *pSeq;
 } SBseBatch;
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);

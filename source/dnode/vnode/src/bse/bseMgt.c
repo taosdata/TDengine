@@ -250,39 +250,28 @@ static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t
 
   return code;
 }
-// static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len) {
-//   int32_t    code = 0;
-//   int32_t    tlen = 0;
-//   uint64_t   tkey = 0;
-//   SBlkData2 *pBlkData = data->pData;
-//   uint8_t   *p = (uint8_t *)pBlkData->data + offset;
-//   p = taosDecodeVariantU64(p, &tkey);
-//   if (tkey != key) {
-//     return TSDB_CODE_NOT_FOUND;
-//   }
-//   p = taosDecodeVariantI32(p, &tlen);
-//   p = taosDecodeBinary(p, (void **)pValue, tlen);
-
-//   *len = tlen;
-//   return code;
-// }
 
 static int32_t blockSeekSeq(SBlkData *data, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t    code = 0;
   int32_t    tlen = 0;
-  uint64_t   tkey = 0;
+  int64_t    tkey = 0;
   int8_t     found = 0;
   SBlkData2 *pBlkData = data->pData;
   uint8_t   *pos = (uint8_t *)pBlkData->data;
   uint8_t   *start = (uint8_t *)pBlkData->data;
+  int64_t    preKey = 0;
   do {
-    pos = taosDecodeVariantU64(pos, &tkey);
+    pos = taosDecodeVariantI64(pos, &tkey);
+    if (preKey != 0 && preKey > tkey) {
+      ASSERT(0);
+    }
     if (tkey == seq) {
       pos = taosDecodeVariantI32(pos, &tlen);
       pos = taosDecodeBinary(pos, (void **)pValue, tlen);
       found = 1;
       break;
     }
+    preKey = tkey;
     pos = taosDecodeVariantI32(pos, &tlen);
     pos += tlen;
   } while ((pos - start) <= pBlkData->len);
@@ -421,7 +410,7 @@ _err:
   return code;
 }
 
-int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len) {
+int32_t tableAppendData(STable *pTable, int64_t key, uint8_t *value, int32_t len) {
   int32_t  line = 0;
   int32_t  code;
   uint32_t offset;
@@ -459,15 +448,10 @@ int32_t tableAppendBatch(STable *pTable, SBseBatch *pBatch) {
   int32_t  code = 0;
   int32_t  lino = 0;
   uint32_t offset = 0;
-  void    *pIter = taosHashIterate(pBatch->pOffset, NULL);
-  while (pIter) {
-    uint64_t   *seq = taosHashGetKey(pIter, NULL);
-    SValueInfo *pInfo = (SValueInfo *)pIter;
-
-    code = tableAppendData(pTable, *seq, pBatch->buf + pInfo->offset, pInfo->size);
+  for (int32_t i = 0; i < taosArrayGetSize(pBatch->pSeq); i++) {
+    SValueInfo *pInfo = taosArrayGet(pBatch->pSeq, i);
+    code = tableAppendData(pTable, pInfo->seq, pBatch->buf + pInfo->offset, pInfo->size);
     TAOS_CHECK_GOTO(code, &lino, _error);
-
-    pIter = taosHashIterate(pBatch->pOffset, pIter);
   }
 _error:
   if (code != 0) {
@@ -1109,10 +1093,12 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
 
-  p->pOffset = taosHashInit(nKeys, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  if (p->pOffset == NULL) {
-    TSDB_CHECK_CODE(terrno, lino, _error);
-  }
+  // p->pOffset = taosHashInit(nKeys, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  // if (p->pOffset == NULL) {
+  //   TSDB_CHECK_CODE(terrno, lino, _error);
+  // }
+
+  p->pSeq = taosArrayInit(nKeys, sizeof(SValueInfo));
 
   *pBatch = p;
 _error:
@@ -1137,15 +1123,17 @@ int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t le
 
   uint8_t *p = pBatch->buf + pBatch->len;
   offset = pBatch->len;
-  offset += taosEncodeVariantU64((void **)&p, aseq);
+  offset += taosEncodeVariantI64((void **)&p, aseq);
   offset += taosEncodeVariantI32((void **)&p, len);
   offset += taosEncodeBinary((void **)&p, value, len);
 
-  SValueInfo info = {.offset = pBatch->len, .size = offset - pBatch->len, .vlen = len};
+  SValueInfo info = {.offset = pBatch->len, .size = offset - pBatch->len, .vlen = len, .seq = aseq};
   pBatch->len = offset;
 
   *seq = aseq;
-  code = taosHashPut(pBatch->pOffset, &aseq, sizeof((aseq)), &info, sizeof(info));
+  if (taosArrayPush(pBatch->pSeq, &info) == NULL) {
+    TSDB_CHECK_CODE(terrno, lino, _error);
+  }
 
 _error:
   if (code != 0) {
@@ -1167,6 +1155,7 @@ int32_t bseBatchDestroy(SBseBatch *pBatch) {
   int32_t code = 0;
   taosMemoryFree(pBatch->buf);
   taosHashCleanup(pBatch->pOffset);
+  taosArrayDestroy(pBatch->pSeq);
 
   taosMemFree(pBatch);
   return code;
