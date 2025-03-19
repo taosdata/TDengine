@@ -68,13 +68,6 @@ class TestTsim:
 
     @pytest.mark.tsim
     def test_tsim_file(self):
-        """_summary_
-
-        Returns:
-            _type_: _description_   
-        
-        Since: _version_
-        """
         tdLog.info(f"Start tsim test {self.tsim_file}")
         
         tsim_file = self.tsim_file
