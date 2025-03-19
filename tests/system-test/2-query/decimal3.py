@@ -249,8 +249,6 @@ class TaosShell:
             self.read_result()
         except Exception as e:
             tdLog.exit(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
-            self.queryResult = []
-            raise
         return self.queryResult
 
 class DecimalColumnExpr:
@@ -1816,7 +1814,7 @@ class TDTestCase:
         tdSql.error(sql, invalid_encode_param)
 
     def test_insert_decimal_values(self):
-        self.log_test("start to insert decimal values")
+        self.log_test("insert decimal values")
         for i in range(self.c_table_num):
             TableInserter(
                 tdSql,
@@ -2176,7 +2174,7 @@ class TDTestCase:
                         tdLog.exit(f"expected err not occured for sql: {sql}, expect: {invalid_operation} or {scalar_convert_err}, but got {tdSql.errno}")
 
     def test_decimal_operators(self):
-        self.log_test("start to test decimal operators")
+        self.log_test("decimal operators")
         self.test_decimal_unsupported_types()
         ## tables: meters, nt
         ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
@@ -2323,7 +2321,7 @@ class TDTestCase:
 
 
     def test_query_decimal_order_clause(self):
-        self.log_test("start to test decimal order by")
+        self.log_test("decimal order by")
         self.test_query_with_order_by_for_tb(self.norm_table_name, self.norm_tb_columns)
         self.test_query_with_order_by_for_tb(self.stable_name, self.stb_columns)
     
@@ -2337,7 +2335,7 @@ class TDTestCase:
                     tdLog.exit(f"query result: {len(query_res)} not equal to calculated result: {calculated_grouped_res}")
 
     def test_query_decimal_group_by_clause(self):
-        self.log_test("start to test decimal group by")
+        self.log_test("decimal group by")
         self.test_query_decimal_group_by_decimal(self.norm_table_name, self.norm_tb_columns)
         self.test_query_decimal_group_by_decimal(self.stable_name, self.stb_columns)
     
@@ -2351,7 +2349,7 @@ class TDTestCase:
                     tdLog.exit(f"query result: {len(query_res)} not equal to calculated result: {calculated_grouped_res}")
 
     def test_query_decimal_having_clause(self):
-        self.log_test("start to test decimal having")
+        self.log_test("decimal having")
         self.test_query_decimal_group_by_with_having(self.norm_table_name, self.norm_tb_columns)
         self.test_query_decimal_group_by_with_having(self.stable_name, self.stb_columns)
     
@@ -2360,7 +2358,8 @@ class TDTestCase:
         self.test_query_decimal_interval_fill_for_tb(self.stable_name)
 
     def test_query_decimal_interval_fill_for_tb(self, tbname):
-        sql = f"select _wstart, count(*), avg(c1),tbname from {self.db_name}.{tbname} where ts >= '2018-09-17 01:00:00.000' and ts < '2018-09-17 01:00:05.000' partition by tbname interval(200a) fill(value,0,1.234)"
+        sql = f"select _wstart, count(*), avg(c1),tbname from {self.db_name}.{tbname} where ts >= 1537146000000 and ts < 1537146005000 partition by tbname interval(200a) fill(value,0,1.234)"
+        tdLog.debug(sql)
         res = TaosShell().query(sql)
         wstart_col = res[0]
         count_col = res[1]
@@ -2370,7 +2369,7 @@ class TDTestCase:
                 if Decimal(avg) != Decimal('1.234'):
                     tdLog.exit(f"sql: {sql} wstart: {wstart} count is 0, but avg is not 1.234")
         
-        fill_prev_res = TaosShell().query(f"select _wstart, count(*), avg(c1),tbname from {self.db_name}.{tbname} where ts >= '2018-09-17 01:00:00.000' and ts < '2018-09-17 01:00:05.000' partition by tbname interval(200a) fill(prev)")
+        fill_prev_res = TaosShell().query(f"select _wstart, count(*), avg(c1),tbname from {self.db_name}.{tbname} where ts >= 1537146000000 and ts < 1537146005000 partition by tbname interval(200a) fill(prev)")
         fill_prev_avg_col = fill_prev_res[2]
         for i in range(len(wstart_col)):
             if int(count_col[i]) == 0:
@@ -2378,7 +2377,7 @@ class TDTestCase:
                     tdLog.exit(f"sql: {sql} count is 0, but avg is not same as previous row")
 
     def test_query_decimal_case_when(self):
-        self.log_test("start to test decimal case when")
+        self.log_test("decimal case when")
         sql = "select case when cast(1 as decimal(10, 4)) >= 1 then cast(88888888.88 as decimal(10,2)) else cast(3.333 as decimal(10,3)) end"
         res = TaosShell().query(sql)[0]
         if res[0] != "88888888.88":
@@ -2442,7 +2441,7 @@ class TDTestCase:
                 cast_func.check(res, tbname)
 
     def test_decimal_functions(self):
-        self.log_test("start to test decimal functions")
+        self.log_test("decimal functions")
         if not test_decimal_funcs:
             return
         self.test_decimal_agg_funcs( self.db_name, self.norm_table_name, self.norm_tb_columns, DecimalFunction.get_decimal_agg_funcs)
@@ -2450,7 +2449,7 @@ class TDTestCase:
         self.test_decimal_cast_func(self.db_name, self.norm_table_name, self.norm_tb_columns)
 
     def test_query_decimal(self):
-        self.log_test("start to test decimal query")
+        self.log_test("decimal query")
         if not decimal_test_query:
             return
         #self.test_decimal_operators() ## tested in decimal.py
