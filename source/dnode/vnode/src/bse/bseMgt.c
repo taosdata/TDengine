@@ -1185,6 +1185,8 @@ int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen) {
     }
     pBatch->cap = cap;
     pBatch->buf = buf;
+  } else {
+    return code;
   }
 _error:
   if (code != 0) {
