@@ -53,11 +53,11 @@ if [ -z "$WORKDIR" ]; then
     exit 1
 fi
 if [ -z "$exec_dir" ]; then
-    usage
-    exit 1
+    exec_dir="."
 fi
 if [ -z "$cmd" ]; then
-    exec_dir="."
+    usage
+    exit 1
 fi
 if [ -z "$thread_no" ]; then
     usage
