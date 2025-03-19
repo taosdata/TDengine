@@ -123,7 +123,7 @@ fi
 #      wget -P  ${SOURCEDIR} https://taosdata.com/assets-download/3.0/${packageName}
 # fi
 
-MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/tests/$exec_dir"
+MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/test/$exec_dir"
 echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 
@@ -135,7 +135,7 @@ echo "docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param"
+    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/test/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param"
 
 docker run \
     -v $REP_MOUNT_PARAM \
@@ -145,7 +145,7 @@ docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/test/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 exit $ret
 
