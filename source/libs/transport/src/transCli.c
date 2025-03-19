@@ -595,7 +595,7 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
     int64_t   qId = taosHton64(pHead->qid);
     STraceId* trace = &pHead->traceId;
     int64_t   seqNum = taosHton64(pHead->seqNum);
-    tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, seqNum:%" PRId64 ", sid:%" PRId64 "",
+    tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, seqNum:%" PRId64 ", sid:%" PRId64,
             CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, seqNum,
             qId);
 

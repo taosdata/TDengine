@@ -267,7 +267,7 @@ _over:
   }
 
   terrno = 0;
-  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64 "", pStream->name, pRaw, pStream,
+  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64, pStream->name, pRaw, pStream,
          pStream->checkpointId);
   return pRaw;
 }

@@ -3340,7 +3340,7 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
         code = processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
         QUERY_CHECK_CODE(code, lino, _end);
-        qDebug("tmqsnap doQueueScan get data utid:%" PRId64 "", pResult->info.id.uid);
+        qDebug("tmqsnap doQueueScan get data utid:%" PRId64, pResult->info.id.uid);
         if (pResult->info.rows > 0) {
           (*ppRes) = pResult;
           return code;
@@ -3355,7 +3355,7 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     pTSInfo->base.dataReader = NULL;
     int64_t validVer = pTaskInfo->streamInfo.snapshotVer + 1;
-    qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", validVer);
+    qDebug("queue scan tsdb over, switch to wal ver %" PRId64, validVer);
     if (pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, validVer, pTaskInfo->id.str) < 0) {
       (*ppRes) = NULL;
       return code;
@@ -3981,7 +3981,7 @@ FETCH_NEXT_BLOCK:
         pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
         pInfo->updateResIndex = 0;
         pInfo->lastScanRange = pBlock->info.window;
-        TSKEY endKey = taosTimeGetIntervalEnd(pBlock->info.window.skey, &pInfo->interval);
+        TSKEY endKey = getNextTimeWindowStart(&pInfo->interval, pBlock->info.window.skey, TSDB_ORDER_ASC) - 1;
         if (pInfo->useGetResultRange == true) {
           endKey = pBlock->info.window.ekey;
         }
@@ -4316,7 +4316,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         bool hasPrimaryKey = pAPI->snapshotFn.taosXGetTablePrimaryKey(pInfo->sContext);
         code = processPrimaryKey(pBlock, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
         QUERY_CHECK_CODE(code, lino, _end);
-        qDebug("tmqsnap doRawScan get data uid:%" PRId64 "", pBlock->info.id.uid);
+        qDebug("tmqsnap doRawScan get data uid:%" PRId64, pBlock->info.id.uid);
         (*ppRes) = pBlock;
         return code;
       }
@@ -4336,7 +4336,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     } else {
       SValue val = {0};
       tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN, val);
-      qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
+      qDebug("tmqsnap change get data uid:%" PRId64, mtInfo.uid);
     }
     destroyMetaTableInfo(&mtInfo);
     code = qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
