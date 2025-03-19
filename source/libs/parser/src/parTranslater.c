@@ -13512,7 +13512,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     if (TSDB_CODE_SUCCESS == code) {
       code = columnDefNodeToField(pStmt->pCols, &pReq->pCols, false, false);
     }
-    pReq->recalculateInterval = 0;
+    pReq->recalculateInterval = 3600000;
     if (NULL != pStmt->pOptions->pRecInterval) {
       SValueNode* pValueNode = ((SValueNode*)pStmt->pOptions->pRecInterval);
       pReq->recalculateInterval =
