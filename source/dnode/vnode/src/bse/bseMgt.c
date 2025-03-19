@@ -172,7 +172,7 @@ int32_t blockInit(int32_t id, int32_t cap, int8_t type, SBlkData *blk) {
   return 0;
 }
 
-int32_t blockAdd2(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset) {
+int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset) {
   int32_t    code = 0;
   SBlkData2 *pBlk = blk->pData;
   uint8_t   *p = pBlk->data + pBlk->len;
@@ -180,6 +180,8 @@ int32_t blockAdd2(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint
 
   memcpy(p, value, len);
   pBlk->len += len;
+  blk->dataNum += len;
+
   return 0;
 }
 
@@ -283,7 +285,7 @@ static int32_t blockSeekSeq(SBlkData *data, int64_t seq, uint8_t **pValue, int32
     }
     pos = taosDecodeVariantI32(pos, &tlen);
     pos += tlen;
-  } while ((pos - start) < data->len);
+  } while ((pos - start) <= pBlkData->len);
 
   if (found) {
     *len = tlen;
@@ -480,7 +482,7 @@ int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t le
     pInfo = taosArrayPush(pTable->pSeqToBlock, &info);
   }
   pInfo->len += len;
-  code = blockAdd2(&pTable->data, key, value, len, &offset);
+  code = blockAdd(&pTable->data, key, value, len, &offset);
 _error:
   if (code != 0) {
     bseError("failed to append data since %s at line", tstrerror(code), line);
@@ -602,8 +604,6 @@ int32_t tableFlushBlock(STable *pTable) {
   if (pBlk->len == 0) {
     return 0;
   }
-  // serialize or not
-  pBlk->len = pData->dataNum;
 
   code = taosCalcChecksumAppend(0, (uint8_t *)pBlk, kBlockCap);
   TAOS_CHECK_GOTO(code, &line, _err);
@@ -1231,8 +1231,7 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
     code = tableLoadBySeq(pBse->pTable[pBse->inUse], seq, pValue, len);
     goto _err;
   } else {
-    SBseFileInfo key = {.firstVer = seq};
-    // SBseFileInfo *p = taosArraySearch(pBse->fileSet, &key, bseFileSetCmprFn, TD_GT);
+    SBseFileInfo  key = {.firstVer = seq};
     SBseFileInfo *p = NULL;
     for (int32_t i = 0; i < taosArrayGetSize(pBse->fileSet); i++) {
       SBseFileInfo *pInfo = taosArrayGet(pBse->fileSet, i);
