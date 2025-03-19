@@ -4200,22 +4200,16 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   int32_t     res = 0;
   SSessionKey tmpKey = *key;
   int32_t     valSize = *pVLen;
-  void*       tmp = taosMemoryMalloc(valSize);
-  if (!tmp) {
-    return -1;
-  }
 
   SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentPrev_rocksdb(pState, key);
   int32_t          code = streamStateSessionGetKVByCur_rocksdb(pState, pCur, key, pVal, pVLen);
   if (code == 0) {
     if (key->win.skey <= tmpKey.win.skey && tmpKey.win.ekey <= key->win.ekey) {
-      memcpy(tmp, *pVal, valSize);
       goto _end;
     }
 
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);
     if (fn(pKeyData, stateKey) == true) {
-      memcpy(tmp, *pVal, valSize);
       goto _end;
     }
 
@@ -4230,7 +4224,6 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   if (code == 0) {
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);
     if (fn(pKeyData, stateKey) == true) {
-      memcpy(tmp, *pVal, valSize);
       goto _end;
     }
   }
@@ -4238,11 +4231,11 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
 
   *key = tmpKey;
   res = 1;
-  memset(tmp, 0, valSize);
 
 _end:
-  taosMemoryFreeClear(*pVal);
-  *pVal = tmp;
+  if (res == 0 && valSize > *pVLen){
+    stError("[InternalERR] [skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],valSize:%d bigger than get rocksdb len:%d", key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
+  }
   streamStateFreeCur(pCur);
   return res;
 }
