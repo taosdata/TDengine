@@ -100,6 +100,7 @@ static SStreamUpstreamEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
   pEpInfo->nodeId = pTask->info.nodeId;
   pEpInfo->taskId = pTask->id.taskId;
   pEpInfo->stage = -1;
+  pEpInfo->lastMsgId = -1;
 
   return pEpInfo;
 }
