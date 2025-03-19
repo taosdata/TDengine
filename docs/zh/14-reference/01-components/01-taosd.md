@@ -1112,9 +1112,9 @@ charset 的有效值是 UTF-8。
 - 支持版本：v3.3.6.0 引入
 
 #### adapterToken
-- 说明：为 {username}:{password} 经过 Base64 编码之后的字符串 `内部参数`
+- 说明：为 `{username}:{password}` 经过 Base64 编码之后的字符串 `内部参数`
 - 类型：字符串
-- 默认值：cm9vdDp0YW9zZGF0YQ==
+- 默认值：`cm9vdDp0YW9zZGF0YQ==`
 - 动态修改：不支持
 - 支持版本：v3.3.6.0 引入
 

@@ -248,7 +248,7 @@ The effective value of charset is UTF-8.
 | streamNotifyFrameSize   | After 3.3.6.0 | Not supported | Internal parameter, controls the underlying frame size when sending event notification messages, default value is 256 |
 | adapterFqdn            | After 3.3.6.0 | Not supported | Internal parameter, The address of the taosadapter services, default value is localhost |
 | adapterPort            | After 3.3.6.0 | Not supported | Internal parameter, The port of the taosadapter services, default value is 6041 |
-| adapterToken           | After 3.3.6.0 | Not supported | Internal parameter, The string obtained by Base64-encoding {username}:{password}, default value is cm9vdDp0YW9zZGF0YQ== |
+| adapterToken           | After 3.3.6.0 | Not supported | Internal parameter, The string obtained by Base64-encoding `{username}:{password}`, default value is `cm9vdDp0YW9zZGF0YQ==` |
 
 ### Log Related
 
