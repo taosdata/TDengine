@@ -219,10 +219,14 @@ class TDTestCase(TBase):
 
     # tmq check
     def checkTmqJson(self, benchmark, json):
+        OK_RESULT = "Consumed total msgs: 30, total rows: 300000"
         cmd =  benchmark + " -f " + json
-        code = frame.eos.exe(cmd)
-        if code != 0:
-            tdLog.exit("check tmq failed. " + cmd)
+        output,error = frame.eos.run(cmd, 600)
+        if output.find(OK_RESULT) != -1:
+            tdLog.info(f"succ: {cmd} found '{OK_RESULT}'")
+        else:
+            tdLog.exit(f"failed: {cmd} not found {OK_RESULT} in:\n{output} \nerror:{error}")
+    
 
     def run(self):
         tbCnt = 10
@@ -239,7 +243,7 @@ class TDTestCase(TBase):
         self.checkAfterRun(benchmark, json, False, tbCnt)
 
         # tmq
-        json = "../../tools/taos-tools/example/queryStb.json"
+        json = "../../tools/taos-tools/example/tmq.json"
         self.checkTmqJson(benchmark, json)
         
 
