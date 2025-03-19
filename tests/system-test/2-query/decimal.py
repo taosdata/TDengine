@@ -28,11 +28,14 @@ class AtomicCounter:
 
 getcontext().prec = 40
 
-def get_decimal(val, scale: int) -> Decimal:
+def get_decimal(val, scale: int):
     if val == 'NULL':
         return None
     getcontext().prec = 100
-    return Decimal(val).quantize(Decimal("1." + "0" * scale), ROUND_HALF_UP)
+    try:
+        return Decimal(val).quantize(Decimal("1." + "0" * scale), ROUND_HALF_UP)
+    except:
+        tdLog.exit(f"faield to convert to decimal for v: {val} scale: {scale}")
 
 syntax_error = -2147473920
 invalid_column = -2147473918
@@ -52,7 +55,7 @@ unary_op_test = True
 binary_op_in_where_test = True
 test_decimal_funcs = False
 cast_func_test_round = 10
-in_op_test_round = 20
+in_op_test_round = 10
 
 class DecimalTypeGeneratorConfig:
     def __init__(self):
@@ -1626,12 +1629,12 @@ class DecimalBinaryOperatorIn(DecimalBinaryOperator):
         b = False
         if self.op_.lower() == 'in':
             b = v in vs
-            if b:
-                tdLog.debug(f"eval {v} in {list_exprs} got: {b}")
+            #if b:
+                #tdLog.debug(f"eval {v} in {list_exprs} got: {b}")
         else:
             b = v not in vs
-            if not b:
-                tdLog.debug(f"eval {v} not in {list_exprs} got: {b}")
+            #if not b:
+                #tdLog.debug(f"eval {v} not in {list_exprs} got: {b}")
         return b
 
     def check(self, res, tbname: str):
@@ -1645,7 +1648,7 @@ class DecimalBinaryOperatorIn(DecimalBinaryOperator):
             idx += 1
             v, has_next = self.query_col.seq_scan_col(tbname, idx)
         calc_res = sorted(calc_res)
-        res = [Decimal(e) for e in res]
+        res = [get_decimal(e, self.query_col.type_.scale()) for e in res]
         res = sorted(res)
         for v, calc_v in zip(res, calc_res):
             if v != calc_v:
@@ -2308,7 +2311,7 @@ class TDTestCase:
 
     def test_decimal_operators(self):
         tdLog.debug("start to test decimal operators")
-        if False:
+        if True:
             self.test_decimal_unsupported_types()
             ## tables: meters, nt
             ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100

@@ -174,8 +174,9 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
     return 0;
   }
   if (fabs(f) < DBL_MAX / BASE - DLT) {
-    int32_t t = (int32_t)(round(BASE * (f + DLT)));
-    return (uint32_t)t;
+    uint64_t bits;
+    memcpy(&bits, &f, sizeof(double));
+    return (uint32_t)(bits ^ (bits >> 32));
   } else {
     return 0x7fc00000;
   }
