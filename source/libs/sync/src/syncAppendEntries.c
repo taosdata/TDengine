@@ -191,7 +191,7 @@ _SEND_RESPONSE:
   {
     sGDebug(&rpcRsp.info.traceId,
             "vgId:%d, index:%" PRId64 ", send append entries reply, matchIndex:%" PRId64 " term:%" PRId64
-            " lastSendIndex:%" PRId64 " to dest:0x%016" PRIx64,
+            " lastSendIndex:%" PRId64 " to dest addr:0x%016" PRIx64,
             ths->vgId, pMsg->prevLogIndex + 1, pReply->matchIndex, pReply->term, pReply->lastSendIndex,
             pReply->destId.addr);
   }

@@ -1041,7 +1041,7 @@ _out:
   if (retried) {
     pMgr->retryBackoff = syncLogReplGetNextRetryBackoff(pMgr);
     SSyncLogBuffer* pBuf = pNode->pLogBuf;
-    sInfo("vgId:%d, resend %d sync log entries, dest:%" PRIx64 ", indexes:%" PRId64 " ..., terms: .., %" PRId64
+    sInfo("vgId:%d, resend %d sync log entries, dest addr:0x%" PRIx64 ", indexes:%" PRId64 " ..., terms: .., %" PRId64
           ", retryWaitMs:%" PRId64 ", repl-mgr:[%" PRId64 " %" PRId64 ", %" PRId64 "), buffer: [%" PRId64 " %" PRId64
           " %" PRId64 ", %" PRId64 ")",
           pNode->vgId, count, pDestId->addr, firstIndex, term, retryWaitMs, pMgr->startIndex, pMgr->matchIndex,
@@ -1227,7 +1227,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
   bool     barrier = false;
   SyncTerm term = -1;
   if ((code = syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier)) < 0) {
-    sError("vgId:%d, failed to replicate log entry since %s, index:%" PRId64 ", dest:0x%016" PRIx64, pNode->vgId,
+    sError("vgId:%d, failed to replicate log entry since %s, index:%" PRId64 ", dest addr:0x%016" PRIx64, pNode->vgId,
            tstrerror(code), index, pDestId->addr);
     TAOS_RETURN(code);
   }
@@ -1279,7 +1279,7 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
 
     code = syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier);
     if (code < 0) {
-      sError("vgId:%d, failed to replicate log entry since %s, index:%" PRId64 ", dest:0x%016" PRIx64, pNode->vgId,
+      sError("vgId:%d, failed to replicate log entry since %s, index:%" PRId64 ", dest addr:0x%016" PRIx64, pNode->vgId,
              tstrerror(code), index, pDestId->addr);
       TAOS_RETURN(code);
     }
