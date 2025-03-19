@@ -4531,7 +4531,8 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   int32_t klen = ginitDict[cfIdx].enFunc((void*)key, buf);
 
   ginitDict[cfIdx].toStrFunc((void*)key, toString);
-  qInfo("[InternalERR] write streamStatePutBatchOptimiz cfIdx:%d key:%s vlen:%d", cfIdx, toString, vlen);
+  if (cfIdx == 1)
+    qInfo("[InternalERR] write cfIdx:%d key:%s vlen:%d", cfIdx, toString, vlen);
 
   char*   ttlV = tmpBuf;
   int32_t ttlVLen = ginitDict[cfIdx].enValueFunc(dst, size, ttl, &ttlV);
