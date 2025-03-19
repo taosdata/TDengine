@@ -213,7 +213,7 @@ function run_thread() {
         fi
         # case_sql_file="$exec_dir/${case_file}.sql"
         # case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
-        if [ "$exec_dir" == "."]; then
+        if [ "$exec_dir" == "." ]; then
             case_sql_file="${case_file}.sql"
             case_file="${case_file}.${index}.${thread_no}.${count}"
         else
