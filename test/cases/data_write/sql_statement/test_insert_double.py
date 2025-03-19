@@ -25,7 +25,7 @@ class TestInsertDouble:
         插入各种double值包括正负值、科学计数法、十六进制、二进制、字符串
         Since: v3.0.0.0
 
-        Labels: common,ci 
+        Labels: common,ci  
 
         Jira: 123
 
@@ -109,7 +109,7 @@ class TestInsertDouble:
 
         Labels: common,ci
 
-        Jira:
+        Jira: 123
 
         History:
             - 2024-2-6 Feng Chao Created

@@ -35,4 +35,5 @@ jobs:
         run: |
           for file in ${ALL_CHANGED_FILES}; do
             echo "$file was changed"
+            python .github/scripts/validate_tests.py "$file"
           done
