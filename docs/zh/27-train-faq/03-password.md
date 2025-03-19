@@ -56,7 +56,7 @@ taosdump -u user1 -pAb1\!\@\#\$\%\^\&\*\(\)\-\_\+\=\[\]\{\} -D test
 ```
 
 </TabItem>
-<TabItem label="taosBenchmark" value="benchmark">
+<TabItem label="Benchmark" value="benchmark">
 
 在 [taosBenchmark](../../reference/tools/taosbenchmark/) 中使用需要注意以下几点：
 
@@ -79,14 +79,11 @@ taosBenchmark -u user1 -p'Ab1!@#$%^&*()-_+=[]{}' -d test -y
 使用用户 `user1` 导出数据示例如下：
 
 ```shell
-taosx -f 'taos://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6030?query=select * from test.t1' -t 'csv:./test.csv'
+taosx -f 'taos://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6030?query=select * from test.t1' \
+  -t 'csv:./test.csv'
 ```
 
 需要注意的是，如果密码可被 URL decode，则会使用 URL decoded 结果作为密码。如：`taos+ws://user1:Ab1%21%40%23%24%25%5E%26%2A%28%29-_%2B%3D%5B%5D%7B%7D@localhost:6041` 与 `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6041` 是等价的。
-
-</TabItem>
-
-<TabItem label="Explorer" value="explorer">
 
 在 [Explorer](../../reference/components/explorer/) 中无需特殊处理，直接使用即可。
 
@@ -246,7 +243,7 @@ async function createConnect() {
         console.log("Connected to " + dsn + " successfully.");
         return conn;
     } catch (err) {
-        console.log("Failed to connect to " + dsn + ", ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.log("Connection failed with code: " + err.code + ", message: " + err.message);
         throw err;
     }
 }
@@ -278,7 +275,7 @@ TAOS *taos = taos_connect("localhost", "user1", "Ab1!@#$%^&*()-_+=[]{}", NULL, 6
 ```
 
 </TabItem>
-<TabItem label="REST API" value="rest">
+<TabItem label="REST" value="rest">
 
 REST API 中使用密码时，需要注意以下几点：
 
@@ -288,8 +285,10 @@ REST API 中使用密码时，需要注意以下几点：
 以下两种方式等价：
 
 ```shell
-curl -u'user1:Ab1!@#$%^&*()-_+=[]{}' -d 'show databases' http://localhost:6041/rest/sql
-curl -H 'Authorization: Basic dXNlcjE6QWIxIUAjJCVeJiooKS1fKz1bXXt9' -d 'show databases' http://localhost:6041/rest/sql
+curl -u'user1:Ab1!@#$%^&*()-_+=[]{}' \
+  -d 'show databases' http://localhost:6041/rest/sql
+curl -H 'Authorization: Basic dXNlcjE6QWIxIUAjJCVeJiooKS1fKz1bXXt9' \
+  -d 'show databases' http://localhost:6041/rest/sql
 ```
 
 </TabItem>
