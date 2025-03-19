@@ -4,7 +4,9 @@ name: Validate Python Tests
 on:
   push:
     branches:
-      - 'new_test_docstring'
+      - 'main'
+      - '3.0'
+      - '3.1'
     paths:
       - 'test/cases/**/*.py'
 
