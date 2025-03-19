@@ -25,10 +25,11 @@ extern "C" {
 #include "tmsg.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
+#include "ttypes.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) \
-  (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
+  (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema) + (pMeta)->numOfColRefs * sizeof(SColRef)))
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
@@ -45,22 +46,18 @@ typedef struct SRawExprNode {
   bool      isPseudoColumn;
 } SRawExprNode;
 
-typedef struct SDataType {
-  uint8_t type;
-  uint8_t precision;
-  uint8_t scale;
-  int32_t bytes;
-} SDataType;
-
 typedef struct SExprNode {
   ENodeType type;
   SDataType resType;
   char      aliasName[TSDB_COL_NAME_LEN];
   char      userAlias[TSDB_COL_NAME_LEN];
+  char      srcTable[TSDB_TABLE_NAME_LEN];
   SArray*   pAssociation;
   bool      asAlias;
   bool      asParam;
   bool      asPosition;
+  bool      joinSrc;
+  //bool      constValue;
   int32_t   projIdx;
   int32_t   relatedTo;
   int32_t   bindExprID;
@@ -73,7 +70,8 @@ typedef enum EColumnType {
   COLUMN_TYPE_WINDOW_START,
   COLUMN_TYPE_WINDOW_END,
   COLUMN_TYPE_WINDOW_DURATION,
-  COLUMN_TYPE_GROUP_KEY
+  COLUMN_TYPE_GROUP_KEY,
+  COLUMN_TYPE_IS_WINDOW_FILLED,
 } EColumnType;
 
 typedef struct SColumnNode {
@@ -96,12 +94,19 @@ typedef struct SColumnNode {
   bool        isPk;
   int32_t     projRefIdx;
   int32_t     resIdx;
+  bool        hasDep;
+  bool        hasRef;
+  char        refDbName[TSDB_DB_NAME_LEN];
+  char        refTableName[TSDB_TABLE_NAME_LEN];
+  char        refColName[TSDB_COL_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
   ENodeType type;
-  SDataType resType;
   char      colName[TSDB_COL_NAME_LEN];
+  char      refDbName[TSDB_DB_NAME_LEN];
+  char      refTableName[TSDB_TABLE_NAME_LEN];
+  char      refColName[TSDB_COL_NAME_LEN];
 } SColumnRefNode;
 
 typedef struct STargetNode {
@@ -200,6 +205,8 @@ typedef struct SFunctionNode {
   bool       dual; // whether select stmt without from stmt, true for without.
   timezone_t tz;
   void      *charsetCxt;
+  const struct SFunctionNode* pSrcFuncRef;
+  SDataType  srcFuncInputType;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -209,6 +216,7 @@ typedef struct STableNode {
   char      tableAlias[TSDB_TABLE_NAME_LEN];
   uint8_t   precision;
   bool      singleTable;
+  bool      inJoin;
 } STableNode;
 
 struct STableMeta;
@@ -236,6 +244,13 @@ typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
 } STempTableNode;
+
+typedef struct SVirtualTableNode {
+  STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  SNodeList*         refTables;
+} SVirtualTableNode;
 
 typedef struct SViewNode {
   STableNode         table;  // QUERY_NODE_REAL_TABLE
@@ -280,6 +295,7 @@ typedef enum EJoinAlgorithm {
 
 typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
+  DYN_QTYPE_VTB_SCAN,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
@@ -291,6 +307,10 @@ typedef struct SJoinTableNode {
   SNode*       addPrimCond;
   bool         hasSubQuery;
   bool         isLowLevelJoin;
+  bool         leftNoOrderedSubQuery;
+  bool         rightNoOrderedSubQuery;
+  //bool         condAlwaysTrue;
+  //bool         condAlwaysFalse;
   SNode*       pLeft;
   SNode*       pRight;
   SNode*       pOnCond;
@@ -390,6 +410,7 @@ typedef enum EShowKind {
   SHOW_KIND_ALL = 1,
   SHOW_KIND_TABLES_NORMAL,
   SHOW_KIND_TABLES_CHILD,
+  SHOW_KIND_TABLES_VIRTUAL,
   SHOW_KIND_DATABASES_USER,
   SHOW_KIND_DATABASES_SYSTEM
 } EShowKind;
@@ -432,6 +453,7 @@ typedef struct SRangeAroundNode {
 typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
   bool          isDistinct;
+  STimeWindow   timeRange;
   SNodeList*    pProjectionList;
   SNodeList*    pProjectionBindList;
   SNode*        pFromTable;
@@ -449,7 +471,6 @@ typedef struct SSelectStmt {
   SNodeList*    pOrderByList;  // SOrderByExprNode
   SLimitNode*   pLimit;
   SLimitNode*   pSlimit;
-  STimeWindow   timeRange;
   SNodeList*    pHint;
   char          stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t       precision;
@@ -630,23 +651,24 @@ typedef struct SQuery {
   ENodeType       type;
   EQueryExecStage execStage;
   EQueryExecMode  execMode;
+  int32_t         msgType;
+  int32_t         numOfResCols;
+  int32_t         placeholderNum;
+  int8_t          precision;
   bool            haveResultSet;
+  bool            showRewrite;
+  bool            stableQuery;
   SNode*          pPrevRoot;
   SNode*          pRoot;
   SNode*          pPostRoot;
-  int32_t         numOfResCols;
   SSchema*        pResSchema;
-  int8_t          precision;
   SCmdMsgInfo*    pCmdMsg;
-  int32_t         msgType;
   SArray*         pTargetTableList;
   SArray*         pTableList;
   SArray*         pDbList;
-  bool            showRewrite;
-  int32_t         placeholderNum;
   SArray*         pPlaceholderValues;
   SNode*          pPrepareRoot;
-  bool            stableQuery;
+  SExtSchema*     pResExtSchema;
 } SQuery;
 
 void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
@@ -706,6 +728,8 @@ int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
 
 void rewriteExprAliasName(SExprNode* pNode, int64_t num);
 bool isRelatedToOtherExpr(SExprNode* pExpr);
+bool nodesContainsColumn(SNode* pNode);
+int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 
 #ifdef __cplusplus
 }

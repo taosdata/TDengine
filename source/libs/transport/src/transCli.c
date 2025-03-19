@@ -15,10 +15,12 @@
 // clang-format off
 #include "taoserror.h"
 #include "transComm.h"
+#include "tversion.h"
 #include "tmisce.h"
 #include "transLog.h"
 // clang-format on
 
+#ifndef TD_ASTRA_RPC
 typedef struct {
   int32_t numOfConn;
   queue   msgQ;
@@ -400,7 +402,7 @@ void cliResetConnTimer(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   if (conn->timer) {
     if (uv_is_active((uv_handle_t*)conn->timer)) {
-      tDebug("%s conn:%p, stop timer", CONN_GET_INST_LABEL(conn), conn);
+      tTrace("%s conn:%p, stop timer", CONN_GET_INST_LABEL(conn), conn);
       TAOS_UNUSED(uv_timer_stop(conn->timer));
     }
     if (taosArrayPush(pThrd->timerList, &conn->timer) == NULL) {
@@ -519,7 +521,7 @@ int8_t cliMayRecycleConn(SCliConn* conn) {
     return 1;
   } else if ((transQueueSize(&conn->reqsToSend) == 0) && (transQueueSize(&conn->reqsSentOut) == 0) &&
              (taosHashGetSize(conn->pQTable) != 0)) {
-    tDebug("%s conn:%p, do balance directly", CONN_GET_INST_LABEL(conn), conn);
+    tTrace("%s conn:%p, do balance directly", CONN_GET_INST_LABEL(conn), conn);
     TAOS_UNUSED(transHeapMayBalance(conn->heap, conn));
   } else {
     tTrace("%s conn:%p, may do balance", CONN_GET_INST_LABEL(conn), conn);
@@ -593,7 +595,7 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
     int64_t   qId = taosHton64(pHead->qid);
     STraceId* trace = &pHead->traceId;
     int64_t   seqNum = taosHton64(pHead->seqNum);
-    tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, seqNum:%" PRId64 ", sid:%" PRId64 "",
+    tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, seqNum:%" PRId64 ", sid:%" PRId64,
             CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, seqNum,
             qId);
 
@@ -899,7 +901,7 @@ static int32_t cliGetConnFromPool(SCliThrd* pThrd, const char* key, SCliConn** p
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, task);
   }
 
-  tDebug("conn:%p, get from pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
+  tTrace("conn:%p, get from pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
 
   *ppConn = conn;
   return 0;
@@ -941,7 +943,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   QUEUE_INIT(&conn->q);
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
-  tDebug("conn:%p, added to pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
+  tTrace("conn:%p, added to pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
 
   conn->heapMissHit = 0;
 
@@ -1435,7 +1437,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     }
     QUEUE_PUSH(&pThrd->batchSendSet, &pConn->batchSendq);
     pConn->inThreadSendq = 1;
-    tDebug("%s conn:%p, batch send later", pInst->label, pConn);
+    tTrace("%s conn:%p, batch send later", pInst->label, pConn);
     return 0;
   }
 
@@ -1443,7 +1445,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
 
   int32_t totalLen = 0;
   if (size == 0) {
-    tDebug("%s conn:%p, not msg to send", pInst->label, pConn);
+    tTrace("%s conn:%p, msg is sent", pInst->label, pConn);
     return 0;
   }
   uv_buf_t* wb = NULL;
@@ -1550,7 +1552,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   SWReqsWrapper* pWreq = req->data;
 
   QUEUE_MOVE(&reqToSend, &pWreq->node);
-  tDebug("%s conn:%p, start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, j, totalLen);
+  tTrace("%s conn:%p, start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, j, totalLen);
 
   int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
   if (ret != 0) {
@@ -2232,7 +2234,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err != 0) {
       destroyThrdObj(pThrd);
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       TAOS_CHECK_GOTO(code, NULL, _err);
     } else {
       tDebug("success to create tranport-cli thread:%d", i);
@@ -3295,7 +3297,7 @@ int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) {
   }
 
   if (tsem2_init(sem, 0, 0) != 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _EXIT);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), NULL, _EXIT);
   }
 
   STransSyncMsg* pSyncMsg = taosMemoryCalloc(1, sizeof(STransSyncMsg));
@@ -3682,7 +3684,7 @@ static FORCE_INLINE int8_t shouldSWitchToOtherConn(SCliConn* pConn, char* key) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pInst = pThrd->pInst;
 
-  tDebug("get conn:%p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
+  tTrace("get conn:%p from heap cache for key:%s, status:%d, refCnt:%d", pConn, key, pConn->inHeap, pConn->reqRefCnt);
   int32_t reqsNum = transQueueSize(&pConn->reqsToSend);
   int32_t reqsSentOut = transQueueSize(&pConn->reqsSentOut);
   int32_t stateNum = taosHashGetSize(pConn->pQTable);
@@ -3941,3 +3943,209 @@ int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
   heapInsert(heap->heap, &p->node);
   return 0;
 }
+
+#else
+void    transRefCliHandle(void* handle) { return; }
+int32_t transUnrefCliHandle(void* handle) { return 0; }
+int32_t transReleaseCliHandle(void* handle, int32_t status) {
+  int32_t code = 0;
+
+  STransMsg tmsg = {.msgType = TDMT_SCH_TASK_RELEASE,
+                    .info.handle = handle,
+                    .info.ahandle = (void*)0,
+                    .info.qId = (int64_t)handle,
+                    code = status};
+
+  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), (int64_t)handle);
+  if (exh == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_RPC_MODULE_QUIT, NULL, _exception);
+  }
+  int64_t transId = (int64_t)handle;
+
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)exh->handle);
+  taosThreadMutexLock(&pTransInst->sidMutx);
+  STransCtx* pCtx = taosHashGet(pTransInst->sidTable, &transId, sizeof(int64_t));
+  transCtxCleanup(pCtx);
+  taosHashRemove(pTransInst->sidTable, &transId, sizeof(transId));
+
+  taosThreadMutexUnlock(&pTransInst->sidMutx);
+  transReleaseExHandle(transGetInstMgt(), (int64_t)exh->handle);
+
+_exception:
+  if (code != 0) {
+    tError("failed to release handle since %s", tstrerror(code));
+  }
+
+  transReleaseExHandle(transGetRefMgt(), (int64_t)handle);
+  return code;
+}
+int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
+  int32_t code = 0;
+  int32_t cliVer = 0;
+
+  code = taosVersionStrToInt(td_version, &cliVer);
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  pReq->type = pTransInst->type;
+  pReq->info.connType = pReq->type;
+  pReq->info.cliVer = cliVer;
+  pReq->info.msgType = pReq->msgType;
+  // pReq->info.ahandle = pReq->ahandle;
+  if (pReq->info.handle != NULL) {
+    pReq->info.qId = (int64_t)pReq->info.handle;
+  } else {
+    pReq->info.handle = (void*)-1;
+  }
+
+  if (pReq->info.qId != 0) {
+    taosThreadMutexLock(&pTransInst->sidMutx);
+    /******/
+    if (ctx != NULL) {
+      STransCtx* pUserCtx = taosHashGet(pTransInst->sidTable, &pReq->info.qId, sizeof(pReq->info.qId));
+      if (pUserCtx != NULL) {
+        transCtxMerge(pUserCtx, ctx);
+      } else {
+        taosHashPut(pTransInst->sidTable, &pReq->info.qId, sizeof(pReq->info.qId), ctx, sizeof(STransCtx));
+      }
+    }
+    if (pReq->msgType == TDMT_SCH_DROP_TASK) {
+      (pTransInst->destroyFp)(pReq->info.ahandle);
+    }
+    taosThreadMutexUnlock(&pTransInst->sidMutx);
+  }
+  taosThreadMutexLock(&pTransInst->seqMutex);
+  pReq->info.seq = pTransInst->seq++;
+  pReq->parent = pTransInst;
+  taosHashPut(pTransInst->seqTable, &pReq->info.seq, sizeof(pReq->info.seq), &pReq->msgType, sizeof(pReq->msgType));
+  taosThreadMutexUnlock(&pTransInst->seqMutex);
+
+  sprintf(pReq->info.conn.user, "root");
+
+  code = transSendReq(pTransInst, pReq, NULL);
+  TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));
+  return code;
+}
+
+int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
+  int32_t code;
+  int8_t  idInited = 0;
+
+  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pInst == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _exception);
+  }
+
+  TAOS_CHECK_GOTO(transAllocHandle(transpointId), NULL, _exception);
+
+  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), *transpointId);
+  if (exh == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_RPC_MODULE_QUIT, NULL, _exception);
+  }
+  idInited = 1;
+
+  pReq->info.handle = (void*)(*transpointId);
+  pReq->info.qId = *transpointId;
+  exh->handle = shandle;
+
+  code = transSendRequest(shandle, pEpSet, pReq, NULL);
+  TAOS_CHECK_GOTO(terrno, NULL, _exception);
+
+_exception:
+  if (code != 0) {
+    tError("failedt to send request with id since %s", tstrerror(code));
+  }
+
+  if (idInited) transReleaseExHandle(transGetRefMgt(), *transpointId);
+  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+  return code;
+}
+
+int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) { return 0; }
+int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                                 int32_t timeoutMs) {
+  int32_t code = 0;
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) {
+    transFreeMsg(pReq->pCont);
+    pReq->pCont = NULL;
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+
+  STransReqWithSem* tmsg = taosMemoryCalloc(1, sizeof(STransReqWithSem));
+  tmsg->sem = taosMemoryCalloc(1, sizeof(tsem_t));
+  code = tsem_init(tmsg->sem, 0, 0);
+  if (code != 0) {
+    taosMemoryFree(tmsg->sem);
+    return code;
+  }
+  pReq->info.reqWithSem = tmsg;
+  transSendRequest(shandle, NULL, pReq, NULL);
+  TAOS_UNUSED(tsem_wait(tmsg->sem));
+  tsem_destroy(tmsg->sem);
+  taosMemFree(tmsg->sem);
+
+  memcpy(pRsp, &tmsg->pMsg, sizeof(STransMsg));
+  taosMemoryFree(tmsg);
+
+  taosReleaseRef(transGetInstMgt(), (int64_t)shandle);
+  return 0;
+}
+int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
+  return transSendRecvWithTimeout(shandle, (SEpSet*)pEpSet, pReq, pRsp, NULL, 0);
+}
+int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) { return 0; }
+int32_t transAllocHandle(int64_t* refId) {
+  SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
+  if (exh == NULL) {
+    return terrno;
+  }
+
+  exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  if (exh->refId < 0) {
+    taosMemoryFree(exh);
+    return TSDB_CODE_REF_INVALID_ID;
+  }
+
+  SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
+  if (exh != self) {
+    taosMemoryFree(exh);
+    return TSDB_CODE_REF_INVALID_ID;
+  }
+
+  QUEUE_INIT(&exh->q);
+  taosInitRWLatch(&exh->latch);
+  tDebug("trans alloc sid:%" PRId64 ", malloc:%p", exh->refId, exh);
+  *refId = exh->refId;
+  return 0;
+}
+int32_t transFreeConnById(void* pInstRef, int64_t transpointId) {
+  int32_t code = 0;
+  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)pInstRef);
+  if (pInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+  if (transpointId == 0) {
+    tDebug("not free by refId:%" PRId64, transpointId);
+    TAOS_CHECK_GOTO(0, NULL, _exception);
+  }
+_exception:
+  if (code != 0) {
+    tDebug("failed to free by refId:%" PRId64, transpointId);
+  }
+  transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
+
+  return code;
+}
+
+void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
+  return NULL;
+}
+void transCloseClient(void* arg) { return; }
+
+#endif

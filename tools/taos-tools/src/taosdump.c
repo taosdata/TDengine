@@ -778,14 +778,13 @@ static void parse_args(
                   || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
                 setConsoleEcho(false);
-                if (scanf("%20s", arguments->password) > 1) {
+                if (scanf("%255s", arguments->password) > 1) {
                     errorPrint("%s() LN%d, password read error!\n",
                             __func__, __LINE__);
                 }
                 setConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2),
-                        SHELL_MAX_PASSWORD_LEN);
+                strcpy(arguments->password, (char *)(argv[i] + 2));
                 strcpy(argv[i], "-p");
             }
         } else if (strcmp(argv[i], "-n") == 0) {
@@ -1584,7 +1583,7 @@ int processFieldsValueV2(
             break;
         case TSDB_DATA_TYPE_BIGINT:
             snprintf(tableDes->cols[index].value, COL_VALUEBUF_LEN,
-                     "%" PRId64 "", *((int64_t *)value));
+                     "%" PRId64, *((int64_t *)value));
             break;
         case TSDB_DATA_TYPE_UTINYINT:
             snprintf(tableDes->cols[index].value, COL_VALUEBUF_LEN,
@@ -1604,7 +1603,7 @@ int processFieldsValueV2(
             break;
         case TSDB_DATA_TYPE_UBIGINT:
             snprintf(tableDes->cols[index].value, COL_VALUEBUF_LEN,
-                     "%" PRIu64 "", *((uint64_t *)value));
+                     "%" PRIu64, *((uint64_t *)value));
             break;
         case TSDB_DATA_TYPE_FLOAT:
             {
@@ -1770,7 +1769,7 @@ int processFieldsValueV2(
             break;
         case TSDB_DATA_TYPE_TIMESTAMP:
             snprintf(tableDes->cols[index].value, COL_VALUEBUF_LEN,
-                     "%" PRId64 "", *(int64_t *)value);
+                     "%" PRId64, *(int64_t *)value);
             break;
         default:
             errorPrint("%s() LN%d, unknown type: %d\n",
@@ -3496,7 +3495,7 @@ int64_t queryDbForDumpOutCount(
             ? "SELECT COUNT(*) FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
             "AND _c0 <= %" PRId64 ""
             : "SELECT COUNT(*) FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
-            "AND _c0 <= %" PRId64 "",
+            "AND _c0 <= %" PRId64,
             dbName, g_escapeChar, tbName, g_escapeChar,
             startTime, endTime);
 
@@ -6649,7 +6648,7 @@ int processResultValue(
 
         case TSDB_DATA_TYPE_BIGINT:
             return sprintf(pstr + curr_sqlstr_len,
-                    "%" PRId64 "",
+                    "%" PRId64,
                     *((int64_t *)value));
 
         case TSDB_DATA_TYPE_UTINYINT:
@@ -6666,7 +6665,7 @@ int processResultValue(
 
         case TSDB_DATA_TYPE_UBIGINT:
             return sprintf(pstr + curr_sqlstr_len,
-                    "%" PRIu64 "",
+                    "%" PRIu64,
                     *((uint64_t *)value));
 
         case TSDB_DATA_TYPE_FLOAT:
@@ -6711,7 +6710,7 @@ int processResultValue(
             }
         case TSDB_DATA_TYPE_TIMESTAMP:
             return sprintf(pstr + curr_sqlstr_len,
-                    "%" PRId64 "", *(int64_t *)value);
+                    "%" PRId64, *(int64_t *)value);
             break;
         default:
             break;

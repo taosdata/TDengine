@@ -407,7 +407,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     chkptFailedByRetrieveReqToSource(pTask, checkpointId);
 #endif
 
-    if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH ||
+        type == TASK_OUTPUT__VTABLE_MAP) {
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
       code = continueDispatchCheckpointTriggerBlock(pBlock, pTask);  // todo handle this failure
     } else {  // only one task exists, no need to dispatch downstream info
@@ -626,14 +627,17 @@ static int32_t doUpdateCheckpointInfoCheck(SStreamTask* pTask, bool restored, SV
 
     { // destroy the related fill-history tasks
       if (pReq->dropRelHTask) {
+        if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
           code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
 
           int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-          stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
-                  id, vgId, pReq->taskId, numOfTasks);
+          stDebug("s-task:%s vgId:%d related fill-history task:0x%" PRIx64
+                  " dropped in update checkpointInfo, remain tasks:%d",
+                  id, vgId, pReq->hTaskId, numOfTasks);
 
-          //todo: task may not exist, commit anyway, optimize this later
+          // todo: task may not exist, commit anyway, optimize this later
           code = streamMetaCommit(pMeta);
+        }
       }
     }
 
@@ -724,9 +728,14 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   streamTaskClearCheckInfo(pTask, true);
 
   if (pReq->dropRelHTask) {
-    stDebug("s-task:0x%x vgId:%d drop the related fill-history task:0x%" PRIx64 " after update checkpoint",
-            pReq->taskId, vgId, pReq->hTaskId);
-    CLEAR_RELATED_FILLHISTORY_TASK(pTask);
+    if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      stInfo("s-task:0x%x vgId:%d drop the related fill-history task:0x%" PRIx64 " after update checkpoint",
+              pReq->taskId, vgId, pReq->hTaskId);
+      CLEAR_RELATED_FILLHISTORY_TASK(pTask);
+    } else {
+      stInfo("s-task:0x%x vgId:%d update the related fill-history task:0x%" PRIx64" to be recalculate task",
+             pReq->taskId, vgId, pReq->hTaskId);
+    }
   }
 
   stDebug("s-task:0x%x set the persistent status attr to be ready, prev:%s, status in sm:%s", pReq->taskId,
@@ -739,16 +748,54 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   if (code != TSDB_CODE_SUCCESS) {
     stError("s-task:%s vgId:%d failed to save task info after do checkpoint, checkpointId:%" PRId64 ", since %s", id,
-            vgId, pReq->checkpointId, terrstr());
+            vgId, pReq->checkpointId, tstrerror(code));
     return TSDB_CODE_SUCCESS;
   }
 
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
-    code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
-    int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
-            (int32_t)pReq->hTaskId, numOfTasks);
+    if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+      int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+      stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
+              (int32_t)pReq->hTaskId, numOfTasks);
+    } else {
+      STaskId hTaskId = {.streamId = pReq->hStreamId, .taskId = pReq->hTaskId};
+
+      SStreamTask* pHTask = NULL;
+      code = streamMetaAcquireTaskUnsafe(pMeta, &hTaskId, &pHTask);
+      if (code == 0 && pHTask != NULL) {
+        stInfo("s-task:0x%x fill-history updated to recalculate task, reset step2Start ts, stream task:0x%x",
+               (int32_t)hTaskId.taskId, pReq->taskId);
+
+        streamMutexLock(&pHTask->lock);
+
+        pHTask->info.fillHistory = STREAM_RECALCUL_TASK;
+        pHTask->execInfo.step2Start = 0; // clear the step2start timestamp
+
+        SStreamTaskState status = streamTaskGetStatus(pHTask);
+        if (status.state == TASK_STATUS__SCAN_HISTORY) {
+          code = streamTaskHandleEvent(pHTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+        }
+
+        if (pHTask->pBackend != NULL) {
+          streamFreeTaskState(pHTask, TASK_STATUS__READY);
+          pHTask->pBackend = NULL;
+        }
+
+        if (pHTask->exec.pExecutor != NULL) {
+          qDestroyTask(pHTask->exec.pExecutor);
+          pHTask->exec.pExecutor = NULL;
+        }
+
+        pMeta->expandTaskFn(pHTask);
+
+        streamMutexUnlock(&pHTask->lock);
+
+        code = streamMetaSaveTaskInMeta(pMeta, pHTask);
+        streamMetaReleaseTask(pMeta, pHTask);
+      }
+    }
   }
 
   code = streamMetaCommit(pMeta);
@@ -1329,6 +1376,20 @@ int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask, int64_t sendingChk
       if (px == NULL) {  // pause the stream task, if memory not enough
         code = terrno;
       }
+    } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+      for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
+        STaskDispatcherFixed* pAddr = taosArrayGet(pTask->outputInfo.vtableMapDispatcher.taskInfos, i);
+        if (pAddr == NULL) {
+          continue;
+        }
+
+        STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pAddr->nodeId, .taskId = pAddr->taskId};
+        void*                px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
+        if (px == NULL) {  // pause the stream task, if memory not enough
+          code = terrno;
+          break;
+        }
+      }
     } else {
       for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
         SVgroupInfo* pVgInfo = taosArrayGet(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos, i);
@@ -1483,7 +1544,7 @@ int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char
   int32_t code = tcsGetObjectToFile(buf, dstName);
   if (code != 0) {
     taosMemoryFree(buf);
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   taosMemoryFree(buf);
   return 0;
@@ -1509,7 +1570,7 @@ int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t che
   if (strlen(tsSnodeAddress) != 0) {
     code = uploadByRsync(id, path, checkpointId);
     if (code != 0) {
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
     }
   } else if (tsS3StreamEnabled) {
     return uploadCheckpointToS3(id, path);
@@ -1586,17 +1647,26 @@ int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
   streamTaskSetReqConsenChkptId(pTask, taosGetTimestampMs());
   streamMutexUnlock(&pTask->lock);
 
+  // 1. stop the executo at first
+  if (pTask->exec.pExecutor != NULL) {
+    // we need to make sure the underlying operator is stopped right, otherwise, SIGSEG may occur,
+    // waiting at most for 10min
+    if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
+      int32_t code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 600000);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("s-task:%s failed to kill task related query handle, code:%s", pTask->id.idStr, tstrerror(code));
+      }
+    }
+
+    qDestroyTask(pTask->exec.pExecutor);
+    pTask->exec.pExecutor = NULL;
+  }
+
+  // 2. destroy backend after stop executor
   if (pTask->pBackend != NULL) {
     streamFreeTaskState(pTask, p);
     pTask->pBackend = NULL;
   }
-
-  streamMetaWLock(pTask->pMeta);
-  if (pTask->exec.pExecutor != NULL) {
-    qDestroyTask(pTask->exec.pExecutor);
-    pTask->exec.pExecutor = NULL;
-  }
-  streamMetaWUnLock(pTask->pMeta);
 
   return 0;
 }

@@ -152,7 +152,7 @@ typedef unsigned __int32 uint32_t;
 
 #define MAX_JSON_BUFF 6400000
 
-#define INPUT_BUF_LEN         256
+#define INPUT_BUF_LEN         512
 #define EXTRA_SQL_LEN         256
 #define DATATYPE_BUFF_LEN     (TINY_BUFF_LEN * 3)
 #define SML_MAX_BATCH          65536 * 32
@@ -665,6 +665,7 @@ typedef struct SpecifiedQueryInfo_S {
     TAOS_RES *res[MAX_QUERY_SQL_COUNT];
     uint64_t  totalQueried;
     bool      mixed_query;
+    bool      batchQuery; // mixed query have batch and no batch query
     // error rate
     uint64_t  totalFail;
 } SpecifiedQueryInfo;
@@ -1059,5 +1060,8 @@ void *queryKiller(void *arg);
 int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
+
+// trim prefix suffix blank cmp
+int trimCaseCmp(char *str1,char *str2);
 
 #endif   // INC_BENCH_H_

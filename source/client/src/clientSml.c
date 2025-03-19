@@ -37,9 +37,9 @@
   kvVal->f = (float)result;
 
 #define SET_BIGINT                                                                                       \
-  errno = 0;                                                                                             \
+  SET_ERRNO(0);                                                                                             \
   int64_t tmp = taosStr2Int64(pVal, &endptr, 10);                                                        \
-  if (errno == ERANGE) {                                                                                 \
+  if (ERRNO == ERANGE) {                                                                                 \
     smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal); \
     return false;                                                                                        \
   }                                                                                                      \
@@ -63,9 +63,9 @@
   kvVal->i = result;
 
 #define SET_UBIGINT                                                                             \
-  errno = 0;                                                                                    \
+  SET_ERRNO(0);                                                                                    \
   uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);                                             \
-  if (errno == ERANGE || result < 0) {                                                          \
+  if (ERRNO == ERANGE || result < 0) {                                                          \
     smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal); \
     return false;                                                                               \
   }                                                                                             \
@@ -1247,7 +1247,9 @@ void freeSSmlKv(void *data) {
   SSmlKv *kv = (SSmlKv *)data;
   if (kv->keyEscaped) taosMemoryFreeClear(kv->key);
   if (kv->valueEscaped) taosMemoryFreeClear(kv->value);
+#ifdef USE_GEOS
   if (kv->type == TSDB_DATA_TYPE_GEOMETRY) geosFreeBuffer((void *)(kv->value));
+#endif
   if (kv->type == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(kv->value);
 }
 

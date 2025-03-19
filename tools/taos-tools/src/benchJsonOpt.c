@@ -602,9 +602,9 @@ void setDBCfgString(SDbCfg* cfg , char * value) {
 
     // need add quotation
     bool add = false;
-    if (0 == strcasecmp(cfg->name, "cachemodel") ||
-        0 == strcasecmp(cfg->name, "dnodes"    ) ||
-        0 == strcasecmp(cfg->name, "precision" ) ) {
+    if (0 == trimCaseCmp(cfg->name, "cachemodel") ||
+        0 == trimCaseCmp(cfg->name, "dnodes"    ) ||
+        0 == trimCaseCmp(cfg->name, "precision" ) ) {
             add = true;
     }    
 
@@ -676,12 +676,12 @@ static int getDatabaseInfo(tools_cJSON *dbinfos, int index) {
                 && (0 == strcasecmp(cfg_object->valuestring, "yes"))) {
                 database->flush = true;
             }
-        } else if (0 == strcasecmp(cfg_object->string, "precision")) {
+        } else if (0 == trimCaseCmp(cfg_object->string, "precision")) {
             if (tools_cJSON_IsString(cfg_object)) {
-                if (0 == strcasecmp(cfg_object->valuestring, "us")) {
+                if (0 == trimCaseCmp(cfg_object->valuestring, "us")) {
                     database->precision = TSDB_TIME_PRECISION_MICRO;
                     database->sml_precision = TSDB_SML_TIMESTAMP_MICRO_SECONDS;
-                } else if (0 == strcasecmp(cfg_object->valuestring, "ns")) {
+                } else if (0 == trimCaseCmp(cfg_object->valuestring, "ns")) {
                     database->precision = TSDB_TIME_PRECISION_NANO;
                     database->sml_precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
                 }
@@ -691,7 +691,7 @@ static int getDatabaseInfo(tools_cJSON *dbinfos, int index) {
             cfg->name = cfg_object->string;
 
             // get duration value
-            if (0 == strcasecmp(cfg_object->string, "duration")) {
+            if (0 == trimCaseCmp(cfg_object->string, "duration")) {
                 database->durMinute = getDurationVal(cfg_object);
             }
 
@@ -1859,6 +1859,23 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
                 return -1;
             }
         }
+
+        // batchQuery
+        tools_cJSON *batchQueryObj =
+            tools_cJSON_GetObjectItem(specifiedQuery, "batch_query");
+        if (tools_cJSON_IsString(batchQueryObj)) {
+            if (0 == strcasecmp(batchQueryObj->valuestring, "yes")) {
+                g_queryInfo.specifiedQueryInfo.batchQuery = true;
+                infoPrint("%s\n","batch_query is True");
+            } else if (0 == strcasecmp(batchQueryObj->valuestring, "no")) {
+                g_queryInfo.specifiedQueryInfo.batchQuery = false;
+                infoPrint("%s\n","batch_query is False");
+            } else {
+                errorPrint("Invalid batch_query value: %s\n",
+                    batchQueryObj->valuestring);
+                return -1;
+            }
+        }        
 
         tools_cJSON *concurrent =
             tools_cJSON_GetObjectItem(specifiedQuery, "concurrent");

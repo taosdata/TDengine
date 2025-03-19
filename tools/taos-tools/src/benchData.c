@@ -2140,7 +2140,7 @@ void generateSmlJsonTags(tools_cJSON *tagsList,
                             uint64_t start_table_from, int tbSeq) {
     tools_cJSON * tags = tools_cJSON_CreateObject();
     char *  tbName = benchCalloc(1, TSDB_TABLE_NAME_LEN, true);
-    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
              stbInfo->childTblPrefix, start_table_from + tbSeq);
     char *tagName = benchCalloc(1, TSDB_MAX_TAGS, true);
     for (int i = 0; i < stbInfo->tags->size; i++) {
@@ -2202,7 +2202,7 @@ void generateSmlTaosJsonTags(tools_cJSON *tagsList, SSuperTable *stbInfo,
                             uint64_t start_table_from, int tbSeq) {
     tools_cJSON * tags = tools_cJSON_CreateObject();
     char *  tbName = benchCalloc(1, TSDB_TABLE_NAME_LEN, true);
-    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
              stbInfo->childTblPrefix, tbSeq + start_table_from);
     tools_cJSON_AddStringToObject(tags, "id", tbName);
     char *tagName = benchCalloc(1, TSDB_MAX_TAGS, true);

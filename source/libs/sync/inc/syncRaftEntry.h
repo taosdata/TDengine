@@ -28,6 +28,7 @@ typedef struct SSyncRaftEntry {
   uint32_t  bytes;
   uint32_t  msgType;          // TDMT_SYNC_CLIENT_REQUEST
   uint32_t  originalRpcType;  // origin RpcMsg msgType
+  STraceId  originRpcTraceId;
   uint64_t  seqNum;
   bool      isWeak;
   SyncTerm  term;
@@ -38,7 +39,7 @@ typedef struct SSyncRaftEntry {
 } SSyncRaftEntry;
 
 SSyncRaftEntry* syncEntryBuild(int32_t dataLen);
-SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
+SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index, const STraceId *traceId);
 SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index);
 SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg);
 SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId);

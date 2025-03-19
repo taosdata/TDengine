@@ -92,7 +92,9 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 # lz4
-cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+if(${BUILD_WITH_LZ4})
+    cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_LZ4})
 
 # zlib
 cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -186,16 +188,22 @@ if(${BUILD_PCRE2})
     cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-find_program(C_COMPILER_LEMON NAMES gcc)
-if(C_COMPILER_LEMON)
-    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
-else()
-    set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
-    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
-endif()
-
 # lemon
-cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+if(${BUILD_WITH_LEMON})
+    if(${TD_ACORE})
+        set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
+    else()
+        find_program(C_COMPILER_LEMON NAMES gcc)
+    endif()
+    if(C_COMPILER_LEMON)
+        message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+    else()
+        set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
+        message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+    endif()
+
+    cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
 
 # Force specify CC=cc on MacOS. Because the default CC setting in the generated Makefile has issues finding standard library headers
 IF(${TD_DARWIN})
@@ -273,11 +281,13 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 # endif()
 
 # lz4
-add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
-target_include_directories(
-    lz4_static
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
-)
+if(${BUILD_WITH_LZ4})
+    add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
+    target_include_directories(
+        lz4_static
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
+    )
+endif(${BUILD_WITH_LZ4})
 
 # zlib
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")

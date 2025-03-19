@@ -39,7 +39,7 @@ int32_t tfsOpen(SDiskCfg *pCfg, int32_t ndisk, STfs **ppTfs) {
   }
 
   if (taosThreadSpinInit(&pTfs->lock, 0) != 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _exit);
   }
 
   for (int32_t level = 0; level < TFS_MAX_TIERS; level++) {
@@ -271,7 +271,7 @@ int32_t tfsMkdirAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   }
   (void)snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
   if (taosMkDir(aname) != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   TAOS_RETURN(0);
@@ -283,7 +283,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   char   *s = NULL;
   char   *dir = NULL;
   if ((code = tfsMkdirAt(pTfs, rname, diskId)) < 0) {
-    if (errno == ENOENT) {
+    if (ERRNO == ENOENT) {
       // Try to create upper
       if ((s = taosStrdup(rname)) == NULL) {
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
@@ -384,8 +384,8 @@ static int32_t tfsRenameAt(STfs *pTfs, SDiskID diskId, const char *orname, const
   (void)snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
   (void)snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
 
-  if (taosRenameFile(oaname, naname) != 0 && errno != ENOENT) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);  // TODO: use return value of taosRenameFile directly
+  if (taosRenameFile(oaname, naname) != 0 && ERRNO != ENOENT) {
+    int32_t code = TAOS_SYSTEM_ERROR(ERRNO);  // TODO: use return value of taosRenameFile directly
     fError("%s failed to rename %s to %s since %s", __func__, oaname, naname, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -565,10 +565,17 @@ int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
+#ifndef TD_ASTRA
   if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
     fError("failed to mount %s to FS since no R/W access rights", pCfg->dir);
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
+#else  // TD_ASTRA_TODO
+  if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK)) {
+    fError("failed to mount %s to FS since no access rights", pCfg->dir);
+    TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
+  }
+#endif
 
   if (!taosIsDir(dirName)) {
     fError("failed to mount %s to FS since not a directory", pCfg->dir);
@@ -581,6 +588,7 @@ int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
 }
 
 static int32_t tfsFormatDir(char *idir, char *odir) {
+#ifndef TD_ASTRA
   int32_t   code = 0, lino = 0;
   wordexp_t wep = {0};
   int32_t   dirLen = 0;
@@ -607,6 +615,10 @@ _exit:
            dirLen);
   }
   TAOS_RETURN(code);
+#else
+  tstrncpy(odir, idir, TSDB_FILENAME_LEN);
+  TAOS_RETURN(0);
+#endif
 }
 
 static int32_t tfsCheck(STfs *pTfs) {
@@ -672,7 +684,7 @@ static int32_t tfsOpendirImpl(STfs *pTfs, STfsDir *pTfsDir) {
     }
     pTfsDir->pDir = taosOpenDir(adir);
     if (pTfsDir->pDir != NULL) break;
-    fWarn("%s failed to open dir %s since %s", __func__, adir, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    fWarn("%s failed to open dir %s since %s", __func__, adir, tstrerror(TAOS_SYSTEM_ERROR(ERRNO)));
   }
 
   TAOS_RETURN(0);
