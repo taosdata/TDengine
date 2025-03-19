@@ -134,37 +134,6 @@ float funValueFloat(Field *field, int32_t angle, int32_t loop) {
     return funVal;
 }
 
-double funValueDouble(Field *field, int32_t angle, int32_t loop) {
-    double radian = ATOR(angle);
-    double funVal = 0;
-
-    if (field->funType == FUNTYPE_SIN)
-       funVal = sin(radian);
-    else if (field->funType == FUNTYPE_COS)
-       funVal = cos(radian);
-    else if (field->funType == FUNTYPE_COUNT)
-       funVal = (double)funCount(field->min, field->max, field->step, loop);
-    else if (field->funType == FUNTYPE_SAW)
-       funVal = (double)funSaw(field->min, field->max, field->period, loop + field->offset );
-    else if (field->funType == FUNTYPE_SQUARE)
-       funVal = (double)funSquare(field->min, field->max, field->period, loop + field->offset);
-    else if (field->funType == FUNTYPE_TRI)
-       funVal = (double)funTriAngle(field->min, field->max, field->period, loop + field->offset);
-
-    if (field->multiple != 0)
-       funVal *= field->multiple;
-
-    if ( field->addend !=0 && field->random > 0 ) {
-        double rate = taosRandom() % field->random;
-        funVal += field->addend * (rate/100);
-    } else if (field->addend !=0 ) {
-        funVal += field->addend;
-    }
-
-    funVal += field->base;
-    return funVal;
-}
-
 // calc expression value like 10*sin(x) + 100
 int32_t funValueInt32(Field *field, int32_t angle, int32_t loop) {
     float radian = ATOR(angle);
@@ -764,26 +733,19 @@ float tmpFloatImpl(Field *field, int i, int32_t angle, int32_t k) {
     return floatTmp;
 }
 
-double tmpDoubleScalingImpl(Field *field, int32_t angle, int32_t k) {
-    double doubleTmp = field->minInDbl;
-    if (field->funType != FUNTYPE_NONE) {
-        doubleTmp = funValueDouble(field, angle, k);
+double tmpDoubleImpl(Field *field, int32_t angle, int32_t k) {
+    double doubleTmp = (double)(field->min);
+    if(field->funType != FUNTYPE_NONE) {
+        doubleTmp = funValueFloat(field, angle, k);
     } else if (field->max != field->min) {
-        if (field->gen == GEN_ORDER) {
+        if(field->gen == GEN_ORDER) {
             doubleTmp += k % (field->max - field->min);
         } else {
-            doubleTmp += (taosRandom() % (field->max - field->min));
-            if (field->type == TSDB_DATA_TYPE_DOUBLE) {
-                doubleTmp += taosRandom() % 1000000 / 1000000.0;
-            }
+            doubleTmp += ((taosRandom() %
+                (field->max - field->min)) +
+                taosRandom() % 1000000 / 1000000.0);
         }
     }
-
-    return doubleTmp;
-}
-
-double tmpDoubleImpl(Field *field, int32_t angle, int32_t k) {
-    double doubleTmp = tmpDoubleScalingImpl(field, angle, k);
 
     if (field->scalingFactor > 0) {
         if (field->scalingFactor > 1) {

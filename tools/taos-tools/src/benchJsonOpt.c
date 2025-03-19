@@ -553,18 +553,18 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         if (!tools_cJSON_IsString(dataType)) {
             goto PARSE_OVER;
         }
-        if (0 == strCompareN(dataType->valuestring, "decimal", 0)) {
-            tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(tagObj, "precision");
-            if (tools_cJSON_IsNumber(dataPrecision)) {
-                precision = dataPrecision->valueint;
-                if (precision > TSDB_DECIMAL128_MAX_PRECISION || precision < 1) {
-                    errorPrint("Invalid precision value in json, precision: %d\n", precision);
-                    goto PARSE_OVER;
-                }
-            } else {
-                precision = TSDB_DECIMAL128_MAX_PRECISION;
-            }
-        }
+        // if (0 == strCompareN(dataType->valuestring, "decimal", 0)) {
+        //     tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(tagObj, "precision");
+        //     if (tools_cJSON_IsNumber(dataPrecision)) {
+        //         precision = dataPrecision->valueint;
+        //         if (precision > TSDB_DECIMAL128_MAX_PRECISION || precision < 1) {
+        //             errorPrint("Invalid precision value in json, precision: %d\n", precision);
+        //             goto PARSE_OVER;
+        //         }
+        //     } else {
+        //         precision = TSDB_DECIMAL128_MAX_PRECISION;
+        //     }
+        // }
         type = convertStringToDatatype(dataType->valuestring, 0, &precision);
 
         if(type == TSDB_DATA_TYPE_JSON) {
