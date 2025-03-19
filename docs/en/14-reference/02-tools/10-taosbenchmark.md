@@ -484,6 +484,15 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
+<details>
+<summary>queryStb.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
+```
+
+</details>
+
 #### Subscription Example
 
 <details>

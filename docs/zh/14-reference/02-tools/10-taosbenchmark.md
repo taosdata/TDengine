@@ -389,6 +389,15 @@ taosBenchmark -f <json file>
 
 </details>
 
+<details>
+<summary>queryStb.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
+```
+
+</details>
+
 ### 订阅 JSON 示例 
 
 <details>
