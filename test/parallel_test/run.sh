@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x
 function usage() {
     echo "$0"
     echo -e "\t -m vm config file"
@@ -187,25 +187,39 @@ function run_thread() {
             case_file=$(echo "$case_cmd" | grep -o ".*\.sh" | awk '{print $NF}')
         fi
 
-        if echo "$case_cmd" | grep -q "^python3"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+        if echo "$case_cmd" | grep -q "^pytest"; then
+            if [[ $case_cmd == *".py"* ]] || [[ $case_cmd == *".sim"* ]]; then
+                case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+            fi
         fi
 
-        if echo "$case_cmd" | grep -q "^./pytest.sh"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
-        fi
 
-        if echo "$case_cmd" | grep -q "\.sim"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
-        fi
+        # if echo "$case_cmd" | grep -q "^python3"; then
+        #     case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+        # fi
+
+        # if echo "$case_cmd" | grep -q "^./pytest.sh"; then
+        #     case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+        # fi
+
+        # if echo "$case_cmd" | grep -q "\.sim"; then
+        #     case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
+        # fi
         if [ -z "$case_file" ]; then
             case_file=$(echo "$case_cmd" | awk '{print $NF}')
         fi
         if [ -z "$case_file" ]; then
             continue
         fi
-        case_sql_file="$exec_dir/${case_file}.sql"
-        case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
+        # case_sql_file="$exec_dir/${case_file}.sql"
+        # case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
+        if [ "$exec_dir" == "."]; then
+            case_sql_file="${case_file}.sql"
+            case_file="${case_file}.${index}.${thread_no}.${count}"
+        else
+            case_sql_file="${exec_dir}/${case_file}.sql"
+            case_file="${exec_dir}/${case_file}.${index}.${thread_no}.${count}"
+        fi
         count=$((count + 1))
         local case_path
         case_path=$(dirname "$case_file")

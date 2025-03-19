@@ -109,16 +109,24 @@ mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coredump
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/coredump/*
 if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/$exec_dir" ]; then
-    subdir=`echo "$exec_dir"|cut -d/ -f1`
-    echo "cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/"
-    cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/
+    if [ "$exec_dir" != "." ]; then
+        subdir=`echo "$exec_dir"|cut -d/ -f1`
+        echo "cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/"
+        cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/
+    else
+        echo "cp -rf ${REPDIR}/test/ ${TMP_DIR}/thread_volume/$thread_no/"
+        cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
+    fi
 fi
 
 # if [ ! -f "${SOURCEDIR}/${packageName}" ]; then
 #      wget -P  ${SOURCEDIR} https://taosdata.com/assets-download/3.0/${packageName}
 # fi
 
-MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/test/$exec_dir"
+# MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/test/$exec_dir"
+MOUNT_SOURCE="${TMP_DIR}/thread_volume/${thread_no}/${exec_dir}"
+MOUNT_TARGET="${CONTAINER_TESTDIR}/test/${exec_dir}"
+MOUNT_DIR="${MOUNT_SOURCE}:${MOUNT_TARGET}"
 echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 
@@ -133,4 +141,3 @@ docker run \
     --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/test/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 exit $ret
-
