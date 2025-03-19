@@ -33,8 +33,8 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-ADD ./2.x-files/run.sh \
-    ./2.x-files/td_cluster_check \
+ADD ./run.sh \
+    ./td_cluster_check \
     ./bin/* \
     /usr/bin/
 

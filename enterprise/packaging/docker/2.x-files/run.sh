@@ -390,6 +390,7 @@ function initDnodeAndMnode {
             #check snode created
             ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$ANODETmp" == "" ]]; then
+                mkdir -p "/var/log/taos/taosanode"
                 taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create anode \"127.0.0.1:6090\";"
                 ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
                 if [[ "$ANODETmp" != "" ]]; then
