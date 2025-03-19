@@ -1209,6 +1209,40 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
   return DEAL_RES_CONTINUE;
 }
 
+void sclGetValueNodeSrcTable(SNode* pNode, char** ppSrcTable, bool* multiTable) {
+  if (*multiTable) {
+    return;
+  }
+
+  if (QUERY_NODE_NODE_LIST == nodeType(pNode)) {
+    SNodeListNode* pList = (SNodeListNode*)pNode;
+    SNode* pTmp = NULL;
+    FOREACH(pTmp, pList->pNodeList) {
+      sclGetValueNodeSrcTable(pTmp, ppSrcTable, multiTable);
+    }
+    
+    return;
+  }
+  
+  if (QUERY_NODE_VALUE != nodeType(pNode)) {
+    return;
+  }
+  
+  SValueNode* pValue = (SValueNode*)pNode;
+  if (pValue->node.srcTable[0]) {
+    if (*ppSrcTable) {
+      if (strcmp(*ppSrcTable, pValue->node.srcTable)) {
+        *multiTable = true;
+        *ppSrcTable = NULL;
+      }
+
+      return;
+    }
+
+    *ppSrcTable = pValue->node.srcTable;
+  }
+}
+
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
@@ -1217,9 +1251,15 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_CONTINUE;
   }
 
+  char* srcTable = NULL;
+  bool  multiTable = false;
   FOREACH(tnode, node->pParameterList) {
     if (!SCL_IS_CONST_NODE(tnode)) {
       return DEAL_RES_CONTINUE;
+    }
+
+    if (SCL_NEED_SRC_TABLE_FUNC(node->funcType)) {
+      sclGetValueNodeSrcTable(tnode, &srcTable, &multiTable);
     }
   }
 
@@ -1241,6 +1281,9 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  if (srcTable) {
+    tstrncpy(res->node.srcTable, srcTable, TSDB_TABLE_NAME_LEN);
+  }
   tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType.type = output.columnData->info.type;
   res->node.resType.bytes = output.columnData->info.bytes;
@@ -1393,8 +1436,18 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
+  char* srcTable = NULL;
+  bool  multiTable = false;
+  if (SCL_NEED_SRC_TABLE_OP(node->opType)) {
+    sclGetValueNodeSrcTable(node->pLeft, &srcTable, &multiTable);
+    sclGetValueNodeSrcTable(node->pRight, &srcTable, &multiTable);
+  }
+
   res->translate = true;
 
+  if (srcTable) {
+    tstrncpy(res->node.srcTable, srcTable, TSDB_TABLE_NAME_LEN);
+  }
   tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
