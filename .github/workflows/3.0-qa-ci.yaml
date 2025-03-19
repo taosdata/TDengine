@@ -483,7 +483,9 @@ jobs:
   failed_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test,set_env]
-    if: failure()
+
+    if: ${{ always() && needs.run_e2e_test.result == 'failed' }}
+
     steps: 
       - name: Get test case result
         id: set-env-vars
