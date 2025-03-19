@@ -55,7 +55,7 @@ class Remote:
             self._logger.exception(f"Exception occur---{e}")
             return None
 
-    async def async_cmd(self, host, cmd_list, password="") -> Union[str, None]:
+    async def async_cmd(self, host, cmd_list, password="", error_output=None) -> Union[str, None]:
         """
         异步执行本地shell命令或远程shell命令。
         如果没有抛异常,那么返回stdout; 如果抛异常,返回None;
@@ -67,7 +67,11 @@ class Remote:
         self._logger.info("cmd on %s: %s", host, cmd_line)
         # 执行本地shell命令
         if host == self._local_host or host == "localhost":
-            result = await asyncio.to_thread(subprocess.run, cmd_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if error_output is None:
+                result = await asyncio.to_thread(subprocess.run, cmd_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            else:
+                with open(error_output, "a") as f:
+                    result = await asyncio.to_thread(subprocess.run, cmd_line, shell=True, stdout=f, stderr=f)
             if result.returncode != 0:
                 self._logger.error(result.stderr.decode())
                 return None
@@ -89,8 +93,8 @@ class Remote:
 
 
 
-    def cmd(self, host, cmd_list, password="") -> Union[str, None]:
-        return asyncio.run(self.async_cmd(host, cmd_list, password))
+    def cmd(self, host, cmd_list, password="", error_output=None) -> Union[str, None]:
+        return asyncio.run(self.async_cmd(host, cmd_list, password, error_output))
     
 
     # def cmd_parallel(self, host_cmd_list: List[tuple], password="") -> List[Union[str, None]]:

@@ -8,6 +8,7 @@ import os
 import time
 import re
 import platform
+import subprocess
 try:
     import taos
 except:
@@ -88,6 +89,7 @@ class TaosD:
         self._remote.mkdir(cfg["fqdn"], dnode["config_dir"])
         self._remote.mkdir(cfg["fqdn"], "/var/log/valgrind")
         taosd_path = dnode["taosdPath"] if "taosdPath" in dnode else "/usr/bin/taosd"
+        error_output = dnode["asanDir"] if "asanDir" in dnode else None
         if "dataDir" in cfg:
             if type(cfg["dataDir"]) == list:
                 for dataDir_i in cfg["dataDir"]:
@@ -109,7 +111,10 @@ class TaosD:
         if self.taosd_valgrind:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
-            start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
+            if error_output:
+                start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
+            else:
+                start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
         self._remote.cmd(cfg["fqdn"],
                          ["ulimit -n 1048576",
                           start_cmd,
@@ -118,24 +123,25 @@ class TaosD:
         
         if self.taosd_valgrind == 0:
             time.sleep(0.1)
-            key = 'from offline to online'
-            bkey = bytes(key, encoding="utf8")
-            logFile = self._run_log_dir + "/taosdlog.0"
-            i = 0
-            while not os.path.exists(logFile):
-                time.sleep(0.1)
-                i += 1
-                if i > 50:
-                    break
-            with open(logFile) as f:
-                timeout = time.time() + 10 * 2
-                while True:
-                    line = f.readline().encode('utf-8')
-                    if bkey in line:
+            if index == 0:
+                key = 'from offline to online'
+                bkey = bytes(key, encoding="utf8")
+                logFile = self._run_log_dir + "/taosdlog.0"
+                i = 0
+                while not os.path.exists(logFile):
+                    time.sleep(0.1)
+                    i += 1
+                    if i > 50:
                         break
-                    if time.time() > timeout:
-                        self.logger.exit('wait too long for taosd start')
-                self.logger.debug("the dnode:%d has been started." % (index))
+                with open(logFile) as f:
+                    timeout = time.time() + 10 * 2
+                    while True:
+                        line = f.readline().encode('utf-8')
+                        if bkey in line:
+                            break
+                        if time.time() > timeout:
+                            self.logger.error('wait too long for taosd start')
+                    self.logger.debug("the dnode:%d has been started." % (index))
         else:
             self.logger.debug(
                 "wait 10 seconds for the dnode:%d to start." %(index))
@@ -327,16 +333,26 @@ class TaosD:
                         win_taosd.run_cmd(f"rd /S /Q {dir_win}")
 
                 else:
-                    killCmd = [
-                        "ps -ef|grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict["name"]]
-                    self._remote.cmd(fqdn, killCmd)
+                    if "asanDir" in i:
+                        if fqdn == "localhost":
+                            killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
+                            env = os.environ.copy()
+                            env.pop('LD_PRELOAD', None)
+                            subprocess.run(killCmd, shell=True, text=True, env=env)
+                        else:
+                            killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
+                            self._remote.cmd(fqdn, killCmd)
+                    else:
+                        killCmd = [
+                            "ps -ef | grep -wi %s | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict["name"]]
+                        self._remote.cmd(fqdn, killCmd)
                     if self.taosd_valgrind and not self.taosc_valgrind:
                         killCmd = [
                             "ps -ef|grep -wi valgrind.bin | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
                     if self.taosc_valgrind:
                         killCmd = [
                             "ps -ef|grep -wi valgrind.bin | grep -v grep | grep -v taostest | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
-                    self._remote.cmd(fqdn, killCmd)
+                        self._remote.cmd(fqdn, killCmd)
                     if self.taosd_valgrind:
                         self._remote.cmd(fqdn, [f'mkdir -p /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null', f'cp -rf {i["config"]["logDir"]}/* /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null'])
                     cmdList = []

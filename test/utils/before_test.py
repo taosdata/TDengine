@@ -235,6 +235,10 @@ class BeforeTest:
                 dnode["config"]["queryPolicy"] = request.session.query_policy
             if request.session.independentMnode and i < request.session.mnodes_num:
                 dnode["config"]["supportVnodes"] = 0
+            if request.session.asan:
+                dnode["asanDir"] = os.path.join(ci_path, "asan", f"dnode{i+1}.asan")
+                os.makedirs(os.path.dirname(dnode["asanDir"]), exist_ok=True)
+                request.session.asan_dir = dnode["asanDir"]
             yaml_data["settings"][0]["spec"]["dnodes"].append(dnode)
             server = {
                 "host": dnode["endpoint"].split(":")[0],
@@ -359,27 +363,27 @@ class BeforeTest:
         if dnode_nums > 1:
             dnodes_list_pytest = cluster_pytest.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
             tdDnodes_pytest = ClusterDnodes_pytest(dnodes_list_pytest)
-            tdDnodes_pytest.init(request.session.root_dir, master_ip)
+            tdDnodes_pytest.init("", master_ip)
             tdDnodes_pytest.setTestCluster(False)
             tdDnodes_pytest.setValgrind(0)
-            tdDnodes_pytest.setAsan(0)
+            tdDnodes_pytest.setAsan(request.session.asan)
             dnodes_list_army = cluster_army.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
-            clusterDnodes_army.init(dnodes_list_army, request.session.root_dir, master_ip)
+            clusterDnodes_army.init(dnodes_list_army, "", master_ip)
             clusterDnodes_army.setTestCluster(False)
             clusterDnodes_army.setValgrind(0)
-            clusterDnodes_army.setAsan(0)
+            clusterDnodes_army.setAsan(request.session.asan)
             tdDnodes_army = clusterDnodes_army
         else:
-            tdDnodes_pytest.init(request.session.root_dir, master_ip)
+            tdDnodes_pytest.init("", master_ip)
             tdDnodes_pytest.setKillValgrind(1)
             tdDnodes_pytest.setTestCluster(False)
             tdDnodes_pytest.setValgrind(0)
-            tdDnodes_pytest.setAsan(0)
-            tdDnodes_army.init(request.session.root_dir, master_ip)
+            tdDnodes_pytest.setAsan(request.session.asan)
+            tdDnodes_army.init("", master_ip)
             tdDnodes_army.setKillValgrind(1)
             tdDnodes_army.setTestCluster(False)
             tdDnodes_army.setValgrind(0)
-            tdDnodes_army.setAsan(0)
+            tdDnodes_army.setAsan(request.session.asan)
         tdDnodes_pytest.sim.setTestCluster(False)
         tdDnodes_pytest.sim.logDir = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","log")
         tdDnodes_pytest.sim.cfgDir = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","cfg")
@@ -394,7 +398,7 @@ class BeforeTest:
         for i in range(dnode_nums):
             tdDnodes_pytest.dnodes[i].setTestCluster(False)
             tdDnodes_pytest.dnodes[i].setValgrind(0)
-            tdDnodes_pytest.dnodes[i].setAsan(0)
+            tdDnodes_pytest.dnodes[i].setAsan(request.session.asan)
             tdDnodes_pytest.dnodes[i].logDir = request.session.servers[i]["log_dir"]
             tdDnodes_pytest.dnodes[i].dataDir = request.session.servers[i]["data_dir"]
             tdDnodes_pytest.dnodes[i].cfgDir = request.session.servers[i]["cfg_path"]
@@ -405,7 +409,7 @@ class BeforeTest:
             tdDnodes_pytest.dnodes[i].running = 1
             tdDnodes_army.dnodes[i].setTestCluster(False)
             tdDnodes_army.dnodes[i].setValgrind(0)
-            tdDnodes_army.dnodes[i].setAsan(0)
+            tdDnodes_army.dnodes[i].setAsan(request.session.asan)
             tdDnodes_army.dnodes[i].logDir = request.session.servers[i]["log_dir"]
             tdDnodes_army.dnodes[i].dataDir = request.session.servers[i]["data_dir"]
             tdDnodes_army.dnodes[i].cfgDir = request.session.servers[i]["cfg_path"]
@@ -417,14 +421,14 @@ class BeforeTest:
     # TODO: 增加taosAdapter实例化
 
         if request.session.restful:
-            tAdapter_pytest.init(request.session.root_dir, master_ip)
+            tAdapter_pytest.init("", master_ip)
             tAdapter_pytest.log_dir = request.session.adapter["log_path"]
             tAdapter_pytest.cfg_dir = request.session.adapter["cfg_dir"]
             tAdapter_pytest.cfg_path = request.session.adapter["config_file"]
             tAdapter_pytest.taosadapter_cfg_dict["log"]["path"] = request.session.adapter["log_path"]
             tAdapter_pytest.deployed = 1
             tAdapter_pytest.running = 1
-            tAdapter_army.init(request.session.root_dir, master_ip)
+            tAdapter_army.init("", master_ip)
             tAdapter_army.log_dir = request.session.adapter["log_path"]
             tAdapter_army.cfg_dir = request.session.adapter["cfg_dir"]
             tAdapter_army.cfg_path = request.session.adapter["config_file"]
