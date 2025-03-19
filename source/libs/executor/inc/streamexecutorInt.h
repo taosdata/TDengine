@@ -168,6 +168,9 @@ int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* 
 int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
 int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
 TSKEY   compareTs(void* pKey);
+void    clearGroupResArray(SGroupResInfo* pGroupResInfo);
+void    clearSessionGroupResInfo(SGroupResInfo* pGroupResInfo);
+void    destroyResultWinInfo(void* pRes);
 
 int32_t addEventAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
                                const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t ri,

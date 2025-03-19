@@ -174,7 +174,7 @@ make
 
 If you want to compile taosAdapter, you need to add the `-DBUILD_HTTP=false` option.
 
-If you want to compile taosKeeper, you need to add the `--DBUILD_KEEPER=true` option.
+If you want to compile taosKeeper, you need to add the `-DBUILD_KEEPER=true` option.
 
 You can use Jemalloc as memory allocator instead of glibc:
 
@@ -206,7 +206,7 @@ cmake .. && cmake --build .
 
 If you want to compile taosAdapter, you need to add the `-DBUILD_HTTP=false` option.
 
-If you want to compile taosKeeper, you need to add the `--DBUILD_KEEPER=true` option.
+If you want to compile taosKeeper, you need to add the `-DBUILD_KEEPER=true` option.
 
 </details>
 

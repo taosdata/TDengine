@@ -87,7 +87,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   tmr_h                  pTimer = NULL;
   SBuildScanWalMsgParam* pParam = (SBuildScanWalMsgParam*)param;
 
-  tqDebug("start to do scan wal in tmr, metaRid:%" PRId64, pParam->metaId);
+  tqTrace("start to do scan wal in tmr, metaRid:%" PRId64, pParam->metaId);
 
   SStreamMeta* pMeta = taosAcquireRef(streamMetaRefPool, pParam->metaId);
   if (pMeta == NULL) {
@@ -173,7 +173,7 @@ static void doStartScanWal(void* param, void* tmrId) {
 
 _end:
   streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId, "scan-wal");
-  tqDebug("vgId:%d try scan-wal will start in %dms", vgId, SCAN_WAL_IDLE_DURATION*SCAN_WAL_WAIT_COUNT);
+  tqTrace("vgId:%d try scan-wal will start in %dms", vgId, SCAN_WAL_IDLE_DURATION*SCAN_WAL_WAIT_COUNT);
 
   code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
   if (code) {

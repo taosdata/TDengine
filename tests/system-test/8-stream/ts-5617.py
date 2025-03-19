@@ -78,7 +78,7 @@ insertJson = '''{
 
 class TDTestCase:
     updatecfgDict = {'debugFlag': 135, 'asynclog': 0, 'streamFailedTimeout': 10000}
-    clientCfgDict = {'debugFlag': 135, 'asynclog': 0, 'streamRunHistoryAsync': 1}
+    clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
     updatecfgDict["clientCfg"] = clientCfgDict
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -97,7 +97,7 @@ class TDTestCase:
         
         tdLog.info("test creating stream with history in normal ......")
         start_time = time.time()
-        tdSql.execute(f'create stream s21 fill_history 1 into ts5617.st21 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
+        tdSql.execute(f'create stream s21 fill_history 1 async into ts5617.st21 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
         end_time = time.time()
         if end_time - start_time > 1:
             tdLog.exit("create history stream sync too long")
@@ -118,7 +118,7 @@ class TDTestCase:
         tdSql.execute(f'drop table if exists ts5617.st21')
         
         tdLog.info("test creating stream with history in taosd error ......")
-        tdSql.execute(f'create stream s211 fill_history 1 into ts5617.st211 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
+        tdSql.execute(f'create stream s211 fill_history 1 async into ts5617.st211 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
         tdSql.execute(f'create stable ts5617.st211(ts timestamp, i int) tags(tname varchar(20))')
 
         tdSql.query("show streams")
@@ -139,8 +139,8 @@ class TDTestCase:
         tdSql.execute(f'drop table if exists ts5617.st211')
         
         tdLog.info("test creating stream with history in taosd error ......")
-        tdSql.execute(f'create stream s21 fill_history 1 into ts5617.st21 as select last(val), last(quality) from ts5617.d_0 interval(1800s);')
-        tdSql.execute(f'create stream s211 fill_history 1 into ts5617.st211 as select last(val), last(quality) from ts5617.d_0 interval(1800s);')
+        tdSql.execute(f'create stream s21 fill_history 1 async into ts5617.st21 as select last(val), last(quality) from ts5617.d_0 interval(1800s);')
+        tdSql.execute(f'create stream s211 fill_history 1 async into ts5617.st211 as select last(val), last(quality) from ts5617.d_0 interval(1800s);')
 
         while 1:
             tdSql.query("show streams")
@@ -158,7 +158,7 @@ class TDTestCase:
         tdSql.execute(f'drop table if exists  ts5617.st211')
 
         tdLog.info("test creating stream with history in taosd restart ......")
-        tdSql.execute(f'create stream s21 fill_history 1 into ts5617.st21 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
+        tdSql.execute(f'create stream s21 fill_history 1 async into ts5617.st21 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
         tdSql.query("show streams")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "init")

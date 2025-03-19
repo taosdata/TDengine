@@ -302,7 +302,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     QW_SINK_DISABLE_MEMPOOL();
 
     if (len < 0) {
-      QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64 "", len);
+      QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64, len);
       QW_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 

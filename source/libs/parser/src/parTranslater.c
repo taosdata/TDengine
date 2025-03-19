@@ -3357,7 +3357,7 @@ static int32_t rewriteQueryTimeFunc(STranslateContext* pCxt, int64_t val, SNode*
   if (NULL == pStr) {
     return terrno;
   }
-  snprintf(pStr, 20, "%" PRId64 "", val);
+  snprintf(pStr, 20, "%" PRId64, val);
   int32_t code = rewriteFuncToValue(pCxt, &pStr, pNode);
   if (TSDB_CODE_SUCCESS != code) taosMemoryFree(pStr);
   return code;
@@ -11773,6 +11773,7 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
 
   snprintf(dropReq.name, sizeof(dropReq.name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
   dropReq.igNotExists = pStmt->ignoreNotExists;
+  dropReq.force = pStmt->force;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
   tFreeSMDropTopicReq(&dropReq);
@@ -11788,6 +11789,7 @@ static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pSt
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, dropReq.topic);
   dropReq.igNotExists = pStmt->ignoreNotExists;
+  dropReq.force = pStmt->force;
   tstrncpy(dropReq.cgroup, pStmt->cgroup, TSDB_CGROUP_LEN);
 
   return buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_CGROUP, (FSerializeFunc)tSerializeSMDropCgroupReq, &dropReq);
@@ -13416,7 +13418,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
     getSourceDatabase(pStmt->pQuery, pCxt->pParseCxt->acctId, pReq->sourceDB);
     code = nodesNodeToString(pStmt->pQuery, false, &pReq->ast, NULL);
   }
-  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory && (pCxt->pParseCxt->streamRunHistory || !tsStreamRunHistoryAsync)) {
+  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory && (pCxt->pParseCxt->streamRunHistory || !pStmt->pOptions->runHistoryAsync)) {
     SRealTableNode* pTable = (SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable);
     code = createLastTsSelectStmt(pTable->table.dbName, pTable->table.tableName, pTable->pMeta->schema[0].name,
                                   &pStmt->pPrevQuery);
