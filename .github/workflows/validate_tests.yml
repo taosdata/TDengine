@@ -33,7 +33,9 @@ jobs:
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-case-files.outputs.all_changed_files }}
         run: |
+          EXIT_CODE=0
           for file in ${ALL_CHANGED_FILES}; do
             echo "$file was changed"
-            python .github/scripts/validate_tests.py "$file"
+            python .github/scripts/validate_tests.py "$file" || EXIT_CODE=1
           done
+          exit $EXIT_CODE
