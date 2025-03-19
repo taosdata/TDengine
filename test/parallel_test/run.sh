@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x
 function usage() {
     echo "$0"
     echo -e "\t -m vm config file"
