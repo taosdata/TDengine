@@ -34,17 +34,6 @@ jobs:
           - windows-2022
 
     steps:
-      name: Get CPU Cores
-
-on: [push]
-
-jobs:
-  get-cpu-cores:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
       - name: Get CPU Cores
         shell: bash
         run: |
