@@ -572,10 +572,11 @@ int32_t tableCommit(STable *pTable) {
 
 int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk) {
   int32_t code = 0;
+  int32_t line = 0;
   int32_t offset = blockId * kBlockCap;
 
-  code = taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
-  if (code != 0) {
+  int64_t n = taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
+  if (n < 0) {
     code = terrno;
     return code;
   }
