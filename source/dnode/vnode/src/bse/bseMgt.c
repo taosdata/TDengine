@@ -55,7 +55,7 @@ static char *bseFilexSuffix[] = {
     "data",
     "log",
 };
-static int32_t kBlockCap = 8 * 1024 * 1024;
+static int32_t kBlockCap = 4 * 1024;
 
 typedef struct {
   int64_t seq;
@@ -421,41 +421,6 @@ _err:
   return code;
 }
 
-// int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len) {
-//   int32_t  line = 0;
-//   int32_t  code = 0;
-//   uint32_t offset = 0;
-//   // SValueInfo info;
-
-//   BlockInfo *pInfo = taosArrayGetLast(pTable->pSeqToBlock);
-//   if (pInfo == NULL) {
-//     return TSDB_CODE_INVALID_PARA;
-//   }
-//   if (pInfo->seq == 0) {
-//     pInfo->seq = pTable->initSeq;
-//   }
-
-//   if (blockShouldFlush(&pTable->data, len)) {
-//     pInfo->blockId = pTable->blockId;
-//     pInfo->len = pTable->data.len;
-
-//     TAOS_CHECK_GOTO(tableFlushBlock(pTable), &line, _err);
-//     pTable->blockId++;
-//     TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_DATA_TYPE, pTable->blockId), &line, _err);
-
-//     BlockInfo info = {.seq = key, .blockId = pTable->blockId, .len = 0};
-//     taosArrayPush(pTable->pSeqToBlock, &info);
-//   }
-
-//   code = blockAdd(&pTable->data, key, value, len, &offset);
-//   TAOS_CHECK_GOTO(code, &line, _err);
-
-// _err:
-//   if (code != 0) {
-//     bseError("bse file %s failed to append value at line since %s", pTable->name, tstrerror(code));
-//   }
-//   return code;
-// }
 int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len) {
   int32_t  line = 0;
   int32_t  code;
@@ -651,16 +616,39 @@ int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk) {
   }
   return code;
 }
-
-int32_t tableLoadBySeq(STable *pTable, uint64_t key, uint8_t **pValue, int32_t *len) {
+static int32_t getBlockInfoBySeq(SArray *pSeqToBlock, int64_t key, BlockInfo **ppInfo) {
   int32_t    code = 0;
   BlockInfo *p = NULL;
-  for (int32_t i = 0; i < taosArrayGetSize(pTable->pSeqToBlock); i++) {
-    BlockInfo *pInfo = taosArrayGet(pTable->pSeqToBlock, i);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pSeqToBlock); i++) {
+    BlockInfo *pInfo = taosArrayGet(pSeqToBlock, i);
     if (pInfo->seq <= key) {
-      p = pInfo;
-      break;
+      BlockInfo *pNext = taosArrayGet(pSeqToBlock, i + 1);
+      if (pNext) {
+        if (pNext->seq > key) {
+          p = pInfo;
+          break;
+        }
+      } else {
+        terrno = 0;
+        p = pInfo;
+        break;
+      }
     }
+  }
+  if (p == NULL) {
+    code = TSDB_CODE_NOT_FOUND;
+  } else {
+    *ppInfo = p;
+  }
+  return code;
+}
+int32_t tableLoadBySeq(STable *pTable, uint64_t key, uint8_t **pValue, int32_t *len) {
+  BlockInfo *p = NULL;
+
+  int32_t code = getBlockInfoBySeq(pTable->pSeqToBlock, key, &p);
+  if (code != 0) {
+    return code;
   }
   return tableGetByBlock(pTable, p, key, pValue, len);
 }
@@ -1444,15 +1432,9 @@ static int32_t readerTableGet(SReaderTable *pTable, int64_t key, uint8_t **pValu
   int32_t line = 0;
 
   BlockInfo *p = NULL;
-  for (int32_t i = 0; i < taosArrayGetSize(pTable->pSeqToBlock); i++) {
-    p = taosArrayGet(pTable->pSeqToBlock, i);
-    if (p->seq <= key) {
-      break;
-    }
-  }
-  if (p == NULL) {
-    return TSDB_CODE_NOT_FOUND;
-  }
+  code = getBlockInfoBySeq(pTable->pSeqToBlock, key, &p);
+  TAOS_CHECK_GOTO(code, &line, _err);
+
   code = tableLoadBlk((STable *)pTable, p->blockId, &pTable->bufBlk);
   TAOS_CHECK_GOTO(code, &line, _err);
 
@@ -1501,7 +1483,6 @@ static int32_t readerTableLoadMeta(SReaderTable *pTable) {
         if (pBlk->head[3] == BSE_META_TYPE) {
           uint8_t *data = pBlk->data;
           uint8_t *p = data;
-          uint32_t count = 0;
           do {
             int64_t seq;
             int32_t len, blockId;
