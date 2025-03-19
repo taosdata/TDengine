@@ -11,8 +11,6 @@ ELSE()
 ENDIF()
 
 IF(TD_LINUX AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include -ltaosws)
-    SET(LINK_WEBSOCKET "-L${CMAKE_BINARY_DIR}/build/lib -ltaosws")
     DEP_ext_taosws(shell)
 ELSEIF(TD_DARWIN AND TD_WEBSOCKET)
     DEP_ext_taosws(shell)
