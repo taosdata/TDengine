@@ -312,8 +312,8 @@ class DecimalColumnExpr:
                 calc_res = float(v_from_calc_in_py)
                 failed = not math.isclose(query_res, calc_res, abs_tol=1e-7)
             else:
-                query_res = Decimal(v_from_query)
-                calc_res = Decimal(v_from_calc_in_py)
+                query_res = get_decimal(v_from_query, self.res_type_.scale())
+                calc_res = get_decimal(v_from_calc_in_py, self.res_type_.scale())
                 failed = query_res != calc_res
             if failed:
                 tdLog.exit(

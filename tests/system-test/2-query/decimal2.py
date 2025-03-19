@@ -296,7 +296,7 @@ class DecimalColumnExpr:
                     continue
                 else:
                     break
-            dec_from_query = Decimal(v_from_query)
+            dec_from_query = get_decimal(v_from_query, self.query_col.type_.scale())
             dec_from_calc = self.get_query_col_val(tbname, j)
             if dec_from_query != dec_from_calc:
                 tdLog.exit(f"filter with {self} failed, query got: {dec_from_query}, expect {dec_from_calc}, param: {params}")
