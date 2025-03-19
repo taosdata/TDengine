@@ -191,8 +191,12 @@ function run_thread() {
         fi
 
         if echo "$case_cmd" | grep -q "^pytest"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+            if [[ $case_cmd == *".py"* ]] || [[ $case_cmd == *".sim"* ]]; then
+                case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+            fi
         fi
+
+
         # if echo "$case_cmd" | grep -q "^python3"; then
         #     case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         # fi
@@ -201,9 +205,9 @@ function run_thread() {
         #     case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         # fi
 
-        if echo "$case_cmd" | grep -q "\.sim"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
-        fi
+        # if echo "$case_cmd" | grep -q "\.sim"; then
+        #     case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
+        # fi
         if [ -z "$case_file" ]; then
             case_file=$(echo "$case_cmd" | awk '{print $NF}')
         fi
