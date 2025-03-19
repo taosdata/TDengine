@@ -26,8 +26,8 @@ extern "C" {
 typedef struct SXnode SXnode;
 
 typedef struct {
-  SMsgCb msgCb;
-
+  SMsgCb  msgCb;
+  int32_t dnodeId;
 } SXnodeOpt;
 
 /* ------------------------ SXnode ------------------------ */

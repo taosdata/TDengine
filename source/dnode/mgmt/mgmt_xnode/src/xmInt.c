@@ -21,7 +21,10 @@ static int32_t xmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);
 }
 
-static void xmInitOption(SXnodeMgmt *pMgmt, SXnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
+static void xmInitOption(SXnodeMgmt *pMgmt, SXnodeOpt *pOption) {
+  pOption->msgCb = pMgmt->msgCb;
+  pOption->dnodeId = pMgmt->pData->dnodeId;
+}
 
 static void xmClose(SXnodeMgmt *pMgmt) {
   if (pMgmt->pXnode != NULL) {

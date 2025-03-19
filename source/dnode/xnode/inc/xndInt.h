@@ -30,8 +30,9 @@ extern "C" {
 #endif
 
 typedef struct SXnode {
-  SMsgCb msgCb;
-  int8_t protocol[XNODE_OPTION_PROTOCOL_MAX];
+  SMsgCb  msgCb;
+  int32_t dnodeId;
+  int8_t  protocol[XNODE_OPTION_PROTOCOL_MAX];
 } SQnode;
 
 #ifdef __cplusplus
