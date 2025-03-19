@@ -10,6 +10,7 @@ do_gen() {
         -DBUILD_KEEPER=true                             \
         -DBUILD_HTTP=false                              \
         -DBUILD_TEST=true                               \
+        -DWEBSOCKET:STRING=true                         \
         -DBUILD_DEPENDENCY_TESTS=false                  \
         -DLOCAL_REPO:STRING=${LOCAL_REPO}               \
         -DLOCAL_URL:STRING=${LOCAL_URL}                 \
@@ -70,7 +71,7 @@ case $1 in
         ;;
     test)
         shift 1 &&
-        do_test &&
+        do_test "$@" &&
         echo "Tested for '${TD_CONFIG}'"
         echo ==Done==
         ;;
