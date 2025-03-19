@@ -39,13 +39,13 @@ class _GPTService(AbstractForecastService):
             response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
         except Exception as e:
             app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ", str(e))
-            raise ValueError("error")
+            raise e
 
-        # print(response)
+        if response.status_code != 200:
+            app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ")
+            raise ValueError("invalid host url")
 
         pred_y = response.json()['output']
-        # print(f"pred_y len:{len(pred_y)}")
-        # print(f"pred_y:{pred_y}")
 
         res =  {
             "res": [pred_y]
@@ -54,18 +54,6 @@ class _GPTService(AbstractForecastService):
         insert_ts_list(res["res"], self.start_ts, self.time_step, self.fc_rows)
         return res
 
-        # insert_ts_list(res, self.start_ts, self.time_step, self.fc_rows)
-        #
-        # if self.return_conf:
-        #     res1 = [res.tolist(), res.tolist(), res.tolist()], None
-        # else:
-        #     res1 = [res.tolist()], None
-        #
-        # # add the conf range if required
-        # return {
-        #     "mse": None,
-        #     "res": res1
-        # }
 
     def set_params(self, params):
         super().set_params(params)
@@ -73,7 +61,7 @@ class _GPTService(AbstractForecastService):
         if "host" not in params:
             raise ValueError("gpt service host needs to be specified")
 
-        self.service_host = params['host'].trim()
+        self.service_host = params['host']
 
         if self.service_host.startswith("https://"):
             self.service_host = self.service_host.replace("https://", "http://")
