@@ -256,7 +256,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
                 INCLUDE_DIRECTORIES(/usr/local/include/)
             ENDIF ()
 
-            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson argp ${WEBSOCKET_LINK_FLAGS})
+            TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos pthread m toolscJson argp ${WEBSOCKET_LINK_FLAGS})
         ELSE ()
             EXECUTE_PROCESS (
                 COMMAND sh -c "awk -F= '/^ID=/{print $2}' /etc/os-release |tr -d '\n' | tr -d '\"'"

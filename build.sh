@@ -28,13 +28,25 @@ do_test() {
 }
 
 do_start() {
-  sudo systemctl start taosd &&
-  sudo systemctl start taosadapter
+  if which systemctl 2>/dev/null; then
+    sudo systemctl start taosd           && echo taosd started &&
+    sudo systemctl start taosadapter     && echo taosadapter started
+  elif which launchctl 2>/dev/null; then
+    sudo launchctl start com.tdengine.taosd       && echo taosd started       &&
+    sudo launchctl start com.tdengine.taosadapter && echo taosadapter started &&
+    sudo launchctl start com.tdengine.taoskeeper  && echo taoskeeper started
+  fi
 }
 
 do_stop() {
-  sudo systemctl stop taosadapter
-  sudo systemctl stop taosd
+  if which systemctl 2>/dev/null; then
+    sudo systemctl stop taosadapter && echo taosadapter stopped
+    sudo systemctl stop taosd       && echo taosd stopped
+  elif which launchctl 2>/dev/null; then
+    sudo launchctl stop com.tdengine.taoskeeper  && echo taoskeeper stopped
+    sudo launchctl stop com.tdengine.taosadapter && echo taosadapter stopped
+    sudo launchctl stop com.tdengine.taosd       && echo taosd stopped
+  fi
 }
 
 do_purge() {
@@ -64,9 +76,8 @@ case $1 in
         shift 1
         do_stop
         sudo cmake --install debug --config ${TD_CONFIG} "$@" &&
-        echo "Installed for '${TD_CONFIG}'" &&
-        echo "If you wanna start taosd, run like this:" &&
-        echo "./build.sh start"
+        do_start &&
+        echo "Installed and started for '${TD_CONFIG}'" &&
         echo ==Done==
         ;;
     test)
