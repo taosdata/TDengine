@@ -534,7 +534,7 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
   printf("support case \n");
   // case 1 : test child table already exist
   {
-    const char*    sql = "INSERT INTO stmt2_testdb_3.t0(ts,b)using stmt2_testdb_3.stb (t1,t2) TAGS(?,?) VALUES (?,?)";
+    const char*    sql = "INSERT INTO stmt2_testdb_3.t0(ts,b)using stmt2_testdb_3.stb (t1,t2) TAGS(?,?) VALUES(?,?)";
     TAOS_FIELD_ALL expectedFields[4] = {{"t1", TSDB_DATA_TYPE_INT, 0, 0, 4, TAOS_FIELD_TAG},
                                         {"t2", TSDB_DATA_TYPE_BINARY, 0, 0, 12, TAOS_FIELD_TAG},
                                         {"ts", TSDB_DATA_TYPE_TIMESTAMP, 2, 0, 8, TAOS_FIELD_COL},
@@ -612,7 +612,7 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
 
   // case 8 : 'db' 'stb'
   {
-    const char* sql = "INSERT INTO 'stmt2_testdb_3'.? using 'stmt2_testdb_3'.'stb' (t1,t2) TAGS(?,?) (ts,b)VALUES(?,?)";
+    const char* sql = "INSERT INTO 'stmt2_testdb_3'.? using 'stmt2_testdb_3'.'stb' (t1,t2) TAGS(?,?)(ts,b)VALUES(?,?)";
     TAOS_FIELD_ALL expectedFields[5] = {{"tbname", TSDB_DATA_TYPE_BINARY, 0, 0, 271, TAOS_FIELD_TBNAME},
                                         {"t1", TSDB_DATA_TYPE_INT, 0, 0, 4, TAOS_FIELD_TAG},
                                         {"t2", TSDB_DATA_TYPE_BINARY, 0, 0, 12, TAOS_FIELD_TAG},
@@ -634,7 +634,7 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
     printf("case 9 : %s\n", sql);
     getFieldsSuccess(taos, sql, expectedFields, 5);
   }
-  // case 11 : TD-34097
+  // case 11: TD-34097
   {
     do_query(taos, "use stmt2_testdb_3");
     const char*    sql = "INSERT INTO ? using stb (t1,t2) TAGS(1,'abc') (ts,b)VALUES(?,?)";
@@ -721,7 +721,27 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
     printf("case 5 : %s\n", sql);
     getFieldsError(taos, sql, TSDB_CODE_TSC_SQL_SYNTAX_ERROR);
   }
-
+  // case 6 : mix value and ?
+  {
+    do_query(taos, "use stmt2_testdb_3");
+    const char* sql = "INSERT INTO ? using stb (t1,t2) TAGS(1,?) (ts,b)VALUES(?,?)";
+    printf("case 6 : %s\n", sql);
+    getFieldsError(taos, sql, TSDB_CODE_TSC_SQL_SYNTAX_ERROR);
+  }
+  // case 7 : mix value and ?
+  {
+    do_query(taos, "use stmt2_testdb_3");
+    const char*    sql = "INSERT INTO ? using stb (t1,t2) TAGS(?,?) (ts,b)VALUES(15910606280001,?)";
+    printf("case 7 : %s\n", sql);
+    getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION);
+  }
+  // case 8 : mix value and ?
+  {
+    do_query(taos, "use stmt2_testdb_3");
+    const char* sql = "INSERT INTO ? using stb (t1,t2) TAGS(?,?) (ts,b)VALUES(15910606280001,'abc')";
+    printf("case 8 : %s\n", sql);
+    getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION);
+  }
   do_query(taos, "drop database if exists stmt2_testdb_3");
   taos_close(taos);
 }

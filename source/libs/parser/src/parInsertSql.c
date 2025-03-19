@@ -993,6 +993,10 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", token.z);
         break;
       }
+      if (pTagVals->size != 0) {
+        code = buildSyntaxErrMsg(&pCxt->msg, "no mix usage for ? and tag values", token.z);
+        break;
+      }
 
       continue;
     }

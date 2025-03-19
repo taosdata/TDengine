@@ -1201,8 +1201,12 @@ int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool preCtbname, i
     return TSDB_CODE_SUCCESS;
   }
 
-  CHECK_CODE(buildStbBoundFields(pDataBlock->boundColsInfo, pSchema, fieldNum, fields, pDataBlock->pMeta, boundTags,
-                                 preCtbname));
+  void* tags = NULL;
+  if (pDataBlock->pData->pCreateTbReq == NULL) {
+    tags = boundTags;
+  }
+  CHECK_CODE(
+      buildStbBoundFields(pDataBlock->boundColsInfo, pSchema, fieldNum, fields, pDataBlock->pMeta, tags, preCtbname));
 
   return TSDB_CODE_SUCCESS;
 }
