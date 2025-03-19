@@ -13,7 +13,8 @@ def validate_test_file(file_path):
     except SyntaxError as e:
         print(f"Syntax error in file {file_path}: {e}")
         return False
-
+    
+    has_errors = False
     # Check for classes named 'Test...'
     test_classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name.startswith('Test')]
     if not test_classes:
@@ -32,7 +33,8 @@ def validate_test_file(file_path):
             docstring = ast.get_docstring(method_node)
             if not docstring:
                 print(f"Method {method_node.name} in class {class_node.name} in {file_path} does not contain a docstring.")
-                return False
+                has_errors = True
+                continue
 
             # Validate the docstring structure
             lines = docstring.strip().splitlines()
@@ -40,47 +42,47 @@ def validate_test_file(file_path):
             # Check for summary
             if not lines[0].strip():
                 print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not start with a summary.")
-                return False
+                has_errors = True
             if len(lines[0].splitlines()) > 1:
                 print(f"The summary in method {method_node.name} in class {class_node.name} in {file_path} must be a single line.")
-                return False
+                has_errors = True
 
             # Ensure there is a blank line between summary and description
             if len(lines) < 3 or lines[1].strip():
                 print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} must have a blank line between the summary and the description.")
-                return False
-
-            # Check for description (can be multi-line)
-            description_end = next((i for i, line in enumerate(lines[2:], start=2) if not line.strip()), len(lines))
-            if description_end == 2:
-                print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not contain a description.")
-                return False
+                has_errors = True
+            else:
+                # Check for description (can be multi-line)
+                description_end = next((i for i, line in enumerate(lines[2:], start=2) if not line.strip()), len(lines))
+                if description_end == 2:
+                    print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not contain a description.")
+                    has_errors = True
 
             # Check for 'Since:' (required field, multi-line allowed)
             since_index = next((i for i, line in enumerate(lines) if re.match(r'^Since\s*:\s*.*$', line, re.IGNORECASE)), None)
             if since_index is None:
                 print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not contain a valid 'Since:' section.")
-                return False
-
-            if since_index > 0 and lines[since_index - 1].strip():
-                print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} must have a blank line before 'Since'.")
-                return False
-                    
-            # Initialize since_value_lines with the value after the colon on the same line
-            since_value_lines = []
-            first_line_value = re.sub(r'^Since\s*:\s*', '', lines[since_index]).strip()
-            if first_line_value:
-                since_value_lines.append(first_line_value)
-            # Collect multi-line values
-            for i in range(since_index + 1, len(lines)):
-                if lines[i].strip() and not re.match(r'^(Labels|Jira|History)\s*:\s*.*$', lines[i], re.IGNORECASE):
-                    since_value_lines.append(lines[i].strip())
-                else:
-                    break
-            # Ensure 'Since:' has at least one value
-            if not since_value_lines:
-                print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not contain a value for the 'Since:' field.")
-                return False
+                has_errors = True
+            else:
+                if since_index > 0 and lines[since_index - 1].strip():
+                    print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} must have a blank line before 'Since'.")
+                    has_errors = True
+                        
+                # Initialize since_value_lines with the value after the colon on the same line
+                since_value_lines = []
+                first_line_value = re.sub(r'^Since\s*:\s*', '', lines[since_index]).strip()
+                if first_line_value:
+                    since_value_lines.append(first_line_value)
+                # Collect multi-line values
+                for i in range(since_index + 1, len(lines)):
+                    if lines[i].strip() and not re.match(r'^(Labels|Jira|History)\s*:\s*.*$', lines[i], re.IGNORECASE):
+                        since_value_lines.append(lines[i].strip())
+                    else:
+                        break
+                # Ensure 'Since:' has at least one value
+                if not since_value_lines:
+                    print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not contain a value for the 'Since:' field.")
+                    has_errors = True
 
             # Optional fields: Labels, Jira, History (multi-line allowed)
             optional_fields = ['Labels', 'Jira', 'History']
@@ -90,7 +92,7 @@ def validate_test_file(file_path):
                     # Ensure there is a blank line before each optional field
                     if field_index > 0 and lines[field_index - 1].strip():
                         print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} must have a blank line before '{field}'.")
-                        return False
+                        has_errors = True
                     
                     # Initialize field_value_lines with the value after the colon on the same line
                     field_value_lines = []
@@ -106,8 +108,11 @@ def validate_test_file(file_path):
                     # Ensure the field has at least one value
                     if not field_value_lines:
                         print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not contain a value for the '{field}' field.")
-                        return False
+                        has_errors = True
 
+    if has_errors:
+        return False
+    
     print(f"File {file_path} passed validation.")
     return True
 

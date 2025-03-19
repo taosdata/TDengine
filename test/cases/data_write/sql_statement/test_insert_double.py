@@ -23,7 +23,6 @@ class TestInsertDouble:
         """测试插入各种double值
 
         插入各种double值包括正负值、科学计数法、十六进制、二进制、字符串
-
         Since: v3.0.0.0
 
         Labels: common,ci 
