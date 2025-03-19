@@ -683,6 +683,10 @@ void mndTransDropData(STrans *pTrans) {
     taosHashCleanup(pTrans->redoGroupActions);
     pTrans->redoGroupActions = NULL;
   }
+  if (pTrans->groupActionPos != NULL) {
+    taosHashCleanup(pTrans->groupActionPos);
+    pTrans->groupActionPos = NULL;
+  }
   if (pTrans->arbGroupIds != NULL) {
     taosHashCleanup(pTrans->arbGroupIds);
   }
