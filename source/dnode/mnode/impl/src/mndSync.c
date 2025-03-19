@@ -216,6 +216,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
     }
   }
 
+  mInfo("trans:%d, refresh transaction in process write msg", transId);
   mndTransRefresh(pMnode, pTrans);
 
   sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
