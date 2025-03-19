@@ -456,7 +456,7 @@ if $rows != 6 then
   goto loop6
 endi
 
-
+$loop_count = 0
 loop7:
 sleep 500
 print sql select * from information_schema.ins_tables where table_name like "streams6-tbn-%";
@@ -479,6 +479,7 @@ if $rows != 2 then
   goto loop7
 endi
 
+$loop_count = 0
 loop8:
 sleep 500
 print sql select * from information_schema.ins_tables where table_name like "streams7-tbn-%";
@@ -501,7 +502,7 @@ if $rows != 2 then
   goto loop8
 endi
 
-
+$loop_count = 0
 loop9:
 sleep 500
 print sql select * from streamt6;
@@ -524,6 +525,7 @@ if $rows != 2 then
   goto loop9
 endi
 
+$loop_count = 0
 loop10:
 sleep 500
 print sql select * from streamt7;
@@ -567,6 +569,7 @@ sql insert into t2 values(1648791211000,2,2,3);
 
 sql insert into t1 values(1648791221000,1,3,3);
 
+$loop_count = 0
 loop11:
 sleep 500
 print sql select * from streamt9;
@@ -596,6 +599,7 @@ endi
 
 sql insert into t2 values(1648791211001,2,4,3);
 
+$loop_count = 0
 loop12:
 sleep 500
 print sql select * from streamt8;
@@ -618,6 +622,7 @@ if $rows != 1 then
   goto loop12
 endi
 
+$loop_count = 0
 loop13:
 sleep 500
 print sql select * from streamt9;

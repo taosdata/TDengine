@@ -517,6 +517,9 @@ _end:
 int32_t initStreamFillOperatorColumnMapInfo(SExprSupp* pExprSup, SOperatorInfo* pOperator) {
   if (pOperator != NULL && pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL) {
     SStreamFillOperatorInfo* pInfo = (SStreamFillOperatorInfo*)pOperator->info;
+    if (pInfo->nbSup.recParam.pColIdMap == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
     return doInitStreamColumnMapInfo(pExprSup, pInfo->nbSup.recParam.pColIdMap);
   }
   return TSDB_CODE_SUCCESS;

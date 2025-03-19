@@ -344,7 +344,7 @@ int32_t streamClientGetFillRange(SStreamRecParam* pParam, SWinKey* pKey, SArray*
   return TSDB_CODE_FAILED;
 }
 
-int32_t streamClientCheckParam(SStreamRecParam* pParam) {
+int32_t streamClientCheckCfg(SStreamRecParam* pParam) {
     return TSDB_CODE_FAILED;
 }
 
