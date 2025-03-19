@@ -864,7 +864,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
   int32_t     vgId = TD_VID(pVnode);
   int64_t     suid = pTask->outputInfo.tbSink.stbUid;
   const char* id = pTask->id.idStr;
-  int32_t     timeout = 300;  // 5min
+  int32_t     timeout = 60;  // 1min
   int64_t     start = taosGetTimestampSec();
 
   while (pTableSinkInfo->uid == 0) {
