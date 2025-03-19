@@ -53,7 +53,8 @@ if [ -z "$WORKDIR" ]; then
     exit 1
 fi
 if [ -z "$exec_dir" ]; then
-    exec_dir="."
+    usage
+    exit 1
 fi
 if [ -z "$cmd" ]; then
     usage

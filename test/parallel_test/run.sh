@@ -216,8 +216,13 @@ function run_thread() {
         fi
         # case_sql_file="$exec_dir/${case_file}.sql"
         # case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
-        case_sql_file="${exec_dir:+${exec_dir}/}${case_file}.sql"
-        case_file="${exec_dir:+${exec_dir}/}${case_file}.${index}.${thread_no}.${count}"
+        if [ "$exec_dir" == "."]; then
+            case_sql_file="${case_file}.sql"
+            case_file="${case_file}.${index}.${thread_no}.${count}"
+        else
+            case_sql_file="${exec_dir}/${case_file}.sql"
+            case_file="${exec_dir}/${case_file}.${index}.${thread_no}.${count}"
+        fi
         count=$((count + 1))
         local case_path
         case_path=$(dirname "$case_file")
