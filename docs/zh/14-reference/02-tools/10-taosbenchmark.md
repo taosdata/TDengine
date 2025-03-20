@@ -290,6 +290,8 @@ taosBenchmark -f <json file>
 
 其它通用参数详见 [通用配置参数](#通用配置参数)。
 
+**说明：从 v3.3.5.6 及以上版本不再支持 json 文件中同时配置 `specified_table_query` 和  `super_table_query`**
+
 #### 执行指定查询语句
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
@@ -412,6 +414,15 @@ taosBenchmark -f <json file>
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/query.json}}
+```
+
+</details>
+
+<details>
+<summary>queryStb.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
 ```
 
 </details>

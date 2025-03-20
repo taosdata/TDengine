@@ -35,6 +35,7 @@ The list of keywords is as follows:
 | AS                   | |
 | ASC                  | |
 | ASOF                 | |
+| ASYNC                | 3.3.6.0+ |
 | AT_ONCE              | |
 | ATTACH               | |
 | AUTO                 | 3.3.5.0+ |

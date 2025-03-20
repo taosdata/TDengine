@@ -392,7 +392,7 @@ int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBacke
     return terrno;
   }
 
-  nBytes = snprintf(path, cap, "%s%s%s%s%s%" PRId64 "", pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+  nBytes = snprintf(path, cap, "%s%s%s%s%s%" PRId64, pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                     "checkpoint", pSnap->chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
@@ -817,7 +817,7 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
       return terrno;
     }
 
-    int32_t ret = snprintf(path, bufLen, "%s%s%s%s%s%s%s%" PRId64 "", pHandle->metaPath, TD_DIRSEP, idstr, TD_DIRSEP,
+    int32_t ret = snprintf(path, bufLen, "%s%s%s%s%s%s%s%" PRId64, pHandle->metaPath, TD_DIRSEP, idstr, TD_DIRSEP,
                    "checkpoints", TD_DIRSEP, "checkpoint", snapInfo.chkpId);
     if (ret < 0 || ret >= bufLen) {
       stError("s-task:0x%x failed to set the path for take snapshot, code: out of buffer, %s", (int32_t)snapInfo.taskId,

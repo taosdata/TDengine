@@ -81,6 +81,7 @@ void setEventWindowInfo(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SRowBuf
 // stream client
 int32_t streamClientGetResultRange(SStreamRecParam* pParam, SSHashObj* pRangeMap, SArray* pRangeRes);
 int32_t streamClientGetFillRange(SStreamRecParam* pParam, SWinKey* pKey, SArray* pRangeRes, void* pEmptyRow, int32_t size, int32_t* pOffsetInfo, int32_t numOfCols);
+int32_t streamClientCheckCfg(SStreamRecParam* pParam);
 
 #ifdef __cplusplus
 }

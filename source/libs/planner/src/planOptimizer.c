@@ -869,6 +869,10 @@ static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool con
     }
   }
 
+  if (constAsPrim && ((pJoin->leftNoOrderedSubQuery && !pJoin->leftConstPrimGot) || (pJoin->rightNoOrderedSubQuery && !pJoin->rightConstPrimGot))) {
+    res = false;
+  }
+
   tSimpleHashCleanup(pLeftTables);
   tSimpleHashCleanup(pRightTables);
 
@@ -926,20 +930,26 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppInpu
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyNode(*ppInput);
+    *ppInput = NULL;
+
     if (NULL != *ppPrimEqCond) {
       *ppOnCond = pTempOnCond;
-      nodesDestroyNode(*ppInput);
-      *ppInput = NULL;
       return TSDB_CODE_SUCCESS;
     }
+    
     nodesDestroyNode(pTempOnCond);
-    planError("no primary key equal cond found, condListNum:%d", pLogicCond->pParameterList->length);
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    if (!constAsPrim) {
+      planError("no primary key equal cond found, condListNum:%d", pLogicCond->pParameterList->length);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
   } else {
     nodesDestroyList(pOnConds);
     nodesDestroyNode(pTempOnCond);
     return code;
   }
+
+  return code;
 }
 
 static int32_t pdcJoinSplitPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
@@ -1417,7 +1427,7 @@ static int32_t pdcJoinSplitConstPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNod
   if (TSDB_CODE_SUCCESS == code) {
     pJoin->pPrimKeyEqCond = pPrimKeyEqCond;
     *ppCond = pJoinOnCond;
-    if (pJoin->rightConstPrimGot || pJoin->leftConstPrimGot) {
+    if (pJoin->pPrimKeyEqCond && (pJoin->rightConstPrimGot || pJoin->leftConstPrimGot)) {
       code = scalarConvertOpValueNodeTs((SOperatorNode*)pJoin->pPrimKeyEqCond);
     }    
   } else {
@@ -1485,7 +1495,8 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
       }
     }
 
-    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                     "Join requires valid time series input and primary timestamp equal condition");
   }
 
   if (IS_ASOF_JOIN(pJoin->subType)) {
@@ -2643,22 +2654,39 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   EOrder          targetOrder = 0;
   SSHashObj*      pTables = NULL;
 
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) &&
-      ((SScanLogicNode*)pLeft)->node.outputTsOrder != SCAN_ORDER_BOTH) {
-    pScan = (SScanLogicNode*)pLeft;
-    pChild = pRight;
-    pChildPos = &pJoin->node.pChildren->pTail->pNode;
-    targetOrder = pScan->node.outputTsOrder;
-  } else if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) &&
-             ((SScanLogicNode*)pRight)->node.outputTsOrder != SCAN_ORDER_BOTH) {
-    pScan = (SScanLogicNode*)pRight;
-    pChild = pLeft;
-    pChildPos = &pJoin->node.pChildren->pHead->pNode;
-    targetOrder = pScan->node.outputTsOrder;
+  if (pJoin->node.inputTsOrder) {
+    targetOrder = pJoin->node.inputTsOrder;
+    
+    if (pRight->outputTsOrder == pJoin->node.inputTsOrder) {
+      pChild = pLeft;
+      pChildPos = &pJoin->node.pChildren->pHead->pNode;
+    } else if (pLeft->outputTsOrder == pJoin->node.inputTsOrder) {
+      pChild = pRight;
+      pChildPos = &pJoin->node.pChildren->pTail->pNode;
+    } else {
+      pChild = pRight;
+      pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      targetOrder = pLeft->outputTsOrder;
+    }
   } else {
-    pChild = pRight;
-    pChildPos = &pJoin->node.pChildren->pTail->pNode;
-    targetOrder = pLeft->outputTsOrder;
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeft) &&
+        ((SScanLogicNode*)pLeft)->node.outputTsOrder != SCAN_ORDER_BOTH) {
+      pScan = (SScanLogicNode*)pLeft;
+      pChild = pRight;
+      pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      targetOrder = pScan->node.outputTsOrder;
+    } else if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRight) &&
+               ((SScanLogicNode*)pRight)->node.outputTsOrder != SCAN_ORDER_BOTH) {
+      pScan = (SScanLogicNode*)pRight;
+      pChild = pLeft;
+      pChildPos = &pJoin->node.pChildren->pHead->pNode;
+      targetOrder = pScan->node.outputTsOrder;
+    } else {
+      pChild = pRight;
+      pChildPos = &pJoin->node.pChildren->pTail->pNode;
+      targetOrder = pLeft->outputTsOrder;
+    }
+    pJoin->node.inputTsOrder = targetOrder;
   }
 
   if (QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
@@ -4078,7 +4106,7 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
   } else {
     int64_t pointer = (int64_t)pFunc;
     char    name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-    int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pFunc->functionName, pointer);
+    int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64, pFunc->functionName, pointer);
     (void)taosHashBinary(name, len);
     tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
   }
@@ -7521,7 +7549,7 @@ static int32_t tsmaOptCreateWStart(int8_t precision, SFunctionNode** pWStartOut)
   tstrncpy(pWStart->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
   int64_t pointer = (int64_t)pWStart;
   char    name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-  int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
+  int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64, pWStart->functionName, pointer);
   (void)taosHashBinary(name, len);
   tstrncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN);
   pWStart->node.resType.precision = precision;

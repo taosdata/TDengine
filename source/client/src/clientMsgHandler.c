@@ -123,7 +123,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   for (int32_t i = 0; i < connectRsp.epSet.numOfEps; ++i) {
-    tscDebug("QID:0x%" PRIx64 ", epSet.fqdn[%d]:%s port:%d, connObj:0x%" PRIx64, pRequest->requestId, i,
+    tscDebug("QID:0x%" PRIx64 ", epSet.fqdn[%d]:%s port:%d, conn:0x%" PRIx64, pRequest->requestId, i,
              connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
   }
 
@@ -956,7 +956,9 @@ int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t co
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
-  if (code == 0 && !pRequest->streamRunHistory && tsStreamRunHistoryAsync){
+  if (code == 0 && !pRequest->streamRunHistory &&
+      ((SCreateStreamStmt*)(pRequest->pQuery->pRoot))->pOptions->fillHistory &&
+      ((SCreateStreamStmt*)(pRequest->pQuery->pRoot))->pOptions->runHistoryAsync){
     processCreateStreamSecondPhase(pRequest);
   }
   

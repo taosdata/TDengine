@@ -510,18 +510,19 @@ typedef struct SStreamFillSupporter {
 } SStreamFillSupporter;
 
 typedef struct SStreamRecParam {
-  char    pSql[2048];
-  int32_t sqlCapcity;
-  char    pUrl[TSDB_EP_LEN + 17];  // "http://localhost:6041/rest/sql"
-  char    pAuth[512 + 22];         // Authorization: Basic token
-  char    pStbFullName[TSDB_TABLE_FNAME_LEN];
-  char    pWstartName[TSDB_COL_NAME_LEN];
-  char    pWendName[TSDB_COL_NAME_LEN];
-  char    pGroupIdName[TSDB_COL_NAME_LEN];
-  char    pIsWindowFilledName[TSDB_COL_NAME_LEN];
-  void*   pIteData;
-  int32_t iter;
-  TSKEY   gap;
+  char       pSql[2048];
+  int32_t    sqlCapcity;
+  char       pUrl[TSDB_EP_LEN + 17];  // "http://localhost:6041/rest/sql"
+  char       pAuth[512 + 22];         // Authorization: Basic token
+  char       pStbFullName[TSDB_TABLE_FNAME_LEN];
+  char       pWstartName[TSDB_COL_NAME_LEN];
+  char       pWendName[TSDB_COL_NAME_LEN];
+  char       pGroupIdName[TSDB_COL_NAME_LEN];
+  char       pIsWindowFilledName[TSDB_COL_NAME_LEN];
+  void*      pIteData;
+  int32_t    iter;
+  TSKEY      gap;
+  SSHashObj* pColIdMap;
 } SStreamRecParam;
 
 typedef struct SStreamScanInfo {

@@ -1945,7 +1945,7 @@ void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   bool continueExec = true;
 
   while (continueExec) {
-    mInfo("trans:%d, continue to execute stage:%s in %s, createTime:%" PRId64 "", pTrans->id,
+    mInfo("trans:%d, continue to execute stage:%s in %s, createTime:%" PRId64, pTrans->id,
           mndTransStr(pTrans->stage), mndStrExecutionContext(topHalf), pTrans->createdTime);
     pTrans->lastExecTime = taosGetTimestampMs();
     switch (pTrans->stage) {

@@ -603,7 +603,7 @@ int32_t tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char*
     return code;
   }
   wc->lru = idx->lru;
-  indexTrace("open read file name:%s, file size: %" PRId64 "", wc->file.buf, wc->file.size);
+  indexTrace("open read file name:%s, file size: %" PRId64, wc->file.buf, wc->file.size);
 
   return tfileReaderCreate(wc, pReader);
 }
@@ -787,7 +787,7 @@ int idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
     return 0;
   }
   int64_t cost = taosGetTimestampUs() - st;
-  indexInfo("index tfile stage 1 cost: %" PRId64 "", cost);
+  indexInfo("index tfile stage 1 cost: %" PRId64, cost);
 
   return tfileReaderSearch(reader, query, result);
 }

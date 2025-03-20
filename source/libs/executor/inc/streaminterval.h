@@ -71,6 +71,7 @@ void        setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter*
 void        doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
 int32_t     initFillSupRowInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
 void        getStateKeepInfo(SNonBlockAggSupporter* pNbSup, bool isRecOp, int32_t* pNumRes, TSKEY* pTsRes);
+int32_t     initStreamFillOperatorColumnMapInfo(SExprSupp* pExprSup, SOperatorInfo* pOperator);
 
 #ifdef __cplusplus
 }

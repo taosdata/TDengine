@@ -1061,4 +1061,7 @@ int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
 
+// trim prefix suffix blank cmp
+int trimCaseCmp(char *str1,char *str2);
+
 #endif   // INC_BENCH_H_
