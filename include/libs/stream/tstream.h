@@ -486,6 +486,8 @@ typedef struct STaskStartInfo {
   int64_t            elapsedTime;
   int32_t            restartCount;  // restart task counter
   EStartStage        curStage;      // task start stage
+  SArray*            pRecvChkptIdTasks;// tasks that recv consensus checkpoint id
+  bool               partialTasksStarted; // false
   SArray*            pStagesList;   // history stage list with timestamp, SArrya<SStartTaskStageInfo>
   startComplete_fn_t completeFn;    // complete callback function
 } STaskStartInfo;
@@ -794,6 +796,7 @@ int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId
                                             int64_t startTs, int64_t endTs, bool ready);
 int32_t streamMetaInitStartInfo(STaskStartInfo* pStartInfo);
 void    streamMetaClearStartInfo(STaskStartInfo* pStartInfo);
+void    streamMetaClearStartInfoPartial(STaskStartInfo* pStartInfo);
 
 int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta);
 int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, bool lock);

@@ -577,12 +577,8 @@ void streamMetaClear(SStreamMeta* pMeta) {
   pMeta->numOfStreamTasks = 0;
   pMeta->numOfPausedTasks = 0;
 
-  // the willrestart/starting flag can NOT be cleared
-  taosHashClear(pMeta->startInfo.pReadyTaskSet);
-  taosHashClear(pMeta->startInfo.pFailedTaskSet);
-
-  taosArrayClear(pMeta->startInfo.pStagesList);
-  pMeta->startInfo.readyTs = 0;
+  // NOTE: the willrestart/starting flag can NOT be cleared
+  streamMetaClearStartInfoPartial(&pMeta->startInfo);
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
@@ -1493,8 +1489,19 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
       taosHashClear(pInfo->pTasks);
       pInfo->activeTransId = transId;
 
-      stInfo("vgId:%d set the active epset update transId:%d, prev complete transId:%d", pMeta->vgId, transId,
-             pInfo->completeTransId);
+      // interrupt the start all tasks procedure, only partial tasks will be started
+      // the completion of this processed is based on the partial started tasks.
+      if (pMeta->startInfo.startAllTasks == 1) {
+        int32_t num = taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks);
+        pMeta->startInfo.partialTasksStarted = true;
+        stInfo(
+            "vgId:%d set the active epset update transId:%d, prev complete transId:%d, start all interrupted, only %d "
+            "tasks were started",
+            pMeta->vgId, transId, pInfo->completeTransId, num);
+      } else {
+        stInfo("vgId:%d set the active epset update transId:%d, prev complete transId:%d", pMeta->vgId, transId,
+               pInfo->completeTransId);
+      }
       return true;
     } else {
       if (pInfo->activeTransId == transId) {

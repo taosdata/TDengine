@@ -957,7 +957,6 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
       pStartInfo->restartCount -= 1;
       tqDebug("vgId:%d role:%d need to restart all tasks again, restartCounter:%d", vgId, pMeta->role,
               pStartInfo->restartCount);
-//      streamMetaWUnLock(pMeta);
 
       return restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
     } else {
@@ -1353,7 +1352,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  tqDebug("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64
+  tqInfo("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64
           " transId:%d from mnode, reqTs:%" PRId64 " task createTs:%" PRId64,
           pTask->id.idStr, vgId, pTask->chkInfo.checkpointId, req.checkpointId, req.transId, req.startTs,
           pTask->execInfo.created);
@@ -1402,16 +1401,43 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
             pMeta->vgId, info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
   }
 
-  streamMetaWUnLock(pTask->pMeta);
-
   if (pMeta->role == NODE_ROLE_LEADER) {
+    STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
+
+    bool exist = false;
+    for (int32_t i = 0; i < taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks); ++i) {
+      STaskId* pId = taosArrayGet(pMeta->startInfo.pRecvChkptIdTasks, i);
+      if (id.streamId == pId->streamId && id.taskId == pId->taskId) {
+        exist = true;
+        break;
+      }
+    }
+
+    if (!exist) {
+      void* p = taosArrayPush(pMeta->startInfo.pRecvChkptIdTasks, &id);
+      if (p == NULL) {  // todo handle error, not record the newly attached, start may dead-lock
+        tqError("s-task:0x%x failed to add into recv checkpointId task list, code:%s", req.taskId, tstrerror(code));
+      } else {
+        int32_t num = taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks);
+        tqDebug("s-task:0x%x vgId:%d added into recv checkpointId task list, already recv %d", req.taskId, req.nodeId,
+                num);
+      }
+    } else {
+      int32_t num = taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks);
+      tqDebug("s-task:0x%x vgId:%d already exist in recv consensus checkpontId, total existed:%d", req.taskId,
+              req.nodeId, num);
+    }
+
     code = tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, req.streamId, req.taskId);
-    if (code) {
+    if (code != 0) {
+      // todo remove the newly added, otherwise, deadlock exist
       tqError("s-task:0x%x vgId:%d failed start task async, code:%s", req.taskId, vgId, tstrerror(code));
     }
   } else {
     tqDebug("vgId:%d follower not start task:%s", vgId, pTask->id.idStr);
   }
+
+  streamMetaWUnLock(pTask->pMeta);
 
   streamMetaReleaseTask(pMeta, pTask);
   return 0;
