@@ -57,7 +57,7 @@ Python 连接器详细写入说明可参见 [Python 参数绑定](../../../refer
 1. 启动一个 Perspective 服务器
 1. 建立与 TDengine 的连接。
 1. 创建一个 Perspective 表(表结构需要与 TDengine 数据库中表的类型保持匹配)。
-1. 调用 Tornado.PeriodicCallback 函数来启动定时任务，进而实现对 Perspective 表数据的更新，示例代码如下：
+1. 调用 `Tornado.PeriodicCallback` 函数来启动定时任务，进而实现对 Perspective 表数据的更新，示例代码如下：
 
     ```python
     def perspective_thread(perspective_server: perspective.Server, tdengine_conn: taosws.Connection):
@@ -104,11 +104,12 @@ Python 连接器详细写入说明可参见 [Python 参数绑定](../../../refer
 
 ```html
 <script type="module">
-    // 引入 Perspective 库
+
+    // import the Perspective library
     import perspective from "https://unpkg.com/@finos/perspective@3.1.3/dist/cdn/perspective.js";
 
     document.addEventListener("DOMContentLoaded", async function () {
-        // 加载单个视图的异步函数
+        // an asynchronous function for loading the view
         async function load_viewer(viewerId, config) {
             try {
                 const table_name = "meters_values";
@@ -126,7 +127,8 @@ Python 连接器详细写入说明可参见 [Python 参数绑定](../../../refer
             }
         }
 
-        // 视图的配置
+
+        // configuration of the view
         const config = {
             "version": "3.3.1",          // Perspective library version (compatibility identifier)
             "plugin": "Datagrid",        // View mode: Datagrid (table) or D3FC (chart)
@@ -168,7 +170,8 @@ Python 连接器详细写入说明可参见 [Python 参数绑定](../../../refer
     });
 </script>
 
-<!-- 定义 Dashboard 的 HTML 结构 -->
+
+<!-- define the HTML Structure of the Dashboard -->
 <div id="dashboard">
     <div class="viewer-container">
         <perspective-viewer id="prsp-viewer-1" theme="Pro Dark"></perspective-viewer>
