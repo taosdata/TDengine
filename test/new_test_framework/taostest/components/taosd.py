@@ -1,7 +1,7 @@
 from ..util.file import dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
-from taostest.frame import *
+from ..frame import *
 from threading import Thread
 import winrm
 import os
@@ -141,6 +141,7 @@ class TaosD:
                             break
                         if time.time() > timeout:
                             self.logger.error('wait too long for taosd start')
+                            break
                     self.logger.debug("the dnode:%d has been started." % (index))
         else:
             self.logger.debug(

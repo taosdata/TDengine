@@ -2,14 +2,13 @@ import pytest
 import subprocess
 import sys
 import os
-import taostest
+from new_test_framework import taostest
 import logging
-from utils.log import testLog
-from utils import tdSql, etool, testLog
-from utils.before_test import BeforeTest
+from new_test_framework import tdSql, etool, testLog
+from new_test_framework import BeforeTest
 
-from utils.pytest.util.sql import tdSql as tdSql_pytest
-from utils.army.frame.sql import tdSql as tdSql_army
+from new_test_framework.utils.util import tdSql as tdSql_pytest
+from new_test_framework.utils.frame import tdSql as tdSql_army
 #from utils.taos_components import run_taosbenchMark
 import taos
 import taosrest

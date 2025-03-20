@@ -6,10 +6,10 @@ import datetime
 from taos.tmq import Consumer
 from taos.error import TmqError
 
-from utils.army.frame.log import tdLog
-from utils.army.frame.sql import tdSql
-from utils.army.frame import etool
-from utils.army.frame.common import tdCom
+from new_test_framework.utils.frame.log import tdLog
+from new_test_framework.utils.frame.sql import tdSql
+from new_test_framework.utils.frame import etool
+from new_test_framework.utils.frame.common import tdCom
 
 
 class TaosConsumer:

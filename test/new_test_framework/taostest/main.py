@@ -6,7 +6,7 @@ from .frame import TaosTestFrame
 from .dataclass import CmdOption
 from .performance.perfor_basic import Env
 from .util.sql import TDSql
-from utils.log import testLog
+from new_test_framework.utils.log import testLog
 
 import json
 import argparse

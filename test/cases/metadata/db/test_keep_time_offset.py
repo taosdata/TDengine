@@ -11,8 +11,8 @@
 
 # -*- coding: utf-8 -*-
 import pytest
-from utils.pytest.util.log import tdLog
-from utils.pytest.util.sql import tdSql
+from new_test_framework.utils.util.log import tdLog
+from new_test_framework.utils.util.sql import tdSql
 
 
 class TestKeepTimeOffset:

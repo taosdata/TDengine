@@ -15,13 +15,13 @@ import sys
 import time
 
 import taos
-import utils.army.frame.etool
+import new_test_framework.utils.frame.etool
 
-from utils.army.frame.log import *
-from utils.army.frame.cases import *
-from utils.army.frame.sql import *
-from utils.army.frame.caseBase import *
-from utils.army.frame import *
+from new_test_framework.utils.frame.log import *
+from new_test_framework.utils.frame.cases import *
+from new_test_framework.utils.frame.sql import *
+from new_test_framework.utils.frame.caseBase import *
+from new_test_framework.utils.frame import *
 
 
 class TestMlevelBasic:

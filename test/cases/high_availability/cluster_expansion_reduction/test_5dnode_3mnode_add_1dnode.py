@@ -6,12 +6,12 @@ import sys
 import time
 import os
 
-from utils.pytest.util.log import *
-from utils.pytest.util.sql import *
-from utils.pytest.util.cases import *
-from utils.pytest.util.dnodes import TDDnodes
-from utils.pytest.util.dnodes import TDDnode
-from utils.pytest.util.cluster import *
+from new_test_framework.utils.util.log import *
+from new_test_framework.utils.util.sql import *
+from new_test_framework.utils.util.cases import *
+from new_test_framework.utils.util.dnodes import TDDnodes
+from new_test_framework.utils.util.dnodes import TDDnode
+from new_test_framework.utils.util.cluster import *
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from clusterCommonCreate import *
 from clusterCommonCheck import clusterComCheck
