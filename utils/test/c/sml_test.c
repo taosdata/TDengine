@@ -84,10 +84,10 @@ int smlProcess_telnet_Test() {
   //  sql[1] = taosMemoryCalloc(1, 128);
   //  sql[2] = taosMemoryCalloc(1, 128);
   //  sql[3] = taosMemoryCalloc(1, 128);
-  const char *sql1[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web\n01 interface=eth0\n",
+  const char *sql1[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
                         "sys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   ",
-                        "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
-                        " sys.procs.running   1479496100 42 host=web01   "};
+                        "sys.if.bytes.out  1479496102 1.3E3 network=tcp\n",
+                        " sys.procs.running   1479496100 42 host=web\n01   "};
 
   //  for(int i = 0; i < 4; i++){
   //    strncpy(sql[i], sql1[i], 128);
