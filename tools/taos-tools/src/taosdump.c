@@ -5504,6 +5504,7 @@ static int64_t dumpInAvroDataImpl(
         return -1;
     }
 
+    int32_t code       = 0;
     int32_t onlyCol    = 1;
     char    *bindArray = NULL;
 
@@ -5564,7 +5565,7 @@ static int64_t dumpInAvroDataImpl(
                     __func__, __LINE__, escapedTbName);
 
             // prepare            
-            int32_t code = stmtPrepare(stmt, recordSchema, escapedTbName, &onlyCol);
+            code = stmtPrepare(stmt, recordSchema, escapedTbName, &onlyCol);
             if (code) {
                 free(tableDes);
                 free(tbName);
