@@ -314,7 +314,7 @@ impl CsvParser {
     }
 
     /// 打开多个 csv
-    async fn open_csv_many(
+    pub async fn open_csv_many(
         csv_files: Vec<String>,
     ) -> anyhow::Result<Vec<(String, AsyncReader<File>)>> {
         let mut readers = Vec::new();
@@ -389,20 +389,22 @@ impl CsvParser {
         Ok(point_ids)
     }
 
-    pub async fn parse_transform(
-        &self,
-        column_name: &str,
-    ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
+    pub async fn parse_transform_map(
+        opc_type: OpcType,
+        files: Vec<(String, AsyncReader<File>)>,
+        columns: &[&str],
+    ) -> anyhow::Result<HashMap<String, HashMap<String, ColumnConfig>>> {
         let mut transform_map = HashMap::new();
-        let files = Self::open_csv_many(self.csv_files.clone()).await?;
+        for col in columns {
+            transform_map.insert(col.to_string(), HashMap::new());
+        }
+
         for (_file, mut rdr) in files {
             // parse header
             let header = rdr.headers().await.map_err(|e| {
                 anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
             })?;
-            let csv_header = CsvHeader::try_new(self.opc_type, header)?;
-            csv_header.check_required_columns()?;
-
+            let csv_header = CsvHeader::try_new(opc_type, header)?;
             // parse lines
             let mut records = rdr.records();
             while let Some(record) = records.next().await {
@@ -414,17 +416,27 @@ impl CsvParser {
                     .get(csv_header.id_index())
                     .ok_or(anyhow::anyhow!("point id column not found in csv header"))?;
                 let t = TableConfig::from_csv(&csv_header, &row)?;
-                let column = t
-                    .column_configs
-                    .iter()
-                    .find(|c| c.name == column_name)
-                    .ok_or(anyhow::anyhow!(
-                        "column {} not found in csv header",
-                        column_name
-                    ))?;
-                transform_map.insert(point_id.to_string(), column.clone());
+                for c in t.column_configs {
+                    // 如果 column name 在 columns 中，则加入 transform_map
+                    if columns.contains(&c.name.as_str()) {
+                        transform_map
+                            .entry(c.name.clone())
+                            .or_insert(HashMap::new())
+                            .insert(point_id.to_string(), c);
+                    }
+                }
             }
         }
+
+        // 遍历 transform_map, 如果 col 对应的 Hashmap 为空，则删除
+        for col in columns {
+            if let Some(map) = transform_map.get(*col) {
+                if map.is_empty() {
+                    transform_map.remove(*col);
+                }
+            }
+        }
+
         Ok(transform_map)
     }
 

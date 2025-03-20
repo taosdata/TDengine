@@ -44,7 +44,6 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use crate::core_metrics::{get_metrics, get_metrics_arc_from_i64};
 use crate::core_metrics::{CoreMetrics, TaskMetrics};
 use crate::plugins::runners::opc::config::OPCConfig;
-use crate::plugins::runners::opc::model::ColumnConfig;
 use crate::plugins::runners::opc::model::OpcModelConfig;
 use crate::plugins::transform::archive_records;
 use crate::plugins::transform::handling_strategy::HandlingResult;
@@ -1334,6 +1333,42 @@ fn get_ts_from_sql(sql: &str) -> Option<String> {
     None
 }
 
+/********** handle Point Message START **********/
+/// PointMessage 的初始化：如果 table_config_map 中的 enabled 为 0，则删除对应的表
+#[instrument(skip_all)]
+pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> anyhow::Result<()> {
+    let point_config_map = &config.point_config_map;
+    let table_config_map = &config.table_config_map;
+
+    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
+    for point_id in point_config_map.keys() {
+        let table_config = table_config_map.get(point_id).ok_or(anyhow::anyhow!(
+            "point_id: {} not exist in table config map",
+            point_id
+        ))?;
+        if table_config.enabled == Some(0i8) {
+            let tbname = point_config_map
+                .get(point_id)
+                .ok_or(anyhow::anyhow!(
+                    "point_id: {} not exist in point config map",
+                    point_id
+                ))?
+                .code
+                .clone();
+            let drop_sql = format!("DROP TABLE IF EXISTS `{}`", tbname);
+            qid.add_sub_batch_id();
+            tracing::info!("drop table sql: {drop_sql}");
+            taos.exec_with_req_id(&drop_sql, qid.get())
+                .in_current_span()
+                .await
+                .with_context(|| format!("failed to drop table: {}", tbname))?;
+        }
+    }
+
+    Ok(())
+}
+
+/// 处理 PointMessage
 #[instrument(skip_all, fields(target_precision = ?target_precision))]
 async fn consume_point_record(
     pool: &TaosPool,
@@ -1568,7 +1603,8 @@ async fn consume_point_record(
                                         }
                                     };
                                     // 增加 column
-                                    let column_real_name = get_real_column_name(column_config);
+                                    let column_real_name =
+                                        column_config.alias.as_ref().unwrap_or(&column_config.name);
                                     let need_add = desc
                                         .into_iter()
                                         .all(|column_meta| column_real_name != column_meta.field());
@@ -1796,10 +1832,7 @@ async fn consume_point_record(
     Ok(points)
 }
 
-#[inline]
-fn get_real_column_name(column_config: &ColumnConfig) -> &String {
-    column_config.alias.as_ref().unwrap_or(&column_config.name)
-}
+/********** handle Point Message END **********/
 
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 5;
 
@@ -2740,114 +2773,6 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     abort_handle_process_archive.abort();
     abort_handle_process_cache.abort();
     Ok(())
-}
-
-#[instrument(skip_all)]
-pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> anyhow::Result<()> {
-    let point_config_map = &config.point_config_map;
-    let table_config_map = &config.table_config_map;
-
-    let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
-    for point_id in point_config_map.keys() {
-        let table_config = table_config_map.get(point_id).unwrap();
-        if table_config.enabled == Some(0i8) {
-            let tbname = point_config_map
-                .get(point_id)
-                .ok_or(anyhow::anyhow!(
-                    "point_id: {} not exist in point config map",
-                    point_id
-                ))?
-                .code
-                .clone();
-            let drop_sql = format!("DROP TABLE IF EXISTS `{}`", tbname);
-            qid.add_sub_batch_id();
-            tracing::info!("drop table sql: {drop_sql}");
-            taos.exec_with_req_id(&drop_sql, qid.get())
-                .in_current_span()
-                .await
-                .with_context(|| format!("failed to drop table: {}", tbname))?;
-        }
-    }
-
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_handle_point_message_init_with_taos() {
-    use crate::plugins::runners::opc::model::PointConfig;
-    use crate::plugins::runners::opc::model::TableConfig;
-    use crate::runners::opc::OpcType;
-    use crate::utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID};
-    use linked_hash_map::LinkedHashMap;
-    use taos::sync::Fetchable;
-    use tracing_subscriber;
-
-    tracing_subscriber::fmt::try_init().ok();
-    INSTANCE_ID.set(DEFAULT_INSTANCE_ID).unwrap();
-
-    // given
-    let dsn = "taos:///";
-    let taos = TaosBuilder::from_dsn(dsn).unwrap().build().await.unwrap();
-    let db = "test_handle_point_message_init";
-    taos.exec_many([
-        format!("drop database if exists {db}"),
-        format!("create database {db}"),
-        format!("use {db}"),
-        "create stable opc_int(ts timestamp, v int) tags(t int)".to_string(),
-        "create table `AbC-3-1001` using opc_int tags(1)".to_string(),
-        "create table `AbC-3-1002` using opc_int tags(2)".to_string(),
-        "create table `AbC-3-1003` using opc_int tags(3)".to_string(),
-    ])
-    .await
-    .unwrap();
-    let mut point_config_map = LinkedHashMap::new();
-    let mut table_config_map = LinkedHashMap::new();
-    for i in 1..=3 {
-        point_config_map.insert(
-            i.to_string(),
-            PointConfig {
-                row_index: 1,
-                code: format!("AbC-3-100{}", i),
-                stable: None,
-                tag_values: None,
-                value_type: None,
-            },
-        );
-        table_config_map.insert(
-            i.to_string(),
-            TableConfig {
-                enabled: Some(i % 2),
-                stable_prefix: None,
-                column_configs: vec![],
-                tag_configs: None,
-            },
-        );
-    }
-    let config = OpcModelConfig {
-        opc_type: OpcType::OPCUA,
-        generate_rule: None,
-        point_config_map,
-        table_config_map,
-    };
-    let taos = TaosBuilder::from_dsn(format!("{dsn}{db}"))
-        .unwrap()
-        .build()
-        .await
-        .unwrap();
-    // when
-    handle_point_message_init(&config, &taos).await.unwrap();
-    // then
-    let mut res = taos.query("show tables").await.unwrap();
-    let mut tables = vec![];
-    for row in res.to_rows_vec().unwrap() {
-        let table = row.first().unwrap().to_string().unwrap();
-        tables.push(table);
-    }
-    let tables = tables.iter().map(|s| s.as_str()).sorted().collect_vec();
-    assert_eq!(tables, ["AbC-3-1001", "AbC-3-1003"]);
-
-    // clean
-    taos.exec(format!("drop database {db}")).await.unwrap();
 }
 
 #[instrument(skip_all)]
@@ -3833,11 +3758,92 @@ async fn read_file_and_rewrite(
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
+    use crate::plugins::runners::opc::model::PointConfig;
+    use crate::plugins::runners::opc::model::TableConfig;
+    use crate::runners::opc::OpcType;
     use crate::utils::port_pool::PortPool;
+    use crate::utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID};
+    use linked_hash_map::LinkedHashMap;
+    use std::env;
+    use taos::sync::Fetchable;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tracing_subscriber;
 
     use super::*;
+
+    /// # Example
+    /// ```shell
+    /// TAOS_ADDR=taos+ws://192.168.0.201:6041 cargo nextest run -p taosx-core test_handle_point_message_init_with_taos --no-capture --retries 0
+    /// ```
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_handle_point_message_init_with_taos() {
+        tracing_subscriber::fmt::try_init().ok();
+        INSTANCE_ID.set(DEFAULT_INSTANCE_ID).unwrap();
+
+        // given
+        let dsn = env::var("TAOS_ADDR").ok().unwrap_or("taos://".to_string());
+        let taos = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
+        let db = "test_handle_point_message_init";
+        taos.exec_many([
+            format!("drop database if exists {db}"),
+            format!("create database {db}"),
+            format!("use {db}"),
+            "create stable opc_int(ts timestamp, v int) tags(t int)".to_string(),
+            "create table `AbC-3-1001` using opc_int tags(1)".to_string(),
+            "create table `AbC-3-1002` using opc_int tags(2)".to_string(),
+            "create table `AbC-3-1003` using opc_int tags(3)".to_string(),
+        ])
+        .await
+        .unwrap();
+        let mut point_config_map = LinkedHashMap::new();
+        let mut table_config_map = LinkedHashMap::new();
+        for i in 1..=3 {
+            point_config_map.insert(
+                i.to_string(),
+                PointConfig {
+                    row_index: 1,
+                    code: format!("AbC-3-100{}", i),
+                    stable: None,
+                    tag_values: None,
+                    value_type: None,
+                },
+            );
+            table_config_map.insert(
+                i.to_string(),
+                TableConfig {
+                    enabled: Some(i % 2),
+                    stable_prefix: None,
+                    column_configs: vec![],
+                    tag_configs: None,
+                },
+            );
+        }
+        let config = OpcModelConfig {
+            opc_type: OpcType::OPCUA,
+            generate_rule: None,
+            point_config_map,
+            table_config_map,
+        };
+        let taos = TaosBuilder::from_dsn(format!("{}/{}", &dsn, &db))
+            .unwrap()
+            .build()
+            .await
+            .unwrap();
+        // when
+        handle_point_message_init(&config, &taos).await.unwrap();
+        // then
+        let mut res = taos.query("show tables").await.unwrap();
+        let mut tables = vec![];
+        for row in res.to_rows_vec().unwrap() {
+            let table = row.first().unwrap().to_string().unwrap();
+            tables.push(table);
+        }
+        let tables = tables.iter().map(|s| s.as_str()).sorted().collect_vec();
+        assert_eq!(tables, ["AbC-3-1001", "AbC-3-1003"]);
+
+        // clean
+        taos.exec(format!("drop database {db}")).await.unwrap();
+    }
 
     async fn listen(listener: tokio::net::TcpListener) -> anyhow::Result<()> {
         let (mut stream, _) = listener.accept().await?;

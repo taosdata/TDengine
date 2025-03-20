@@ -7,7 +7,7 @@ use arrow::array::{
     UInt8Array,
 };
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
-use rhai::{Dynamic, Engine, Scope};
+use rhai::{Dynamic, Scope, AST};
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,6 +21,14 @@ pub async fn handle_transform(
     message: &RecordMessage,
     config: &OpcModelConfig,
 ) -> anyhow::Result<RecordMessage> {
+    let transform_columns: [&str; 4] = [
+        ColumnConfig::VALUE,
+        ColumnConfig::ORIGINAL_TS,
+        ColumnConfig::REQUEST_TS,
+        ColumnConfig::RECEIVED_TS,
+    ];
+    let transform_config = config.transform_map(&transform_columns).await?;
+
     // id
     let id_col = message.clone_column_by_name("id")?;
 
@@ -30,41 +38,33 @@ pub async fn handle_transform(
     // transform ts
     let ts_config_map = config.get_column_config_map_by_name(ColumnConfig::ORIGINAL_TS);
     let mut ts_transform = to_record_transform_map(&ts_config_map);
-    // 通过规则生成的 transform
-    let generated_ts_config: HashMap<String, ColumnConfig> = config
-        .generate_transform_map(ColumnConfig::ORIGINAL_TS)
-        .await;
-    let generated_ts_transform_map = to_record_transform_map(&generated_ts_config);
-    // 将生成的 transform_map 添加到原始的 transform_map 中
-    for (point_id, transform) in generated_ts_transform_map {
-        ts_transform.entry(point_id).or_insert(transform);
+    if let Some(generated_ts_config) = transform_config.get(ColumnConfig::ORIGINAL_TS) {
+        let generated_ts_transform_map = to_record_transform_map(generated_ts_config);
+        for (point_id, transform) in generated_ts_transform_map {
+            ts_transform.entry(point_id).or_insert(transform);
+        }
     }
     let transformed_ts_col = transform_by_name(message.record(), "ts", ts_transform)?;
 
     // transform received_ts
     let rts_config_map = config.get_column_config_map_by_name(ColumnConfig::RECEIVED_TS);
     let mut rts_transform = to_record_transform_map(&rts_config_map);
-    // 通过规则生成的 transform
-    let generated_rts_config: HashMap<String, ColumnConfig> = config
-        .generate_transform_map(ColumnConfig::RECEIVED_TS)
-        .await;
-    let generated_rts_transform_map = to_record_transform_map(&generated_rts_config);
-    // 将生成的 transform_map 添加到原始的 transform_map 中
-    for (point_id, transform) in generated_rts_transform_map {
-        rts_transform.entry(point_id).or_insert(transform);
+    if let Some(generated_rts_config) = transform_config.get(ColumnConfig::RECEIVED_TS) {
+        let generated_rts_transform_map = to_record_transform_map(generated_rts_config);
+        for (point_id, transform) in generated_rts_transform_map {
+            rts_transform.entry(point_id).or_insert(transform);
+        }
     }
     let transformed_received_col = transform_by_name(message.record(), "received", rts_transform)?;
 
     // transform value
     let val_config_map = config.get_column_config_map_by_name(ColumnConfig::VALUE);
     let mut value_transform = to_record_transform_map(&val_config_map);
-    // 通过规则生成的 transform
-    let generated_value_config: HashMap<String, ColumnConfig> =
-        config.generate_transform_map(ColumnConfig::VALUE).await;
-    let generated_value_transform = to_record_transform_map(&generated_value_config);
-    // 将生成的 transform_map 添加到原始的 transform_map 中
-    for (point_id, transform) in generated_value_transform {
-        value_transform.entry(point_id).or_insert(transform);
+    if let Some(generated_value_config) = transform_config.get(ColumnConfig::VALUE) {
+        let generated_value_transform = to_record_transform_map(generated_value_config);
+        for (point_id, transform) in generated_value_transform {
+            value_transform.entry(point_id).or_insert(transform);
+        }
     }
     let transformed_value_col = transform_by_name(message.record(), "value", value_transform)?;
 
@@ -83,6 +83,7 @@ pub async fn handle_transform(
         Field::new("value", transformed_value_col.data_type().clone(), true),
         Field::new("status", DataType::Int64, false),
     ];
+
     let mut columns = vec![
         id_col,
         name_col,
@@ -97,14 +98,11 @@ pub async fn handle_transform(
     if let Some((_idx, _f)) = schema.column_with_name("request") {
         let qts_config_map = config.get_column_config_map_by_name(ColumnConfig::REQUEST_TS);
         let mut qts_transform = to_record_transform_map(&qts_config_map);
-        // 通过规则生成的 transform
-        let generated_qts_config: HashMap<String, ColumnConfig> = config
-            .generate_transform_map(ColumnConfig::REQUEST_TS)
-            .await;
-        let generated_qts_transform_map = to_record_transform_map(&generated_qts_config);
-        // 将生成的 transform_map 添加到原始的 transform_map 中
-        for (point_id, transform) in generated_qts_transform_map {
-            qts_transform.entry(point_id).or_insert(transform);
+        if let Some(generated_qts_config) = transform_config.get(ColumnConfig::REQUEST_TS) {
+            let generated_qts_transform_map = to_record_transform_map(generated_qts_config);
+            for (point_id, transform) in generated_qts_transform_map {
+                qts_transform.entry(point_id).or_insert(transform);
+            }
         }
         let transformed_request_col =
             transform_by_name(message.record(), "request", qts_transform)?;
@@ -178,7 +176,6 @@ fn transform_by_name(
             .value(row_index);
 
         let expression = get_transform_expression_by_id(point_id, &transform_map);
-
         match expression {
             Some((name, expr)) => {
                 let mut scope = Scope::new();
@@ -326,12 +323,9 @@ fn transform_by_name(
                         )
                     }
                 }
-                let engine = Arc::new(Engine::new());
-                let ast = engine.compile_expression(&expr)?;
-                let new_value: Dynamic = match engine.eval_ast_with_scope(&mut scope, &ast) {
-                    Ok(v) => v,
-                    Err(_) => rhai::Dynamic::UNIT,
-                };
+                let new_value: Dynamic = crate::utils::rhai_syntax_validator::ENGINE
+                    .eval_ast_with_scope(&mut scope, &expr)
+                    .unwrap_or(Dynamic::UNIT);
                 values.push(new_value);
             }
             None => {
@@ -520,11 +514,20 @@ fn to_dynamic_value(
 fn get_transform_expression_by_id(
     id: &str,
     map: &HashMap<String, RecordTransform>,
-) -> Option<(String, String)> {
+) -> Option<(String, AST)> {
     map.get(id).and_then(|transform| {
         match (&transform.column_name, &transform.transform_expression) {
-            (Some(name), Some(expr)) => Some((name.clone(), expr.clone())),
-            (Some(name), None) => Some((name.clone(), name.clone())),
+            (Some(name), Some(expr)) => crate::utils::rhai_syntax_validator::ENGINE
+                .compile_expression(expr)
+                .inspect_err(|e| {
+                    tracing::warn!(
+                        "failed to compile expression: {} and skip, err: {:?}",
+                        expr,
+                        e
+                    )
+                })
+                .ok()
+                .map(|ast| Some((name.clone(), ast)))?,
             _ => None,
         }
     })
@@ -1033,6 +1036,7 @@ mod tests {
     use arrow_schema::Schema;
     use std::str::FromStr;
     use std::sync::Arc;
+    use std::time::Instant;
     use taos::Dsn;
     use taosx_ipc::stream::point::RecordMessage;
 
@@ -1097,14 +1101,17 @@ mod tests {
     #[tokio::test]
     async fn test_handle_transform() {
         std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        let message = mock_point_message(false);
 
-        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8.csv").unwrap();
+        let start = Instant::now();
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-large.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let model_config = parser.parse().await.unwrap();
 
-        let message = mock_point_message(false);
-
         let transformed_msg = handle_transform(&message, &model_config).await.unwrap();
+
+        assert!(start.elapsed().as_secs() < 5);
 
         let value = transformed_msg
             .record()
@@ -1115,7 +1122,7 @@ mod tests {
             .unwrap()
             .values()
             .to_vec();
-        assert_eq!(value, vec![33.8, 12.0, 3.0]);
+        assert_eq!(value, vec![12.0, 22.0, 32.0]);
 
         let ts = transformed_msg
             .record()
@@ -1126,9 +1133,9 @@ mod tests {
             .unwrap()
             .values()
             .to_vec();
-        assert_eq!(ts, vec![1700000000000, 1700028800000, 1_699_999_994_000]);
+        assert_eq!(ts, vec![1700028800000, 1700028800000, 1700028800000]);
 
-        let received = transformed_msg
+        let rts = transformed_msg
             .record()
             .column_by_name("received")
             .unwrap()
@@ -1137,10 +1144,7 @@ mod tests {
             .unwrap()
             .values()
             .to_vec();
-        assert_eq!(
-            received,
-            vec![1700028800000, 1_700_000_000_000, 1_699_999_994_000]
-        );
+        assert_eq!(rts, vec![1700028800000, 1700028800000, 1700028800000]);
     }
 
     fn mock_point_message(with_qts: bool) -> RecordMessage {
@@ -1175,7 +1179,7 @@ mod tests {
                 "ns=3;i=1006",
                 "ns=3;i=1007",
             ])),
-            Arc::new(StringArray::from(vec!["a", "b", "c"])),
+            Arc::new(StringArray::from(vec!["标签5", "标签6", "标签7"])),
             Arc::new(
                 TimestampMillisecondArray::from(vec![1700000000000, 1700000000000, 1700000000000])
                     .with_timezone_opt::<&str>(None),

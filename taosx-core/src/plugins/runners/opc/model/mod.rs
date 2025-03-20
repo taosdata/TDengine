@@ -520,32 +520,30 @@ impl OpcModelConfig {
         }
     }
 
-    pub async fn generate_transform_map(&self, column_name: &str) -> HashMap<String, ColumnConfig> {
-        self.generate_transform_map_impl(column_name)
-            .await
-            .unwrap_or_default()
-    }
-
-    async fn generate_transform_map_impl(
+    pub async fn transform_map(
         &self,
-        column_name: &str,
-    ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
+        columns: &[&str],
+    ) -> anyhow::Result<HashMap<String, HashMap<String, ColumnConfig>>> {
         match &self.generate_rule {
             None => {
                 bail!("generate rule is required")
             }
             Some(GeneratePointMappingBy::Rule(_rule)) => {
-                bail!("generate transform map by GeneratePointMappingBy::Rule is not supported")
+                tracing::warn!(
+                    "generate transform map by GeneratePointMappingBy::Rule is not supported"
+                );
+                Ok(HashMap::new())
             }
-            Some(GeneratePointMappingBy::Csv((csv, csv_origin))) => {
-                let parser = match csv_origin {
-                    None => CsvParser::try_new(self.opc_type, csv.clone())?,
-                    Some(csv_origin) => {
-                        CsvParser::try_new(self.opc_type, vec![format!("@{}", csv_origin)])?
-                    }
-                };
-                parser.parse_transform(column_name).await
-            }
+            Some(GeneratePointMappingBy::Csv((csv, csv_origin))) => match csv_origin {
+                None => {
+                    let rdr = CsvParser::open_csv_many(csv.clone()).await?;
+                    CsvParser::parse_transform_map(self.opc_type, rdr, columns).await
+                }
+                Some(csv_origin) => {
+                    let rdr = CsvParser::open_csv_many(vec![format!("@{}", csv_origin)]).await?;
+                    CsvParser::parse_transform_map(self.opc_type, rdr, columns).await
+                }
+            },
         }
     }
 
