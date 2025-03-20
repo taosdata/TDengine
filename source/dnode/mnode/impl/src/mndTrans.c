@@ -515,9 +515,9 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   int8_t ableKill = 0;
   int32_t killMode = 0;
   SDB_GET_INT8(pRaw, dataPos, &ableKill, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &killMode, _OVER)
+  SDB_GET_INT32_LINE(pRaw, dataPos, &killMode, _OVER, __LINE__)
   pTrans->ableToBeKilled = ableKill;
-  pTrans->killMode = killMode;
+  pTrans->killMode = (int8_t)killMode;
 
   if (sver > TRANS_VER2_NUMBER) {
     int32_t groupNum = -1;
@@ -525,14 +525,14 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
     for (int32_t i = 0; i < groupNum; ++i) {
       int32_t groupId = -1;
       int32_t groupPos = -1;
-      SDB_GET_INT32(pRaw, dataPos, &groupId, _OVER)
-      SDB_GET_INT32(pRaw, dataPos, &groupPos, _OVER)
+      SDB_GET_INT32_LINE(pRaw, dataPos, &groupId, _OVER, __LINE__)
+      SDB_GET_INT32_LINE(pRaw, dataPos, &groupPos, _OVER, __LINE__)
       if ((terrno = taosHashPut(pTrans->groupActionPos, &groupId, sizeof(int32_t), &groupPos, sizeof(int32_t))) != 0)
         goto _OVER;
     }
   }
 
-  SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
+  SDB_GET_RESERVE_LINE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER, __LINE__)
 
   terrno = 0;
 
