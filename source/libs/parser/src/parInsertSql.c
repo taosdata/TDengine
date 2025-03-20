@@ -32,7 +32,7 @@ typedef struct SInsertParseContext {
   bool           needTableTagVal;
   bool           needRequest;  // whether or not request server
   bool           isStmtBind;   // whether is stmt bind
-  bool           preCtbname;
+  uint8_t        stmtTbNameFlag;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -1414,6 +1414,7 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     return getTargetTableSchema(pCxt, pStmt);
   }
   pStmt->usingTableProcessing = true;
+  pCxt->stmtTbNameFlag |= USING_CLAUSE;
   // pStmt->pSql -> stb_name [(tag1_name, ...)
   pStmt->pSql += index;
   int32_t code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
@@ -1463,7 +1464,7 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t code = 0;
-  if (pCxt->preCtbname) {
+  if ((pCxt->stmtTbNameFlag & 0x7) == USING_CLAUSE) {
     tstrncpy(pStmt->targetTableName.tname, pStmt->usingTableName.tname, sizeof(pStmt->targetTableName.tname));
     tstrncpy(pStmt->targetTableName.dbname, pStmt->usingTableName.dbname, sizeof(pStmt->targetTableName.dbname));
     pStmt->targetTableName.type = TSDB_SUPER_TABLE;
@@ -2770,10 +2771,11 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     char*   tbName = NULL;
     int32_t code = (*pCxt->pComCxt->pStmtCb->getTbNameFn)(pCxt->pComCxt->pStmtCb->pStmt, &tbName);
     if (TSDB_CODE_SUCCESS == code) {
+      pCxt->stmtTbNameFlag |= HAS_BIND_VALUE;
       pTbName->z = tbName;
       pTbName->n = strlen(tbName);
     } else if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
-      pCxt->preCtbname = true;
+      pCxt->stmtTbNameFlag &= ~HAS_BIND_VALUE;
       code = TSDB_CODE_SUCCESS;
     } else {
       return code;
@@ -2792,17 +2794,22 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
       return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pTbName->z);
     }
     int32_t code = (*pCxt->pComCxt->pStmtCb->getTbNameFn)(pCxt->pComCxt->pStmtCb->pStmt, &tbName);
-    if (code != TSDB_CODE_SUCCESS) {
-      pCxt->preCtbname = true;
-    } else {
+    if (TSDB_CODE_SUCCESS == code) {
+      pCxt->stmtTbNameFlag |= HAS_BIND_VALUE;
       pTbName->z = tbName;
       pTbName->n = strlen(tbName);
+    } else if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
+      pCxt->stmtTbNameFlag &= ~HAS_BIND_VALUE;
+      code = TSDB_CODE_SUCCESS;
+    } else {
+      return code;
     }
   }
 
   if (pCxt->isStmtBind) {
     if (TK_NK_ID == pTbName->type || (tbNameAfterDbName != NULL && *(tbNameAfterDbName + 1) != '?')) {
       // In SQL statements, the table name has already been specified.
+      pCxt->stmtTbNameFlag |= IS_FIXED_VALUE;
       parserWarn("QID:0x%" PRIx64 ", table name is specified in sql, ignore the table name in bind param",
                  pCxt->pComCxt->requestId);
     }
@@ -2822,7 +2829,7 @@ static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt)
   SStmtCallback* pStmtCb = pCxt->pComCxt->pStmtCb;
   int32_t        code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, &pStmt->targetTableName,
                                        pStmt->usingTableProcessing, pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj,
-                                       pStmt->usingTableName.tname, pCxt->preCtbname);
+                                       pStmt->usingTableName.tname, pCxt->stmtTbNameFlag);
 
   memset(&pCxt->tags, 0, sizeof(pCxt->tags));
   pStmt->pVgroupsHashObj = NULL;
@@ -2878,7 +2885,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     if (TSDB_CODE_SUCCESS == code && hasData) {
       code = parseInsertTableClause(pCxt, pStmt, &token);
     }
-    if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pCxt->preCtbname) {
+    if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pCxt->stmtTbNameFlag & ~HAS_BIND_VALUE) {
       code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
     }
   }
