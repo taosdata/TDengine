@@ -316,7 +316,10 @@ async function handleDetailData(id: string | number) {
   }
 
   recoverFromData(sourceForm.type, sourceForm.data, data.from.data);
-  recoverWriteConfig(sourceForm.data.write_config, data.parser.parser.global);
+  if (data.parser?.parser?.global) {
+    recoverWriteConfig(sourceForm.data.write_config, data.parser.parser.global);
+  }
+  
 
   if (data.parser) {
     transformerState.transformerParserData = data.parser;
@@ -426,7 +429,7 @@ interface paramsProps {
   via?: number;
   parser?: TransformerfullparamsType;
   to_cluster?: string;
-  trigger: Recordable;
+  trigger?: Recordable;
 }
 async function submit() {
   formRef.value?.validate(async (valid: boolean) => {
@@ -438,10 +441,13 @@ async function submit() {
         name: sourceForm.name,
         to: toUrl.value,
         labels: labels.value,
-        trigger: {
-          health: getAdvancedHealth(sourceForm.data['advanced_options'])
-        }
       } as paramsProps;
+
+      const health = getAdvancedHealth(sourceForm.data['advanced_options']);
+      if (health) {
+        params.trigger = { health };
+      }
+
       if (isAddable && dataInProps.isCloud) {
         params.to_cluster = instance.tdClusterId;
       }

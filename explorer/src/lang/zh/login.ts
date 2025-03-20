@@ -18,7 +18,7 @@ export default {
     taosx404: "未配置 TaosX API，请检查 Explorer 配置",
     taosx500: "TaosX API 无法访问，请检查taosx服务状态",
     changepwdtip: "密码修改成功，请重新登录",
-    copyright: "Copyright 2024 北京涛思数据科技有限公司",
+    copyright: "Copyright 2025 北京涛思数据科技有限公司",
     systemTitle: "TDengine 管理系统",
     emailError: "请输入一个有效邮箱地址!",
     phoneError: "手机号格式有误!",
