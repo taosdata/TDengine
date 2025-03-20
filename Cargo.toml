@@ -80,7 +80,7 @@ default-features = false
 features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
-version = "1.9.0"
+version = "1.10.0"
 rust-version = "1.78.0"
 
 [workspace.lints.clippy]
