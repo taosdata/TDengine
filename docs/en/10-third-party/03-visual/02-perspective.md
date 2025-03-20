@@ -19,7 +19,7 @@ Perform the following installation operations in the Linux system:
 - Python version 3.10 or higher has been installed (if not installed, please refer to [Python Installation](https://docs.python.org/)).
 - Download or clone the [perspective-connect-demo](https://github.com/taosdata/perspective-connect-demo) project. After entering the root directory of the project, run the "install.sh" script to download and install the TDengine client library and related dependencies locally. 
 
-## Data Analysis
+## Visualize data
 
 **Step 1**, Run the "run.sh" script in the root directory of the [perspective-connect-demo](https://github.com/taosdata/perspective-connect-demo) project to start the Perspective service. This service will retrieve data from the TDengine database every 300 milliseconds and transmit the data in a streaming form to the web-based `Perspective Viewer`. 
 
@@ -32,6 +32,8 @@ sh run.sh
 ```python
 python -m http.server 8081
 ```
+
+The effect presented after accessing the web page through the browser is shown in the following figure:
 
 ![perspective-viewer](./perspective/prsp_view.webp)
 
@@ -56,40 +58,9 @@ The `perspective_server.py` script in the root directory of the [perspective-con
 3. Create a Perspective table (the table structure needs to match the type of the table in the TDengine database).
 4. Call the `Tornado.PeriodicCallback` function to start a scheduled task, thereby achieving the update of the data in the Perspective table. The sample code is as follows: 
 
-   ```python
-    def perspective_thread(perspective_server: perspective.Server, tdengine_conn: taosws.Connection):
-        """
-        Create a new Perspective table and update it with new data every 50ms
-        """
-        # create a new Perspective table
-        client = perspective_server.new_local_client()
-        schema = {
-            "timestamp": datetime,
-            "location": str,
-            "groupid": int,
-            "current": float,
-            "voltage": int,
-            "phase": float,
-        }
-        # define the table schema
-        table = client.table(
-            schema,
-            limit=1000,                     # maximum number of rows in the table
-            name=PERSPECTIVE_TABLE_NAME,    # table name. Use this with perspective-viewer on the client side
-        )
-        logger.info("Created new Perspective table")
-
-        # update with new data
-        def updater():
-            data = read_tdengine(tdengine_conn)
-            table.update(data)
-            logger.debug(f"Updated Perspective table: {len(data)} rows")
-
-        logger.info(f"Starting tornado ioloop update loop every {PERSPECTIVE_REFRESH_RATE} milliseconds")
-        # start the periodic callback to update the table data
-        callback = tornado.ioloop.PeriodicCallback(callback=updater, callback_time=PERSPECTIVE_REFRESH_RATE)
-        callback.start()
-    ```
+```python
+{{#include docs/examples/perspective/perspective_server.py:perspective_server}}
+```
 
 ### HTML Page Configuration
 
@@ -100,77 +71,7 @@ The `prsp-viewer.html` file in the root directory of the [perspective-connect-de
 - Import the Perspective library, connect to the Perspective server via a WebSocket, and load the `meters_values` table to display dynamic data. 
 
 ```html
-<script type="module">
-    // import the Perspective library
-    import perspective from "https://unpkg.com/@finos/perspective@3.1.3/dist/cdn/perspective.js";
-
-    document.addEventListener("DOMContentLoaded", async function () {
-        // an asynchronous function for loading the view
-        async function load_viewer(viewerId, config) {
-            try {
-                const table_name = "meters_values";
-                const viewer = document.getElementById(viewerId);
-                // connect Perspective WebSocket server
-                const websocket = await perspective.websocket("ws://localhost:8085/websocket");
-                // open server table
-                const server_table = await websocket.open_table(table_name);
-                // load the table into the view
-                await viewer.load(server_table);
-                // use view configuration
-                await viewer.restore(config);
-            } catch (error) {
-                console.error(`Failed to get data from ${table_name}, err: ${error}`);
-            }
-        }
-
-        // configuration of the view
-        const config = {
-            "version": "3.3.1",          // Perspective library version (compatibility identifier)
-            "plugin": "Datagrid",        // View mode: Datagrid (table) or D3FC (chart)
-            "plugin_config": {           // Plugin-specific configuration
-                "columns": {
-                    "current": {
-                        "width": 150       // Column width in pixels
-                    }
-                },
-                "edit_mode": "READ_ONLY",  // Edit mode: READ_ONLY (immutable) or EDIT (editable)
-                "scroll_lock": false       // Whether to lock scroll position
-            },
-            "columns_config": {},        // Custom column configurations (colors, formatting, etc.)
-            "settings": true,            // Whether to show settings panel (true/false)
-            "theme": "Power Meters",     // Custom theme name (must be pre-defined)
-            "title": "Meters list data", // View title
-            "group_by": ["location", "groupid"], // Row grouping fields (equivalent to `row_pivots`)
-            "split_by": [],              // Column grouping fields (equivalent to `column_pivots`)
-            "columns": [                 // Columns to display (in order)
-                "timestamp",
-                "location",
-                "current",
-                "voltage",
-                "phase"
-            ],
-            "filter": [],                // Filter conditions (triplet format array)
-            "sort": [],                  // Sorting rules (format: [field, direction])
-            "expressions": {},           // Custom expressions (e.g., calculated columns)
-            "aggregates": {              // Aggregation function configuration
-                "timestamp": "last",       // Aggregation: last (takes the latest value)
-                "voltage": "last",         // Aggregation: last
-                "phase": "last",           // Aggregation: last
-                "current": "last"          // Aggregation: last
-            }
-        };
-
-        // load the first view
-        await load_viewer("prsp-viewer-1", config1);
-    });
-</script>
-
-<!-- Define the HTML Structure of the Dashboard -->
-<div id="dashboard">
-    <div class="viewer-container">
-        <perspective-viewer id="prsp-viewer-1" theme="Pro Dark"></perspective-viewer>
-    </div>
-</div>
+{{#include docs/examples/perspective/prsp-viewer.html:perspective_viewer}}
 ```
 
 ## Reference Materials
