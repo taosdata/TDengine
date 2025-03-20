@@ -673,6 +673,11 @@ function switchLanguage() {
     setLocale('zh');
   }
   buttonTextOfGetVerificationCode.value = t('register.getVerificationCode');
+  
+  dynamicValidateFormRef.value?.resetFields();
+  registerValidateFormRef.value?.resetFields();
+  formRules.username[0].message = t('login.usernameTips')
+
 }
 </script>
 <style lang="scss" scoped>
