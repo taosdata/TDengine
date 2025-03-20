@@ -355,7 +355,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 `query_times` specifies the number of times to run the query, numeric type.
 
-**Note: from version 3.3.5.10 and beyond, simultaneous configuration for `specified_table_query` and `super_table_query` in a JSON file is no longer supported **
+**Note: from version 3.3.5.6 and beyond, simultaneous configuration for `specified_table_query` and `super_table_query` in a JSON file is no longer supported **
 
 For other common parameters, see [General Configuration Parameters](#general-configuration-parameters)
 

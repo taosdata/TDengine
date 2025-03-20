@@ -263,7 +263,7 @@ taosBenchmark -f <json file>
 
 其它通用参数详见 [通用配置参数](#通用配置参数)。
 
-**说明：从 3.3.5.10 版本及之后不再支持一个 json 文件中同时配置 `specified_table_query` 和  `super_table_query`**
+**说明：从 v3.3.5.6 及以上版本不再支持 json 文件中同时配置 `specified_table_query` 和  `super_table_query`**
 
 #### 执行指定查询语句
 
