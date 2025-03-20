@@ -25,8 +25,7 @@ use taosx_core::task_set::prelude::HealthOpts;
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::files::decompress_and_write_file;
 use tokio::net::{TcpSocket, TcpStream};
-use tonic::transport::Channel;
-use tonic::transport::Endpoint;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tower::{BoxError, Service};
 use tracing::{info, instrument};
 
@@ -123,6 +122,7 @@ pub struct Task {
 async fn new_channel(
     endpoint: String,
     ports: Option<RangeInclusive<u16>>,
+    ca: Option<Certificate>,
 ) -> anyhow::Result<Channel> {
     cfg_if! {
         if #[cfg(windows)] {
@@ -131,12 +131,21 @@ async fn new_channel(
            let tcp_keepalive = Some(Duration::from_secs(5));
         }
     };
-    let endpoint_builder = Endpoint::try_from(endpoint.clone())
+    let mut endpoint_builder = Endpoint::try_from(endpoint.clone())
         .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err:#}"))?
         .keep_alive_while_idle(true)
         .tcp_keepalive(tcp_keepalive)
         .http2_keep_alive_interval(Duration::from_secs(13))
         .keep_alive_timeout(Duration::from_secs(120));
+    if let Some(ca) = ca {
+        endpoint_builder = endpoint_builder
+            .tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(ca)
+                    .with_native_roots(),
+            )
+            .context("Unable to create TLS config for endpoint")?;
+    }
 
     match ports {
         Some(ports) => {
@@ -206,6 +215,7 @@ impl Client {
     pub async fn new(
         endpoint: impl Display,
         token: impl Display,
+        ca: Option<Certificate>,
         ports: &Option<RangeInclusive<u16>>,
     ) -> Result<Self> {
         let endpoint = endpoint.to_string();
@@ -213,7 +223,7 @@ impl Client {
         const MAX_RETRIES: usize = 5;
         let mut retries = 0;
         let channel = loop {
-            match new_channel(endpoint.clone(), ports.clone()).await {
+            match new_channel(endpoint.clone(), ports.clone(), ca.clone()).await {
                 Ok(channel) => break Ok(channel),
                 Err(err) => {
                     retries += 1;
@@ -840,7 +850,7 @@ mod agent_tests {
     async fn test_new_channel() {
         let endpoint = String::from("0.0.0.0:6030");
         let ports = Some(9000..=9099);
-        let _channel = new_channel(endpoint, ports).await.unwrap();
+        let _channel = new_channel(endpoint, ports, None).await.unwrap();
 
         // get the current process ID
         let pid = process::id();

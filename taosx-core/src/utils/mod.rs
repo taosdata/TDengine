@@ -8,6 +8,7 @@ use std::{io::BufRead, path::Path, thread::JoinHandle};
 use taos::*;
 
 pub mod breakpoints;
+pub mod cert;
 pub mod codec;
 pub mod constants;
 pub mod defer;

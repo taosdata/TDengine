@@ -68,7 +68,6 @@
     <el-dialog
       v-model="showAgent"
       :title="dialogTitle"
-      width="620px"
       :destroy-on-close="true"
       :close-on-click-modal="false"
       @close="closeDialog"

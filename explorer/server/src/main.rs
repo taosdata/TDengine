@@ -306,7 +306,13 @@ async fn main() -> anyhow::Result<()> {
             .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
             .wrap(cors)
             .wrap(Compress::default())
-            .app_data(web::Data::new(reqwest::Client::new()))
+            .app_data(web::Data::new(
+                reqwest::Client::builder()
+                    .danger_accept_invalid_certs(true)
+                    .http1_only()
+                    .build()
+                    .expect("Failed to create reqwest client"),
+            ))
             .app_data(app_args.clone())
             .app_data(web::Data::new(favorites.clone()))
             // .route("/", web::get().to(index))
@@ -378,6 +384,9 @@ async fn main() -> anyhow::Result<()> {
                     .index_file("index.html")
                     .default_handler(fn_service(move |req: ServiceRequest| async {
                         let args = req.app_data::<web::Data<Args>>();
+                        if args.map_or(true, |args| args.assets.is_none()) {
+                            return Ok(req.error_response(error::ErrorNotFound("File not found")));
+                        }
                         let assets = args.unwrap().assets.as_ref().unwrap().clone();
                         let (req, _) = req.into_parts();
                         let file = NamedFile::open_async(assets.join("index.html")).await?;
@@ -391,10 +400,15 @@ async fn main() -> anyhow::Result<()> {
                 Embed::new("/", &StaticAssets)
                     .index_file("index.html")
                     .fallback_handler(|_: &_| {
-                        let embed = StaticAssets::get("index.html").unwrap();
-                        HttpResponse::Ok()
-                            .content_type(ContentType::html())
-                            .body(embed.data)
+                        if let Some(embed) = StaticAssets::get("index.html") {
+                            HttpResponse::Ok()
+                                .content_type(ContentType::html())
+                                .body(embed.data)
+                        } else {
+                            HttpResponse::NotFound()
+                                .content_type(ContentType::html())
+                                .body("404 Not Found")
+                        }
                     }),
             )
         }

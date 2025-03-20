@@ -37,6 +37,7 @@ use taoslog::utils::QidMetadataGetter;
 use taoslog::QidManager;
 use taosx_ipc::{prelude::*, stream::point::PointMessage};
 use tokio::sync::{Mutex, Notify, OnceCell};
+use tonic::transport::ClientTlsConfig;
 use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument, trace, warn};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -552,11 +553,21 @@ async fn ipc_tcp_forward(
 }
 
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
-    let endpoint = tonic::transport::Endpoint::try_from(remote)?
+    let mut endpoint = tonic::transport::Endpoint::try_from(remote)?
         .keep_alive_while_idle(true)
         .keep_alive_timeout(Duration::from_secs(300))
         .http2_keep_alive_interval(Duration::from_secs(39))
         .tcp_keepalive(Some(Duration::from_secs(7200))); // keep alive for 2 hours
+
+    if let Some(ca) = crate::global::get_agent_client_ca() {
+        endpoint = endpoint
+            .tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(ca)
+                    .with_enabled_roots(),
+            )
+            .context("Unable to create TLS config for endpoint")?;
+    }
     let channel = endpoint.connect().await?;
     Ok(channel)
 }

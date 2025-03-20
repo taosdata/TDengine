@@ -17,12 +17,12 @@ instanceId = 16
 # listen to ip:port address
 #listen = "0.0.0.0:6050"
 
-# TLS/SSL certificate
-#ssl_cert = "/path/to/tls/server.pem"
+# TLS/SSL server certificate
+ssl_cert = "tests/tls/server.pem"
 # TLS/SSL certificate key
-#ssl_key = "/path/to/tls/server.key"
-# TLS/SSL CA certificate
-#ssl_ca = "/path/to/tls/ca.pem"
+ssl_key = "tests/tls/server.key"
+# TLS/SSL CA cert
+ssl_ca = "tests/tls/ca.pem"
 
 # database url
 #database_url = "sqlite:taosx.db"
@@ -41,6 +41,10 @@ instanceId = 16
 # Please also make sure the above address is not blocked if firewall is enabled.
 #
 #grpc = "0.0.0.0:6055"
+
+# GRPC TLS/SSL certificate
+#grpc_cert = "path/to/cert.pem"
+#grpc_key = "path/to/key.pem"
 
 [monitor]
 # FQDN of taosKeeper service, no default value

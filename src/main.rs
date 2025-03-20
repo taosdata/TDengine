@@ -455,21 +455,18 @@ impl Args {
 
             if let Some(matches) = matches.subcommand_matches("serve") {
                 macro_rules! take_or_not {
-                    ($f:ident) => {
-                        match matches.value_source(stringify!($f)) {
+                    ($($f:ident),+) => {
+                        $(match matches.value_source(stringify!($f)) {
                             Some(ValueSource::DefaultValue) | None => {}
                             _ => {
                                 serve.$f.take();
                             }
-                        }
+                        })+
                     };
                 }
-                take_or_not!(listen);
-                take_or_not!(grpc);
-                take_or_not!(database_url);
-                take_or_not!(secret_prefix);
-                take_or_not!(request_timeout);
-                take_or_not!(do_not_resume);
+                take_or_not!(database_url, secret_prefix, request_timeout, do_not_resume);
+                take_or_not!(listen, ssl_cert, ssl_key, ssl_ca);
+                take_or_not!(grpc, grpc_ssl_cert, grpc_ssl_key, grpc_ssl_ca);
             }
             cli.merge_from(serve);
         }
@@ -805,9 +802,19 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     }
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
     if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
-        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
-        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.grpc", cli.get_grpc_address()).as_str();
-        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
+        let value = serde_json::to_value(cli).unwrap_or_default();
+        if let Some(obj) = value.as_object() {
+            for (k, v) in obj {
+                if v.is_null() {
+                    continue;
+                }
+                if let Some(v) = v.as_str() {
+                    s += format!("{:<w$}{:<w2$}{}\n", ' ', format!("serve.{k}"), v).as_str();
+                } else {
+                    s += format!("{:<w$}{:<w2$}{}\n", ' ', format!("serve.{k}"), v).as_str();
+                }
+            }
+        }
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.fqdn", args.monitor.fqdn.as_ref().unwrap_or(&"".to_string())).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.port", args.monitor.port).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.interval", args.monitor.interval).as_str();
@@ -828,6 +835,7 @@ fn is_root_directory<P: AsRef<Path>>(path: P) -> bool {
 }
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
