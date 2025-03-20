@@ -100,6 +100,9 @@ void freeUseDbOutput(void* pOutput) {
 }
 
 static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
+  if (pVtbScan->dbName) {
+    taosMemoryFreeClear(pVtbScan->dbName);
+  }
   if (pVtbScan->childTableList) {
     taosArrayDestroy(pVtbScan->childTableList);
   }
@@ -1136,13 +1139,15 @@ int32_t dynProcessUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pScanResInfo->vtbScan.pRsp = taosMemoryMalloc(sizeof(SUseDbRsp));
   QUERY_CHECK_NULL(pScanResInfo->vtbScan.pRsp, code, lino, _return, terrno);
 
-  QUERY_CHECK_CODE(tDeserializeSUseDbRsp(pMsg->pData, (int32_t)pMsg->len, pScanResInfo->vtbScan.pRsp), lino, _return);
+  code = tDeserializeSUseDbRsp(pMsg->pData, (int32_t)pMsg->len, pScanResInfo->vtbScan.pRsp);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   taosMemoryFreeClear(pMsg->pData);
 
-  QUERY_CHECK_CODE(tsem_post(&pScanResInfo->vtbScan.ready), lino, _return);
+  code = tsem_post(&pScanResInfo->vtbScan.ready);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 _return:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
@@ -1157,7 +1162,8 @@ static int32_t buildDbVgInfoMap(SOperatorInfo* pOperator, SReadHandle* pHandle, 
 
   pReq = taosMemoryMalloc(sizeof(SUseDbReq));
   QUERY_CHECK_NULL(pReq, code, lino, _return, terrno);
-  QUERY_CHECK_CODE(tNameGetFullDbName(name, pReq->db), lino, _return);
+  code = tNameGetFullDbName(name, pReq->db);
+  QUERY_CHECK_CODE(code, lino, _return);
   int32_t contLen = tSerializeSUseDbReq(NULL, 0, pReq);
   buf1 = taosMemoryCalloc(1, contLen);
   QUERY_CHECK_NULL(buf1, code, lino, _return, terrno);
@@ -1177,11 +1183,14 @@ static int32_t buildDbVgInfoMap(SOperatorInfo* pOperator, SReadHandle* pHandle, 
   pMsgSendInfo->fp = dynProcessUseDbRsp;
   pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
-  QUERY_CHECK_CODE(asyncSendMsgToServer(pHandle->pMsgCb->clientRpc, &pScanResInfo->vtbScan.epSet, NULL, pMsgSendInfo), lino, _return);
+  code = asyncSendMsgToServer(pHandle->pMsgCb->clientRpc, &pScanResInfo->vtbScan.epSet, NULL, pMsgSendInfo);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  QUERY_CHECK_CODE(tsem_wait(&pScanResInfo->vtbScan.ready), lino, _return);
+  code = tsem_wait(&pScanResInfo->vtbScan.ready);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  QUERY_CHECK_CODE(queryBuildUseDbOutput(output, pScanResInfo->vtbScan.pRsp), lino, _return);
+  code = queryBuildUseDbOutput(output, pScanResInfo->vtbScan.pRsp);
+  QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
   if (code) {
@@ -1250,12 +1259,13 @@ int32_t dynHashValueComp(void const* lp, void const* rp) {
 int32_t getVgId(SDBVgInfo* dbInfo, char* dbFName, int32_t* vgId, char *tbName) {
   int32_t code = 0;
   int32_t lino = 0;
-  QUERY_CHECK_CODE(dynMakeVgArraySortBy(dbInfo, dynVgInfoComp), lino, _return);
+  code = dynMakeVgArraySortBy(dbInfo, dynVgInfoComp);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   int32_t vgNum = (int32_t)taosArrayGetSize(dbInfo->vgArray);
   if (vgNum <= 0) {
     qError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
-    QUERY_CHECK_CODE(TSDB_CODE_TSC_DB_NOT_SELECTED, lino, _return);
+    QUERY_CHECK_CODE(code = TSDB_CODE_TSC_DB_NOT_SELECTED, lino, _return);
   }
 
   SVgroupInfo* vgInfo = NULL;
@@ -1309,8 +1319,10 @@ int32_t getDbVgInfo(SOperatorInfo* pOperator, SName *name, SDBVgInfo **dbVgInfo)
 
   if (find == NULL) {
     output = taosMemoryMalloc(sizeof(SUseDbOutput));
-    QUERY_CHECK_CODE(buildDbVgInfoMap(pOperator, pHandle, name, pTaskInfo, output), line, _return);
-    QUERY_CHECK_CODE(taosHashPut(pInfo->vtbScan.dbVgInfoMap, name->dbname, strlen(name->dbname), &output, POINTER_BYTES), line, _return);
+    code = buildDbVgInfoMap(pOperator, pHandle, name, pTaskInfo, output);
+    QUERY_CHECK_CODE(code, line, _return);
+    code = taosHashPut(pInfo->vtbScan.dbVgInfoMap, name->dbname, strlen(name->dbname), &output, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, line, _return);
   } else {
     output = *find;
   }
@@ -1357,12 +1369,14 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
 
   while (true) {
     if (pVtbScan->curTableIdx == pVtbScan->lastTableIdx) {
-      QUERY_CHECK_CODE(pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0], pRes), line, _return);
+      code = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0], pRes);
+      QUERY_CHECK_CODE(code, line, _return);
     } else {
       uint64_t* id = taosArrayGet(pVtbScan->childTableList, pVtbScan->curTableIdx);
       QUERY_CHECK_NULL(id, code, line, _return, terrno);
       pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
-      QUERY_CHECK_CODE(pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id), line, _return);
+      code = pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id);
+      QUERY_CHECK_CODE(code, line, _return);
 
       for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
         if (mr.me.colRef.pColRef[j].hasRef && colNeedScan(pOperator, mr.me.colRef.pColRef[j].id)) {
@@ -1370,15 +1384,22 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
           char    dbFname[TSDB_DB_FNAME_LEN] = {0};
           char    orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
 
+          if (strncmp(mr.me.colRef.pColRef[j].refDbName, pVtbScan->dbName, strlen(pVtbScan->dbName)) != 0) {
+            QUERY_CHECK_CODE(code = TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB, line, _return);
+          }
           toName(pInfo->vtbScan.acctId, mr.me.colRef.pColRef[j].refDbName, mr.me.colRef.pColRef[j].refTableName, &name);
-          QUERY_CHECK_CODE(getDbVgInfo(pOperator, &name, &dbVgInfo), line, _return);
-          QUERY_CHECK_CODE(tNameGetFullDbName(&name, dbFname), line, _return);
-          QUERY_CHECK_CODE(tNameGetFullTableName(&name, orgTbFName), line, _return);
+          code = getDbVgInfo(pOperator, &name, &dbVgInfo);
+          QUERY_CHECK_CODE(code, line, _return);
+          tNameGetFullDbName(&name, dbFname);
+          QUERY_CHECK_CODE(code, line, _return);
+          tNameGetFullTableName(&name, orgTbFName);
+          QUERY_CHECK_CODE(code, line, _return);
 
           void *pVal = taosHashGet(pVtbScan->orgTbVgColMap, orgTbFName, sizeof(orgTbFName));
           if (!pVal) {
             SOrgTbInfo map = {0};
-            QUERY_CHECK_CODE(getVgId(dbVgInfo, dbFname, &map.vgId, name.tname), line, _return);
+            code = getVgId(dbVgInfo, dbFname, &map.vgId, name.tname);
+            QUERY_CHECK_CODE(code, line, _return);
             tstrncpy(map.tbName, orgTbFName, sizeof(map.tbName));
             map.colMap = taosArrayInit(10, sizeof(SColIdNameKV));
             QUERY_CHECK_NULL(map.colMap, code, line, _return, terrno);
@@ -1386,7 +1407,8 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
             colIdNameKV.colId = mr.me.colRef.pColRef[j].id;
             tstrncpy(colIdNameKV.colName, mr.me.colRef.pColRef[j].refColName, sizeof(colIdNameKV.colName));
             QUERY_CHECK_NULL(taosArrayPush(map.colMap, &colIdNameKV), code, line, _return, terrno);
-            QUERY_CHECK_CODE(taosHashPut(pVtbScan->orgTbVgColMap, orgTbFName, sizeof(orgTbFName), &map, sizeof(map)), line, _return);
+            code = taosHashPut(pVtbScan->orgTbVgColMap, orgTbFName, sizeof(orgTbFName), &map, sizeof(map));
+            QUERY_CHECK_CODE(code, line, _return);
           } else {
             SOrgTbInfo *tbInfo = (SOrgTbInfo *)pVal;
             SColIdNameKV colIdNameKV = {0};
@@ -1398,13 +1420,15 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       }
 
       pVtbScan->vtbScanParam = NULL;
-      QUERY_CHECK_CODE(buildVtbScanOperatorParam(pInfo, &pVtbScan->vtbScanParam, *id), line, _return);
+      code = buildVtbScanOperatorParam(pInfo, &pVtbScan->vtbScanParam, *id);
+      QUERY_CHECK_CODE(code, line, _return);
 
       void* pIter = taosHashIterate(pVtbScan->orgTbVgColMap, NULL);
       while (pIter != NULL) {
         SOrgTbInfo*      pMap = (SOrgTbInfo*)pIter;
         SOperatorParam*  pExchangeParam = NULL;
-        QUERY_CHECK_CODE(buildExchangeOperatorParamForVScan(&pExchangeParam, 0, pMap), line, _return);
+        code = buildExchangeOperatorParamForVScan(&pExchangeParam, 0, pMap);
+        QUERY_CHECK_CODE(code, line, _return);
         QUERY_CHECK_NULL(taosArrayPush(((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pOpParamArray, &pExchangeParam), code, line, _return, terrno);
         pIter = taosHashIterate(pVtbScan->orgTbVgColMap, pIter);
       }
@@ -1412,7 +1436,8 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
 
       // reset downstream operator's status
       pOperator->pDownstream[0]->status = OP_NOT_OPENED;
-      QUERY_CHECK_CODE(pOperator->pDownstream[0]->fpSet.getNextExtFn(pOperator->pDownstream[0], pVtbScan->vtbScanParam, pRes), line, _return);
+      code = pOperator->pDownstream[0]->fpSet.getNextExtFn(pOperator->pDownstream[0], pVtbScan->vtbScanParam, pRes);
+      QUERY_CHECK_CODE(code, line, _return);
     }
 
     if (*pRes) {
@@ -1478,7 +1503,8 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      line = 0;
 
-  QUERY_CHECK_CODE(tsem_init(&pInfo->vtbScan.ready, 0, 0), line, _return);
+  code = tsem_init(&pInfo->vtbScan.ready, 0, 0);
+  QUERY_CHECK_CODE(code, line, _return);
 
   pInfo->vtbScan.scanAllCols = pPhyciNode->vtbScan.scanAllCols;
   pInfo->vtbScan.suid = pPhyciNode->vtbScan.suid;
@@ -1487,6 +1513,8 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
   pInfo->vtbScan.readHandle = *pHandle;
   pInfo->vtbScan.curTableIdx = 0;
   pInfo->vtbScan.lastTableIdx = -1;
+  pInfo->vtbScan.dbName = taosStrdup(pPhyciNode->vtbScan.dbName);
+  QUERY_CHECK_NULL(pInfo->vtbScan.dbName, code, line, _return, terrno);
 
   pInfo->vtbScan.readColList = taosArrayInit(LIST_LENGTH(pPhyciNode->vtbScan.pScanCols), sizeof(col_id_t));
   QUERY_CHECK_NULL(pInfo->vtbScan.readColList, code, line, _return, terrno);
@@ -1499,7 +1527,8 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
 
   pInfo->vtbScan.childTableList = taosArrayInit(10, sizeof(uint64_t));
   QUERY_CHECK_NULL(pInfo->vtbScan.childTableList, code, line, _return, terrno);
-  QUERY_CHECK_CODE(pHandle->api.metaFn.getChildTableList(pHandle->vnode, pInfo->vtbScan.suid, pInfo->vtbScan.childTableList), line, _return);
+  code = pHandle->api.metaFn.getChildTableList(pHandle->vnode, pInfo->vtbScan.suid, pInfo->vtbScan.childTableList);
+  QUERY_CHECK_CODE(code, line, _return);
 
   pInfo->vtbScan.dbVgInfoMap = taosHashInit(taosArrayGetSize(pInfo->vtbScan.childTableList), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   QUERY_CHECK_NULL(pInfo->vtbScan.dbVgInfoMap, code, line, _return, terrno);
@@ -1518,6 +1547,7 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
   __optr_fn_t                nextFp = NULL;
   SOperatorInfo*             pOperator = NULL;
   SDynQueryCtrlOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SDynQueryCtrlOperatorInfo));
@@ -1554,7 +1584,8 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
       nextFp = seqStableJoin;
       break;
     case DYN_QTYPE_VTB_SCAN:
-      QUERY_CHECK_CODE(initVtbScanInfo(pOperator, pInfo, pHandle, pPhyciNode, pTaskInfo), code, _error);
+      code = initVtbScanInfo(pOperator, pInfo, pHandle, pPhyciNode, pTaskInfo);
+      QUERY_CHECK_CODE(code, line, _error);
       nextFp = vtbScan;
       break;
     default:

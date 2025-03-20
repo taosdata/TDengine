@@ -5479,6 +5479,15 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
               code = TSDB_CODE_TSC_INVALID_OPERATION;
               break;
             }
+
+            if (pCxt->pParseCxt->isStmtBind) {
+              code = TSDB_CODE_VTABLE_NOT_SUPPORT_STMT;
+              break;
+            }
+            if (pCxt->pParseCxt->topicQuery) {
+              code = TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC;
+              break;
+            }
             PAR_ERR_RET(translateVirtualTable(pCxt, pTable, &name));
             SVirtualTableNode *pVirtualTable = (SVirtualTableNode*)*pTable;
             pVirtualTable->table.singleTable = true;
@@ -8566,7 +8575,7 @@ static int32_t translateInsertTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = translateFrom(pCxt, pTable);
   if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
       TSDB_NORMAL_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType) {
-    code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table is not supported");
+    code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table or virtual table is not supported");
   }
   return code;
 }
@@ -11734,6 +11743,14 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
   return code;
 }
 
+static bool isVirtualTable(int8_t tableType) {
+  if (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static int32_t checkCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt) {
   if (NULL == pStmt->pQuery && NULL == pStmt->pWhere) {
     return TSDB_CODE_SUCCESS;
@@ -12009,16 +12026,6 @@ static bool crossTableWithUdaf(SSelectStmt* pSelect) {
   return pSelect->hasUdaf && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
          !hasTbnameFunction(pSelect->pPartitionByList);
 }
-
-
-static bool isVirtualTable(int8_t tableType) {
-  if (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
 
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   if (NULL == pStmt->pQuery) {

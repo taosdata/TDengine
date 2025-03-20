@@ -4386,6 +4386,7 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN1,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_ALL_COLS,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SUID,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_DBNAME,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ACCOUNT_ID,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EP_SET,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_COLS,
@@ -4426,6 +4427,9 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_ALL_COLS, pNode->vtbScan.scanAllCols);
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeU64(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SUID, pNode->vtbScan.suid);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeCStr(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_DBNAME, pNode->vtbScan.dbName);
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ACCOUNT_ID, pNode->vtbScan.accountId);
@@ -4484,6 +4488,9 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SUID:
         code = tlvDecodeU64(pTlv, &pNode->vtbScan.suid);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_DBNAME:
+        code = tlvDecodeCStr(pTlv, pNode->vtbScan.dbName, sizeof(pNode->vtbScan.dbName));
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ACCOUNT_ID:
         code = tlvDecodeI32(pTlv, &pNode->vtbScan.accountId);

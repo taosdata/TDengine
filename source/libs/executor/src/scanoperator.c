@@ -1237,11 +1237,13 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   }
 
   pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-  QUERY_CHECK_CODE(pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pParam->pOrgTbInfo->tbName, ".") + 1), lino, _return);
+  code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pParam->pOrgTbInfo->tbName, ".") + 1);
+  QUERY_CHECK_CODE(code, lino, _return);
   switch (orgTable.me.type) {
     case TSDB_CHILD_TABLE:
       pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-      QUERY_CHECK_CODE(pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid), lino, _return);
+      code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
+      QUERY_CHECK_CODE(code, lino, _return);
       schema = &superTable.me.stbEntry.schemaRow;
       break;
     case TSDB_NORMAL_TABLE:
@@ -1289,8 +1291,10 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     blockDataDestroy(pInfo->pResBlock);
     pInfo->pResBlock = NULL;
   }
-  QUERY_CHECK_CODE(createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock), lino, _return);
-  QUERY_CHECK_CODE(initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray), lino, _return);
+  code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
+  QUERY_CHECK_CODE(code, lino, _return);
   pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
@@ -1304,7 +1308,8 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   uint64_t      pUid = orgTable.me.uid;
   STableKeyInfo info = {.groupId = 0, .uid = pUid};
   int32_t       tableIdx = 0;
-  QUERY_CHECK_CODE(taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t)), lino, _return);
+  code = taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t));
+  QUERY_CHECK_CODE(code, lino, _return);
   QUERY_CHECK_NULL(taosArrayPush(pListInfo->pTableList, &info), code, lino, _return, terrno);
   qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
 
@@ -1470,12 +1475,14 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       SSDataBlock* result = NULL;
       while (true) {
-        QUERY_CHECK_CODE(startNextGroupScan(pOperator, &result), lino, _end);
+        code = startNextGroupScan(pOperator, &result);
+        QUERY_CHECK_CODE(code, lino, _end);
 
         if (result || pOperator->status == OP_EXEC_DONE) {
           SSDataBlock* res = NULL;
           if (result) {
-            QUERY_CHECK_CODE(createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, &res), lino, _end);
+            code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, &res);
+            QUERY_CHECK_CODE(code, lino, _end);
             pInfo->pResBlock = res;
             blockDataDestroy(result);
           }
