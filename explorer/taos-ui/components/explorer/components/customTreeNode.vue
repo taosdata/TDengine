@@ -581,18 +581,19 @@ async function del() {
   })
     .then(() => {
       requestIng.value = true;
-      delFn(...params)
-        .then(() => {
-          t('msg.deleteSuccess');
-          emits('updateTree');
-        })
-        .finally(() => {
-          requestIng.value = false;
-          partActiveTab.value = 'sql';
-        });
+      return delFn(...params);
+    })
+    .then(() => {
+      t('msg.deleteSuccess');
+      emits('updateTree');
     })
     .catch(err => {
       console.log(err);
+      err.desc && ElMessage.error(err.desc);
+    })
+    .finally(() => {
+      requestIng.value = false;
+      partActiveTab.value = 'sql';
     });
 }
 // function getDataSourceDbList() {

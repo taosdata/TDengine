@@ -1,21 +1,21 @@
+use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
-use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{ModelType, OpcModelConfig};
 use crate::runners::opc::config::{OPCConfig, PointsMode};
+use crate::runners::opc::model::{ModelType, OpcModelConfig};
 use crate::runners::opc::point_updater::PointsUpdater;
 use crate::runners::{get_logs_home_dir, log_rotation, new_rolling_file_appender};
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{build_ipc, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
-use anyhow::Context;
+use anyhow::{bail, Context};
+use csv::header::CsvHeader;
+use csv::CsvParser;
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs::File;
-use std::str::FromStr;
 use std::{io::prelude::*, path::PathBuf, sync::Arc};
 use taos::{Dsn, IntoDsn};
 use taosx_ipc::prelude::IpcDataType;
@@ -28,13 +28,13 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing_subscriber::fmt::MakeWriter;
 
-use super::get_data_dir;
-
 pub mod config;
+pub mod csv;
+pub mod model;
 mod point_updater;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum OpcType {
     OPCUA,
@@ -54,32 +54,31 @@ impl OpcType {
         if fake {
             return Ok(Self::FAKE);
         }
-
-        let opc_type = dsn.driver.as_str();
+        let opc_type = dsn.driver.to_lowercase();
         let protocol = dsn.protocol.clone();
-        match opc_type {
+        match opc_type.as_str() {
             "opcua" => Ok(Self::OPCUA),
             "opcda" => Ok(Self::OPCDA),
             "fake" => Ok(Self::FAKE),
             "opc" => match protocol.as_deref() {
                 Some("ua") => Ok(Self::OPCUA),
                 Some("da") => Ok(Self::OPCDA),
-                _ => anyhow::bail!("unknown opc protocol"),
+                _ => bail!("unknown opc protocol"),
             },
-            _ => anyhow::bail!("invalid opc type"),
+            _ => bail!("invalid opc type"),
         }
     }
 }
 
-impl FromStr for OpcType {
-    type Err = String;
+impl TryFrom<&str> for OpcType {
+    type Error = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
             "opcua" => Ok(Self::OPCUA),
             "opcda" => Ok(Self::OPCDA),
             "fake" => Ok(Self::FAKE),
-            _ => Err(s.to_string()),
+            _ => bail!("invalid opc type: {}", value),
         }
     }
 }
@@ -473,7 +472,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 from.to_string()
             ))?;
 
-            let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
+            let parser = CsvParser::try_new(opc_type, csv_files)?;
             let model_config = parser.parse().await?;
             to_opc_dataset_vec(&model_config).await?
         }
@@ -551,7 +550,7 @@ async fn opc_datasets_by_csv(
 
     let header = rdr.headers().await?;
 
-    let header = CsvHeader::try_new(opc_type.clone(), header)?;
+    let header = CsvHeader::try_new(opc_type, header)?;
     let point_id_idx = header.id_index();
     let enabled_idx = header.enabled_index();
 
@@ -797,7 +796,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
     let mut rdr = AsyncReader::from_reader(csv_line.as_bytes());
     // new point header
     let headers = rdr.headers().await?;
-    let csv_header = CsvHeader::try_new(opc_type.clone(), headers)?;
+    let csv_header = CsvHeader::try_new(opc_type, headers)?;
     // new point line
     let mut records = rdr.records();
     let record = records.next().await.unwrap()?;
@@ -808,7 +807,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
         "csv_config_file not found in dsn: {}",
         dsn.to_string()
     ))?;
-    let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
+    let parser = CsvParser::try_new(opc_type, csv_files)?;
     let point_ids = parser.parse_all_point_id().await?;
 
     // check if point_id already exists
@@ -824,7 +823,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use taos::IntoDsn;
+    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_check_point_id_duplicated() {
@@ -992,81 +991,5 @@ panic: (*logrus.Entry) 0xc00034aaf0
 panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
         let res = filter_opc_log(log).await;
         assert_eq!(res, expect);
-    }
-
-    /// 测试从 dsn 解析参数，生成一个 taosx-opc 的配置文件
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_check_mode() {
-        // given
-        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
-        // when
-        let config = OPCConfig::from_dsn_check_mode(&dsn).await.unwrap();
-        let toml = toml::to_string(&config).unwrap();
-        // then
-        assert_eq!(
-            toml,
-            r#"opc_type = "opcua"
-debug = false
-
-[connect.ua]
-endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
-connect_timeout = 10
-request_timeout = 10
-security_policy = "None"
-security_mode = "None"
-auth_method = "Anonymous"
-
-[report]
-remote = "127.0.0.1:0"
-batch_size = 1000
-batch_timeout = 1
-"#
-        );
-    }
-
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_point_mode() {
-        // given
-        let dsn = format!(
-            "opcua://{}?node_id_pattern={}&browse_name_pattern={}",
-            "192.168.2.16:53530/OPCUA/SimulationServer", "^(?!.*_Error).+$", "^(?!.*_Error).+$"
-        )
-        .into_dsn()
-        .unwrap();
-        // when
-        let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
-        let toml = toml::to_string(&config).unwrap();
-        // then
-        assert_eq!(
-            toml,
-            r#"opc_type = "opcua"
-debug = false
-
-[connect.ua]
-endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
-connect_timeout = 10
-request_timeout = 10
-security_policy = "None"
-security_mode = "None"
-auth_method = "Anonymous"
-
-[report]
-remote = "127.0.0.1:0"
-batch_size = 1000
-batch_timeout = 1
-
-[points]
-regex_id = "^(?!.*_Error).+$"
-regex_name = "^(?!.*_Error).+$"
-limit = 0
-
-[points.ua]
-"#
-        );
-    }
-
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_collect_mode() {
-        // TODO
     }
 }

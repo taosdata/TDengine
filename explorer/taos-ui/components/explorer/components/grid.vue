@@ -73,7 +73,7 @@ function handleCellDblclick(row: Recordable, column: any) {
   padding-bottom: 30px;
 
   // overflow: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 
   &:deep(.el-table::before) {
     height: 0;
@@ -87,7 +87,7 @@ function handleCellDblclick(row: Recordable, column: any) {
     position: absolute;
     right: 0;
     bottom: -3px;
-    left: 0;
+    left: 10px;
 
     .time-block {
       display: inline-block;

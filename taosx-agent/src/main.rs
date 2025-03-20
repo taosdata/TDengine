@@ -17,6 +17,7 @@ use taoslog::{layer::TaosLayer, writer::RollingFileAppender};
 use taosx_metrics::{MetricEvent, MetricsEvents};
 use thiserror::Error;
 use tokio::task::JoinHandle;
+use tonic::transport::Certificate;
 
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, Layer as _,
@@ -126,6 +127,8 @@ pub struct Args {
 
     token: String,
 
+    ca: Option<String>,
+
     log_keep_days: Option<i64>,
 
     /// For in-memory cache queue capacity.
@@ -161,6 +164,10 @@ pub struct ConfigArgs {
     /// Token for authentication.
     #[clap(short = 't', long)]
     token: Option<String>,
+
+    /// For TLS CA certificate.
+    #[clap(long)]
+    ca: Option<String>,
 
     /// To enable compression.
     #[clap(long)]
@@ -311,6 +318,8 @@ pub enum ArgsError {
     MissingRequiredArgument(String),
     #[error("Argument parsing error: {0}")]
     ParseError(#[from] twelf::Error),
+    #[error("Reading {0} from {1} error: {2}")]
+    ReadCertError(&'static str, String, std::io::Error),
 }
 
 #[inline]
@@ -429,6 +438,7 @@ impl Args {
             in_memory_cache_capacity,
             mut log,
             client_port_range,
+            ca,
             ..
         } = ConfigArgs::with_layers(&layers)?;
 
@@ -490,11 +500,28 @@ impl Args {
             endpoint: endpoint
                 .ok_or_else(|| ArgsError::MissingRequiredArgument("endpoint".to_string()))?,
             token: token.ok_or_else(|| ArgsError::MissingRequiredArgument("token".to_string()))?,
+            ca,
             log_keep_days,
             log,
             in_memory_cache_capacity,
             ports,
         })
+    }
+
+    fn ca(&self) -> Result<Option<Certificate>, ArgsError> {
+        if let Some(ca) = &self.ca {
+            let cert = if ca.starts_with("-----BEGIN") {
+                Certificate::from_pem(ca)
+            } else {
+                Certificate::from_pem(
+                    std::fs::read_to_string(ca)
+                        .map_err(|p| ArgsError::ReadCertError("ca", ca.to_string(), p))?
+                        .trim(),
+                )
+            };
+            return Ok(Some(cert));
+        }
+        Ok(None)
     }
 }
 
@@ -503,9 +530,16 @@ mod runner;
 
 async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let ctrl_c = tokio::signal::ctrl_c();
-    let mut client = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
-    let mut client2 = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
-    let mut client3 = agent::Client::new(&args.endpoint, &args.token, &args.ports).await?;
+    let ca = args.ca()?;
+    if let Some(ca) = &ca {
+        taosx_core::global::set_agent_client_ca(ca.clone());
+    }
+    let mut client =
+        agent::Client::new(&args.endpoint, &args.token, ca.clone(), &args.ports).await?;
+    let mut client2 =
+        agent::Client::new(&args.endpoint, &args.token, ca.clone(), &args.ports).await?;
+    let mut client3 =
+        agent::Client::new(&args.endpoint, &args.token, ca.clone(), &args.ports).await?;
 
     let agent = client.agent();
     let agent_id = agent.id;

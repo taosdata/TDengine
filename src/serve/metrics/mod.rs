@@ -152,5 +152,6 @@ fn get_profile() -> serde_json::Value {
         "build_time": crate::build::BUILD_TIME_3339,
         "build_target": crate::build::BUILD_TARGET,
         "build_os": crate::build::BUILD_OS,
+        "grpc_tls_enabled": crate::serve::controller::agent::get_grpc_ssl_ca_certificate().is_some(),
     })
 }

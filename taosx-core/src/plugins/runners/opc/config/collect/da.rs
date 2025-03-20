@@ -2,8 +2,8 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
+use crate::plugins::runners::opc::csv::CsvParser;
 use crate::runners::opc::config::collect::parse_opc_node_ids;
-use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::OpcType;
 
@@ -14,13 +14,7 @@ pub struct DaCollectConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaNodeConfig {
-    tag: String,
-}
-
-impl DaNodeConfig {
-    pub fn new(tag: String) -> Self {
-        Self { tag }
-    }
+    pub tag: String,
 }
 
 impl DaCollectConfig {

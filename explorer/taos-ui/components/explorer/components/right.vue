@@ -20,6 +20,9 @@
           <span>{{ t('common.run') }}</span>
         </el-button>
       </el-tooltip>
+      <el-button :disabled="!sqlStr || sqlExecuting" type="warning" icon="SetUp" size="small" @click="formatSql">
+        <span>{{ t('common.format') }}</span>
+      </el-button>
       <el-tooltip
         effect="light"
         :content="t('explorer.' + (favorited ? 'deleteCurrentSavedSql' : 'saveCurrentSqlAsFavorite'))"
@@ -114,6 +117,9 @@ onBeforeUnmount(() => {
 });
 function executeSql() {
   sqlEditorRef.value?.handleExecute();
+}
+function formatSql() {
+  sqlEditorRef.value?.handleFormat();
 }
 function dragChangeHeight(drag: string, panel: string) {
   const dragEl = document.getElementById(drag);

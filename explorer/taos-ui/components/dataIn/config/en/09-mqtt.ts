@@ -34,6 +34,76 @@ export default {
           patternMsg: 'The port number ranges from 0 to 65535',
           defaultValue: '',
           type: 'input'
+        },
+        {
+          label: 'TLS Verification',
+          description:
+            'Whether to enable TLS verification.\nAfter enabling one-way verification, you need to upload the CA certificate file to verify the MQTT server certificate.\nAfter enabling two-way verification, you need to upload the CA certificate file, the client certificate, and the client private key file to verify both the MQTT server certificate and the client certificate.',
+          field: 'tsl_verify',
+          placeholder: '',
+          defaultValue: 'none',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
+            {
+              label: 'Disable',
+              value: 'none'
+            },
+            {
+              label: 'Unidirectional',
+              value: 'single'
+            },
+            {
+              label: 'Bidirectional',
+              value: 'both'
+            }
+          ]
+        },
+        {
+          label: 'CA',
+          description: 'CA certificate file, used to verify the MQTT server certificate.',
+          field: 'ca',
+          required: true,
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: '',
+          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOnValues: {
+            tsl_verify: ['single', 'both']
+          }
+        },
+        {
+          label: 'Client certificate file',
+          description: 'A .cert file is required. ',
+          field: 'cert',
+          required: true,
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: '',
+          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOnValues: {
+            tsl_verify: ['both']
+          }
+        },
+        {
+          label: 'Client key file',
+          description: 'Client key file',
+          field: 'cert_key',
+          placeholder: '',
+          required: true,
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: '',
+          displayDependsOn: ['connection_options/tsl_verify'],
+          displayDependsOnValues: {
+            tsl_verify: ['both']
+          }
         }
       ]
     },
@@ -71,60 +141,6 @@ export default {
       field: 'groups_before',
       hide: true,
       children: [
-        {
-          label: 'Enable SSL',
-          field: 'isEnable',
-          description: 'Use self-signed certificate file and private key.',
-          children: [
-            {
-              label: 'CA',
-              description: 'CA file.',
-              field: 'ca',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            },
-            {
-              label: 'Client certificate file',
-              description: 'Client certificate file.',
-              field: 'cert',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            },
-            {
-              label: 'Client key file',
-              description: 'Client key file.',
-              field: 'cert_key',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            }
-          ],
-          hide: false,
-          type: 'switch',
-          defaultValue: false,
-          valueField: 'a7dcf55a-a4ea-483b-8980-2db60cd2d8d6',
-          hasValue: true
-        },
         {
           label: 'Collect',
           field: 'f303fa89-1083-44a5-9dbd-2e5cdd9afb4d',
@@ -293,12 +309,6 @@ export default {
     {
       field: 'checkConnectivity',
       type: 'checkConnectivity',
-      children: []
-    },
-    {
-      label: 'Groups-after',
-      field: 'groups_after',
-      hide: true,
       children: []
     },
     {

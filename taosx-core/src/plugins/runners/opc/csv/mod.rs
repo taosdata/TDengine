@@ -1,6 +1,6 @@
 use crate::get_data_dir;
-use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::model::{
+use crate::plugins::runners::opc::csv::header::CsvHeader;
+use crate::plugins::runners::opc::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
 };
 use crate::runners::opc::config::OPCConfig;
@@ -113,8 +113,7 @@ impl CsvParser {
     pub async fn parse_csv(opc_type: OpcType, content: String) -> anyhow::Result<OpcModelConfig> {
         let rdr = Self::load_csv_with_string(content.as_str(), false).await?;
 
-        let (point_config_map, table_config_map) =
-            Self::parse_point_mapping(opc_type.clone(), rdr).await?;
+        let (point_config_map, table_config_map) = Self::parse_point_mapping(opc_type, rdr).await?;
 
         Ok(OpcModelConfig {
             opc_type,
@@ -178,13 +177,13 @@ impl CsvParser {
 
         for (_file, rdr) in files {
             let (point_config, table_config) =
-                Self::parse_point_mapping(self.opc_type.clone(), rdr).await?;
+                Self::parse_point_mapping(self.opc_type, rdr).await?;
             point_config_map.extend(point_config);
             table_config_map.extend(table_config);
         }
 
         Ok(OpcModelConfig {
-            opc_type: self.opc_type.clone(),
+            opc_type: self.opc_type,
             generate_rule: Some(GeneratePointMappingBy::Csv((
                 self.csv_files.clone(),
                 self.csv_origin.clone(),
@@ -195,23 +194,24 @@ impl CsvParser {
     }
 
     /// get csv headers from csv files
-    pub async fn get_all_headers(&self) -> anyhow::Result<HashMap<String, CsvHeader>> {
-        if self.csv_files.is_empty() {
+    pub async fn get_all_headers(
+        opc_type: OpcType,
+        csv_files: Vec<String>,
+    ) -> anyhow::Result<HashMap<String, CsvHeader>> {
+        if csv_files.is_empty() {
             bail!("csv_files is empty");
         }
-
-        let csv_files = self.csv_files.clone();
 
         let files = Self::open_csv_many(csv_files).await?;
 
         let mut headers = HashMap::new();
 
         for (filename, mut rdr) in files {
-            // parse header
             let header = rdr.headers().await.map_err(|e| {
                 anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
             })?;
-            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
+            let csv_header = CsvHeader::try_new(opc_type, header)?;
+
             // check required columns
             csv_header.check_required_columns()?;
 
@@ -241,7 +241,7 @@ impl CsvParser {
             .headers()
             .await
             .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string()))?;
-        let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
+        let csv_header = CsvHeader::try_new(self.opc_type, header)?;
         csv_header.check_required_columns()?;
 
         Ok(csv_header)
@@ -314,7 +314,7 @@ impl CsvParser {
     }
 
     /// 打开多个 csv
-    async fn open_csv_many(
+    pub async fn open_csv_many(
         csv_files: Vec<String>,
     ) -> anyhow::Result<Vec<(String, AsyncReader<File>)>> {
         let mut readers = Vec::new();
@@ -336,7 +336,7 @@ impl CsvParser {
             let header = rdr.headers().await.map_err(|e| {
                 anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
             })?;
-            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
+            let csv_header = CsvHeader::try_new(self.opc_type, header)?;
             csv_header.check_required_columns()?;
 
             // parse lines
@@ -372,7 +372,7 @@ impl CsvParser {
             let header = rdr.headers().await.map_err(|e| {
                 anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
             })?;
-            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
+            let csv_header = CsvHeader::try_new(self.opc_type, header)?;
             csv_header.check_required_columns()?;
 
             // parse lines
@@ -389,20 +389,22 @@ impl CsvParser {
         Ok(point_ids)
     }
 
-    pub async fn parse_transform(
-        &self,
-        column_name: &str,
-    ) -> anyhow::Result<HashMap<String, ColumnConfig>> {
+    pub async fn parse_transform_map(
+        opc_type: OpcType,
+        files: Vec<(String, AsyncReader<File>)>,
+        columns: &[&str],
+    ) -> anyhow::Result<HashMap<String, HashMap<String, ColumnConfig>>> {
         let mut transform_map = HashMap::new();
-        let files = Self::open_csv_many(self.csv_files.clone()).await?;
+        for col in columns {
+            transform_map.insert(col.to_string(), HashMap::new());
+        }
+
         for (_file, mut rdr) in files {
             // parse header
             let header = rdr.headers().await.map_err(|e| {
                 anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
             })?;
-            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
-            csv_header.check_required_columns()?;
-
+            let csv_header = CsvHeader::try_new(opc_type, header)?;
             // parse lines
             let mut records = rdr.records();
             while let Some(record) = records.next().await {
@@ -414,17 +416,27 @@ impl CsvParser {
                     .get(csv_header.id_index())
                     .ok_or(anyhow::anyhow!("point id column not found in csv header"))?;
                 let t = TableConfig::from_csv(&csv_header, &row)?;
-                let column = t
-                    .column_configs
-                    .iter()
-                    .find(|c| c.name == column_name)
-                    .ok_or(anyhow::anyhow!(
-                        "column {} not found in csv header",
-                        column_name
-                    ))?;
-                transform_map.insert(point_id.to_string(), column.clone());
+                for c in t.column_configs {
+                    // 如果 column name 在 columns 中，则加入 transform_map
+                    if columns.contains(&c.name.as_str()) {
+                        transform_map
+                            .entry(c.name.clone())
+                            .or_insert(HashMap::new())
+                            .insert(point_id.to_string(), c);
+                    }
+                }
             }
         }
+
+        // 遍历 transform_map, 如果 col 对应的 Hashmap 为空，则删除
+        for col in columns {
+            if let Some(map) = transform_map.get(*col) {
+                if map.is_empty() {
+                    transform_map.remove(*col);
+                }
+            }
+        }
+
         Ok(transform_map)
     }
 
@@ -439,7 +451,7 @@ impl CsvParser {
             let header = rdr.headers().await.map_err(|e| {
                 anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
             })?;
-            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header)?;
+            let csv_header = CsvHeader::try_new(self.opc_type, header)?;
             csv_header.check_required_columns()?;
 
             // parse lines
@@ -580,9 +592,7 @@ pub async fn get_csv_headers(dsn: &Dsn) -> anyhow::Result<HashMap<String, CsvHea
     ))?;
     tracing::debug!("get headers from csv files: {:?}", csv_files);
 
-    // parse header from csv files
-    let parser = CsvParser::try_new(opc_type, csv_files)?;
-    let headers = parser.get_all_headers().await?;
+    let headers = CsvParser::get_all_headers(opc_type, csv_files).await?;
 
     Ok(headers)
 }
@@ -753,7 +763,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "invalid original_ts_transform: ts - 6h, cause: Syntax error: Unexpected 'h'"
+            "invalid ts_transform: ts - 6h, cause: Syntax error: Unexpected 'h'"
         );
 
         // tbname is empty

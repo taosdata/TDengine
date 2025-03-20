@@ -24,6 +24,8 @@ shadow-rs = { workspace = true }
 taosx-metrics = { path = "../taosx-metrics" }
 metrics = "0.21.0"
 arrow-compute-ext = { workspace = true }
+bigdecimal.workspace = true
+
 [dev-dependencies]
 tokio = { workspace = true, features = [
   "rt",

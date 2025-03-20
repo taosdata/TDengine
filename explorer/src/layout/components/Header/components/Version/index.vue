@@ -10,7 +10,7 @@
 </template>
 <script setup lang="ts">
 import { sendSQLReq } from '@/api/explorer';
-import { localStorageData } from '@/utils';
+import { localStorageData, setTDVersion } from '@/utils';
 import { setInstanceData } from 'taos-ui/config';
 
 const { OEM_NAME, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
@@ -87,9 +87,10 @@ async function getLicense() {
           })
         );
       });
-      localStorage.setItem('td_version', getVersion(license.value[0]['server_version()']));
+      const td_version = getVersion(license.value[0]['server_version()']);
+      setTDVersion(td_version);
       setInstanceData({
-        version: localStorageData.tdengineVersion,
+        version: td_version,
         token: '',
         gatewayUrl: localStorageData.baseUrl,
         id: '',

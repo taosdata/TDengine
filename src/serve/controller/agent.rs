@@ -1,7 +1,7 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::{borrow::Cow, convert::Infallible, fmt::Display, str::FromStr};
+use std::{borrow::Cow, convert::Infallible, fmt::Display, str::FromStr, sync::OnceLock};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -9,6 +9,18 @@ use serde::{Deserialize, Serialize};
 use sqlx::{encode::IsNull, sqlite::SqliteArgumentValue, Decode, Encode, FromRow, Type};
 use tracing::{debug, Instrument};
 use utoipa::{IntoParams, ToSchema};
+
+static GRPC_SSL_CA_CERTIFICATE: OnceLock<String> = OnceLock::new();
+
+pub fn set_grpc_ssl_ca_certificate(ca: impl Into<String>) {
+    if GRPC_SSL_CA_CERTIFICATE.set(ca.into()).is_ok() {
+        debug!("Set grpc ssl ca certificate");
+    }
+}
+
+pub fn get_grpc_ssl_ca_certificate() -> Option<&'static str> {
+    GRPC_SSL_CA_CERTIFICATE.get().map(|s| s.as_str())
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, ToSchema, Type)]
 #[serde(rename_all = "snake_case")]
@@ -186,6 +198,7 @@ impl<'q> Encode<'q, sqlx::Sqlite> for Context {
 pub struct AgentWithToken {
     pub id: i64,
     pub token: AgentToken,
+    pub ca: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -232,6 +245,7 @@ impl Agent {
         AgentWithToken {
             id: self.id,
             token: AgentToken(token),
+            ca: get_grpc_ssl_ca_certificate().map(|s| s.to_string()),
         }
     }
 }

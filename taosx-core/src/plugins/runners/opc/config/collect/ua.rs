@@ -2,8 +2,8 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
+use crate::plugins::runners::opc::csv::CsvParser;
 use crate::runners::opc::config::collect::{parse_opc_node_ids, CollectMode};
-use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::OpcType;
 
@@ -15,14 +15,7 @@ pub struct UaCollectConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UANodeConfig {
-    id: String,
-    // value_type: String,
-}
-
-impl UANodeConfig {
-    pub fn new(id: String) -> Self {
-        Self { id }
-    }
+    pub id: String,
 }
 
 impl UaCollectConfig {

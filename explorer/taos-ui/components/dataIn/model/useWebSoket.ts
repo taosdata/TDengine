@@ -1,14 +1,16 @@
 import { useWebSocket } from '@vueuse/core';
 import { ref, watch } from 'vue';
 
+interface Connection {
+  send: AnyFunction;
+  data: Ref<any>;
+  status: Ref<string>;
+  close: () => void;
+}
+
 export class WebSocketManager {
   private static instance: WebSocketManager;
-  private connection: {
-    send: AnyFunction;
-    data: Ref<any>;
-    status: Ref<string>;
-    close: () => void;
-  } | null = null;
+  private connections = new Map<string, Connection>();
 
   public status = ref<string>('CLOSED');
 
@@ -22,23 +24,26 @@ export class WebSocketManager {
   }
 
   public connect = (url: string, options?: any) => {
-    if (!this.connection) {
+    let connection = this.connections.get(url);
+    if (!connection) {
       const { send, data, status, close } = useWebSocket(url, options);
-      this.connection = { send, data, status, close };
+      connection = { send, data, status, close };
       this.status.value = status.value;
+      this.connections.set(url, connection);
       console.log('open: 建立连接', url);
     }
-    return this.connection;
+    return connection;
   };
 
   public getStatus() {
     return this.status;
   }
 
-  public close = () => {
-    if (this.connection) {
-      this.connection?.close();
-      this.connection = null;
+  public close = (url: string) => {
+    const connection = this.connections.get(url);
+    if (connection) {
+      connection?.close();
+      this.connections.delete(url);
       this.status.value = 'CLOSED';
       console.log('close: 关闭连接');
     }

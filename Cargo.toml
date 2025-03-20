@@ -32,6 +32,7 @@ arrow-flight = { version = "54.2.0" }
 arrow-schema = { version = "54.2.0", features = ["serde"] }
 arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
+futures-ext = { path = "crates/futures-ext" }
 dashmap = "6.1.0"
 faststr = { version = "0.2.27", features = ["serde"] }
 rayon = { version = "1" }
@@ -52,6 +53,9 @@ serde = "1"
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 fundu = "2.0.1"
 opendal = { version = "0", features = ["services-s3"] }
+rumqttc = "0.24.0"
+rustls = { version = "0.23.18", default-features = false }
+rustls-pemfile = { version = "2" }
 
 taoslog = { path = "crates/taoslog", features = ["ansi"] }
 snafu = "0.8.5"
@@ -66,16 +70,17 @@ parking_lot = "0.12.3"
 tempfile = "3.13.0"
 rand = "0.8"
 bitfield = "0.16.1"
+bigdecimal = "0.4"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "7a96cfe6"
+rev = "d78af99"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
-version = "1.9.0"
+version = "1.10.0"
 rust-version = "1.78.0"
 
 [workspace.lints.clippy]
@@ -146,7 +151,7 @@ toml = "0.8.19"
 actix-cors = "0.7.0"
 actix-files = "0.6.6"
 actix-multipart = "0.7.2"
-actix-web = "4"
+actix-web = { version = "4", features = ["rustls-0_23"] }
 actix-ws = "0.3.0"
 base64 = "0.22.1"
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -163,7 +168,8 @@ uuid = { version = "1.4.0", features = [
 # tonic version is restricted by arrow-flight
 socket2 = "0.5"
 tokio-stream = { workspace = true, features = ["net"] }
-tonic = { workspace = true, features = ["tls", "tls-roots", "gzip"] }
+tonic = { workspace = true, features = ["tls", "tls-native-roots", "gzip"] }
+rustls = { workspace = true, features = ["ring"] }
 
 # lru = "0.7.5"
 const_format = "0.2.30"

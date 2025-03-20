@@ -17,18 +17,37 @@ pub struct CsvColumn {
 }
 
 impl CsvColumn {
+    pub const POINT_ID: &'static str = "point_id";
+    pub const TAG_NAME: &'static str = "tag_name";
+    pub const ENABLED: &'static str = "enabled";
+    pub const STABLE: &'static str = "stable";
+    pub const TBNAME: &'static str = "tbname";
+    pub const VALUE_COL: &'static str = "value_col";
+    pub const QUALITY_COL: &'static str = "quality_col";
+    pub const TYPE: &'static str = "type";
+    pub const TS_COL: &'static str = "ts_col";
+    pub const REQUEST_TS_COL: &'static str = "request_ts_col";
+    pub const RECEIVED_TS_COL: &'static str = "received_ts_col";
+    pub const VALUE_TRANSFORM: &'static str = "value_transform";
+    pub const TS_TRANSFORM: &'static str = "ts_transform";
+    pub const REQUEST_TS_TRANSFORM: &'static str = "request_ts_transform";
+    pub const RECEIVED_TS_TRANSFORM: &'static str = "received_ts_transform";
+
     pub fn try_new(name: &str, index: usize) -> anyhow::Result<Self> {
         let col = match name {
-            "point_id" | "tag_name" | "TagName" => Self::default(name, index),
-            "enabled" => Self::default(name, index),
-            "stable" | "tbname" => Self::expression_col(name, index),
-            "value_col" => Self::default(name, index),
-            "value_transform" | "ts_transform" | "received_ts_transform" => {
-                Self::transform_col(name, index)
+            Self::POINT_ID | Self::TAG_NAME | "TagName" => Self::default(name, index),
+            Self::ENABLED => Self::default(name, index),
+            Self::STABLE | Self::TBNAME => Self::expression_col(name, index),
+            Self::VALUE_COL => Self::default(name, index),
+            Self::QUALITY_COL => Self::default(name, index),
+            Self::TYPE => Self::default(name, index),
+            Self::VALUE_TRANSFORM
+            | Self::TS_TRANSFORM
+            | Self::REQUEST_TS_TRANSFORM
+            | Self::RECEIVED_TS_TRANSFORM => Self::transform_col(name, index),
+            Self::TS_COL | Self::REQUEST_TS_COL | Self::RECEIVED_TS_COL => {
+                Self::timestamp_col(name, index)
             }
-            "type" => Self::default(name, index),
-            "quality_col" => Self::default(name, index),
-            "ts_col" | "received_ts_col" => Self::timestamp_col(name, index),
             _ => {
                 if name.starts_with("tag::") {
                     Self::tag_col(name, index)?

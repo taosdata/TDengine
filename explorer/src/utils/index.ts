@@ -431,12 +431,13 @@ export function getBaseUrl(): string {
   return localStorage.getItem('native_url') || localStorage.getItem('base_url') || '';
 }
 
-export function getTDVersion(): string {
-  return localStorage.getItem('td_version') || '';
+export function setTDVersion(tdVersion: string): void {
+  localStorage.setItem('td_version', tdVersion);
+  localStorageData.tdengineVersion = tdVersion;
 }
 
 export const localStorageData = {
-  tdengineVersion: getTDVersion(),
+  tdengineVersion: localStorage.getItem('td_version') || '',
   password: getPassword(),
   user: getUser(),
   baseUrl: getBaseUrl(),

@@ -25,6 +25,7 @@ export default {
   export: '导出',
   logs: '日志',
   chart: '图表',
+  format: '格式化',
   run: '执行',
   moreOperations: '更多操作',
   add: '新增',

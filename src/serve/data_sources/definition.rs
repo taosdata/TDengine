@@ -32,6 +32,7 @@ pub struct Protocol {
 }
 
 impl Protocol {
+    #[allow(dead_code)]
     fn value(mut self, value: String) -> Self {
         self.value.replace(value);
         self
@@ -66,6 +67,7 @@ pub struct OptionDef {
 }
 
 impl OptionDef {
+    #[allow(dead_code)]
     fn value(mut self, value: String) -> Self {
         self.value.replace(value);
         self
@@ -206,6 +208,7 @@ pub enum HintType {
 }
 
 impl HintType {
+    #[allow(dead_code)]
     pub fn parse_value(&mut self, v: &str) -> bool {
         match self {
             HintType::Constant { value } => value == v,
@@ -527,6 +530,7 @@ impl DataSourceDefinition {
         }
     }
     // todo: parse values from DSN.
+    #[allow(dead_code)]
     pub fn values_from(mut self, mut dsn: Dsn) -> Self {
         debug_assert!(self.id == dsn.driver);
         let username_value = dsn.username.clone();

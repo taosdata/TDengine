@@ -318,7 +318,7 @@ function echoCsvData() {
 
   // 回显上传的文件列表
   if (localData.currentTab == 'upload_csv_file') {
-    state.fileList = localData.upload_csv_file.file_url
+    state.fileList = localData.upload_csv_file?.file_url
       .toString()
       .split(',')
       .map((item: any, index: any) => {

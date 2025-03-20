@@ -611,7 +611,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
 async fn sync_single_table_partial(
     source: TaosPool,
     target: TaosPool,
-    from: &Taos,
+    from: &mut utils::sql::TaosConnection,
     stable: &Option<Arc<String>>,
     table: &Arc<String>,
     to: &Taos,
@@ -656,11 +656,27 @@ async fn sync_single_table_partial(
         (table, sql)
     };
 
-    let mut res = from
-        .query(&sql)
-        .await
-        .with_context(|| format!("SQL: {sql}"))
-        .with_context(|| "query from source error")?;
+    let mut res = match from.query(&sql).await {
+        Ok(res) => res,
+        Err(_err) => {
+            let cancel = CancellationToken::new();
+            let new_connect = utils::sql::reconnect_with_max_retries(&source, 1, &cancel)
+                .in_current_span()
+                .await?;
+            *from = new_connect;
+            from.query(&sql)
+                .await
+                .with_context(|| format!("SQL: {sql}"))
+                .with_context(|| "query from source error")?
+        }
+    };
+
+    // let mut res = from
+    //     .query(&sql)
+    //     .await
+    //     .with_context(|| format!("SQL: {sql}"))
+    //     .with_context(|| "query from source error")?;
+
     let fields = res.num_of_fields();
     let mut blocks = res.blocks();
     let new_table_name = if actions.is_empty() {
@@ -2763,9 +2779,9 @@ pub async fn update_todo_list(
 
                 // Ordinary tables
                 let mut set = taos
-                .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
-                .await
-                .context("Get stable list from source error")?;
+                    .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                    .await
+                    .context("Get stable list from source error")?;
                 let mut stream = set
                     .deserialize::<(u32, Option<String>, String)>()
                     .try_filter_map(|(vgroup_id, stable, table)| {
@@ -2789,9 +2805,9 @@ pub async fn update_todo_list(
             } else {
                 // get stable list.
                 let mut res = taos
-                .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
-                .await
-                .context("Get stable list from source error")?;
+                    .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                    .await
+                    .context("Get stable list from source error")?;
                 let mut records = res.deserialize::<(u32, Option<String>, String)>();
                 while let Some((vgroup_id, stable, table)) = records
                     .try_next()
@@ -3418,10 +3434,10 @@ pub async fn legacy_to_taos(
                         &schema_polling_source_opts,
                         schema_polling_todo.clone(),
                     )
-                    .await
-                    .inspect_err(|err| {
-                        tracing::warn!(error = %err, "update todo list error, break schema polling loop");
-                    })?;
+                        .await
+                        .inspect_err(|err| {
+                            tracing::warn!(error = %err, "update todo list error, break schema polling loop");
+                        })?;
                     if updates.stables.is_empty() && updates.tables.is_empty() {
                         continue;
                     }
@@ -3456,13 +3472,13 @@ pub async fn legacy_to_taos(
                             schema_polling_source_opts.workers as _,
                             schema_polling_task_id,
                         )
-                        .await?;
+                            .await?;
                         Ok::<_, anyhow::Error>(())
                     }
-                    .await
-                    .inspect_err(|err| {
-                        tracing::warn!(error = format!("{err:#}"), "Sync updated tables error");
-                    });
+                        .await
+                        .inspect_err(|err| {
+                            tracing::warn!(error = format!("{err:#}"), "Sync updated tables error");
+                        });
                 }
                 #[allow(unreachable_code)]
                 anyhow::Ok(())

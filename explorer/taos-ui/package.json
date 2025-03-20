@@ -36,6 +36,7 @@
     "assets": "workspace:taos-assets@*",
     "axios": "^1.7.7",
     "codemirror": "^6.0.1",
+    "sql-formatter": "^15.4.11",
     "components": "workspace:taos-components@*",
     "config": "workspace:taos-config@*",
     "constants1": "workspace:taos-constants@*",

@@ -29,6 +29,9 @@ export function getSourceConfig(isEn: boolean) {
   }
 
   for (const path in modulesFiles) {
+    if (!modulesFiles[path].default.id) {
+      continue;
+    }
     definitionsList.push({
       id: modulesFiles[path].default.id,
       name: modulesFiles[path].default.name
@@ -208,6 +211,32 @@ export const isShowResultTable = ref<boolean>(false);
 // 获取数据点位
 export const datasetTableData = ref();
 
+export function recoverWriteConfig(writeConfig: any, parserGlobalData: any) {
+  if (!writeConfig || !parserGlobalData) {
+    return;
+  }
+
+  const keys = Object.getOwnPropertyNames(parserGlobalData);
+  keys.forEach(key => {
+    if (key === 'variable_not_exist_in_table_name_template' || key === 'table_name_contains_illegal_char') {
+      if (parserGlobalData[key]['replace_to'] !== undefined) {
+        writeConfig[`${key}_unit`] = 'replace_to';
+        writeConfig[key] = parserGlobalData[key]['replace_to'];
+      } else {
+        writeConfig[`${key}_unit`] = parserGlobalData[key];
+      }
+    } else if (typeof parserGlobalData[key] === 'object') {
+      for (const subKey in parserGlobalData[key]) {
+        if (writeConfig[`${key}.${subKey}`] !== undefined) {
+          writeConfig[`${key}.${subKey}`] = parserGlobalData[key][subKey];
+        }
+      }
+    } else if (writeConfig[key] !== undefined) {
+      writeConfig[key] = parserGlobalData[key];
+    }
+  });
+}
+
 export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: Recordable, parentKey?: string) {
   // console.log('recoverFromData', dataDisplay);
   // console.log('data', rdata);
@@ -227,6 +256,14 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
         }
       } else if (key === 'port' && typeof rdata[key] === 'number') {
         dataDisplay[key] = String(rdata[key]);
+      } else if (typeof dataDisplay[key] === 'boolean') {
+        if (rdata[key] === 'true') {
+          dataDisplay[key] = true;
+        } else if (rdata[key] === 'false') {
+          dataDisplay[key] = false;
+        } else {
+          dataDisplay[key] = rdata[key];
+        }
       } else {
         dataDisplay[key] = rdata[key];
       }
@@ -253,7 +290,7 @@ function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: an
   const keys = Object.getOwnPropertyNames(data);
 
   keys.forEach(key => {
-    if (!parentKey && (key === 'parser' || !data[key])) {
+    if (!parentKey && (key === 'parser' || key === 'write_config' || !data[key])) {
       // 不需要根节点的 parser 数据，如果根节点没有配置，则也不需要
       return;
     }

@@ -13,7 +13,7 @@ env:
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8788
   COVERAGE_REPORT_BASE_DIR: /data/code_coverage_taosx
-  COVERAGE_DATABASE_URL: http://192.168.1.42:6041/rest/sql
+  COVERAGE_DATABASE_URL: http://192.168.0.204:6041/rest/sql
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -171,12 +171,20 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [build_rust_run_unit_test, build_go_run_unit_test, build_java_run_unit_test,set_env]
     steps:
+      # 部署前先把已经启动的进程都关闭，确保运行正常
+      # - name: Stop taosx-agent & taosx
+      #   shell: bash {0}
+      #   run: |
+      #     pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
+      #     pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
+      
       - name: Deploy taosx
         run: |
           pwd
           ls ${{ github.workspace }}
           # run taosx
           ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/"
+          echo "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
           # echo ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
           ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
       - name: Deploy taosx-agent
@@ -197,49 +205,44 @@ jobs:
     needs: [deploy_taosx_plugins,set_env]
     
     steps:
-      # - name: Update Repo
-      #   run: |
-      #     # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
-      #     # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
-      #     ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
-      
-      - name: Restart taos-explorer & taosadapter
-        run: |
-          systemctl restart taos-explorer
-          systemctl restart taosadapter
-      # - name: Check out repository code
-      #   uses: actions/checkout@v4
-      - name: Run Test
-        continue-on-error: true
-        run: |
-          rm -rf $COVERAGE_BASE_DIR/opentsdb/
-          rm -rf $COVERAGE_BASE_DIR/influxdb/
-          ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not user_migration_test.py"
       - name: Stop taosx-agent & taosx
         shell: bash {0}
         run: |
           pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
           pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
-      
-      # - name: Stop taosX
+      - name: Restart taos-explorer & taosadapter
+        run: |
+          systemctl restart taos-explorer
+          systemctl restart taosadapter
+      - name: Run Test
+        # continue-on-error: true
+        run: |
+          rm -rf $COVERAGE_BASE_DIR/opentsdb/
+          rm -rf $COVERAGE_BASE_DIR/influxdb/
+          ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
+          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not user_migration_test.py"
+      #运行测试后不再关闭进程，目的是为了查看结果
+      # - name: Stop taosx-agent & taosx
       #   shell: bash {0}
       #   run: |
-      #     echo "ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' | xargs -r kill -2"
-      #     ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' | xargs -r kill -2
-      #     sleep 10
-      #     ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' |
-      # - name: Stop taosx-agent
-      #   shell: bash {0}
-      #   run: |
-      #     echo "ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent' | grep -v grep | awk '{print $2}' | xargs -r kill -2"
-      #     ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent' | grep -v grep | awk '{print $2}' | xargs -r kill -2
-      #     sleep 10
-      #     ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent' | grep -v grep | awk '{print $2}' |
+      #     pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
+      #     pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
+
+  stop_taosx:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [run_e2e_test]
+    # 没有用例失败时才会执行，用于在用例失败时查看任务状态
+    if: ${{ always() && needs.run_e2e_test.result == 'success' }}
+    steps:
+      - name: Stop taosx-agent & taosx
+        shell: bash {0}
+        run: |
+          pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
+          pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test,set_env]
-    
+    if: ${{ always() }}
     steps:
       - name: allure report
         run: |
@@ -311,7 +314,8 @@ jobs:
           echo "see report at $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/"
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [generate_report,set_env]
+    needs: [generate_report,set_env,run_e2e_test]
+    if: ${{ always() && needs.run_e2e_test.result == 'success' }}
     steps:
       - name: get coverage percent for taosx and connecter
         env:
@@ -402,7 +406,33 @@ jobs:
             results+="$result_str;"
           done
           echo "results=${results}" >> $GITHUB_ENV
-
+      
+      - name: Get test case result
+        id: set-env-vars
+        env:
+            COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+            # 提取 "Product defects" 的第二个字段
+            product_failed=$(awk -F',' '/"Product defects"/ {print $2}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
+            
+            # 提取 "Test defects" 的第三个字段
+            test_broken=$(awk -F',' '/"Test defects"/ {print $3}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
+            
+            # 将值存储到环境变量
+            echo "PRODUCT_FAILED=$product_failed" >> $GITHUB_ENV
+            echo "TEST_BROKEN=$test_broken" >> $GITHUB_ENV
+      - name: Summarize failed cases
+        id: summarize
+        run: |
+            # 从环境变量中获取值并转换为整数
+            product_failed=$PRODUCT_FAILED
+            test_broken=$TEST_BROKEN
+            
+            # 汇总失败案例
+            failed_cases=$((product_failed + test_broken))
+            
+            # 将汇总结果存储到环境变量
+            echo "FAILED_CASES=$failed_cases" >> $GITHUB_ENV     
       - name: Send Feishu Message to taosX CI Group
         env:
           COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
@@ -426,7 +456,8 @@ jobs:
           InfluxDB Connector 覆盖率${result_array[1]}\n
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
-          测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          本次测试执行未通过用例数为 $FAILED_CASES 个\n
+          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
       
       - name: Send Feishu Message to Platform Alert Group
@@ -453,7 +484,8 @@ jobs:
           InfluxDB Connector 覆盖率${result_array[1]}\n
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
-          测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          本次测试执行未通过用例数为 $FAILED_CASES 个\n
+          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
 
       - name: Send Feishu Message to Platform Notifications Group
@@ -479,5 +511,61 @@ jobs:
           InfluxDB Connector 覆盖率${result_array[1]}\n
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
-          测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          本次测试执行未通过用例数为 $FAILED_CASES 个\n
+          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          post_to_feishu "$PR_INFO"
+
+  failed_report:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [run_e2e_test,set_env]
+    if: failure()
+    steps: 
+      - name: Get test case result
+        id: set-env-vars
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          # 提取 "Product defects" 的第二个字段
+          product_failed=$(awk -F',' '/"Product defects"/ {print $2}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
+          
+          # 提取 "Test defects" 的第三个字段
+          test_broken=$(awk -F',' '/"Test defects"/ {print $3}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
+          
+          # 将值存储到环境变量
+          echo "PRODUCT_FAILED=$product_failed" >> $GITHUB_ENV
+          echo "TEST_BROKEN=$test_broken" >> $GITHUB_ENV
+      - name: Summarize failed cases
+        id: summarize
+        run: |
+          # 从环境变量中获取值并转换为整数
+          product_failed=$PRODUCT_FAILED
+          test_broken=$TEST_BROKEN
+          
+          # 汇总失败案例
+          failed_cases=$((product_failed + test_broken))
+          
+          # 将汇总结果存储到环境变量
+          echo "FAILED_CASES=$failed_cases" >> $GITHUB_ENV
+      
+      - name: Send Feishu Message to Platform Alert Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+          
+          PR_INFO="taosX 仓库代码的测试覆盖率\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          本次测试执行失败，未通过用例数为 $FAILED_CASES 个\n
+          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"

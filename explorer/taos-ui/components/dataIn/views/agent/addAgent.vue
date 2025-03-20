@@ -26,8 +26,7 @@
     </section>
     <section v-else-if="active == 3" class="mt20">
       <p v-dompurify-html="t('dataIn.taosxAgent.3')"></p>
-      <pre v-highlight><code style="text-wrap: wrap;word-wrap:break-word">endpoint="{{ taoxAddress }}"
-token="{{ token }}"</code></pre>
+      <pre v-highlight><code style="text-wrap: wrap;word-wrap:break-word">{{ toml }}</code></pre>
       <p>
         <a target="_blank" :href="agentAddress">{{ t('dataIn.taosxAgent.6') }}</a>
       </p>
@@ -88,6 +87,7 @@ token="{{ token }}"</code></pre>
 <script lang="ts" setup>
 import 'github-markdown-css/github-markdown-light.css';
 import { t } from 'locales';
+import { trim } from 'lodash-es';
 import { getDataInProps } from '../../model/useDataIn';
 import { OfficalUrl, isEn, TdDocsUrl, instance } from 'config';
 const dataInProps = getDataInProps();
@@ -153,11 +153,23 @@ const isNamError = computed(() => {
     return false;
   }
 });
-const token = computed(() => {
-  return tokenMap[name.value] ?? '';
-});
-const taoxAddress = computed(() => {
-  return dataInProps.taoxAddress;
+// const token = computed(() => {
+//   return tokenMap[name.value].token ?? '';
+// });
+// const ca = computed(() => {
+//   return tokenMap[name.value].ca ?? '';
+// });
+// const taoxAddress = computed(() => {
+//   return dataInProps.taoxAddress;
+// });
+const toml = computed(() => {
+  const addr = dataInProps.taoxAddress;
+  const { token, ca } = tokenMap[name.value];
+  if (ca) {
+    return `endpoint="${addr}"\ntoken="${token}"\nca="""\n${trim(ca)}\n"""\n`;
+  } else {
+    return `endpoint="${addr}"\ntoken="${token}"\n`;
+  }
 });
 const nextButton = computed(() => {
   if (loading.value) return true;
@@ -194,8 +206,8 @@ async function submit() {
   loading.value = true;
   const fn = props.agent?.id ? dataInProps.agent.api.editAgent : dataInProps.agent.api.addNewAgent;
 
-  const { token, id } = await fn(name.value, props.agent?.id);
-  tokenMap[name.value] = token;
+  const { token, id, ca } = await fn(name.value, props.agent?.id);
+  tokenMap[name.value] = { token, ca };
   active.value++;
   emit('update', name.value);
   Object.assign(

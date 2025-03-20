@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
     datatypes::{Field, Fields, Schema},
@@ -38,7 +38,10 @@ use tokio::net::UnixListener;
 use tokio::sync::RwLock;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
-use tonic::{transport::Server, Request, Response, Status, Streaming};
+use tonic::{
+    transport::{Identity, Server, ServerTlsConfig},
+    Request, Response, Status, Streaming,
+};
 use tracing::{error, info, instrument, warn, Instrument};
 use uuid::Uuid;
 
@@ -1238,6 +1241,9 @@ pub fn encode_csv_config_file(csv_path: String) -> anyhow::Result<String> {
 pub struct RpcConfig {
     pub tcp: Option<SocketAddr>,
     pub unix: Option<PathBuf>,
+    pub ssl_cert: Option<String>,
+    pub ssl_key: Option<String>,
+    pub ssl_ca: Option<String>,
 }
 
 impl RpcConfig {
@@ -1270,7 +1276,31 @@ impl RpcConfig {
             .max_decoding_message_size(usize::MAX)
             .max_encoding_message_size(usize::MAX);
         if let Some(tcp) = self.tcp {
-            Server::builder()
+            let mut builder = Server::builder();
+
+            if let Some(cert_path) = self.ssl_cert {
+                let key_path = self.ssl_key.ok_or_else(|| {
+                    anyhow::format_err!("Certificate and private key should both exist")
+                })?;
+                if let Some(ca) = &self.ssl_ca {
+                    let ca = taosx_core::utils::cert::parse_certificate_to_string(ca)
+                        .map_err(|err| anyhow::format_err!("Invalid ssl ca cert: {err:#}"))?;
+                    crate::serve::controller::agent::set_grpc_ssl_ca_certificate(ca);
+                } else {
+                    bail!("ssl_cert, ssl_key, and ssl_ca should all exist");
+                }
+                let cert = std::fs::read_to_string(&cert_path)
+                    .with_context(|| format!("Unable to open ssl cert file {}", cert_path))?;
+                let key = std::fs::read_to_string(&key_path)
+                    .with_context(|| format!("Unable to open ssl key file {}", key_path))?;
+                let tls_config = ServerTlsConfig::new().identity(Identity::from_pem(&cert, &key));
+                tracing::info!("SSL certificate loaded from {} and {}", cert_path, key_path);
+                builder = builder
+                    .tls_config(tls_config)
+                    .context("SSL certificate error")?;
+            }
+
+            builder
                 .max_frame_size(max_frame_size)
                 .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
                 .http2_keepalive_timeout(Some(Duration::from_secs(60)))
@@ -1306,6 +1336,9 @@ impl Default for RpcConfig {
         Self {
             tcp: Some("0.0.0.0:6055".parse().unwrap()),
             unix: Default::default(),
+            ssl_cert: Default::default(),
+            ssl_key: Default::default(),
+            ssl_ca: Default::default(),
         }
     }
 }

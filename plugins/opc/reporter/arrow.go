@@ -108,11 +108,14 @@ func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 	defer valueField.Release()
 	statusField := recordBuilder.Field(5).(*array.Int64Builder) // status
 	defer statusField.Release()
+	requestField := recordBuilder.Field(6).(*array.TimestampBuilder) // request time
+	defer requestField.Release()
 	for _, msg := range list {
 		idField.Append(msg.IDStr)
 		nameField.Append(msg.Name)
 		tsField.Append(arrow.Timestamp(msg.Timestamp.UnixMilli()))
 		clientTsField.Append(arrow.Timestamp(msg.FinishTime.UnixMilli()))
+		requestField.Append(arrow.Timestamp(msg.StartTime.UnixMilli()))
 		if msg.Value == nil {
 			valueField.AppendNull()
 		} else {

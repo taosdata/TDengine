@@ -7,8 +7,8 @@ use taos::{Code, IntoDsn};
 use taosx_core::utils::dsn::json_to_dsn;
 use utoipa::*;
 
-use taosx_core::runners::opc::config::csv::column::CsvColumn;
-use taosx_core::runners::opc::config::csv::get_csv_headers;
+use taosx_core::plugins::runners::opc::csv::column::CsvColumn;
+use taosx_core::plugins::runners::opc::csv::get_csv_headers;
 use taosx_core::{get_data_dir, runners};
 use taosx_ipc::prelude::IpcDataType;
 

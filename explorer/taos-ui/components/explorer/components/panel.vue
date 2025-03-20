@@ -126,7 +126,6 @@ function logSortChange() {
   position: relative;
   height: 100%;
   min-height: 300px;
-  margin-top: 15px;
 
   /* overflow: hidden; */
   &:deep(.el-tabs__content) {
