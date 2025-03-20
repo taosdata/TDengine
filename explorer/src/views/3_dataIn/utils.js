@@ -487,7 +487,7 @@ function handleOptions(options, paramsConfig, id) {
               key
             )
               ? checkValue(currentData.security_mode) &&
-                  currentData.security_mode !== opcuaSecuritymodeValue
+              currentData.security_mode !== opcuaSecuritymodeValue
               : required;
           } else {
             return required;
@@ -695,131 +695,131 @@ function handleDatasets(datasets, paramsConfig) {
     name: "datasets",
     children: params
       ? params?.map((item, index) => {
-          const { display, description, name, value, required = false } = item;
-          const config = {
-            label: display,
-            labelShow: false,
-            labelWidth: "0px",
-            description,
-            required: true,
-            field: name,
-            name,
-            type: "dataset",
-            accept: ".csv",
-            defaultValue: value ?? "",
-            disabled: (_, originalData) => {
-              const optionData = originalData[optionsField];
-              if (!optionData.system_configuration) return false;
-              return (
-                optionData.system_configuration != piOptionShowValue && !!index
-              );
-            },
-          };
-          if (templateUrlMap[name]) {
-            config.templateUrl = templateUrlMap[name];
-          }
-          handleInfoParams(config);
-          return config;
-        })
+        const { display, description, name, value, required = false } = item;
+        const config = {
+          label: display,
+          labelShow: false,
+          labelWidth: "0px",
+          description,
+          required: true,
+          field: name,
+          name,
+          type: "dataset",
+          accept: ".csv",
+          defaultValue: value ?? "",
+          disabled: (_, originalData) => {
+            const optionData = originalData[optionsField];
+            if (!optionData.system_configuration) return false;
+            return (
+              optionData.system_configuration != piOptionShowValue && !!index
+            );
+          },
+        };
+        if (templateUrlMap[name]) {
+          config.templateUrl = templateUrlMap[name];
+        }
+        handleInfoParams(config);
+        return config;
+      })
       : categories.map((item, index) => {
-          const {
-            category,
-            display,
-            short_description,
-            description: desc,
-            target,
-            params: categoryParams,
-          } = item;
-          const paramConfig = {
-            label: display,
-            name: category,
-            labelShow: false,
-            labelWidth: "0px",
-            category,
-            radio: !!index,
-            description: desc,
-            short_description,
-            field: handleField(target.name),
-            type: "dataset",
-            accept: ".csv",
-            templateUrl: templateUrlMap[currentType],
-            placeholder: target.description,
-            required: target.required,
-            multiple: target.multiple,
-            editable: target.editable,
-            selectable: target.selectable,
-            children: categoryParams
-              ? categoryParams.map((categoryParam) => {
-                  const config = {
-                    ...categoryParam,
-                    label: categoryParam.display,
-                    field: categoryParam.name,
-                    defaultValue: categoryParam?.multiple
-                      ? categoryParam?.value?.split(",")
-                      : categoryParam.value ?? "",
-                    multiple: categoryParam.multiple ?? false,
-                  };
+        const {
+          category,
+          display,
+          short_description,
+          description: desc,
+          target,
+          params: categoryParams,
+        } = item;
+        const paramConfig = {
+          label: display,
+          name: category,
+          labelShow: false,
+          labelWidth: "0px",
+          category,
+          radio: !!index,
+          description: desc,
+          short_description,
+          field: handleField(target.name),
+          type: "dataset",
+          accept: ".csv",
+          templateUrl: templateUrlMap[currentType],
+          placeholder: target.description,
+          required: target.required,
+          multiple: target.multiple,
+          editable: target.editable,
+          selectable: target.selectable,
+          children: categoryParams
+            ? categoryParams.map((categoryParam) => {
+              const config = {
+                ...categoryParam,
+                label: categoryParam.display,
+                field: categoryParam.name,
+                defaultValue: categoryParam?.multiple
+                  ? categoryParam?.value?.split(",")
+                  : categoryParam.value ?? "",
+                multiple: categoryParam.multiple ?? false,
+              };
 
-                  handleHintType(config, categoryParam.hint);
-                  // 特殊处理 opc 的点位过滤
-                  if (currentType.startsWith("opc")) {
+              handleHintType(config, categoryParam.hint);
+              // 特殊处理 opc 的点位过滤
+              if (currentType.startsWith("opc")) {
+                if (
+                  config.field == "pattern" ||
+                  config.field == "browse_name_pattern"
+                ) {
+                  config.type = "pattern";
+                }
+                if (config.field == "namespaces") {
+                  config.options = (that) => {
+                    const { namespaces = [] } =
+                      that.$store.state.app.connectivityCheckResult;
+                    let list = [];
+                    namespaces.map((item, index) => {
+                      if (index > 0) {
+                        list.push({ label: item, value: `${index}` });
+                      }
+                    });
+                    return list;
+                  };
+                }
+              } else if (
+                currentType == "pi" ||
+                currentType == "pibackfill"
+              ) {
+                if (config.field == "filter_value") {
+                  config.options = (that) => {
+                    let activeTabValues = getActiveTabValueObject(
+                      that.sourceParent.sourceForm.data
+                    );
                     if (
-                      config.field == "pattern" ||
-                      config.field == "browse_name_pattern"
+                      that.sourceParent.sourceForm.data[optionsField][
+                        "system_configuration"
+                      ].indexOf("AF") < 0
                     ) {
-                      config.type = "pattern";
+                      activeTabValues["filter_value_type"] = "point";
+                      return [{ label: "point name", value: "point" }];
+                    } else {
+                      activeTabValues["filter_value_type"] = "template";
+                      return [{ label: "template", value: "template" }];
                     }
-                    if (config.field == "namespaces") {
-                      config.options = (that) => {
-                        const { namespaces = [] } =
-                          that.$store.state.app.connectivityCheckResult;
-                        let list = [];
-                        namespaces.map((item, index) => {
-                          if (index > 0) {
-                            list.push({ label: item, value: `${index}` });
-                          }
-                        });
-                        return list;
-                      };
-                    }
-                  } else if (
-                    currentType == "pi" ||
-                    currentType == "pibackfill"
-                  ) {
-                    if (config.field == "filter_value") {
-                      config.options = (that) => {
-                        let activeTabValues = getActiveTabValueObject(
-                          that.sourceParent.sourceForm.data
-                        );
-                        if (
-                          that.sourceParent.sourceForm.data[optionsField][
-                            "system_configuration"
-                          ].indexOf("AF") < 0
-                        ) {
-                          activeTabValues["filter_value_type"] = "point";
-                          return [{ label: "point name", value: "point" }];
-                        } else {
-                          activeTabValues["filter_value_type"] = "template";
-                          return [{ label: "template", value: "template" }];
-                        }
-                      };
-                    }
-                  }
-                  return config;
-                })
-              : undefined,
-            defaultValue: isArray(target?.value) ? target.value.join(",") : "",
-            disabled: (currentData, topData, currentDefinition) => {
-              if (currentDefinition?.id?.startsWith("opc")) {
-                return !topData?.[optionsField]?.endpoint;
-              } else {
-                return false;
+                  };
+                }
               }
-            },
-          };
-          handleInfoParams(paramConfig);
-          return paramConfig;
-        }),
+              return config;
+            })
+            : undefined,
+          defaultValue: isArray(target?.value) ? target.value.join(",") : "",
+          disabled: (currentData, topData, currentDefinition) => {
+            if (currentDefinition?.id?.startsWith("opc")) {
+              return !topData?.[optionsField]?.endpoint;
+            } else {
+              return false;
+            }
+          },
+        };
+        handleInfoParams(paramConfig);
+        return paramConfig;
+      }),
   };
   if (categories) {
     tabValue = tabValue === SelectAllPoints ? "select_all_points" : tabValue;
@@ -935,13 +935,13 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
             if (id === "kafka" && group.display_order == 1) {
               return currentData.sasl_mechanism == "GSSAPI"
                 ? currentData[valueField] &&
-                    !["sasl_username", "sasl_password"].includes(name)
+                !["sasl_username", "sasl_password"].includes(name)
                 : currentData[valueField] &&
-                    [
-                      "sasl_mechanism",
-                      "sasl_username",
-                      "sasl_password",
-                    ].includes(name);
+                [
+                  "sasl_mechanism",
+                  "sasl_username",
+                  "sasl_password",
+                ].includes(name);
             } else {
               return currentData[valueField];
             }
@@ -1502,19 +1502,19 @@ export function getWriteConfigData(data) {
   for (const [key, value] of Object.entries(writeConfigData)) {
     const cacheKey = key.replace(/^cache~/, '');
     const archiveKey = key.replace(/^archive~/, '');
-  
+
     if (key.startsWith('cache')) {
       global.cache[cacheKey] = value;
     } else if (key.startsWith('archive')) {
       global.archive[archiveKey] = value;
     } else if (valueMap.includes(key)) {
       const noTypeKey = key.replace(/_type$/, '');
-      global[noTypeKey] = value === 'replace_to' ?  {replace_to:  writeConfigData[noTypeKey]} : value
+      global[noTypeKey] = value === 'replace_to' ? { replace_to: writeConfigData[noTypeKey] } : value
     } else {
       global[key] = value
     }
   }
-  console.log('output:',global);
+  console.log('output:', global);
   return global
 }
 
@@ -1610,10 +1610,10 @@ function getGroupsQuery(groups, query, definition) {
             if (definition.id == "mongodb") {
               query.push(
                 "tls" +
-                  "=" +
-                  checkValue(
-                    getQueryParamValue(groups[key]["cert_key_file_path"])
-                  )
+                "=" +
+                checkValue(
+                  getQueryParamValue(groups[key]["cert_key_file_path"])
+                )
               );
             }
             query.push(field + "=" + getQueryParamValue(groups[key][k]));
@@ -1652,7 +1652,8 @@ export function getAdvancedHealth(advanced) {
   if (!advanced) return {};
   const health = {}
   for (let key in healthInit) {
-    health[key] = key == 'busy_threshold' ? advanced[key]/100 : advanced[key]
+    if (advanced[key] === undefined || advanced[key] === "") continue;
+    health[key] = key == 'busy_threshold' ? advanced[key] / 100 : advanced[key]
   }
   return health
 }
@@ -1944,7 +1945,7 @@ export function checkJson(_, value, callback) {
 }
 
 // 将模版解析的结果转换成和用sql查询返回的数据结构一致
-export function convert(data){
+export function convert(data) {
   return [].concat(data).flatMap(item => {
     // 提取 tags 中所有字段名
     const tags = item.tags.map(tag => tag.name);
@@ -1952,12 +1953,12 @@ export function convert(data){
     return allData.map(col => {
       const name = col.name.replace(/`/g, ''); // 去除反引号
       const type = col.type;
-      const length = col.length !== null ? col.length : ''; 
-      const isTag = tags.includes(name) ? 'TAG' : ''; 
+      const length = col.length !== null ? col.length : '';
+      const isTag = tags.includes(name) ? 'TAG' : '';
 
       // 返回字段数据，带 TAG 的字段加上 TAG，其他字段正常返回
-      return length === '' 
-        ? [name, type, length] 
+      return length === ''
+        ? [name, type, length]
         : [name, type, length, isTag].filter(Boolean); // 去除空值
     });
   });
