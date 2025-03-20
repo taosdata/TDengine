@@ -390,7 +390,6 @@ function initDnodeAndMnode {
             #check snode created
             ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$ANODETmp" == "" ]]; then
-                mkdir -p "/var/log/taos/taosanode"
                 taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create anode \"127.0.0.1:6090\";"
                 ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
                 if [[ "$ANODETmp" != "" ]]; then
@@ -452,6 +451,11 @@ function run_tdgpt() {
     if [ ! -f "$CONFIG_FILE" ]; then
         logger "ERROR" "Configuration file $CONFIG_FILE not found!"
     fi
+    TAOSANODE_LOG="/var/log/taos/taosanode"
+    if [ ! -d "$TAOSANODE_LOG" ]; then
+        mkdir -p "$TAOSANODE_LOG"
+    fi
+    
     logger "INFO" "Starting uWSGI with config: $CONFIG_FILE"
     /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE" &
     UWSGI_PID=$!
