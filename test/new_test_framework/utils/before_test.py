@@ -339,6 +339,21 @@ class BeforeTest:
                 adapter["log_path"] = setting["spec"]["adapter_config"]["log"]["path"]
                 adapter["taos_firstEP"] = setting["spec"]["taos_config"]["firstEP"]
                 adapter["taos_logDir"] = setting["spec"]["taos_config"]["logDir"]
+            if setting.get("name") == "taoskeeper":
+                # TODO:解析taoskeeper的配置
+                request.session.restful = True
+                taoskeeper = {}
+                taoskeeper["host"] = setting["fqdn"][0]
+                taoskeeper["port"] = setting["spec"]["port"]
+                taoskeeper["username"] = setting["spec"]["taoskeeper_config"]["username"]
+                taoskeeper["password"] = setting["spec"]["taoskeeper_config"]["password"]
+                taoskeeper["path"] = os.path.dirname(setting["spec"]["config_file"])
+                taoskeeper["RotationInterval"] = setting["spec"]["taoskeeper_config"]["RotationInterval"]
+                taoskeeper["level"] = setting["spec"]["taoskeeper_config"]["level"]
+                taoskeeper["rotationSize"] = setting["spec"]["taoskeeper_config"]["rotationSize"]
+                taoskeeper["rotationCount"] = setting["spec"]["taoskeeper_config"]["rotationCount"]
+                taoskeeper["keepDays"] = setting["spec"]["taoskeeper_config"]["keepDays"]
+                taoskeeper["reservedDiskSize"] = setting["spec"]["taoskeeper_config"]["reservedDiskSize"]
                 
         request.session.host = servers[0]["host"]
         request.session.port = servers[0]["port"]
@@ -350,6 +365,7 @@ class BeforeTest:
         request.session.query_policy = 1
         request.session.yaml_data = yaml_data
         request.session.adapter = adapter
+        request.session.taoskepper = taoskeeper
 
 
     def init_dnode_cluster(self, request, dnode_nums, mnode_nums, independentMnode=True, level=1, disk=1):
