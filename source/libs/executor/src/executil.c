@@ -151,7 +151,7 @@ int32_t getResultRowFromBuf(SExprSupp* pSup, const char* inBuf, size_t inBufSize
     *outBufSize += leftLen;
   }
 
-  qError("[InternalERR] get result inBufSize:%d, outBufSize:%d", inBufSize, *outBufSize);
+  qError("[InternalERR] get result inBufSize:%zu, outBufSize:%zu", inBufSize, *outBufSize);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -203,7 +203,7 @@ int32_t putResultRowToBuf(SExprSupp* pSup, const char* inBuf, size_t inBufSize, 
     pBuf += leftLen;
   }
 
-  qError("[InternalERR] put result inBufSize:%d, outBufSize:%d", inBufSize, *outBufSize);
+  qError("[InternalERR] put result inBufSize:%zu, outBufSize:%zu", inBufSize, *outBufSize);
   return TSDB_CODE_SUCCESS;
 }
 
