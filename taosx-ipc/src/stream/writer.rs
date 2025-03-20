@@ -42,6 +42,7 @@ pub enum IpcDataType {
     NChar(u32),
     Json,
     VarBinary(u32),
+    Decimal(u8, u8),
 }
 
 impl IpcDataType {
@@ -64,6 +65,7 @@ impl IpcDataType {
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
             IpcDataType::VarBinary(len) => format!("varbinary({len})"),
+            IpcDataType::Decimal(precision, scale) => format!("decimal({precision},{scale})"),
         }
     }
     pub fn sql_repr(&self) -> String {
@@ -85,6 +87,7 @@ impl IpcDataType {
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
             IpcDataType::VarBinary(len) => format!("varbinary({len})"),
+            IpcDataType::Decimal(precision, scale) => format!("decimal({precision},{scale})"),
         }
     }
 
@@ -110,6 +113,7 @@ impl IpcDataType {
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
             IpcDataType::VarBinary(len) => format!("varbinary({len})"),
+            IpcDataType::Decimal(precision, scale) => format!("decimal({precision},{scale})"),
         }
     }
 
@@ -132,6 +136,14 @@ impl IpcDataType {
             IpcDataType::NChar(_len) => Ty::NChar,
             IpcDataType::Json => Ty::Json,
             IpcDataType::VarBinary(_len) => Ty::VarBinary,
+            IpcDataType::Decimal(precision, _) => {
+                // TODO: 这里使用 P 进行判断，如果需要更精确的判断需要结合列长度，即 describe sql 返回的 length 字段值
+                if *precision <= 18 {
+                    Ty::Decimal64
+                } else {
+                    Ty::Decimal
+                }
+            }
         }
     }
 
@@ -154,6 +166,7 @@ impl IpcDataType {
             IpcDataType::NChar(_) => DataType::Utf8,
             IpcDataType::Json => DataType::Utf8,
             IpcDataType::VarBinary(_) => DataType::Utf8,
+            IpcDataType::Decimal(precision, scale) => DataType::Decimal128(*precision, *scale as _),
         }
     }
 
@@ -171,7 +184,28 @@ impl FromStr for IpcDataType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
+        let s = s.to_ascii_lowercase();
+        if let Some(s) = s.trim().strip_prefix("decimal") {
+            let mut ps = s
+                .split_terminator(['(', ',', ')'])
+                .filter(|s| !s.trim().is_empty());
+            let Some(precision) = ps.next() else {
+                return Err("decimal type precision or scale not found".to_string());
+            };
+            let Some(scale) = ps.next() else {
+                return Err("decimal type precision or scale not found".to_string());
+            };
+            let precision: u8 = precision
+                .trim()
+                .parse()
+                .map_err(|e: std::num::ParseIntError| e.to_string())?;
+            let scale: u8 = scale
+                .trim()
+                .parse()
+                .map_err(|e: std::num::ParseIntError| e.to_string())?;
+            return Ok(Self::Decimal(precision, scale));
+        }
+        match s.as_str() {
             "null" | "none" => Ok(Self::Null),
             "b" | "bool" | "boolean" => Ok(Self::Bool),
             "i8" | "tinyint" => Ok(Self::Int8),
@@ -267,6 +301,9 @@ impl From<&ArrowDataType> for IpcDataType {
             ArrowDataType::LargeUtf8 => IpcDataType::VarChar(4096),
             ArrowDataType::Null => IpcDataType::Null,
             ArrowDataType::List(_) => IpcDataType::VarChar(4096),
+            ArrowDataType::Decimal128(precision, scale) => {
+                IpcDataType::Decimal(*precision, *scale as _)
+            }
             _ => {
                 panic!("unsupported arrow data type: {:?}", value);
             }

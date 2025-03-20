@@ -139,7 +139,7 @@ sqlx = { version = "0.8", features = [
   "bigdecimal",
   "tls-rustls",
 ] }
-bigdecimal = "0.4"
+bigdecimal.workspace = true
 bit-vec = "0.6.3"
 uuid = "1.4.0"
 sqlx-postgres = { version = "0.8", features = [

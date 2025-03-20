@@ -70,10 +70,11 @@ parking_lot = "0.12.3"
 tempfile = "3.13.0"
 rand = "0.8"
 bitfield = "0.16.1"
+bigdecimal = "0.4"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "7a96cfe6"
+rev = "d78af99"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]

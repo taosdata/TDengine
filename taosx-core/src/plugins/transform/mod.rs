@@ -19,9 +19,9 @@ use std::{
 use anyhow::Context;
 use arrow::{
     array::{
-        Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float16Array, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
-        LargeStringArray, NullArray, StringArray, TimestampMicrosecondArray,
+        Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Decimal128Array, Float16Array,
+        Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+        LargeBinaryArray, LargeStringArray, NullArray, StringArray, TimestampMicrosecondArray,
         TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt64Array,
     },
     compute::concat_batches,
@@ -1928,6 +1928,35 @@ pub fn pivot(
                         DataType::UInt32 => {
                             value_array!(name, Int32Array, row)
                         }
+                        DataType::Decimal128(precision, scale) => {
+                            let value_column = value_column
+                                .as_any()
+                                .downcast_ref::<Decimal128Array>()
+                                .unwrap();
+                            if value_column.is_null(row) {
+                                (
+                                    Arc::new(Field::new(
+                                        name,
+                                        value_column.data_type().clone(),
+                                        true,
+                                    )),
+                                    Arc::new(<Decimal128Array>::new_null(1)),
+                                )
+                            } else {
+                                (
+                                    Arc::new(Field::new(
+                                        name,
+                                        value_column.data_type().clone(),
+                                        true,
+                                    )),
+                                    Arc::new(
+                                        <Decimal128Array>::from(vec![value_column.value(row)])
+                                            .with_precision_and_scale(*precision, *scale)
+                                            .context("pivot build decimal array error")?,
+                                    ),
+                                )
+                            }
+                        }
                         DataType::UInt64 => {
                             value_array!(name, Int32Array, row)
                         }
@@ -2382,6 +2411,13 @@ impl ArrowFieldExt for Field {
             arrow::datatypes::DataType::LargeBinary => taos::Ty::VarChar,
             arrow::datatypes::DataType::Utf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::LargeUtf8 => taos::Ty::VarChar,
+            arrow::datatypes::DataType::Decimal128(p, _) => {
+                if *p <= 18 {
+                    taos::Ty::Decimal64
+                } else {
+                    taos::Ty::Decimal
+                }
+            }
             _ => todo!(),
         }
     }
@@ -2454,6 +2490,11 @@ impl MessageArrowRecords {
                             ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                         }
                     }
+                    DataType::Decimal128(precision, scale) => ColumnMeta::Column(
+                        Described::new(field.name(), field.ty(), None).with_origin_ty_name(
+                            &format!("{}({},{})", field.ty(), precision, scale),
+                        ),
+                    ),
                     _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
                 }
             })

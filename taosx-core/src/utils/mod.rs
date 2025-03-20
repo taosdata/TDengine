@@ -47,7 +47,9 @@ pub fn value_equals(value: &Value, other: &Value) -> bool {
         (Value::UBigInt(l0), Value::UBigInt(r0)) => l0 == r0,
         (Value::Json(l0), Value::Json(r0)) => l0 == r0,
         (Value::VarBinary(l0), Value::VarBinary(r0)) => l0 == r0,
-        (Value::Decimal(l0), Value::Decimal(r0)) => l0 == r0,
+        (Value::Decimal(l0), Value::Decimal(r0)) | (Value::Decimal64(l0), Value::Decimal64(r0)) => {
+            l0 == r0
+        }
         (Value::Blob(l0), Value::Blob(r0)) => l0 == r0,
         (Value::MediumBlob(l0), Value::MediumBlob(r0)) => l0 == r0,
         _ => false,

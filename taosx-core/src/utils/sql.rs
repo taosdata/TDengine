@@ -783,6 +783,17 @@ pub fn sql_values_from_record_batch(
                             .unwrap();
                         write!(cursor, "{}", array.value(row))?;
                     }
+                    arrow_schema::DataType::Decimal128(_, scale) => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::Decimal128Array>()
+                            .unwrap();
+                        let v = bigdecimal::BigDecimal::from_bigint(
+                            array.value(row).into(),
+                            *scale as _,
+                        );
+                        write!(cursor, "{}", v)?;
+                    }
                     arrow_schema::DataType::Float16 => {
                         let array = array
                             .as_any()
@@ -1066,6 +1077,15 @@ pub fn sql_values_from_record_batch_skip_null(
                         .downcast_ref::<arrow::array::UInt64Array>()
                         .unwrap();
                     insert_col_values.push_str(&array.value(row).to_string());
+                }
+                arrow_schema::DataType::Decimal128(_, scale) => {
+                    let array = array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Decimal128Array>()
+                        .unwrap();
+                    let v =
+                        bigdecimal::BigDecimal::from_bigint(array.value(row).into(), *scale as _);
+                    insert_col_values.push_str(&v.to_string());
                 }
                 arrow_schema::DataType::Float16 => {
                     let array = array

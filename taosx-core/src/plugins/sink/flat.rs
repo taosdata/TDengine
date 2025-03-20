@@ -3177,6 +3177,9 @@ pub mod tests {
             Int64 => Arc::new(Int64Array::from_iter((0..len).map(|i| i as _).map(Some))),
             Float32 => Arc::new(Float32Array::from_iter((0..len).map(|i| i as _).map(Some))),
             Float64 => Arc::new(Float64Array::from_iter((0..len).map(|i| i as _).map(Some))),
+            Decimal(_, _) => Arc::new(Decimal128Array::from_iter(
+                (0..len).map(|i| i as _).map(Some),
+            )),
             Timestamp(unit) => match unit {
                 arrow_schema::TimeUnit::Second => unreachable!("Second is not supported"),
                 arrow_schema::TimeUnit::Millisecond => {
