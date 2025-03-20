@@ -37,6 +37,9 @@ import taos
 import taosrest
 import taosws
 
+from taos.cinterface import *
+taos.taos_options(6, "native")
+
 def checkRunTimeError():
     import win32gui
     timeCount = 0
@@ -258,8 +261,9 @@ if __name__ == "__main__":
     #
     # do exeCmd command
     #
+    taosAdapter = True  # default is websocket , so must start taosAdapter
     if not execCmd == "":
-        if taosAdapter or taosAdapter or restful or websocket:
+        if taosAdapter or restful or websocket:
             tAdapter.init(deployPath)
         else:
             tdDnodes.init(deployPath)

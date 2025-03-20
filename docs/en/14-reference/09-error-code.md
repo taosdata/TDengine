@@ -41,6 +41,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80000107 | Ref ID is removed                 | The referenced ref resource has been released                | Preserve the scene and logs, report issue on github          |
 | 0x80000108 | Invalid Ref ID                    | Invalid ref ID                                               | Preserve the scene and logs, report issue on github          |
 | 0x8000010A | Ref is not there                  | ref information does not exist                               | Preserve the scene and logs, report issue on github          |
+| 0x8000010B | Driver was not loaded                   | libtaosnative.so or libtaosws.so was not found in the system path                           | Reinstall the client driver |
+| 0x8000010C | Function was not loaded from the driver | some function defined in libtaos.so are not implemented in libtaosnative.so or libtaosws.so | Reinstall the client driver |
 | 0x80000110 | Unexpected generic error          | System internal error                                        | Preserve the scene and logs, report issue on github          |
 | 0x80000111 | Action in progress                | Operation in progress                                        | 1. Wait for the operation to complete 2. Cancel the operation if necessary 3. If it exceeds a reasonable time and still not completed, preserve the scene and logs, or contact customer support |
 | 0x80000112 | Out of range                      | Configuration parameter exceeds allowed value range          | Change the parameter                                         |
