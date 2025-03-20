@@ -2696,7 +2696,7 @@ void taskDbDestroy(void* pDb, bool flush) {
   }
 
   int64_t et = taosGetTimestampMs();
-  stDebug("%s destroy stream backend:%p completed, elapsed time:%.2fs", wrapper->idstr, wrapper, (et - st)/1000.0);
+  stDebug("%s destroy stream backend:%p completed, elapsed time:%.2fs", wrapper->idstr, wrapper, (et - st) / 1000.0);
 
   taosMemoryFree(wrapper->idstr);
   taosMemoryFree(wrapper->path);
@@ -3115,7 +3115,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
     STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;                                                   \
     TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));                                                      \
     char toString[128] = {0};                                                                                        \
-    TAOS_UNUSED((ginitDict[i].toStrFunc((void*)key, toString)));                      \
+    TAOS_UNUSED((ginitDict[i].toStrFunc((void*)key, toString)));                                                     \
     int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                     \
     rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pCf)[ginitDict[i].idx];    \
     rocksdb_writeoptions_t*         opts = wrapper->writeOpt;                                                        \
@@ -3224,6 +3224,8 @@ int32_t streamStatePut_rocksdb(SStreamState* pState, const SWinKey* key, const v
     STREAM_STATE_PUT_ROCKSDB(pState, "state", &sKey, (void*)dst, (int32_t)size);
     taosMemoryFree(dst);
   }
+
+  stError("[InternalERR] user len:%d, rocks len:%d", vLen, size);
   return code;
 }
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
@@ -3585,6 +3587,8 @@ int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* k
   if (code != 0) {
     return code;
   }
+
+  stError("[InternalERR] raw len:%d to rocks len:%d", vLen, size);
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &sKey, dst, (int32_t)size);
   taosMemoryFree(dst);
 
@@ -3894,6 +3898,8 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamState* pState, SStreamStateC
   if (pVLen != NULL) *pVLen = (int32_t)tVlen;
 
   *pKey = pKTmp->key;
+  qInfo("[InternalERR]: rocsks val len:%d to user_val_len:%d", len, tVlen);
+
   return 0;
 }
 // fill cf
@@ -4233,8 +4239,10 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   res = 1;
 
 _end:
-  if (res == 0 && valSize > *pVLen){
-    stError("[InternalERR] [skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],valSize:%d bigger than get rocksdb len:%d", key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
+  if (res == 0 && valSize > *pVLen) {
+    stError("[InternalERR] [skey:%" PRId64 ",ekey:%" PRId64 ",groupId:%" PRIu64
+            "],valSize:%d bigger than get rocksdb len:%d",
+            key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
   }
   streamStateFreeCur(pCur);
   return res;
@@ -4524,7 +4532,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   int32_t klen = ginitDict[cfIdx].enFunc((void*)key, buf);
 
   ginitDict[cfIdx].toStrFunc((void*)key, toString);
-  qInfo("[InternalERR] write cfIdx:%d key:%s vlen:%d", cfIdx, toString, vlen);
+  stError("[InternalERR] write cfIdx:%d key:%s user len:%d, rocks len:%d", cfIdx, toString, vlen, size);
 
   char*   ttlV = tmpBuf;
   int32_t ttlVLen = ginitDict[cfIdx].enValueFunc(dst, size, ttl, &ttlV);
