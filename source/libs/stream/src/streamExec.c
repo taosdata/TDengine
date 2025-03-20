@@ -1019,11 +1019,13 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
 
     double el = (taosGetTimestampMs() - st) / 1000.0;
     if (el > 2.0) {  // elapsed more than 5 sec, not occupy the CPU anymore
-      stDebug("s-task:%s occupy more than 5.0s, release the exec threads and idle for 500ms", id);
+      stDebug("s-task:%s occupy more than 2.0s, release the exec threads and idle for 500ms", id);
       streamTaskSetIdleInfo(pTask, 500);
       return code;
     }
   }
+
+  
 }
 
 // the task may be set dropping/stopping, while it is still in the task queue, therefore, the sched-status can not

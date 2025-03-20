@@ -862,7 +862,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
   int32_t     vgId = TD_VID(pVnode);
   int64_t     suid = pTask->outputInfo.tbSink.stbUid;
   const char* id = pTask->id.idStr;
-  int32_t     timeout = 300;  // 5min
+  int32_t     timeout = 60;  // 1min
   int64_t     start = taosGetTimestampSec();
 
   while (pTableSinkInfo->uid == 0) {
@@ -985,6 +985,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       if (code) {
         tqDebug("s-task:%s failed to build auto create table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
         return code;
+      } else {
+        tqDebug("s-task:%s no table name given, generated sub-table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
       }
     } else {
       if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&
