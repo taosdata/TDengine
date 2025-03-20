@@ -3970,6 +3970,8 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
     }
   }
 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->keep));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -4070,6 +4072,13 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       pRsp->pColRefs = NULL;
     }
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->keep));
+  } else {
+    pRsp->keep = 0;
+  }
+
   tEndDecode(&decoder);
 
 _exit:
