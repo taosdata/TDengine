@@ -1345,6 +1345,8 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
       code = getTableMeta(pCxt, &pStmt->usingTableName, &pStableMeta, &pCxt->missCache, bUsingTable);
       if (TSDB_CODE_SUCCESS == code) {
         code = taosHashPut(pStmt->pSuperTableHashObj, tbFName, strlen(tbFName), &pStableMeta, POINTER_BYTES);
+      } else {
+        taosMemoryFreeClear(pStableMeta);
       }
     }
   }
