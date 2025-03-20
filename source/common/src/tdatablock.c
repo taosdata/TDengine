@@ -2864,7 +2864,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
         }
       }
       SRow*             pRow = NULL;
-      SRowBuildScanInfo sinfo;
+      SRowBuildScanInfo sinfo = {0};
       if ((code = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
         tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;

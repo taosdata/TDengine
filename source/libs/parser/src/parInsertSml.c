@@ -186,7 +186,7 @@ int32_t smlBuildRow(STableDataCxt* pTableCxt) {
   SRow**  pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
   TSDB_CHECK_NULL(pRow, ret, lino, end, terrno);
 
-  SRowBuildScanInfo sinfo;
+  SRowBuildScanInfo sinfo = {0};
   ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow, &sinfo);
   TSDB_CHECK_CODE(ret, lino, end);
   SRowKey key;
@@ -342,7 +342,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     TSDB_CHECK_NULL(pRow, ret, lino, end, terrno);
-    SRowBuildScanInfo sinfo;
+    SRowBuildScanInfo sinfo = {0};
     ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow, &sinfo);
     TSDB_CHECK_CODE(ret, lino, end);
     SRowKey key = {0};

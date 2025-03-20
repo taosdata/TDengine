@@ -1868,7 +1868,7 @@ static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pRe
       code = vnodeTSRowConvertToColValArray(&cxt);
       if (TSDB_CODE_SUCCESS == code) {
         SRow            **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
-        SRowBuildScanInfo sinfo;
+        SRowBuildScanInfo sinfo = {0};
         code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow, &sinfo);
       }
     }

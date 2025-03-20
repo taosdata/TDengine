@@ -307,66 +307,60 @@ _exit:
   }
   return code;
 }
-static int32_t vnodeRebuildSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg *pNewMsg, uint8_t *rewrite) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  if (pMsg->msgType != TDMT_VND_SUBMIT) {
-    return code;
-  }
+// static int32_t vnodeRebuildSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg *pNewMsg, uint8_t *rewrite) {
+//   int32_t code = 0;
+//   int32_t lino = 0;
+//   if (pMsg->msgType != TDMT_VND_SUBMIT) {
+//     return code;
+//   }
 
-  SSubmitReq2 *pReq = &(SSubmitReq2){0};
+//   SSubmitReq2 *pReq = &(SSubmitReq2){0};
 
-  SDecoder *pCoder = &(SDecoder){0};
-  SEncoder *pEncoder = &(SEncoder){0};
+//   SDecoder *pCoder = &(SDecoder){0};
+//   SEncoder *pEncoder = &(SEncoder){0};
 
-  tDecoderInit(pCoder, (uint8_t *)pMsg->pCont + sizeof(SSubmitReq2Msg), pMsg->contLen - sizeof(SSubmitReq2Msg));
-  code = tDecodeSubmitReq(pCoder, pReq);
-  TSDB_CHECK_CODE(code, lino, _exit);
+//   tDecoderInit(pCoder, (uint8_t *)pMsg->pCont + sizeof(SSubmitReq2Msg), pMsg->contLen - sizeof(SSubmitReq2Msg));
+//   code = tDecodeSubmitReq(pCoder, pReq);
+//   TSDB_CHECK_CODE(code, lino, _exit);
 
-  int32_t alen = 0;
-  tEncodeSize(tEncodeSubmitReq2, pReq, alen, code);
-  TAOS_CHECK_EXIT(code);
+//   int32_t alen = 0;
+//   tEncodeSize(tEncodeSubmitReq2, pReq, alen, code);
+//   TAOS_CHECK_EXIT(code);
 
-  alen += sizeof(SSubmitReq2Msg);
-  pNewMsg->pCont = rpcMallocCont(alen);
-  memcpy(pNewMsg->pCont, pMsg->pCont, sizeof(SSubmitReq2Msg));
-  tEncoderInit(pEncoder, pNewMsg->pCont + sizeof(SSubmitReq2Msg), alen - sizeof(SSubmitReq2Msg));
+//   alen += sizeof(SSubmitReq2Msg);
+//   pNewMsg->pCont = rpcMallocCont(alen);
+//   memcpy(pNewMsg->pCont, pMsg->pCont, sizeof(SSubmitReq2Msg));
+//   tEncoderInit(pEncoder, pNewMsg->pCont + sizeof(SSubmitReq2Msg), alen - sizeof(SSubmitReq2Msg));
 
-  code = tEncodeSubmitReqAndUpdate(pVnode, pEncoder, pReq);
-  TSDB_CHECK_CODE(code, lino, _exit);
+//   code = tEncodeSubmitReqAndUpdate(pVnode, pEncoder, pReq);
+//   TSDB_CHECK_CODE(code, lino, _exit);
 
-  pNewMsg->msgType = pMsg->msgType;
-  pNewMsg->contLen = alen;
-  pNewMsg->info = pMsg->info;
-  pNewMsg->code = pMsg->code;
+//   pNewMsg->msgType = pMsg->msgType;
+//   pNewMsg->contLen = alen;
+//   pNewMsg->info = pMsg->info;
+//   pNewMsg->code = pMsg->code;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
-    SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
-    taosArrayDestroy(pSubmitTbData->aRowP);
-    tBlobRowDestroy(pSubmitTbData->pBlobRow);
-  }
-  taosArrayDestroy(pReq->aSubmitTbData);
+//   for (int32_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
+//     SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
+//     taosArrayDestroy(pSubmitTbData->aRowP);
+//     tBlobRowDestroy(pSubmitTbData->pBlobRow);
+//   }
+//   taosArrayDestroy(pReq->aSubmitTbData);
 
-  *rewrite = 1;
+//   *rewrite = 1;
 
-_exit:
-  if (code != 0) {
-    vError("vgId:%d, failed to rebuild submit msg since %s", pVnode->config.vgId, tstrerror(code));
-  }
-  tDecoderClear(pCoder);
-  tEncoderClear(pEncoder);
-  return code;
-}
+// _exit:
+//   if (code != 0) {
+//     vError("vgId:%d, failed to rebuild submit msg since %s", pVnode->config.vgId, tstrerror(code));
+//   }
+//   tDecoderClear(pCoder);
+//   tEncoderClear(pEncoder);
+//   return code;
+// }
 static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
   int32_t code = 0;
   int64_t seq = 0;
-  // kuint8_t rewrite = 0;
-  // SRpcMsg newMsg = {0};
-  //  if (vnodeRebuildSubmitMsg(pVnode, pMsg, &newMsg, &rewrite) < 0) {
-  //    return TSDB_CODE_INVALID_MSG;
-  //  } else {
-  //    if (rewrite) pMsg = &newMsg;
-  //   }
+
   taosThreadMutexLock(&pVnode->lock);
   code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
   bool wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));

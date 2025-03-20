@@ -951,7 +951,7 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
 
 int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
   // return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
-  return tRowBuild3(pMerger->pArray, pMerger->pTSchema, ppRow);
+  return tRowBuildWithMerge(pMerger->pArray, pMerger->pTSchema, ppRow);
 }
 
 // delete skyline ======================================================

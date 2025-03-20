@@ -47,6 +47,10 @@ typedef struct SRowKey           SRowKey;
 typedef struct SValueColumn      SValueColumn;
 typedef struct SRowBuildScanInfo SRowBuildScanInfo;
 
+#define ROW_BUILD_NONE   ((uint8_t)0x1)
+#define ROW_BUILD_UPDATE ((uint8_t)0x2)
+#define ROW_BUILD_MERGE  ((uint8_t)0x4)
+
 typedef struct SBlobValOffset SBlobValOffset;
 
 #define HAS_NONE  ((uint8_t)0x1)
@@ -137,7 +141,7 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowBuildScanInfo *pScanInfo);
 int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 *pBlobRow,
                           SRowBuildScanInfo *sinfo);
-int32_t tRowBuild3(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
+int32_t tRowBuildWithMerge(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 typedef struct {
@@ -285,7 +289,6 @@ struct SBlobRow2 {
   int32_t   cap;
   SHashObj *pSeqTable;
   uint8_t  *data;
-  SHashObj *pOffsetTable;
 };
 
 typedef struct {
@@ -477,6 +480,7 @@ struct SRowBuildScanInfo {
   int32_t          kvRowSize;
 
   int8_t hasBlob;
+  int8_t scanType;
 };
 #endif
 

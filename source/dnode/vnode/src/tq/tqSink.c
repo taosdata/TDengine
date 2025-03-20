@@ -842,7 +842,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
     }
 
     SRow*             pRow = NULL;
-    SRowBuildScanInfo sinfo;
+    SRowBuildScanInfo sinfo = {0};
     code = tRowBuild(pVals, (STSchema*)pTSchema, &pRow, &sinfo);
     if (code != TSDB_CODE_SUCCESS) {
       tDestroySubmitTbData(pTableData, TSDB_MSG_FLG_ENCODE);
