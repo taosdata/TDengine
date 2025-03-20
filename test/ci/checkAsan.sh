@@ -22,9 +22,9 @@ SCRIPT_DIR=$(pwd)
 
 IN_TDINTERNAL="community"
 if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  cd ../../
+else
   cd ../
-#else
-#  cd ../
 fi
 
 TAOS_DIR=$(pwd)
