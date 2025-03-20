@@ -89,7 +89,36 @@ class TDTestCase(TBase):
         # get empty result
         rlist = self.taos(f'{mode} -r -s "select * from {db}.{stb} where ts < 1"')
         self.checkListString(rlist, "Query OK, 0 row(s) in set")
-    
+
+
+    def checkDecimalCommon(self, col, value):
+        rlist = self.taos(f'-s "select {col} from testdec.test"')
+        self.checkListString(rlist, value)
+
+        outfile = "decimal.csv"
+        self.taos(f'-s "select {col} from testdec.test>>{outfile}"')
+        rlist = self.readFileToList(outfile)
+        self.checkListString(rlist, value)
+        self.deleteFile(outfile)
+
+
+    def checkDecimal(self):
+        # prepare data
+        self.taos(f'-s "drop database if exists testdec"')
+        self.taos(f'-s "create database if not exists testdec"')
+        self.taos(f'-s "create table if not exists testdec.test(ts timestamp, dec64 decimal(10,6), dec128 decimal(24,10)) tags (note nchar(20))"')
+        self.taos(f'-s "create table testdec.d0 using testdec.test(note) tags(\'test\')"')
+        self.taos(f'-s "insert into testdec.d0 values(now(), \'9876.123456\', \'123456789012.0987654321\')"')
+        
+        # check decimal64
+        self.checkDecimalCommon("dec64", "9876.123456")
+
+        # check decimal128
+        self.checkDecimalCommon("dec128", "123456789012.0987654321")
+
+        self.taos(f'-s "drop database if exists testdec"')
+
+
     def checkBasic(self):
         tdLog.info(f"check describe show full.")
 
@@ -105,6 +134,8 @@ class TDTestCase(TBase):
         ]
         for arg in args:
             self.checkResultWithMode(db, stb, arg)
+        
+        self.checkDecimal()
 
 
     def checkDumpInOutMode(self, source, arg, db, insertRows):
