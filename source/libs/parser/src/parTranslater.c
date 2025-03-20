@@ -12045,6 +12045,12 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
   }
 
   if (isVirtualTable(tableType) || (tableType == TSDB_SUPER_TABLE && pMeta->virtualStb)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    if ((STREAM_TRIGGER_WINDOW_CLOSE != pStmt->pOptions->triggerType) && 
+        !(STREAM_TRIGGER_AT_ONCE == pStmt->pOptions->triggerType && (NULL == pSelect->pWindow && NULL == pSelect->pEvery))) {
+      taosMemoryFree(pMeta);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Not supported virtual table stream query or trigger mode");
+    }
     if (0 == pStmt->pOptions->ignoreExpired) {
       taosMemoryFree(pMeta);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "For virtual table IGNORE EXPIRED must be 1");
