@@ -522,6 +522,7 @@ typedef struct STaskStartInfo {
 
 typedef struct STaskUpdateInfo {
   SHashObj* pTasks;
+  SArray*   pTaskList;
   int32_t   activeTransId;
   int32_t   completeTransId;
   int64_t   completeTs;
