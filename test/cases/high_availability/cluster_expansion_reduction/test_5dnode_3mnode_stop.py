@@ -16,12 +16,12 @@ import taos
 import sys
 import time
 import os
-from utils.pytest.util.sql import tdSql
-from utils.pytest.util.log import tdLog
-from utils.pytest.util.dnodes import *
-from utils.pytest.util.dnodes import TDDnodes
-from utils.pytest.util.dnodes import TDDnode
-from utils.pytest.util.cluster import *
+from new_test_framework.utils.util.sql import tdSql
+from new_test_framework.utils.util.log import tdLog
+from new_test_framework.utils.util.dnodes import *
+from new_test_framework.utils.util.dnodes import TDDnodes
+from new_test_framework.utils.util.dnodes import TDDnode
+from new_test_framework.utils.util.cluster import *
 # from test import tdDnodes
 
 from clusterCommonCheck import *

@@ -106,7 +106,7 @@ else
 
   if [ $AsanFileSuccessLen -gt 0 ]; then
     echo "Execute script successfully and check asan"
-    $CODE_DIR/checkAsan.sh
+    $CODE_DIR/ci/checkAsan.sh
   else
     echo "Execute script failure"
     exit 1

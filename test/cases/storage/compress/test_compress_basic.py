@@ -27,7 +27,7 @@ import taos
 #from frame.sql import *
 #from frame.caseBase import *
 #from frame import *
-from utils.army.frame.autogen import *
+from new_test_framework.utils.frame.autogen import *
 
 
 class TestCompressBasic:

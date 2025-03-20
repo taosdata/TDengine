@@ -1,7 +1,7 @@
 import subprocess
 import sys
 import os
-import taostest
+from new_test_framework import taostest
 
 import taos
 import taosrest
@@ -11,13 +11,13 @@ import logging
 import socket
 import configparser
 #from utils.log import testLog
-from utils import tdSql, etool, tdLog, testLog
-from utils.pytest.util.cluster import cluster as cluster_pytest, ClusterDnodes as ClusterDnodes_pytest
-from utils.pytest.util.dnodes import tdDnodes as tdDnodes_pytest
-from utils.pytest.util.taosadapter import tAdapter as tAdapter_pytest
-from utils.army.frame.server.cluster import cluster as cluster_army, ClusterDnodes as ClusterDnodes_army, clusterDnodes as clusterDnodes_army
-from utils.army.frame.server.dnodes import tdDnodes as tdDnodes_army
-from utils.army.frame.taosadapter import tAdapter as tAdapter_army
+from .frame import tdSql, etool, tdLog, testLog
+from .util import cluster as cluster_pytest, ClusterDnodes as ClusterDnodes_pytest
+from .util import tdDnodes as tdDnodes_pytest
+from .util import tAdapter as tAdapter_pytest
+from .frame import cluster as cluster_army, ClusterDnodes as ClusterDnodes_army, clusterDnodes as clusterDnodes_army
+from .frame import tdDnodes as tdDnodes_army
+from .frame import tAdapter as tAdapter_army
 
 
 class BeforeTest:
@@ -330,7 +330,7 @@ class BeforeTest:
             if setting.get("name") == "taosAdapter":
                 # TODO: 解析taosAdapter的配置
                 request.session.restful = True
-                adapter = []
+                adapter = {}
                 adapter["host"] = setting["fqdn"][0]
                 adapter["cfg_dir"] = os.path.dirname(setting["spec"]["config_file"])
                 adapter["config_file"] = setting["spec"]["config_file"]

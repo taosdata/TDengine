@@ -2,8 +2,8 @@ import pytest
 import logging
 import sys
 import threading
-from utils.pytest.util.common import *
-from utils.pytest.util.log import tdLog
+from new_test_framework.utils.util.common import *
+from new_test_framework.utils.util.log import tdLog
 
 
 class TestMaxDelayInterval:

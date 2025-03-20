@@ -17,12 +17,12 @@ import re
 
 # from assertpy import assert_that
 import subprocess
-import utils.army.frame.log as tdLog
-import utils.army.frame.etool as etool
-from utils.army.frame.cases import *
-from utils.army.frame.sql import *
-from utils.army.frame.caseBase import *
-from utils.army.frame import *
+import new_test_framework.utils.frame.log as tdLog
+import new_test_framework.utils.frame.etool as etool
+from new_test_framework.utils.frame.cases import *
+from new_test_framework.utils.frame.sql import *
+from new_test_framework.utils.frame.caseBase import *
+from new_test_framework.utils.frame import *
 
 
 class TestTaosdemoQueryWithJson:
