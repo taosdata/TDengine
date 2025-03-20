@@ -33,7 +33,6 @@ sh run.sh
 python -m http.server 8081
 ```
 
-
 The effect presented after accessing the web page through the browser is shown in the following figure:
 
 ![perspective-viewer](./perspective/prsp_view.webp)
