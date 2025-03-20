@@ -384,6 +384,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,       "Xnode already deploye
 TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_DEPLOYED,           "Xnode not deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,          "Xnode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,              "Xnode not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,        "Xnode exec launch failed")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
