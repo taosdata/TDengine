@@ -5448,7 +5448,7 @@ static void countFailureAndFree(char *bindArray,
 }
 
 // stmt prepare
-int32_t stmtPrepare(TAOS_STMT *stmt, RecordSchema *recordSchema, char *tbName, int32_t *onlyCol) {
+static int32_t prepareStmt(TAOS_STMT *stmt, RecordSchema *recordSchema, char *tbName, int32_t *onlyCol) {
     char *sql = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
     if (NULL == sql) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
@@ -5565,7 +5565,7 @@ static int64_t dumpInAvroDataImpl(
                     __func__, __LINE__, escapedTbName);
 
             // prepare            
-            code = stmtPrepare(stmt, recordSchema, escapedTbName, &onlyCol);
+            code = prepareStmt(stmt, recordSchema, escapedTbName, &onlyCol);
             if (code) {
                 free(tableDes);
                 free(tbName);
