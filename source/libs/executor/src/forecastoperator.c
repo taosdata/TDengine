@@ -158,8 +158,8 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
     qDebug("%s forecast rows not found from %s, use default:%" PRId64, id, pSupp->algoOpt, pSupp->optRows);
   }
 
-  if (pSupp->optRows > ANALY_FORECAST_MAX_ROWS) {
-    qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_FORECAST_MAX_ROWS,
+  if (pSupp->optRows > ANALY_FORECAST_RES_MAX_ROWS) {
+    qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_FORECAST_RES_MAX_ROWS,
            pSupp->optRows);
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
   }

@@ -382,7 +382,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnalyticBuf                analyBuf = {.bufType = ANALYTICS_BUF_TYPE_JSON};
   char                        dataBuf[64] = {0};
   int32_t                     code = 0;
-  int64_t                     ts = 0;
+  int64_t                     ts = taosGetTimestampMs();
   int32_t                     lino = 0;
   const char*                 pId = GET_TASKID(pOperator->pTaskInfo);
 
