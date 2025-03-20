@@ -17,7 +17,7 @@ class _GPTService(AbstractForecastService):
         super().__init__()
 
         self.table_name = None
-        self.service_host = 'http://192.168.2.90:5000/ds_predict'
+        self.service_host = 'http://127.0.0.1:5000/ds_predict'
         self.headers = {'Content-Type': 'application/json'}
 
         self.std = None
@@ -61,15 +61,13 @@ class _GPTService(AbstractForecastService):
     def set_params(self, params):
         super().set_params(params)
 
-        if "host" not in params:
-            raise ValueError("gpt service host needs to be specified")
+        if "host" in params:
+            self.service_host = params['host']
 
-        self.service_host = params['host']
-
-        if self.service_host.startswith("https://"):
-            self.service_host = self.service_host.replace("https://", "http://")
-        elif "http://" not in self.service_host:
-            self.service_host = "http://" + self.service_host
+            if self.service_host.startswith("https://"):
+                self.service_host = self.service_host.replace("https://", "http://")
+            elif "http://" not in self.service_host:
+                self.service_host = "http://" + self.service_host
 
         app_logger.log_inst.info("%s specify gpt host service: %s", self.__class__.__name__,
                                  self.service_host)
