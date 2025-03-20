@@ -202,6 +202,7 @@ _return:
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta) {
   int32_t           code = 0;
+  int32_t           line = 0;
   STableMetaOutput* output = NULL;
 
   CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, ctx, pTableMeta));
@@ -224,7 +225,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
       goto _return;
     }
 
-    if (CTG_IS_META_VBOTH(output->metaType) || CTG_IS_META_VCTABLE(output->metaType)) {
+    if (CTG_IS_META_VBOTH(output->metaType)) {
       int32_t colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
       if (output->tbMeta) {
         int32_t metaSize = CTG_META_SIZE(output->tbMeta);
@@ -235,9 +236,10 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
         TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));
         output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize);
         TAOS_MEMCPY(output->tbMeta->colRef, output->vctbMeta->colRef, colRefSize);
-      } else  {
-        TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta) + colRefSize);
-        output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + sizeof(SVCTableMeta));
+      } else {
+        ctgError("tb:%s, tbmeta got, but tbMeta is NULL", output->tbName);
+        taosMemoryFreeClear(output->vctbMeta);
+        CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
       output->tbMeta->numOfColRefs = output->vctbMeta->numOfColRefs;
       taosMemoryFreeClear(output->vctbMeta);
@@ -245,17 +247,14 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
       goto _return;
     }
 
-    if ((!CTG_IS_META_CTABLE(output->metaType)) || output->tbMeta) {
+    if ((!CTG_IS_META_CTABLE(output->metaType) && !CTG_IS_META_VCTABLE(output->metaType)) || output->tbMeta) {
       ctgError("invalid metaType:%d", output->metaType);
       taosMemoryFreeClear(output->vctbMeta);
       taosMemoryFreeClear(output->tbMeta);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    // HANDLE ONLY CHILD TABLE META
-
-    taosMemoryFreeClear(output->tbMeta);
-    taosMemoryFreeClear(output->vctbMeta);
+    // HANDLE ONLY (VIRTUAL) CHILD TABLE META
 
     SName stbName = *ctx->pName;
     TAOS_STRCPY(stbName.tname, output->tbName);
@@ -268,8 +267,21 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
       ctgDebug("tb:%s, stb no longer exist, db:%s", ctx->pName->tname, output->dbFName);
       continue;
     }
+    if (CTG_IS_META_CTABLE(output->metaType)) {
+      TAOS_MEMCPY(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
+    } else if (CTG_IS_META_VCTABLE(output->metaType)) {
+      int32_t colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
+      int32_t metaSize = CTG_META_SIZE(*pTableMeta);
+      (*pTableMeta) = taosMemoryRealloc(*pTableMeta, metaSize + colRefSize);
+      QUERY_CHECK_NULL(*pTableMeta, code , line, _return, terrno);
+      TAOS_MEMCPY(*pTableMeta, output->vctbMeta, sizeof(SVCTableMeta));
+      (*pTableMeta)->colRef = (SColRef *)((char *)(*pTableMeta) + metaSize);
+      TAOS_MEMCPY((*pTableMeta)->colRef, output->vctbMeta->colRef, colRefSize);
+      (*pTableMeta)->numOfColRefs = output->vctbMeta->numOfColRefs;
+    }
 
-    TAOS_MEMCPY(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
+    taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output->vctbMeta);
 
     break;
   }
@@ -951,7 +963,7 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
     if (ctg && (*ctg)) {
       *catalogHandle = *ctg;
       CTG_STAT_HIT_INC(CTG_CI_CLUSTER, 1);
-      qDebug("CTG:%p, get catalog handle from cache, clusterId:0x%" PRIx64, *ctg, clusterId);
+      qTrace("ctg:%p, get catalog handle from cache, clusterId:0x%" PRIx64, *ctg, clusterId);
       CTG_API_LEAVE(TSDB_CODE_SUCCESS);
     }
 
@@ -991,11 +1003,11 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
         continue;
       }
 
-      qError("taosHashPut CTG to cache failed, clusterId:0x%" PRIx64, clusterId);
+      qError("taosHashPut catalog to cache failed, clusterId:0x%" PRIx64, clusterId);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    qDebug("CTG:%p, add CTG to cache, clusterId:0x%" PRIx64, clusterCtg, clusterId);
+    qDebug("ctg:%p, add catalog to cache, clusterId:0x%" PRIx64, clusterCtg, clusterId);
 
     break;
   }

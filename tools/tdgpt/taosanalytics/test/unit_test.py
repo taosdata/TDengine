@@ -99,7 +99,7 @@ class ServiceTest(unittest.TestCase):
             if item["type"] == "anomaly-detection":
                 self.assertEqual(len(item["algo"]), 6)
             else:
-                self.assertEqual(len(item["algo"]), 2)
+                self.assertEqual(len(item["algo"]), 4)
 
 
 if __name__ == '__main__':

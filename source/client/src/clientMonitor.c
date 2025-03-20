@@ -361,7 +361,7 @@ void monitorCounterInc(int64_t clusterId, const char* counterName, const char** 
     tscError("clusterId:0x%" PRIx64 ", monitor:%p counter:%s inc failed", clusterId, pMonitor, counterName);
     goto end;
   }
-  tscDebug("clusterId:0x%" PRIx64 ", monitor:%p, counter:%s inc", pMonitor->clusterId, pMonitor, counterName);
+  tscTrace("clusterId:0x%" PRIx64 ", monitor:%p, counter:%s inc", pMonitor->clusterId, pMonitor, counterName);
 
 end:
   taosWUnLockLatch(&monitorLock);

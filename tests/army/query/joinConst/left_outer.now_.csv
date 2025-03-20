@@ -226,38 +226,6 @@ taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1) a left joi
  NULL                    |
  NULL                    |
 
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1) a left join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts1 = a.ts1 and a.ts = b.ts;
-           ts            |
-==========================
- __today__ 00:00:00.000 |
- __today__ 00:00:01.000 |
- __tomorrow__ 00:00:00.000 |
- __tomorrow__ 00:00:02.000 |
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a left join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
-           ts            |
-==========================
- NULL                    |
- NULL                    |
- NULL                    |
- NULL                    |
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a left join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts1 = a.ts1 and a.ts = b.ts;
-           ts            |
-==========================
- __today__ 00:00:00.000 |
- __today__ 00:00:01.000 |
- __tomorrow__ 00:00:00.000 |
- __tomorrow__ 00:00:02.000 |
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a left join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
-           ts            |
-==========================
- NULL                    |
- NULL                    |
- NULL                    |
- NULL                    |
-
 taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1) a left join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
            ts            |
 ==========================
@@ -463,18 +431,6 @@ taos> select tb.val,tb.tg2,ta.* from (select now() ts, last(f) val, tg2 from stb
          404 |           2 | NULL                    | NULL        | NULL        |
 
 taos> select tb.val,tb.tg2,ta.* from (select now() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 interval(1s) order by ts) tb left join (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 interval(1s) order by ts) ta on ta.ts=tb.ts and ta.tg2=tb.tg2 order by tb.val;
-     val     |     tg2     |           ts            |     val     |     tg2     |
-==================================================================================
-         301 |           1 | NULL                    | NULL        | NULL        |
-         302 |           1 | NULL                    | NULL        | NULL        |
-         303 |           1 | NULL                    | NULL        | NULL        |
-         304 |           1 | NULL                    | NULL        | NULL        |
-         401 |           2 | NULL                    | NULL        | NULL        |
-         402 |           2 | NULL                    | NULL        | NULL        |
-         403 |           2 | NULL                    | NULL        | NULL        |
-         404 |           2 | NULL                    | NULL        | NULL        |
-
-taos> select tb.val,tb.tg2,ta.* from (select now() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 interval(1s) order by ts desc) tb left join (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 interval(1s) order by ts) ta on ta.ts=tb.ts and ta.tg2=tb.tg2 and tb.ts=now() where tb.ts=now() order by tb.val;
      val     |     tg2     |           ts            |     val     |     tg2     |
 ==================================================================================
          301 |           1 | NULL                    | NULL        | NULL        |

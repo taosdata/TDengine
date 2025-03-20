@@ -170,11 +170,18 @@ class TDTestCase(TBase):
         tdLog.info(f"Triggering compaction for database {db_name}...")
         tdLog.info(f"FLUSH DATABASE {db_name}")
         tdSql.execute(f"FLUSH DATABASE {db_name}")
-        time.sleep(10)
+        time.sleep(5)
+
         # Correct syntax includes database name
         tdSql.execute(f"COMPACT DATABASE {db_name}")
-        # Give system enough time to complete compaction
-        time.sleep(10)
+
+        # Wait for compaction to complete by checking status
+        while True:
+            tdSql.query(f"SHOW COMPACTS")
+            if tdSql.queryRows == 0:
+                break
+            time.sleep(1)
+
         tdLog.info(f"Compaction operation for {db_name} completed")
 
     def test_case1_stb_keep_2_db_keep_10(self):

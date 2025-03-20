@@ -152,11 +152,12 @@ _end:
   return NULL;
 }
 SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SStreamTask* pStreamTask = pTask;
 
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
-  stDebug("open stream state %p, %s", pState, path);
+  stDebug("s-task:%s open stream state %p, %s", pStreamTask->id.idStr, pState, path);
 
   TAOS_UNUSED(tsnprintf(pState->pTaskIdStr, sizeof(pState->pTaskIdStr), "TID:0x%x QID:0x%" PRIx64,
                         taskId, streamId));
@@ -173,7 +174,6 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  SStreamTask* pStreamTask = pTask;
   pState->streamId = streamId;
   pState->taskId = taskId;
   TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x",
@@ -189,8 +189,8 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   pState->parNameMap = tSimpleHashInit(1024, hashFn);
   QUERY_CHECK_NULL(pState->parNameMap, code, lino, _end, terrno);
 
-  stInfo("open state %p on backend %p 0x%" PRIx64 "-%d succ", pState, pMeta->streamBackend, pState->streamId,
-         pState->taskId);
+  stInfo("s-task:%s open state %p on backend %p 0x%" PRIx64 "-%d succ", pStreamTask->id.idStr, pState,
+         pMeta->streamBackend, pState->streamId, pState->taskId);
   return pState;
 
 _end:

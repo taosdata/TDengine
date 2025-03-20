@@ -427,6 +427,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
           .taskId = p->id.taskId,
           .checkpointId = p->checkpointInfo.latestId,
           .startTs = pChkInfo->consensusTs,
+          .nodeId = p->nodeId,
+          .term = p->stage,
       };
 
       SStreamObj *pStream = NULL;
@@ -486,7 +488,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (pMnode != NULL) {
       SArray *p = NULL;
-      code = mndTakeVgroupSnapshot(pMnode, &allReady, &p);
+      code = mndTakeVgroupSnapshot(pMnode, &allReady, &p, NULL);
       taosArrayDestroy(p);
       if (code) {
         mError("failed to get the vgroup snapshot, ignore it and continue");
