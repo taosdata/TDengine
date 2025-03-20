@@ -3249,6 +3249,22 @@ _exit:
   return code;
 }
 
+static int32_t tRowCompareByTs(const void *p1, const void *p2) {
+  SRow *row1 = *(SRow **)p1;
+  SRow *row2 = *(SRow **)p2;
+
+  SRowKey key1, key2;
+  tRowGetKey(row1, &key1);
+  tRowGetKey(row2, &key2);
+
+  if (key1.ts < key2.ts) {
+    return -1;
+  } else if (key1.ts > key2.ts) {
+    return 1;
+  }
+  return 0;
+}
+
 /* build rows to `rowArray` from bind
  * `infos` is the bind information array
  * `numOfInfos` is the number of bind information
@@ -3351,11 +3367,13 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
           *pOrdered = (code >= 0);
           *pDupTs = (code == 0);
         }
+        lastRowKey = rowKey;
       }
-      lastRowKey = rowKey;
     }
   }
-
+  if (!*pOrdered) {
+    taosArrayMSort(rowArray, tRowCompareByTs);
+  }
 _exit:
   taosArrayDestroy(colValArray);
   taosArrayDestroy(bufArray);
