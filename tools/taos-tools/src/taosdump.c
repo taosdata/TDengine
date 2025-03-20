@@ -5447,6 +5447,39 @@ static void countFailureAndFree(char *bindArray,
     freeTbNameIfLooseMode(tbName);
 }
 
+// stmt prepare
+int32_t stmtPrepare(TAOS_STMT *stmt, RecordSchema *recordSchema, char *tbName, int32_t *onlyCol) {
+    char *sql = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    if (NULL == sql) {
+        errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
+        return -1;
+    }
+
+    char *pstr = sql;
+    pstr += snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN, "INSERT INTO %s VALUES(?", tbName);
+
+    for (int col = 1; col < recordSchema->num_fields
+            -(g_dumpInLooseModeFlag?0:1); col++) {
+        pstr += sprintf(pstr, ",?");
+        (*onlyCol)++;
+    }
+    pstr += sprintf(pstr, ")");
+    debugPrint("%s() LN%d, stmt buffer: %s\n",
+            __func__, __LINE__, sql);
+
+    int code;
+    if (0 != (code = taos_stmt_prepare(stmt, sql, 0))) {
+        errorPrint("Failed to execute taos_stmt_prepare(). sql:%s reason: %s\n",
+            sql, taos_stmt_errstr(stmt));
+
+        free(sql);
+        return -1;
+    }
+
+    free(sql);
+    return code;
+}
+
 static int64_t dumpInAvroDataImpl(
         void **taos_v,
         char *namespace,
@@ -5471,51 +5504,12 @@ static int64_t dumpInAvroDataImpl(
         return -1;
     }
 
-    char *stmtBuffer = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
-    if (NULL == stmtBuffer) {
-        errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-        free(tableDes);
-        taos_stmt_close(stmt);
-        return -1;
-    }
-
-    char *pstr = stmtBuffer;
-    pstr += snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN, "INSERT INTO ? VALUES(?");
-
-    int32_t onlyCol = 1;    // at least timestamp
-    for (int col = 1; col < recordSchema->num_fields
-            -(g_dumpInLooseModeFlag?0:1); col++) {
-        pstr += sprintf(pstr, ",?");
-        onlyCol++;
-    }
-    pstr += sprintf(pstr, ")");
-    debugPrint("%s() LN%d, stmt buffer: %s\n",
-            __func__, __LINE__, stmtBuffer);
-
-    int code;
-    if (0 != (code = taos_stmt_prepare(stmt, stmtBuffer, 0))) {
-        errorPrint("Failed to execute taos_stmt_prepare(). reason: %s\n",
-                taos_stmt_errstr(stmt));
-
-        free(stmtBuffer);
-        free(tableDes);
-        taos_stmt_close(stmt);
-        return -1;
-    }
+    int32_t onlyCol    = 1;
+    char    *bindArray = NULL;
 
     avro_value_iface_t *value_class = avro_generic_class_from_schema(schema);
     avro_value_t value;
     avro_generic_value_new(value_class, &value);
-
-    char *bindArray =
-            calloc(1, sizeof(TAOS_MULTI_BIND) * onlyCol);
-    if (NULL == bindArray) {
-        errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-        free(stmtBuffer);
-        free(tableDes);
-        taos_stmt_close(stmt);
-        return -1;
-    }
 
     int64_t success = 0;
     int64_t failed = 0;
@@ -5557,8 +5551,6 @@ static int64_t dumpInAvroDataImpl(
             char *escapedTbName = calloc(1, escapedTbNameLen);
             if (NULL == escapedTbName) {
                 errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-                free(bindArray);
-                free(stmtBuffer);
                 free(tableDes);
                 tfree(tbName);
                 taos_stmt_close(stmt);
@@ -5571,21 +5563,36 @@ static int64_t dumpInAvroDataImpl(
             debugPrint("%s() LN%d escaped table: %s\n",
                     __func__, __LINE__, escapedTbName);
 
-            if (0 != taos_stmt_set_tbname(stmt, escapedTbName)) {
-                errorPrint("Failed to execute taos_stmt_set_tbname(%s)."
-                        "reason: %s\n",
-                        escapedTbName, taos_stmt_errstr(stmt));
-                free(escapedTbName);
+            // prepare            
+            int32_t code = stmtPrepare(stmt, recordSchema, escapedTbName, &onlyCol);
+            if (code) {
+                free(tableDes);
                 free(tbName);
-                tbName = NULL;
-                continue;
+                free(escapedTbName);
+                taos_stmt_close(stmt);
+                return -1;
+            }
+
+            // maloc bind
+            if (bindArray == NULL) {
+                bindArray = calloc(1, sizeof(TAOS_MULTI_BIND) * onlyCol);
+                if (NULL == bindArray) {
+                    errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
+                    free(tableDes);
+                    free(tbName);
+                    free(escapedTbName);
+                    taos_stmt_close(stmt);
+                    return -1;
+                }    
             }
             free(escapedTbName);
+
+            // get table des
             if ((0 == strlen(tableDes->name))
                     || (0 != strcmp(tableDes->name, tbName))) {
                 getTableDesNative(*taos_v, namespace,
                             tbName, tableDes, true);
-            }   
+            }
         } // tbName
 
         debugPrint("%s() LN%d, count: %"PRId64"\n",
@@ -5855,7 +5862,6 @@ static int64_t dumpInAvroDataImpl(
     avro_value_decref(&value);
     avro_value_iface_decref(value_class);
     tfree(bindArray);
-    tfree(stmtBuffer);
     freeTbDes(tableDes, true);
     taos_stmt_close(stmt);
     if (failed) {
