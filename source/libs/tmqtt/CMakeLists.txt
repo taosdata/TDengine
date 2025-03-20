@@ -33,30 +33,30 @@ target_link_libraries(
     PUBLIC uv_a
 )
 
-add_executable(taosmqtt ${TAOSMQTT_SRC})
-
-if(${TD_DARWIN})
-    target_compile_options(taosmqtt PRIVATE -Wno-error=deprecated-non-prototype)
-endif()
-
-target_include_directories(
-    taosmqtt
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/tmqtt"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/libs/transport"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/libs/tmqtt"
-    "${TD_SOURCE_DIR}/include/dnode/xnode"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-target_link_libraries(
-    taosmqtt
-    PRIVATE os util common
-)
+#add_executable(taosmqtt ${TAOSMQTT_SRC})
+#
+#if(${TD_DARWIN})
+#    target_compile_options(taosmqtt PRIVATE -Wno-error=deprecated-non-prototype)
+#endif()
+#
+#target_include_directories(
+#    taosmqtt
+#    PUBLIC
+#    "${TD_SOURCE_DIR}/include/libs/tmqtt"
+#    "${TD_SOURCE_DIR}/contrib/libuv/include"
+#    "${TD_SOURCE_DIR}/include/util"
+#    "${TD_SOURCE_DIR}/include/common"
+#    "${TD_SOURCE_DIR}/include/libs/transport"
+#    "${TD_SOURCE_DIR}/include/client"
+#    "${TD_SOURCE_DIR}/include/libs/tmqtt"
+#    "${TD_SOURCE_DIR}/include/dnode/xnode"
+#    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+#)
+#
+#target_link_libraries(
+#    taosmqtt
+#    PRIVATE os util common
+#)
 
 if(${BUILD_TEST})
     #add_subdirectory(test)
