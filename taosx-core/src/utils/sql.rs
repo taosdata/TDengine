@@ -16,7 +16,7 @@ use tracing::Instrument;
 
 use crate::utils;
 
-type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
+pub(crate) type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
 const SQL_CURRENT_DATABASE: &str = "select database()";
 const SQL_SHOW_DATABASES: &str = "show databases";
@@ -286,7 +286,7 @@ async fn test_min_timestamp_with_taos() {
         .unwrap();
 }
 
-async fn reconnect_with_max_retries(
+pub async fn reconnect_with_max_retries(
     pool: &TaosPool,
     max_retries: u32,
     cancel: &CancellationToken,
