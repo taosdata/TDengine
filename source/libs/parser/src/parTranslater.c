@@ -11710,7 +11710,7 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
     taosMemoryFree(pMeta);
     return code;
   }
-  if (TSDB_SUPER_TABLE != pMeta->tableType || pMeta->virtualStb) {
+  if (TSDB_SUPER_TABLE != pMeta->tableType) {
     taosMemoryFree(pMeta);
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Only supertable table can be used");
   }

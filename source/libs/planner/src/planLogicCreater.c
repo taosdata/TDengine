@@ -1023,6 +1023,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   pDynCtrl->qType = DYN_QTYPE_VTB_SCAN;
   pDynCtrl->vtbScan.scanAllCols = pVtableScan->scanAllCols;
   pDynCtrl->vtbScan.suid = pVtableScan->stableId;
+  tstrncpy(pDynCtrl->vtbScan.dbName, pVtableScan->tableName.dbname, TSDB_DB_NAME_LEN);
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pVtableScan));
   PLAN_ERR_JRET(nodesCloneList(pVtableScan->node.pTargets, &pDynCtrl->node.pTargets));
   TSWAP(pVtableScan->pVgroupList, pDynCtrl->vtbScan.pVgroupList);
