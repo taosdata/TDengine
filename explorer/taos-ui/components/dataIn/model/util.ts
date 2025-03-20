@@ -485,7 +485,7 @@ function encodeURIComponentECO(str: string) {
 }
 
 export function getAdvancedHealth(advanced: Recordable) {
-  if (!advanced) return {};
+  if (!advanced || advanced['health_check_window_in_second_value'] === undefined) return null;
   const health = {
     health_check_window_in_second: advanced['health_check_window_in_second_value'],
     busy_threshold: advanced['busy_threshold_value'] / 100,
