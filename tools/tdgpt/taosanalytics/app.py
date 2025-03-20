@@ -22,11 +22,12 @@ app_logger.set_handler(conf.get_log_path())
 app_logger.set_log_level(conf.get_log_level())
 loader.load_all_service()
 
+_ANODE_VER = 'TDgpt - TDengine© Time-Series Data Analytics Platform (ver 3.3.6.0)'
 
 @app.route("/")
 def start():
     """ default rsp """
-    return "TDengine© Time Series Data Analytics Platform (ver 1.0.1)"
+    return _ANODE_VER
 
 
 @app.route("/status")
