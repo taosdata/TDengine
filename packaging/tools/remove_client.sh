@@ -57,7 +57,7 @@ function clean_bin() {
     ${csudo}rm -f ${bin_link_dir}/${dumpName2}        || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript2}  || :
     ${csudo}rm -f ${bin_link_dir}/set_core  || :
-    [ -f ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+    [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
 
     if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
@@ -65,7 +65,7 @@ function clean_bin() {
         ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
         ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
-        [ -f ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+        [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
     fi
 }
 

@@ -278,6 +278,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not all
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_WAL_LEVEL,        "Invalid option, wal_level 0 should be used with replica 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_LIST_FMT,   "Invalid dnode list format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_LIST_REPEAT,        "Duplicate items in the dnode list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_VGROUP_ON_DB,          "No VGroup's leader need to be balanced")
 
 // mnode-node
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_ALREADY_EXIST,      "Mnode already exists")
@@ -377,6 +378,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_BUF_INVALID_TYPE,        "Analysis invalid buffe
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "tdgpt internal error, not processed")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -908,6 +910,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan 
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INVALID_DOWNSTREAM, "Virtual table scan invalid downstream operator type")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_PRIMTS_HAS_REF,          "Virtual table prim timestamp column should not has ref column")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_VIRTUAL_SUPER_TABLE, "Create virtual child table must use virtual super table")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE,   "Virtual table not support decimal type")
 #ifdef TAOS_ERROR_C
 };
 #endif

@@ -8,7 +8,7 @@ import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.algo.forecast import draw_fc_results
-from taosanalytics.conf import setup_log_info
+from taosanalytics.conf import setup_log_info, app_logger
 from taosanalytics.servicemgmt import loader
 
 
@@ -30,7 +30,8 @@ class ForecastTest(unittest.TestCase):
         ts_list = data[['Passengers']].index.tolist()
         dst_list = [int(item.timestamp()) for item in ts_list]
 
-        return data[['Passengers']].values.tolist(), dst_list
+        return data['Passengers'].values.tolist(), dst_list
+
 
     def test_holt_winters_forecast(self):
         """ test holt winters forecast with invalid and then valid parameters"""
@@ -109,6 +110,21 @@ class ForecastTest(unittest.TestCase):
 
         rows = len(r["res"][0])
         draw_fc_results(data, len(r["res"]) > 1, r["res"], rows, "arima")
+
+
+    def test_gpt_fc(self):
+        """for local test only, disabled it in github action"""
+        data, ts = self.get_input_list()
+        pass
+
+        # s = loader.get_service("td_gpt_fc")
+        # s.set_input_list(data, ts)
+        #
+        # s.set_params({"host":'192.168.2.90:5000/ds_predict', 'fc_rows': 10, 'start_ts': 171000000, 'time_step': 86400*30})
+        # r = s.execute()
+        #
+        # rows = len(r["res"][0])
+        # draw_fc_results(data, False, r["res"], rows, "gpt")
 
 
 if __name__ == '__main__':

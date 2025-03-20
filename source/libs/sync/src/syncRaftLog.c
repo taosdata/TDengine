@@ -226,7 +226,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.term = pEntry->term;
 
   int64_t tsWriteBegin = taosGetTimestampNs();
-  int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
+                              &pEntry->originRpcTraceId);
   int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
 
@@ -248,8 +249,10 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     TAOS_RETURN(code);
   }
 
-  sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
-          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
+  sGDebug(&pEntry->originRpcTraceId,
+          "vgId:%d, index:%" PRId64 ", persist raft entry, type:%s origin type:%s elapsed:%" PRId64,
+          pData->pSyncNode->vgId, pEntry->index, TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType),
+          tsElapsed);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -401,7 +404,7 @@ int32_t raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
     const char* errStr = tstrerror(err);
     int32_t     sysErr = ERRNO;
     const char* sysErrStr = strerror(ERRNO);
-    sError("vgId:%d, wal update commit index error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s",
+    sError("vgId:%d, index:%" PRId64 ", raft entry update commit index error, code:0x%x msg:%s syserr:%d sysmsg:%s",
            pData->pSyncNode->vgId, index, err, errStr, sysErr, sysErrStr);
 
     TAOS_RETURN(code);

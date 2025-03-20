@@ -566,3 +566,17 @@ class TBase:
                 os.remove(filename)
         except Exception as err:
             raise Exception(err)
+
+    # read file to list
+    def readFileToList(self, filePath):
+        try:
+            with open(filePath, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+            # Strip trailing newline characters
+            return [line.rstrip('\n') for line in lines]
+        except FileNotFoundError:
+            tdLog.info(f"Error: File not found {filePath}")
+            return []
+        except Exception as e:
+            tdLog.info(f"Error reading file: {e}")
+            return []

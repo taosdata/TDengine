@@ -133,6 +133,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 
     code = tmsgSendReq(&pEpInfo->epSet, &rpcMsg);
     if (code != 0) {
+      rpcFreeCont(buf);
       stError("s-task:%s (child %d) failed to send retrieve req to task:0x%x (vgId:%d) QID:0x%" PRIx64 " code:%s",
               pTask->id.idStr, pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId, tstrerror(code));
     } else {
@@ -245,11 +246,12 @@ void destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups) {
 
 void clearBufferedDispatchMsg(SStreamTask* pTask) {
   SDispatchMsgInfo* pMsgInfo = &pTask->msgInfo;
+
+  streamMutexLock(&pMsgInfo->lock);
+
   if (pMsgInfo->pData != NULL) {
     destroyDispatchMsg(pMsgInfo->pData, streamTaskGetNumOfDownstream(pTask));
   }
-
-  streamMutexLock(&pMsgInfo->lock);
 
   pMsgInfo->checkpointId = -1;
   pMsgInfo->transId = -1;

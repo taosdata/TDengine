@@ -1033,4 +1033,7 @@ int fetchChildTableName(char *dbName, char *stbName);
 // call engine error
 void engineError(char * module, char * fun, int32_t code);
 
+// trim prefix suffix blank cmp
+int trimCaseCmp(char *str1,char *str2);
+
 #endif   // INC_BENCH_H_

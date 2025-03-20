@@ -889,6 +889,9 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
   if (pStmt->exec.pRequest->pDb == NULL) {
     return terrno;
   }
+  if (pStmt->sql.stbInterlaceMode) {
+    pStmt->sql.siInfo.dbname = pStmt->db;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1928,16 +1931,19 @@ int stmtClose2(TAOS_STMT2* stmt) {
 
   STMT_DLOG_E("start to free stmt");
 
-  pStmt->queue.stopQueue = true;
-
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
-  (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
-
   if (pStmt->bindThreadInUse) {
+    pStmt->queue.stopQueue = true;
+
+    (void)taosThreadMutexLock(&pStmt->queue.mutex);
+    (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+    (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
+    (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
+
     (void)taosThreadJoin(pStmt->bindThread, NULL);
     pStmt->bindThreadInUse = false;
+
+    (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
+    (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
   }
 
   TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
@@ -1945,9 +1951,6 @@ int stmtClose2(TAOS_STMT2* stmt) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
   TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
-
-  (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
-  (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
 
   (void)taosThreadCondDestroy(&pStmt->asyncBindParam.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->asyncBindParam.mutex);

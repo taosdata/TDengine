@@ -73,7 +73,6 @@ def get_local_classes_in_order(file_path):
 def dynamicLoadModule(fileName):
     moduleName = fileName.replace(".py", "").replace(os.sep, ".")
     return importlib.import_module(moduleName, package='..')
-
 #
 # run case on previous cluster
 #

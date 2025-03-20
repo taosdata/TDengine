@@ -266,23 +266,7 @@ taos> select b.ts from (select today as ts1, ts, f, g, 'a' c from a1) a right jo
  __tomorrow__ 00:00:00.000 |
  __tomorrow__ 00:00:02.000 |
 
-taos> select b.ts from (select today as ts1, ts, f, g, 'a' c from a1 order by f) a right join (select today as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
-           ts            |
-==========================
- __today__ 00:00:00.000 |
- __today__ 00:00:01.000 |
- __tomorrow__ 00:00:00.000 |
- __tomorrow__ 00:00:02.000 |
-
 taos> select b.ts from (select today as ts1, ts, f, g, 'a' c from a1 order by f) a right join (select today as ts1, ts, f, g, 'a' c from b1) b on b.ts1 = a.ts1 and a.ts = b.ts;
-           ts            |
-==========================
- __today__ 00:00:00.000 |
- __today__ 00:00:01.000 |
- __tomorrow__ 00:00:00.000 |
- __tomorrow__ 00:00:02.000 |
-
-taos> select b.ts from (select today as ts1, ts, f, g, 'a' c from a1 order by f) a right join (select today as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
            ts            |
 ==========================
  __today__ 00:00:00.000 |

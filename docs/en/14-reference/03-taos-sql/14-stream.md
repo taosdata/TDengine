@@ -11,7 +11,7 @@ import imgStream from './assets/stream-processing-01.png';
 ```sql
 CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
 stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE]
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE | CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
@@ -164,6 +164,7 @@ For non-window computations, the trigger of stream computing is real-time; for w
 2. WINDOW_CLOSE: Triggered when the window closes (window closure is determined by event time, can be used in conjunction with watermark)
 3. MAX_DELAY time: Trigger computation if the window closes. If the window does not close, and the time since it has not closed exceeds the time specified by max delay, then trigger computation.
 4. FORCE_WINDOW_CLOSE: Based on the current time of the operating system, only compute and push the results of the currently closed window. The window is only computed once at the moment of closure and will not be recalculated subsequently. This mode currently only supports INTERVAL windows (does not support sliding); FILL_HISTORY must be 0, IGNORE EXPIRED must be 1, IGNORE UPDATE must be 1; FILL only supports PREV, NULL, NONE, VALUE.
+5. CONTINUOUS_WINDOW_CLOSE: Results are output when the window is closed. Modifying or deleting data does not immediately trigger a recalculation. Instead, periodic recalculations are performed every rec_time_val duration. If rec_time_val is not specified, the recalculation period is 60 minutes. If the recalculation time exceeds rec_time_val, the next recalculation will be automatically initiated after the current one is completed. Currently, this mode only supports INTERVAL windows. If the FILL clause is used, relevant information of the adapter needs to be configured, including adapterFqdn, adapterPort, and adapterToken. The adapterToken is a string obtained by Base64-encoding `{username}:{password}`. For example, after encoding `root:taosdata`, the result is `cm9vdDp0YW9zZGF0YQ==`.
 
 Since the closure of the window is determined by event time, if the event stream is interrupted or continuously delayed, the event time cannot be updated, which may result in not obtaining the latest computation results.
 
