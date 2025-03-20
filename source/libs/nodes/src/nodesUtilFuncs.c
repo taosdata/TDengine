@@ -1522,7 +1522,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_XNODE_OPTIONS: {
       SXnodeOptions* pOptions = (SXnodeOptions*)pNode;
-      nodesDestroyList(pOptions->pProtocol);
+      // nodesDestroyList(pOptions->pProtocol);
       break;
     }
     case QUERY_NODE_CREATE_INDEX_STMT: {

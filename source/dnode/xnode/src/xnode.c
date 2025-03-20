@@ -13,30 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "libs/tmqtt/xnode_mgmt_mqtt.h"
 #include "xndInt.h"
 
-// clang-format off
-#define xndError(...) do {  if (xndDebugFlag & DEBUG_ERROR) { taosPrintLog("XND ERROR ", DEBUG_ERROR, xndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndInfo(...)  do {  if (xndDebugFlag & DEBUG_INFO)  { taosPrintLog("XND INFO  ", DEBUG_INFO,  xndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndDebug(...) do {  if (xndDebugFlag & DEBUG_DEBUG) { taosPrintLog("XND DEBUG ", DEBUG_DEBUG, xndDebugFlag, __VA_ARGS__);}} while (0)
-// clang-format on
-
 int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
+  int32_t code = 0;
+
   *pXnode = taosMemoryCalloc(1, sizeof(SXnode));
   if (NULL == *pXnode) {
     xndError("calloc SXnode failed");
     return terrno;
   }
-  /*
-  int32_t code = qWorkerInit(NODE_TYPE_QNODE, (*pXnode)->xndId, (void **)&(*pXnode)->pQuery, &pOption->msgCb);
-  if (TSDB_CODE_SUCCESS != code) {
-    taosMemoryFreeClear(pXnode);
-    return code;
-  }
-  */
+
   (*pXnode)->msgCb = pOption->msgCb;
+  (*pXnode)->dnodeId = pOption->dnodeId;
 
   // TODO: read config & start taosmqtt
+  if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
+    xndError("failed to start taosudf since %s", tstrerror(code));
+    return code;
+  }
 
   xndInfo("Xnode opened.");
 
@@ -44,7 +40,7 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
 }
 
 void xndClose(SXnode *pXnode) {
-  // TODO: stop taosmqtt
+  mqttMgmtStopMqttd();
 
   taosMemoryFree(pXnode);
 

@@ -11,4 +11,5 @@ target_link_libraries(
     PRIVATE os
     PRIVATE common
     PRIVATE util
+    PRIVATE _xnode_mgmt_mqtt
 )
