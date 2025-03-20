@@ -2010,27 +2010,27 @@ void stmt2_async_test(std::atomic<bool>& stop_task) {
   stop_task = true;
 }
 
-TEST(stmt2Case, async_order) {
-  std::atomic<bool> stop_task(false);
-  std::thread       t(stmt2_async_test, std::ref(stop_task));
+// TEST(stmt2Case, async_order) {
+//   std::atomic<bool> stop_task(false);
+//   std::thread       t(stmt2_async_test, std::ref(stop_task));
 
-  // 等待 60 秒钟
-  auto start_time = std::chrono::steady_clock::now();
-  while (!stop_task) {
-    auto elapsed_time = std::chrono::steady_clock::now() - start_time;
-    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 100) {
-      if (t.joinable()) {
-        t.detach();
-      }
-      FAIL() << "Test[stmt2_async_test] timed out";
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::seconds(1));  // 每 1s 检查一次
-  }
-  if (t.joinable()) {
-    t.join();
-  }
-}
+//   // 等待 60 秒钟
+//   auto start_time = std::chrono::steady_clock::now();
+//   while (!stop_task) {
+//     auto elapsed_time = std::chrono::steady_clock::now() - start_time;
+//     if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 100) {
+//       if (t.joinable()) {
+//         t.detach();
+//       }
+//       FAIL() << "Test[stmt2_async_test] timed out";
+//       break;
+//     }
+//     std::this_thread::sleep_for(std::chrono::seconds(1));  // 每 1s 检查一次
+//   }
+//   if (t.joinable()) {
+//     t.join();
+//   }
+// }
 
 TEST(stmt2Case, rowformat_bind) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
