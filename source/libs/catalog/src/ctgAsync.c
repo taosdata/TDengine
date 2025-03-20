@@ -3151,13 +3151,20 @@ int32_t ctgHandleGetVSubTablesRsp(SCtgTaskReq* tReq, int32_t reqType, const SDat
   SCtgTask* pTask = tReq->pTask;
   int32_t   newCode = TSDB_CODE_SUCCESS;
   SCtgVSubTablesCtx* pCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
+  int32_t   resIdx = atomic_fetch_add_32(&pCtx->resIdx, 1);
 
-  CTG_ERR_JRET(ctgProcessRspMsg(pCtx->pResList + atomic_fetch_add_32(&pCtx->resIdx, 1), reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
-
-  if (atomic_load_32(&pCtx->resIdx) < pCtx->vgNum) {
-    CTG_RET(code);
+  code = ctgProcessRspMsg(pCtx->pResList + resIdx, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target);
+  if (code) {
+    pCtx->resCode = code;
   }
 
+  int32_t doneNum =  atomic_add_fetch_32(&pCtx->resDoneNum, 1);
+  if (doneNum < pCtx->vgNum) {
+    return code;
+  }
+
+  code = pCtx->resCode;
+  
 _return:
 
   newCode = ctgHandleTaskEnd(pTask, code);

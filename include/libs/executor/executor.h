@@ -102,6 +102,8 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
                              const char* stbFullName, bool newSubTableRule, STaskNotifyEventStat* pNotifyEventStat);
 
+void qSetStreamMergeInfo(qTaskInfo_t tinfo, SArray* pVTables);
+
 /**
  * Set multiple input data blocks for the stream scan.
  * @param tinfo
