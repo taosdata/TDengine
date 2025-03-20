@@ -1,4 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
@@ -8,8 +7,8 @@ INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/vnode/detail/inc)
 INCLUDE_DIRECTORIES(${TD_ENTERPRISE_DIR}/src/modules/multilevel_storage/inc)
 INCLUDE_DIRECTORIES(inc)
 
-IF (TD_LINUX)
+IF(TD_LINUX)
   AUX_SOURCE_DIRECTORY(. SRC)
   ADD_EXECUTABLE(taosscan ${SRC})
   TARGET_LINK_LIBRARIES(taosscan taos_static os tutil mstorage trpc)
-ENDIF ()
+ENDIF()

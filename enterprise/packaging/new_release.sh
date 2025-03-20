@@ -408,10 +408,11 @@ function build_taosx() {
         rm -rf ${explorerDir}/public/docs ${explorerDir}/public/docs-en || true
         # pull explorer
         git_pull "${explorerDir}" "main" "ver-$version"
-        cd ${explorerDir}
-        export VUE_APP_COMMUNITY=community
-        yarn
-        VER_NUMBER=$version yarn build:bin
+        cd ${taosxDir}
+        export COMMUNITY=community
+        # pnpm install
+        # VER_NUMBER=$version pnpm build:bin
+        VER_NUMBER=$version cargo make explorer
         if [ -f "${taosxDir}/target/release/taos-explorer" ]; then
             echo "build explorer community version done"
         else
@@ -549,7 +550,7 @@ function preparepkg() {
     mkdir -p ${install_dir}/bin ${install_dir}/cfg ${install_dir}/inc ${install_dir}/init.d
 
     # copy bin files
-    serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}keeper ${prefix}Benchmark ${prefix}dump udfd)
+    serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}keeper ${prefix}Benchmark ${prefix}dump taosudf)
 
     for bin in "${serverBin[@]}"; do
         if [ -f "${debugDir}/build/bin/${bin}" ]; then
@@ -720,7 +721,7 @@ function make_linux_pkg() {
         cd ${install_dir}
         
         # copy bin files
-        serverBin=(remove.sh ${prefix} ${prefix}d ${prefix}keeper TDinsight.sh set_core.sh ${prefix}adapter ${prefix}d-dump-cfg.gdb  tdengine-datasource.zip udfd startPre.sh  ${prefix}Benchmark ${prefix}dump ${prefix}-explorer tdengine-datasource.zip.md5 quick_deploy.sh)
+        serverBin=(remove.sh ${prefix} ${prefix}d ${prefix}keeper TDinsight.sh set_core.sh ${prefix}adapter ${prefix}d-dump-cfg.gdb  tdengine-datasource.zip taosudf startPre.sh  ${prefix}Benchmark ${prefix}dump ${prefix}-explorer tdengine-datasource.zip.md5 quick_deploy.sh)
         mkdir -p ${install_dir}/${serverPackageName}/bin
         cd ${install_dir}/bin
         for bin in "${serverBin[@]}"; do
@@ -975,7 +976,7 @@ function make_mac_pkg() {
 
         /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
 
-        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd,bin/taoskeeper,bin/taosadapter,bin/taos-explorer,bin/TDinsight.sh,bin/tdengine-datasource.zip,bin/tdengine-datasource.zip.md5,bin/start-all.sh,bin/stop-all.sh}
+        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/taosudf,bin/taoskeeper,bin/taosadapter,bin/taos-explorer,bin/TDinsight.sh,bin/tdengine-datasource.zip,bin/tdengine-datasource.zip.md5,bin/start-all.sh,bin/stop-all.sh}
         sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$os_arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s|$communityDir/packaging/tools/mac_install_summary.txt|$communityDir/packaging/tools/mac_install_summary_client.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
@@ -985,7 +986,7 @@ function make_mac_pkg() {
         
         cd $communityDir/packaging/tools
         git checkout -- $communityDir/packaging/tools/TDengine.pkgproj
-        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd,bin/taoskeeper,bin/taosadapter,bin/taos-explorer,bin/TDinsight.sh,bin/tdengine-datasource.zip,bin/tdengine-datasource.zip.md5}
+        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/taosudf,bin/taoskeeper,bin/taosadapter,bin/taos-explorer,bin/TDinsight.sh,bin/tdengine-datasource.zip,bin/tdengine-datasource.zip.md5}
 
         sed -i '' "s/3.0.1.4/$version/g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s|/opt.*/tools/post.sh|$communityDir/packaging/tools/post.sh|g" $communityDir/packaging/tools/TDengine.pkgproj
