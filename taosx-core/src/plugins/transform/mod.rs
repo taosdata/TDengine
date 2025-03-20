@@ -2651,6 +2651,7 @@ impl MessageArrowRecords {
                         .map(|c| c.taos_value(0).to_sql_value())
                         .join(",");
 
+                    let mut full_name_to_cache = None;
                     if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } && database_name.is_some() {
                         // 根据 database.tablename 来判断缓存，如果缓存在则不需要带 using
                         let table_existed = TABLE_TAG_CACHE.get_or_init(|| {
@@ -2669,12 +2670,8 @@ impl MessageArrowRecords {
                                 end,
                             );
                         }
+                        full_name_to_cache = Some(tag_key);
                     }
-                    let full_name_to_cache = if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } {
-                        Some(format!("{}.{}", database_name.unwrap(), tbname))
-                    } else {
-                        None
-                    };
 
                     (
                         format!(
