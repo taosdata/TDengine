@@ -172,7 +172,8 @@ import {
   validOpcFileResult,
   getAdvancedHealth,
   formatFromData,
-  recoverFromData
+  recoverFromData,
+  recoverWriteConfig
 } from '../model/util';
 import { transformerState, configureSupportFlags, resetTransformerState } from '../components/commonTransformer/util';
 import { getDataInProps } from '../model/useDataIn';
@@ -315,6 +316,7 @@ async function handleDetailData(id: string | number) {
   }
 
   recoverFromData(sourceForm.type, sourceForm.data, data.from.data);
+  recoverWriteConfig(sourceForm.data.write_config, data.parser.parser.global);
 
   if (data.parser) {
     transformerState.transformerParserData = data.parser;

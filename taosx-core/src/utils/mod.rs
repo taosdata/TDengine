@@ -413,6 +413,15 @@ pub fn parse_bytes(size_str: &str) -> anyhow::Result<u64> {
     Ok(bytes as u64)
 }
 
+pub fn contains_uppercase(s: &str) -> bool {
+    for c in s.chars() {
+        if c.is_uppercase() {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -606,5 +615,15 @@ mod tests {
             get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_contains_uppercase() {
+        assert!(contains_uppercase("sasl.isEnable"));
+        assert!(contains_uppercase("aBc"));
+        assert!(contains_uppercase("ABC"));
+        assert!(!contains_uppercase("123"));
+        assert!(!contains_uppercase("abc"));
+        assert!(contains_uppercase("123A"));
     }
 }

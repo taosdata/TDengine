@@ -254,7 +254,7 @@ impl KafkaTaskConfig {
             .params
             .iter()
             .filter(|(k, _)| !k.is_empty())
-            .filter(|(k, _)| k.contains('.'))
+            .filter(|(k, _)| k.contains('.') && !utils::contains_uppercase(k))
             .map(|(k, v)| (k.trim(), v.trim()))
         {
             extras.insert(FastStr::from_str(k)?, FastStr::from_str(v)?);
