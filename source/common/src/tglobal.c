@@ -396,6 +396,8 @@ int32_t tsStreamVirtualMergeWaitMode = 0;            // 0 wait forever, 1 wait f
 
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
+bool tsInsertPerfEnabled = false;
+
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);           \
@@ -786,6 +788,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "streamRunHistoryAsync", tsStreamRunHistoryAsync, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "insertPerfEnabled", tsInsertPerfEnabled, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2620,7 +2624,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbCheckSyncIntervalSec", &tsArbCheckSyncIntervalSec},
                                          {"arbSetAssignedTimeoutSec", &tsArbSetAssignedTimeoutSec},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
-                                         {"enableStrongPassword", &tsEnableStrongPassword}};
+                                         {"enableStrongPassword", &tsEnableStrongPassword},
+                                         {"insertPerfEnabled", &tsInsertPerfEnabled}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2875,7 +2880,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"streamRunHistoryAsync", &tsStreamRunHistoryAsync},
                                          {"streamCoverage", &tsStreamCoverage},
-                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest}};
+                                         {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
+                                         {"insertPerfEnabled", &tsInsertPerfEnabled}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

@@ -310,6 +310,9 @@ extern char     tsAdapterFqdn[];
 extern uint16_t tsAdapterPort;
 extern char     tsAdapterToken[];
 
+// insert performance
+extern bool tsInsertPerfEnabled;
+
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
