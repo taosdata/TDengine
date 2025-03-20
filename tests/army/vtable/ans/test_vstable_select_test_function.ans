@@ -3018,7 +3018,7 @@ taos> select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.
 taos> select twa(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
        twa(int_col)        |
 ============================
-         -353350886.922845 |
+          -353350600.12852 |
 
 taos> select abs(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
  abs(int_tag) |

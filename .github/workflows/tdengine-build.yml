@@ -81,12 +81,24 @@ jobs:
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
+            -DWEBSOCKET=true \
+            -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
           which taosd
           which taosadapter
           which taoskeeper
+
+      - name: Statistics ldd
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -name "*.so" -print0 | xargs -0 ldd || true
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd || true
+
+      - name: Statistics size
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lhrS
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lhrS
 
       - name: Start taosd
         run: |

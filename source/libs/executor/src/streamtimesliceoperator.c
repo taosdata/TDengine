@@ -166,7 +166,7 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->scalarSup);
   taosArrayDestroy(pInfo->historyPoints);
 
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  taosArrayDestroy(pInfo->pUpdated);
   pInfo->pUpdated = NULL;
 
   tSimpleHashCleanup(pInfo->pUpdatedMap);
@@ -174,7 +174,7 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->pDelWins);
   tSimpleHashCleanup(pInfo->pDeletedMap);
-  clearGroupResInfo(&pInfo->groupResInfo);
+  clearGroupResArray(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
 
@@ -456,7 +456,10 @@ static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* p
         qError("%s failed at line %d since fill errror", __func__, __LINE__);
       }
     } else {
-      int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
+      int32_t srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
+      if (pFillSup->normalFill) {
+        srcSlot = dstSlotId;
+      }
       SResultCellData* pCell = NULL;
       if (IS_FILL_CONST_VALUE(pFillSup->type) &&
           (isGroupKeyFunc(pFillCol->pExpr) || isSelectGroupConstValueFunc(pFillCol->pExpr))) {
@@ -532,7 +535,10 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
           qError("%s failed at line %d since fill errror", __func__, lino);
         }
       } else if (isInterpFunc(pFillCol->pExpr) || pFillSup->normalFill) {
-        int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
+        int32_t srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
+        if (pFillSup->normalFill) {
+          srcSlot = dstSlotId;
+        }
         SResultCellData* pCell = getSliceResultCell(pFillInfo->pResRow->pRowVal, srcSlot, pFillSup->pOffsetInfo);
         if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pCell->isNull) {
           colDataSetNULL(pDstCol, index);

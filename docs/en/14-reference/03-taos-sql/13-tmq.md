@@ -58,11 +58,11 @@ Note: Subscriptions to supertables and databases are advanced subscription modes
 
 ## Delete topic
 
-If you no longer need to subscribe to data, you can delete the topic, but note: only TOPICS that are not currently being subscribed to can be deleted.
+If you no longer need to subscribe to the data, you can delete the topic. If the current topic is subscribed to by a consumer, it can be forcibly deleted using the FORCE syntax. After the forced deletion, the subscribed consumer will consume data with errors (FORCE syntax supported from version 3.3.6.0)
 
 ```sql
 /* Delete topic */
-DROP TOPIC [IF EXISTS] topic_name;
+DROP TOPIC [IF EXISTS] [FORCE] topic_name;
 ```
 
 At this point, if there are consumers on this subscription topic, they will receive an error.
@@ -81,8 +81,10 @@ Consumer groups can only be created through the TDengine client driver or APIs p
 
 ## Delete consumer group
 
+When creating a consumer, a consumer group is assigned to the consumer. Consumers cannot be explicitly deleted, but the consumer group can be deleted. If there are consumers in the current consumer group who are consuming, the FORCE syntax can be used to force deletion. After forced deletion, subscribed consumers will consume data with errors (FORCE syntax supported from version 3.3.6.0).
+
 ```sql
-DROP CONSUMER GROUP [IF EXISTS] cgroup_name ON topic_name;
+DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
 ```
 
 Deletes the consumer group `cgroup_name` on the topic `topic_name`.

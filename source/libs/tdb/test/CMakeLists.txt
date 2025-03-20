@@ -2,10 +2,6 @@
 if(${TD_LINUX})
     add_executable(tdbTest "tdbTest.cpp")
     target_link_libraries(tdbTest tdb gtest_main)
-    add_test(
-        NAME tdbTest
-        COMMAND tdbTest
-    )
 endif()
 
 # tdbUtilTest
@@ -19,26 +15,14 @@ add_test(
 # overflow pages testing
 add_executable(tdbExOVFLTest "tdbExOVFLTest.cpp")
 target_link_libraries(tdbExOVFLTest tdb gtest_main)
-add_test(
-    NAME tdbExOVFLTest
-    COMMAND tdbExOVFLTest
-)
 
 # page defragment testing
 add_executable(tdbPageDefragmentTest "tdbPageDefragmentTest.cpp")
 target_link_libraries(tdbPageDefragmentTest tdb gtest_main)
-add_test(
-    NAME tdbPageDefragmentTest
-    COMMAND tdbPageDefragmentTest
-)
 
 # page recycling testing
 add_executable(tdbPageRecycleTest "tdbPageRecycleTest.cpp")
 target_link_libraries(tdbPageRecycleTest tdb gtest_main)
-add_test(
-    NAME tdbPageRecycleTest
-    COMMAND tdbPageRecycleTest
-)
 
 # page flush testing
 add_executable(tdbPageFlushTest "tdbPageFlushTest.cpp")

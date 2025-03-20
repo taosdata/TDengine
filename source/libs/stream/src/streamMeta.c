@@ -240,7 +240,7 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
     void* key = taosHashGetKey(pIter, NULL);
     code = streamStateCvtDataFormat(pMeta->path, key, *(void**)pIter);
     if (code != 0) {
-      stError("failed to cvt data");
+      stError("vgId:%d failed to cvt data", pMeta->vgId);
       goto _EXIT;
     }
 
@@ -513,6 +513,7 @@ _err:
   if (pMeta->startInfo.pFailedTaskSet) taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
   if (pMeta->bkdChkptMgt) bkdMgtDestroy(pMeta->bkdChkptMgt);
 
+  if (pMeta->startInfo.pStagesList) taosArrayDestroy(pMeta->startInfo.pStagesList);
   taosMemoryFree(pMeta);
 
   stError("vgId:%d failed to open stream meta, at line:%d reason:%s", vgId, lino, tstrerror(code));
@@ -544,7 +545,9 @@ void streamMetaInitBackend(SStreamMeta* pMeta) {
 
 void streamMetaClear(SStreamMeta* pMeta) {
   // remove all existed tasks in this vnode
-  void* pIter = NULL;
+  int64_t st = taosGetTimestampMs();
+  void*   pIter = NULL;
+
   while ((pIter = taosHashIterate(pMeta->pTasksMap, pIter)) != NULL) {
     int64_t      refId = *(int64_t*)pIter;
     SStreamTask* p = taosAcquireRef(streamTaskRefPool, refId);
@@ -570,12 +573,18 @@ void streamMetaClear(SStreamMeta* pMeta) {
     }
   }
 
+  int64_t et = taosGetTimestampMs();
+  stDebug("vgId:%d clear task map, elapsed time:%.2fs", pMeta->vgId, (et - st)/1000.0);
+
   if (pMeta->streamBackendRid != 0) {
     int32_t code = taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
     if (code) {
       stError("vgId:%d remove stream backend Ref failed, rid:%" PRId64, pMeta->vgId, pMeta->streamBackendRid);
     }
   }
+
+  int64_t et1 = taosGetTimestampMs();
+  stDebug("vgId:%d clear backend completed, elapsed time:%.2fs", pMeta->vgId, (et1 - et)/1000.0);
 
   taosHashClear(pMeta->pTasksMap);
 
@@ -589,6 +598,8 @@ void streamMetaClear(SStreamMeta* pMeta) {
   // the willrestart/starting flag can NOT be cleared
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   taosHashClear(pMeta->startInfo.pFailedTaskSet);
+
+  taosArrayClear(pMeta->startInfo.pStagesList);
   pMeta->startInfo.readyTs = 0;
 }
 
@@ -1383,13 +1394,23 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   pMeta->role = (isLeader) ? NODE_ROLE_LEADER : NODE_ROLE_FOLLOWER;
   if (!isLeader) {
     streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
+  } else {  // wait for nodeep update if become leader from follower
+    if (prevStage == NODE_ROLE_FOLLOWER) {
+      pMeta->startInfo.tasksWillRestart = 1;
+    }
   }
 
   streamMetaWUnLock(pMeta);
 
   if (isLeader) {
-    stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64,
-           pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+    if (prevStage == NODE_ROLE_FOLLOWER) {
+      stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64
+             " restart after nodeEp being updated",
+             pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+    } else {
+      stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64,
+             pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+    }
     streamMetaStartHb(pMeta);
   } else {
     stInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d sendMsg beforeClosing:%d", pMeta->vgId,
