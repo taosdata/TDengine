@@ -830,6 +830,12 @@ This section introduces APIs that are all synchronous interfaces. After being ca
     - res: [Input] Result set.
   - **Return Value**: Non-`NULL`: successful, returns a pointer to a TAOS_FIELD structure, each element representing the metadata of a column. `NULL`: failure.
 
+- `TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res)`
+  - **Interface Description**: Retrieves the attributes of each column in the query result set (column name, data type, column length). Used in conjunction with `taos_num_fields()`, it can be used to parse the data of a tuple (a row) returned by `taos_fetch_row()`. In addition to the basic information provided by TAOS_FIELD, TAOS_FIELD_E also includes `precision` and `scale` information for the data type.
+  - **Parameter Description**:
+    - res: [Input] Result set.
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_FIELD_E structure, where each element represents the metadata of a column. `NULL`: Failure.
+
 - `void taos_stop_query(TAOS_RES *res)`
   - **Interface Description**: Stops the execution of the current query.
   - **Parameter Description**:
