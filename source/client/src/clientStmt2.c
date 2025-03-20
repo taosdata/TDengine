@@ -1768,18 +1768,18 @@ int stmtClose2(TAOS_STMT2* stmt) {
 
   pStmt->queue.stopQueue = true;
 
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
-  (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
-
   if (pStmt->bindThreadInUse) {
+    (void)taosThreadMutexLock(&pStmt->queue.mutex);
+    (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+    (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
+    (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
+
     (void)taosThreadJoin(pStmt->bindThread, NULL);
     pStmt->bindThreadInUse = false;
-  }
 
-  (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
-  (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
+    (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
+    (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
+  }
 
   if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
     if (tsem_wait(&pStmt->asyncQuerySem) != 0) {

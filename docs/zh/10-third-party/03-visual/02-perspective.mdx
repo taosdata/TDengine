@@ -104,11 +104,12 @@ Python 连接器详细写入说明可参见 [Python 参数绑定](../../../refer
 
 ```html
 <script type="module">
-    // Import the Perspective library
+
+    // import the Perspective library
     import perspective from "https://unpkg.com/@finos/perspective@3.1.3/dist/cdn/perspective.js";
 
     document.addEventListener("DOMContentLoaded", async function () {
-        // An asynchronous function for loading the view
+        // an asynchronous function for loading the view
         async function load_viewer(viewerId, config) {
             try {
                 const table_name = "meters_values";
@@ -125,6 +126,7 @@ Python 连接器详细写入说明可参见 [Python 参数绑定](../../../refer
                 console.error(`Failed to get data from ${table_name}, err: ${error}`);
             }
         }
+
 
         // configuration of the view
         const config = {
@@ -168,7 +170,8 @@ Python 连接器详细写入说明可参见 [Python 参数绑定](../../../refer
     });
 </script>
 
-<!-- Define the HTML Structure of the Dashboard -->
+
+<!-- define the HTML Structure of the Dashboard -->
 <div id="dashboard">
     <div class="viewer-container">
         <perspective-viewer id="prsp-viewer-1" theme="Pro Dark"></perspective-viewer>

@@ -149,10 +149,16 @@ SRowBuffPos* createSessionWinBuff(SStreamFileState* pFileState, SSessionKey* pKe
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   pNewPos->needFree = true;
   pNewPos->beFlushed = true;
+  int32_t len = getRowStateRowSize(pFileState);
   if (p) {
-    memcpy(pNewPos->pRowBuff, p, *pVLen);
+    if (*pVLen > len){
+      qError("[InternalERR] read key:[skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],session window buffer is too small, *pVLen:%d, len:%d", pKey->win.skey, pKey->win.ekey, pKey->groupId, *pVLen, len);
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }else{
+      memcpy(pNewPos->pRowBuff, p, *pVLen);
+    }
   } else {
-    int32_t len = getRowStateRowSize(pFileState);
     memset(pNewPos->pRowBuff, 0, len);
   }
 
