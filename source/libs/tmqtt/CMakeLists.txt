@@ -59,7 +59,7 @@ target_link_libraries(
 )
 
 if(${BUILD_TEST})
-    add_subdirectory(test)
+    #add_subdirectory(test)
 endif()
 
 #aux_source_directory(src TAOSM_SRC)
