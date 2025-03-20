@@ -183,20 +183,13 @@ class TDTestCase(TBase):
     
     def checkCommand(self):
         # check coredump
-
-        # o logpath
-        char = 'a'
-        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
         queryOK = "Query OK"
 
-        # invalid input check
+        # support Both
         args = [
-            #[lname, "failed to create log at"],
             ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
             ['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK],
-            ['-a ""', "Invalid auth"],
             ['-s "quit;"', "Welcome to the TDengine Command Line Interface"],
-            ['-a "abc"', "[0x80000357]"],
             ['-h "" -s "show dnodes;"', "Invalid host"],
             ['-u "" -s "show dnodes;"', "Invalid user"],
             ['-P "" -s "show dnodes;"', "Invalid port"],
@@ -225,6 +218,23 @@ class TDTestCase(TBase):
                 if arg[1] != None:
                     self.checkListString(rlist, arg[1])
 
+        #
+        # support native only
+        #
+        
+        # o logpath
+        char = 'a'
+        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
+
+        args = [
+            [lname, "failed to create log at"],
+            ['-a ""', "Invalid auth"],
+            ['-a "abc"', "[0x80000357]"],
+        ]
+        for arg in args:
+            rlist = self.taos("Z 0 " + arg[0])
+            if arg[1] != None:
+                self.checkListString(rlist, arg[1])
 
     # expect cmd > json > evn
     def checkPriority(self):
