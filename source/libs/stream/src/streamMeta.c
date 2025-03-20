@@ -578,7 +578,14 @@ void streamMetaClear(SStreamMeta* pMeta) {
   pMeta->numOfPausedTasks = 0;
 
   // NOTE: the willrestart/starting flag can NOT be cleared
-  streamMetaClearStartInfoPartial(&pMeta->startInfo);
+  taosHashClear(pMeta->startInfo.pReadyTaskSet);
+  taosHashClear(pMeta->startInfo.pFailedTaskSet);
+  taosArrayClear(pMeta->startInfo.pStagesList);
+  taosArrayClear(pMeta->startInfo.pRecvChkptIdTasks);
+
+  pMeta->startInfo.readyTs = 0;
+  pMeta->startInfo.elapsedTime = 0;
+  pMeta->startInfo.startTs = 0;
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
