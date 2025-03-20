@@ -207,8 +207,15 @@ class TDCom:
         
         self.custom_col_val = 0
         self.part_val_list = [1, 2]
+        self.taos_bin_path = "/usr/bin"
+        self.taos_cfg_path = "/etc/taos"
+        self.work_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "sim")
     # def init(self, conn, logSql):
     #     # tdSql.init(conn.cursor(), logSql)
+    def init(self, taos_bin_path, taos_cfg_path, work_dir):
+        self.taos_bin_path = taos_bin_path
+        self.taos_cfg_path = taos_cfg_path
+        self.work_dir = work_dir
 
     def preDefine(self):
         header = {'Authorization': 'Basic cm9vdDp0YW9zZGF0YQ=='}
@@ -519,26 +526,28 @@ class TDCom:
         return buildPath
     
     def getTaosdPath(self, dnodeID="dnode1"):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        taosdPath = buildPath + "/../sim/" + dnodeID
-        tdLog.info("taosdPath: %s" % taosdPath)
-        return taosdPath
+        return os.path.join(self.taos_bin_path, "taosd")
+        #buildPath = self.getBuildPath()
+        #if (buildPath == ""):
+        #    tdLog.exit("taosd not found!")
+        #else:
+        #    tdLog.info("taosd found in %s" % buildPath)
+        #taosdPath = buildPath + "/../sim/" + dnodeID
+        #tdLog.info("taosdPath: %s" % taosdPath)
+        #return taosdPath
 
 
     def getClientCfgPath(self):
-        buildPath = self.getBuildPath()
+        return os.path.join(self.work_dir, "psim", "cfg")
+        #buildPath = self.getBuildPath()
 
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
-        tdLog.info("cfgPath: %s" % cfgPath)
-        return cfgPath
+        #if (buildPath == ""):
+        #    tdLog.exit("taosd not found!")
+        #else:
+        #    tdLog.info("taosd found in %s" % buildPath)
+        #cfgPath = buildPath + "/../sim/psim/cfg"
+        #tdLog.info("cfgPath: %s" % cfgPath)
+        #return cfgPath
 
     def newcon(self,host='localhost',port=6030,user='root',password='taosdata', database=None):
         con=taos.connect(host=host, user=user, password=password, port=port, database=database)

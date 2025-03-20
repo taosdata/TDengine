@@ -84,6 +84,17 @@ def before_test_session(request):
         request.session.skip_deploy = True
     else:
         request.session.skip_deploy = False
+    if request.config.getoption("--skip_test"):
+        request.session.skip_test = True
+    else:
+        request.session.skip_test = False
+
+        # 读取环境变量并存入 session 变量
+    request.session.taos_bin_path = os.getenv('TAOS_BIN_PATH', None)
+    request.session.taos_bin_path = request.session.before_test.get_taos_bin_path(request.session.taos_bin_path)
+    
+    request.session.work_dir = os.getenv('WORK_DIR', None)
+    request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir)
     
     # 获取yaml文件，缓存到servers变量中，供cls使用
     if request.config.getoption("--yaml_file"):
@@ -98,8 +109,14 @@ def before_test_session(request):
             raise pytest.UsageError(f"YAML file '{yaml_file_path}' does not exist.")
 
         request.session.before_test.get_config_from_yaml(request, yaml_file_path)
+        testLog.debug(f"taos_bin_path: {request.session.taos_bin_path}")
+        if request.session.taos_bin_path is None:
+            raise pytest.UsageError("TAOS_BIN_PATH is not set")
     # 配置参数解析，存入session变量
     else:
+        testLog.debug(f"taos_bin_path: {request.session.taos_bin_path}")
+        if request.session.taos_bin_path is None:
+            raise pytest.UsageError("TAOS_BIN_PATH is not set")
         if request.config.getoption("-N"):
             request.session.denodes_num = int(request.config.getoption("-N"))
         else:
@@ -136,6 +153,10 @@ def before_test_session(request):
         
         request.session.before_test.get_config_from_param(request)
     
+    
+    if request.session.work_dir is None:
+        raise pytest.UsageError("WORK_DIR is not set")
+    
 
 
 @pytest.fixture(scope="class", autouse=True)
@@ -158,9 +179,9 @@ def before_test_class(request):
     request.cls.replicaVar = request.session.replicaVar
     request.cls.tsim_file = request.session.tsim_file
     request.cls.tsim_path = request.session.tsim_path
-    request.cls.bin_path = request.session.bin_path
+    request.cls.taos_bin_path = request.session.taos_bin_path
     request.cls.lib_path = request.session.lib_path
-    request.cls.ci_workdir = request.session.ci_workdir
+    request.cls.work_dir = request.session.work_dir
     
     # 如果用例中定义了updatecfgDict，则更新配置
     if hasattr(request.cls, "updatecfgDict"):
@@ -192,6 +213,8 @@ def before_test_class(request):
         # 为老用例兼容，初始化老框架部分实例
         request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
     
+    if not request.session.skip_test:
+        pytest.skip("skip test")
     # ============================
     # 兼容army 初始化caseBase
     request.cls.tmpdir = "tmp"

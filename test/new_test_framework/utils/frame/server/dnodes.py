@@ -49,19 +49,20 @@ class TDDnodes:
         self.killValgrind = 0
         self.model = "single"
 
-    def init(self, path, remoteIP = ""):
-        binPath = self.dnodes[0].getPath() + "/../../../"
+    def init(self, path, binPath, remoteIP = ""):
+        self.binPath = binPath
+        #binPath = self.dnodes[0].getPath() + "/../../../"
         # tdLog.debug("binPath %s" % (binPath))
-        binPath = os.path.realpath(binPath)
+        #binPath = os.path.realpath(binPath)
         # tdLog.debug("binPath real path %s" % (binPath))
 
         if path == "":
-            self.path = os.path.abspath(binPath + "../../")
+            self.path = os.path.abspath(self.binPath + "../../")
         else:
             self.path = os.path.realpath(path)
 
         for i in range(len(self.dnodes)):
-            self.dnodes[i].init(self.path, remoteIP)
+            self.dnodes[i].init(self.path, self.binPath, remoteIP)
         self.sim = TDSimClient(self.path)
 
     def setTestCluster(self, value):

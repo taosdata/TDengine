@@ -19,9 +19,9 @@ class ClusterDnodes(TDDnodes):
         self.testCluster = False
         self.valgrind = 0
         self.killValgrind = 1
-    def init(self, dnodes_lists, deployPath, masterIp):
+    def init(self, dnodes_lists, deployPath, binPath, masterIp):
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
-        super(ClusterDnodes, self).init(deployPath, masterIp)
+        super(ClusterDnodes, self).init(deployPath, binPath, masterIp)
         self.model = "cluster"
 
 clusterDnodes = ClusterDnodes()

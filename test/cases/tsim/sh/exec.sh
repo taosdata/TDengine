@@ -80,9 +80,15 @@ fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR
 
-SIM_DIR=$TAOS_DIR/sim
+if [[ -z "$SIM_DIR" ]]; then
+  SIM_DIR=$TAOS_DIR/sim
+fi
 NODE_DIR=$SIM_DIR/$NODE_NAME
-EXE_DIR=$BUILD_DIR/build/bin
+if [[ -n "$TAOS_BIN_PATH" ]]; then
+  EXE_DIR=$TAOS_BIN_PATH
+else
+  EXE_DIR=$BUILD_DIR/build/bin
+fi
 CFG_DIR=$NODE_DIR/cfg
 LOG_DIR=$NODE_DIR/log
 DATA_DIR=$NODE_DIR/data

@@ -104,7 +104,7 @@ class TestInsertDouble:
         tdSql.query(f"select * from {stable_name}")
         tdSql.checkRows(12)
 
-    @pytest.mark.common
+
     @pytest.mark.ci
     def test_insert_double(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         """测试插入各种double值
