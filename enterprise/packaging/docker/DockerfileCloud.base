@@ -39,7 +39,7 @@ RUN pip install --upgrade pip && \
                     flask \
                     matplotlib \
                     uwsgi \
-                    transformers \
+                    transformers==4.40.0 \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple
