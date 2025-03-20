@@ -55,7 +55,7 @@ static char *bseFilexSuffix[] = {
     "data",
     "log",
 };
-static int32_t kBlockCap = 4 * 1024;
+static int32_t kBlockCap = 4 * 1024 * 1024;
 
 typedef struct {
   int64_t seq;
@@ -1014,6 +1014,19 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   if (p->pTableCache == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _err);
   }
+  p->pBatchList = taosArrayInit(4, sizeof(void *));
+  if (p->pBatchList == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _err);
+  }
+
+  SBseBatch *pBatch = NULL;
+  code = bseBatchCreate(&pBatch, 1024);
+  TSDB_CHECK_CODE(code, lino, _err);
+
+  if (taosArrayPush(p->pBatchList, &pBatch) == NULL) {
+    bseBatchDestroy(pBatch);
+    TSDB_CHECK_CODE(code = terrno, lino, _err);
+  }
 
   *pBse = p;
 
@@ -1046,37 +1059,70 @@ void bseClose(SBse *pBse) {
     pIter = taosHashIterate(pBse->pTableCache, pIter);
   }
   taosHashCleanup(pBse->pTableCache);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pBse->pBatchList); i++) {
+    SBseBatch **pBatch = taosArrayGet(pBse->pBatchList, i);
+    bseBatchDestroy(*pBatch);
+  }
+  taosArrayDestroy(pBse->pBatchList);
   taosMemoryFree(pBse);
 }
 
-int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch) {
+int32_t bsePutBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
   taosThreadMutexLock(&pBse->mutex);
   code = tableAppendBatch(pBse->pTable[pBse->inUse], pBatch);
+
+  code = bseRecycleBatch(pBse, pBatch);
+
   taosThreadMutexUnlock(&pBse->mutex);
 
   return code;
 }
+int32_t bseGetOrCreateBatch(SBse *pBse, SBseBatch **pBatch) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SBseBatch **p;
 
-int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
+  if (taosArrayGetSize(pBse->pBatchList) > 0) {
+    p = (SBseBatch **)taosArrayPop(pBse->pBatchList);
+  } else {
+    SBseBatch *b = NULL;
+    code = bseBatchCreate(&b, 1024);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    if (taosArrayPush(pBse->pBatchList, &b) == NULL) {
+      bseBatchDestroy(b);
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+    p = (SBseBatch **)taosArrayPop(pBse->pBatchList);
+  }
+  *pBatch = *p;
+
+_error:
+  if (code != 0) {
+  }
+  return code;
+}
+
+int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch) {
+  int32_t code = 0;
+
+  bseBatchClear(pBatch);
+  if (taosArrayPush(pBse->pBatchList, &pBatch) == NULL) {
+    code = terrno;
+  }
+  return code;
+}
+
+int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SBseBatch *p = taosMemoryCalloc(1, sizeof(SBseBatch));
-  if (p == NULL) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
-  uint64_t sseq = 0;
+  TSDB_CHECK_CODE(code = terrno, lino, _error);
 
-  // atomic later
-  taosThreadMutexLock(&pBse->mutex);
-  sseq = pBse->seq;
-  pBse->seq += nKeys;
-  taosThreadMutexUnlock(&pBse->mutex);
-
-  p->pBse = pBse;
   p->len = 0;
-  p->seq = sseq++;
+  p->seq = 0;
   p->cap = 1024;
   p->buf = taosMemCalloc(1, p->cap);
   if (p->buf == NULL) {
@@ -1087,6 +1133,40 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   if (p->pSeq == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
+  *pBatch = p;
+
+_error:
+  if (code != 0) {
+    bseError("failed to create bse batch since %s at line %d", tstrerror(code), lino);
+    bseBatchDestroy(p);
+  }
+  return code;
+}
+int32_t bseBatchSetParam(SBseBatch *pBatch, int64_t seq, int32_t cap) {
+  pBatch->seq = seq;
+  taosArrayEnsureCap(pBatch->pSeq, cap);
+
+  return 0;
+}
+int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SBseBatch *p = NULL;
+  uint64_t   sseq = 0;
+
+  // atomic later
+  taosThreadMutexLock(&pBse->mutex);
+  sseq = pBse->seq;
+  pBse->seq += nKeys;
+  code = bseGetOrCreateBatch(pBse, &p);
+  taosThreadMutexUnlock(&pBse->mutex);
+
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = bseBatchSetParam(p, sseq, nKeys);
+
+  TSDB_CHECK_CODE(code, lino, _error);
 
   *pBatch = p;
 _error:
@@ -1134,15 +1214,19 @@ int32_t bseBatchGet(SBseBatch *pBatch, uint64_t seq, uint8_t **pValue, int32_t *
   int32_t code = 0;
   return 0;
 }
-
-int32_t bseBatchCommit(SBseBatch *pBatch) { return bseAppendBatch(pBatch->pBse, pBatch); }
+int32_t bseBatchClear(SBseBatch *pBatch) {
+  pBatch->len = 0;
+  pBatch->num = 0;
+  pBatch->seq = 0;
+  taosArrayClear(pBatch->pSeq);
+  return 0;
+}
 
 int32_t bseBatchDestroy(SBseBatch *pBatch) {
   if (pBatch == NULL) return 0;
 
   int32_t code = 0;
   taosMemoryFree(pBatch->buf);
-  taosHashCleanup(pBatch->pOffset);
   taosArrayDestroy(pBatch->pSeq);
 
   taosMemFree(pBatch);

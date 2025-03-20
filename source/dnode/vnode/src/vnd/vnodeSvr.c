@@ -621,10 +621,9 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
     nr += 1;
   }
 
-  code = bseAppendBatch(pVnode->pBse, pBatch);
+  code = bsePutBatch(pVnode->pBse, pBatch);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = bseBatchDestroy(pBatch);
 _exit:
   if (code != 0) {
     vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));

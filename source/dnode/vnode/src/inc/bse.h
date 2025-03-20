@@ -151,6 +151,7 @@ typedef struct {
   SBseCfg        cfg;
   SArray        *fileSet;
   SHashObj      *pTableCache;
+  SArray        *pBatchList;
 } SBse;
 
 typedef struct {
@@ -159,10 +160,7 @@ typedef struct {
   int32_t  len;
   int32_t  cap;
   int64_t  seq;
-
-  SBse     *pBse;
-  SHashObj *pOffset;
-  SArray   *pSeq;
+  SArray  *pSeq;
 } SBseBatch;
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
@@ -175,13 +173,14 @@ int32_t bseEndSnapshot(SBse *pBse);
 int32_t bseStopSnapshot(SBse *pBse);
 void    bseClose(SBse *pBse);
 
-int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch);
-
+int32_t bsePutBatch(SBse *pBse, SBseBatch *pBatch);
+int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
+int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
 int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t len);
 int32_t bseBatchGet(SBseBatch *pBatch, uint64_t seq, uint8_t **pValue, int32_t *len);
 int32_t bseBatchDestroy(SBseBatch *pBatch);
-int32_t bseBatchCommit(SBseBatch *pBatch);
+int32_t bseBatchClear(SBseBatch *pBatch);
 int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
 
 #ifdef __cplusplus
