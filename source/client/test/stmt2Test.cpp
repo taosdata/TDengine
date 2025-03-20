@@ -647,6 +647,7 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
 
   // case 10 : test all types
   {
+    do_query(taos, "use stmt2_testdb_3");
     const char* sql =
         "insert into ? using all_stb tags(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
     TAOS_FIELD_ALL expectedFields[33] = {{"tbname", TSDB_DATA_TYPE_BINARY, 0, 0, 271, TAOS_FIELD_TBNAME},
@@ -1032,6 +1033,15 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     printf("stmt2 [%s] : %s\n", "less params", sql);
     int code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code);
+    // test get fields
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 2);
+    ASSERT_STREQ(pFields[0].name, "tbname");
+    ASSERT_STREQ(pFields[1].name, "ts");
+
     int total_affect_rows = 0;
 
     int     t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
@@ -1054,11 +1064,22 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
       code = taos_stmt2_bind_param(stmt, &bindv, -1);
       checkError(stmt, code);
 
+      code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+      checkError(stmt, code);
+      ASSERT_EQ(fieldNum, 2);
+      ASSERT_STREQ(pFields[0].name, "tbname");
+      ASSERT_STREQ(pFields[1].name, "ts");
+
       int affected_rows;
       taos_stmt2_exec(stmt, &affected_rows);
       total_affect_rows += affected_rows;
-
       checkError(stmt, code);
+
+      code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+      checkError(stmt, code);
+      ASSERT_EQ(fieldNum, 2);
+      ASSERT_STREQ(pFields[0].name, "tbname");
+      ASSERT_STREQ(pFields[1].name, "ts");
     }
 
     ASSERT_EQ(total_affect_rows, 12);
