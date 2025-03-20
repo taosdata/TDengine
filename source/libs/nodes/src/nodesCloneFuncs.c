@@ -816,6 +816,10 @@ static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVir
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(scanAllCols);
   CLONE_NODE_LIST_FIELD(pTargets);
+  CLONE_NODE_LIST_FIELD(pTags);
+  CLONE_NODE_FIELD(pSubtable);
+  COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(igCheckUpdate);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -2207,6 +2207,10 @@ enum {
   PHY_VIRTUAL_TABLE_SCAN_CODE_GROUP_SORT,
   PHY_VIRTUAL_TABLE_SCAN_CODE_ONLY_TS,
   PHY_VIRTUAL_TABLE_SCAN_CODE_TARGETS,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_TAGS,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_SUBTABLE,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_EXPIRED,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE,
 };
 
 static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2229,6 +2233,23 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TAGS, nodeListToMsg, pNode->pTags);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_SUBTABLE, nodeToMsg, pNode->pSubtable);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_EXPIRED, pNode->igExpired);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE, pNode->igCheckUpdate);
+  }
+
   return code;
 }
 
@@ -2253,6 +2274,18 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
         break;
       case PHY_VIRTUAL_TABLE_SCAN_CODE_TARGETS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_TAGS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTags);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_SUBTABLE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubtable);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_EXPIRED:
+        code = tlvDecodeI8(pTlv, &pNode->igExpired);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_IGNORE_CHECK_UPDATE:
+        code = tlvDecodeI8(pTlv, &pNode->igCheckUpdate);
         break;
       default:
         break;

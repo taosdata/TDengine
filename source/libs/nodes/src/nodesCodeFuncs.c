@@ -2479,6 +2479,10 @@ static const char* jkVirtualTableScanPhysiPlanGroupTags = "GroupTags";
 static const char* jkVirtualTableScanPhysiPlanGroupSort = "GroupSort";
 static const char* jkVirtualTableScanPhysiPlanscanAllCols= "scanAllCols";
 static const char* jkVirtualTableScanPhysiPlanTargets = "Targets";
+static const char* jkVirtualTableScanPhysiPlanTags = "Tags";
+static const char* jkVirtualTableScanPhysiPlanSubtable = "Subtable";
+static const char* jkVirtualTableScanPhysiPlanIgExpired = "IgExpired";
+static const char* jkVirtualTableScanPhysiPlanIgCheckUpdate = "IgCheckUpdate";
 
 static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const SVirtualScanPhysiNode* pNode = (const SVirtualScanPhysiNode*)pObj;
@@ -2486,11 +2490,11 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physiScanNodeToJson(pObj, pJson);
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanTargets, pNode->pGroupTags);
+    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanGroupTags, pNode->pGroupTags);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanTargets, pNode->groupSort);
+    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanGroupSort, pNode->groupSort);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -2499,6 +2503,22 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
 
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanTargets, pNode->pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanTags, pNode->pTags);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkVirtualTableScanPhysiPlanSubtable, nodeToJson, pNode->pSubtable);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanPhysiPlanIgExpired, pNode->igExpired);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanPhysiPlanIgCheckUpdate, pNode->igCheckUpdate);
   }
 
   return code;
@@ -2519,6 +2539,22 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanTargets, &pNode->pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanTags, &pNode->pTags);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkVirtualTableScanPhysiPlanSubtable, &pNode->pSubtable);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkVirtualTableScanPhysiPlanIgExpired, &pNode->igExpired);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkVirtualTableScanPhysiPlanIgCheckUpdate, &pNode->igCheckUpdate);
   }
 
   return code;

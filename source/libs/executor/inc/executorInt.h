@@ -546,9 +546,10 @@ typedef struct SStreamScanInfo {
   uint64_t     numOfExec;        // execution times
   STqReader*   tqReader;
 
-  SHashObj*      pVtableMergeHandles;  // key: vtable uid, value: SStreamVtableMergeHandle
-  SDiskbasedBuf* pVtableMergeBuf;      // page buffer used by vtable merge
-  SArray*        pVtableReadyHandles;
+  SHashObj*       pVtableMergeHandles;  // key: vtable uid, value: SStreamVtableMergeHandle
+  SDiskbasedBuf*  pVtableMergeBuf;      // page buffer used by vtable merge
+  SArray*         pVtableReadyHandles;
+  STableListInfo* pTableListInfo;
 
   uint64_t            groupId;
   bool                igCheckGroupId;

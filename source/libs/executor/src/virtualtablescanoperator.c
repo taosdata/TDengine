@@ -795,13 +795,13 @@ static int32_t doStreamVtableMergeNext(SOperatorInfo* pOperator, SSDataBlock** p
     int32_t numPagePerTable = getNumOfInMemBufPages(pInfo->pVtableMergeBuf) / nTables;
     for (int32_t i = 0; i < nTables; ++i) {
       SVCTableMergeInfo* pTableInfo = taosArrayGet(pVTables, i);
-      if (pTableInfo == NULL) {
+      if (pTableInfo == NULL || pTableInfo->numOfSrcTbls == 0) {
         continue;
       }
       QUERY_CHECK_CONDITION(pTableInfo->numOfSrcTbls <= numPagePerTable, code, lino, _end, terrno);
       SStreamVtableMergeHandle* pMergeHandle = NULL;
-      code = streamVtableMergeCreateHandle(&pMergeHandle, pTableInfo->numOfSrcTbls, numPagePerTable,
-                                           pInfo->pVtableMergeBuf, pInfo->pRes, id);
+      code = streamVtableMergeCreateHandle(&pMergeHandle, pTableInfo->uid, pTableInfo->numOfSrcTbls, numPagePerTable,
+                                           pInfo->primaryTsIndex, pInfo->pVtableMergeBuf, pInfo->pRes, id);
       QUERY_CHECK_CODE(code, lino, _end);
       code = taosHashPut(pInfo->pVtableMergeHandles, &pTableInfo->uid, sizeof(pTableInfo->uid), &pMergeHandle,
                          POINTER_BYTES);
@@ -822,6 +822,30 @@ static int32_t doStreamVtableMergeNext(SOperatorInfo* pOperator, SSDataBlock** p
     if (pBlock == NULL) {
       pOperator->status = OP_RES_TO_RETURN;
       break;
+    }
+
+    int32_t inputNCols = taosArrayGetSize(pBlock->pDataBlock);
+    int32_t resNCols = taosArrayGetSize(pResBlock->pDataBlock);
+    QUERY_CHECK_CONDITION(inputNCols <= resNCols, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    for (int32_t i = 0; i < inputNCols; ++i) {
+      SColumnInfoData *p1 = taosArrayGet(pResBlock->pDataBlock, i);
+      QUERY_CHECK_NULL(p1, code, lino, _end, terrno);
+      SColumnInfoData *p2 = taosArrayGet(pBlock->pDataBlock, i);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CONDITION(p1->info.type == p2->info.type, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      QUERY_CHECK_CONDITION(p1->info.bytes == p2->info.bytes, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    }
+    for (int32_t i = inputNCols; i < resNCols; ++i) {
+      SColumnInfoData *p = taosArrayGet(pResBlock->pDataBlock, i);
+      QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+      SColumnInfoData colInfo = {.hasNull = true, .info = p->info};
+      code = blockDataAppendColInfo(pBlock, &colInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
+      SColumnInfoData* pNewCol = taosArrayGet(pBlock->pDataBlock, i);
+      QUERY_CHECK_NULL(pNewCol, code, lino, _end, terrno);
+      code = colInfoDataEnsureCapacity(pNewCol, pBlock->info.rows, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+      colDataSetNNULL(pNewCol, 0, pBlock->info.rows);
     }
 
     if (pBlock->info.type == STREAM_NORMAL) {
@@ -878,9 +902,9 @@ static int32_t doStreamVtableMergeNext(SOperatorInfo* pOperator, SSDataBlock** p
 
       bool newTuple = true;
       if (pResBlock->info.rows > 0) {
-        SColumnInfoData* pResTsCol = taosArrayGet(pResBlock->pDataBlock, 0);
+        SColumnInfoData* pResTsCol = taosArrayGet(pResBlock->pDataBlock, pInfo->primaryTsIndex);
         int64_t          lastResTs = *(int64_t*)colDataGetNumData(pResTsCol, pResBlock->info.rows - 1);
-        SColumnInfoData* pMergeTsCol = taosArrayGet(pBlock->pDataBlock, 0);
+        SColumnInfoData* pMergeTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
         int64_t          mergeTs = *(int64_t*)colDataGetNumData(pMergeTsCol, idx);
         QUERY_CHECK_CONDITION(mergeTs >= lastResTs, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         newTuple = (mergeTs > lastResTs);
@@ -913,6 +937,7 @@ static int32_t doStreamVtableMergeNext(SOperatorInfo* pOperator, SSDataBlock** p
     }
 
     if (pResBlock->info.rows > 0) {
+      pResBlock->info.id.uid = streamVtableMergeHandleGetVuid(pHandle);
       break;
     }
   }
@@ -923,8 +948,18 @@ static int32_t doStreamVtableMergeNext(SOperatorInfo* pOperator, SSDataBlock** p
 
   pInfo->numOfExec++;
   if (pResBlock->info.rows > 0) {
-    (*ppRes) = pResBlock;
-    pOperator->resultInfo.totalRows += pResBlock->info.rows;
+    pResBlock->info.id.groupId = tableListGetTableGroupId(pInfo->pTableListInfo, pResBlock->info.id.uid);
+    code = blockDataUpdateTsWindow(pResBlock, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pResBlock,
+                                  pResBlock->info.rows, pTaskInfo, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pResBlock->info.rows > 0) {
+      (*ppRes) = pResBlock;
+      pOperator->resultInfo.totalRows += pResBlock->info.rows;
+    }
   }
 
 _end:
@@ -1032,7 +1067,7 @@ int32_t createStreamVtableMergeOperatorInfo(SOperatorInfo* pDownstream, SReadHan
   pInfo->pCreateTbRes = buildCreateTableBlock(&pInfo->tbnameCalSup, &pInfo->tagCalSup);
   QUERY_CHECK_NULL(pInfo->pCreateTbRes, code, lino, _error, terrno);
 
-  // create the pseduo columns info
+  // create the pseudo columns info
   if (pVirtualScanNode->scan.pScanPseudoCols != NULL) {
     code = createExprInfo(pVirtualScanNode->scan.pScanPseudoCols, NULL, &pInfo->pPseudoExpr, &pInfo->numOfPseudoExpr);
     QUERY_CHECK_CODE(code, lino, _error);
@@ -1045,6 +1080,7 @@ int32_t createStreamVtableMergeOperatorInfo(SOperatorInfo* pDownstream, SReadHan
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   code = blockDataEnsureCapacity(pInfo->pRes, TMAX(pOperator->resultInfo.capacity, 4096));
   QUERY_CHECK_CODE(code, lino, _error);
+  pInfo->pRes->info.type = STREAM_NORMAL;
   code = createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateRes);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -1054,6 +1090,8 @@ int32_t createStreamVtableMergeOperatorInfo(SOperatorInfo* pDownstream, SReadHan
   QUERY_CHECK_CODE(code, lino, _error);
   pInfo->pVtableReadyHandles = taosArrayInit(0, POINTER_BYTES);
   QUERY_CHECK_NULL(pInfo->pVtableReadyHandles, code, lino, _error, terrno);
+  pInfo->pTableListInfo = pTableListInfo;
+  pTableListInfo = NULL;
 
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->windowSup = (SWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
@@ -1126,6 +1164,10 @@ int32_t createStreamVtableMergeOperatorInfo(SOperatorInfo* pDownstream, SReadHan
 _error:
   if (pInfo != NULL) {
     destroyStreamScanOperatorInfo(pInfo);
+  }
+
+  if (pTableListInfo != NULL) {
+    tableListDestroy(pTableListInfo);
   }
 
   if (pOperator != NULL) {

@@ -707,7 +707,6 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
 
     code = createStreamVtableMergeOperatorInfo(ops[0], pHandle, pVirtualTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOptr);
-    tableListDestroy(pTableListInfo);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;

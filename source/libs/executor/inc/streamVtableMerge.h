@@ -30,10 +30,13 @@ typedef enum {
   SVM_NEXT_FOUND = 1,
 } SVM_NEXT_RESULT;
 
-int32_t streamVtableMergeCreateHandle(SStreamVtableMergeHandle **ppHandle, int32_t nSrcTbls, int32_t numPageLimit,
-                                      SDiskbasedBuf *pBuf, SSDataBlock *pResBlock, const char *idstr);
+int32_t streamVtableMergeCreateHandle(SStreamVtableMergeHandle **ppHandle, int64_t vuid, int32_t nSrcTbls,
+                                      int32_t numPageLimit, int32_t primaryTsIndex, SDiskbasedBuf *pBuf,
+                                      SSDataBlock *pResBlock, const char *idstr);
 
 void streamVtableMergeDestroyHandle(void *ppHandle);
+
+int64_t streamVtableMergeHandleGetVuid(SStreamVtableMergeHandle *pHandle);
 
 int32_t streamVtableMergeAddBlock(SStreamVtableMergeHandle *pHandle, SSDataBlock *pDataBlock, const char *idstr);
 

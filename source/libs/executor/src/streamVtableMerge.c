@@ -28,6 +28,7 @@ typedef struct SVMBufPageInfo {
 typedef struct SStreamVtableMergeSource {
   SDiskbasedBuf* pBuf;         // buffer for storing data
   int32_t*       pTotalPages;  // total pages of all sources in the buffer
+  int32_t        primaryTsIndex;
 
   SSDataBlock* pInputDataBlock;      // data block to be written to the buffer
   int64_t      currentExpireTimeMs;  // expire time of the input data block
@@ -44,7 +45,9 @@ typedef struct SStreamVtableMergeHandle {
   SDiskbasedBuf* pBuf;
   int32_t        numOfPages;
   int32_t        numPageLimit;
+  int32_t        primaryTsIndex;
 
+  int64_t      vuid;
   int32_t      nSrcTbls;
   SHashObj*    pSources;
   SSDataBlock* datablock;  // Does not store data, only used to save the schema of input/output data blocks
@@ -133,11 +136,8 @@ static int32_t svmSourceAddBlock(SStreamVtableMergeSource* pSource, SSDataBlock*
   QUERY_CHECK_NULL(pSource, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pInputDataBlock = pSource->pInputDataBlock;
-  if (pInputDataBlock == NULL) {
-    code = createOneDataBlock(pDataBlock, false, &pInputDataBlock);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pSource->pInputDataBlock = pInputDataBlock;
-  }
+  QUERY_CHECK_CONDITION(taosArrayGetSize(pDataBlock->pDataBlock) >= taosArrayGetSize(pInputDataBlock->pDataBlock), code,
+                        lino, _end, TSDB_CODE_INVALID_PARA);
 
   int32_t start = 0;
   int32_t nrows = blockDataGetNumOfRows(pDataBlock);
@@ -241,8 +241,9 @@ static int32_t svmSourceCurrentTs(SStreamVtableMergeSource* pSource, const char*
   QUERY_CHECK_CONDITION(pSource->rowIndex >= 0 && pSource->rowIndex < blockDataGetNumOfRows(pSource->pOutputDataBlock),
                         code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  tsCol = taosArrayGet(pSource->pOutputDataBlock->pDataBlock, 0);
+  tsCol = taosArrayGet(pSource->pOutputDataBlock->pDataBlock, pSource->primaryTsIndex);
   QUERY_CHECK_NULL(tsCol, code, lino, _end, terrno);
+  QUERY_CHECK_CONDITION(tsCol->info.type == TSDB_DATA_TYPE_TIMESTAMP, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   *pTs = ((int64_t*)tsCol->pData)[pSource->rowIndex];
 
@@ -355,6 +356,9 @@ static SStreamVtableMergeSource* svmAddSource(SStreamVtableMergeHandle* pHandle,
   QUERY_CHECK_NULL(pSource, code, lino, _end, terrno);
   pSource->pBuf = pHandle->pBuf;
   pSource->pTotalPages = &pHandle->numOfPages;
+  pSource->primaryTsIndex = pHandle->primaryTsIndex;
+  code = createOneDataBlock(pHandle->datablock, false, &pSource->pInputDataBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
   pSource->pageInfoList = tdListNew(sizeof(SVMBufPageInfo));
   QUERY_CHECK_NULL(pSource->pageInfoList, code, lino, _end, terrno);
   code = createOneDataBlock(pHandle->datablock, false, &pSource->pOutputDataBlock);
@@ -613,8 +617,9 @@ _end:
   return code;
 }
 
-int32_t streamVtableMergeCreateHandle(SStreamVtableMergeHandle** ppHandle, int32_t nSrcTbls, int32_t numPageLimit,
-                                      SDiskbasedBuf* pBuf, SSDataBlock* pResBlock, const char* idstr) {
+int32_t streamVtableMergeCreateHandle(SStreamVtableMergeHandle** ppHandle, int64_t vuid, int32_t nSrcTbls,
+                                      int32_t numPageLimit, int32_t primaryTsIndex, SDiskbasedBuf* pBuf,
+                                      SSDataBlock* pResBlock, const char* idstr) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SStreamVtableMergeHandle* pHandle = NULL;
@@ -629,6 +634,8 @@ int32_t streamVtableMergeCreateHandle(SStreamVtableMergeHandle** ppHandle, int32
 
   pHandle->pBuf = pBuf;
   pHandle->numPageLimit = numPageLimit;
+  pHandle->primaryTsIndex = primaryTsIndex;
+  pHandle->vuid = vuid;
   pHandle->nSrcTbls = nSrcTbls;
   pHandle->pSources = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   QUERY_CHECK_NULL(pHandle->pSources, code, lino, _end, terrno);
@@ -665,4 +672,12 @@ void streamVtableMergeDestroyHandle(void* ptr) {
   svmDestroyTree(&pHandle->pMergeTree);
 
   taosMemoryFreeClear(*ppHandle);
+}
+
+int64_t streamVtableMergeHandleGetVuid(SStreamVtableMergeHandle* pHandle) {
+  if (pHandle != NULL) {
+    return pHandle->vuid;
+  } else {
+    return 0;
+  }
 }

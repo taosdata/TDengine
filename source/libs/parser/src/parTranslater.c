@@ -13476,14 +13476,14 @@ static int32_t buildQueryTableColIdList(SSelectStmt *pSelect, SArray** ppRes) {
   *ppRes = taosArrayInit(pColList->length, sizeof(int16_t));
   if (NULL == *ppRes) {
     code = terrno;
-    parserError("taosArrayInit %d colId failed, errno:0x%x", *ppRes, code);
+    parserError("taosArrayInit 0x%p colId failed, errno:0x%x", *ppRes, code);
     goto _return;
   }
   
   FOREACH(pCol, pColList) {
     if (NULL == taosArrayPush(*ppRes, &((SColumnNode*)pCol)->colId)) {
       code = terrno;
-      parserError("taosArrayPush colId failed, errno:0x%x", *ppRes, code);
+      parserError("taosArrayPush 0x%p colId failed, errno:0x%x", *ppRes, code);
       goto _return;
     }
   }
@@ -13532,7 +13532,7 @@ static int32_t modifyVtableSrcNumBasedOnQuery(SArray* pVSubTables, SNode* pStmt)
     pTbHash = tSimpleHashInit(colNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (NULL == pTbHash) {
       code = terrno;
-      parserError("tSimpleHashInit %d failed, errno:0x%x", code);
+      parserError("tSimpleHashInit failed, colNum:%d, errno:0x%x", colNum, code);
       PAR_ERR_JRET(code);
     }
   }
