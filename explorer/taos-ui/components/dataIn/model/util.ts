@@ -29,6 +29,9 @@ export function getSourceConfig(isEn: boolean) {
   }
 
   for (const path in modulesFiles) {
+    if (!modulesFiles[path].default.id) {
+      continue;
+    }
     definitionsList.push({
       id: modulesFiles[path].default.id,
       name: modulesFiles[path].default.name
@@ -227,6 +230,14 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
         }
       } else if (key === 'port' && typeof rdata[key] === 'number') {
         dataDisplay[key] = String(rdata[key]);
+      } else if (typeof dataDisplay[key] === 'boolean') {
+        if (rdata[key] === 'true') {
+          dataDisplay[key] = true;
+        } else if (rdata[key] === 'false') {
+          dataDisplay[key] = false;
+        } else {
+          dataDisplay[key] = rdata[key];
+        }
       } else {
         dataDisplay[key] = rdata[key];
       }

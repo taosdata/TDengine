@@ -261,13 +261,19 @@ watch(
   }
 );
 
+if (route?.params.page === 'edit' || route?.params.page === 'copy') {
+  currentPageType.value = route?.params.page;
+} else {
+  currentPageType.value = 'add';
+  sourceForm.name = '';
+  sourceForm.targetDB = '';
+}
+
 onMounted(async () => {
   if (route?.params.page === 'edit' || route?.params.page === 'copy') {
     await handleDetailData(route?.params.taskId);
-    currentPageType.value = route?.params.page;
   } else {
     dataInProps.isIndusty ? (sourceForm.type = 'csv') : (sourceForm.type = 'tmq');
-    currentPageType.value = 'add';
     getDataSource();
   }
 });
@@ -287,13 +293,31 @@ async function handleDetailData(id: string | number) {
   sourceForm.name = data.name;
   sourceForm.targetDB = data.to_expand.subject;
   // sourceForm.data = data.from.data;
-  recoverFromData(sourceForm.type, sourceForm.data, data.from.data);
-  if (data.parser) {
-    transformerState.transformerParserData = data.parser;
+
+  if (sourceForm.type == 'csv') {
+    transformerState.csvParser = data.parser;
+
+    sourceForm.data.csvData = {
+      currentTab: 'upload_csv_file',
+      path: '',
+      monitor_file_directory: {
+        file_url: '',
+        file_pattern: '',
+        new_file_notify: false,
+        notify_interval: 30,
+        sort: '1'
+      },
+      upload_csv_file: {
+        keep_processed_files: false,
+        file_url: ''
+      }
+    };
   }
 
-  if (data.type == 'csv') {
-    transformerState.csvParser = data.parser;
+  recoverFromData(sourceForm.type, sourceForm.data, data.from.data);
+
+  if (data.parser) {
+    transformerState.transformerParserData = data.parser;
   }
 }
 
