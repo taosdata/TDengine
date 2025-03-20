@@ -593,7 +593,7 @@ int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk) {
   }
   return code;
 }
-static int32_t getBlockInfoBySeq(SArray *pSeqToBlock, int64_t key, BlockInfo **ppInfo) {
+static int32_t getBlockBySeq(SArray *pSeqToBlock, int64_t key, BlockInfo **ppInfo) {
   int32_t    code = 0;
   BlockInfo *p = NULL;
 
@@ -620,10 +620,10 @@ static int32_t getBlockInfoBySeq(SArray *pSeqToBlock, int64_t key, BlockInfo **p
   }
   return code;
 }
-int32_t tableLoadBySeq(STable *pTable, uint64_t key, uint8_t **pValue, int32_t *len) {
+static int32_t tableLoadBySeq(STable *pTable, uint64_t key, uint8_t **pValue, int32_t *len) {
   BlockInfo *p = NULL;
 
-  int32_t code = getBlockInfoBySeq(pTable->pSeqToBlock, key, &p);
+  int32_t code = getBlockBySeq(pTable->pSeqToBlock, key, &p);
   if (code != 0) {
     return code;
   }
@@ -1414,7 +1414,7 @@ static int32_t readerTableGet(SReaderTable *pTable, int64_t key, uint8_t **pValu
   int32_t line = 0;
 
   BlockInfo *p = NULL;
-  code = getBlockInfoBySeq(pTable->pSeqToBlock, key, &p);
+  code = getBlockBySeq(pTable->pSeqToBlock, key, &p);
   TSDB_CHECK_CODE(code, line, _err);
 
   code = tableLoadBlk((STable *)pTable, p->blockId, &pTable->bufBlk);
