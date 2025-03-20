@@ -41,15 +41,20 @@ TEST(jsonTest, strToLowerCopy) {
   // strToLowerCopy
   const char* arr[][2] = {
     {"ABC","abc"},
-    {"Http://Localhost:6041","htttp://localhost:6041"},
+    {"Http://Localhost:6041","http://localhost:6041"},
     {"DEF","def"}
   };
 
   int rows = sizeof(arr) / sizeof(arr[0]);
   for (int i = 0; i < rows; i++) {
-    char *p1 = (char *)arr[i][0];
-    char *p2 = strToLowerCopy(p1);
+    char *p1 = (char *)arr[i][1];
+    char *p2 = strToLowerCopy((char *)arr[i][0]);
+    printf("p1: %s\n", p1);
+    printf("p2: %s\n", p2);
     int32_t cmp = strcmp(p1, p2);
+    if (p2) {
+      free(p2);
+    }    
     ASSERT_EQ(cmp, 0);
   }
 
