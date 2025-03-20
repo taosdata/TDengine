@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+# set -x
 function usage() {
     echo "$0"
     echo -e "\t -m vm config file"
@@ -67,6 +67,8 @@ if [ ! -f "$t_file" ]; then
     usage
     exit 1
 fi
+
+
 date_tag=$(date +%Y%m%d-%H%M%S)
 test_log_dir=${branch}_${date_tag}
 if [ -z "$log_dir" ]; then
@@ -80,6 +82,7 @@ usernames=()
 passwords=()
 workdirs=()
 threads=()
+
 
 i=0
 while true; do
@@ -139,9 +142,9 @@ function run_thread() {
         runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
     local count=0
-    local script="${workdirs[index]}/TDengine/test/parallel_test/run_container.sh"
+    local script="${workdirs[index]}/TDengine/test/ci/run_container.sh"
     if [ $ent -ne 0 ]; then
-        local script="${workdirs[index]}/TDinternal/community/test/parallel_test/run_container.sh -e"
+        local script="${workdirs[index]}/TDinternal/community/test/ci/run_container.sh -e"
     fi
     local cmd="${runcase_script} ${script}"
 
@@ -183,24 +186,26 @@ function run_thread() {
         case_cmd=$(echo "$line" | cut -d, -f5)
         local case_file=""
 
+        # get the docs-examples test case from cases.task file
         if echo "$case_cmd" | grep -q "\.sh"; then
             case_file=$(echo "$case_cmd" | grep -o ".*\.sh" | awk '{print $NF}')
         fi
 
+        # get python or sim cases from cases.task file without asan
         if echo "$case_cmd" | grep -q "^pytest"; then
             if [[ $case_cmd == *".py"* ]] || [[ $case_cmd == *".sim"* ]]; then
                 case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
             fi
         fi
 
+        # get python cases from cases.task file with asan
+        if echo "$case_cmd" | grep -q "^./pytest.sh"; then
+            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+        fi
 
         # if echo "$case_cmd" | grep -q "^python3"; then
         #     case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         # fi
-
-        if echo "$case_cmd" | grep -q "^./pytest.sh"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
-        fi
 
         # if echo "$case_cmd" | grep -q "\.sim"; then
         #     case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
