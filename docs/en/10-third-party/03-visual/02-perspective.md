@@ -19,7 +19,7 @@ Perform the following installation operations in the Linux system:
 - Python version 3.10 or higher has been installed (if not installed, please refer to [Python Installation](https://docs.python.org/)).
 - Download or clone the [perspective-connect-demo](https://github.com/taosdata/perspective-connect-demo) project. After entering the root directory of the project, run the "install.sh" script to download and install the TDengine client library and related dependencies locally. 
 
-## Data Analysis
+## Visualize data
 
 **Step 1**, Run the "run.sh" script in the root directory of the [perspective-connect-demo](https://github.com/taosdata/perspective-connect-demo) project to start the Perspective service. This service will retrieve data from the TDengine database every 300 milliseconds and transmit the data in a streaming form to the web-based `Perspective Viewer`. 
 
