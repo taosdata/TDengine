@@ -1,2 +1,1 @@
 select crc32()
-select crc32(null)
