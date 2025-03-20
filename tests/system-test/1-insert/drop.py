@@ -299,7 +299,16 @@ class TDTestCase:
         tdSql.query(f'select * from information_schema.ins_streams where stream_name = "{stream_name}"')
         tdSql.checkEqual(tdSql.queryResult[0][4],f'create stream {stream_name} trigger at_once ignore expired 0 into stb1 as select * from tb')
         tdSql.execute(f'drop database {self.dbname}')
+    def test_table_name_with_star(self):
+        dbname = "test_tbname_with_star"
+        tbname = 's_*cszl01_207602da'
+        tdSql.execute(f'create database {dbname} replica 1 wal_retention_period 3600')
+        tdSql.execute(f'create table {dbname}.`{tbname}` (ts timestamp, c1 int)', queryTimes=1, show=1)
+        tdSql.execute(f"drop table {dbname}.`{tbname}`")
+        tdSql.execute(f"drop database {dbname}")
+
     def run(self):
+        self.test_table_name_with_star()
         self.drop_ntb_check()
         self.drop_stb_ctb_check()
         self.drop_stable_with_check()

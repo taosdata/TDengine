@@ -157,7 +157,7 @@ int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_
 int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
 
 int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock,
-                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq);
+                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq, const char* id);
 int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
 
 // tq send notifications

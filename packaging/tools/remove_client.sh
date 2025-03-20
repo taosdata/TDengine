@@ -7,6 +7,7 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
+verMode=edge
 
 installDir="/usr/local/taos"
 clientName="taos"
@@ -18,7 +19,9 @@ productName2="TDengine"
 benchmarkName2="${clientName2}Benchmark"
 demoName2="${clientName2}demo"
 dumpName2="${clientName2}dump"
+inspect_name="${clientName2}inspect"
 uninstallScript2="rm${clientName2}"
+
 
 installDir="/usr/local/${clientName2}"
 
@@ -52,8 +55,9 @@ function clean_bin() {
     ${csudo}rm -f ${bin_link_dir}/${demoName2}        || :
     ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
     ${csudo}rm -f ${bin_link_dir}/${dumpName2}        || :
-    ${csudo}rm -f ${bin_link_dir}/${uninstallScript}    || :
+    ${csudo}rm -f ${bin_link_dir}/${uninstallScript2}  || :
     ${csudo}rm -f ${bin_link_dir}/set_core  || :
+    [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
 
     if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
@@ -61,6 +65,7 @@ function clean_bin() {
         ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
         ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
+        [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
     fi
 }
 

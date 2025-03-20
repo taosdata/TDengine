@@ -246,6 +246,9 @@ The effective value of charset is UTF-8.
 | streamSinkDataRate     |          |Supported, effective after restart| Internal parameter, used to control the write speed of stream computing results |
 | streamNotifyMessageSize | After 3.3.6.0 | Not supported | Internal parameter, controls the message size for event notifications, default value is 8192 |
 | streamNotifyFrameSize   | After 3.3.6.0 | Not supported | Internal parameter, controls the underlying frame size when sending event notification messages, default value is 256 |
+| adapterFqdn            | After 3.3.6.0 | Not supported | Internal parameter, The address of the taosadapter services, default value is localhost |
+| adapterPort            | After 3.3.6.0 | Not supported | Internal parameter, The port of the taosadapter services, default value is 6041 |
+| adapterToken           | After 3.3.6.0 | Not supported | Internal parameter, The string obtained by Base64-encoding `{username}:{password}`, default value is `cm9vdDp0YW9zZGF0YQ==` |
 
 ### Log Related
 

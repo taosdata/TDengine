@@ -228,7 +228,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       return terrno;
     }
 
-    nBytes = snprintf(chkp, cap, "%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
+    nBytes = snprintf(chkp, cap, "%s%s%s%scheckpoint%" PRId64, path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
     if (nBytes <= 0 || nBytes >= cap) {
       taosMemoryFree(state);
       taosMemoryFree(chkp);
@@ -349,7 +349,7 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t ch
       goto _EXIT;
     }
 
-    nBytes = snprintf(src, cap, "%s%s%s_%" PRId64 "", path, TD_DIRSEP, key, pMeta->currChkptId);
+    nBytes = snprintf(src, cap, "%s%s%s_%" PRId64, path, TD_DIRSEP, key, pMeta->currChkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
       goto _EXIT;
@@ -402,7 +402,7 @@ int32_t remoteChkpGetDelFile(char* path, SArray* toDel) {
       return terrno;
     }
 
-    nBytes = snprintf(p, cap, "%s_%" PRId64 "", key, pMeta->currChkptId);
+    nBytes = snprintf(p, cap, "%s_%" PRId64, key, pMeta->currChkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       taosMemoryFree(pMeta);
       taosMemoryFree(p);
@@ -752,7 +752,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   stDebug("%s check local backend dir:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
   if (chkptId > 0) {
-    nBytes = snprintf(checkpointPath, cap, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+    nBytes = snprintf(checkpointPath, cap, "%s%s%s%s%s%" PRId64, prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                       "checkpoint", chkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
@@ -843,6 +843,8 @@ int32_t streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId, 
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pHandle->cfInst, code, lino, _EXIT, terrno);
 
+  pHandle->vgId = vgId;
+
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
 
   int32_t nBGThread = tsNumOfSnodeStreamThreads <= 2 ? 1 : tsNumOfSnodeStreamThreads / 2;
@@ -914,6 +916,7 @@ _EXIT:
   taosMemoryFree(backendPath);
   return code;
 }
+
 void streamBackendCleanup(void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)arg;
 
@@ -930,6 +933,7 @@ void streamBackendCleanup(void* arg) {
     rocksdb_close(pHandle->db);
     pHandle->db = NULL;
   }
+
   rocksdb_options_destroy(pHandle->dbOpt);
   rocksdb_env_destroy(pHandle->env);
   rocksdb_cache_destroy(pHandle->cache);
@@ -945,16 +949,16 @@ void streamBackendCleanup(void* arg) {
   streamMutexDestroy(&pHandle->mutex);
 
   streamMutexDestroy(&pHandle->cfMutex);
-  stDebug("destroy stream backend :%p", pHandle);
+  stDebug("vgId:%d destroy stream backend:%p", (int32_t) pHandle->vgId, pHandle);
   taosMemoryFree(pHandle);
-  return;
 }
+
 void streamBackendHandleCleanup(void* arg) {
   SBackendCfWrapper* wrapper = arg;
   bool               remove = wrapper->remove;
   TAOS_UNUSED(taosThreadRwlockWrlock(&wrapper->rwLock));
 
-  stDebug("start to do-close backendwrapper %p, %s", wrapper, wrapper->idstr);
+  stDebug("start to do-close backendWrapper %p, %s", wrapper, wrapper->idstr);
   if (wrapper->rocksdb == NULL) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&wrapper->rwLock));
     return;
@@ -1084,7 +1088,7 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   for (int i = 0; i < taosArrayGetSize(chkpDel); i++) {
     int64_t id = *(int64_t*)taosArrayGet(chkpDel, i);
     char    tbuf[256] = {0};
-    sprintf(tbuf, "%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, id);
+    sprintf(tbuf, "%s%scheckpoint%" PRId64, path, TD_DIRSEP, id);
     if (taosIsDir(tbuf)) {
       taosRemoveDir(tbuf);
     }
@@ -1162,7 +1166,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
   for (int i = 0; i < taosArrayGetSize(chkpDel); i++) {
     int64_t id = *(int64_t*)taosArrayGet(chkpDel, i);
     char    tbuf[256] = {0};
-    if (snprintf(tbuf, sizeof(tbuf), "%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, id) >= sizeof(tbuf)) {
+    if (snprintf(tbuf, sizeof(tbuf), "%s%scheckpoint%" PRId64, path, TD_DIRSEP, id) >= sizeof(tbuf)) {
       code = TSDB_CODE_OUT_OF_RANGE;
       TAOS_CHECK_GOTO(code, NULL, _exception);
     }
@@ -1218,7 +1222,7 @@ int32_t taskDbLoadChkpInfo(STaskDbWrapper* pBackend) {
       char    checkpointPrefix[32] = {0};
       int64_t checkpointId = 0;
 
-      int ret = sscanf(taosGetDirEntryName(de), "checkpoint%" PRId64 "", &checkpointId);
+      int ret = sscanf(taosGetDirEntryName(de), "checkpoint%" PRId64, &checkpointId);
       if (ret == 1) {
         if (taosArrayPush(pBackend->chkpSaved, &checkpointId) == NULL) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
@@ -1435,7 +1439,7 @@ int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo) {
     }
     STaskDbWrapper** pTaskDb = taosHashGet(pMeta->pTaskDbUnique, buf, strlen(buf));
     if (pTaskDb == NULL || *pTaskDb == NULL) {
-      stWarn("stream backend:%p failed to find task db, streamId:% " PRId64 "", pMeta, pSnap->streamId);
+      stWarn("stream backend:%p failed to find task db, streamId:% " PRId64, pMeta, pSnap->streamId);
       memset(buf, 0, sizeof(buf));
       continue;
     }
@@ -1536,7 +1540,7 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
     goto _EXIT;
   }
 
-  if (sscanf(buf, "%" PRId64 " %" PRId64 "", chkpId, processId) < 2) {
+  if (sscanf(buf, "%" PRId64 " %" PRId64, chkpId, processId) < 2) {
     code = TSDB_CODE_INVALID_PARA;
     stError("failed to read file content to load extra info, file:%s, reason:%s", pDst, tstrerror(code));
     goto _EXIT;
@@ -1584,7 +1588,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
     goto _EXIT;
   }
 
-  nBytes = snprintf(buf, sizeof(buf), "%" PRId64 " %" PRId64 "", chkpId, processId);
+  nBytes = snprintf(buf, sizeof(buf), "%" PRId64 " %" PRId64, chkpId, processId);
   if (nBytes <= 0 || nBytes >= sizeof(buf)) {
     code = TSDB_CODE_OUT_OF_RANGE;
     stError("failed to build content to add extra info, dir:%s,reason:%s", pChkpIdDir, tstrerror(code));
@@ -1629,11 +1633,11 @@ int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId) {
 
   // flush db
   if (written > 0) {
-    stDebug("stream backend:%p start to flush db at:%s, data written:%" PRId64 "", pTaskDb, pChkpIdDir, written);
+    stDebug("stream backend:%p start to flush db at:%s, data written:%" PRId64, pTaskDb, pChkpIdDir, written);
     code = chkpPreFlushDb(pTaskDb->db, ppCf, nCf);
     if (code != 0) goto _EXIT;
   } else {
-    stDebug("stream backend:%p not need flush db at:%s, data written:%" PRId64 "", pTaskDb, pChkpIdDir, written);
+    stDebug("stream backend:%p not need flush db at:%s, data written:%" PRId64, pTaskDb, pChkpIdDir, written);
   }
 
   // do checkpoint
@@ -2613,11 +2617,14 @@ int32_t taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* 
 
 void taskDbDestroy(void* pDb, bool flush) {
   STaskDbWrapper* wrapper = pDb;
-  if (wrapper == NULL) return;
+  if (wrapper == NULL) {
+    return;
+  }
 
+  int64_t st = taosGetTimestampMs();
   streamMetaRemoveDB(wrapper->pMeta, wrapper->idstr);
 
-  stDebug("succ to destroy stream backend:%p", wrapper);
+  stDebug("%s succ to destroy stream backend:%p", wrapper->idstr, wrapper);
 
   int8_t nCf = tListLen(ginitDict);
   if (flush && wrapper->removeAllFiles == 0) {
@@ -2674,25 +2681,26 @@ void taskDbDestroy(void* pDb, bool flush) {
     rocksdb_comparator_destroy(compare);
     rocksdb_block_based_options_destroy(tblOpt);
   }
+
   taosMemoryFree(wrapper->pCompares);
   taosMemoryFree(wrapper->pCfOpts);
   taosMemoryFree(wrapper->pCfParams);
 
   streamMutexDestroy(&wrapper->mutex);
-
   taskDbDestroyChkpOpt(wrapper);
-
-  taosMemoryFree(wrapper->idstr);
 
   if (wrapper->removeAllFiles) {
     char* err = NULL;
-    stInfo("drop task remove backend dat:%s", wrapper->path);
+    stInfo("drop task remove backend data:%s", wrapper->path);
     taosRemoveDir(wrapper->path);
   }
+
+  int64_t et = taosGetTimestampMs();
+  stDebug("%s destroy stream backend:%p completed, elapsed time:%.2fs", wrapper->idstr, wrapper, (et - st)/1000.0);
+
+  taosMemoryFree(wrapper->idstr);
   taosMemoryFree(wrapper->path);
   taosMemoryFree(wrapper);
-
-  return;
 }
 
 void taskDbDestroy2(void* pDb) { taskDbDestroy(pDb, true); }
@@ -2716,7 +2724,7 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
   }
 
   nBytes =
-      snprintf(buf, cap, "%s%s%s%s%s%" PRId64 "", pDb->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkpId);
+      snprintf(buf, cap, "%s%s%s%s%s%" PRId64, pDb->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(buf);
     TAOS_UNUSED(taosReleaseRef(taskDbWrapperId, refId));
@@ -4466,7 +4474,7 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
     }
     if (strncmp(key, start, strlen(start)) == 0 && strlen(key) >= strlen(start) + 1) {
       int64_t checkPoint = 0;
-      if (sscanf(key + strlen(key), ":%" PRId64 "", &checkPoint) == 1) {
+      if (sscanf(key + strlen(key), ":%" PRId64, &checkPoint) == 1) {
         if (taosArrayPush(result, &checkPoint) == NULL) {
           code = terrno;
           break;
@@ -4844,7 +4852,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   memset(p->buf, 0, p->len);
 
   nBytes =
-      snprintf(p->buf, p->len, "%s%s%s%scheckpoint%" PRId64 "", p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
+      snprintf(p->buf, p->len, "%s%s%s%scheckpoint%" PRId64, p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
   if (nBytes <= 0 || nBytes >= p->len) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&p->rwLock));
     return TSDB_CODE_OUT_OF_RANGE;
@@ -5062,7 +5070,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   char* srcDir = &dstBuf[cap];
   char* dstDir = &srcDir[cap];
 
-  int nBytes = snprintf(srcDir, cap, "%s%s%s%s%s%" PRId64 "", p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+  int nBytes = snprintf(srcDir, cap, "%s%s%s%s%s%" PRId64, p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                         "checkpoint", p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
@@ -5137,7 +5145,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     goto _ERROR;
   }
 
-  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pCurrent, p->curChkpId);
+  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64, dstDir, TD_DIRSEP, p->pCurrent, p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
@@ -5159,7 +5167,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     goto _ERROR;
   }
 
-  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pManifest, p->curChkpId);
+  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64, dstDir, TD_DIRSEP, p->pManifest, p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;

@@ -367,10 +367,10 @@ static void *queryStableAggrFunc(void *sarg) {
             if (i == 1) {
                 if (g_arguments->demo_mode) {
                     snprintf(tempS, LARGE_BUFF_LEN,
-                             "groupid = %" PRId64 "", i);
+                             "groupid = %" PRId64, i);
                 } else {
                     snprintf(tempS, LARGE_BUFF_LEN,
-                             "t0 = %" PRId64 "", i);
+                             "t0 = %" PRId64, i);
                 }
             } else {
                 if (g_arguments->demo_mode) {
