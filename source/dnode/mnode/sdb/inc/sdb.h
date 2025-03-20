@@ -64,14 +64,14 @@ extern "C" {
     dataPos += valLen;                                               \
   }
 
-#define SDB_GET_BINARY_LINE(pRaw, dataPos, val, valLen, pos, linoat) \
-  {                                                                  \
+#define SDB_GET_BINARY_LINE(pRaw, dataPos, val, valLen, pos, LINO)   \
+  do {                                                               \
     if ((code = sdbGetRawBinary(pRaw, dataPos, val, valLen)) != 0) { \
-      lino = linoat;                                                 \
+      LINO = __LINE__;                                               \
       goto pos;                                                      \
     }                                                                \
     dataPos += valLen;                                               \
-  }
+  } while (0);
 
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
 #define SDB_GET_FLOAT(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawFloat, float)
