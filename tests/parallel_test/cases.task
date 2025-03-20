@@ -128,6 +128,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/queryMain.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py

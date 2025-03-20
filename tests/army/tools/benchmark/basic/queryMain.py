@@ -124,7 +124,7 @@ class TDTestCase(TBase):
         except:
             continueIfFail = "no"
 
-        concurrent = data[label]["concurrent"]
+        threads    = data[label]["threads"]
         sqls       = data[label]["sqls"]
 
 
@@ -140,7 +140,7 @@ class TDTestCase(TBase):
         except:
             mixedQuery = "no"
 
-        tdLog.info(f"queryTimes={queryTimes} concurrent={concurrent} mixedQuery={mixedQuery} "
+        tdLog.info(f"queryTimes={queryTimes} threads={threads} mixedQuery={mixedQuery} "
                    f"batchQuery={batchQuery} len(sqls)={len(sqls)} label={label}\n")
 
         totalQueries  = 0
@@ -154,9 +154,9 @@ class TDTestCase(TBase):
         
         if specMode and mixedQuery.lower() != "yes":
             # spec
-            threadQueries = queryTimes * concurrent
-            totalQueries  = queryTimes * concurrent * len(sqls)
-            threadKey     = f"complete query with {concurrent} threads and " 
+            threadQueries = queryTimes * threads
+            totalQueries  = queryTimes * threads * len(sqls)
+            threadKey     = f"complete query with {threads} threads and " 
             qpsKey = "QPS: "
             avgKey = "query delay avg: "
             minKey = "min:"
@@ -178,10 +178,10 @@ class TDTestCase(TBase):
                 threadQueries = totalQueries            
 
             nSql = len(sqls)
-            if specMode and nSql < concurrent :
-                tdLog.info(f"set concurrent = {nSql} because len(sqls) < concurrent")
-                concurrent = nSql
-            threadKey     = f"using {concurrent} threads complete query "
+            if specMode and nSql < threads :
+                tdLog.info(f"set threads = {nSql} because len(sqls) < threads")
+                threads = nSql
+            threadKey     = f"using {threads} threads complete query "
             qpsKey = ""
             avgKey = "avg delay:"
             minKey = "min delay:"
