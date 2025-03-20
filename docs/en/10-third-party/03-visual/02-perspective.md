@@ -33,7 +33,6 @@ sh run.sh
 python -m http.server 8081
 ```
 
-
 The effect presented after accessing the web page through the browser is shown in the following figure:
 
 ![perspective-viewer](./perspective/prsp_view.webp)
@@ -58,7 +57,6 @@ The `perspective_server.py` script in the root directory of the [perspective-con
 2. Establish a connection to TDengine.
 3. Create a Perspective table (the table structure needs to match the type of the table in the TDengine database).
 4. Call the `Tornado.PeriodicCallback` function to start a scheduled task, thereby achieving the update of the data in the Perspective table. The sample code is as follows: 
-
 
 ```python
 {{#include docs/examples/perspective/perspective_server.py:perspective_server}}
