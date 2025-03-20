@@ -857,8 +857,12 @@ static int32_t addAggTask(SStreamObj* pStream, SMnode* pMnode, SSubplan* plan, S
   }
 
   if (needHistoryTask(pStream)) {
-    EStreamTaskType type = (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) ? STREAM_RECALCUL_TASK
-                                                                                             : STREAM_HISTORY_TASK;
+    EStreamTaskType type = 0;
+    if (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE && (pStream->conf.fillHistory == 0)) {
+      type = STREAM_RECALCUL_TASK;  // only the recalculating task
+    } else {
+      type = STREAM_HISTORY_TASK;  // set the fill-history option
+    }
     code = doAddAggTask(pStream, pMnode, plan, pEpset, pVgroup, pSnode, type, useTriggerParam);
     if (code != 0) {
       goto END;
