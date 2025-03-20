@@ -58,7 +58,6 @@ The `perspective_server.py` script in the root directory of the [perspective-con
 3. Create a Perspective table (the table structure needs to match the type of the table in the TDengine database).
 4. Call the `Tornado.PeriodicCallback` function to start a scheduled task, thereby achieving the update of the data in the Perspective table. The sample code is as follows: 
 
-
 ```python
 {{#include docs/examples/perspective/perspective_server.py:perspective_server}}
 ```
