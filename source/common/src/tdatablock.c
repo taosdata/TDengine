@@ -1073,12 +1073,6 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       size_t metaSize = pBlock->info.rows * sizeof(int32_t);
-      char*  tmp = taosMemoryRealloc(pCol->varmeta.offset, metaSize);  // preview calloc is too small
-      if (tmp == NULL) {
-        return terrno;
-      }
-
-      pCol->varmeta.offset = (int32_t*)tmp;
       memcpy(pCol->varmeta.offset, pStart, metaSize);
       pStart += metaSize;
     } else {

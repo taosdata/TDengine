@@ -3157,7 +3157,7 @@ int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STime
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   const char*     id = GET_TASKID(pTaskInfo);
-  SSHashObj*      pVtableInfos = pTaskInfo->pSubplan->pVTables;
+  bool            isVtableSourceScan = (pTaskInfo->pSubplan->pVTables != NULL);
 
   code = blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3168,7 +3168,7 @@ int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STime
   pBlockInfo->version = pBlock->info.version;
 
   STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-  if (pVtableInfos == NULL) {
+  if (!isVtableSourceScan) {
     pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
   } else {
     // use original table uid as groupId for vtable
@@ -3213,7 +3213,7 @@ int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STime
   }
 
   // currently only the tbname pseudo column
-  if (pInfo->numOfPseudoExpr > 0) {
+  if (pInfo->numOfPseudoExpr > 0 && !isVtableSourceScan) {
     code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
                                   pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
@@ -3762,8 +3762,19 @@ static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
   SStreamScanInfo* pInfo = pOperator->info;
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+  SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
   qDebug("stream scan started, %s", id);
+
+  if (pVtableInfos != NULL && pStreamInfo->recoverStep != STREAM_RECOVER_STEP__NONE) {
+    qError("stream vtable source scan should not have recovery step: %d", pStreamInfo->recoverStep);
+    pStreamInfo->recoverStep = STREAM_RECOVER_STEP__NONE;
+  }
+
+  if (pVtableInfos != NULL && !pInfo->igCheckUpdate) {
+    qError("stream vtable source scan should have igCheckUpdate");
+    pInfo->igCheckUpdate = false;
+  }
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
       pStreamInfo->recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
@@ -3863,6 +3874,10 @@ static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 // TODO: refactor
 FETCH_NEXT_BLOCK:
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
+    if (pVtableInfos != NULL) {
+      qInfo("stream vtable source scan would ignore all data blocks");
+      pInfo->validBlockIndex = total;
+    }
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
       (*ppRes) = NULL;
@@ -4013,6 +4028,10 @@ FETCH_NEXT_BLOCK:
     return code;
   } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
     qDebug("stream scan mode:%d, %s", pInfo->scanMode, id);
+    if (pVtableInfos != NULL && pInfo->scanMode != STREAM_SCAN_FROM_READERHANDLE) {
+      qError("stream vtable source scan should not have scan mode: %d", pInfo->scanMode);
+      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+    }
     switch (pInfo->scanMode) {
       case STREAM_SCAN_FROM_RES: {
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -4167,6 +4186,11 @@ FETCH_NEXT_BLOCK:
           continue;
         }
 
+        if (pVtableInfos != NULL && pInfo->pCreateTbRes->info.rows > 0) {
+          qError("stream vtable source scan should not have create table res");
+          blockDataCleanup(pInfo->pCreateTbRes);
+        }
+
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
           qDebug("create table res exists, rows:%" PRId64 " return from stream scan, %s",
@@ -4178,8 +4202,11 @@ FETCH_NEXT_BLOCK:
         code = doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
         QUERY_CHECK_CODE(code, lino, _end);
         setStreamOperatorState(&pInfo->basic, pInfo->pRes->info.type);
-        code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (pVtableInfos == NULL) {
+          // filter should be applied in merge task for vtables
+          code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
 
         code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -4215,7 +4242,7 @@ FETCH_NEXT_BLOCK:
 
     goto NEXT_SUBMIT_BLK;
   } else if (pInfo->blockType == STREAM_INPUT__CHECKPOINT) {
-    if (pInfo->validBlockIndex >= total) {
+    if (pInfo->validBlockIndex >= total || pVtableInfos != NULL) {
       doClearBufferedBlocks(pInfo);
       (*ppRes) = NULL;
       return code;
@@ -4494,6 +4521,18 @@ void destroyStreamScanOperatorInfo(void* param) {
     taosHashCleanup(pStreamScan->pVtableMergeHandles);
     pStreamScan->pVtableMergeHandles = NULL;
   }
+  if (pStreamScan->pVtableMergeBuf) {
+    destroyDiskbasedBuf(pStreamScan->pVtableMergeBuf);
+    pStreamScan->pVtableMergeBuf = NULL;
+  }
+  if (pStreamScan->pVtableReadyHandles) {
+    taosArrayDestroy(pStreamScan->pVtableReadyHandles);
+    pStreamScan->pVtableReadyHandles = NULL;
+  }
+  if (pStreamScan->pTableListInfo) {
+    tableListDestroy(pStreamScan->pTableListInfo);
+    pStreamScan->pTableListInfo = NULL;
+  }
   if (pStreamScan->matchInfo.pList) {
     taosArrayDestroy(pStreamScan->matchInfo.pList);
   }
@@ -4681,14 +4720,12 @@ _end:
   return code;
 }
 
-static int32_t createStreamVtableBlock(SColMatchInfo *pMatchInfo, SSDataBlock **ppRes, const char *idstr) {
+static SSDataBlock* createStreamVtableBlock(SColMatchInfo *pMatchInfo, const char *idstr) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SSDataBlock *pRes = NULL;
 
   QUERY_CHECK_NULL(pMatchInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  *ppRes = NULL;
 
   code = createDataBlock(&pRes);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -4703,18 +4740,16 @@ static int32_t createStreamVtableBlock(SColMatchInfo *pMatchInfo, SSDataBlock **
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  *ppRes = pRes;
-  pRes = NULL;
-
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s, id: %s", __func__, lino, tstrerror(code), idstr);
+    if (pRes != NULL) {
+      blockDataDestroy(pRes);
+    }
+    pRes = NULL;
+    terrno = code;
   }
-  if (pRes != NULL) {
-    blockDataDestroy(pRes);
-  }
-  return code;
+  return pRes;
 }
 
 static int32_t createStreamNormalScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode,
@@ -4838,8 +4873,7 @@ static int32_t createStreamNormalScanOperatorInfo(SReadHandle* pHandle, STableSc
 
     if (pVtableInfos != NULL) {
       // save vtable info into tqReader for vtable source scan
-      SSDataBlock* pResBlock = NULL;
-      code = createStreamVtableBlock(&pInfo->matchInfo, &pResBlock, idstr);
+      SSDataBlock* pResBlock = createStreamVtableBlock(&pInfo->matchInfo, idstr);
       QUERY_CHECK_CODE(code, lino, _error);
       code = pAPI->tqReaderFn.tqReaderSetVtableInfo(pInfo->tqReader, pHandle->vnode, pAPI, pVtableInfos, &pResBlock,
                                                     idstr);
@@ -4962,8 +4996,8 @@ _error:
     taosArrayDestroy(pColIds);
   }
 
-  if (pInfo != NULL) {
-    STableScanInfo* p = (STableScanInfo*) pInfo->pTableScanOp->info;
+  if (pInfo != NULL && pInfo->pTableScanOp != NULL) {
+    STableScanInfo* p = (STableScanInfo*)pInfo->pTableScanOp->info;
     if (p != NULL) {
       p->base.pTableListInfo = NULL;
     }

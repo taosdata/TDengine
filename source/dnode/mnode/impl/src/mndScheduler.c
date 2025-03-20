@@ -375,6 +375,7 @@ static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, EStreamTaskT
   uint64_t uid = 0;
   SArray** pTaskList = NULL;
   if (pSourceTaskList) {
+    uid = pStream->uid;
     pTaskList = &pSourceTaskList;
   } else {
     streamGetUidTaskList(pStream, type, &uid, &pTaskList);
@@ -454,6 +455,7 @@ static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks
   TSDB_CHECK_NULL(pTaskMap, code, lino, _end, terrno);
 
   pTask->outputInfo.type = TASK_OUTPUT__VTABLE_MAP;
+  pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
   STaskDispatcherVtableMap *pDispatcher = &pTask->outputInfo.vtableMapDispatcher;
   pDispatcher->taskInfos = taosArrayInit(taskNum, sizeof(STaskDispatcherFixed));
   TSDB_CHECK_NULL(pDispatcher->taskInfos, code, lino, _end, terrno);
@@ -462,26 +464,32 @@ static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks
 
   int32_t               iter = 0, vgId = 0;
   uint64_t              uid = 0;
-  STaskDispatcherFixed* pAddr = NULL;
   void*                 p = NULL;
   while (NULL != (p = tSimpleHashIterate(pVtables, p, &iter))) {
     char* vgUid = tSimpleHashGetKey(p, NULL);
     vgId = *(int32_t*)vgUid;
     uid = *(uint64_t*)((int32_t*)vgUid + 1);
     
-    pAddr = tSimpleHashGet(pVgTasks, &vgId, sizeof(vgId));
-    if (NULL == pAddr) {
+    void *px = tSimpleHashGet(pVgTasks, &vgId, sizeof(vgId));
+    if (NULL == px) {
       mError("tSimpleHashGet vgId %d not found", vgId);
       return code;
     }
+    SStreamTask* pMergeTask = *(SStreamTask**)px;
+    if (pMergeTask == NULL) {
+      mError("tSimpleHashGet pMergeTask %d not found", vgId);
+      return code;
+    }
 
-    void*   px = tSimpleHashGet(pTaskMap, &pAddr->taskId, sizeof(int32_t));
+    px = tSimpleHashGet(pTaskMap, &pMergeTask->id.taskId, sizeof(pMergeTask->id.taskId));
     int32_t idx = 0;
     if (px == NULL) {
-      px = taosArrayPush(pDispatcher->taskInfos, pAddr);
+      STaskDispatcherFixed addr = {
+          .taskId = pMergeTask->id.taskId, .nodeId = pMergeTask->info.nodeId, .epSet = pMergeTask->info.epSet};
+      px = taosArrayPush(pDispatcher->taskInfos, &addr);
       TSDB_CHECK_NULL(px, code, lino, _end, terrno);
       idx = taosArrayGetSize(pDispatcher->taskInfos) - 1;
-      code = tSimpleHashPut(pTaskMap, &pAddr->taskId, sizeof(int32_t), &idx, sizeof(int32_t));
+      code = tSimpleHashPut(pTaskMap, &pMergeTask->id.taskId, sizeof(pMergeTask->id.taskId), &idx, sizeof(idx));
       if (code) {
         mError("tSimpleHashPut uid to task idx failed, error:%d", code);
         return code;
@@ -495,9 +503,15 @@ static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks
       mError("tSimpleHashPut uid to STaskDispatcherFixed failed, error:%d", code);
       return code;
     }
-    
-    mDebug("source task[%s,vg:%d] add vtable output map, vuid %" PRIu64 " => [%d, vg:%d]", 
-        pTask->id.idStr, pTask->info.nodeId, uid, pAddr->taskId, pAddr->nodeId);
+
+    code = streamTaskSetUpstreamInfo(pMergeTask, pTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      mError("failed to set upstream info of merge task, error:%d", code);
+      return code;
+    }
+
+    mDebug("source task[%s,vg:%d] add vtable output map, vuid %" PRIu64 " => [%d, vg:%d]", pTask->id.idStr,
+           pTask->info.nodeId, uid, pMergeTask->id.taskId, pMergeTask->info.nodeId);
   }
 
 _end:
@@ -662,7 +676,6 @@ static int32_t addVTableMergeTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pS
 }
 
 static int32_t buildMergeTaskHash(SArray* pMergeTaskList, SSHashObj** ppVgTasks) {
-  STaskDispatcherFixed addr;
   int32_t code = 0;
   int32_t taskNum = taosArrayGetSize(pMergeTaskList);
 
@@ -676,11 +689,7 @@ static int32_t buildMergeTaskHash(SArray* pMergeTaskList, SSHashObj** ppVgTasks)
   for (int32_t i = 0; i < taskNum; ++i) {
     SStreamTask* pTask = taosArrayGetP(pMergeTaskList, i);
 
-    addr.taskId = pTask->id.taskId;
-    addr.nodeId = pTask->info.nodeId;
-    addr.epSet = pTask->info.epSet;
-
-    code = tSimpleHashPut(*ppVgTasks, &addr.nodeId, sizeof(addr.nodeId), &addr, sizeof(addr));
+    code = tSimpleHashPut(*ppVgTasks, &pTask->info.nodeId, sizeof(pTask->info.nodeId), &pTask, POINTER_BYTES);
     if (code) {
       mError("tSimpleHashPut %d STaskDispatcherFixed failed", i);
       return code;
@@ -725,10 +734,9 @@ static int32_t addVTableSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* p
     }
 
     plan->pVTables = *(SSHashObj**)p;
-    *(SSHashObj**)p = NULL;
-
     code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam,
                            hasAggTasks, pVgTasks, pSourceTaskList);
+    plan->pVTables = NULL;
     if (code != 0) {
       mError("failed to create stream task, code:%s", tstrerror(code));
 
@@ -1224,7 +1232,7 @@ static int32_t addVgroupToRes(char* fDBName, int32_t vvgId, uint64_t vuid, SRefC
   char dbVgId[TSDB_DB_NAME_LEN + 32];
   SSHashObj *pTarVg = NULL, *pNewVg = NULL;
   
-  TSDB_CHECK_CODE(getTableVgId(pDb, 1, fDBName, &vgId, pCol->refColName), lino, _return);
+  TSDB_CHECK_CODE(getTableVgId(pDb, 1, fDBName, &vgId, pCol->refTableName), lino, _return);
 
   snprintf(dbVgId, sizeof(dbVgId), "%s.%d", pCol->refDbName, vgId);
 

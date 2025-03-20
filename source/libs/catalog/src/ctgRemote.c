@@ -633,7 +633,8 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
       if (TDMT_VND_TABLE_CFG == msgType) {
         SCtgTbCfgCtx* ctx = (SCtgTbCfgCtx*)pTask->taskCtx;
         pName = ctx->pName;
-      } else if (TDMT_VND_TABLE_META == msgType || TDMT_VND_TABLE_NAME == msgType) {
+      } else if (TDMT_VND_TABLE_META == msgType || TDMT_VND_TABLE_NAME == msgType ||
+                 TDMT_VND_VSUBTABLES_META == msgType) {
         if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
           SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
           SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
@@ -714,7 +715,8 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
     if (TDMT_VND_TABLE_CFG == msgType) {
       SCtgTbCfgCtx* ctx = (SCtgTbCfgCtx*)pTask->taskCtx;
       pName = ctx->pName;
-    } else if (TDMT_VND_TABLE_META == msgType || TDMT_VND_TABLE_NAME == msgType) {
+    } else if (TDMT_VND_TABLE_META == msgType || TDMT_VND_TABLE_NAME == msgType ||
+               TDMT_VND_VSUBTABLES_META == msgType) {
       if (CTG_TASK_GET_TB_META_BATCH == pTask->type) {
         SCtgTbMetasCtx* ctx = (SCtgTbMetasCtx*)pTask->taskCtx;
         SCtgFetch*      fetch = taosArrayGet(ctx->pFetchs, tReq->msgIdx);
