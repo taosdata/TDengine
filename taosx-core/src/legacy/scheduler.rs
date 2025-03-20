@@ -374,7 +374,7 @@ async fn worker(
                                 match sync_single_table_partial(
                                     source.clone(),
                                     target.clone(),
-                                    &from,
+                                    &mut from,
                                     &stable,
                                     &table,
                                     &to,
