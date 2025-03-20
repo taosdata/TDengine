@@ -1072,8 +1072,9 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_ALL** fields,
                             STableMeta* pMeta, void* boundTags, uint8_t tbNameFlag) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
-  bool           hastag = tags != NULL;
-  int32_t        numOfBound = boundColsInfo.numOfBound + (tbNameFlag & (USING_CLAUSE & ~IS_FIXED_VALUE) ? 1 : 0);
+  bool           hastag = (tags != NULL) && !(tbNameFlag & IS_FIXED_TAG);
+  int32_t        numOfBound =
+      boundColsInfo.numOfBound + ((tbNameFlag & IS_FIXED_VALUE) == 0 && (tbNameFlag & USING_CLAUSE) != 0 ? 1 : 0);
   if (hastag) {
     numOfBound += tags->mixTagsCols ? 0 : tags->numOfBound;
   }
@@ -1084,7 +1085,7 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
       return terrno;
     }
 
-    if (tbNameFlag & (USING_CLAUSE & ~IS_FIXED_VALUE)) {
+    if ((tbNameFlag & IS_FIXED_VALUE) == 0 && (tbNameFlag & USING_CLAUSE) != 0) {
       (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
       tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
       (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
@@ -1201,10 +1202,6 @@ int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, uint8_t tbNameFlag
     return TSDB_CODE_SUCCESS;
   }
 
-  void* tags = NULL;
-  if (pDataBlock->pData->pCreateTbReq == NULL) {
-    tags = boundTags;
-  }
   CHECK_CODE(buildStbBoundFields(pDataBlock->boundColsInfo, pSchema, fieldNum, fields, pDataBlock->pMeta, boundTags,
                                  tbNameFlag));
 

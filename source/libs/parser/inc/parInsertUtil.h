@@ -23,6 +23,7 @@ struct SToken;
 #define HAS_BIND_VALUE ((uint8_t)0x1)
 #define IS_FIXED_VALUE ((uint8_t)0x2)
 #define USING_CLAUSE   ((uint8_t)0x4)
+#define IS_FIXED_TAG   ((uint8_t)0x8)
 
 #define NEXT_TOKEN(pSql, sToken)                      \
   do {                                                \

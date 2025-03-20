@@ -977,6 +977,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   bool     isParseBindParam = false;
   bool     isJson = false;
   STag*    pTag = NULL;
+  bool     allFixedValue = true;
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
       !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
@@ -988,6 +989,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     NEXT_TOKEN_WITH_PREV(pStmt->pSql, token);
 
     if (token.type == TK_NK_QUESTION) {
+      allFixedValue = false;
       isParseBindParam = true;
       if (NULL == pCxt->pComCxt->pStmtCb) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", token.z);
@@ -1028,6 +1030,10 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !autoCreate) {
     code = buildCreateTbReq(pStmt, pTag, pTagName);
     pTag = NULL;
+  }
+
+  if (code == TSDB_CODE_SUCCESS && allFixedValue) {
+    pCxt->stmtTbNameFlag |= IS_FIXED_TAG;
   }
 
 _exit:
@@ -2763,6 +2769,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
   }
 
   if (TK_NK_QUESTION == pTbName->type) {
+    pCxt->stmtTbNameFlag &= ~IS_FIXED_VALUE;
     pCxt->isStmtBind = true;
     if (NULL == pCxt->pComCxt->pStmtCb) {
       return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pTbName->z);
@@ -2774,12 +2781,12 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
       pCxt->stmtTbNameFlag |= HAS_BIND_VALUE;
       pTbName->z = tbName;
       pTbName->n = strlen(tbName);
-    } else if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
+    }
+    if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
       pCxt->stmtTbNameFlag &= ~HAS_BIND_VALUE;
       code = TSDB_CODE_SUCCESS;
-    } else {
-      return code;
     }
+    return code;
   }
 
   if (TK_NK_ID != pTbName->type && TK_NK_STRING != pTbName->type && TK_NK_QUESTION != pTbName->type) {
@@ -2788,31 +2795,34 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
 
   // db.? situation，ensure that the only thing following the '.' mark is '?'
   char* tbNameAfterDbName = strnchr(pTbName->z, '.', pTbName->n, true);
-  if ((tbNameAfterDbName != NULL) && (*(tbNameAfterDbName + 1) == '?')) {
-    char* tbName = NULL;
-    if (NULL == pCxt->pComCxt->pStmtCb) {
-      return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pTbName->z);
-    }
-    int32_t code = (*pCxt->pComCxt->pStmtCb->getTbNameFn)(pCxt->pComCxt->pStmtCb->pStmt, &tbName);
-    if (TSDB_CODE_SUCCESS == code) {
-      pCxt->stmtTbNameFlag |= HAS_BIND_VALUE;
-      pTbName->z = tbName;
-      pTbName->n = strlen(tbName);
-    } else if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
-      pCxt->stmtTbNameFlag &= ~HAS_BIND_VALUE;
-      code = TSDB_CODE_SUCCESS;
+  if (tbNameAfterDbName != NULL) {
+    if (*(tbNameAfterDbName + 1) == '?') {
+      pCxt->stmtTbNameFlag &= ~IS_FIXED_VALUE;
+      char* tbName = NULL;
+      if (NULL == pCxt->pComCxt->pStmtCb) {
+        return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pTbName->z);
+      }
+      int32_t code = (*pCxt->pComCxt->pStmtCb->getTbNameFn)(pCxt->pComCxt->pStmtCb->pStmt, &tbName);
+      if (TSDB_CODE_SUCCESS == code) {
+        pCxt->stmtTbNameFlag |= HAS_BIND_VALUE;
+        pTbName->z = tbName;
+        pTbName->n = strlen(tbName);
+      }
+      if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
+        pCxt->stmtTbNameFlag &= ~HAS_BIND_VALUE;
+        code = TSDB_CODE_SUCCESS;
+      }
     } else {
-      return code;
-    }
-  }
-
-  if (pCxt->isStmtBind) {
-    if (TK_NK_ID == pTbName->type || (tbNameAfterDbName != NULL && *(tbNameAfterDbName + 1) != '?')) {
-      // In SQL statements, the table name has already been specified.
       pCxt->stmtTbNameFlag |= IS_FIXED_VALUE;
       parserWarn("QID:0x%" PRIx64 ", table name is specified in sql, ignore the table name in bind param",
                  pCxt->pComCxt->requestId);
+      *pHasData = true;
     }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (TK_NK_ID == pTbName->type) {
+    pCxt->stmtTbNameFlag |= IS_FIXED_VALUE;
   }
 
   *pHasData = true;
@@ -2884,9 +2894,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     code = checkTableClauseFirstToken(pCxt, pStmt, &token, &hasData);
     if (TSDB_CODE_SUCCESS == code && hasData) {
       code = parseInsertTableClause(pCxt, pStmt, &token);
-    }
-    if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pCxt->stmtTbNameFlag & ~HAS_BIND_VALUE) {
-      code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
     }
   }
 
