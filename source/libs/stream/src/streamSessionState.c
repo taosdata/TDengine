@@ -1283,9 +1283,7 @@ int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin
   rangeKey.pUIds = tSimpleHashInit(8, hashFn);
   code = putRangeIdInfo(&rangeKey, gpId, uId);
   QUERY_CHECK_CODE(code, lino, _end);
-  if (index < 0) {
-    index = 0;
-  }
+  index++;
   taosArrayInsert(pRangeArray, index, &rangeKey);
 
 _end:
@@ -1379,7 +1377,8 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
   SStreamStateCur* pCur = NULL;
   SArray* pRangeArray = pTsDataState->pScanRanges;
   if (taosArrayGetSize(pRangeArray) > 0) {
-    (*pRange) = *(SScanRange*) taosArrayPop(pRangeArray);
+    (*pRange) = *(SScanRange*) taosArrayGet(pRangeArray, 0);
+    taosArrayRemove(pRangeArray, 0);
     goto _end;
   }
 

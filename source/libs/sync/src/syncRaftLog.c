@@ -249,8 +249,10 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     TAOS_RETURN(code);
   }
 
-  sNTrace(pData->pSyncNode, "index:%" PRId64 ", append raft log, type:%s origin type:%s elapsed:%" PRId64, pEntry->index,
-          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
+  sGDebug(&pEntry->originRpcTraceId,
+          "vgId:%d, index:%" PRId64 ", persist raft entry, type:%s origin type:%s elapsed:%" PRId64,
+          pData->pSyncNode->vgId, pEntry->index, TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType),
+          tsElapsed);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 

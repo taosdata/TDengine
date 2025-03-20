@@ -626,6 +626,13 @@ void destroyOperatorParam(SOperatorParam* pParam) {
   // TODO
 }
 
+void qDestroyOperatorParam(SOperatorParam* pParam) {
+  if (NULL == pParam) {
+    return;
+  }
+  freeOperatorParam(pParam, OP_GET_PARAM);
+}
+
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
   destroyOperatorParam(((SExecTaskInfo*)tinfo)->pOpParam);
   ((SExecTaskInfo*)tinfo)->pOpParam = pParam;
