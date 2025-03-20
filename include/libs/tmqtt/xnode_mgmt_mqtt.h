@@ -22,7 +22,6 @@
 #define free free
 #undef realloc
 #define alloc alloc
-#include <taosudf.h>
 
 #include <stdbool.h>
 #include <stdint.h>
