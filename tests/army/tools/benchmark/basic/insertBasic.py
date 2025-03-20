@@ -80,12 +80,16 @@ class TDTestCase(TBase):
                 cmdVG = arr[1]
 
         # vgropus
+        vgroups = None
         try:
             if cmdVG != None:
                 # command special vgroups first priority
                 vgroups = cmdVG
             else:
-                vgroups = data["databases"][0]["dbinfo"]["vgroups"]
+                dbinfo = data["databases"][0]["dbinfo"]
+                for key,value in dbinfo.items():
+                    if key.strip().lower() == "vgroups":
+                        vgroups = value
         except:
             vgroups = None
 

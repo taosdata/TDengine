@@ -46,6 +46,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
+,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
@@ -342,6 +343,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2
@@ -506,6 +512,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32526.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32471.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6115.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_replay.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
@@ -555,7 +562,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
-,,n,system-test,python3 ./test.py -f 0-others/udfTest.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
@@ -579,6 +586,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_disk_usage.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_disk_usage_multilevel.py
+
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
@@ -1635,6 +1644,7 @@
 ,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose1.sim
+,,y,script,./test.sh -f tsim/stream/forcewindowclose.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpFwcError.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpHistory1.sim

@@ -53,7 +53,7 @@ typedef struct STranslateContext {
 
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet);
 int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect);
-int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* pStmt);
+int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SNodeList* pTags, SNodeList* pCols);
 int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput);
 int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
                           bool couldBeView);

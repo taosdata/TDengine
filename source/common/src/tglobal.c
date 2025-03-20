@@ -351,7 +351,6 @@ int64_t tsStreamFailedTimeout = 30 * 60 * 1000;
 bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
-bool    tsStreamRunHistoryAsync = false;
 
 char     tsAdapterFqdn[TSDB_FQDN_LEN] = "localhost";
 uint16_t tsAdapterPort = 6041;
@@ -786,9 +785,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,CFG_CATEGORY_LOCAL));
 
-  TAOS_CHECK_RETURN(
-      cfgAddBool(pCfg, "streamRunHistoryAsync", tsStreamRunHistoryAsync, CFG_DYN_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "insertPerfEnabled", tsInsertPerfEnabled, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1532,9 +1528,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamCoverage");
   tsStreamCoverage = pItem->bval;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamRunHistoryAsync");
-  tsStreamRunHistoryAsync = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
@@ -2878,7 +2871,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"numOfRpcSessions", &tsNumOfRpcSessions},
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
-                                         {"streamRunHistoryAsync", &tsStreamRunHistoryAsync},
                                          {"streamCoverage", &tsStreamCoverage},
                                          {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
                                          {"insertPerfEnabled", &tsInsertPerfEnabled}};

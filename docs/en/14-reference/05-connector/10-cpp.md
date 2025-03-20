@@ -1121,10 +1121,14 @@ In addition to using SQL or parameter binding APIs to insert data, you can also 
     - conf: [Input] Pointer to a valid tmq_conf_t structure, representing a TMQ configuration object.
     - key: [Input] Configuration item key name.
     - value: [Input] Configuration item value.
-  - **Return Value**: Returns a tmq_conf_res_t enum value, indicating the result of the configuration setting.
-    - TMQ_CONF_OK: Successfully set the configuration item.
-    - TMQ_CONF_INVALID_KEY: Invalid key value.
-    - TMQ_CONF_UNKNOWN: Invalid key name.
+  - **Return Value**: Returns a tmq_conf_res_t enum value, indicating the result of the configuration setting. tmq_conf_res_t defined as follows:
+    ```
+    typedef enum tmq_conf_res_t {
+         TMQ_CONF_UNKNOWN = -2,  // invalid key
+         TMQ_CONF_INVALID = -1,  // invalid value
+         TMQ_CONF_OK = 0,        // success
+       } tmq_conf_res_t;
+    ```
 
 - `void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
   - **Interface Description**: Sets the auto-commit callback function in the TMQ configuration object.
