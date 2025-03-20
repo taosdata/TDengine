@@ -2507,7 +2507,7 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
   SVirtualScanPhysiNode* pNode = (SVirtualScanPhysiNode*)pObj;
 
-  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  int32_t code = jsonToPhysiScanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanGroupTags, &pNode->pGroupTags);
   }
