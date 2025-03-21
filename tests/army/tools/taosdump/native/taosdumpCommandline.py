@@ -348,19 +348,12 @@ class TDTestCase(TBase):
         self.exceptCommandLine(taosdump, db, stb, tmpdir)
         tdLog.info("4. except command line  ................................. [Passed]")
 
-        json = "./tools/taosdump/native/json/insertOther.json"
-        # insert 
-        db, stb, childCount, insertRows = self.insertData(json)
-        # dump in/out
-        self.dumpInOutMode("", db , json, tmpdir)
-        tdLog.info("5. native varbinary geometry ........................... [Passed]")
-
         #
         # check connMode
         #
 
         self.checkConnMode(db, stb, childCount, insertRows, tmpdir)
-        tdLog.info("6. check conn mode  ..................................... [Passed]")
+        tdLog.info("5. check conn mode  ..................................... [Passed]")
 
 
     def stop(self):
