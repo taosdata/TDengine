@@ -29,6 +29,5 @@ types
 public/version.txt
 
 .eslintrc-auto-import.json
-pnpm-lock.yaml
 types/auto-imports.d.ts
 types/components.d.ts
