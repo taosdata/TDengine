@@ -264,7 +264,7 @@ int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
     for (int i = 0; i < numOfNodes; ++i) {
       SNodeEntry *pNodeEntry = taosArrayGet(execInfo.pNodeList, i);
       if ((pNodeEntry) && (pNodeEntry->nodeId == *pVgId)) {
-        mInfo("vgId:%d expired for some stream tasks, needs update nodeEp", *pVgId);
+        mInfo("vgId:%d expired for some stream tasks, total in update list:%d", *pVgId, numOfNodes + 1);
         pNodeEntry->stageUpdated = true;
         setFlag = true;
         break;

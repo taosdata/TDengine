@@ -1369,10 +1369,22 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   pMeta->stage = stage;
 
   // mark the sign to send msg before close all tasks
-  // 1. for leader vnode, always send msg before closing
-  // 2. for follower vnode, if it's changed from leader, also sending msg before closing.
+  // 1. for a leader vnode, always send msg before closing itself
+  // 2. for a follower vnode, if it's changed from a leader, also sending msg before closing.
   if (pMeta->role == NODE_ROLE_LEADER) {
     pMeta->sendMsgBeforeClosing = true;
+  }
+
+  if ((prevStage == NODE_ROLE_FOLLOWER || prevStage == NODE_ROLE_LEADER) && (taosArrayGetSize(pMeta->pTaskList) > 0)) {
+    SStreamTask* pTask = NULL;
+    STaskId*     pId = taosArrayGet(pMeta->pTaskList, 0);
+
+    int32_t code = streamMetaAcquireTaskUnsafe(pMeta, pId, &pTask);
+    if (code == 0) {
+      stInfo("vgId:%d role changed, added into nodeUpdate list, use s-task:0x%x", pMeta->vgId, pTask->id.idStr);
+      int32_t unused = streamTaskAddIntoNodeUpdateList(pTask, pMeta->vgId);
+      streamMetaReleaseTask(pMeta, pTask);
+    }
   }
 
   pMeta->role = (isLeader) ? NODE_ROLE_LEADER : NODE_ROLE_FOLLOWER;
