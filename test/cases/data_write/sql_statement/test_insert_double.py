@@ -115,7 +115,7 @@ class TestInsertDouble:
 
         Labels: common,ci
 
-        Jira:
+        Jira: 
 
         History:
             - 2024-2-6 Feng Chao Created

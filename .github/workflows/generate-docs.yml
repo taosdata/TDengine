@@ -43,9 +43,9 @@ jobs:
       - name: Generate Markdown files
         if: steps.changed-case-files.outputs.any_changed == 'true'
         run: |
-          set -v
           mkdir -p test/docs/case_list_docs
           for file in ${ALL_CHANGED_FILES}; do
+            echo "Processing $file"
             module_path=$(echo "$file" | sed 's|/|.|g' | sed 's|.py$||' | sed 's|^test.cases.||')
             markdown_file="test/docs/case_list_docs/${module_path%.*}.md"
 
