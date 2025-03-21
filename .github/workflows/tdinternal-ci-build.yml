@@ -1,19 +1,15 @@
 name: TDinternal Build
 
 on:
-  workflow_dispatch:
-  push:
+  pull_request:
     branches:
-      - 'test/cyjia'
-  # pull_request:
-  #   branches:
-  #     - 'main'
-  #     - '3.0'
-  #     - '3.1'
-  #   paths-ignore:
-  #     - 'enterprise/packaging/**'
-  #     - 'enterprise/tests/**'
-  #     - '*.md'
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'enterprise/packaging/**'
+      - 'enterprise/tests/**'
+      - '*.md'
       
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -64,9 +60,6 @@ jobs:
       - name: Configure Git authentication
         run: |
             git config --global url."https://x-access-token:${{ steps.app-token.outputs.token}}@github.com/".insteadOf "https://github.com/"
-      - name: debug git clone
-        run: |
-          git clone https://github.com/taosdata/grant-lib.git/
       - name: Build and install TDinternal
         run: |
           mkdir debug && cd debug
