@@ -153,7 +153,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
     return terrno;
   }
 
-  pMetaRsp->pSchemaExt = taosMemoryMalloc(pSchema->nCols * sizeof(SSchemaExt));
+  pMetaRsp->pSchemaExt = taosMemoryCalloc(1, pSchema->nCols * sizeof(SSchemaExt));
   if (pMetaRsp->pSchemaExt == NULL) {
     taosMemoryFree(pMetaRsp->pSchemas);
     return terrno;
