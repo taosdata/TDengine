@@ -1,15 +1,16 @@
 name: TDinternal Build
 
 on:
-  pull_request:
-    branches:
-      - 'main'
-      - '3.0'
-      - '3.1'
-    paths-ignore:
-      - 'enterprise/packaging/**'
-      - 'enterprise/tests/**'
-      - '*.md'
+  workflow_dispatch:
+  # pull_request:
+  #   branches:
+  #     - 'main'
+  #     - '3.0'
+  #     - '3.1'
+  #   paths-ignore:
+  #     - 'enterprise/packaging/**'
+  #     - 'enterprise/tests/**'
+  #     - '*.md'
       
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -51,7 +52,10 @@ jobs:
         run: |
           brew update
           brew install argp-standalone gflags pkg-config  snappy zlib geos jansson gawk openssl
-
+      - name: Configure Git authentication
+        run: |
+            git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+      
       - name: Build and install TDinternal
         run: |
           mkdir debug && cd debug
