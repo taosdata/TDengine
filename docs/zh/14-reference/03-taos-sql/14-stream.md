@@ -536,7 +536,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 
 从 v3.3.6.0 开始，流计算能够使用虚拟表（包括虚拟普通表、虚拟子表、虚拟超级表）作为数据源进行计算，语法和非虚拟表完全一致。
 
-但是虚拟表的行为与非虚拟表存在差异，所以在使用流计算时存在以下限制：
+但是虚拟表的行为与非虚拟表存在差异，所以目前在使用流计算对虚拟表进行计算时存在以下限制：
 
 1. 流计算中涉及的虚拟普通表/虚拟子表的 schema 不允许更改。
 1. 流计算过程中，如果修改虚拟表某一列对应的数据源，对流计算来说不生效。即：流计算仍只读取老的数据源。
@@ -546,5 +546,5 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 1. 虚拟表的不同原始表的时间戳不完全一致，数据合并后可能会产生空值，暂不支持插值处理。
 1. 不处理数据的乱序、更新或删除。即：流创建时不能指定 `ignore update 0` 或者 `ignore expired 0`，否则报错。
 1. 不支持历史数据计算，即：流创建时不能指定 `fill_history 1`，否则报错。
-1. 不支持触发模式：MAX_DELAY, FORCE_WINDOW_CLOSE, CONTINUOUS_WINDOW_CLOSE
-1. 不支持窗口类型：COUNT_WINDOW
+1. 不支持触发模式：MAX_DELAY, FORCE_WINDOW_CLOSE, CONTINUOUS_WINDOW_CLOSE。
+1. 不支持窗口类型：COUNT_WINDOW。
