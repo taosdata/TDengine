@@ -30,9 +30,11 @@ typedef struct SMqttdData {
   uv_thread_t  thread;
   uv_barrier_t barrier;
   uv_process_t process;
+  /*
 #ifdef WINDOWS
   HANDLE jobHandle;
 #endif
+  */
   int32_t    spawnErr;
   uv_pipe_t  ctrlPipe;
   uv_async_t stopAsync;
@@ -228,7 +230,7 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
 
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
-
+  /*
 #ifdef WINDOWS
   // End taosmqtt.exe by Job.
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
@@ -247,7 +249,7 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
     }
   }
 #endif
-
+  */
   if (err != 0) {
     xndError("can not spawn taosmqtt. path: %s, error: %s", path, uv_strerror(err));
   } else {
@@ -371,11 +373,11 @@ void mqttMgmtStopMqttd() {
   if (uv_thread_join(&pData->thread) != 0) {
     xndError("stop taosmqtt: failed to join taosmqtt thread");
   }
-
+  /*
 #ifdef WINDOWS
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
 #endif
-
+  */
   xndInfo("taosmqtt is cleaned up");
 
   pData->startCalled = false;
