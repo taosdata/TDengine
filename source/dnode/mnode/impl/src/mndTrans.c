@@ -29,7 +29,7 @@
 #define TRANS_VER2_NUMBER  2
 #define TRANS_VER3_NUMBER  3
 #define TRANS_ARRAY_SIZE   8
-#define TRANS_RESERVE_SIZE 42
+#define TRANS_RESERVE_SIZE 39
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
@@ -126,7 +126,8 @@ static int32_t mndTransGetActionsSize(SArray *pArray) {
   return rawDataLen;
 }
 
-static int32_t mndTransEncodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionsNum) {
+static int32_t mndTransEncodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionsNum,
+                                    int32_t sver) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t dataPos = *offset;
@@ -142,8 +143,9 @@ static int32_t mndTransEncodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
     SDB_SET_INT8(pRaw, dataPos, pAction->actionType, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pAction->stage, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pAction->reserved, _OVER)
-    // TODO dmchen compatible
-    SDB_SET_INT32(pRaw, dataPos, pAction->groupId, _OVER)
+    if (sver > TRANS_VER2_NUMBER) {
+      SDB_SET_INT32(pRaw, dataPos, pAction->groupId, _OVER)
+    }
     if (pAction->actionType == TRANS_ACTION_RAW) {
       int32_t len = sdbGetRawTotalSize(pAction->pRaw);
       SDB_SET_INT8(pRaw, dataPos, unused /*pAction->rawWritten*/, _OVER)
@@ -211,10 +213,10 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
   SDB_SET_INT32(pRaw, dataPos, undoActionNum, _OVER)
   SDB_SET_INT32(pRaw, dataPos, commitActionNum, _OVER)
 
-  if (mndTransEncodeAction(pRaw, &dataPos, pTrans->prepareActions, prepareActionNum) < 0) goto _OVER;
-  if (mndTransEncodeAction(pRaw, &dataPos, pTrans->redoActions, redoActionNum) < 0) goto _OVER;
-  if (mndTransEncodeAction(pRaw, &dataPos, pTrans->undoActions, undoActionNum) < 0) goto _OVER;
-  if (mndTransEncodeAction(pRaw, &dataPos, pTrans->commitActions, commitActionNum) < 0) goto _OVER;
+  if (mndTransEncodeAction(pRaw, &dataPos, pTrans->prepareActions, prepareActionNum, sver) < 0) goto _OVER;
+  if (mndTransEncodeAction(pRaw, &dataPos, pTrans->redoActions, redoActionNum, sver) < 0) goto _OVER;
+  if (mndTransEncodeAction(pRaw, &dataPos, pTrans->undoActions, undoActionNum, sver) < 0) goto _OVER;
+  if (mndTransEncodeAction(pRaw, &dataPos, pTrans->commitActions, commitActionNum, sver) < 0) goto _OVER;
 
   SDB_SET_INT32(pRaw, dataPos, pTrans->startFunc, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pTrans->stopFunc, _OVER)
@@ -300,6 +302,7 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
   int8_t       actionType = 0;
   int32_t      dataLen = 0;
   int32_t      ret = -1;
+  terrno = 0;
 
   for (int32_t i = 0; i < actionNum; ++i) {
     memset(&action, 0, sizeof(action));
@@ -363,6 +366,7 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
   int8_t       actionType = 0;
   int32_t      dataLen = 0;
   int32_t      ret = -1;
+  terrno = 0;
 
   for (int32_t i = 0; i < actionNum; ++i) {
     memset(&action, 0, sizeof(action));
@@ -521,8 +525,10 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
 
   int8_t ableKill = 0;
   int32_t killMode = 0;
-  SDB_GET_INT8(pRaw, dataPos, &ableKill, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &killMode, _OVER)
+  if (sver > TRANS_VER1_NUMBER) {
+    SDB_GET_INT8(pRaw, dataPos, &ableKill, _OVER)
+    SDB_GET_INT32(pRaw, dataPos, &killMode, _OVER)
+  }
   pTrans->ableToBeKilled = ableKill;
   pTrans->killMode = (int8_t)killMode;
 
@@ -545,7 +551,8 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0 && pTrans != NULL) {
-    mError("trans:%d, failed to new parse from raw:%p at line:%d since %s", pTrans->id, pRaw, lino, terrstr());
+    mError("trans:%d, failed to parse from raw:%p at line:%d dataPos:%d dataLen:%d since %s", pTrans->id, pRaw, lino,
+           dataPos, pRaw->dataLen, terrstr());
     mndTransDropData(pTrans);
     taosMemoryFreeClear(pRow);
     return NULL;
