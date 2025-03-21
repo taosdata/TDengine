@@ -48,7 +48,7 @@ int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColRefWrapper *pw = &pME->colRef;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->version));
-  uDebug("encode cols:%d", pw->nCols);
+  uTrace("encode cols:%d", pw->nCols);
 
   for (int32_t i = 0; i < pw->nCols; i++) {
     SColRef *p = &pw->pColRef[i];
@@ -171,7 +171,7 @@ int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->version));
-  uDebug("encode cols:%d", pw->nCols);
+  uTrace("encode cols:%d", pw->nCols);
 
   for (int32_t i = 0; i < pw->nCols; i++) {
     SColCmpr *p = &pw->pColCmpr[i];

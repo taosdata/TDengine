@@ -2326,6 +2326,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   pRsp->watermark1 = pStb->watermark[0];
   pRsp->watermark2 = pStb->watermark[1];
   pRsp->ttl = pStb->ttl;
+  pRsp->keep = pStb->keep;
   pRsp->commentLen = pStb->commentLen;
   if (pStb->commentLen > 0) {
     pRsp->pComment = taosStrdup(pStb->comment);

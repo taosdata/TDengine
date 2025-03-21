@@ -16,6 +16,8 @@
 #ifndef INC_BENCH_H_
 #define INC_BENCH_H_
 
+#include "pub.h"
+
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
@@ -74,10 +76,7 @@
 #include <taos.h>
 #include <toolsdef.h>
 #include <taoserror.h>
-
-#ifdef WEBSOCKET
-#include <taosws.h>
-#endif
+#include "../../inc/pub.h"
 
 #ifdef WINDOWS
 #define _CRT_RAND_S
@@ -257,18 +256,10 @@ typedef unsigned __int32 uint32_t;
     "when keep trying be enabled."
 #define BENCH_NODROP "Do not drop database."
 
-#ifdef WEBSOCKET
-#define BENCH_DSN "The dsn to connect the cloud service."
-#define BENCH_TIMEOUT     \
-    "The timeout wait on websocket query in seconds, default is 10."
-#endif
-
 
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
-
-
 
 enum TEST_MODE {
     INSERT_TEST,     // 0
@@ -281,11 +272,9 @@ enum enumSYNC_MODE { SYNC_MODE, ASYNC_MODE, MODE_BUT };
 
 enum enum_TAOS_INTERFACE {
     TAOSC_IFACE,
-    REST_IFACE,
     STMT_IFACE,
     STMT2_IFACE,
     SML_IFACE,
-    SML_REST_IFACE,
     INTERFACE_BUT
 };
 
@@ -763,7 +752,6 @@ typedef struct SArguments_S {
     uint64_t            insert_interval;
     bool                demo_mode;
     bool                aggr_func;
-    struct sockaddr_in  serv_addr;
     uint64_t            totalChildTables;
     uint64_t            actualChildTables;
     uint64_t            autoCreatedChildTables;
@@ -777,18 +765,16 @@ typedef struct SArguments_S {
 #endif
     bool                terminate;
     bool                in_prompt;
-#ifdef WEBSOCKET
-    int32_t             timeout;
+    
+    // websocket
     char*               dsn;
-    bool                websocket;
-#endif
+
     bool                supplementInsert;
     int64_t             startTimestamp;
     int32_t             partialColNum;
     int32_t             keep_trying;
     uint32_t            trying_interval;
     int                 iface;
-    int                 rest_server_ver_major;
     bool                check_sql;
     int                 suit;  // see define SUIT_
     int16_t             inputted_vgroups;
@@ -797,10 +783,9 @@ typedef struct SArguments_S {
     bool                escape_character;
     bool                pre_load_tb_meta;
     bool                bind_vgroup;
-
+    int8_t              connMode; // see define CONN_MODE_
     char*               output_path;
     char                output_path_buf[MAX_PATH_LEN];
-
 } SArguments;
 
 typedef struct SBenchConn {
@@ -808,10 +793,6 @@ typedef struct SBenchConn {
     TAOS* ctaos;  // check taos
     TAOS_STMT* stmt;
     TAOS_STMT2* stmt2;
-#ifdef WEBSOCKET
-    WS_TAOS* taos_ws;
-    WS_STMT* stmt_ws;
-#endif
 } SBenchConn;
 
 #define MAX_BATCOLS 256
@@ -941,18 +922,10 @@ void    tmfclose(FILE *fp);
 int64_t fetchResult(TAOS_RES *res, char *filePath);
 void    prompt(bool NonStopMode);
 void    ERROR_EXIT(const char *msg);
-int     getServerVersionRest(int16_t rest_port);
-int     postProceSql(char *sqlstr, char* dbName, int precision, int iface,
-                    int protocol, uint16_t rest_port, bool tcp,
-                    int sockfd, char* filePath);
 int     queryDbExecCall(SBenchConn *conn, char *command);
-int     queryDbExecRest(char *command, char* dbName, int precision,
-                    int iface, int protocol, bool tcp, int sockfd);
 SBenchConn* initBenchConn();
 void    closeBenchConn(SBenchConn* conn);
 int     regexMatch(const char *s, const char *reg, int cflags);
-int     convertHostToServAddr(char *host, uint16_t port,
-                              struct sockaddr_in *serv_addr);
 int     getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
                                     char ** childTblNameOfSuperTbl,
                                     int64_t childTblCountOfSuperTbl);
@@ -998,9 +971,6 @@ int  insertTestProcess();
 void postFreeResource();
 int queryTestProcess();
 int subscribeTestProcess();
-int convertServAddr(int iface, bool tcp, int protocol);
-int createSockFd();
-void destroySockFd(int sockfd);
 
 void printVersion();
 int32_t benchParseSingleOpt(int32_t key, char* arg);
@@ -1034,6 +1004,9 @@ int tmpGeometry(char *tmp, int iface, Field *field, int64_t k);
 int tmpInt32ImplTag(Field *field, int i, int k);
 
 char* genQMark( int32_t QCnt);
+// get colNames , first is tbname if tbName is true
+char *genColNames(BArray *cols, bool tbName);
+
 // stmt2
 TAOS_STMT2_BINDV* createBindV(int32_t count, int32_t tagCnt, int32_t colCnt);
 // clear bindv table count tables tag and column
@@ -1041,9 +1014,6 @@ void resetBindV(TAOS_STMT2_BINDV *bindv, int32_t capacity, int32_t tagCnt, int32
 void clearBindV(TAOS_STMT2_BINDV *bindv);
 void freeBindV(TAOS_STMT2_BINDV *bindv);
 void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols);
-
-// IFace is rest return True
-bool isRest(int32_t iface);
 
 // get group index about dbname.tbname
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
@@ -1060,6 +1030,8 @@ void *queryKiller(void *arg);
 int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
+// call engine error
+void engineError(char * module, char * fun, int32_t code);
 
 // trim prefix suffix blank cmp
 int trimCaseCmp(char *str1,char *str2);

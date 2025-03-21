@@ -43,6 +43,7 @@ In TDengine, the following data types can be used in the data model of basic tab
 | 16   |      VARCHAR      | Custom    | Alias for BINARY type                                        |
 | 17   |     GEOMETRY      | Custom    | Geometry type, supported starting from version 3.1.0.0       |
 | 18   |     VARBINARY     | Custom    | Variable-length binary data, supported starting from version 3.1.1.0 |
+| 19  |      DECIMAL      |  8 or 16  | High-precision numeric type. The range of values depends on the precision and scale specified in the type. Supported starting from version 3.3.6. See the description below. |
 
 :::note
 
@@ -61,6 +62,18 @@ In TDengine, the following data types can be used in the data model of basic tab
 - VARBINARY is a data type for storing binary data, with a maximum length of 65,517 bytes for data columns and 16,382 bytes for label columns. Binary data can be written via SQL or schemaless methods (needs to be converted to a string starting with \x), or through stmt methods (can use binary directly). Displayed as hexadecimal starting with \x.
 
 :::
+### DECIMAL Data Type
+
+The `DECIMAL` data type is used for high-precision numeric storage and is supported starting from version 3.3.6. The definition syntax is: `DECIMAL(18, 2)`, `DECIMAL(38, 10)`, where two parameters must be specified: `precision` and `scale`. `Precision` refers to the maximum number of significant digits supported, and `scale` refers to the maximum number of decimal places. For example, `DECIMAL(8, 4)` represents a range of `[-9999.9999, 9999.9999]`. When defining the `DECIMAL` data type, the range of `precision` is `[1, 38]`, and the range of `scale` is `[0, precision]`. If `scale` is 0, it represents integers only. You can also omit `scale`, in which case it defaults to 0. For example, `DECIMAL(18)` is equivalent to `DECIMAL(18, 0)`.
+
+When the `precision` value is less than or equal to 18, 8 bytes of storage (DECIMAL64) are used internally. When the `precision` is in the range `(18, 38]`, 16 bytes of storage (DECIMAL) are used. When writing `DECIMAL` type data in SQL, numeric values can be written directly. If the value exceeds the maximum representable value for the type, a `DECIMAL_OVERFLOW` error will be reported. If the value does not exceed the maximum representable value but the number of decimal places exceeds the `scale`, it will be automatically rounded. For example, if the type is defined as `DECIMAL(10, 2)` and the value `10.987` is written, the actual stored value will be `10.99`.
+
+The `DECIMAL` type only supports regular columns and does not currently support tag columns. The `DECIMAL` type supports SQL-based writes only and does not currently support `stmt` or schemaless writes.
+
+When performing operations between integer types and the `DECIMAL` type, the integer type is converted to the `DECIMAL` type before the calculation. When the `DECIMAL` type is involved in calculations with `DOUBLE`, `FLOAT`, `VARCHAR`, or `NCHAR` types, it is converted to `DOUBLE` type for computation.
+
+When querying `DECIMAL` type expressions, if the intermediate result of the calculation exceeds the maximum value that the current type can represent, a `DECIMAL_OVERFLOW` error is reported.
+
 
 ## Constants
 

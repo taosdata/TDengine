@@ -121,6 +121,7 @@ JDBC 连接器可能报错的错误码包括 4 种：
 | 0x2378     | consumer create error                                           | 创建数据订阅失败，请根据错误信息检查 taos log 进行问题定位。                              |
 | 0x2379     | seek offset must not be a negative number                       | seek 接口参数不能为负值，请使用正确的参数                                                 |
 | 0x237a     | vGroup not found in result set                                  | VGroup 没有分配给当前 consumer，由于 Rebalance 机制导致 Consumer 与 VGroup 不是绑定的关系 |
+| 0x2390     | background thread write error in Efficient Writing              | 高效写入后台线程写入错误，可以停止写入，重建连接 |
 
 - [TDengine Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 <!-- - [TDengine_ERROR_CODE](../error-code) -->
@@ -315,7 +316,15 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION：关闭 SSL 证书验证 。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
 
 - TSDBDriver.PROPERTY_KEY_APP_NAME：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
-- TSDBDriver.PROPERTY_KEY_APP_IP：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。
+- TSDBDriver.PROPERTY_KEY_APP_IP：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。  
+
+- TSDBDriver.PROPERTY_KEY_ASYNC_WRITE：高效写入模式，目前仅支持 `stmt` 方式。仅在使用 WebSocket 连接时生效。默认值为空，即不启用高效写入模式。
+- TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM：高效写入模式下，后台写入线程数。仅在使用 WebSocket 连接时生效。默认值为 10。
+- TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW：高效写入模式下，写入数据的批大小，单位是行。仅在使用 WebSocket 连接时生效。默认值为 1000。
+- TSDBDriver.PROPERTY_KEY_CACHE_SIZE_BY_ROW：高效写入模式下，缓存的大小，单位是行。仅在使用 WebSocket 连接时生效。默认值为 10000。
+- TSDBDriver.PROPERTY_KEY_COPY_DATA：高效写入模式下，是否拷贝应用通过 addBatch 传入的二进制类型数据。仅在使用 WebSocket 连接时生效。默认值为 false。
+- TSDBDriver.PROPERTY_KEY_STRICT_CHECK：高效写入模式下，是否校验表名长度和变长数据类型长度。仅在使用 WebSocket 连接时生效。默认值为 false。
+- TSDBDriver.PROPERTY_KEY_RETRY_TIMES：高效写入模式下，写入失败重试次数。仅在使用 WebSocket 连接时生效。默认值为 3。
 
 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。
 

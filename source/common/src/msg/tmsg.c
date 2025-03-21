@@ -4060,6 +4060,8 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
     }
   }
 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->keep));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -4160,6 +4162,13 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
       pRsp->pColRefs = NULL;
     }
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->keep));
+  } else {
+    pRsp->keep = 0;
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -9576,10 +9585,11 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->downstreamIdx));
   switch (pOpParam->opType) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-      STableScanOperatorParam *pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
-      if (NULL == pScan) {
+      pOpParam->value = taosMemoryMalloc(sizeof(STableScanOperatorParam));
+      if (NULL == pOpParam->value) {
         TAOS_CHECK_RETURN(terrno);
       }
+      STableScanOperatorParam *pScan = pOpParam->value;
       TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&pScan->tableSeq));
       int32_t uidNum = 0;
       int64_t uid = 0;
@@ -9625,8 +9635,6 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
       }
       TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pScan->window.skey));
       TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pScan->window.ekey));
-
-      pOpParam->value = pScan;
       break;
     }
     default:

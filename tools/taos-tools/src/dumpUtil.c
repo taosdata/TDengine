@@ -15,6 +15,7 @@
 
 
 #include <taos.h>
+#include "pub.h"
 #include "dump.h"
 #include "dumpUtil.h"
 
@@ -74,19 +75,6 @@ bool canRetry(int32_t code, int8_t type) {
         }
     }
 
-#ifdef WEBSOCKET
-    int32_t wsCode = code & 0xFFFF;
-    // range1
-    if (wsCode >= WEBSOCKET_CODE_BEGIN1 && wsCode <= WEBSOCKET_CODE_END1) {
-        return true;
-    }
-    // range2
-    if (wsCode >= WEBSOCKET_CODE_BEGIN2 && wsCode <= WEBSOCKET_CODE_END2) {
-        return true;
-    }
-
-#endif
-
     return false;
 }
 
@@ -97,21 +85,81 @@ bool canRetry(int32_t code, int8_t type) {
 
 // connect
 TAOS *taosConnect(const char *dbName) {
+    //
+    // collect params
+    //
+    char     show[256] = "\0";
+    char *   host = NULL;
+    uint16_t port = 0;
+    char *   user = NULL;
+    char *   pwd  = NULL;
+    int32_t  code = 0;
+    char *   dsnc = NULL;
+
+    // set mode
+    if (g_args.dsn) {
+        dsnc = strToLowerCopy(g_args.dsn);
+        if (dsnc == NULL) {
+            return NULL;
+        }
+
+        char *cport = NULL;
+        char error[512] = "";
+        code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
+        if (code) {
+            errorPrint("%s dsn=%s\n", error, dsnc);
+            free(dsnc);
+            return NULL;
+        }
+
+        // default ws port
+        if (cport == NULL) {
+            if (user)
+                port = DEFAULT_PORT_WS_CLOUD;
+            else
+                port = DEFAULT_PORT_WS_LOCAL;
+        } else {
+            port = atoi(cport);
+        }
+
+        // websocket
+        memcpy(show, g_args.dsn, 20);
+        memcpy(show + 20, "...", 3);
+        memcpy(show + 23, g_args.dsn + strlen(g_args.dsn) - 10, 10);
+
+    } else {
+
+        host = g_args.host;
+        user = g_args.user;
+        pwd  = g_args.password;
+
+        if (g_args.port_inputted) {
+            port = g_args.port;
+        } else {
+            port = g_args.connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+        }
+
+        sprintf(show, "host:%s port:%d ", host, port);
+    }    
+    
+    //
+    // connect
+    //
     int32_t i = 0;
+    TAOS *taos = NULL;
     while (1) {
-        TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password, dbName, g_args.port);
+        taos = taos_connect(host, user, pwd, dbName, port);
         if (taos) {
             // successful
             if (i > 0) {
-                okPrint("Retry %d to connect %s:%d successfully!\n", i, g_args.host, g_args.port);
+                okPrint("Retry %d to connect %s:%d successfully!\n", i, host, port);
             }
-            return taos;
+            break;
         }
 
         // fail
-        errorPrint("Failed to connect to server %s, code: 0x%08x, reason: %s! \n", g_args.host, taos_errno(NULL),
+        errorPrint("Failed to connect to server %s, code: 0x%08x, reason: %s! \n", host, taos_errno(NULL),
                    taos_errstr(NULL));
-
         if (++i > g_args.retryCount) {
             break;
         }
@@ -120,7 +168,11 @@ TAOS *taosConnect(const char *dbName) {
         infoPrint("Retry to connect for %d after sleep %dms ...\n", i, g_args.retrySleepMs);
         toolsMsleep(g_args.retrySleepMs);
     }
-    return NULL;
+
+    if (dsnc) {
+        free(dsnc);
+    }
+    return taos;
 }
 
 // query
@@ -160,132 +212,6 @@ TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code) {
     return NULL;
 }
 
-
-//
-//  ---------------  websocket  ------------------
-//
-
-#ifdef WEBSOCKET
-// ws connect
-WS_TAOS *wsConnect() {
-    int32_t i = 0;
-    while (1) {
-        WS_TAOS *ws_taos = ws_connect(g_args.dsn);
-        if (ws_taos) {
-            // successful
-            if (i > 0) {
-                okPrint("Retry %d to connect %s:%d successfully!\n", i, g_args.host, g_args.port);
-            }
-            return ws_taos;
-        }
-
-        // fail
-        char maskedDsn[256] = "\0";
-        memcpy(maskedDsn, g_args.dsn, 20);
-        memcpy(maskedDsn + 20, "...", 3);
-        memcpy(maskedDsn + 23, g_args.dsn + strlen(g_args.dsn) - 10, 10);
-        errorPrint("Failed to ws_connect to server %s, code: 0x%08x, reason: %s!\n", maskedDsn, ws_errno(NULL),
-                   ws_errstr(NULL));
-
-        if (++i > g_args.retryCount) {
-            break;
-        }
-
-        // retry agian
-        infoPrint("Retry to ws_connect for %d after sleep %dms ...\n", i, g_args.retrySleepMs);
-        toolsMsleep(g_args.retrySleepMs);
-    }
-    return NULL;
+void engineError(char * module, char * fun, int32_t code) {
+    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
 }
-
-// ws query
-WS_RES *wsQuery(WS_TAOS **taos_v, const char *sql, int32_t *code) {
-    int32_t i = 0;
-    WS_RES *ws_res = NULL;
-    while (1) {
-        ws_res = ws_query_timeout(*taos_v, sql, g_args.ws_timeout);
-        *code = ws_errno(ws_res);
-        if (*code == 0) {
-            if (i > 0) {
-                okPrint("Retry %d to execute taosQuery %s successfully!\n", i, sql);
-            }
-            // successful
-            return ws_res;
-        }
-
-        // fail
-        errorPrint("Failed to execute taosQuery, code: 0x%08x, reason: %s, sql=%s \n", *code, ws_errstr(ws_res), sql);
-
-        // can retry
-        if(!canRetry(*code, RETRY_TYPE_QUERY)) {
-            infoPrint("%s", "error code not in retry range , give up retry.\n");
-            return ws_res;
-        }        
-
-        if (++i > g_args.retryCount) {
-            break;
-        }
-
-        // retry agian
-        infoPrint("Retry to execute taosQuery for %d after sleep %dms ...\n", i, g_args.retrySleepMs);
-        toolsMsleep(g_args.retrySleepMs);
-    }
-
-    // need reconnect 
-    infoPrint("query switch new connect to try , sql=%s \n", sql);
-    WS_TAOS * new_conn = wsConnect();
-    if(new_conn == NULL) {
-        // return old
-        return ws_res;
-    }
-
-    // use new conn to query
-    ws_res = ws_query_timeout(new_conn, sql, g_args.ws_timeout);
-    *code = ws_errno(ws_res);
-    if (*code == 0) {
-        // set new connect to old
-        ws_close(*taos_v);
-        *taos_v = new_conn;
-        okPrint("execute taosQuery with new connection successfully! sql=%s\n", sql);
-        // successful
-        return ws_res;
-    }
-
-    // fail
-    errorPrint("execute taosQuery with new connection failed, code: 0x%08x, reason: %s \n", *code, ws_errstr(ws_res));
-    ws_close(new_conn);
-    return ws_res;
-}
-
-// fetch
-int32_t wsFetchBlock(WS_RES *rs, const void **pData, int32_t *numOfRows) {
-    int32_t i = 0;
-    int32_t ws_code = TSDB_CODE_FAILED;
-    while (1) {
-        ws_code = ws_fetch_raw_block(rs, pData, numOfRows);
-        if (ws_code == TSDB_CODE_SUCCESS) {
-            // successful
-            if (i > 0) {
-                okPrint("Retry %d to fetch block successfully!\n", i);
-            }
-            return ws_code;
-        }
-
-        if(!canRetry(ws_code, RETRY_TYPE_FETCH)) {
-            infoPrint("give up retry fetch because error code need not retry. err code=%d\n", ws_code);
-            break;
-        }
-
-        if (++i > g_args.retryCount) {
-            break;
-        }
-
-        // retry agian
-        infoPrint("Retry to ws fetch raw block for %d after sleep %dms ...\n", i, g_args.retrySleepMs);
-        toolsMsleep(g_args.retrySleepMs);
-    }
-
-    return ws_code;
-}
-
-#endif

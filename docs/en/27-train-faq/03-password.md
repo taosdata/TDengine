@@ -229,6 +229,8 @@ let connection = TaosBuilder::from_dsn(&dsn)?.build().await?;
 </TabItem>
 <TabItem label="Node.js" value="node">
 
+Starting from version 3.1.5, the Node.js connector supports passwords containing all valid characters.
+
 ```js
 const taos = require("@tdengine/websocket");
 

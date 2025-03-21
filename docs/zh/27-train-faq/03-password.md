@@ -229,6 +229,8 @@ let connection = TaosBuilder::from_dsn(&dsn)?.build().await?;
 </TabItem>
 <TabItem label="Node.js" value="node">
 
+从 3.1.5 版本开始，Node.js 连接器支持密码中包含特殊字符无需特殊处理。
+
 ```js
 const taos = require("@tdengine/websocket");
 

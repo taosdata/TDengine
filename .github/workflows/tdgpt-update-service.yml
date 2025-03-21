@@ -1,3 +1,5 @@
+# Scheduled updates for the TDgpt service.
+
 name: TDgpt Update Service
 
 on:

@@ -141,8 +141,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
                                 const char* id) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN &&
-      pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
       return TSDB_CODE_APP_ERROR;
@@ -273,6 +272,15 @@ int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchem
 
 _end:
   return code;
+}
+
+void qSetStreamMergeInfo(qTaskInfo_t tinfo, SArray* pVTables) {
+  if (tinfo == 0 || pVTables == NULL) {
+    return;
+  }
+
+  SStreamTaskInfo* pStreamInfo = &((SExecTaskInfo*)tinfo)->streamInfo;
+  pStreamInfo->pVTables = pVTables;
 }
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
@@ -624,6 +632,13 @@ void destroyOperatorParam(SOperatorParam* pParam) {
   }
 
   // TODO
+}
+
+void qDestroyOperatorParam(SOperatorParam* pParam) {
+  if (NULL == pParam) {
+    return;
+  }
+  freeOperatorParam(pParam, OP_GET_PARAM);
 }
 
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {

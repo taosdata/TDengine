@@ -1137,6 +1137,7 @@ CAST(expr AS type_name)
   - 字符串类型转换数值类型时可能出现的无效字符情况，例如 "a" 可能转为 0，但不会报错。
   - 转换到数值类型时，数值大于 type_name 可表示的范围时，则会溢出，但不会报错。
   - 转换到字符串类型时，如果转换后长度超过 type_name 中指定的长度，则会截断，但不会报错。
+- DECIMAL类型不支持与JSON,VARBINARY,GEOMERTY类型的互转.
 
 #### TO_CHAR
 
@@ -1618,11 +1619,13 @@ AVG(expr)
 
 **功能说明**：统计指定字段的平均值。
 
-**返回数据类型**：DOUBLE。
+**返回数据类型**：DOUBLE, DECIMAL。
 
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
+
+**说明**: 当输入类型为DECIMAL类型时, 输出类型也为DECIMAL类型, 输出的precision和scale大小符合数据类型章节中的描述规则, 通过计算SUM类型和UINT64的除法得到结果类型, 若SUM的结果导致DECIMAL类型溢出, 则报DECIMAL OVERFLOW错误。
 
 ### COUNT
 
@@ -1805,11 +1808,13 @@ SUM(expr)
 
 **功能说明**：统计表/超级表中某列的和。
 
-**返回数据类型**：DOUBLE、BIGINT。
+**返回数据类型**：DOUBLE、BIGINT,DECIMAL。
 
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
+
+**说明**: 输入类型为DECIMAL类型时, 输出类型为DECIMAL(38, scale), precision为当前支持的最大值, scale为输入类型的scale, 若SUM的结果溢出时, 报DECIMAL OVERFLOW错误.
 
 ### VAR_POP
 
@@ -2174,6 +2179,7 @@ ignore_null_values: {
 - INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法(interp_clause)，语法介绍[参考链接](../select/#interp) 。
 - 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
 - INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
+- INTERP在FILL PREV/NEXT/NEAR时, 行为与窗口查询有所区别, 当截面存在数据时, 不会进行FILL, 即便当前值为NULL.
 - INTERP 可以与伪列 `_irowts` 一起使用，返回插值点所对应的时间戳(v3.0.2.0 以后支持)。
 - INTERP 可以与伪列 `_isfilled` 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(v3.0.3.0 以后支持)。
 - 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值, 则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。
