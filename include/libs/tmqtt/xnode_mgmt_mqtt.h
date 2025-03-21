@@ -42,12 +42,11 @@ extern "C" {
 #endif
 #define MQTT_MGMT_DNODE_ID_ENV_NAME "DNODE_ID"
 
-#define TAOS_UV_LIB_ERROR_RET(ret)              \
-  do {                                          \
-    if (0 != ret) {                             \
-      terrno = TSDB_CODE_XNODE_UV_EXEC_FAILURE; \
-      return TSDB_CODE_XNODE_UV_EXEC_FAILURE;   \
-    }                                           \
+#define TAOS_UV_LIB_ERROR_RET(ret) \
+  do {                             \
+    if (0 != ret) {                \
+      return terrno;               \
+    }                              \
   } while (0)
 
 #define TAOS_UV_CHECK_ERRNO(CODE) \

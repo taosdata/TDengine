@@ -52,9 +52,6 @@ extern char **environ;
 
 static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData);
 void           mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
-static void    mqttMgmtMqttdCloseWalkCb(uv_handle_t *handle, void *arg);
-static void    mqttMgmtMqttdStopAsyncCb(uv_async_t *async);
-static void    mqttMgmtWatchMqttd(void *args);
 
 void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(process);
@@ -273,20 +270,20 @@ _OVER:
   return err;
 }
 
-static void mqttMgmtMqttdCloseWalkCb(uv_handle_t *handle, void *arg) {
+void mqttMgmtMqttdCloseWalkCb(uv_handle_t *handle, void *arg) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(handle);
   if (!uv_is_closing(handle)) {
     uv_close(handle, NULL);
   }
 }
 
-static void mqttMgmtMqttdStopAsyncCb(uv_async_t *async) {
+void mqttMgmtMqttdStopAsyncCb(uv_async_t *async) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(async);
   SMqttdData *pData = async->data;
   uv_stop(&pData->loop);
 }
 
-static void mqttMgmtWatchMqttd(void *args) {
+void mqttMgmtWatchMqttd(void *args) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(args);
   SMqttdData *pData = args;
   TAOS_UV_CHECK_ERRNO(uv_loop_init(&pData->loop));
@@ -314,7 +311,7 @@ _exit:
       xndError("taosmqtt loop close failed, lino:%d", __LINE__);
     }
     xndError("taosmqtt thread exit with code:%d lino:%d", terrno, terrln);
-    terrno = TSDB_CODE_XNODE_UV_EXEC_FAILURE;
+    // terrno = TSDB_CODE_XNODE_UV_EXEC_FAILURE;
   }
   return;
 }
