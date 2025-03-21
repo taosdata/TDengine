@@ -49,6 +49,12 @@ extern "C" {
     }                                \
   } while (0)
 
+#define HAS_BIND_VALUE       ((uint8_t)0x1)
+#define IS_FIXED_VALUE       ((uint8_t)0x2)
+#define USING_CLAUSE         ((uint8_t)0x4)
+#define IS_FIXED_TAG         ((uint8_t)0x8)
+#define NO_DATA_USING_CLAUSE ((uint8_t)0x7)
+
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);

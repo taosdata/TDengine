@@ -1731,7 +1731,7 @@ int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
 
 _return:
   // compatible with previous versions
-  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & 0x7) == 0x0) {
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & NO_DATA_USING_CLAUSE) == 0x0) {
     code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
   }
   pStmt->errCode = preCode;

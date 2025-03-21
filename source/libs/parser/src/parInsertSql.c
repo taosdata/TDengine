@@ -977,7 +977,6 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   bool     isParseBindParam = false;
   bool     isJson = false;
   STag*    pTag = NULL;
-  bool     allFixedValue = true;
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
       !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
@@ -989,7 +988,6 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     NEXT_TOKEN_WITH_PREV(pStmt->pSql, token);
 
     if (token.type == TK_NK_QUESTION) {
-      allFixedValue = false;
       isParseBindParam = true;
       if (NULL == pCxt->pComCxt->pStmtCb) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", token.z);
@@ -1032,7 +1030,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     pTag = NULL;
   }
 
-  if (code == TSDB_CODE_SUCCESS && allFixedValue) {
+  if (code == TSDB_CODE_SUCCESS && !isParseBindParam) {
     pCxt->stmtTbNameFlag |= IS_FIXED_TAG;
   }
 
@@ -1470,7 +1468,7 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 
   char    tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t code = 0;
-  if ((pCxt->stmtTbNameFlag & 0x7) == USING_CLAUSE) {
+  if ((pCxt->stmtTbNameFlag & NO_DATA_USING_CLAUSE) == USING_CLAUSE) {
     tstrncpy(pStmt->targetTableName.tname, pStmt->usingTableName.tname, sizeof(pStmt->targetTableName.tname));
     tstrncpy(pStmt->targetTableName.dbname, pStmt->usingTableName.dbname, sizeof(pStmt->targetTableName.dbname));
     pStmt->targetTableName.type = TSDB_SUPER_TABLE;
