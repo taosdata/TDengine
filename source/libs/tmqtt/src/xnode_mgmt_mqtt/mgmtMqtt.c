@@ -37,9 +37,9 @@ typedef struct SMqttdData {
 
   int32_t dnodeId;
 } SMqttdData;
-
-SMqttdData mqttdGlobal = {0};
 /*
+SMqttdData mqttdGlobal = {0};
+
 int32_t mqttMgmtStart(int32_t startDnodeId);
 void    mqttMgmtStop(void);
 
