@@ -13,15 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
+
+#include "uv.h"
 #include "os.h"
 #include "tarray.h"
 #include "tglobal.h"
-#include "uv.h"
 #include "xnode_mgmt_mqtt.h"
 
 #ifdef _TD_DARWIN_64
 #include <mach-o/dyld.h>
 #endif
+
+// clang-format on
 
 typedef struct SMqttdData {
   bool         startCalled;
