@@ -36,6 +36,7 @@ In this document, it specifically refers to the internal levels of the second-le
 | float/double                         | disabled/delta-d          | delta-d     | lz4/zlib/zstd/xz/tsz | lz4  | medium |
 | binary/nchar                         | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
 | bool                                 | disabled/bit-packing      | bit-packing | lz4/zlib/zstd/xz     | zstd | medium |
+| decimal                              | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
 
 ## SQL Syntax
 

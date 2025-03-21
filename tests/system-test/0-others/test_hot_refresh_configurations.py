@@ -102,7 +102,7 @@ class TDTestCase:
                     "alias": "tsMinDiskFreeSize",
                     "values": ["51200K", "100M", "1G"],
                     "check_values": ["52428800", "104857600", "1073741824"],
-                    "except_values": ["1024K", "1.1G", "1T"]
+                    "except_values": ["1024K", "2049G", "3T"]
                 },
                 {
                     "name": "tmqMaxTopicNum",

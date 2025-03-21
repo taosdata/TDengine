@@ -14,8 +14,8 @@
  */
 
 #define __USE_XOPEN
-#include "shellInt.h"
 #include "shellAuto.h"
+#include "shellInt.h"
 
 extern SShellObj shell;
 
@@ -24,15 +24,14 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGHUP);
   taosIgnSignal(SIGINT);
   taosIgnSignal(SIGBREAK);
-
-#if !defined(WINDOWS)
-  taosIgnSignal(SIGBUS);
-#endif
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
+#if !defined(WINDOWS)
+  taosIgnSignal(SIGBUS);
+#endif
 #ifdef USE_REPORT
-  tscWriteCrashInfo(signum, sigInfo, context);
+  taos_write_crashinfo(signum, sigInfo, context);
 #endif
 #ifdef _TD_DARWIN_64
   exit(signum);
@@ -41,20 +40,29 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 #endif
 }
 
-int main(int argc, char *argv[]) {
-  shell.exit = false;
-#ifdef WEBSOCKET
-  shell.args.timeout = SHELL_WS_TIMEOUT;
-  shell.args.cloud = true;
-  shell.args.local = false;
-#endif
+// init arguments
+void initArgument(SShellArgs *pArgs) {
+  pArgs->host     = NULL;
+  pArgs->port     = 0;
+  pArgs->user     = NULL;
+  pArgs->database = NULL;
 
+  // conn mode
+  pArgs->dsn      = NULL;
+  pArgs->connMode = CONN_MODE_INVALID;
+
+  pArgs->port_inputted = false;
+}
+
+int main(int argc, char *argv[]) {
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
 #endif
   taosSetSignal(SIGABRT, shellCrashHandler);
   taosSetSignal(SIGFPE, shellCrashHandler);
   taosSetSignal(SIGSEGV, shellCrashHandler);
+
+  initArgument(&shell.args);
 
   if (shellCheckIntSize() != 0) {
     return -1;
@@ -78,10 +86,27 @@ int main(int argc, char *argv[]) {
     shellPrintHelp();
     return 0;
   }
-#ifdef WEBSOCKET
-  shellCheckConnectMode();
-#endif
+
+  if (shell.args.netrole != NULL) {
+    shellTestNetWork();
+    return 0;
+  }
+
+  if (shell.args.is_dump_config) {
+    shellDumpConfig();
+    return 0;
+  }
+
+  if (getDsnEnv() != 0) {
+    return -1;
+  }
+
+  if (setConnMode(shell.args.connMode, shell.args.dsn)) {
+    return -1;
+  }
+
   if (taos_init() != 0) {
+    fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
   }
 
@@ -111,5 +136,6 @@ int main(int argc, char *argv[]) {
   shellAutoInit();
   int32_t ret = shellExecute(argc, argv);
   shellAutoExit();
+
   return ret;
 }

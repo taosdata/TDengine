@@ -223,8 +223,10 @@ int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* p
         code = pInfo->streamAggSup.stateStore.streamStateGetAllPrev(pInfo->streamAggSup.pState, &curKey,
                                                                     pInfo->pUpdated, pInfo->nbSup.numOfKeep);
         QUERY_CHECK_CODE(code, lino, _end);
-        code = checkAndSaveWinStateToDisc(startIndex, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup, &pInfo->interval);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (!isRecalculateOperator(&pInfo->basic)) {
+          code = checkAndSaveWinStateToDisc(startIndex, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup, &pInfo->interval);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
       }
     }
 
@@ -704,11 +706,14 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     if (pBlock == NULL) {
       qDebug("===stream===%s return data:%s. rev rows:%d", GET_TASKID(pTaskInfo),
              getStreamOpName(pOperator->operatorType), pInfo->basic.numOfRecv);
-      if (isFinalOperator(&pInfo->basic) && isRecalculateOperator(&pInfo->basic)) {
-        code = pAggSup->stateStore.streamStateFlushReaminInfoToDisk(pInfo->basic.pTsDataState);
-        QUERY_CHECK_CODE(code, lino, _end);
-        code = buildRetriveRequest(pTaskInfo, pAggSup, pInfo->basic.pTsDataState, &pInfo->nbSup);
-        QUERY_CHECK_CODE(code, lino, _end);
+      if (isFinalOperator(&pInfo->basic)) {
+        if (isRecalculateOperator(&pInfo->basic)) {
+          code = buildRetriveRequest(pTaskInfo, pAggSup, pInfo->basic.pTsDataState, &pInfo->nbSup);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          code = pAggSup->stateStore.streamStateFlushReaminInfoToDisk(pInfo->basic.pTsDataState);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
       }
       pOperator->status = OP_RES_TO_RETURN;
       break;
@@ -820,7 +825,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     code = closeNonblockIntervalWindow(pAggSup->pResultRows, &pInfo->twAggSup, &pInfo->interval, pInfo->pUpdated,
                                        pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
-    if (!isHistoryOperator(&pInfo->basic)) {
+    if (!isHistoryOperator(&pInfo->basic) && !isRecalculateOperator(&pInfo->basic)) {
       code = checkAndSaveWinStateToDisc(0, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup, &pInfo->interval);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -1052,7 +1057,7 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (!isHistoryOperator(&pInfo->basic)) {
+  if (!isHistoryOperator(&pInfo->basic) && !isRecalculateOperator(&pInfo->basic)) {
     code = checkAndSaveWinStateToDisc(0, pInfo->pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup, &pInfo->interval);
     QUERY_CHECK_CODE(code, lino, _end);
   }

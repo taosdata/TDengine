@@ -465,7 +465,7 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
 }
 
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
-  streamMetaRLock(pMeta);
+  streamMetaWLock(pMeta);
 
   SArray* pTaskList = NULL;
   int32_t num = taosArrayGetSize(pMeta->pTaskList);
@@ -473,7 +473,7 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
 
   if (num == 0) {
     stDebug("vgId:%d stop all %d task(s) completed, elapsed time:0 Sec.", pMeta->vgId, num);
-    streamMetaRUnLock(pMeta);
+    streamMetaWUnLock(pMeta);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -482,7 +482,7 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   // send hb msg to mnode before closing all tasks.
   int32_t code = streamMetaSendMsgBeforeCloseTasks(pMeta, &pTaskList);
   if (code != TSDB_CODE_SUCCESS) {
-    streamMetaRUnLock(pMeta);
+    streamMetaWUnLock(pMeta);
     return code;
   }
 
@@ -509,7 +509,7 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   double el = (taosGetTimestampMs() - st) / 1000.0;
   stDebug("vgId:%d stop all %d task(s) completed, elapsed time:%.2f Sec.", pMeta->vgId, num, el);
 
-  streamMetaRUnLock(pMeta);
+  streamMetaWUnLock(pMeta);
   return code;
 }
 
