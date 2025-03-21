@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+/*
 #include "os.h"
 #include "tarray.h"
 #include "tglobal.h"
@@ -37,7 +37,7 @@ typedef struct SMqttdData {
 
   int32_t dnodeId;
 } SMqttdData;
-/*
+
 SMqttdData mqttdGlobal = {0};
 
 int32_t mqttMgmtStart(int32_t startDnodeId);
@@ -269,10 +269,10 @@ _exit:
   }
   return;
 }
-*/
+
 int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
   int32_t code = 0, lino = 0;
-  /*
+
   SMqttdData *pData = &mqttdGlobal;
   if (pData->startCalled) {
     xndInfo("dnode start taosmqtt already called");
@@ -306,12 +306,12 @@ int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
 _exit:
   if (code != 0) {
     xndError("taosmqtt start failed with code:%d, lino:%d", code, lino);
-    }*/
+    }
   return code;
 }
 
 void mqttMgmtStopMqttd() {
-  /*
+
   SMqttdData *pData = &mqttdGlobal;
   xndInfo("taosmqtt start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
@@ -328,6 +328,7 @@ void mqttMgmtStopMqttd() {
   xndInfo("taosmqtt is cleaned up");
 
   pData->startCalled = false;
-  */
+
   return;
 }
+*/
