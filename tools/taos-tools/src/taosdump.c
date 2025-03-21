@@ -2802,7 +2802,7 @@ static int convertTbDesToJsonImpl(
         const char *namespace,
         const char *tbName,
         TableDes *tableDes,
-        char **jsonSchema, bool isColumn) {
+        char **jsonSchema, bool onlyColumn) {
 
     char* outName = (char*)tbName;
     char tableName[TSDB_TABLE_NAME_LEN + 1];
@@ -2812,46 +2812,48 @@ static int convertTbDesToJsonImpl(
     
     char *pstr = *jsonSchema;
     pstr += sprintf(pstr,
-            "{\"type\":\"record\",\"name\":\"%s.%s\",\"fields\":[",
-            namespace,
-            (isColumn)?(g_args.loose_mode?outName:"_record")
-            :(g_args.loose_mode?outName:"_stb"));
+                    "{
+              \"type\":\"record\",
+              \"name\":\"%s.%s\",
+              \"fields\":[", 
+              namespace,
+             (onlyColumn) ? (g_args.loose_mode ? outName : "_record") : (g_args.loose_mode ? outName : "_stb"));
 
     int iterate = 0;
     if (g_args.loose_mode) {
         // isCol: first column is ts
         // isTag: first column is tbname
-        iterate = (isColumn)?(tableDes->columns):(tableDes->tags+1);
+        iterate = (onlyColumn)?(tableDes->columns):(tableDes->tags+1);
     } else {
         // isCol: add one iterates for tbname
         // isTag: add two iterates for stbname and tbname
-        iterate = (isColumn)?(tableDes->columns+1):(tableDes->tags+2);
+        iterate = (onlyColumn)?(tableDes->columns+1):(tableDes->tags+2);
     }
 
-    char *colOrTag = (isColumn)?"col":"tag";
+    char *colOrTag = (onlyColumn)?"col":"tag";
 
     for (int i = 0; i < iterate; i++) {
         if ((0 == i) && (!g_args.loose_mode)) {
             pstr += sprintf(pstr,
                     "{\"name\":\"%s\",\"type\":%s",
-                    isColumn?"tbname":"stbname",
+                    onlyColumn?"tbname":"stbname",
                     "[\"null\",\"string\"]");
         } else if (((1 == i) && (!g_args.loose_mode))
                 || ((0 == i) && (g_args.loose_mode))) {
             pstr += sprintf(pstr,
                     "{\"name\":\"%s\",\"type\":%s",
-                    isColumn?"ts":"tbname",
-                    isColumn?"[\"null\",\"long\"]":"[\"null\",\"string\"]");
+                    onlyColumn?"ts":"tbname",
+                    onlyColumn?"[\"null\",\"long\"]":"[\"null\",\"string\"]");
         } else {
             int pos = i;
             if (g_args.loose_mode) {
                 // isTag: pos is i-1 for tbname
-                if (!isColumn)
+                if (!onlyColumn)
                     pos = i + tableDes->columns-1;
             } else {
                 // isTag: pos is i-2 for stbname and tbname
                 pos = i +
-                    ((isColumn)?(-1):
+                    ((onlyColumn)?(-1):
                      (tableDes->columns-2));
             }
 
@@ -5449,7 +5451,7 @@ static int64_t dumpInAvroDataImpl(
     StbChange *pStbChange = NULL;
     if (pDbChange) {
         // get pStbChange with schema record stbName
-        pStbChange = findpStbChange(pDbChange, recordSchema->stbName);
+        pStbChange = findStbChange(pDbChange, recordSchema->stbName);
         if(pStbChange) {
             // use super table des
             tableDes = pStbChange->tableDes;
