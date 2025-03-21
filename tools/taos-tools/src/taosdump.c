@@ -10857,6 +10857,11 @@ static int inspectAvroFiles(int argc, char *argv[]) {
 }
 
 int32_t setConnMode(int8_t  connMode) {
+    // default
+    if (connMode == CONN_MODE_INVALID) {
+        connMode = CONN_MODE_DEFAULT;
+    }
+
     // set conn mode
     char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
     int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);

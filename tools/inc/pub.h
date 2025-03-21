@@ -50,6 +50,7 @@
 #define CONN_MODE_INVALID   -1
 #define CONN_MODE_NATIVE    0
 #define CONN_MODE_WEBSOCKET 1
+#define CONN_MODE_DEFAULT   CONN_MODE_NATIVE  // set default mode
 
 // define error show module
 #define INIT_PHASE "init"

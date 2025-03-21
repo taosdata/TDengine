@@ -98,7 +98,12 @@ int32_t applyConfigDir(char * cfgDir){
     return code;
  }
 
-int32_t setConnMode(int8_t  connMode, char *dsn) {
+int32_t setConnMode(int8_t  connMode) {
+    // default
+    if (connMode == CONN_MODE_INVALID) {
+        connMode = CONN_MODE_DEFAULT;
+    }
+
     // set conn mode
     char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
     int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
@@ -181,7 +186,7 @@ int main(int argc, char* argv[]) {
     }
 
     // conn mode
-    if (setConnMode(g_arguments->connMode, g_arguments->dsn) != 0) {
+    if (setConnMode(g_arguments->connMode) != 0) {
         exitLog();
         return -1;
     }
