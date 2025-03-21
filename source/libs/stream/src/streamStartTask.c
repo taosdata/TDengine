@@ -31,7 +31,6 @@ typedef struct STaskInitTs {
 
 static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now);
 static bool    allCheckDownstreamRsp(SStreamMeta* pMeta, STaskStartInfo* pStartInfo, int32_t numOfTotal);
-static bool    allCheckDownstreamRspPartial(STaskStartInfo* pStartInfo, int32_t num, int32_t vgId);
 static void    displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ);
 
 // restore the checkpoint id by negotiating the latest consensus checkpoint id
