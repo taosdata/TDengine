@@ -3115,6 +3115,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
     STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;                                                   \
     TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));                                                      \
     char toString[128] = {0};                                                                                        \
+
     TAOS_UNUSED((ginitDict[i].toStrFunc((void*)key, toString)));                                                     \
     int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                     \
     rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pCf)[ginitDict[i].idx];    \
@@ -4239,10 +4240,8 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   res = 1;
 
 _end:
-  if (res == 0 && valSize > *pVLen) {
-    stError("[InternalERR] [skey:%" PRId64 ",ekey:%" PRId64 ",groupId:%" PRIu64
-            "],valSize:%d bigger than get rocksdb len:%d",
-            key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
+  if (res == 0 && valSize > *pVLen){
+    stError("[InternalERR] [skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],valSize:%d bigger than get rocksdb len:%d", key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
   }
   streamStateFreeCur(pCur);
   return res;
