@@ -97,16 +97,15 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
     path[0] = '.';
 #ifdef WINDOWS
     GetModuleFileName(NULL, path, PATH_MAX);
-    TAOS_DIRNAME(path);
 #elif defined(_TD_DARWIN_64)
     uint32_t pathSize = sizeof(path);
     _NSGetExecutablePath(path, &pathSize);
-    TAOS_DIRNAME(path);
 #endif
   } else {
     TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
-    TAOS_DIRNAME(path);
   }
+
+  TAOS_DIRNAME(path);
 
   if (strlen(path) == 0) {
     TAOS_STRCAT(path, TAOSMQTT_DEFAULT_PATH);
@@ -368,11 +367,7 @@ void mqttMgmtStopMqttd() {
   pData->needCleanUp = false;
   uv_process_kill(&pData->process, SIGTERM);
   uv_barrier_destroy(&pData->barrier);
-  /*
-   if (uv_async_send(&pData->stopAsync) != 0) {
-     xndError("stop taosmqtt: failed to send stop async");
-     }
- */
+
   if (uv_thread_join(&pData->thread) != 0) {
     xndError("stop taosmqtt: failed to join taosmqtt thread");
   }
@@ -380,6 +375,7 @@ void mqttMgmtStopMqttd() {
 #ifdef WINDOWS
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
 #endif
+
   xndInfo("taosmqtt is cleaned up");
 
   pData->startCalled = false;
