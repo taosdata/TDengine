@@ -118,7 +118,7 @@ int32_t setConnMode(int8_t connMode, char *dsn, bool show) {
 }
 
 // default mode
-int8_t defaultMode(int8_t connMode, char *dsn) {
+int8_t workingMode(int8_t connMode, char *dsn) {
     int8_t mode = connMode;
     if (connMode == CONN_MODE_INVALID) {
         // no input from command line or config
@@ -135,7 +135,7 @@ int8_t defaultMode(int8_t connMode, char *dsn) {
 // get default port
 uint16_t defaultPort(int8_t connMode, char *dsn) {
     // consistent with setConnMode
-    int8_t mode = defaultMode(connMode, dsn);
+    int8_t mode = workingMode(connMode, dsn);
 
     // default port
     return mode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;

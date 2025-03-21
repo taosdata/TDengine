@@ -77,6 +77,7 @@ int32_t setConnMode(int8_t connMode, char *dsn, bool show);
 
 uint16_t defaultPort(int8_t connMode, char *dsn);
 
-int8_t defaultMode(int8_t connMode, char *dsn);
+// working connect mode
+int8_t workingMode(int8_t connMode, char *dsn);
 
 #endif // PUB_H_
