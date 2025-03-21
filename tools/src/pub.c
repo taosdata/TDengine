@@ -105,7 +105,7 @@ int32_t setConnMode(int8_t connMode, char *dsn) {
     // set conn mode
     char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
     int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != 0) {
       fprintf(stderr, "failed to load driver. since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
       return code;
     }

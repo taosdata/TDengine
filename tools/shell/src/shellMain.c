@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  if (setConnMode(&shell.args.connMode, shell.args.dsn)) {
+  if (setConnMode(shell.args.connMode, shell.args.dsn)) {
     return -1;
   }
 
