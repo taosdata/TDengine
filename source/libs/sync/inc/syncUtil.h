@@ -36,7 +36,7 @@ extern "C" {
 #define sGFatal(trace, param, ...) do { if (sDebugFlag & DEBUG_FATAL) { sFatal(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
 #define sGError(trace, param, ...) do { if (sDebugFlag & DEBUG_ERROR) { sError(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
 #define sGWarn(trace, param, ...)  do { if (sDebugFlag & DEBUG_WARN)  { sWarn(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
-#define sGInfo(ptrace, aram, ...)  do { if (sDebugFlag & DEBUG_INFO)  { sInfo(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define sGInfo(trace, param, ...)  do { if (sDebugFlag & DEBUG_INFO)  { sInfo(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
 #define sGDebug(trace, param, ...) do { if (sDebugFlag & DEBUG_DEBUG) { sDebug(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
 
 #define sLFatal(...) if (sDebugFlag & DEBUG_FATAL) { taosPrintLongString("SYN FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }
