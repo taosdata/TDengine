@@ -1,8 +1,6 @@
 aux_source_directory(src TAOSMQTT_SRC)
 aux_source_directory(src/xnode_mgmt_mqtt XNODE_MGMT_MQTT_SRC)
 
-message("xxx" ${TAOSMQTT_SRC})
-message("xxx2" ${XNODE_MGMT_MQTT_SRC})
 #list(REMOVE_ITEM FUNCTION_SRC src/mqttd.c)
 
 if(COMPILER_SUPPORT_AVX2)

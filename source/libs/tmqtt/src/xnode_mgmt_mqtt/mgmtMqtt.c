@@ -49,7 +49,7 @@ int32_t mqttMgmtStart(int32_t startDnodeId);
 void    mqttMgmtStop(void);
 
 extern char **environ;
-
+/*
 static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData);
 void           mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
 
@@ -141,28 +141,7 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   }
   numCpuCores = TMAX(numCpuCores, 2);
   snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int32_t)numCpuCores * 2);
-  /*
-  char    pathTaosdLdLib[512] = {0};
-  size_t  taosdLdLibPathLen = sizeof(pathTaosdLdLib);
-  int32_t ret = uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
-  if (ret != UV_ENOBUFS) {
-    taosdLdLibPathLen = strlen(pathTaosdLdLib);
-  }
 
-  char   mqttdPathLdLib[1024] = {0};
-  size_t mqttdLdLibPathLen = strlen(tsMqttdLdLibPath);
-  tstrncpy(mqttdPathLdLib, tsMqttdLdLibPath, sizeof(mqttdPathLdLib));
-
-  mqttdPathLdLib[mqttdLdLibPathLen] = ':';
-  tstrncpy(mqttdPathLdLib + mqttdLdLibPathLen + 1, pathTaosdLdLib, sizeof(mqttdPathLdLib) - mqttdLdLibPathLen - 1);
-  if (mqttdLdLibPathLen + taosdLdLibPathLen < 1024) {
-    xndInfo("[UDFD]taosmqtt LD_LIBRARY_PATH: %s", mqttdPathLdLib);
-  } else {
-    xndError("[UDFD]can not set correct taosmqtt LD_LIBRARY_PATH");
-  }
-  char ldLibPathEnvItem[1024 + 32] = {0};
-  snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", "LD_LIBRARY_PATH", mqttdPathLdLib);
-  */
   char *taosFqdnEnvItem = NULL;
   char *taosFqdn = getenv("TAOS_FQDN");
   if (taosFqdn != NULL) {
@@ -227,26 +206,6 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
 
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
-  /*
-#ifdef WINDOWS
-  // End taosmqtt.exe by Job.
-  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
-  pData->jobHandle = CreateJobObject(NULL, NULL);
-  bool add_job_ok = AssignProcessToJobObject(pData->jobHandle, pData->process.process_handle);
-  if (!add_job_ok) {
-    xndError("Assign taosmqtt to job failed.");
-  } else {
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info;
-    memset(&limit_info, 0x0, sizeof(limit_info));
-    limit_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    bool set_auto_kill_ok =
-        SetInformationJobObject(pData->jobHandle, JobObjectExtendedLimitInformation, &limit_info, sizeof(limit_info));
-    if (!set_auto_kill_ok) {
-      xndError("Set job auto kill taosmqtt failed.");
-    }
-  }
-#endif
-  */
   if (err != 0) {
     xndError("can not spawn taosmqtt. path: %s, error: %s", path, uv_strerror(err));
   } else {
@@ -269,7 +228,7 @@ _OVER:
 
   return err;
 }
-
+*/
 void mqttMgmtMqttdCloseWalkCb(uv_handle_t *handle, void *arg) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(handle);
   if (!uv_is_closing(handle)) {
@@ -289,7 +248,7 @@ void mqttMgmtWatchMqttd(void *args) {
   TAOS_UV_CHECK_ERRNO(uv_loop_init(&pData->loop));
   TAOS_UV_CHECK_ERRNO(uv_async_init(&pData->loop, &pData->stopAsync, mqttMgmtMqttdStopAsyncCb));
   pData->stopAsync.data = pData;
-  TAOS_UV_CHECK_ERRNO(mqttMgmtSpawnMqttd(pData));
+  // TAOS_UV_CHECK_ERRNO(mqttMgmtSpawnMqttd(pData));
   atomic_store_32(&pData->spawnErr, 0);
   (void)uv_barrier_wait(&pData->barrier);
   int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
@@ -370,28 +329,9 @@ void mqttMgmtStopMqttd() {
   if (uv_thread_join(&pData->thread) != 0) {
     xndError("stop taosmqtt: failed to join taosmqtt thread");
   }
-  /*
-#ifdef WINDOWS
-  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
-#endif
-  */
   xndInfo("taosmqtt is cleaned up");
 
   pData->startCalled = false;
 
   return;
 }
-
-/*
-int32_t mqttMgmtGetMqttdPid(int32_t* pMqttdPid) {
-  SMqttdData *pData = &mqttdGlobal;
-  if (pData->spawnErr) {
-    return pData->spawnErr;
-  }
-  uv_pid_t pid = uv_process_get_pid(&pData->process);
-  if (pMqttdPid) {
-    *pMqttdPid = (int32_t)pid;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-*/
