@@ -517,44 +517,54 @@ jobs:
 
   failed_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [run_e2e_test,set_env]
+    needs: [run_e2e_test,set_env,build_rust_run_unit_test]
     if: failure()
     steps: 
-      - name: Get test case result
-        id: set-env-vars
-        env:
-          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+      - name: Identify failed jobs
         run: |
-          # 提取 "Product defects" 的第二个字段
-          product_failed=$(awk -F',' '/"Product defects"/ {print $2}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
+          failed_jobs=""
+          if [ "${{ needs.run_e2e_test.result }}" == "failure" ]; then
+          failed_jobs+="run_e2e_test "
+          fi
+          if [ "${{ needs.build_rust_run_unit_test.result }}" == "failure" ]; then
+          failed_jobs+="build_rust_run_unit_test "
+          fi
+          echo "failed_jobs=$failed_jobs" >> $GITHUB_ENV
+      # - name: Get test case result
+      #   id: set-env-vars
+      #   env:
+      #     COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+      #   run: |
+      #     # 提取 "Product defects" 的第二个字段
+      #     product_failed=$(awk -F',' '/"Product defects"/ {print $2}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
           
-          # 提取 "Test defects" 的第三个字段
-          test_broken=$(awk -F',' '/"Test defects"/ {print $3}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
+      #     # 提取 "Test defects" 的第三个字段
+      #     test_broken=$(awk -F',' '/"Test defects"/ {print $3}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
           
-          # 将值存储到环境变量
-          echo "PRODUCT_FAILED=$product_failed" >> $GITHUB_ENV
-          echo "TEST_BROKEN=$test_broken" >> $GITHUB_ENV
-      - name: Summarize failed cases
-        id: summarize
-        run: |
-          # 从环境变量中获取值并转换为整数
-          product_failed=$PRODUCT_FAILED
-          test_broken=$TEST_BROKEN
+      #     # 将值存储到环境变量
+      #     echo "PRODUCT_FAILED=$product_failed" >> $GITHUB_ENV
+      #     echo "TEST_BROKEN=$test_broken" >> $GITHUB_ENV
+      # - name: Summarize failed cases
+      #   id: summarize
+      #   run: |
+      #     # 从环境变量中获取值并转换为整数
+      #     product_failed=$PRODUCT_FAILED
+      #     test_broken=$TEST_BROKEN
           
-          # 汇总失败案例
-          failed_cases=$((product_failed + test_broken))
+      #     # 汇总失败案例
+      #     failed_cases=$((product_failed + test_broken))
           
-          # 将汇总结果存储到环境变量
-          echo "FAILED_CASES=$failed_cases" >> $GITHUB_ENV
+      #     # 将汇总结果存储到环境变量
+      #     echo "FAILED_CASES=$failed_cases" >> $GITHUB_ENV
       
-      - name: Send Feishu Message to Platform Alert Group
+      - name: Send Feishu Message to taosX CI Group
         env:
           COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run: |
           function post_to_feishu() {
             local text="$1"
             curl -X POST -H "Content-Type: application/json" \
-            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3 <<EOF
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
             {
                 "msg_type": "text",
                 "content": {
@@ -565,7 +575,6 @@ jobs:
           }
           
           PR_INFO="taosX 仓库代码的测试覆盖率\n
-          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          本次测试执行失败，未通过用例数为 $FAILED_CASES 个\n
-          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          本次测试执行失败，失败的job为 $failed_jobs\n"
+          执行的workflow见：https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
           post_to_feishu "$PR_INFO"
