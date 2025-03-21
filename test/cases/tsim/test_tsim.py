@@ -19,17 +19,17 @@ class TestTsim:
         cls.TAOS_BIN_PATH = cls.taos_bin_path
 
         
-        if cls.SIM_DIR and os.path.exists(cls.SIM_DIR):
-            shutil.rmtree(cls.SIM_DIR)
+        #if cls.SIM_DIR and os.path.exists(cls.SIM_DIR):
+        #    shutil.rmtree(cls.SIM_DIR)
 
-        if cls.LOG_DIR and os.path.exists(cls.LOG_DIR):
-            shutil.rmtree(cls.LOG_DIR)
+        #if cls.LOG_DIR and os.path.exists(cls.LOG_DIR):
+        #    shutil.rmtree(cls.LOG_DIR)
 
-        if cls.CFG_DIR and os.path.exists(cls.CFG_DIR):
-            shutil.rmtree(cls.CFG_DIR)
+        #if cls.CFG_DIR and os.path.exists(cls.CFG_DIR):
+        #    shutil.rmtree(cls.CFG_DIR)
 
-        if cls.ASAN_DIR and os.path.exists(cls.ASAN_DIR):
-            shutil.rmtree(cls.ASAN_DIR)
+        #if cls.ASAN_DIR and os.path.exists(cls.ASAN_DIR):
+         #   shutil.rmtree(cls.ASAN_DIR)
 
         os.makedirs(cls.PRG_DIR, exist_ok=True)
         os.makedirs(cls.LOG_DIR, exist_ok=True)
