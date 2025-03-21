@@ -83,6 +83,9 @@ class _ArimaService(AbstractForecastService):
         if self.list is None or len(self.list) < self.period:
             raise ValueError("number of input data is less than the periods")
 
+        if len(self.list) > 3000:
+            raise ValueError("number of input data is too large")
+
         if self.fc_rows <= 0:
             raise ValueError("fc rows is not specified yet")
 

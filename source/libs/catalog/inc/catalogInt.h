@@ -317,7 +317,9 @@ typedef struct SCtgVSubTablesCtx {
   int32_t vgNum;
   bool    clonedVgroups;
   SArray* pVgroups;
-  
+
+  int32_t         resCode;
+  int32_t         resDoneNum;
   SVSubTablesRsp* pResList;
   int32_t         resIdx;
 } SCtgVSubTablesCtx;

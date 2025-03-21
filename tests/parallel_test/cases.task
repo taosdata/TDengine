@@ -46,6 +46,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
+,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
@@ -89,6 +90,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
 #
 # army/tools
@@ -97,6 +99,19 @@
 # benchmark 66 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
+# benchmark 64 cases
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
+,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_insert_alltypes-same-min-max.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_tmq_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_interlace.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_offset_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
@@ -342,6 +357,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2
@@ -556,7 +576,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
-,,n,system-test,python3 ./test.py -f 0-others/udfTest.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
@@ -1638,6 +1658,7 @@
 ,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose1.sim
+,,y,script,./test.sh -f tsim/stream/forcewindowclose.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpFwcError.sim
 ,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpHistory1.sim

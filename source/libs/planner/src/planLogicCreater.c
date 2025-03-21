@@ -659,11 +659,11 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
   pJoin->hashJoinHint = getHashJoinOptHint(pSelect->pHint);
   pJoin->batchScanHint = getBatchScanOptionFromHint(pSelect->pHint);
-  pJoin->node.requireDataOrder = pJoin->hashJoinHint ? DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
+  pJoin->node.requireDataOrder = (pJoin->hashJoinHint || pJoinTable->leftNoOrderedSubQuery || pJoinTable->rightNoOrderedSubQuery) ? DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
   pJoin->leftNoOrderedSubQuery = pJoinTable->leftNoOrderedSubQuery;
-  pJoin->rightNoOrderedSubQuery = pJoinTable->leftNoOrderedSubQuery;
+  pJoin->rightNoOrderedSubQuery = pJoinTable->rightNoOrderedSubQuery;
   
   code = nodesCloneNode(pJoinTable->pWindowOffset, &pJoin->pWindowOffset);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1023,6 +1023,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   pDynCtrl->qType = DYN_QTYPE_VTB_SCAN;
   pDynCtrl->vtbScan.scanAllCols = pVtableScan->scanAllCols;
   pDynCtrl->vtbScan.suid = pVtableScan->stableId;
+  tstrncpy(pDynCtrl->vtbScan.dbName, pVtableScan->tableName.dbname, TSDB_DB_NAME_LEN);
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pVtableScan));
   PLAN_ERR_JRET(nodesCloneList(pVtableScan->node.pTargets, &pDynCtrl->node.pTargets));
   TSWAP(pVtableScan->pVgroupList, pDynCtrl->vtbScan.pVgroupList);

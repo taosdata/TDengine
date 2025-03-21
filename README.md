@@ -8,7 +8,7 @@
   </a>
 </p>
 
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/tdengine/taosd-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/tdengine/tdengine-test.yml)](https://github.com/taosdata/TDengine/actions/workflows/tdengine-test.yml)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/tdengine)](https://github.com/feici02/TDengine/commits/main/)
 <br />
