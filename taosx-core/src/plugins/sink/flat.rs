@@ -535,11 +535,11 @@ pub async fn flat_write_with_sql(
                                         metrics_failed!(records.records, cols);
                                         break;
                                     }
-                                    Ok((HandlingResult::Modify(_), _)) => {
+                                    Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                                    Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                                    Ok((HandlingResult::Retry, _)) => {
                                         // do nothing, continue the below codes
                                     }
-                                    Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                                    Ok((HandlingResult::Retry, _)) => unreachable!(),
                                     Err(e) => {
                                         metrics_failed!(records.records, cols);
                                         return Err(e)?;
