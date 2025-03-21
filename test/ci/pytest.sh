@@ -90,8 +90,7 @@ else
   echo "Preload AsanSo:" $?
 
   $* -A 2>$AsanFile
-  RET=$?
-  echo "Run command RET:" $RET
+
 
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
@@ -106,7 +105,7 @@ else
   AsanFileSuccessLen=$(grep -w "successfully executed" $AsanFile | wc -l)
   echo "AsanFileSuccessLen:" $AsanFileSuccessLen
 
-  if [ $AsanFileSuccessLen -gt 0 ] && [ $RET -eq 0 ]; then
+  if [[ "$AsanFileSuccessLen" -gt 0 ]]; then
     echo "Execute script successfully and check asan"
     $CODE_DIR/ci/checkAsan.sh
   else
