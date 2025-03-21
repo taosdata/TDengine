@@ -228,7 +228,7 @@ _OVER:
 
   return err;
 }
-*/
+
 void mqttMgmtMqttdCloseWalkCb(uv_handle_t *handle, void *arg) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(handle);
   if (!uv_is_closing(handle)) {
@@ -274,7 +274,7 @@ _exit:
   }
   return;
 }
-
+*/
 int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
   int32_t code = 0, lino = 0;
 
@@ -290,7 +290,7 @@ int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
   pData->dnodeId = startDnodeId;
 
   TAOS_CHECK_GOTO(uv_barrier_init(&pData->barrier, 2), &lino, _exit);
-  TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, mqttMgmtWatchMqttd, pData), &lino, _exit);
+  // TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, mqttMgmtWatchMqttd, pData), &lino, _exit);
   (void)uv_barrier_wait(&pData->barrier);
   int32_t err = atomic_load_32(&pData->spawnErr);
   if (err != 0) {
