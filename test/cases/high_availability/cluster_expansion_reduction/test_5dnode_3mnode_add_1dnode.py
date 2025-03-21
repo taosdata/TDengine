@@ -210,7 +210,5 @@ class Test5dnode3mnodeAdd1Dnode:
             stableName= '%s_%d'%(paraDict['stbName'],i)
             tdSql.query("select * from %s"%stableName)
             tdSql.checkRows(rowsPerStb)
-    
-    def teardown_class(self):
         tdLog.success(f"{__file__} successfully executed")
 

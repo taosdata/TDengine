@@ -140,7 +140,5 @@ class Test5dnode3mnodeStop:
         tdDnodes[0].starttaosd()
         clusterComCheck.checkMnodeStatus(3)
 
-
-    def teardown_class(cls):
         tdLog.info(f"{__file__} successfully executed")
 

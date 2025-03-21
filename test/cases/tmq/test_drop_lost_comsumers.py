@@ -326,7 +326,4 @@ class TestDropLostConsumers:
         self.max_poll_interval_ms = 20000
         self.drop_max_poll_timeout_consmuers()
         tdLog.info("stop to test max_poll_interval_ms=20s and done ")
-
-
-    def teardown_class(cls):
         tdLog.success(f"{__file__} successfully executed")

@@ -37,13 +37,11 @@ class TestKeepTimeOffset:
         # check result
         tdSql.query("select `keep_time_offset` from  information_schema.ins_databases where name='db'")
         tdSql.checkData(0, 0, hours)
+        tdLog.info("%s successfully executed" % __file__)
 
 
     def test_check_old_syntax(self):
         # old syntax would not support again
         tdSql.error("alter dnode 1 'keeptimeoffset 10';")
-        
-
-    def teardown_class(cls):
         tdLog.info("%s successfully executed" % __file__)
 

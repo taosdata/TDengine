@@ -27,10 +27,12 @@ from .cases import *
 from .server.dnodes import *
 from .common import *
 from .constant import *
+from .epath import *
 from dataclasses import dataclass,field
 from typing import List
 from datetime import datetime
 import re
+
 @dataclass
 class DataSet:
     ts_data     : List[int]     = field(default_factory=list)
@@ -1900,7 +1902,7 @@ def is_json(msg):
         return False
 
 def get_path(tool="taosd"):
-    return os.path.join(self.taos_bin_path, tool)
+    return binFile(tool)
     #selfPath = os.path.dirname(os.path.realpath(__file__))
     #if ("community" in selfPath):
     #    projPath = selfPath[:selfPath.find("community")]

@@ -137,7 +137,4 @@ class TestInsertDouble:
         self.run_tags("t_small", "smallint", 16)
         self.run_tags("t_tiny", "tinyint", 8)
         tdLog.printNoPrefix("==========end case2 run ...............")
-
-
-    def teardown_class(cls):
         logger.info(f"{__file__} successfully executed")

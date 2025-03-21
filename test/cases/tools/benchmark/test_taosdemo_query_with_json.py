@@ -178,9 +178,6 @@ class TestTaosdemoQueryWithJson:
         # use illegal or out of range parameters query json file
         os.system(f"{binPath} -f {os.path.join(os.path.dirname(os.path.abspath(__file__)), 'json', 'queryInsertdata.json')}")
 
-
-    def teardown_class(cls):
-        # delete useless files
         os.system("rm -rf os../insert_res.txt")
         os.system("rm -rf ./tools/benchmark/basic/*.py.sql")
         os.system("rm -rf ./querySystemInfo*")

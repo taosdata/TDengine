@@ -114,7 +114,4 @@ class TestClusterBasic:
         leader_status = clusterComCheck.check_vgroups_status_with_offline(vgroup_numbers=self.vgroupNum, db_replica=self.replicaVar)
         tdSql.query("show cluster alive;")
         tdSql.checkData(0, 0, leader_status)
-
-
-    def teardown_class(cls):
         tdLog.success(f"{__file__} successfully executed")

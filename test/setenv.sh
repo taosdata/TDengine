@@ -7,7 +7,7 @@ else
   export TAOS_DIR=$TEST_DIR/..
 fi
 export TAOS_BIN_PATH=$TAOS_DIR/debug/build/bin
-export WORK_DIR=$TAOS_DIR
+export WORK_DIR=$TAOS_DIR/sim
 
 # for install set
 #export TAOS_BIN_PATH=/usr/bin

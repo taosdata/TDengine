@@ -257,11 +257,11 @@ class BeforeTest:
         request.session.servers = servers
         if request.session.restful:
             # TODO: 增加taosAdapter的配置
-            adapter_config_dir = os.path.join(ci_path, "dnode1", "cfg")
+            adapter_config_dir = os.path.join(work_dir, "dnode1", "cfg")
             adapter_config_file = os.path.join(adapter_config_dir, "taosadapter.toml")
-            taos_config_file = os.path.join(ci_path, "dnode1", "cfg", "taos.cfg")
-            adapter_log_dir = os.path.join(ci_path, "dnode1", "log")
-            taos_log_dir = os.path.join(ci_path, "dnode1", "log")
+            taos_config_file = os.path.join(work_dir, "dnode1", "cfg", "taos.cfg")
+            adapter_log_dir = os.path.join(work_dir, "dnode1", "log")
+            taos_log_dir = os.path.join(work_dir, "dnode1", "log")
             restful_dict = {
                 "name": "taosAdapter",
                 "fqdn": ["localhost"],
@@ -281,6 +281,8 @@ class BeforeTest:
                     "taosadapterPath": os.path.join(request.session.taos_bin_path, "taosadapter")
                 }
             }
+            if request.session.asan:
+                restful_dict["spec"]["asanDir"] = os.path.join(work_dir, "asan", f"taosadapter.asan")
             yaml_data["settings"].append(restful_dict)
             adapter = {}
             adapter["host"] = "localhost"
@@ -379,7 +381,10 @@ class BeforeTest:
             clusterDnodes_army.setTestCluster(False)
             clusterDnodes_army.setValgrind(0)
             clusterDnodes_army.setAsan(request.session.asan)
-            tdDnodes_army = clusterDnodes_army
+            tdDnodes_army.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
+            tdDnodes_army.setTestCluster(False)
+            tdDnodes_army.setValgrind(0)
+            tdDnodes_army.setAsan(request.session.asan)
         else:
             tdDnodes_pytest.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
             tdDnodes_pytest.setKillValgrind(1)
@@ -392,15 +397,15 @@ class BeforeTest:
             tdDnodes_army.setValgrind(0)
             tdDnodes_army.setAsan(request.session.asan)
         tdDnodes_pytest.sim.setTestCluster(False)
-        tdDnodes_pytest.sim.logDir = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","log")
-        tdDnodes_pytest.sim.cfgDir = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","cfg")
-        tdDnodes_pytest.sim.cfgPath = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","cfg","taos.cfg")
+        tdDnodes_pytest.sim.logDir = os.path.join(tdDnodes_pytest.sim.path,"psim","log")
+        tdDnodes_pytest.sim.cfgDir = os.path.join(tdDnodes_pytest.sim.path,"psim","cfg")
+        tdDnodes_pytest.sim.cfgPath = os.path.join(tdDnodes_pytest.sim.path,"psim","cfg","taos.cfg")
         tdDnodes_pytest.simDeployed = True
         tdDnodes_army.sim.setTestCluster(False)
         tdDnodes_army.setLevelDisk(request.session.level, request.session.disk)
-        tdDnodes_army.sim.logDir = os.path.join(tdDnodes_army.sim.path,"sim","psim","log")
-        tdDnodes_army.sim.cfgDir = os.path.join(tdDnodes_army.sim.path,"sim","psim","cfg")
-        tdDnodes_army.sim.cfgPath = os.path.join(tdDnodes_army.sim.path,"sim","psim","cfg","taos.cfg")
+        tdDnodes_army.sim.logDir = os.path.join(tdDnodes_army.sim.path,"psim","log")
+        tdDnodes_army.sim.cfgDir = os.path.join(tdDnodes_army.sim.path,"psim","cfg")
+        tdDnodes_army.sim.cfgPath = os.path.join(tdDnodes_army.sim.path,"psim","cfg","taos.cfg")
         tdDnodes_army.simDeployed = True
         for i in range(dnode_nums):
             tdDnodes_pytest.dnodes[i].setTestCluster(False)
