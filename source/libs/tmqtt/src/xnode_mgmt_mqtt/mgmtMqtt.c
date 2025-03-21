@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "uv.h"
 #include "os.h"
 #include "tarray.h"
 #include "tglobal.h"
-#include "uv.h"
 #include "xnode_mgmt_mqtt.h"
 
 #ifdef _TD_DARWIN_64
