@@ -136,7 +136,7 @@ ELSE()
             PREFIX "taosadapter"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
@@ -165,7 +165,7 @@ ELSE()
             PREFIX "taosadapter"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
