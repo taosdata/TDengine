@@ -30,26 +30,21 @@ typedef struct SMqttdData {
   uv_thread_t  thread;
   uv_barrier_t barrier;
   uv_process_t process;
-  /*
-#ifdef WINDOWS
-  HANDLE jobHandle;
-#endif
-  */
-  int32_t    spawnErr;
-  uv_pipe_t  ctrlPipe;
-  uv_async_t stopAsync;
-  int32_t    stopCalled;
+  int32_t      spawnErr;
+  uv_pipe_t    ctrlPipe;
+  uv_async_t   stopAsync;
+  int32_t      stopCalled;
 
   int32_t dnodeId;
 } SMqttdData;
 
 SMqttdData mqttdGlobal = {0};
-
+/*
 int32_t mqttMgmtStart(int32_t startDnodeId);
 void    mqttMgmtStop(void);
 
 extern char **environ;
-/*
+
 static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData);
 void           mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
 
