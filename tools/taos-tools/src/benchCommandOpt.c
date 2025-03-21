@@ -35,57 +35,116 @@ void printVersion() {
     printf("build: %s\n", BUILD_INFO);
 }
 
-void parseFieldDatatype(char *dataType, BArray *fields, bool isTag) {
+
+void processSingleToken(char* token, BArray* fields, int index, bool isTag) {
+    Field* field = benchCalloc(1, sizeof(Field), true);
+    benchArrayPush(fields, field);
+    field = benchArrayGet(fields, index);
+
+    regex_t regex;
+    regmatch_t pmatch[3];
+    int reti;
+
+    // BINARY/NCHAR/VARCHAR/JSON/GEOMETRY/VARBINARY
+    reti = regcomp(&regex, "^(BINARY|NCHAR|VARCHAR|JSON|GEOMETRY|VARBINARY)\\(([1-9][0-9]*)\\)$", REG_ICASE | REG_EXTENDED);
+    if (!reti) {
+        reti = regexec(&regex, token, 3, pmatch, 0);
+        if (!reti) {
+            char type[DATATYPE_BUFF_LEN] = {0};
+            char length[BIGINT_BUFF_LEN] = {0};
+            strncpy(type, token + pmatch[1].rm_so, pmatch[1].rm_eo - pmatch[1].rm_so);
+            type[pmatch[1].rm_eo - pmatch[1].rm_so] = '\0';
+            strncpy(length, token + pmatch[2].rm_so, pmatch[2].rm_eo - pmatch[2].rm_so);
+            field->type = convertStringToDatatype(type, 0, NULL);
+            field->length = atoi(length);
+            regfree(&regex);
+            goto SET_PROPS;
+        }
+        regfree(&regex);
+    }
+
+    // DECIMAL
+    reti = regcomp(&regex, "^DECIMAL\\s*\\(\\s*([1-9][0-9]?)\\s*,\\s*([0-9][0-9]?)\\s*\\)$", REG_ICASE | REG_EXTENDED);
+    if (!reti) {
+        reti = regexec(&regex, token, 3, pmatch, 0);
+        if (!reti) {
+            char precision[DECIMAL_BUFF_LEN] = {0};
+            char scale[DECIMAL_BUFF_LEN] = {0};
+            strncpy(precision, token + pmatch[1].rm_so, pmatch[1].rm_eo - pmatch[1].rm_so);
+            precision[pmatch[1].rm_eo - pmatch[1].rm_so] = '\0';
+            strncpy(scale, token + pmatch[2].rm_so, pmatch[2].rm_eo - pmatch[2].rm_so);
+            scale[pmatch[2].rm_eo - pmatch[2].rm_so] = '\0';
+
+            int p = atoi(precision), s = atoi(scale);
+            if (p > TSDB_DECIMAL128_MAX_PRECISION || p <= 0 || s > p) {
+                errorPrint("Invalid DECIMAL args: %s\n", token);
+                exit(EXIT_FAILURE);
+            }
+            field->precision = p;
+            field->scale = s;
+            field->type = convertStringToDatatype("DECIMAL", 0, &field->precision);
+            field->length = convertTypeToLength(field->type);
+            regfree(&regex);
+
+            if (field->type == TSDB_DATA_TYPE_DECIMAL) {
+                getDecimal128DefaultMax(p, s, &field->decMax.dec128);
+                getDecimal128DefaultMin(p, s, &field->decMin.dec128);
+            } else {
+                getDecimal64DefaultMax(p, s, &field->decMax.dec64);
+                getDecimal64DefaultMin(p, s, &field->decMin.dec64);
+            }
+
+            goto SET_PROPS;
+        }
+        regfree(&regex);
+    }
+
+    // other
+    field->type = convertStringToDatatype(token, 0, NULL);
+    field->length = convertTypeToLength(field->type);
+
+SET_PROPS:
+    field->min = convertDatatypeToDefaultMin(field->type);
+    field->max = convertDatatypeToDefaultMax(field->type);
+    snprintf(field->name, TSDB_COL_NAME_LEN, isTag ? "t%d" : "c%d", index);
+}
+
+
+void parseFieldDatatype(char* dataType, BArray* fields, bool isTag) {
     benchArrayClear(fields);
     if (strstr(dataType, ",") == NULL) {
-        Field * field = benchCalloc(1, sizeof(Field), true);
-        benchArrayPush(fields, field);
-        field = benchArrayGet(fields, 0);
-        if (1 == regexMatch(dataType,
-                    "^(BINARY|NCHAR|GEOMETRY|VARBINARY|VARCHAR)(\\([1-9][0-9]*\\))$",
-                    REG_ICASE | REG_EXTENDED)) {
-            char type[DATATYPE_BUFF_LEN];
-            char length[BIGINT_BUFF_LEN];
-            sscanf(dataType, "%[^(](%[^)]", type, length);
-            field->type = convertStringToDatatype(type, 0);
-            field->length = atoi(length);
-        } else {
-            field->type = convertStringToDatatype(dataType, 0);
-            field->length = convertTypeToLength(field->type);
-        }
-        field->min = convertDatatypeToDefaultMin(field->type);
-        field->max = convertDatatypeToDefaultMax(field->type);
-        tstrncpy(field->name, isTag?"t0":"c0", TSDB_COL_NAME_LEN);
+        processSingleToken(dataType, fields, 0, isTag);
     } else {
-        char *dup_str = strdup(dataType);
-        char *running = dup_str;
-        char *token = strsep(&running, ",");
-        int   index = 0;
-        while (token) {
-            Field * field = benchCalloc(1, sizeof(Field), true);
-            benchArrayPush(fields, field);
-            field = benchArrayGet(fields, index);
-            if (1 == regexMatch(token,
-                        "^(BINARY|NCHAR|JSON)(\\([1-9][0-9]*\\))$",
-                        REG_ICASE | REG_EXTENDED)) {
-                char type[DATATYPE_BUFF_LEN];
-                char length[BIGINT_BUFF_LEN];
-                sscanf(token, "%[^(](%[^)]", type, length);
-                field->type = convertStringToDatatype(type, 0);
-                field->length = atoi(length);
-            } else {
-                field->type = convertStringToDatatype(token, 0);
-                field->length = convertTypeToLength(field->type);
+        char* dupStr        = strdup(dataType);
+        char* start         = dupStr;
+        char* current       = start;
+        int   bracketDepth  = 0;
+        int   index         = 0;
+
+        while (*current != '\0') {
+            if (*current == '(') {
+                bracketDepth++;
+            } else if (*current == ')') {
+                if (bracketDepth > 0) bracketDepth--;
+                else {
+                    errorPrint("Unbalanced parentheses in data type: %s\n", dataType);
+                    exit(EXIT_FAILURE);
+                }
+            } else if (*current == ',' && bracketDepth == 0) {
+                *current = '\0';
+                processSingleToken(start, fields, index++, isTag);
+                start = current + 1;
             }
-            field->max = convertDatatypeToDefaultMax(field->type);
-            field->min = convertDatatypeToDefaultMin(field->type);
-            snprintf(field->name, TSDB_COL_NAME_LEN, isTag?"t%d":"c%d", index);
-            index++;
-            token = strsep(&running, ",");
+            current++;
         }
-        tmfree(dup_str);
+
+        if (start < current) {
+            processSingleToken(start, fields, index, isTag); 
+        }
+        tmfree(dupStr);
     }
 }
+
 
 static void initStable() {
     SDataBase *database = benchArrayGet(g_arguments->databases, 0);

@@ -74,6 +74,7 @@
 #include <stdarg.h>
 
 #include <taos.h>
+#include "decimal.h"
 #include <toolsdef.h>
 #include <taoserror.h>
 #include "../../inc/pub.h"
@@ -140,6 +141,8 @@ typedef unsigned __int32 uint32_t;
 #define BOOL_BUFF_LEN       6
 #define FLOAT_BUFF_LEN      22
 #define DOUBLE_BUFF_LEN     42
+#define DECIMAL_BUFF_LEN    41
+#define DECIMAL64_BUFF_LEN  21
 #define TIMESTAMP_BUFF_LEN  21
 #define PRINT_STAT_INTERVAL 30 * 1000
 #define DEFAULT_HOST        "localhost"
@@ -389,6 +392,11 @@ typedef struct SChildField {
 #define ARG_OPT_THREAD 0x0000000000000002
 extern uint64_t g_argFlag;
 
+typedef union {
+    Decimal64 dec64;
+    Decimal128 dec128;
+} BDecimal;
+
 typedef struct SField {
     uint8_t  type;
     char     name[TSDB_COL_NAME_LEN + 1];
@@ -400,8 +408,13 @@ typedef struct SField {
     int64_t  min;
     double   maxInDbl;
     double   minInDbl;
+    uint8_t precision;
+    uint8_t scale;
     uint32_t scalingFactor;
     tools_cJSON *  values;
+
+    BDecimal decMax;
+    BDecimal decMin;
 
     // fun
     uint8_t  funType;
@@ -915,7 +928,8 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 void    setupForAnsiEscape(void);
 void    resetAfterAnsiEscape(void);
 char *  convertDatatypeToString(int type);
-int     convertStringToDatatype(char *type, int length);
+int32_t strCompareN(char *str1, char *str2, int length);
+int     convertStringToDatatype(char *type, int length, void* ctx);
 unsigned int     taosRandom();
 void    tmfree(void *buf);
 void    tmfclose(FILE *fp);
@@ -999,6 +1013,8 @@ int64_t tmpInt64Impl(Field *field, int32_t angle, int32_t k);
 uint64_t tmpUint64Impl(Field *field, int32_t angle, int64_t k);
 float tmpFloatImpl(Field *field, int i, int32_t angle, int32_t k);
 double tmpDoubleImpl(Field *field, int32_t angle, int32_t k);
+Decimal64 tmpDecimal64Impl(Field* field, int32_t angle, int32_t k);
+Decimal128 tmpDecimal128Impl(Field* field, int32_t angle, int32_t k);
 int tmpStr(char *tmp, int iface, Field *field, int64_t k);
 int tmpGeometry(char *tmp, int iface, Field *field, int64_t k);
 int tmpInt32ImplTag(Field *field, int i, int k);
@@ -1035,5 +1051,16 @@ void engineError(char * module, char * fun, int32_t code);
 
 // trim prefix suffix blank cmp
 int trimCaseCmp(char *str1,char *str2);
+
+void doubleToDecimal64(double val, uint8_t precision, uint8_t scale, Decimal64* dec);
+void doubleToDecimal128(double val, uint8_t precision, uint8_t scale, Decimal128* dec);
+void stringToDecimal64(const char* str, uint8_t precision, uint8_t scale, Decimal64* dec);
+void stringToDecimal128(const char* str, uint8_t precision, uint8_t scale, Decimal128* dec);
+int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size);
+int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size);
+void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec);
+void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec);
+void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec);
+void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec);
 
 #endif   // INC_BENCH_H_
