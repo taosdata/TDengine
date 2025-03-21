@@ -600,16 +600,16 @@ static int32_t getBlockBySeq(SArray *pSeqToBlock, int64_t key, BlockInfo **ppInf
   for (int32_t i = 0; i < taosArrayGetSize(pSeqToBlock); i++) {
     BlockInfo *pInfo = taosArrayGet(pSeqToBlock, i);
     if (pInfo->seq <= key) {
-      BlockInfo *pNext = taosArrayGet(pSeqToBlock, i + 1);
-      if (pNext) {
+      if ((i + 1) >= taosArrayGetSize(pSeqToBlock)) {
+        terrno = 0;
+        p = pInfo;
+        break;
+      } else {
+        BlockInfo *pNext = taosArrayGet(pSeqToBlock, i + 1);
         if (pNext->seq > key) {
           p = pInfo;
           break;
         }
-      } else {
-        terrno = 0;
-        p = pInfo;
-        break;
       }
     }
   }
@@ -1202,6 +1202,7 @@ int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t le
   pBatch->num++;
 
   *seq = lseq;
+  bseInfo("succ to put seq %" PRId64 " to batch", lseq);
 
 _error:
   if (code != 0) {
