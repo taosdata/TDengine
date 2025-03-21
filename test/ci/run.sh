@@ -196,10 +196,15 @@ function run_thread() {
             case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         fi
 
-        # get python cases from cases.task file without asan
+        # get python cases from cases.task file without asan or sim cases
         if echo "$case_cmd" | grep -q "^pytest"; then
+            # get python cases from cases.task file without asan
             if [[ $case_cmd == *"\.py"* ]]; then
                 case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+            fi
+            # get sim cases from cases.task file
+            if [[ $case_cmd == *"--tsim"* ]]; then
+                case_file=$(echo "$case_cmd" | grep -oP '(?<=--tsim=)[^ ]+')
             fi
         fi
 
@@ -208,9 +213,10 @@ function run_thread() {
         # fi
 
         # get sim cases from cases.task file
-        if echo "$case_cmd" | grep -q "^pytest"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
-        fi
+        # if echo "$case_cmd" | grep -q "^pytest"; then
+        #     # case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
+        #     case_file=$(echo "$case_cmd" | grep -oP '(?<=--tsim=)[^ ]+')
+        # fi
         if [ -z "$case_file" ]; then
             case_file=$(echo "$case_cmd" | awk '{print $NF}')
         fi
