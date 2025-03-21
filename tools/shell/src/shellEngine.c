@@ -21,6 +21,7 @@
 #include "geosWrapper.h"
 #include "shellAuto.h"
 #include "shellInt.h"
+#include "../../inc/pub.h"
 
 SShellObj shell = {0};
 
@@ -1347,7 +1348,7 @@ TAOS* createConnect(SShellArgs *pArgs) {
       if (pArgs->port_inputted) {
           port = pArgs->port;
       } else {
-          port = pArgs->connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+          port = defaultPort(pArgs->connMode, pArgs->dsn);
       }
 
       sprintf(show, "host:%s port:%d ", host, port);
@@ -1364,7 +1365,7 @@ TAOS* createConnect(SShellArgs *pArgs) {
 int32_t shellExecute(int argc, char *argv[]) {
   int32_t code = 0;
   printf(shell.info.clientVersion, shell.info.cusName, 
-             shell.args.connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
+             defaultMode(shell.args.connMode, shell.args.dsn),
              taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 

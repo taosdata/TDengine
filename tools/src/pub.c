@@ -11,6 +11,7 @@
  */
 
  #include <stdio.h>
+ #include <taos.h>
  #include "../inc/pub.h"
 
 
@@ -88,4 +89,50 @@
         exit(-1);
     }
  }
+
+ // set conn mode
+int32_t setConnMode(int8_t connMode, char *dsn) {
+    // check default
+    if (connMode == CONN_MODE_INVALID) {
+      if (dsn && dsn[0] != 0) {
+        connMode = CONN_MODE_WEBSOCKET;
+      } else {
+        // default
+        connMode = CONN_MODE_DEFAULT;
+      }    
+    }
+  
+    // set conn mode
+    char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
+    int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
+    if (code != TSDB_CODE_SUCCESS) {
+      fprintf(stderr, "failed to load driver. since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
+      return code;
+    }
+    return 0;
+}
+
+// default mode
+int8_t defaultMode(int8_t connMode, char *dsn) {
+    int8_t mode = connMode;
+    if (connMode == CONN_MODE_INVALID) {
+        // no input from command line or config
+        if (dsn && dsn[0] != 0) {
+          mode = CONN_MODE_WEBSOCKET;
+        } else {
+          // default
+          mode = CONN_MODE_DEFAULT;
+        }    
+    }
+    return mode;
+}
+
+// get default port
+uint16_t defaultPort(int8_t connMode, char *dsn) {
+    // consistent with setConnMode
+    int8_t mode = defaultMode(connMode, dsn);
+
+    // default port
+    return mode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+}
  

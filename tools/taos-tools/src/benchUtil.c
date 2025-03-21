@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "pub.h"
 
 char resEncodingChunk[] = "Encoding: chunked";
 char succMessage[] = "succ";
@@ -304,7 +305,7 @@ SBenchConn* initBenchConnImpl() {
         if (g_arguments->port_inputted) {
             port = g_arguments->port;
         } else {
-            port = g_arguments->connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+            port = defaultPort(g_arguments->connMode, g_arguments->dsn);
         }
 
         sprintf(show, "host:%s port:%d ", host, port);

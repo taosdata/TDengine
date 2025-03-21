@@ -72,4 +72,10 @@ int8_t getConnMode(char *arg);
 char* strToLowerCopy(const char *str);
 int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd, char* error);
 
+int32_t setConnMode(int8_t connMode, char *dsn);
+
+uint16_t defaultPort(int8_t connMode, char *dsn);
+
+int8_t defaultMode(int8_t connMode, char *dsn);
+
 #endif // PUB_H_

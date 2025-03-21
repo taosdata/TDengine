@@ -10856,24 +10856,6 @@ static int inspectAvroFiles(int argc, char *argv[]) {
     return ret;
 }
 
-int32_t setConnMode(int8_t  connMode) {
-    // default
-    if (connMode == CONN_MODE_INVALID) {
-        connMode = CONN_MODE_DEFAULT;
-    }
-
-    // set conn mode
-    char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
-    int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
-    if (code != TSDB_CODE_SUCCESS) {
-        engineError(INIT_PHASE, "taos_options", code);
-        return -1;
-    }
-
-    infoPrint("\nConnect mode is : %s\n\n", strMode);
-    return 0;
-}
-
 
 int main(int argc, char *argv[]) {
     g_uniqueID = getUniqueIDFromEpoch();
@@ -10928,7 +10910,7 @@ int main(int argc, char *argv[]) {
     }
 
     // conn mode
-    if (setConnMode(g_args.connMode) != 0) {
+    if (setConnMode(g_args.connMode, g_args.dsn) != 0) {
         return -1;
     }
 

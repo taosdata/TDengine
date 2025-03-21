@@ -109,7 +109,7 @@ int32_t setConnMode(int8_t  connMode) {
     int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
     if (code != TSDB_CODE_SUCCESS) {
         engineError(INIT_PHASE, "taos_options", code);
-        return -1;
+        return code;
     }
 
     infoPrint("Connect mode is : %s\n\n", strMode);
@@ -186,7 +186,7 @@ int main(int argc, char* argv[]) {
     }
 
     // conn mode
-    if (setConnMode(g_arguments->connMode) != 0) {
+    if (setConnMode(g_arguments->connMode, g_arguments->dsn) != 0) {
         exitLog();
         return -1;
     }
