@@ -7,7 +7,6 @@ import subprocess
 from ..util.file import dict2toml, dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
-from ..logger import *
 
 class TaosAdapter:
     def __init__(self, remote: Remote):
@@ -91,11 +90,13 @@ class TaosAdapter:
             else:
                 if "asanDir" in tmpDict:
                     if i == "localhost":
-                        killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
+                        killCmd = ["ps -ef | grep -w taosadapter | grep -v grep | awk '{print $2}' | xargs kill "]
                         env = os.environ.copy()
                         env.pop('LD_PRELOAD', None)
-                        logger.info("kill taosadapter cmd: %s", killCmd)
-                        subprocess.run(killCmd, shell=True, text=True, env=env)
+                        try:
+                            subprocess.run(killCmd, shell=True, text=True, env=env)
+                        except Exception as e:
+                            print(e)
                     else:
                         killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
                         self._remote.cmd(i, killCmd)

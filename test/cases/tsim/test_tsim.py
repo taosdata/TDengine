@@ -89,4 +89,4 @@ class TestTsim:
         else:
             tdLog.info(f"Tsim test passed")
             assert True
-        tdLog.info("%s successfully executed" % __file__)
+            tdLog.info("%s successfully executed" % __file__)
