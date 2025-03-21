@@ -10,28 +10,28 @@ if(COMPILER_SUPPORT_AVX2)
     set_source_files_properties(src/detail/tminmaxavx.c PROPERTIES COMPILE_FLAGS -mavx2)
 endif()
 
-add_library(_xnode_mgmt_mqtt STATIC ${XNODE_MGMT_MQTT_SRC})
-
-target_include_directories(
-    _xnode_mgmt_mqtt
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/tmqtt"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-target_link_libraries(
-    _xnode_mgmt_mqtt
-    PRIVATE os
-    PRIVATE util
-    PRIVATE common
-    PRIVATE nodes
-    PRIVATE transport
-    PUBLIC uv_a
-)
+#add_library(_xnode_mgmt_mqtt STATIC ${XNODE_MGMT_MQTT_SRC})
+#
+#target_include_directories(
+#    _xnode_mgmt_mqtt
+#    PUBLIC
+#    "${TD_SOURCE_DIR}/include/libs/tmqtt"
+#    "${TD_SOURCE_DIR}/include/util"
+#    "${TD_SOURCE_DIR}/include/common"
+#    "${TD_SOURCE_DIR}/include/client"
+#    "${TD_SOURCE_DIR}/contrib/libuv/include"
+#    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+#)
+#
+#target_link_libraries(
+#    _xnode_mgmt_mqtt
+#    PRIVATE os
+#    PRIVATE util
+#    PRIVATE common
+#    PRIVATE nodes
+#    PRIVATE transport
+#    PUBLIC uv_a
+#)
 
 #add_executable(taosmqtt ${TAOSMQTT_SRC})
 #
