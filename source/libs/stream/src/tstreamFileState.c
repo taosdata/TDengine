@@ -330,6 +330,10 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   taosMemoryFree(pFileState);
 }
 
+int32_t getFileStateRowSize(SStreamFileState* pFileState){
+  return pFileState->rowSize;
+}
+
 int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -973,7 +977,6 @@ int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
 
     winRes = streamStateSessionCurPrev_rocksdb(pCur);
   }
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

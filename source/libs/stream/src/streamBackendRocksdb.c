@@ -4239,10 +4239,8 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   res = 1;
 
 _end:
-  if (res == 0 && valSize > *pVLen) {
-    stError("[InternalERR] [skey:%" PRId64 ",ekey:%" PRId64 ",groupId:%" PRIu64
-            "],valSize:%d bigger than get rocksdb len:%d",
-            key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
+  if (res == 0 && valSize > *pVLen){
+    stError("[InternalERR] [skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],valSize:%d bigger than get rocksdb len:%d", key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
   }
   streamStateFreeCur(pCur);
   return res;
