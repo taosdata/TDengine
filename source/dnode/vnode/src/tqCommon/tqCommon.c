@@ -828,6 +828,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
       if (allRsp) {
         tqDebug("vgId:%d all partial results received, continue the restart procedure", pMeta->vgId);
         streamMetaResetStartInfo(pStartInfo, vgId);
+        goto _start;
       } else {
         pStartInfo->restartCount += 1;
         SStartTaskStageInfo* pCurStageInfo = taosArrayGetLast(pStartInfo->pStagesList);
