@@ -19,6 +19,9 @@
 static TdThreadOnce tsDriverOnce = PTHREAD_ONCE_INIT;
 volatile int32_t    tsDriverOnceRet = 0;
 
+static TdThreadOnce tsInitOnce = PTHREAD_ONCE_INIT;
+volatile int32_t    tsInitOnceRet = 0;
+
 #define ERR_VOID(code) \
   terrno = code;       \
   return;
@@ -89,23 +92,25 @@ setConfRet taos_set_config(const char *config) {
   return (*fp_taos_set_config)(config);
 }
 
-static void taos_init_wrapper(void) {
+static void taos_init_driver(void) {
   tsDriverOnceRet = taosDriverInit(tsDriverType);
   if (tsDriverOnceRet != 0) return;
 
   tsDriverOnceRet = 0;
 }
-
-int taos_init(void) {
-  (void)taosThreadOnce(&tsDriverOnce, taos_init_wrapper);
-
+static void taos_init_wrapper(void) {
   if (fp_taos_init == NULL) {
     terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
-    tsDriverOnceRet = -1;
+    tsInitOnceRet = -1;
   } else {
-    tsDriverOnceRet = (*fp_taos_init)();
+    tsInitOnceRet = (*fp_taos_init)();
   }
-  return tsDriverOnceRet;
+}
+
+int taos_init(void) {
+  (void)taosThreadOnce(&tsDriverOnce, taos_init_driver);
+  (void)taosThreadOnce(&tsInitOnce, taos_init_wrapper);
+  return tsInitOnceRet;
 }
 
 void taos_cleanup(void) {
@@ -128,7 +133,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
     terrno = TSDB_CODE_REPEAT_INIT;
     return -1;
   }
-  (void)taosThreadOnce(&tsDriverOnce, taos_init_wrapper);
+  (void)taosThreadOnce(&tsDriverOnce, taos_init_driver);
 
   CHECK_INT(fp_taos_options);
   return (*fp_taos_options)(option, arg);
@@ -141,7 +146,7 @@ int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const voi
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (taos_init() != 0) {
-    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    //terrno = TSDB_CODE_DLL_NOT_LOAD;
     return NULL;
   }
 
