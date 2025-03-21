@@ -1560,6 +1560,8 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     // param->tblData.aCol = taosArrayInit(20, POINTER_BYTES);
 
     param->restoreTbCols = false;
+    param->tblData.isOrdered = true;
+    param->tblData.isDuplicateTs = false;
     tstrncpy(param->tblData.tbName, pStmt->bInfo.tbName, TSDB_TABLE_NAME_LEN);
 
     param->pCreateTbReq = pCreateTbReq;
@@ -1577,6 +1579,8 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
       code = qBindStmtStbColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
                                     pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
                                     pStmt->taos->optionInfo.charsetCxt);
+      param->tblData.isOrdered = (*pDataBlock)->ordered;
+      param->tblData.isDuplicateTs = (*pDataBlock)->duplicateTs;
     } else {
       if (colIdx == -1) {
         if (pStmt->sql.bindRowFormat) {
