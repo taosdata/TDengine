@@ -34,11 +34,12 @@ const char* locations_sml[] = {
 
 #ifdef WINDOWS
     #define ssize_t int
-    #if _MSC_VER >= 1910
-        #include "benchLocations.h"
-    #else
-        #include "benchLocationsWin.h"
-    #endif
+    // #if _MSC_VER >= 1910
+    //     #include "benchLocations.h"
+    // #else
+    //     #include "benchLocationsWin.h"
+    // #endif
+    #include "benchLocationsWin.h" // gb18030-encoded
 #else
     #include "benchLocations.h"
 #endif

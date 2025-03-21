@@ -11,33 +11,33 @@ if(${BUILD_WITH_S3})
 
 elseif(${BUILD_WITH_COS})
     message(FATAL_ERROR "freemine: not implemented yet")
-    set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
-    configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
+    # freemine: set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
+    # freemine: configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
 
-    if(${BUILD_WITH_COS})
-        file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
-        cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
-        cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
-    endif(${BUILD_WITH_COS})
+    # freemine: if(${BUILD_WITH_COS})
+    # freemine:     file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
+    # freemine:     cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
+    # freemine:     cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
+    # freemine: endif(${BUILD_WITH_COS})
 
-    configure_file(${CONTRIB_TMP_FILE3} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
-    execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
-    execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+    # freemine: configure_file(${CONTRIB_TMP_FILE3} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
+    # freemine: execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+    # freemine:     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+    # freemine: execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+    # freemine:     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 
-    set(CONTRIB_TMP_FILE2 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in2")
-    configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
+    # freemine: set(CONTRIB_TMP_FILE2 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in2")
+    # freemine: configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
 
-    if(${BUILD_WITH_COS})
-        cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
-    endif(${BUILD_WITH_COS})
+    # freemine: if(${BUILD_WITH_COS})
+    # freemine:     cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
+    # freemine: endif(${BUILD_WITH_COS})
 
-    configure_file(${CONTRIB_TMP_FILE2} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
-    execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
-    execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+    # freemine: configure_file(${CONTRIB_TMP_FILE2} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
+    # freemine: execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+    # freemine:     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+    # freemine: execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+    # freemine:     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 endif()
 
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
@@ -78,21 +78,21 @@ IF(${TD_DARWIN})
     SET(CONTRIB_CONFIG_ENV "CC=cc")
 ENDIF()
 
-# download dependencies
-configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
-execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
-    RESULT_VARIABLE result)
-IF(NOT result EQUAL "0")
-    message(FATAL_ERROR "CMake step for dowloading dependencies failed: ${result}")
-ENDIF()
-
-execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
-    RESULT_VARIABLE result)
-IF(NOT result EQUAL "0")
-    message(FATAL_ERROR "CMake step for building dependencies failed: ${result}")
-ENDIF()
+# freemine: # download dependencies
+# freemine: configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
+# freemine: execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+# freemine:     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
+# freemine:     RESULT_VARIABLE result)
+# freemine: IF(NOT result EQUAL "0")
+# freemine:     message(FATAL_ERROR "CMake step for dowloading dependencies failed: ${result}")
+# freemine: ENDIF()
+# freemine: 
+# freemine: execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+# freemine:     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
+# freemine:     RESULT_VARIABLE result)
+# freemine: IF(NOT result EQUAL "0")
+# freemine:     message(FATAL_ERROR "CMake step for building dependencies failed: ${result}")
+# freemine: ENDIF()
 
 # ================================================================================================
 # Build
