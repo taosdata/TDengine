@@ -141,7 +141,7 @@ include_directories(${AvroC_SOURCE_DIR}/src)
 
 # Enable codecs
 
-if(NOT MSVC)            # {
+if(NOT TRUE)            # {
 find_package(ZLIB)
 if (ZLIB_FOUND)
     set(ZLIB_PKG zlib)
@@ -160,7 +160,7 @@ else()                  # }{
     message("Enabled deflate codec")
 endif()                 # }
 
-if(NOT MSVC)            # {
+if(NOT TRUE)            # {
 find_package(Snappy)
 if (SNAPPY_FOUND AND ZLIB_FOUND)  # Snappy borrows crc32 from zlib
     set(SNAPPY_PKG snappy)
@@ -195,19 +195,25 @@ else (LZMA_FOUND)
 endif (LZMA_FOUND)
 endif()                 # }
 
-set(CODEC_LIBRARIES ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${SNAPPY_LIBRARIES})
+if (WIN32)
+  set(_cxx_std     "")
+else ()
+  set(_cxx_std     stdc++)
+endif ()
+
+set(CODEC_LIBRARIES ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${SNAPPY_LIBRARIES} ${_cxx_std})
 set(CODEC_PKG "${ZLIB_PKG} ${LZMA_PKG} ${SNAPPY_PKG}")
 
 # Jansson JSON library
-if(NOT MSVC)            # {
-pkg_check_modules(JANSSON jansson>=2.3)
-if (JANSSON_FOUND)
-    set(JANSSON_PKG libjansson)
-    include_directories(${JANSSON_INCLUDE_DIRS})
-    link_directories(${JANSSON_LIBRARY_DIRS})
-else (JANSSON_FOUND)
-    message(FATAL_ERROR "libjansson >=2.3 not found")
-endif (JANSSON_FOUND)
+if(NOT TRUE)            # {
+    pkg_check_modules(JANSSON jansson>=2.3)
+    if (JANSSON_FOUND)
+        set(JANSSON_PKG libjansson)
+        include_directories(${JANSSON_INCLUDE_DIRS})
+        link_directories(${JANSSON_LIBRARY_DIRS})
+    else (JANSSON_FOUND)
+        message(FATAL_ERROR "libjansson >=2.3 not found")
+    endif (JANSSON_FOUND)
 else()                  # }{
     set(JANSSON_PKG libjansson)
     include_directories(${JANSSON_INCLUDE_DIRS})

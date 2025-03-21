@@ -77,12 +77,12 @@ ADD_DEFINITIONS(-DBUILD_INFO="${BUILD_INFO}")
 MESSAGE(STATUS "build:${BUILD_INFO}")
 MESSAGE("")
 
-#
-# build proj
-#
-LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/build/lib ${CMAKE_BINARY_DIR}/build/lib64)
-LINK_DIRECTORIES(/usr/lib /usr/lib64)
-INCLUDE_DIRECTORIES(/usr/local/taos/include)
+# freemine: #
+# freemine: # build proj
+# freemine: #
+# freemine: LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/build/lib ${CMAKE_BINARY_DIR}/build/lib64)
+# freemine: LINK_DIRECTORIES(/usr/lib /usr/lib64)
+# freemine: INCLUDE_DIRECTORIES(/usr/local/taos/include)
 
 MESSAGE("Current system is: ${CMAKE_SYSTEM_NAME}")
 
@@ -90,270 +90,295 @@ IF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
     ADD_DEFINITIONS(-I${CMAKE_CURRENT_SOURCE_DIR}/../../../../community/include/util)
 ENDIF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
 
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    SET(OS_ID "")
+# freemine: IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+# freemine:     SET(OS_ID "")
+# freemine: 
+# freemine:     IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+# freemine:         ADD_DEFINITIONS(-DLINUX)
+# freemine: 
+# freemine:         EXECUTE_PROCESS (
+# freemine:                 COMMAND sh -c "awk -F= '/^ID=/{print $2}' /etc/os-release |tr -d '\n' | tr -d '\"'"
+# freemine:                 OUTPUT_VARIABLE OS_ID
+# freemine:         )
+# freemine:         MESSAGE(STATUS "The current OS is " ${OS_ID} "")
+# freemine: 
+# freemine:         ADD_LIBRARY(jansson STATIC IMPORTED)
+# freemine:         SET_PROPERTY(TARGET jansson PROPERTY IMPORTED_LOCATION
+# freemine:             "${CMAKE_BINARY_DIR}/build/lib/libjansson.a")
+# freemine: 
+# freemine:         ADD_LIBRARY(snappy STATIC IMPORTED)
+# freemine:         SET_PROPERTY(TARGET snappy PROPERTY IMPORTED_LOCATION
+# freemine:             "${CMAKE_BINARY_DIR}/build/lib/libsnappy.a")
+# freemine: 
+# freemine:         ADD_EXECUTABLE(taosdump taosdump.c dumpUtil.c wsdump.c toolstime.c toolsSys.c toolsDir.c toolsString.c)
+# freemine:         ADD_DEPENDENCIES(deps-snappy apache-avro)
+# freemine:         ADD_DEPENDENCIES(taosdump deps-jansson)
+# freemine:         ADD_DEPENDENCIES(taosdump deps-snappy)
+# freemine:         ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
+# freemine:     ELSE ()
+# freemine:         INCLUDE_DIRECTORIES(/usr/local/include)
+# freemine:         ADD_DEFINITIONS(-DDARWIN)
+# freemine:         LINK_DIRECTORIES(/usr/local/lib)
+# freemine:         SET(OS_ID "Darwin")
+# freemine: 
+# freemine:         ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
+# freemine:     ENDIF ()
+# freemine: 
+# freemine:     # websocket
+# freemine:     IF (${WEBSOCKET})
+# freemine:         ADD_DEFINITIONS(-DWEBSOCKET)
+# freemine:         # INCLUDE_DIRECTORIES(/usr/local/include/)
+# freemine:         # SET(WEBSOCKET_LINK_FLAGS "-ltaosws")
+# freemine: 
+# freemine:         IF (${CMAKE_PROJECT_NAME} STREQUAL "taos-tools")
+# freemine:             MESSAGE("libtaosws.so need to be installed first")
+# freemine:         ELSE ()
+# freemine:             DEP_ext_taosws(taosBenchmark)
+# freemine:             IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+# freemine:                 DEP_ext_taosws(taosdump)
+# freemine:             ELSE ()
+# freemine:                 MESSAGE("TODO: taosdump for macOS is WIP")
+# freemine:             ENDIF ()
+# freemine:         ENDIF ()
+# freemine:     ELSE ()
+# freemine:         SET(WEBSOCKET_LINK_FLAGS "")
+# freemine:     ENDIF ()
+# freemine: 
+# freemine:     IF (${TOOLS_COVER} MATCHES "true")
+# freemine:         MESSAGE("${Green} build with coverage ${ColourReset}")
+# freemine:         SET(GCC_COVERAGE_COMPILE_FLAGS "-fprofile-arcs -ftest-coverage")
+# freemine:         SET(GCC_COVERAGE_LINK_FLAGS    "-lgcov --coverage")
+# freemine:     ENDIF ()
+# freemine: 
+# freemine:     # sanitizer
+# freemine:     IF (${BUILD_SANITIZER})
+# freemine:         MESSAGE("${Yellow} Enable memory sanitize by BUILD_SANITIZER ${ColourReset}")
+# freemine:         IF (${OS_ID} MATCHES "Darwin")
+# freemine:             SET(TOOLS_SANITIZE_FLAG "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment")
+# freemine:         ELSE ()
+# freemine:             SET(TOOLS_SANITIZE_FLAG "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment")
+# freemine:         ENDIF ()
+# freemine:     ELSE ()
+# freemine:         SET(TOOLS_SANITIZE_FLAG "")
+# freemine:     ENDIF ()
+# freemine: 
+# freemine:     # TOOLS_BUILD_TYPE
+# freemine:     IF (${TOOLS_BUILD_TYPE} MATCHES "Debug")
+# freemine:         IF ((${TOOLS_SANITIZE} MATCHES "true") OR (${BUILD_SANITIZER}))
+# freemine:             MESSAGE("${Yellow} Enable memory sanitize by TOOLS_SANITIZE ${ColourReset}")
+# freemine:             IF (${OS_ID} MATCHES "Darwin")
+# freemine:                 SET(TOOLS_SANITIZE_FLAG "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment")
+# freemine:             ELSE ()
+# freemine:                 SET(TOOLS_SANITIZE_FLAG "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment")
+# freemine:             ENDIF ()
+# freemine:         ELSE ()
+# freemine:             SET(TOOLS_SANITIZE_FLAG "")
+# freemine:         ENDIF ()
+# freemine: 
+# freemine:         IF (CMAKE_C_COMPILER_ID MATCHES "GNU")
+# freemine:             MESSAGE("Compiler is: ${CMAKE_C_COMPILER_ID}, version: ${CMAKE_C_COMPILER_VERSION}")
+# freemine:             IF (CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.8.5)
+# freemine:                 SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 ${TOOLS_SANITIZE_FLAG} -O0 -g3 -DDEBUG0ww0 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation ${GCC_COVERAGE_COMPILE_FLAGS}")
+# freemine:             ELSE()
+# freemine:                 MESSAGE("${Yellow} GCC version is equal or less than 4.8.5, which does not support memory sanitizer. Please upgrade to a higher version if you want to use it. ${ColourReset}")
+# freemine:                 SET(CMAKE_C_FLAGS "-std=c99 -std=gnu11 -O0 -g3 -DDEBUG ${GCC_COVERAGE_COMPILE_FLAGS}")
+# freemine:             ENDIF()
+# freemine:         ELSE ()
+# freemine:             MESSAGE("Compiler is: ${CMAKE_C_COMPILER_ID}, version: ${CMAKE_C_COMPILER_VERSION}")
+# freemine:             SET(CMAKE_C_FLAGS "-std=c99 -std=gnu11 -O0 -g3 -DDEBUG ${WEBSOCKET_LINK_FLAGS}")
+# freemine:         ENDIF ()
+# freemine: 
+# freemine:         IF (${OS_ID} MATCHES "alpine")
+# freemine:             MESSAGE("${Yellow} DEBUG mode use shared avro library to link for debug ${ColourReset}")
+# freemine:             FIND_LIBRARY(LIBZ_LIBRARY z)
+# freemine:             MESSAGE(${LIBZ_LIBRARY})
+# freemine: 
+# freemine:             FIND_LIBRARY(LIBZ_LIBRARY z)
+# freemine:             MESSAGE(${ARGP_LIBRARY})
+# freemine: 
+# freemine:             TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS})
+# freemine:             TARGET_LINK_LIBRARIES(taosdump taos avro jansson atomic pthread m argp $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS})
+# freemine:         ELSEIF(${OS_ID} MATCHES "Darwin")
+# freemine:             ADD_LIBRARY(argp STATIC IMPORTED)
+# freemine:             IF (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+# freemine:                 SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/argp-standalone/lib/libargp.a")
+# freemine:                 INCLUDE_DIRECTORIES(/opt/homebrew/opt/argp-standalone/include/)
+# freemine:             ELSE ()
+# freemine:                 SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/usr/local/lib/libargp.a")
+# freemine:                 INCLUDE_DIRECTORIES(/usr/local/include/)
+# freemine:             ENDIF ()
+# freemine:             TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson argp ${WEBSOCKET_LINK_FLAGS})
+# freemine:         ElSE ()
+# freemine:             MESSAGE("${Yellow} DEBUG mode use shared avro library to link for debug ${ColourReset}")
+# freemine:             TARGET_LINK_LIBRARIES(taosdump taos avro jansson atomic pthread m ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+# freemine:             TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+# freemine:         ENDIF()
+# freemine: 
+# freemine:     ELSE ()
+# freemine:         MESSAGE("${Green} RELEASE mode use static avro library to link for release ${ColourReset}")
+# freemine:         IF (CMAKE_C_COMPILER_ID MATCHES "GNU")
+# freemine:             MESSAGE("Compiler is: ${CMAKE_C_COMPILER_ID}, version: ${CMAKE_C_COMPILER_VERSION}")
+# freemine:             IF (CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.8.5)
+# freemine:                 IF (${OS_ID} MATCHES "alpine")
+# freemine:                     SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 -g -O3 -DRELEASE -Wformat=2 -Wno-stringop-truncation -Wno-format-nonliteral -Wno-format-truncation ${GCC_COVERAGE_COMPILE_FLAGS} ${TOOLS_SANITIZE_FLAG}")
+# freemine:                 ELSE ()
+# freemine:                     SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 -g -O3 -DRELEASE -Werror -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation ${GCC_COVERAGE_COMPILE_FLAGS} ${TOOLS_SANITIZE_FLAG}")
+# freemine:                 ENDIF ()
+# freemine:             ELSE ()
+# freemine:                 SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 -g -O3 -DRELEASE ${GCC_COVERAGE_COMPILE_FLAGS}")
+# freemine:             ENDIF ()
+# freemine:         ELSE()
+# freemine:             SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 -g -O3 -DRELEASE")
+# freemine:         ENDIF ()
+# freemine: 
+# freemine:         IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+# freemine:             #            ADD_LIBRARY(jansson STATIC IMPORTED)
+# freemine:             #SET_PROPERTY(TARGET jansson PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/jansson/lib/libjansson.a")
+# freemine: 
+# freemine:             # ADD_LIBRARY(snappy STATIC IMPORTED)
+# freemine:             # SET_PROPERTY(TARGET snappy PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/snappy/lib/libsnappy.a")
+# freemine: 
+# freemine:             # ADD_LIBRARY(avro STATIC IMPORTED)
+# freemine:             # SET_PROPERTY(TARGET avro PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/avro-c/lib/libavro.a")
+# freemine:             #            TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy lzma z pthread)
+# freemine:             ADD_LIBRARY(argp STATIC IMPORTED)
+# freemine:             IF (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+# freemine:                 SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/argp-standalone/lib/libargp.a")
+# freemine:                 INCLUDE_DIRECTORIES(/opt/homebrew/opt/argp-standalone/include/)
+# freemine:             ELSE ()
+# freemine:                 SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/usr/local/lib/libargp.a")
+# freemine:                 INCLUDE_DIRECTORIES(/usr/local/include/)
+# freemine:             ENDIF ()
+# freemine: 
+# freemine:             TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos pthread m toolscJson argp ${WEBSOCKET_LINK_FLAGS})
+# freemine:         ELSE ()
+# freemine:             EXECUTE_PROCESS (
+# freemine:                 COMMAND sh -c "awk -F= '/^ID=/{print $2}' /etc/os-release |tr -d '\n' | tr -d '\"'"
+# freemine:                 OUTPUT_VARIABLE OS_ID
+# freemine:             )
+# freemine:             MESSAGE(STATUS "src's cmake detected current OS is " ${OS_ID} "")
+# freemine: 
+# freemine:             IF (${OS_ID} MATCHES "arch")
+# freemine:                 MESSAGE(STATUS "${OS_ID} linux has no libatomic.a, use dynamic lib instead of")
+# freemine:             ELSE ()
+# freemine:                 EXECUTE_PROCESS (
+# freemine:                     COMMAND gcc -print-file-name=libatomic.a
+# freemine:                     OUTPUT_VARIABLE LIBATOMIC_PATH
+# freemine:                 )
+# freemine:                 STRING(STRIP "${LIBATOMIC_PATH}" LIBATOMIC_PATH)
+# freemine:                 MESSAGE(STATUS "libatomic.a path: ${LIBATOMIC_PATH}")
+# freemine:                 ADD_LIBRARY(atomic STATIC IMPORTED)
+# freemine:                 SET_PROPERTY(TARGET atomic PROPERTY IMPORTED_LOCATION "${LIBATOMIC_PATH}")
+# freemine:             ENDIF ()
+# freemine: 
+# freemine:             ADD_LIBRARY(avro STATIC IMPORTED)
+# freemine:             SET_PROPERTY(TARGET avro PROPERTY IMPORTED_LOCATION
+# freemine:                 "${CMAKE_BINARY_DIR}/build/lib/libavro.a")
+# freemine: 
+# freemine:             EXECUTE_PROCESS (
+# freemine:                     COMMAND gcc -print-file-name=libstdc++.a
+# freemine:                     OUTPUT_VARIABLE LIBSTDCXX_PATH
+# freemine:             )
+# freemine:             STRING(STRIP "${LIBSTDCXX_PATH}" LIBSTDCXX_PATH)
+# freemine:             MESSAGE("libstdc++.a path:" ${LIBSTDCXX_PATH})
+# freemine:             ADD_LIBRARY(stdc++ STATIC IMPORTED)
+# freemine:             SET_PROPERTY(TARGET stdc++ PROPERTY IMPORTED_LOCATION "${LIBSTDCXX_PATH}")
+# freemine: 
+# freemine:             EXECUTE_PROCESS (
+# freemine:                     COMMAND gcc -print-file-name=libz.a
+# freemine:                     OUTPUT_VARIABLE LIBZ_PATH
+# freemine:             )
+# freemine:             STRING(STRIP "${LIBZ_PATH}" LIBZ_PATH)
+# freemine:             MESSAGE("libza path:" ${LIBZ_PATH})
+# freemine:             ADD_LIBRARY(libz-static STATIC IMPORTED)
+# freemine:             SET_PROPERTY(TARGET libz-static PROPERTY IMPORTED_LOCATION "${LIBZ_PATH}")
+# freemine: 
+# freemine:             IF (${OS_ID} MATCHES "alpine")
+# freemine:                 MESSAGE("alpine TARGET_LINK_LIBRARIES")
+# freemine:                 FIND_LIBRARY(ARGP_LIBRARY argp)
+# freemine:                 MESSAGE(${ARGP_LIBRARY})
+# freemine: 
+# freemine:                 FIND_LIBRARY(LIBZ_LIBRARY z)
+# freemine:                 MESSAGE(${LIBZ_LIBRARY})
+# freemine: 
+# freemine:                 TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy stdc++ lzma atomic pthread $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+# freemine:                 TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+# freemine:             ELSE()
+# freemine:                 TARGET_LINK_LIBRARIES(taosdump PRIVATE taos avro jansson snappy stdc++ lzma libz-static atomic pthread ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+# freemine:                 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos pthread m toolscJson ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+# freemine:             ENDIF()
+# freemine:         ENDIF ()
+# freemine: 
+# freemine:     ENDIF ()
+# freemine: ELSE ()
+# freemine: ENDIF ()
 
-    IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-        ADD_DEFINITIONS(-DLINUX)
-
-        EXECUTE_PROCESS (
-                COMMAND sh -c "awk -F= '/^ID=/{print $2}' /etc/os-release |tr -d '\n' | tr -d '\"'"
-                OUTPUT_VARIABLE OS_ID
-        )
-        MESSAGE(STATUS "The current OS is " ${OS_ID} "")
-
-        ADD_LIBRARY(jansson STATIC IMPORTED)
-        SET_PROPERTY(TARGET jansson PROPERTY IMPORTED_LOCATION
-            "${CMAKE_BINARY_DIR}/build/lib/libjansson.a")
-
-        ADD_LIBRARY(snappy STATIC IMPORTED)
-        SET_PROPERTY(TARGET snappy PROPERTY IMPORTED_LOCATION
-            "${CMAKE_BINARY_DIR}/build/lib/libsnappy.a")
-
-        ADD_EXECUTABLE(taosdump taosdump.c dumpUtil.c wsdump.c toolstime.c toolsSys.c toolsDir.c toolsString.c)
-        ADD_DEPENDENCIES(deps-snappy apache-avro)
-        ADD_DEPENDENCIES(taosdump deps-jansson)
-        ADD_DEPENDENCIES(taosdump deps-snappy)
-        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-    ELSE ()
-        INCLUDE_DIRECTORIES(/usr/local/include)
-        ADD_DEFINITIONS(-DDARWIN)
-        LINK_DIRECTORIES(/usr/local/lib)
-        SET(OS_ID "Darwin")
-
-        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-    ENDIF ()
-
-    # websocket
-    IF (${WEBSOCKET})
-        ADD_DEFINITIONS(-DWEBSOCKET)
-        # INCLUDE_DIRECTORIES(/usr/local/include/)
-        # SET(WEBSOCKET_LINK_FLAGS "-ltaosws")
-
-        IF (${CMAKE_PROJECT_NAME} STREQUAL "taos-tools")
-            MESSAGE("libtaosws.so need to be installed first")
-        ELSE ()
-            DEP_ext_taosws(taosBenchmark)
-            IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-                DEP_ext_taosws(taosdump)
-            ELSE ()
-                MESSAGE("TODO: taosdump for macOS is WIP")
-            ENDIF ()
-        ENDIF ()
-    ELSE ()
-        SET(WEBSOCKET_LINK_FLAGS "")
-    ENDIF ()
-
-    IF (${TOOLS_COVER} MATCHES "true")
-        MESSAGE("${Green} build with coverage ${ColourReset}")
-        SET(GCC_COVERAGE_COMPILE_FLAGS "-fprofile-arcs -ftest-coverage")
-        SET(GCC_COVERAGE_LINK_FLAGS    "-lgcov --coverage")
-    ENDIF ()
-
-    # sanitizer
-    IF (${BUILD_SANITIZER})
-        MESSAGE("${Yellow} Enable memory sanitize by BUILD_SANITIZER ${ColourReset}")
-        IF (${OS_ID} MATCHES "Darwin")
-            SET(TOOLS_SANITIZE_FLAG "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment")
-        ELSE ()
-            SET(TOOLS_SANITIZE_FLAG "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment")
-        ENDIF ()
-    ELSE ()
-        SET(TOOLS_SANITIZE_FLAG "")
-    ENDIF ()
-
-    # TOOLS_BUILD_TYPE
-    IF (${TOOLS_BUILD_TYPE} MATCHES "Debug")
-        IF ((${TOOLS_SANITIZE} MATCHES "true") OR (${BUILD_SANITIZER}))
-            MESSAGE("${Yellow} Enable memory sanitize by TOOLS_SANITIZE ${ColourReset}")
-            IF (${OS_ID} MATCHES "Darwin")
-                SET(TOOLS_SANITIZE_FLAG "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment")
-            ELSE ()
-                SET(TOOLS_SANITIZE_FLAG "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment")
-            ENDIF ()
-        ELSE ()
-            SET(TOOLS_SANITIZE_FLAG "")
-        ENDIF ()
-
-        IF (CMAKE_C_COMPILER_ID MATCHES "GNU")
-            MESSAGE("Compiler is: ${CMAKE_C_COMPILER_ID}, version: ${CMAKE_C_COMPILER_VERSION}")
-            IF (CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.8.5)
-                SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 ${TOOLS_SANITIZE_FLAG} -O0 -g3 -DDEBUG0ww0 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation ${GCC_COVERAGE_COMPILE_FLAGS}")
-            ELSE()
-                MESSAGE("${Yellow} GCC version is equal or less than 4.8.5, which does not support memory sanitizer. Please upgrade to a higher version if you want to use it. ${ColourReset}")
-                SET(CMAKE_C_FLAGS "-std=c99 -std=gnu11 -O0 -g3 -DDEBUG ${GCC_COVERAGE_COMPILE_FLAGS}")
-            ENDIF()
-        ELSE ()
-            MESSAGE("Compiler is: ${CMAKE_C_COMPILER_ID}, version: ${CMAKE_C_COMPILER_VERSION}")
-            SET(CMAKE_C_FLAGS "-std=c99 -std=gnu11 -O0 -g3 -DDEBUG ${WEBSOCKET_LINK_FLAGS}")
-        ENDIF ()
-
-        IF (${OS_ID} MATCHES "alpine")
-            MESSAGE("${Yellow} DEBUG mode use shared avro library to link for debug ${ColourReset}")
-            FIND_LIBRARY(LIBZ_LIBRARY z)
-            MESSAGE(${LIBZ_LIBRARY})
-
-            FIND_LIBRARY(LIBZ_LIBRARY z)
-            MESSAGE(${ARGP_LIBRARY})
-
-            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS})
-            TARGET_LINK_LIBRARIES(taosdump taos avro jansson atomic pthread m argp $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS})
-        ELSEIF(${OS_ID} MATCHES "Darwin")
-            ADD_LIBRARY(argp STATIC IMPORTED)
-            IF (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-                SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/argp-standalone/lib/libargp.a")
-                INCLUDE_DIRECTORIES(/opt/homebrew/opt/argp-standalone/include/)
-            ELSE ()
-                SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/usr/local/lib/libargp.a")
-                INCLUDE_DIRECTORIES(/usr/local/include/)
-            ENDIF ()
-            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson argp ${WEBSOCKET_LINK_FLAGS})
-        ElSE ()
-            MESSAGE("${Yellow} DEBUG mode use shared avro library to link for debug ${ColourReset}")
-            TARGET_LINK_LIBRARIES(taosdump taos avro jansson atomic pthread m ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-        ENDIF()
-
-    ELSE ()
-        MESSAGE("${Green} RELEASE mode use static avro library to link for release ${ColourReset}")
-        IF (CMAKE_C_COMPILER_ID MATCHES "GNU")
-            MESSAGE("Compiler is: ${CMAKE_C_COMPILER_ID}, version: ${CMAKE_C_COMPILER_VERSION}")
-            IF (CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.8.5)
-                IF (${OS_ID} MATCHES "alpine")
-                    SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 -g -O3 -DRELEASE -Wformat=2 -Wno-stringop-truncation -Wno-format-nonliteral -Wno-format-truncation ${GCC_COVERAGE_COMPILE_FLAGS} ${TOOLS_SANITIZE_FLAG}")
-                ELSE ()
-                    SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 -g -O3 -DRELEASE -Werror -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation ${GCC_COVERAGE_COMPILE_FLAGS} ${TOOLS_SANITIZE_FLAG}")
-                ENDIF ()
-            ELSE ()
-                SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 -g -O3 -DRELEASE ${GCC_COVERAGE_COMPILE_FLAGS}")
-            ENDIF ()
-        ELSE()
-            SET(CMAKE_C_FLAGS "-Wall -Wshadow -std=c99 -std=gnu11 -g -O3 -DRELEASE")
-        ENDIF ()
-
-        IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-            #            ADD_LIBRARY(jansson STATIC IMPORTED)
-            #SET_PROPERTY(TARGET jansson PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/jansson/lib/libjansson.a")
-
-            # ADD_LIBRARY(snappy STATIC IMPORTED)
-            # SET_PROPERTY(TARGET snappy PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/snappy/lib/libsnappy.a")
-
-            # ADD_LIBRARY(avro STATIC IMPORTED)
-            # SET_PROPERTY(TARGET avro PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/avro-c/lib/libavro.a")
-            #            TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy lzma z pthread)
-            ADD_LIBRARY(argp STATIC IMPORTED)
-            IF (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-                SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/argp-standalone/lib/libargp.a")
-                INCLUDE_DIRECTORIES(/opt/homebrew/opt/argp-standalone/include/)
-            ELSE ()
-                SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/usr/local/lib/libargp.a")
-                INCLUDE_DIRECTORIES(/usr/local/include/)
-            ENDIF ()
-
-            TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos pthread m toolscJson argp ${WEBSOCKET_LINK_FLAGS})
-        ELSE ()
-            EXECUTE_PROCESS (
-                COMMAND sh -c "awk -F= '/^ID=/{print $2}' /etc/os-release |tr -d '\n' | tr -d '\"'"
-                OUTPUT_VARIABLE OS_ID
-            )
-            MESSAGE(STATUS "src's cmake detected current OS is " ${OS_ID} "")
-
-            IF (${OS_ID} MATCHES "arch")
-                MESSAGE(STATUS "${OS_ID} linux has no libatomic.a, use dynamic lib instead of")
-            ELSE ()
-                EXECUTE_PROCESS (
-                    COMMAND gcc -print-file-name=libatomic.a
-                    OUTPUT_VARIABLE LIBATOMIC_PATH
-                )
-                STRING(STRIP "${LIBATOMIC_PATH}" LIBATOMIC_PATH)
-                MESSAGE(STATUS "libatomic.a path: ${LIBATOMIC_PATH}")
-                ADD_LIBRARY(atomic STATIC IMPORTED)
-                SET_PROPERTY(TARGET atomic PROPERTY IMPORTED_LOCATION "${LIBATOMIC_PATH}")
-            ENDIF ()
-
-            ADD_LIBRARY(avro STATIC IMPORTED)
-            SET_PROPERTY(TARGET avro PROPERTY IMPORTED_LOCATION
-                "${CMAKE_BINARY_DIR}/build/lib/libavro.a")
-
-            EXECUTE_PROCESS (
-                    COMMAND gcc -print-file-name=libstdc++.a
-                    OUTPUT_VARIABLE LIBSTDCXX_PATH
-            )
-            STRING(STRIP "${LIBSTDCXX_PATH}" LIBSTDCXX_PATH)
-            MESSAGE("libstdc++.a path:" ${LIBSTDCXX_PATH})
-            ADD_LIBRARY(stdc++ STATIC IMPORTED)
-            SET_PROPERTY(TARGET stdc++ PROPERTY IMPORTED_LOCATION "${LIBSTDCXX_PATH}")
-
-            EXECUTE_PROCESS (
-                    COMMAND gcc -print-file-name=libz.a
-                    OUTPUT_VARIABLE LIBZ_PATH
-            )
-            STRING(STRIP "${LIBZ_PATH}" LIBZ_PATH)
-            MESSAGE("libza path:" ${LIBZ_PATH})
-            ADD_LIBRARY(libz-static STATIC IMPORTED)
-            SET_PROPERTY(TARGET libz-static PROPERTY IMPORTED_LOCATION "${LIBZ_PATH}")
-
-            IF (${OS_ID} MATCHES "alpine")
-                MESSAGE("alpine TARGET_LINK_LIBRARIES")
-                FIND_LIBRARY(ARGP_LIBRARY argp)
-                MESSAGE(${ARGP_LIBRARY})
-
-                FIND_LIBRARY(LIBZ_LIBRARY z)
-                MESSAGE(${LIBZ_LIBRARY})
-
-                TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy stdc++ lzma atomic pthread $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-                TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-            ELSE()
-                TARGET_LINK_LIBRARIES(taosdump PRIVATE taos avro jansson snappy stdc++ lzma libz-static atomic pthread ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-                TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos pthread m toolscJson ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-            ENDIF()
-        ENDIF ()
-
-    ENDIF ()
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  ADD_DEFINITIONS(-DLINUX)
+ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  ADD_DEFINITIONS(-DDARWIN)
 ELSE ()
-    ADD_DEFINITIONS(-DWINDOWS)
-    SET(CMAKE_C_STANDARD 11)
-    SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /utf-8")
-    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /utf-8")
-    ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsString.c toolsSys.c toolsString.c)
-
-    ADD_EXECUTABLE(taosdump taosdump.c dumpUtil.c wsdump.c toolsSys.c toolstime.c toolsDir.c toolsString.c)
-    DEP_ext_jansson(taosdump)
-    DEP_ext_snappy(taosdump)
-    DEP_ext_iconv(taosdump)
-    DEP_ext_avro(taosdump)
-    DEP_ext_msvcregex(taosdump)
-    target_include_directories(taosdump PRIVATE "$<TARGET_PROPERTY:libargp,SOURCE_DIR>/argp")
-    target_link_libraries(taosdump PRIVATE libargp)
-    target_link_libraries(taosdump PRIVATE toolscJson)
-
-    IF (${WEBSOCKET})
-        INCLUDE_DIRECTORIES(/usr/local/include/)
-        SET(WEBSOCKET_LINK_FLAGS "taosws.lib")
-        IF (${CMAKE_PROJECT_NAME} STREQUAL "taos-tools")
-            MESSAGE("taosws.lib need to be installed first")
-        ELSE ()
-            DEP_ext_taosws(taosBenchmark)
-            DEP_ext_taosws(taosdump)
-        ENDIF ()
-    ELSE ()
-        SET(WEBSOCKET_LINK_FLAGS "")
-    ENDIF ()
-
-    IF (${TOOLS_BUILD_TYPE} MATCHES "Debug")
-        TARGET_LINK_LIBRARIES(taosdump taos ${WEBSOCKET_LINK_FLAGS})
-    ELSE ()
-        #SET(CMAKE_C_FLAGS "/w /D_WIN32 /DWIN32 /Zi /D NDEBUG /MTd")
-        #       SET(CMAKE_C_FLAGS "/permissive- /GS /GL /Gy /Zc:wchar_t /Zi /Gm- /O2 /Zc:inline /fp:precise /D \"RELEASE\" /D \"NDEBUG\" /D \"_CONSOLE\" /D \"_UNICODE\" /D \"UNICODE\" /errorReport:prompt /Zc:forScope /Gd /Oi /MTd /FC /EHsc /nologo /diagnostics:column")
-        #       SET(CMAKE_CXX_FLAGS "/permissive- /GS /GL /Gy /Zc:wchar_t /Zi /Gm- /O2 /sdl /Zc:inline /fp:precise /D \"NDEBUG\" /D \"_CONSOLE\" /D \"_UNICODE\" /D \"UNICODE\" /errorReport:prompt /Zc:forScope /Gd /Oi /MTd /FC /EHsc /nologo /diagnostics:column")
-        #TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy pthread libargp.lib zlibstatic ${WEBSOCKET_LINK_FLAGS} msvcrt.lib ucrtd.lib)
-        TARGET_LINK_LIBRARIES(taosdump PRIVATE taos ${WEBSOCKET_LINK_FLAGS})
-        DEP_ext_pthread(taosdump)
-        DEP_ext_zlib(taosdump)
-        DEP_ext_snappy(taosdump)
-    ENDIF ()
-
-    TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos toolscJson ${WEBSOCKET_LINK_FLAGS})
-    DEP_ext_pthread(taosBenchmark)
-    DEP_ext_msvcregex(taosBenchmark)
+  ADD_DEFINITIONS(-DWINDOWS)
 ENDIF ()
+# freemine: SET(CMAKE_C_STANDARD 11)
+# freemine: SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /utf-8")
+# freemine: SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /utf-8")
+ADD_EXECUTABLE(taosBenchmark
+  benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c
+  benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c
+  benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c
+  toolsString.c toolsSys.c toolsString.c
+)
+
+ADD_EXECUTABLE(taosdump
+  taosdump.c dumpUtil.c wsdump.c toolsSys.c toolstime.c
+  toolsDir.c toolsString.c
+)
+DEP_ext_avro(taosdump)
+DEP_ext_zlib(taosdump)
+DEP_ext_jansson(taosdump)
+DEP_ext_snappy(taosdump)
+
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  DEP_ext_iconv(taosdump)
+  DEP_ext_msvcregex(taosdump)
+  DEP_ext_pthread(taosdump)
+
+  DEP_ext_pthread(taosBenchmark)
+  DEP_ext_msvcregex(taosBenchmark)
+  target_include_directories(taosdump PRIVATE "$<TARGET_PROPERTY:libargp,SOURCE_DIR>/argp")
+  target_link_libraries(taosdump PRIVATE libargp)
+ENDIF ()
+target_link_libraries(taosdump PRIVATE toolscJson)
+TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE toolscJson)
+
+IF (${WEBSOCKET})
+    # freemine: INCLUDE_DIRECTORIES(/usr/local/include/)
+    # freemine: SET(WEBSOCKET_LINK_FLAGS "taosws.lib")
+    # freemine: IF (${CMAKE_PROJECT_NAME} STREQUAL "taos-tools")
+    # freemine:     MESSAGE("taosws.lib need to be installed first")
+    # freemine: ELSE ()
+    # freemine: ENDIF ()
+    DEP_ext_taosws(taosBenchmark)
+    DEP_ext_taosws(taosdump)
+ENDIF ()
+
+# freemine: IF (${TOOLS_BUILD_TYPE} MATCHES "Debug")
+# freemine:     TARGET_LINK_LIBRARIES(taosdump taos ${WEBSOCKET_LINK_FLAGS})
+# freemine: ELSE ()
+# freemine:     #SET(CMAKE_C_FLAGS "/w /D_WIN32 /DWIN32 /Zi /D NDEBUG /MTd")
+# freemine:     #       SET(CMAKE_C_FLAGS "/permissive- /GS /GL /Gy /Zc:wchar_t /Zi /Gm- /O2 /Zc:inline /fp:precise /D \"RELEASE\" /D \"NDEBUG\" /D \"_CONSOLE\" /D \"_UNICODE\" /D \"UNICODE\" /errorReport:prompt /Zc:forScope /Gd /Oi /MTd /FC /EHsc /nologo /diagnostics:column")
+# freemine:     #       SET(CMAKE_CXX_FLAGS "/permissive- /GS /GL /Gy /Zc:wchar_t /Zi /Gm- /O2 /sdl /Zc:inline /fp:precise /D \"NDEBUG\" /D \"_CONSOLE\" /D \"_UNICODE\" /D \"UNICODE\" /errorReport:prompt /Zc:forScope /Gd /Oi /MTd /FC /EHsc /nologo /diagnostics:column")
+# freemine:     #TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy pthread libargp.lib zlibstatic ${WEBSOCKET_LINK_FLAGS} msvcrt.lib ucrtd.lib)
+# freemine: ENDIF ()
+
+TARGET_LINK_LIBRARIES(taosdump PRIVATE taos)
+TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos)
+
+if(NOT WIN32)
+  target_link_libraries(taosdump PRIVATE stdc++)
+  target_link_libraries(taosBenchmark PRIVATE stdc++)
+  target_link_libraries(taosBenchmark PRIVATE m)
+endif()
+
+
