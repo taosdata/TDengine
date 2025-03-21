@@ -17,6 +17,7 @@
 #define PUB_H_
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdint.h>
