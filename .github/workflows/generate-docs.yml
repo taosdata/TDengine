@@ -17,7 +17,7 @@ on:
 
 jobs:
   generate_and_deploy:
-    if: github.event.pull_request.merged == true  # only run on merged PRs
+    #if: github.event.pull_request.merged == true  # only run on merged PRs
     runs-on: ubuntu-latest
 
     permissions:
