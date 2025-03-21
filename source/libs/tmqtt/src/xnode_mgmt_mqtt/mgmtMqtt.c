@@ -277,7 +277,7 @@ _exit:
 */
 int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
   int32_t code = 0, lino = 0;
-
+  /*
   SMqttdData *pData = &mqttdGlobal;
   if (pData->startCalled) {
     xndInfo("dnode start taosmqtt already called");
@@ -311,11 +311,12 @@ int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
 _exit:
   if (code != 0) {
     xndError("taosmqtt start failed with code:%d, lino:%d", code, lino);
-  }
+    }*/
   return code;
 }
 
 void mqttMgmtStopMqttd() {
+  /*
   SMqttdData *pData = &mqttdGlobal;
   xndInfo("taosmqtt start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
@@ -332,6 +333,6 @@ void mqttMgmtStopMqttd() {
   xndInfo("taosmqtt is cleaned up");
 
   pData->startCalled = false;
-
+  */
   return;
 }
