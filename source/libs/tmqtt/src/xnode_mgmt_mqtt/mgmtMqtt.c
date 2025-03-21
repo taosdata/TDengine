@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#include "builtinsimpl.h"
 #include "os.h"
 #include "tarray.h"
 #include "tglobal.h"
@@ -46,8 +45,6 @@ SMqttdData mqttdGlobal = {0};
 
 int32_t mqttMgmtStart(int32_t startDnodeId);
 void    mqttMgmtStop(void);
-// int32_t udfStartMqttd(int32_t startDnodeId);
-// void    udfStopMqttd();
 
 extern char **environ;
 
@@ -80,6 +77,14 @@ void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSi
   }
 }
 
+#ifdef WINDOWS
+#define TAOSMQTT_DEFAULT_PATH "C:\\TDengine"
+#define TAOSMQTT_DEFAULT_EXEC "\\taosmqtt.exe"
+#else
+#define TAOSMQTT_DEFAULT_PATH "/usr/bin"
+#define TAOSMQTT_DEFAULT_EXEC "/taosmqtt"
+#endif
+
 static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   xndInfo("start to init taosmqtt");
   TAOS_MQTT_MGMT_CHECK_PTR_RCODE(pData);
@@ -102,17 +107,12 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
     TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
     TAOS_DIRNAME(path);
   }
-#ifdef WINDOWS
+
   if (strlen(path) == 0) {
-    TAOS_STRCAT(path, "C:\\TDengine");
+    TAOS_STRCAT(path, TAOSMQTT_DEFAULT_PATH);
   }
-  TAOS_STRCAT(path, "\\taosmqtt.exe");
-#else
-  if (strlen(path) == 0) {
-    TAOS_STRCAT(path, "/usr/bin");
-  }
-  TAOS_STRCAT(path, "/taosmqtt");
-#endif
+  TAOS_STRCAT(path, TAOSMQTT_DEFAULT_EXEC);
+
   char *argsMqttd[] = {path, "-c", configDir, NULL};
   options.args = argsMqttd;
   options.file = path;
@@ -367,7 +367,8 @@ void mqttMgmtStopMqttd() {
   atomic_store_32(&pData->stopCalled, 1);
   pData->needCleanUp = false;
   uv_process_kill(&pData->process, SIGTERM);
-  uv_barrier_destroy(&pData->barrier); /*
+  uv_barrier_destroy(&pData->barrier);
+  /*
    if (uv_async_send(&pData->stopAsync) != 0) {
      xndError("stop taosmqtt: failed to send stop async");
      }

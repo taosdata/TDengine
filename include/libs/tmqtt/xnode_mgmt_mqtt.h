@@ -36,9 +36,9 @@ extern "C" {
 
 #define MQTT_MGMT_LISTEN_PIPE_NAME_LEN 32
 #ifdef _WIN32
-#define MQTT_MGMT_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\taosudf.sock"
+#define MQTT_MGMT_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\taosmqtt.sock"
 #else
-#define MQTT_MGMT_LISTEN_PIPE_NAME_PREFIX ".taosudf.sock."
+#define MQTT_MGMT_LISTEN_PIPE_NAME_PREFIX ".taosmqtt.sock."
 #endif
 #define MQTT_MGMT_DNODE_ID_ENV_NAME "DNODE_ID"
 
@@ -59,26 +59,26 @@ extern "C" {
     }                             \
   } while (0)
 
-#define TAOS_MQTT_MGMT_CHECK_PTR_RCODE(...)                                        \
-  do {                                                                             \
-    const void *ptrs[] = {__VA_ARGS__};                                            \
-    for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                     \
-      if (ptrs[i] == NULL) {                                                       \
-        xndError("taosudf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
-        return TSDB_CODE_INVALID_PARA;                                             \
-      }                                                                            \
-    }                                                                              \
+#define TAOS_MQTT_MGMT_CHECK_PTR_RCODE(...)                                         \
+  do {                                                                              \
+    const void *ptrs[] = {__VA_ARGS__};                                             \
+    for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                      \
+      if (ptrs[i] == NULL) {                                                        \
+        xndError("taosmqtt %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        return TSDB_CODE_INVALID_PARA;                                              \
+      }                                                                             \
+    }                                                                               \
   } while (0)
 
-#define TAOS_MQTT_MGMT_CHECK_PTR_RVOID(...)                                        \
-  do {                                                                             \
-    const void *ptrs[] = {__VA_ARGS__};                                            \
-    for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                     \
-      if (ptrs[i] == NULL) {                                                       \
-        xndError("taosudf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
-        return;                                                                    \
-      }                                                                            \
-    }                                                                              \
+#define TAOS_MQTT_MGMT_CHECK_PTR_RVOID(...)                                         \
+  do {                                                                              \
+    const void *ptrs[] = {__VA_ARGS__};                                             \
+    for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                      \
+      if (ptrs[i] == NULL) {                                                        \
+        xndError("taosmqtt %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        return;                                                                     \
+      }                                                                             \
+    }                                                                               \
   } while (0)
 
 #define TAOS_MQTT_MGMT_CHECK_CONDITION(o, code)        \
@@ -90,19 +90,19 @@ extern "C" {
   } while (0)
 
 /**
- * start taosudf that serves udf function invocation under dnode startDnodeId
+ * start taosmqtt that serves mqtt function invocation under dnode startDnodeId
  * @param startDnodeId
  * @return
  */
 int32_t mqttMgmtStartMqttd(int32_t startDnodeId);
 /**
- * stop taosudf
+ * stop taosmqtt
  * @return
  */
 void mqttMgmtStopMqttd(void);
 
 /**
- * get taosudf pid
+ * get taosmqtt pid
  *
  */
 // int32_t mqttMgmtGetPid(int32_t* pMqttdPid);
