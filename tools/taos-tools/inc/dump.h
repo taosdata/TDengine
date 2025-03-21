@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <sys/syscall.h>
 #include <wordexp.h>
+#include <dirent.h>
 #else
 #include <argp.h>
 #include <unistd.h>

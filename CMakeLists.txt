@@ -6,6 +6,8 @@ project(
   DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
+include(CheckIncludeFile)
+
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
   cmake_policy(SET CMP0135 NEW)
 endif()

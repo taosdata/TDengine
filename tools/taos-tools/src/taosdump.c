@@ -17,6 +17,7 @@
 #ifdef WEBSOCKET
 #include "wsdump.h"
 #endif
+#include "argp.h"
 
 static char    **g_tsDumpInDebugFiles     = NULL;
 static char      g_dumpInCharset[64] = {0};
@@ -2732,7 +2733,7 @@ static void freeFileList(enAVROTYPE avroType, int64_t count) {
 
 static enAVROTYPE createDumpinList(const char *dbPath,
         const char *ext, int64_t count) {
-    enAVROTYPE avroType = AVRO_INVALID;
+    enAVROTYPE avroType = enAVRO_INVALID;
     if (0 == strcmp(ext, "sql")) {
         avroType = enAVRO_UNKNOWN;
     } else if (0 == strncmp(ext, "avro-ntb",

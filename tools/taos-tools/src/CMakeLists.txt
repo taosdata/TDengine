@@ -381,4 +381,15 @@ if(NOT WIN32)
   target_link_libraries(taosBenchmark PRIVATE m)
 endif()
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  check_include_file("argp.h" _have_argp "-I/usr/local/include")
+  if(NOT _have_argp)
+    message(FATAL_ERROR "please run:brew install argp-standalone")
+  endif()
+  # brew install argp-standalone
+  target_include_directories(taosBenchmark PRIVATE /usr/local/include)
+  target_include_directories(taosdump PRIVATE /usr/local/include)
+  target_link_libraries(taosdump PRIVATE /usr/local/lib/libargp.a)
+  target_link_libraries(taosdump PRIVATE /usr/local/lib/liblzma.a)
+endif()
 
