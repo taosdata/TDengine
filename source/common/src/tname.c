@@ -104,6 +104,14 @@ const char* tNameGetTableName(const SName* name) {
   return &name->tname[0];
 }
 
+int32_t tNameGetFullTableName(const SName* name, char* dst) {
+  if (name == NULL || dst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)snprintf(dst, TSDB_TABLE_FNAME_LEN, "%s.%s", name->dbname, name->tname);
+  return 0;
+}
+
 void tNameAssign(SName* dst, const SName* src) { memcpy(dst, src, sizeof(SName)); }
 
 int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t nameLen) {
@@ -230,7 +238,7 @@ static int compareKv(const void* p1, const void* p2) {
 }
 
 /*
- * use stable name and tags to grearate child table name
+ * use stable name and tags to generate child table name
  */
 int32_t buildChildTableName(RandTableName* rName) {
   taosArraySort(rName->tags, compareKv);

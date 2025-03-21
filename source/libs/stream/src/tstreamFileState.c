@@ -890,7 +890,7 @@ bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, bool hasLimit
   if (pIsLast != NULL) {
     (*pIsLast) = false;
   }
-  
+
   SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, sizeof(SWinKey));
   if (pos) {
     res = true;
@@ -901,17 +901,19 @@ bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, bool hasLimit
     if (ppBuff != NULL) {
       SArray* pWinStates = (SArray*)(*ppBuff);
       if (pIsLast != NULL) {
-        SWinKey* pLastKey = (SWinKey*) taosArrayGetLast(pWinStates);
+        SWinKey* pLastKey = (SWinKey*)taosArrayGetLast(pWinStates);
         *pIsLast = (winKeyCmprImpl(pKey, pLastKey) == 0);
       }
       if (hasLimit && taosArrayGetSize(pWinStates) <= MIN_NUM_OF_SORT_CACHE_WIN) {
         res = true;
       }
       if (qDebugFlag & DEBUG_DEBUG) {
-        SWinKey* fistKey = (SWinKey*)taosArrayGet(pWinStates, 0);
-        qDebug("===stream===check window state. buff min ts:%" PRId64 ",groupId:%" PRIu64 ".key ts:%" PRId64
-               ",groupId:%" PRIu64,
-               fistKey->ts, fistKey->groupId, pKey->ts, pKey->groupId);
+        if (taosArrayGetSize(pWinStates) > 0) {
+          SWinKey* fistKey = (SWinKey*)taosArrayGet(pWinStates, 0);
+          qDebug("===stream===check window state. buff min ts:%" PRId64 ",groupId:%" PRIu64 ".key ts:%" PRId64
+                 ",groupId:%" PRIu64,
+                 fistKey->ts, fistKey->groupId, pKey->ts, pKey->groupId);
+        }
       }
     } else {
       res = true;
@@ -1095,6 +1097,7 @@ int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
 
     if (vlen != pFileState->rowSize) {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      qError("[InternalERR] read key:[skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],vlen:%d, rowSize:%d", key.win.skey, key.win.ekey, key.groupId, vlen, pFileState->rowSize);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

@@ -702,6 +702,77 @@ class TDTestCase(TBase):
                     "geo_32_col FROM vtb_org_child_18.geo_32_col)"
                     "USING vtb_virtual_stb TAGS (13, false, 13, 13, 'vchild13', 'vchild13')")
 
+        # 11. create virtual table using decimal
+        # 11.1 super table
+        # 11.1.1 decimal column
+        tdSql.error(f"CREATE STABLE `vtb_virtual_stb_error` ("
+                      "ts timestamp, "
+                      "u_tinyint_col tinyint unsigned, "
+                      "u_smallint_col smallint unsigned, "
+                      "u_int_col int unsigned, "
+                      "u_bigint_col bigint unsigned, "
+                      "tinyint_col tinyint, "
+                      "smallint_col smallint, "
+                      "int_col int, "
+                      "bigint_col bigint, "
+                      "float_col float, "
+                      "double_col double, "
+                      "bool_col bool, "
+                      "binary_16_col binary(16),"
+                      "binary_32_col binary(32),"
+                      "nchar_16_col nchar(16),"
+                      "nchar_32_col nchar(32),"
+                      "varbinary_16_col varbinary(16),"
+                      "varbinary_32_col varbinary(32),"
+                      "geo_16_col geometry(16),"
+                      "geo_32_col geometry(32),"
+                      "decimal_col decimal(38,38)"
+                      ") TAGS ("
+                      "int_tag int,"
+                      "bool_tag bool,"
+                      "float_tag float,"
+                      "double_tag double,"
+                      "nchar_32_tag nchar(32),"
+                      "binary_32_tag binary(32))"
+                      "VIRTUAL 1")
+        # 11.1.2 decimal tag
+        tdSql.error(f"CREATE STABLE `vtb_virtual_stb_error` ("
+                    "ts timestamp, "
+                    "u_tinyint_col tinyint unsigned, "
+                    "u_smallint_col smallint unsigned, "
+                    "u_int_col int unsigned, "
+                    "u_bigint_col bigint unsigned, "
+                    "tinyint_col tinyint, "
+                    "smallint_col smallint, "
+                    "int_col int, "
+                    "bigint_col bigint, "
+                    "float_col float, "
+                    "double_col double, "
+                    "bool_col bool, "
+                    "binary_16_col binary(16),"
+                    "binary_32_col binary(32),"
+                    "nchar_16_col nchar(16),"
+                    "nchar_32_col nchar(32),"
+                    "varbinary_16_col varbinary(16),"
+                    "varbinary_32_col varbinary(32),"
+                    "geo_16_col geometry(16),"
+                    "geo_32_col geometry(32)"
+                    ") TAGS ("
+                    "int_tag int,"
+                    "bool_tag bool,"
+                    "float_tag float,"
+                    "double_tag double,"
+                    "nchar_32_tag nchar(32),"
+                    "binary_32_tag binary(32)),"
+                    "decimal_tag decimal(38,38)"
+                    "VIRTUAL 1")
+
+        # 11.2 virtual normal table
+        tdSql.error("CREATE VTABLE `error_vtb_virtual_ntb8` ("
+                    "ts timestamp FROM vtb_org_normal_0.ts, "
+                    "u_tinyint_col tinyint unsigned from vtb_org_normal_0.u_tinyint_col, "
+                    "u_smallint_col smallint unsigned from vtb_org_normal_1.u_smallint_col, "
+                    "decimal_col decimal(38,38))")
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 

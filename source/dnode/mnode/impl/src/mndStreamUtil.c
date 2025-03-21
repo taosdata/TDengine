@@ -1307,6 +1307,8 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
     STR_WITH_SIZE_TO_VARSTR(level, "agg", 3);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     STR_WITH_SIZE_TO_VARSTR(level, "sink", 4);
+  } else if (pTask->info.taskLevel == TASK_LEVEL__MERGE) {
+    STR_WITH_SIZE_TO_VARSTR(level, "merge", 5);
   }
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

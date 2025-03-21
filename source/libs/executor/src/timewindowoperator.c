@@ -967,6 +967,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   }
   int64_t          gid = pBlock->info.id.groupId;
 
+  bool    hasResult = false;
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
   int32_t bytes = pStateColInfoData->info.bytes;
@@ -988,6 +989,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       continue;
     }
+    hasResult = true;
     if (pStateColInfoData->pData == NULL) {
       qError("%s:%d state column data is null", __FILE__, __LINE__);
       pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -1043,6 +1045,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     }
   }
 
+  if (!hasResult) {
+    return;
+  }
   SResultRow* pResult = NULL;
   pRowSup->win.ekey = tsList[pBlock->info.rows - 1];
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,

@@ -100,6 +100,16 @@ class TDTestCase(TBase):
         tdSql.error("CREATE TABLE ntb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) KEEP 1d",expectErrInfo="KEEP parameter is not allowed when creating normal table")
         tdSql.execute("CREATE TABLE ntb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10))")
         tdSql.error("ALTER TABLE ntb keep 1d",expectErrInfo="only super table can alter keep duration")
+
+    def chceck_stb_keep_show_create(self):
+        tdLog.info(f"check stb keep show create")
+        tdSql.execute("USE test")
+        tdSql.execute("CREATE STABLE stb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 10d")
+        tdSql.query("SHOW CREATE TABLE stb")
+        tdSql.checkData(0, 1, "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `b` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `c` VARCHAR(10) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`e_id` INT) KEEP 14400m")
+        tdSql.execute("ALTER TABLE stb KEEP 5d")
+        tdSql.query("SHOW CREATE TABLE stb")
+        tdSql.checkData(0, 1, "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `b` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `c` VARCHAR(10) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`e_id` INT) KEEP 7200m")
         
     # run
     def run(self):
@@ -125,6 +135,9 @@ class TDTestCase(TBase):
 
         # check normal table with keep
         self.check_normal_table_with_keep()
+
+        # check stb keep show create
+        self.chceck_stb_keep_show_create()
 
         tdLog.success(f"{__file__} successfully executed")
 

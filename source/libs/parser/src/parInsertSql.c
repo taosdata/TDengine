@@ -1214,6 +1214,10 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, STableMet
       *pMissCache = true;
     } else if (bUsingTable && TSDB_SUPER_TABLE != (*pTableMeta)->tableType) {
       code = buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
+    } else if (((*pTableMeta)->virtualStb) ||
+               TSDB_VIRTUAL_CHILD_TABLE == (*pTableMeta)->tableType ||
+               TSDB_VIRTUAL_NORMAL_TABLE == (*pTableMeta)->tableType) {
+      code = TSDB_CODE_VTABLE_NOT_SUPPORT_STMT;
     }
   }
   return code;
@@ -1349,6 +1353,8 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
       code = getTableMeta(pCxt, &pStmt->usingTableName, &pStableMeta, &pCxt->missCache, bUsingTable);
       if (TSDB_CODE_SUCCESS == code) {
         code = taosHashPut(pStmt->pSuperTableHashObj, tbFName, strlen(tbFName), &pStableMeta, POINTER_BYTES);
+      } else {
+        taosMemoryFreeClear(pStableMeta);
       }
     }
   }

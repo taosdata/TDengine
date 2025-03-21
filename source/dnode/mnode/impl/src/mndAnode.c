@@ -371,6 +371,11 @@ static int32_t mndProcessCreateAnodeReq(SRpcMsg *pReq) {
   SAnodeObj       *pObj = NULL;
   SMCreateAnodeReq createReq = {0};
 
+  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+    mError("failed to create anode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
+
   TAOS_CHECK_GOTO(tDeserializeSMCreateAnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("anode:%s, start to create", createReq.url);
