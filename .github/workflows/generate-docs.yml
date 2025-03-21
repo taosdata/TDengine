@@ -1,0 +1,73 @@
+name: Generate and Deploy Markdown for Python Modules
+
+on:
+  push:
+    branches:
+      - 'new_test_docs'
+    paths:
+      - 'test/cases/**/*.py'
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    types: [closed]  # trigger on PR close
+    paths:
+      - 'test/cases/**/*.py'
+
+jobs:
+  generate_and_deploy:
+    if: github.event.pull_request.merged == true  # only run on merged PRs
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # required to write to the repo
+      pages: write     # required to deploy to GitHub Pages
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Get all changed case files
+        id: changed-case-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            test/cases/**/*.py
+
+      - name: Generate Markdown files
+        if: steps.changed-case-files.outputs.any_changed == 'true'
+        run: |
+          set -v
+          mkdir -p test/docs/case_list_docs
+          for file in ${ALL_CHANGED_FILES}; do
+            module_path=$(echo "$file" | sed 's|/|.|g' | sed 's|.py$||' | sed 's|^test.cases.||')
+            markdown_file="test/docs/case_list_docs/${module_path%.*}.md"
+
+            if [ ! -f "$markdown_file" ]; then
+              echo "Generating $markdown_file"
+              echo "::: ${module_path}" > "$markdown_file"
+            else
+              echo "Appending to $markdown_file"
+              if ! grep -q "::: ${module_path}" "$markdown_file"; then
+                echo "::: ${module_path}" >> "$markdown_file"
+              else
+                echo "Content already exists in $markdown_file"
+              fi
+            fi
+          done
+        shell: bash
+
+      # - name: Setup Pages
+      #   uses: actions/configure-pages@v3
+
+      # - name: Deploy to GitHub Pages
+      #   if: steps.changed-case-files.outputs.any_changed == 'true'
+      #   uses: actions/deploy-pages@v1
+      #   with:
+      #     publish_dir: test/docs

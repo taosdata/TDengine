@@ -107,7 +107,7 @@ class TestInsertDouble:
 
     @pytest.mark.ci
     def test_insert_double(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        """测试插入各种double值
+        """测试插入各种double值 # noqa: E501
 
         插入各种double值包括正负值、科学计数法、十六进制、二进制、字符串
         
