@@ -544,6 +544,12 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
           qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
         }
         break;
+      case TDMT_VND_VSUBTABLES_META:
+        // error code has been set into reqMsg, no need to handle it here.
+        if (TSDB_CODE_SUCCESS != vnodeGetVSubtablesMeta(pVnode, &reqMsg)) {
+          qWarn("vnodeGetVSubtablesMeta failed, msgType:%d", req->msgType);
+        }
+        break;
       default:
         qError("invalid req msgType %d", req->msgType);
         reqMsg.code = TSDB_CODE_INVALID_MSG;
@@ -730,7 +736,7 @@ int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     qError("tSerializeSVSubTablesRsp failed, error:%d", rspSize);
     goto _return;
   }
-  pRsp = rpcMallocCont(rspSize);
+  pRsp = taosMemoryCalloc(1, rspSize);
   if (pRsp == NULL) {
     code = terrno;
     qError("rpcMallocCont %d failed, error:%d", rspSize, terrno);
@@ -755,9 +761,11 @@ _return:
     qError("vnd get virtual subtables failed cause of %s", tstrerror(code));
   }
 
+  *pMsg = rspMsg;
+  
   tDestroySVSubTablesRsp(&rsp);
 
-  tmsgSendRsp(&rspMsg);
+  //tmsgSendRsp(&rspMsg);
 
   return code;
 }

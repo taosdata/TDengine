@@ -110,6 +110,7 @@ int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t
 
     pDataBlock->info.type = pRetrieve->streamBlockType;
     pDataBlock->info.childId = pReq->upstreamChildId;
+    pDataBlock->info.id.uid = be64toh(pRetrieve->useconds);
   }
 
   pData->blocks = pArray;
