@@ -134,10 +134,15 @@ int8_t workingMode(int8_t connMode, char *dsn) {
 
 // get default port
 uint16_t defaultPort(int8_t connMode, char *dsn) {
+    // port 0 is default
+    return 0;
+    
+    /*
     // consistent with setConnMode
     int8_t mode = workingMode(connMode, dsn);
 
     // default port
     return mode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+    */
 }
  
