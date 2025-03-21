@@ -68,7 +68,7 @@ class TDDnode:
             "telemetryReporting": "0"
         }
         self.binPath = "/usr/bin/taosd"
-        self.execPath = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "exec.sh")
+        self.execPath = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), "exec.sh")
 
     def init(self, path, binPath, remoteIP = ""):
         self.path = path
