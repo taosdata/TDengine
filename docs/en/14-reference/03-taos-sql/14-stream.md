@@ -532,6 +532,24 @@ These fields are present only when "windowType" is "Count".
 #### Fields for Window Invalidation
 
 Due to scenarios such as data disorder, updates, or deletions during stream computing, windows that have already been generated might be removed or their results need to be recalculated. In such cases, a notification with the eventType "WINDOW_INVALIDATION" is sent to inform which windows have been invalidated.
+
 For events with "eventType" as "WINDOW_INVALIDATION", the following fields are included:
 1. "windowStart": A long integer timestamp representing the start time of the window.
 1. "windowEnd": A long integer timestamp representing the end time of the window.
+
+## Support for Virtual Tables in Stream Computing
+
+Starting with v3.3.6.0, stream computing can use virtual tables—including virtual regular tables, virtual sub-tables, and virtual super tables—as data sources for computation. The syntax is identical to that for non‑virtual tables.
+
+However, because the behavior of virtual tables differs from that of non‑virtual tables, the following restrictions apply when using stream computing:
+
+1. The schema of virtual regular tables/virtual sub-tables involved in stream computing cannot be modified.
+1. During stream computing, if the data source corresponding to a column in a virtual table is changed, the stream computation will not pick up the change; it will still read from the old data source.
+1. During stream computing, if the original table corresponding to a column in a virtual table is deleted and later a new table with the same name and a column with the same name is created, the stream computation will not read data from the new table.
+1. The watermark for stream computing must be 0; otherwise, an error will occur during creation.
+1. If the data source for stream computing is a virtual super table, sub-tables that are added after the stream computing task starts will not participate in the computation.
+1. The timestamps of different underlying tables in a virtual table may not be completely consistent; merging the data might produce null values, and interpolation is currently not supported.
+1. Out-of-order data, updates, or deletions are not handled. In other words, when creating a stream, you cannot specify `ignore update 0` or `ignore expired 0`; otherwise, an error will be reported.
+1. Historical data computation is not supported. That is, when creating a stream, you cannot specify `fill_history 1`; otherwise, an error will be reported.
+1. The trigger modes MAX_DELAY, CONTINUOUS_WINDOW_CLOSE and FORCE_WINDOW_CLOSE are not supported.
+1. The COUNT_WINDOW type is not supported.
