@@ -2104,7 +2104,9 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
   col.info.colId = colId;
   col.info.type = type;
   col.info.bytes = bytes;
-
+  // if (type == TSDB_DATA_TYPE_BLOB || type == TSDB_DATA_TYPE_MEDIUMBLOB) {
+  //   col.info.bytes = TSDB_MAX_BLOB_LEN;
+  // }
   return col;
 }
 
@@ -3606,7 +3608,10 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           } else {
             BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
           }
-          BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
+          if (pCol->info.type == TSDB_DATA_TYPE_BLOB) {
+          } else {
+            BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
+          }
 
           if (pCol->reassigned) {
             BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);

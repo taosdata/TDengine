@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parInt.h"
 #include "parTranslater.h"
+#include "parInt.h"
 #include "tdatablock.h"
 
 #include "catalog.h"
@@ -5524,7 +5524,7 @@ static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
     if ('\0' == pExpr->userAlias[0]) {
       tstrncpy(pExpr->userAlias, pExpr->aliasName, TSDB_COL_NAME_LEN);
     }
-    snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN,"#expr_%d", no++);
+    snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN, "#expr_%d", no++);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5893,8 +5893,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
         parserError("invalid offset unit %d for auto offset with precision %u", pOffset->unit, precision);
         return TSDB_CODE_INVALID_PARA;
       }
-    }
-    else if (pOffset->datum.i < 0) {
+    } else if (pOffset->datum.i < 0) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE);
     }
     if (pInter->unit == 'n' && pOffset->unit == 'y') {
@@ -5958,7 +5957,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   return TSDB_CODE_SUCCESS;
 }
 
-void tryCalcIntervalAutoOffset(SIntervalWindowNode *pInterval) {
+void tryCalcIntervalAutoOffset(SIntervalWindowNode* pInterval) {
   SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
   uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
@@ -5974,14 +5973,14 @@ void tryCalcIntervalAutoOffset(SIntervalWindowNode *pInterval) {
     return;
   }
 
-  SInterval   interval = {.interval = pInter->datum.i,
-                          .sliding = (pSliding != NULL) ? pSliding->datum.i : pInter->datum.i,
-                          .intervalUnit = pInter->unit,
-                          .slidingUnit = (pSliding != NULL) ? pSliding->unit : pInter->unit,
-                          .offset = pOffset->datum.i,
-                          .precision = precision,
-                          .timezone  = pInterval->timezone,
-                          .timeRange = pInterval->timeRange};
+  SInterval interval = {.interval = pInter->datum.i,
+                        .sliding = (pSliding != NULL) ? pSliding->datum.i : pInter->datum.i,
+                        .intervalUnit = pInter->unit,
+                        .slidingUnit = (pSliding != NULL) ? pSliding->unit : pInter->unit,
+                        .offset = pOffset->datum.i,
+                        .precision = precision,
+                        .timezone = pInterval->timezone,
+                        .timeRange = pInterval->timeRange};
 
   /**
    * Considering that the client and server may be in different time zones,
@@ -5999,7 +5998,7 @@ void tryCalcIntervalAutoOffset(SIntervalWindowNode *pInterval) {
 
 static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t              code = TSDB_CODE_SUCCESS;
 
   pInterval->timeRange = pSelect->timeRange;
   tryCalcIntervalAutoOffset(pInterval);
@@ -6952,7 +6951,8 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
             code = terrno;
             break;
           }
-          snprintf(pNewTbName, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1, "%s.%s_%s", pTsma->dbFName, pTsma->name, pTbName);
+          snprintf(pNewTbName, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1, "%s.%s_%s", pTsma->dbFName, pTsma->name,
+                   pTbName);
           int32_t len = taosCreateMD5Hash(pNewTbName, strlen(pNewTbName));
         }
         if (TSDB_CODE_SUCCESS == code) {
@@ -13223,7 +13223,7 @@ static int32_t buildIntervalForCreateTSMA(SCreateTSMAStmt* pStmt, SInterval* pIn
   pInterval->sliding = pInterval->interval;
   pInterval->slidingUnit = pInterval->intervalUnit;
   pInterval->precision = pStmt->pOptions->tsPrecision;
-  pInterval->timezone  = timezone;
+  pInterval->timezone = timezone;
   return code;
 }
 
@@ -13245,7 +13245,7 @@ int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSData
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
       pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit,
-                                        interval.precision,  pParseCxt->timezone);
+                                        interval.precision, pParseCxt->timezone);
     } else {
       pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
@@ -14168,7 +14168,8 @@ static int32_t createShowCondition(const SShowStmt* pShow, SSelectStmt* pSelect)
   }
 
   if (NULL != pShow->pDbName) {
-    tstrncpy(((SRealTableNode*)pSelect->pFromTable)->qualDbName, ((SValueNode*)pShow->pDbName)->literal, TSDB_DB_NAME_LEN);
+    tstrncpy(((SRealTableNode*)pSelect->pFromTable)->qualDbName, ((SValueNode*)pShow->pDbName)->literal,
+             TSDB_DB_NAME_LEN);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -14767,7 +14768,8 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       if (pSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, tagName, pTagArray, ppTag,
+                           pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -14828,7 +14830,8 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
         isJson = true;
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag,
+                           pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -15024,7 +15027,7 @@ static int32_t fillVgroupInfo(SParseContext* pParseCxt, const SName* pName, SVgr
   return code;
 }
 
-static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, timezone_t tz, void *charsetCxt) {
+static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, timezone_t tz, void* charsetCxt) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int      sz = taosArrayGetSize(pParFileCxt->aTagIndexs);
   int32_t  numOfTags = getNumOfTags(pParFileCxt->pStbMeta);
@@ -16449,8 +16452,8 @@ static int32_t rewriteShowCompactDetailsStmt(STranslateContext* pCxt, SQuery* pQ
 
 static int32_t rewriteShowTransactionDetailsStmt(STranslateContext* pCxt, SQuery* pQuery) {
   SShowTransactionDetailsStmt* pShow = (SShowTransactionDetailsStmt*)(pQuery->pRoot);
-  SSelectStmt*             pStmt = NULL;
-  int32_t                  code = createSelectStmtForShow(QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT, &pStmt);
+  SSelectStmt*                 pStmt = NULL;
+  int32_t                      code = createSelectStmtForShow(QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT, &pStmt);
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pShow->pTransactionId) {
       code = createOperatorNode(OP_TYPE_EQUAL, "transaction_id", pShow->pTransactionId, &pStmt->pWhere);

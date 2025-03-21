@@ -1120,6 +1120,24 @@ _end:
   }
   return code;
 }
+static int32_t doReallocBuf(SBlockLoadSuppInfo* pSup, int32_t colIndex, int32_t bytes, int32_t len) {
+  int32_t code = 0;
+
+  // if (len + VARSTR_HEADER_SIZE > bytes) {
+  //   tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pSup->colId[colIndex], len, bytes);
+  //   return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+  // }
+
+  char* p = taosMemoryRealloc(pSup->buildBuf[colIndex], len + VARSTR_HEADER_SIZE);
+  if (p == NULL) {
+    return terrno;
+  }
+
+  pSup->buildBuf[colIndex] = p;
+  varDataSetLen(pSup->buildBuf[colIndex], len);
+
+  return code;
+}
 static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_t colIndex, SColVal* pColVal,
                             SBlockLoadSuppInfo* pSup) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1138,12 +1156,16 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
         code = doGetValueFromBseBySeq(pSup->args, pColVal->value.pData, sizeof(uint64_t), &pValue, &len);
         // TSDB_CHECK_CODE(code, lino, _end);
 
-        varDataSetLen(pSup->buildBuf[colIndex], len);
-        if ((len + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
-          tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, len,
-                   pColInfoData->info.bytes);
-          code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-          TSDB_CHECK_CODE(code, lino, _end);
+        if (pColVal->value.type == TSDB_DATA_TYPE_BLOB || pColVal->value.type == TSDB_DATA_TYPE_MEDIUMBLOB) {
+          code = doReallocBuf(pSup, colIndex, pColInfoData->info.bytes, len);
+        } else {
+          varDataSetLen(pSup->buildBuf[colIndex], len);
+          if ((len + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
+            tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, len,
+                     pColInfoData->info.bytes);
+            code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+            TSDB_CHECK_CODE(code, lino, _end);
+          }
         }
 
         if (len > 0) {

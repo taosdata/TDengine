@@ -58,7 +58,7 @@ static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static int32_t shellGetGrantInfo(char* buf);
+static int32_t shellGetGrantInfo(char *buf);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -715,6 +715,11 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
       printf("%s", buf);
       break;
+
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      shellPrintNChar(val, length, width);
+      break;
     default:
       break;
   }
@@ -902,6 +907,15 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       } else {
         return TMAX(23, width);  // '2020-01-01 00:00:00.000'
       }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      uint16_t bytes = TSDB_MAX_BLOB_LEN;
+      if (bytes > shell.args.displayWidth) {
+        return TMAX(shell.args.displayWidth, width);
+      } else {
+        return TMAX(bytes + 2, width);
+      }
+    } break;
 
     default:
       ASSERT(false);
@@ -1320,7 +1334,8 @@ int32_t shellExecute() {
     }
 
     if (shell.conn == NULL) {
-      printf("failed to connect to server, reason: %s[0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL), ERROR_CODE_DETAIL);
+      printf("failed to connect to server, reason: %s[0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL),
+             ERROR_CODE_DETAIL);
       fflush(stdout);
       return -1;
     }

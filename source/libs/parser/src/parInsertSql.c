@@ -1716,18 +1716,15 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
     }
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
-      // copy or not
-      // TODO(yihaoDeng)
-      // if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
-      //   return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
-      // }
+      if ((pToken->n + BLOBSTR_HEADER_SIZE) > TSDB_MAX_BLOB_LEN) {
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
       pVal->value.pData = taosMemoryMalloc(pToken->n);
       if (NULL == pVal->value.pData) {
         return terrno;
       }
       memcpy(pVal->value.pData, pToken->z, pToken->n);
       pVal->value.nData = pToken->n;
-      ASSERT(0);
       break;
     default:
 

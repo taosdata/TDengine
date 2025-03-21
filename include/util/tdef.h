@@ -327,8 +327,8 @@ typedef enum ELogicConditionType {
 #define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
 
-#define TSDB_TRANS_STAGE_LEN 12
-#define TSDB_TRANS_TYPE_LEN  16
+#define TSDB_TRANS_STAGE_LEN   12
+#define TSDB_TRANS_TYPE_LEN    16
 #define TSDB_TRANS_ERROR_LEN   512
 #define TSDB_TRANS_OBJTYPE_LEN 40
 #define TSDB_TRANS_RESULT_LEN  100
@@ -535,6 +535,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_NCHAR_LEN     TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_GEOMETRY_LEN  TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_VARBINARY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_BLOB_LEN      TSDB_MAX_FIELD_LEN
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
@@ -677,7 +678,7 @@ typedef enum {
   TSDB_VERSION_END,
 } EVersionType;
 
-#define MIN_RESERVE_MEM_SIZE 1024 // MB
+#define MIN_RESERVE_MEM_SIZE 1024  // MB
 
 #ifdef __cplusplus
 }
