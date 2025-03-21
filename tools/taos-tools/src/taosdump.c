@@ -10910,7 +10910,7 @@ int main(int argc, char *argv[]) {
     }
 
     // conn mode
-    if (setConnMode(g_args.connMode, g_args.dsn) != 0) {
+    if (setConnMode(g_args.connMode, g_args.dsn, true) != 0) {
         return -1;
     }
 

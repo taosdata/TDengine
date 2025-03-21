@@ -91,7 +91,7 @@
  }
 
  // set conn mode
-int32_t setConnMode(int8_t connMode, char *dsn) {
+int32_t setConnMode(int8_t connMode, char *dsn, bool show) {
     // check default
     if (connMode == CONN_MODE_INVALID) {
       if (dsn && dsn[0] != 0) {
@@ -109,6 +109,11 @@ int32_t setConnMode(int8_t connMode, char *dsn) {
       fprintf(stderr, "failed to load driver. since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
       return code;
     }
+
+    if (show) {
+        fprintf(stdout, "\nConnect mode is : %s\n\n", strMode);
+    }
+
     return 0;
 }
 
