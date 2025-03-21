@@ -815,11 +815,28 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
       goto _start;
 
     } else if (pStartInfo->curStage == START_CHECK_DOWNSTREAM) {
-      pStartInfo->restartCount += 1;
+      int32_t numOfRecv = taosHashGetSize(pStartInfo->pReadyTaskSet);
+      taosHashGetSize(pStartInfo->pFailedTaskSet);
+
+      int32_t newTotal = taosArrayGetSize(pStartInfo->pRecvChkptIdTasks);
       tqDebug(
-          "vgId:%d in start tasks procedure (check downstream), inc restartCounter by 1 and wait for it completes, "
-          "remaining restart:%d",
-          vgId, pStartInfo->restartCount);
+          "vgId:%d start all tasks procedure is interrupted by transId:%d, wait for partial tasks rsp. recv check "
+          "downstream results, received:%d results, total req tasks:%d",
+          vgId, pMeta->updateInfo.activeTransId, numOfRecv, newTotal);
+
+      bool allRsp = allCheckDownstreamRspPartial(pStartInfo, newTotal, pMeta->vgId);
+      if (allRsp) {
+        tqDebug("vgId:%d all partial results received, continue the restart procedure", pMeta->vgId);
+        streamMetaResetStartInfo(pStartInfo, vgId);
+      } else {
+        pStartInfo->restartCount += 1;
+        SStartTaskStageInfo* pCurStageInfo = taosArrayGetLast(pStartInfo->pStagesList);
+
+        tqDebug("vgId:%d in start tasks procedure (check downstream), reqTs:%" PRId64
+                ", inc restartCounter by 1 and wait for it completes, "
+                "remaining restart:%d",
+                vgId, pCurStageInfo->ts, pStartInfo->restartCount);
+      }
     } else {
       tqInfo("vgId:%d in start procedure, but not start to do anything yet, do nothing", vgId);
     }
