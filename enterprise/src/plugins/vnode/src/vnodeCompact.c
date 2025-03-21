@@ -16,7 +16,7 @@
 #include "vnd.h"
 
 extern void    tsdbStopAllCompTask(STsdb *tsdb);
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
 extern int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp);
 
 int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -28,7 +28,7 @@ int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t l
   vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
         req.db, req.dbUid, req.compactStartTime);
 
-  return tsdbAsyncCompact(pVnode->pTsdb, &req.tw);
+  return tsdbAsyncCompact(pVnode->pTsdb, &req.tw, false);
 }
 
 int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
