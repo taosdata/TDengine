@@ -23,6 +23,7 @@
 #include <mach-o/dyld.h>
 #endif
 
+/*
 typedef struct SMqttdData {
   bool         startCalled;
   bool         needCleanUp;
@@ -37,7 +38,7 @@ typedef struct SMqttdData {
 
   int32_t dnodeId;
 } SMqttdData;
-/*
+
 SMqttdData mqttdGlobal = {0};
 
 int32_t mqttMgmtStart(int32_t startDnodeId);
@@ -310,7 +311,7 @@ _exit:
   return code;
 }
 
-void mqttMgmtStopMqttd() {
+void mqttMgmtStopMqttd(void) {
 
   SMqttdData *pData = &mqttdGlobal;
   xndInfo("taosmqtt start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
