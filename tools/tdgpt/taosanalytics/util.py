@@ -36,7 +36,7 @@ def validate_pay_load(json_obj):
         raise ValueError('invalid schema info, data column is missing')
 
 
-def convert_results_to_windows(result, ts_list):
+def convert_results_to_windows(result, ts_list, valid_code):
     """generate the window according to anomaly detection result"""
     skey, ekey = -1, -1
     wins = []
@@ -45,7 +45,7 @@ def convert_results_to_windows(result, ts_list):
         return wins
 
     for index, val in enumerate(result):
-        if val == -1:
+        if val != valid_code:
             ekey = ts_list[index]
             if skey == -1:
                 skey = ts_list[index]

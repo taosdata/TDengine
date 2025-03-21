@@ -51,12 +51,19 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
      inherent from this class"""
 
     def __init__(self):
+        self.valid_code = 1
         super().__init__()
         self.type = "anomaly-detection"
 
     def input_is_empty(self):
         """ check if the input list is empty or None """
         return (self.list is None) or (len(self.list) == 0)
+
+    def set_params(self, params: dict) -> None:
+        super().set_params(params)
+
+        if "valid_code" in params:
+            self.valid_code = int(params["valid_code"])
 
 
 class AbstractForecastService(AbstractAnalyticsService, ABC):

@@ -10,7 +10,7 @@ from taosanalytics.service import AbstractForecastService
 
 
 class _GPTService(AbstractForecastService):
-    name = 'td_gpt_fc'
+    name = 'TDtsfm_1'
     desc = "internal gpt forecast model based on transformer"
 
     def __init__(self):
@@ -23,7 +23,6 @@ class _GPTService(AbstractForecastService):
         self.std = None
         self.threshold = None
         self.time_interval = None
-        self.dir = 'internal-gpt'
 
 
     def execute(self):

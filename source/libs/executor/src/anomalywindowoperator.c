@@ -593,7 +593,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
 
     for (int32_t r = 0; r < pBlock->info.rows; ++r) {
       TSKEY key = tsList[r];
-      bool  keyInWin = (key >= pSupp->curWin.skey && key < pSupp->curWin.ekey);
+      bool  keyInWin = (key >= pSupp->curWin.skey && key <= pSupp->curWin.ekey);
       bool  lastRow = (r == pBlock->info.rows - 1);
 
       if (keyInWin) {
