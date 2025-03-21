@@ -53,11 +53,11 @@ class TDSimClient:
         }
 
     def getLogDir(self):
-        self.logDir = os.path.join(self.path,"sim","psim","log")
+        self.logDir = os.path.join(self.path,"psim","log")
         return self.logDir
 
     def getCfgDir(self):
-        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
+        self.cfgDir = os.path.join(self.path,"psim","cfg")
         return self.cfgDir
 
     def setTestCluster(self, value):
@@ -72,9 +72,9 @@ class TDSimClient:
             tdLog.exit(cmd)
 
     def deploy(self, *updatecfgDict):
-        self.logDir = os.path.join(self.path,"sim","psim","log")
-        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
-        self.cfgPath = os.path.join(self.path,"sim","psim","cfg","taos.cfg")
+        self.logDir = os.path.join(self.path,"psim","log")
+        self.cfgDir = os.path.join(self.path,"psim","cfg")
+        self.cfgPath = os.path.join(self.path,"psim","cfg","taos.cfg")
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
@@ -218,10 +218,10 @@ class TDDnode:
             self.remote_conn.run("python3 ./test.py %s -d %s -e %s"%(valgrindStr,remoteCfgDictStr,execCmdStr))
 
     def deploy(self, *updatecfgDict):
-        self.logDir = os.path.join(self.path,"sim","dnode%d" % self.index, "log")
-        self.dataDir = os.path.join(self.path,"sim","dnode%d" % self.index, "data")
-        self.cfgDir = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
-        self.cfgPath = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg","taos.cfg")
+        self.logDir = os.path.join(self.path,"dnode%d" % self.index, "log")
+        self.dataDir = os.path.join(self.path,"dnode%d" % self.index, "data")
+        self.cfgDir = os.path.join(self.path,"dnode%d" % self.index, "cfg")
+        self.cfgPath = os.path.join(self.path,"dnode%d" % self.index, "cfg","taos.cfg")
 
         cmd = "rm -rf " + self.dataDir
         if os.system(cmd) != 0:
@@ -329,10 +329,11 @@ class TDDnode:
                     self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
                         self.binPath, self.cfgDir, asanDir)
+                    tdLog.info(cmd)
                 else:
                     cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
                         self.binPath, self.cfgDir)
@@ -416,7 +417,7 @@ class TDDnode:
                     self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
                         self.binPath, self.cfgDir, asanDir)
@@ -486,7 +487,7 @@ class TDDnode:
                 cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
                         self.binPath, self.cfgDir, asanDir)
@@ -655,11 +656,11 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def getDnodeRootDir(self, index):
-        dnodeRootDir = os.path.join(self.path,"sim","psim","dnode%d" % index)
+        dnodeRootDir = os.path.join(self.path,"psim","dnode%d" % index)
         return dnodeRootDir
 
     def getDnodesRootDir(self):
-        dnodesRootDir = os.path.join(self.path,"sim","psim")
+        dnodesRootDir = os.path.join(self.path,"psim")
         return dnodesRootDir
 
 
@@ -709,11 +710,11 @@ class TDDnodes:
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
             if ("community" in selfPath):
-                self.stopDnodesPath = os.path.abspath(self.path + "/community/tests/script/sh/stop_dnodes.sh")
-                self.stopDnodesSigintPath = os.path.abspath(self.path + "/community/tests/script/sh/sigint_stop_dnodes.sh")
+                self.stopDnodesPath = os.path.abspath(selfPath + "/../stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(selfPath + "/../sigint_stop_dnodes.sh")
             else:
-                self.stopDnodesPath = os.path.abspath(self.path + "/tests/script/sh/stop_dnodes.sh")
-                self.stopDnodesSigintPath = os.path.abspath(self.path + "/tests/script/sh/sigint_stop_dnodes.sh")
+                self.stopDnodesPath = os.path.abspath(selfPath + "/../stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(selfPath + "/../sigint_stop_dnodes.sh")
             tdLog.info("run in address sanitizer mode")
 
     def setKillValgrind(self, value):
@@ -883,7 +884,7 @@ class TDDnodes:
         # tdLog.exit(cmd)
 
     def getDnodesRootDir(self):
-        dnodesRootDir = "%s/sim" % (self.path)
+        dnodesRootDir = self.path
         return dnodesRootDir
 
     def getSimCfgPath(self):

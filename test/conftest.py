@@ -213,7 +213,7 @@ def before_test_class(request):
         # 为老用例兼容，初始化老框架部分实例
         request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
     
-    if not request.session.skip_test:
+    if request.session.skip_test:
         pytest.skip("skip test")
     # ============================
     # 兼容army 初始化caseBase

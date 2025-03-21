@@ -39,7 +39,7 @@ class Test5dnode3mnodeStop:
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):

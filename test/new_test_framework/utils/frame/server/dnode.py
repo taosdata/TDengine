@@ -130,9 +130,9 @@ class TDDnode:
 
     def deploy(self, *updatecfgDict):
         # logDir
-        self.logDir = os.path.join(self.path,"sim","dnode%d" % self.index, "log")
+        self.logDir = os.path.join(self.path,"dnode%d" % self.index, "log")
         # dataDir
-        simPath = os.path.join(self.path, "sim", "dnode%d" % self.index)
+        simPath = os.path.join(self.path, "dnode%d" % self.index)
         primary = 1
         if self.level == 1 and self.disk == 1:
             eDir = os.path.join(simPath, "data")
@@ -146,7 +146,7 @@ class TDDnode:
                         primary = 0
 
         # taos.cfg
-        self.cfgDir  = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
+        self.cfgDir  = os.path.join(self.path,"dnode%d" % self.index, "cfg")
         self.cfgPath = os.path.join(self.cfgDir, "taos.cfg")
         
         for eDir in self.dataDir:
@@ -262,7 +262,7 @@ class TDDnode:
                     self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
                         self.binPath, self.cfgDir, asanDir)
@@ -282,7 +282,7 @@ class TDDnode:
             print(cmd)
 
         if (not self.remoteIP == ""):
-            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
             self.running = 1
         else:
             if os.system(cmd) != 0:
@@ -349,7 +349,7 @@ class TDDnode:
                     self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
                         self.binPath, self.cfgDir, asanDir)
@@ -369,7 +369,7 @@ class TDDnode:
             print(cmd)
 
         if (not self.remoteIP == ""):
-            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
             self.running = 1
         else:
             os.system("rm -rf %s/taosdlog.0"%self.logDir)
@@ -419,7 +419,7 @@ class TDDnode:
                 cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
                         self.binPath, self.cfgDir, asanDir)
@@ -440,7 +440,7 @@ class TDDnode:
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
         else:
-            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.startWithoutSleep(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.startWithoutSleep(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
 
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
@@ -587,9 +587,9 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def getDnodeRootDir(self, index):
-        dnodeRootDir = os.path.join(self.path,"sim","psim","dnode%d" % index)
+        dnodeRootDir = os.path.join(self.path,"psim","dnode%d" % index)
         return dnodeRootDir
 
     def getDnodesRootDir(self):
-        dnodesRootDir = os.path.join(self.path,"sim","psim")
+        dnodesRootDir = os.path.join(self.path,"psim")
         return dnodesRootDir

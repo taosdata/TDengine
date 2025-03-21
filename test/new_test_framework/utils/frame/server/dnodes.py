@@ -254,12 +254,12 @@ class TDDnodes:
         # tdLog.exit(cmd)
 
     def getDnodesRootDir(self):
-        dnodesRootDir = "%s/sim" % (self.path)
+        dnodesRootDir = self.path
         return dnodesRootDir
 
     def getDnodeDir(self, index):
         self.check(index)
-        dnodesDir = "%s/sim/dnode%d" % (self.path, index)
+        dnodesDir = "%s/dnode%d" % (self.path, index)
         return dnodesDir
 
     def getSimCfgPath(self):

@@ -20,7 +20,7 @@ from .util import tdCom as tdCom_pytest
 from .frame import cluster as cluster_army, ClusterDnodes as ClusterDnodes_army, clusterDnodes as clusterDnodes_army
 from .frame import tdDnodes as tdDnodes_army
 from .frame import tAdapter as tAdapter_army
-from .frame import common as tdCom_army
+from .frame import tdCom as tdCom_army
 
 
 class BeforeTest:
