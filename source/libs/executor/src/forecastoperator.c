@@ -235,7 +235,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     }
 
     tjsonDelete(pJson);
-    return TSDB_CODE_ANA_INTERNAL_ERROR;
+    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
   }
 
   if (code < 0) {
