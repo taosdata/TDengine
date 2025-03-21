@@ -290,7 +290,7 @@ static int32_t mndTransDecodeGroupRedoAction(SHashObj *redoGroupActions, STransA
 }
 
 static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionNum,
-                                             SHashObj *redoGroupActions) {
+                                             SHashObj *redoGroupActions, int32_t sver) {
   int32_t      code = 0;
   int32_t      lino = 0;
   STransAction action = {0};
@@ -312,7 +312,9 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
     SDB_GET_INT8(pRaw, dataPos, &stage, _OVER)
     action.stage = stage;
     SDB_GET_INT8(pRaw, dataPos, &action.reserved, _OVER)
-    SDB_GET_INT32(pRaw, dataPos, &action.groupId, _OVER)
+    if (sver > TRANS_VER2_NUMBER) {
+      SDB_GET_INT32(pRaw, dataPos, &action.groupId, _OVER)
+    }
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
@@ -345,12 +347,13 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
   ret = 0;
 
 _OVER:
+  if (terrno != 0) mError("failed to decode action with group at line:%d, since %s", lino, terrstr());
   *offset = dataPos;
   taosMemoryFreeClear(action.pCont);
   return ret;
 }
 
-static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionNum) {
+static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionNum, int32_t sver) {
   int32_t      code = 0;
   int32_t      lino = 0;
   STransAction action = {0};
@@ -372,7 +375,9 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
     SDB_GET_INT8(pRaw, dataPos, &stage, _OVER)
     action.stage = stage;
     SDB_GET_INT8(pRaw, dataPos, &action.reserved, _OVER)
-    SDB_GET_INT32(pRaw, dataPos, &action.groupId, _OVER)
+    if (sver > TRANS_VER2_NUMBER) {
+      SDB_GET_INT32(pRaw, dataPos, &action.groupId, _OVER)
+    }
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
@@ -401,6 +406,7 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
   ret = 0;
 
 _OVER:
+  if (terrno != 0) mError("failed to decode action at line:%d, since %s", lino, terrstr());
   *offset = dataPos;
   taosMemoryFreeClear(action.pCont);
   return ret;
@@ -482,15 +488,16 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   if (pTrans->undoActions == NULL) goto _OVER;
   if (pTrans->commitActions == NULL) goto _OVER;
 
-  if (mndTransDecodeAction(pRaw, &dataPos, pTrans->prepareActions, prepareActionNum) < 0) goto _OVER;
+  if (mndTransDecodeAction(pRaw, &dataPos, pTrans->prepareActions, prepareActionNum, sver) < 0) goto _OVER;
   if (pTrans->exec == TRN_EXEC_GROUP_PARALLEL) {
-    if (mndTransDecodeActionWithGroup(pRaw, &dataPos, pTrans->redoActions, redoActionNum, pTrans->redoGroupActions) < 0)
+    if (mndTransDecodeActionWithGroup(pRaw, &dataPos, pTrans->redoActions, redoActionNum, pTrans->redoGroupActions,
+                                      sver) < 0)
       goto _OVER;
   } else {
-    if (mndTransDecodeAction(pRaw, &dataPos, pTrans->redoActions, redoActionNum) < 0) goto _OVER;
+    if (mndTransDecodeAction(pRaw, &dataPos, pTrans->redoActions, redoActionNum, sver) < 0) goto _OVER;
   }
-  if (mndTransDecodeAction(pRaw, &dataPos, pTrans->undoActions, undoActionNum) < 0) goto _OVER;
-  if (mndTransDecodeAction(pRaw, &dataPos, pTrans->commitActions, commitActionNum) < 0) goto _OVER;
+  if (mndTransDecodeAction(pRaw, &dataPos, pTrans->undoActions, undoActionNum, sver) < 0) goto _OVER;
+  if (mndTransDecodeAction(pRaw, &dataPos, pTrans->commitActions, commitActionNum, sver) < 0) goto _OVER;
 
   SDB_GET_INT32(pRaw, dataPos, &pTrans->startFunc, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pTrans->stopFunc, _OVER)
@@ -515,29 +522,24 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   int8_t ableKill = 0;
   int32_t killMode = 0;
   SDB_GET_INT8(pRaw, dataPos, &ableKill, _OVER)
-  lino = __LINE__;
-  SDB_GET_INT32_LINE(pRaw, dataPos, &killMode, _OVER, lino)
+  SDB_GET_INT32(pRaw, dataPos, &killMode, _OVER)
   pTrans->ableToBeKilled = ableKill;
   pTrans->killMode = (int8_t)killMode;
 
   if (sver > TRANS_VER2_NUMBER) {
     int32_t groupNum = -1;
-    lino = __LINE__;
     SDB_GET_INT32(pRaw, dataPos, &groupNum, _OVER)
     for (int32_t i = 0; i < groupNum; ++i) {
       int32_t groupId = -1;
       int32_t groupPos = -1;
-      lino = __LINE__;
-      SDB_GET_INT32_LINE(pRaw, dataPos, &groupId, _OVER, lino)
-      lino = __LINE__;
-      SDB_GET_INT32_LINE(pRaw, dataPos, &groupPos, _OVER, lino)
+      SDB_GET_INT32(pRaw, dataPos, &groupId, _OVER)
+      SDB_GET_INT32(pRaw, dataPos, &groupPos, _OVER)
       if ((terrno = taosHashPut(pTrans->groupActionPos, &groupId, sizeof(int32_t), &groupPos, sizeof(int32_t))) != 0)
         goto _OVER;
     }
   }
 
-  lino = __LINE__;
-  SDB_GET_RESERVE_LINE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER, lino)
+  SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 

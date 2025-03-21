@@ -46,15 +46,6 @@ extern "C" {
     dataPos += sizeof(type);                              \
   }
 
-#define SDB_GET_VAL_LINE(pData, dataPos, val, pos, func, type, lineat) \
-  {                                                                    \
-    if ((code = func(pRaw, dataPos, val)) != 0) {                      \
-      lino = lineat;                                                   \
-      goto pos;                                                        \
-    }                                                                  \
-    dataPos += sizeof(type);                                           \
-  }
-
 #define SDB_GET_BINARY(pRaw, dataPos, val, valLen, pos)              \
   {                                                                  \
     if ((code = sdbGetRawBinary(pRaw, dataPos, val, valLen)) != 0) { \
@@ -64,20 +55,9 @@ extern "C" {
     dataPos += valLen;                                               \
   }
 
-#define SDB_GET_BINARY_LINE(pRaw, dataPos, val, valLen, pos, LINO)   \
-  do {                                                               \
-    if ((code = sdbGetRawBinary(pRaw, dataPos, val, valLen)) != 0) { \
-      LINO = __LINE__;                                               \
-      goto pos;                                                      \
-    }                                                                \
-    dataPos += valLen;                                               \
-  } while (0);
-
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
 #define SDB_GET_FLOAT(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawFloat, float)
 #define SDB_GET_INT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt32, int32_t)
-#define SDB_GET_INT32_LINE(pData, dataPos, val, pos, line) \
-  SDB_GET_VAL_LINE(pData, dataPos, val, pos, sdbGetRawInt32, int32_t, lino)
 #define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
 #define SDB_GET_INT8(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
 #define SDB_GET_UINT8(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawUInt8, uint8_t)
@@ -87,12 +67,6 @@ extern "C" {
   {                                                 \
     char val[valLen] = {0};                         \
     SDB_GET_BINARY(pRaw, dataPos, val, valLen, pos) \
-  }
-
-#define SDB_GET_RESERVE_LINE(pRaw, dataPos, valLen, pos, lino) \
-  {                                                            \
-    char val[valLen] = {0};                                    \
-    SDB_GET_BINARY_LINE(pRaw, dataPos, val, valLen, pos, lino) \
   }
 
 #define SDB_SET_VAL(pRaw, dataPos, val, pos, func, type) \
