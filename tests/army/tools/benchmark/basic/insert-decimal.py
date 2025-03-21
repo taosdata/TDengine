@@ -100,7 +100,7 @@ class TDTestCase(TBase):
 
         self.check_decimal_scale(db_name, stb_name, columns[1])
         self.check_decimal_scale(db_name, stb_name, columns[9])
-        tdLog.info("check decimal scale successfully")
+        tdLog.info("check json decimal scale successfully")
 
         self.check_within_bounds(db_name, stb_name, columns[0], "min", "max")
         self.check_within_bounds(db_name, stb_name, columns[1])
@@ -125,6 +125,22 @@ class TDTestCase(TBase):
         pass
 
 
+    def check_cmd_normal(self, benchmark, options=""):
+        # exec
+        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(24,10)' -t 10 -y"
+        eos.exe(cmd)
+
+        db_name     = 'test'
+        stb_name    = 'meters'
+        col_config  = {'name': 'c1', 'scale': 6}
+        self.check_decimal_scale(db_name, stb_name, {'name': 'c1', 'scale': 6})
+        self.check_decimal_scale(db_name, stb_name, {'name': 'c2', 'scale': 10})
+        tdLog.info("check cmd decimal scale successfully")
+
+        self.check_within_bounds(db_name, stb_name, {'name': 'c1', 'precision': 10, 'scale': 6})
+        self.check_within_bounds(db_name, stb_name, {'name': 'c2', 'precision': 24, 'scale': 10})
+
+
     def run(self):
         # path
         benchmark = etool.benchMarkFile()
@@ -134,7 +150,10 @@ class TDTestCase(TBase):
         self.check_json_normal(benchmark, json_file)
 
         # check others
-        # self.check_json_others(benchmark, json_file)
+        self.check_json_others(benchmark, json_file)
+
+        # check cmd normal
+        self.check_cmd_normal(benchmark)
 
 
     def stop(self):
