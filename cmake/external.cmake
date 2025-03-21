@@ -1093,3 +1093,122 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
     )
     add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
 endif()                                          # }
+
+if(TD_TAOS_TOOLS)
+    if(${TD_LINUX})
+        set(ext_jansson_static libjansson.a)
+    elseif(${TD_DARWIN})
+        set(ext_jansson_static libjansson.a)
+    elseif(${TD_WINDOWS})
+        set(ext_jansson_static jansson$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:_d>.lib)
+    endif()
+    INIT_EXT(ext_jansson
+        INC_DIR          include
+        LIB              lib/${ext_jansson_static}
+    )
+    get_from_local_repo_if_exists("https://github.com/akheron/jansson.git")
+    ExternalProject_Add(ext_jansson
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 61fc3d0e28e1a35410af42e329cd977095ec32d2
+        GIT_SHALLOW FALSE
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DJANSSON_BUILD_DOCS:BOOL=OFF
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_jansson)     # this is for github workflow in cache-miss step.
+
+    if(${TD_LINUX})
+        set(ext_snappy_static libsnappy.a)
+    elseif(${TD_DARWIN})
+        set(ext_snappy_static libsnappy.a)
+    elseif(${TD_WINDOWS})
+        set(ext_snappy_static snappy.lib)
+    endif()
+    INIT_EXT(ext_snappy
+        INC_DIR          include
+        LIB              lib/${ext_snappy_static}
+    )
+    get_from_local_repo_if_exists("https://github.com/google/snappy.git")
+    ExternalProject_Add(ext_snappy
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 32ded457c0b1fe78ceb8397632c416568d6714a0
+        GIT_SHALLOW FALSE
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_snappy)     # this is for github workflow in cache-miss step.
+
+    if(${TD_LINUX})
+        set(ext_avro_static libavro.a)
+        set(_c_flags_list "")
+    elseif(${TD_DARWIN})
+        set(ext_avro_static libavro.a)
+        set(_c_flags_list "")
+    elseif(${TD_WINDOWS})
+        set(ext_avro_static avro.lib)
+        set(_c_flags_list
+            /wd4819
+            /wd4244
+            /wd4267
+            /wd4068
+            /wd4996
+            /wd4146
+            /wd4305
+        )
+    endif()
+    string(JOIN " " _c_flags ${_c_flags_list})
+    INIT_EXT(ext_avro
+        INC_DIR          include
+        LIB              lib/${ext_avro_static}
+    )
+    get_from_local_repo_if_exists("https://github.com/apache/avro.git")
+    ExternalProject_Add(ext_avro
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 7b106b12ae22853c977259710d92a237d76f2236
+        GIT_SHALLOW FALSE
+        DEPENDS ext_zlib ext_jansson ext_snappy
+        PREFIX "${_base}"
+        SOURCE_SUBDIR lang/c
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DZLIB_INCLUDE_DIRS:STRING=${ext_zlib_install}/include
+        CMAKE_ARGS -DZLIB_LIBRARIES:STRING=${ext_zlib_install}/lib/${ext_zlib_static}
+        CMAKE_ARGS -DSNAPPY_INCLUDE_DIRS:STRING=${ext_snappy_install}/include
+        CMAKE_ARGS -DSNAPPY_LIBRARIES:STRING=${ext_snappy_install}/lib/${ext_snappy_static}
+        CMAKE_ARGS -DJANSSON_INCLUDE_DIRS:STRING=${ext_jansson_install}/include
+        CMAKE_ARGS -DJANSSON_LIBRARY_DIRS:STRING=${ext_jansson_install}/lib/${ext_jansson_static}
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${_c_flags}"
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.CMakeLists.txt.in            ${ext_avro_source}/lang/c/CMakeLists.txt
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.src.avro.msinttypes.h.in     ${ext_avro_source}/lang/c/src/avro/msinttypes.h
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.src.avro.platform.h.in       ${ext_avro_source}/lang/c/src/avro/platform.h
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.src.avroappend.c.in          ${ext_avro_source}/lang/c/src/avroappend.c
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.src.avro_private.h.in        ${ext_avro_source}/lang/c/src/avro_private.h
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.src.CMakeLists.txt.in        ${ext_avro_source}/lang/c/src/CMakeLists.txt
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.src.codec.c.in               ${ext_avro_source}/lang/c/src/codec.c
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.src.schema.c.in              ${ext_avro_source}/lang/c/src/schema.c
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.tests.CMakeLists.txt.in      ${ext_avro_source}/lang/c/tests/CMakeLists.txt
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/avro.lang.c.tests.test_avro_data.c.in    ${ext_avro_source}/lang/c/tests/test_avro_data.c
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_avro)     # this is for github workflow in cache-miss step.
+endif()

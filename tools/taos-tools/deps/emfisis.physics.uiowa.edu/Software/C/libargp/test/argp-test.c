@@ -18,6 +18,11 @@
    Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
    02111-1307 USA.  */
 
+#ifdef _WIN32
+#define _CRT_RAND_S
+#include <stdlib.h>
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -26,6 +31,42 @@
 #include <time.h>
 #include <string.h>
 #include <argp.h>
+#include <stdarg.h>
+
+#ifdef _WIN32
+#ifdef _MSC_VER         // {
+#define strdup _strdup
+static unsigned int random(void)
+{
+  unsigned int v = 0;
+  if (rand_s(&v)) {
+    v = (unsigned int)rand();
+  }
+  return v;
+}
+
+#define asprintf(ret, fmt, ...)  (0 ? printf(fmt, ##__VA_ARGS__) : asprintf_impl(ret, fmt, ##__VA_ARGS__))
+
+static int asprintf_impl(char **ret, const char *format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  int len = vsnprintf(NULL, 0, format, args);
+  va_end(args);
+  if (len < 0) {
+    return -1;
+  }
+  *ret = (char *)malloc(len + 1);
+  if (*ret == NULL) {
+    return -1;
+  }
+  va_start(args, format);
+  vsnprintf(*ret, len + 1, format, args);
+  va_end(args);
+  return len;
+}
+#endif                  // }
+#endif
 
 const char *argp_program_version = "argp-test 1.0";
 

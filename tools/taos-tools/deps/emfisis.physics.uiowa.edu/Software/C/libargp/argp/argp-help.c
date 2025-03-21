@@ -34,7 +34,14 @@
 #endif
 
 /* cwp: solaris 10 hack */
+#ifndef _WIN32                     // {
 #include <alloca.h>
+#elif !defined(_MSC_VER)           // }{
+#include <alloca.h>
+#else                              // }{
+#include <malloc.h>
+#define strcasecmp _stricmp
+#endif                             // }
 
 /* AIX requires this to be the first thing in the file.  */
 /* #ifndef __GNUC__
@@ -91,7 +98,11 @@ char *strerror_r (int errnum, char *buf, size_t buflen);
 #  endif
 # else
 #  if !HAVE_DECL_STRERROR
+#ifndef _WIN32                     // {
 char *strerror (int errnum);
+#elif !defined(_MSC_VER)           // }{
+char *strerror (int errnum);
+#endif                             // }
 #  endif
 # endif
 #endif

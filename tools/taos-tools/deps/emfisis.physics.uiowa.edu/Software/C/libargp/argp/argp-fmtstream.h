@@ -28,7 +28,13 @@
 
 #include <stdio.h>
 #include <string.h>
+#ifndef _WIN32                     // {
 #include <unistd.h>
+#elif !defined(_MSC_VER)           // }{
+#include <unistd.h>
+#else                              // }{
+typedef ptrdiff_t ssize_t;
+#endif                             // }
 
 #ifndef __attribute__
 /* This feature is available in gcc versions 2.5 and later.  */

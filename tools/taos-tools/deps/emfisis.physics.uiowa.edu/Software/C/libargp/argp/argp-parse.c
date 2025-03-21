@@ -26,7 +26,13 @@
 #endif
 
 /* cwp: solaris 10 hack */
+#ifndef _WIN32                     // {
 #include <alloca.h>
+#elif !defined(_MSC_VER)           // }{
+#include <alloca.h>
+#else                              // }{
+#include <malloc.h>
+#endif                             // }
 
 /* AIX requires this to be the first thing in the file.  */
 /* #ifndef __GNUC__
@@ -46,7 +52,11 @@
 
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32                     // {
 #include <unistd.h>
+#elif !defined(_MSC_VER)           // }{
+#include <unistd.h>
+#endif                             // }
 #include <limits.h>
 #include "./getopt.h"
 #include "./getopt_int.h"
@@ -59,6 +69,14 @@
 /* Use windows API millisecond sleep */
 #define sleep(n) Sleep(1000 * n)
 
+#endif
+
+#ifdef _WIN32            
+#ifdef _MSC_VER                    // {
+#include <windows.h>
+/* Use windows API millisecond sleep */
+#define sleep(n) Sleep(1000 * (n))
+#endif                             // }
 #endif
 
 #ifndef _
