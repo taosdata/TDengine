@@ -2,6 +2,9 @@ name: TDinternal Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'test/cyjia'
   # pull_request:
   #   branches:
   #     - 'main'
