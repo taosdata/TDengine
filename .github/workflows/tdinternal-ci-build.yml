@@ -55,10 +55,18 @@ jobs:
         run: |
           brew update
           brew install argp-standalone gflags pkg-config  snappy zlib geos jansson gawk openssl
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ vars.TAOSDATA_BOT_ID }}
+          private_key: ${{ secrets.TAOSDATA_BOT_KEY }}
       - name: Configure Git authentication
         run: |
-            git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
-      
+            git config --global url."https://x-access-token:${{ steps.app-token.outputs.token}}@github.com/".insteadOf "https://github.com/"
+      - name: debug git clone
+        run: |
+          git clone https://github.com/taosdata/grant-lib.git/
       - name: Build and install TDinternal
         run: |
           mkdir debug && cd debug
