@@ -93,16 +93,18 @@ static void taos_init_wrapper(void) {
   tsDriverOnceRet = taosDriverInit(tsDriverType);
   if (tsDriverOnceRet != 0) return;
 
+  tsDriverOnceRet = 0;
+}
+
+int taos_init(void) {
+  (void)taosThreadOnce(&tsDriverOnce, taos_init_wrapper);
+
   if (fp_taos_init == NULL) {
     terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
     tsDriverOnceRet = -1;
   } else {
     tsDriverOnceRet = (*fp_taos_init)();
   }
-}
-
-int taos_init(void) {
-  (void)taosThreadOnce(&tsDriverOnce, taos_init_wrapper);
   return tsDriverOnceRet;
 }
 
@@ -126,11 +128,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
     terrno = TSDB_CODE_REPEAT_INIT;
     return -1;
   }
-
-  if (taos_init() != 0) {
-    terrno = TSDB_CODE_DLL_NOT_LOAD;
-    return -1;
-  }
+  (void)taosThreadOnce(&tsDriverOnce, taos_init_wrapper);
 
   CHECK_INT(fp_taos_options);
   return (*fp_taos_options)(option, arg);
