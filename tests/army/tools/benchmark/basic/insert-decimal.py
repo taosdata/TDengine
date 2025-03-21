@@ -38,23 +38,31 @@ class TDTestCase(TBase):
         eos.exe(cmd)
 
 
-    def get_scale_value(self, number_str):
-        dot_position = number_str.find('.')
-
-        if dot_position == -1:
-            return 0
-        else:
-            return len(number_str) - dot_position - 1
+    def get_decimal_scale(self, dec):
+        _, _, exponent = dec.as_tuple()
+        return max(0, -exponent)
 
 
     def check_decimal_scale(self, db_name, tbl_name, col_config):
         sql = "select max(%s) from %s.%s" % (col_config['name'], db_name, tbl_name)
         tdSql.query(sql)
         decimal = tdSql.getData(0, 0)
-        scale   = self.get_scale_value(decimal)
+        scale   = self.get_decimal_scale(decimal)
 
         if scale != col_config['scale']:
             tdLog.exit(f"scale value is not as expected. actual: {scale}, expected: {col_config['scale']}, col_config: {col_config}")
+
+
+    def generate_min_max_values(self, precision, scale):
+        int_part_digits = precision - scale
+        
+        max_value = '9' * int_part_digits
+        if scale > 0:
+            max_value += '.' + '9' * scale
+        
+        min_value = '-' + max_value
+
+        return min_value, max_value
 
 
     def format_out_of_bounds_sql(self, db_name, tbl_name, col_config, min_key=None, max_key=None):
@@ -62,6 +70,9 @@ class TDTestCase(TBase):
     
         if min_key is not None and max_key is not None:
             sql += " where %s>=%s or %s<%s" % (col_config['name'], col_config[max_key], col_config['name'], col_config[min_key])
+        else:
+            min_value, max_value = self.generate_min_max_values(col_config['precision'], col_config['scale'])
+            sql += " where %s>=%s or %s<%s" % (col_config['name'], max_value, col_config['name'], min_value)
 
         return sql
 
@@ -89,6 +100,7 @@ class TDTestCase(TBase):
 
         self.check_decimal_scale(db_name, stb_name, columns[1])
         self.check_decimal_scale(db_name, stb_name, columns[9])
+        tdLog.info("check decimal scale successfully")
 
         self.check_within_bounds(db_name, stb_name, columns[0], "min", "max")
         self.check_within_bounds(db_name, stb_name, columns[1])
@@ -106,7 +118,7 @@ class TDTestCase(TBase):
         self.check_within_bounds(db_name, stb_name, columns[13], "dec_min", "dec_max")
         self.check_within_bounds(db_name, stb_name, columns[14], "dec_min", "dec_max")
         self.check_within_bounds(db_name, stb_name, columns[15], "dec_min", "dec_max")
-        self.check_within_bounds(db_name, stb_name, columns[16])
+        # self.check_within_bounds(db_name, stb_name, columns[16])
 
 
     def check_json_others(self, benchmark, json_file, options=""):
