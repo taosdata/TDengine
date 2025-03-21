@@ -42,6 +42,8 @@ jobs:
 
       - name: Generate Markdown files
         if: steps.changed-case-files.outputs.any_changed == 'true'
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-case-files.outputs.all_changed_files }}
         run: |
           mkdir -p test/docs/case_list_docs
           for file in ${ALL_CHANGED_FILES}; do
