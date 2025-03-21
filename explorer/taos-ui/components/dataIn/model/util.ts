@@ -194,11 +194,11 @@ export function generateFormInitData(paramsConfig: Recordable[]) {
         data[item.field + '_unit'] = item.unit_value || '';
         data[item.field] = '';
       }
-      if (item.type === 'composeAppend') {
-        data[item.field + '_unit'] = item.unit_value || '';
-        data[item.field + '_value'] = Number(value);
-        data[item.field] = '';
-      }
+      // if (item.type === 'composeAppend') {
+      //   data[item.field + '_unit'] = item.unit_value || '';
+      //   data[item.field + '_value'] = Number(value);
+      //   data[item.field] = '';
+      // }
     }
     return data;
   }, {});

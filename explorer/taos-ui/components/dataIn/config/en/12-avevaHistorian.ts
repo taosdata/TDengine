@@ -212,11 +212,10 @@ export default {
               description: 'Time window for historical data migration.',
               field: 'timeWindow',
               placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '1',
+              defaultValue: '1d',
               pattern: null,
               patternMsg: 'The value can only be a positive integer or 0',
               grid_two: false,
-              unit_value: 'd',
               type: 'composeAppend',
               options: [
                 {
@@ -273,11 +272,10 @@ export default {
               description: 'Pull interval for real-time data synchronization.',
               field: 'retrieveInterval',
               placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '10',
+              defaultValue: '10s',
               pattern: null,
               patternMsg: 'The value can only be a positive integer or 0',
               grid_two: false,
-              unit_value: 's',
               type: 'composeAppend',
               options: [
                 {
@@ -313,11 +311,10 @@ export default {
               description: 'The maximum time limit for tolerating out-of-order data delay.',
               field: 'tolerance',
               placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '0',
+              defaultValue: '0ms',
               pattern: null,
               patternMsg: 'The value can only be a positive integer or 0',
               grid_two: false,
-              unit_value: 'ms',
               type: 'composeAppend',
               options: [
                 {
@@ -521,7 +518,6 @@ export default {
           field: 'health_check_window_in_second',
           description:
             'Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.',
-          defaultValue: '',
           placeholder: 'Enter an integer in the range [0, 60000]',
           required: false,
           hint: {
@@ -535,7 +531,7 @@ export default {
             min: 0,
             max: 60000
           },
-          unit_value: 's',
+          defaultValue: '0s',
           type: 'composeAppend',
           options: [
             {
@@ -551,7 +547,7 @@ export default {
           field: 'busy_threshold',
           description:
             'Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.',
-          defaultValue: '100',
+          defaultValue: '100%',
           required: false,
           hint: {
             type: 'duration',
@@ -564,7 +560,6 @@ export default {
             min: 0,
             max: 100
           },
-          unit_value: '%',
           type: 'composeAppend',
           options: [
             {

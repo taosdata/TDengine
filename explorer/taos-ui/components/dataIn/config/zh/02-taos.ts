@@ -67,14 +67,10 @@ export default {
       label: '认证',
       description: '使用用户名密码进行认证。',
       field: 'authentication',
-      type: 'tabs',
-      valueField: 'dea7d812-3c76-40a5-bb8a-1048945f79cb',
-      defaultValue: 'plain',
-      multiple: false,
       children: [
         {
           label: '用户名密码',
-          name: 'plain',
+          name: '',
           field: 'plain',
           children: [
             {
@@ -188,11 +184,10 @@ export default {
               description: '元数据轮询间隔，用于同步过程中的元数据变更检测。',
               field: 'schema-polling-interval',
               placeholder: '输入范围为[0,60000]整数',
-              defaultValue: 5,
+              defaultValue: "5s",
               pattern: null,
               patternMsg: '只能输入正整数或者0',
               grid_two: false,
-              unit_value: 's',
               type: 'composeAppend',
               options: [
                 {
@@ -279,11 +274,10 @@ export default {
                 '查询数据的基本单元，长时间范围的查询会以此为依据切割为多次查询。<br>\n支持使用数字加单位缩写，如"1ms"表示1毫秒，"1s"表示1秒，"1m"表示1分钟，"1h"表示1小时，"1d"表示1天，"1w"表示1周。<br>\n单独使用数字则默认认为是秒。<br>',
               field: 'unit',
               placeholder: '输入范围为[0,60000]整数',
-              defaultValue: 1,
+              defaultValue: '1d',
               pattern: null,
               patternMsg: '只能输入正整数或者0',
               grid_two: false,
-              unit_value: 'd',
               type: 'composeAppend',
               options: [
                 {
@@ -321,11 +315,10 @@ export default {
                 '在实时同步前回溯一段时间内的数据写入目标库。<br>\n支持使用数字加单位缩写，如"1ms"表示1毫秒，"1s"表示1秒，"1m"表示1分钟，"1h"表示1小时，"1d"表示1天，"1w"表示1周。<br>\n单独使用数字则默认认为是秒。<br>',
               field: 'retro',
               placeholder: '输入范围为[0,60000]整数',
-              defaultValue: 0,
+              defaultValue: '0s',
               pattern: null,
               patternMsg: '只能输入正整数或者0',
               grid_two: false,
-              unit_value: 's',
               type: 'composeAppend',
               options: [
                 {
@@ -359,11 +352,10 @@ export default {
                 '轮询查询的时间间隔。<br>\n支持使用数字加单位缩写，如"1ms"表示1毫秒，"1s"表示1秒，"1m"表示1分钟，"1h"表示1小时，"1d"表示1天，"1w"表示1周。<br>\n单独使用数字则默认认为是秒。<br>',
               field: 'interval',
               placeholder: '输入范围为[0,60000]整数',
-              defaultValue: 1,
+              defaultValue: '1s',
               pattern: null,
               patternMsg: '只能输入正整数或者0',
               grid_two: false,
-              unit_value: 's',
               type: 'composeAppend',
               options: [
                 {
@@ -389,11 +381,10 @@ export default {
                 '等待一段时间的乱序数据入库后再进行查询。<br>\n支持使用数字加单位缩写，如"1ms"表示1毫秒，"1s"表示1秒，"1m"表示1分钟，"1h"表示1小时，"1d"表示1天，"1w"表示1周。<br>\n单独使用数字则默认认为是秒。<br>',
               field: 'excursion',
               placeholder: '输入范围为[0,60000]整数',
-              defaultValue: 500,
+              defaultValue: '500ms',
               pattern: null,
               patternMsg: '只能输入正整数或者0',
               grid_two: false,
-              unit_value: 'ms',
               type: 'composeAppend',
               options: [
                 {

@@ -1,15 +1,16 @@
 <template>
   <div class="input-number-with-select">
     <el-input-number
-      v-model="localData[config.field + '_value']"
+      v-model="val"
       style="width: 80%"
       :placeholder="config.placeholder"
       :max="config.max"
       :min="config.min"
       :controls="false"
+      @change="onChange"
     >
     </el-input-number>
-    <el-select v-model="localData[config.field + '_unit']" style="width: 20%">
+    <el-select v-model="unit" style="width: 20%" @change="onChange">
       <el-option v-for="item in options" :key="item.value" v-bind="item" :title="item.label"></el-option>
     </el-select>
   </div>
@@ -18,16 +19,37 @@
 const props = withDefaults(
   defineProps<{
     config: Record<string, any>;
-    data: Record<string, any>;
+    modelValue: string,
     options: Record<string, any>;
   }>(),
   {}
 );
-const localData = reactive(props.data);
-defineEmits(['update:data']);
-watch(localData, () => {
-  localData[props.config.field] = localData[props.config.field + '_value'] + localData[props.config.field + '_unit'];
+
+const val = ref(0);
+const unit = ref('');
+const regexInputValue = /^(\d+)([a-zA-Z%]+)$/;
+
+// watch(
+//   () => props.modelValue,
+//   newVal => {
+    
+//   }
+// );
+onMounted(() => {
+  if (props.modelValue && regexInputValue.test(props.modelValue)) {
+    const matchItems = props.modelValue.match(regexInputValue);
+    if (matchItems && matchItems.length === 3) {
+      val.value = parseInt(matchItems[1]);
+      unit.value = matchItems[2];
+    }
+  }
 });
+
+const emit = defineEmits(['update:modelValue']);
+const onChange = () => {
+  emit('update:modelValue', `${val.value}${unit.value}`)
+}
+
 </script>
 <style scoped lang="scss">
 .input-number-with-select {

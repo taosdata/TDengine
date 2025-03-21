@@ -415,7 +415,6 @@ export default {
           field: 'health_check_window_in_second',
           description:
             'Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.',
-          defaultValue: '',
           placeholder: 'Enter an integer in the range [0, 60000]',
           required: false,
           hint: {
@@ -429,7 +428,7 @@ export default {
             min: 0,
             max: 60000
           },
-          unit_value: 's',
+          defaultValue: '0s',
           type: 'composeAppend',
           options: [
             {
@@ -445,7 +444,7 @@ export default {
           field: 'busy_threshold',
           description:
             'Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.',
-          defaultValue: '100',
+          defaultValue: '100%',
           required: false,
           hint: {
             type: 'duration',
@@ -458,7 +457,6 @@ export default {
             min: 0,
             max: 100
           },
-          unit_value: '%',
           type: 'composeAppend',
           options: [
             {
