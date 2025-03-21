@@ -20,6 +20,28 @@ unset TAOS_DISABLE_EXPLORER
 DATA_DIR=$(taosd -C|grep -E 'dataDir.*(\S+)' -o |head -n1|sed 's/dataDir *//')
 DATA_DIR=${DATA_DIR:-/var/lib/taos}
 
+# to get config dir
+CONFIG_DIR=$(taosd -C|grep -E 'configDir.*(\S+)' -o |head -n1|sed 's/configDir *//')
+CONFIG_DIR=${CONFIG_DIR:-/etc/taos}
+
+# only set fqdn when first start
+if ! [ -f "$DATA_DIR/dnode/dnode.json" ];then
+    if [ -n "$TAOS_FQDN" ]; then
+        # if TAOS_FQDN is set, use it
+        sed -i "s/^fqdn.*/fqdn\t\t\t$TAOS_FQDN/" "${CONFIG_DIR}taos.cfg"
+        sed -i "s/^monitorFQDN.*/monitorFQDN\t\t\t$TAOS_FQDN/" "${CONFIG_DIR}taos.cfg"
+        sed -i "s/^urls = \[\"http:\/\/.*:/urls = \[\"http:\/\/$TAOS_FQDN:/" "${CONFIG_DIR}taosadapter.toml"
+        sed -i "s/http:\/\/.*:/http:\/\/$TAOS_FQDN:/" "${CONFIG_DIR}explorer.toml"
+        sed -i "s/^host = .*/host = \"$TAOS_FQDN\"/" "${CONFIG_DIR}taoskeeper.toml"
+    else
+        # if TAOS_FQDN is not set, use hostname
+        sed -i "s/^fqdn.*/fqdn\t\t\t$HOSTNAME/" "${CONFIG_DIR}taos.cfg"
+        sed -i "s/^monitorFQDN.*/monitorFQDN\t\t\t$HOSTNAME/" "${CONFIG_DIR}taos.cfg"
+        sed -i "s/^urls = \[\"http:\/\/.*:/urls = \[\"http:\/\/$HOSTNAME:/" "${CONFIG_DIR}taosadapter.toml"
+        sed -i "s/http:\/\/.*:/http:\/\/$HOSTNAME:/" "${CONFIG_DIR}explorer.toml"
+        sed -i "s/^host = .*/host = \"$HOSTNAME\"/" "${CONFIG_DIR}taoskeeper.toml"
+    fi
+fi
 
 FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
 # ensure the fqdn is resolved as localhost
