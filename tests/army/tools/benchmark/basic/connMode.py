@@ -123,7 +123,7 @@ class TDTestCase(TBase):
         #
 
         # 6041 is default
-        options = "-h 127.0.0.1 -P 6041 -uroot -ptaosdata"
+        options = "-Z 1 -h 127.0.0.1 -P 6041 -uroot -ptaosdata"
         json = "tools/benchmark/basic/json/connModePriorityErrHost.json"
         self.insertBenchJson(json, options, True)
 
