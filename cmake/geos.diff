@@ -1,0 +1,127 @@
+diff --git a/capi/geos_c.h.in b/capi/geos_c.h.in
+index 210fd014..27f0f163 100644
+--- a/capi/geos_c.h.in
++++ b/capi/geos_c.h.in
+@@ -339,6 +339,8 @@ extern void GEOS_DLL GEOS_interruptCancel(void);
+ */
+ extern GEOSContextHandle_t GEOS_DLL GEOS_init_r(void);
+ 
++extern void GEOS_set_strict_mode(int set);
++
+ /**
+ * Free the memory associated with a \ref GEOSContextHandle_t
+ * when you are finished calling GEOS functions.
+diff --git a/capi/geos_ts_c.cpp b/capi/geos_ts_c.cpp
+index 9c42927f..ba4131fe 100644
+--- a/capi/geos_ts_c.cpp
++++ b/capi/geos_ts_c.cpp
+@@ -3150,6 +3150,12 @@ extern "C" {
+         });
+     }
+ 
++    void
++    GEOS_set_strict_mode(int set)
++    {
++      WKTReader::setStrictMode(set);
++    }
++
+     Geometry*
+     GEOSWKTReader_read_r(GEOSContextHandle_t extHandle, WKTReader* reader, const char* wkt)
+     {
+diff --git a/include/geos/io/WKTReader.h b/include/geos/io/WKTReader.h
+index 93249bd7..98be154e 100644
+--- a/include/geos/io/WKTReader.h
++++ b/include/geos/io/WKTReader.h
+@@ -111,6 +111,8 @@ public:
+ 
+     std::unique_ptr<geom::Geometry> read(const std::string& wellKnownText) const;
+ 
++    static void setStrictMode(int set);
++
+ protected:
+     std::unique_ptr<geom::CoordinateSequence> getCoordinates(io::StringTokenizer* tokenizer, OrdinateSet& ordinates) const;
+     static double getNextNumber(io::StringTokenizer* tokenizer);
+@@ -139,6 +141,7 @@ private:
+ 
+     static void readOrdinateFlags(const std::string & s, OrdinateSet& ordinateFlags);
+     static bool isTypeName(const std::string & type, const std::string & typeName);
++    static int  strictMode;
+ };
+ 
+ } // namespace io
+diff --git a/src/io/WKTReader.cpp b/src/io/WKTReader.cpp
+index 3ed64063..bc1eff0f 100644
+--- a/src/io/WKTReader.cpp
++++ b/src/io/WKTReader.cpp
+@@ -37,12 +37,13 @@
+ #include <string>
+ #include <cassert>
+ 
+-
+ using namespace geos::geom;
+ 
+ namespace geos {
+ namespace io { // geos.io
+ 
++int WKTReader::strictMode = 0;
++
+ std::unique_ptr<Geometry>
+ WKTReader::read(const std::string& wellKnownText) const
+ {
+@@ -149,8 +150,22 @@ WKTReader::getNextNumber(StringTokenizer* tokenizer)
+     return 0;
+ }
+ 
++void
++WKTReader::setStrictMode(int set)
++{
++  WKTReader::strictMode = !!set;
++}
++
+ bool
+ WKTReader::isTypeName(const std::string & type, const std::string & typeName) {
++    if (WKTReader::strictMode) {
++      // freemine: for POINT, only POINTZ, POINTM, POINTZM are allowed
++      if (type == typeName) return true;
++      if (type == typeName + 'Z') return true;
++      if (type == typeName + 'M') return true;
++      if (type == typeName + "ZM") return true;
++      return false;
++    }
+     return util::startsWith(type, typeName);
+ }
+ 
+@@ -178,18 +193,33 @@ WKTReader::getNextEmptyOrOpener(StringTokenizer* tokenizer, OrdinateSet& ordinat
+ 
+     // Skip the Z, M or ZM of an SF1.2 3/4 dim coordinate.
+     if (nextWord == "ZM") {
++        if (WKTReader::strictMode) {
++          if (!ordinateFlags.changesAllowed()) {
++            throw ParseException("Unexpected 'ZM' because 'Z' and/or 'M' has already been defined in typeName");
++          }
++        }
+         ordinateFlags.setZ(true);
+         ordinateFlags.setM(true);
+         flagsModified = true;
+         nextWord = getNextWord(tokenizer);
+     } else {
+         if (nextWord == "Z") {
++            if (WKTReader::strictMode) {
++              if (!ordinateFlags.changesAllowed()) {
++                throw ParseException("Unexpected 'Z' because 'Z' and/or 'M' has already been defined in typeName");
++              }
++            }
+             ordinateFlags.setZ(true);
+             flagsModified = true;
+             nextWord = getNextWord(tokenizer);
+         }
+ 
+         if (nextWord == "M") {
++            if (WKTReader::strictMode) {
++              if (flagsModified || !ordinateFlags.changesAllowed()) {
++                throw ParseException("Unexpected 'M' because 'Z' and/or 'M' has already been defined in typeName or 'Z'");
++              }
++            }
+             ordinateFlags.setM(true);
+             flagsModified = true;
+             nextWord = getNextWord(tokenizer);
