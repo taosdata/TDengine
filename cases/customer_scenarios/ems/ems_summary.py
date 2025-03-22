@@ -7,7 +7,7 @@ import re
 import requests
 from taostest.util.rest import TDRest
 
-class FractalQuery(TDCase):
+class EMSQuery(TDCase):
     def init(self):
         self._remote: Remote = Remote(self.logger)
         self.tdRest = TDRest(env_setting=self.env_setting)
@@ -124,7 +124,7 @@ class FractalQuery(TDCase):
             "content": {
                 "post": {
                     "zh_cn": {
-                        "title": "Fractal-Test Report",
+                        "title": "EMS-Test Report",
                         "content": [
                             [{
                                 "tag": "text",

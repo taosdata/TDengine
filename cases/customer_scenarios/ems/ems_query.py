@@ -7,7 +7,7 @@ from taostest.util.remote import Remote
 from taostest.performance.perfor_basic import QueryFile
 from taostest.performance.result_reduction import Perf_Base_func
 
-class FractalQuery(TDCase):
+class EMSQuery(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql, self.env_setting)
         self.tdRest = TDRest(env_setting=self.env_setting)
@@ -57,7 +57,7 @@ class FractalQuery(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            fractal-query
+            ems-query
         """
         return case_description
 
