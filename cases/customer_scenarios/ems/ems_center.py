@@ -6,7 +6,7 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
 from taostest.util import file
-class FractalCenter(TDCase):
+class EMSCenter(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql, self.env_setting)
         self.tdRest = TDRest(env_setting=self.env_setting)
@@ -16,7 +16,7 @@ class FractalCenter(TDCase):
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
         self.db_config = json.load(open(os.path.join(self.env_root, "db_config.json")))
-        self.case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
+        self.case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/ems/config.yaml')
         self.edge_hosts = self.case_config["edge_dnode_hosts"]
         self.tdCom.api_type = 'restful'
         self.target_dbname = "center_db"
@@ -49,8 +49,8 @@ class FractalCenter(TDCase):
         # 创建legacy datain任务,每个edge侧的mqtt_datain数据库都会有一个legacy datain任务
         for edge_host in self.edge_hosts:
             case_data = {
-                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s",
-                "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}?{self.compression_param}",
+                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s&compression={self.compression_param}",
+                "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}",
                 "labels": self.case_data_org["from"]["labels"]
             }
             response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks',header=headers)
@@ -60,10 +60,10 @@ class FractalCenter(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            本用例用于fractal的客户场景测试center侧的测试执行，用例执行逻辑：
-            1. center侧taosd中创建数据库
-            2. 创建legacy datain任务，每个edge侧的mqtt_datain数据库都会有一个legacy datain任务
-            3. 统计每个legacy datain任务的写入速率，通过metrics接口获取
+            本用例用于 ems 的客户场景测试 center 侧的测试执行,用例执行逻辑:
+            1. center 侧 taosd 中创建数据库
+            2. 创建 legacy datain 任务,每个 edge 侧的 mqtt_datain 数据库都会有一个 legacy datain 任务
+            3. 统计每个 legacy datain 任务的写入速率,通过 metrics 接口获取
 
         """
         return case_description

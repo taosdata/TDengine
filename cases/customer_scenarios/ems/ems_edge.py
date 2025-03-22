@@ -1,11 +1,10 @@
 import json
 import os
-import time
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
 from taostest.util import file
-class FractalEdge(TDCase):
+class EMSEdge(TDCase):
     def init(self):
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
@@ -25,9 +24,9 @@ class FractalEdge(TDCase):
 
     def set_mqtt_datain_payload(self,hostname='localhost',target_dbname='mqtt_datain'):
         task_list = []
-        case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
+        case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/ems/config.yaml')
         case_data_from = case_data_org["from"]
-        mqtt_parser = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/parser.yaml')
+        mqtt_parser = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/ems/parser.yaml')
         for topic_id,topic_name in case_data_from["topics"].items():
             task_data = {}
             mqtt_parser[topic_id]["parser"]["s_model"]["name"] = f'site_{topic_id}_{hostname.replace("-", "_")}'
@@ -73,10 +72,10 @@ class FractalEdge(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            本用例用于fractal的客户场景测试，用例执行逻辑：
+            本用例用于 EMS 的客户场景测试, 用例执行逻辑：
             1. 每个edge侧taosd中创建数据库
-            2. 每个edge侧创建4个mqtt datain任务，每个edge侧的stable和table名需要保持唯一，通过外部参数传入
-            3. 统计每个mqtt datain任务的写入速率，通过metrics接口获取
+            2. 每个edge侧创建4个mqtt datain任务, 每个edge侧的stable和table名需要保持唯一, 通过外部参数传入
+            3. 统计每个mqtt datain任务的写入速率, 通过metrics接口获取
 
         """
         return case_description
