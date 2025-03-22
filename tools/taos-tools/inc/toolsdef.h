@@ -23,6 +23,8 @@ extern "C" {
 #include <stdbool.h>
 #include <time.h>
 
+#define ALLOW_FORBID_FUNC
+#include "os.h"
 
 #define TINY_BUFF_LEN                   8
 #define SMALL_BUFF_LEN                  20
@@ -249,19 +251,6 @@ int32_t toolsClockGetTime(int clock_id, struct timespec *pTS);
 int64_t toolsGetTimestampMs();
 int64_t toolsGetTimestampUs();
 int64_t toolsGetTimestampNs();
-
-#ifdef WINDOWS
-typedef struct {
-    int   we_wordc;
-    char *we_wordv[1];
-    int   we_offs;
-    char  wordPos[1025];
-} wordexp_t;
-int  wordexp(char *words, wordexp_t *pwordexp, int flags);
-void wordfree(wordexp_t *pwordexp);
-
-char *strsep(char **stringp, const char *delim);
-#endif
 
 typedef struct TdDir      *TdDirPtr;
 typedef struct TdDirEntry *TdDirEntryPtr;
