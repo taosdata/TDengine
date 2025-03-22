@@ -664,7 +664,7 @@ void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec) {
     maxStr[precision] = '\0';
     
     stringToDecimal64(maxStr, precision, scale, dec);
-    return dec;
+    return;
 }
 
 
@@ -679,7 +679,7 @@ void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec) {
     minStr[precision + 1] = '\0';
     
     stringToDecimal64(minStr, precision, scale, dec);
-    return dec;
+    return;
 }
 
 
@@ -693,7 +693,7 @@ void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec) 
     maxStr[precision] = '\0';
     
     stringToDecimal128(maxStr, precision, scale, dec);
-    return dec;
+    return;
 }
 
 
@@ -708,7 +708,7 @@ void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec) 
     minStr[precision + 1] = '\0';
     
     stringToDecimal128(minStr, precision, scale, dec);
-    return dec;
+    return;
 }
 
 
@@ -954,8 +954,8 @@ int32_t benchGetTotalMemory(int64_t *totalKB) {
   *totalKB = 0;
   return 0;
 #else
-  int64_t tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
-  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
+  int64_t pageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
+  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * pageSizeKB);
   return 0;
 #endif
 }
