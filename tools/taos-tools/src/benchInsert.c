@@ -65,6 +65,17 @@ static int getSuperTableFromServerTaosc(
     bool isTitleRow = true;
     uint32_t tag_count = 0;
     uint32_t col_count = 0;
+
+    int fieldsNum = taos_num_fields(res);
+    TAOS_FIELD_E* fields = taos_fetch_fields_e(res);
+
+    if (fieldsNum < TSDB_MAX_DESCRIBE_METRIC || !fields) {
+        errorPrint("%s", "failed to fetch fields\n");
+        taos_free_result(res);
+        closeBenchConn(conn);
+        return TSDB_CODE_FAILED;
+    }
+
     while ((row = taos_fetch_row(res)) != NULL) {
         if (isTitleRow) {
             isTitleRow = false;
@@ -87,7 +98,7 @@ static int getSuperTableFromServerTaosc(
             }
             uint8_t tagType = convertStringToDatatype(
                     (char *) row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                    lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX]);
+                    lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX], &(fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].precision));
             char *tagName = (char *) row[TSDB_DESCRIBE_METRIC_FIELD_INDEX];
             if (!searchBArray(stbInfo->tags, tagName,
                               lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX], tagType)) {
@@ -106,7 +117,7 @@ static int getSuperTableFromServerTaosc(
             }
             uint8_t colType = convertStringToDatatype(
                     (char *) row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                    lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX]);
+                    lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX], &(fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].precision));
             char * colName = (char *) row[TSDB_DESCRIBE_METRIC_FIELD_INDEX];
             if (!searchBArray(stbInfo->cols, colName,
                               lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX], colType)) {
@@ -210,6 +221,11 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
                            colIndex);
                 return -1;
             }
+        } else if (col->type == TSDB_DATA_TYPE_DECIMAL
+                || col->type == TSDB_DATA_TYPE_DECIMAL64) {
+            n = snprintf(colsBuf + len, col_buffer_len - len,
+                    ",%s %s(%d,%d)", col->name,
+                    convertDatatypeToString(col->type), col->precision, col->scale);
         } else {
             n = snprintf(colsBuf + len, col_buffer_len - len,
                     ",%s %s", col->name,
@@ -293,7 +309,14 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
                 len += n;
             }
             goto skip;
-        } else {
+        }
+        // else if (tag->type == TSDB_DATA_TYPE_DECIMAL
+        //         || tag->type == TSDB_DATA_TYPE_DECIMAL64) {
+        //     n = snprintf(tagsBuf + len, tag_buffer_len - len,
+        //             "%s %s(%d,%d),", tag->name,
+        //             convertDatatypeToString(tag->type), tag->precision, tag->scale);
+        // }
+        else {
             n = snprintf(tagsBuf + len, tag_buffer_len - len,
                     "%s %s,", tag->name,
                     convertDatatypeToString(tag->type));
@@ -2954,6 +2977,11 @@ static int initStmtDataValue(SSuperTable *stbInfo, SChildTable *childTbl, uint64
                             }
                         }
                         break;
+                    case TSDB_DATA_TYPE_DECIMAL:
+                    case TSDB_DATA_TYPE_DECIMAL64:
+                        errorPrint("Not implemented data type in func initStmtDataValue: %s\n",
+                                convertDatatypeToString(dataType));
+                        exit(EXIT_FAILURE);
                     default:
                         break;
                 }
@@ -3037,6 +3065,12 @@ static void initStmtData(char dataType, void **data, uint32_t length) {
             tmfree(*data);
             *data = (void*)tmpP;
             break;
+
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
+            errorPrint("Not implemented data type in func initStmtData: %s\n",
+                       convertDatatypeToString(dataType));
+            exit(EXIT_FAILURE);
 
         default:
             errorPrint("Unknown data type on initStmtData: %s\n",

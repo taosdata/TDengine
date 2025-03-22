@@ -292,7 +292,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             break;
 
         case 'c':
-            tstrncpy(g_configDir, arg, TSDB_FILENAME_LEN);
+            TOOLS_STRNCPY(g_configDir, arg, TSDB_FILENAME_LEN);
             g_arguments->cfg_inputted = true;
             break;
 

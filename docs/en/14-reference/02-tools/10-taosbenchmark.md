@@ -325,7 +325,9 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **max**: The maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
 
-- **scalingFactor**: Floating-point precision enhancement factor, only effective when the data type is float/double, valid values range from 1 to 1000000 positive integers. Used to enhance the precision of generated floating points, especially when min or max values are small. This attribute enhances the precision after the decimal point by powers of 10: a scalingFactor of 10 means enhancing the precision by 1 decimal place, 100 means 2 places, and so on.
+- **precision**: The total number of digits (including digits before and after the decimal point), applicable only to the decimal type, with a valid range of 0 to 38. 
+
+- **scale**: The number of digits to the right of the decimal point. For the float type, the scale's valid range is 0 to 6; for the double type, the range is 0 to 15; and for the decimal type, the scale's valid range is 0 to its precision value.
 
 - **fun**: This column data is filled with functions, currently only supports sin and cos functions, input parameters are converted from timestamps to angle values, conversion formula: angle x = input time column ts value % 360. Also supports coefficient adjustment, random fluctuation factor adjustment, displayed in a fixed format expression, such as fun="10*sin(x)+100*random(5)", x represents the angle, ranging from 0 ~ 360 degrees, the increment step is consistent with the time column step. 10 represents the multiplication coefficient, 100 represents the addition or subtraction coefficient, 5 represents the fluctuation amplitude within a 5% random range. Currently supports int, bigint, float, double four data types. Note: The expression is in a fixed pattern and cannot be reversed.
 

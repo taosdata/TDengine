@@ -72,6 +72,7 @@ IF(TD_TAOS_TOOLS)
     INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/util)
     INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/os)
     INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/libs/transport)
+    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/libs/decimal)
     ADD_SUBDIRECTORY(taos-tools)
 ENDIF()
 
