@@ -639,10 +639,10 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     }
   }
 
-  if (!pTbCtx->ordered) {
+  if (!pTbData->isOrdered) {
     code = tRowSort(pTbCtx->pData->aRowP);
   }
-  if (code == TSDB_CODE_SUCCESS && (!pTbCtx->ordered || pTbCtx->duplicateTs)) {
+  if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
     code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
   }
 

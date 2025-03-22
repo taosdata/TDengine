@@ -520,11 +520,12 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
         *pOrdered = true;
         *pDupTs = false;
       } else {
-        // no more compare if we already get disordered or duplicate rows
-        if (*pOrdered && !*pDupTs) {
-          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
-          *pOrdered = (code >= 0);
-          *pDupTs = (code == 0);
+        if (*pOrdered) {
+          int32_t res = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (res >= 0);
+          if (!*pDupTs) {
+            *pDupTs = (res == 0);
+          }
         }
       }
       lastRowKey = rowKey;
@@ -3349,17 +3350,17 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
         *pOrdered = true;
         *pDupTs = false;
       } else {
-        // no more compare if we already get disordered or duplicate rows
-        if (*pOrdered && !*pDupTs) {
-          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
-          *pOrdered = (code >= 0);
-          *pDupTs = (code == 0);
+        if (*pOrdered) {
+          int32_t res = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (res >= 0);
+          if (!*pDupTs) {
+            *pDupTs = (res == 0);
+          }
         }
+        lastRowKey = rowKey;
       }
-      lastRowKey = rowKey;
     }
   }
-
 _exit:
   taosArrayDestroy(colValArray);
   taosArrayDestroy(bufArray);
