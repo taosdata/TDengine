@@ -32,32 +32,25 @@ macro(INIT_EXT name)               # {
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
     set(${name}_byproducts "")
-    set(_subclause       "")
-    foreach(v ${ARGN})               # {
-        if(    "${v}" STREQUAL                   "INC_DIR")
-            set(_subclause                       "INC_DIR")        # target_include_directories
-        elseif("${v}" STREQUAL                   "LIB_DIR")
-            set(_subclause                       "LIB_DIR")        # target_link_directories
-        elseif("${v}" STREQUAL                   "LIB")
-            set(_subclause                       "LIB")            # target_link_libraries with full-path-lib
-        elseif("${v}" STREQUAL                   "BYPRODUCTS")
-            set(_subclause                       "BYPRODUCTS")
-        elseif("${_subclause}x" STREQUAL "x")
-            message(FATAL_ERROR     "expecting keywords either INC_DIR or LIB_DIR or LIB or BYPRODUCTS")
-        else()
-            if(    "${_subclause}" STREQUAL      "INC_DIR")
-                list(APPEND ${name}_inc_dir      "${_ins}/${v}")
-            elseif("${_subclause}" STREQUAL      "LIB_DIR")
-                list(APPEND ${name}_libs         "${_ins}/${v}")
-            elseif("${_subclause}" STREQUAL      "LIB")
-                list(APPEND ${name}_libs         "${_ins}/${v}")
-            elseif("${_subclause}" STREQUAL      "BYPRODUCTS")
-                list(APPEND ${name}_byproducts   "${_ins}/${v}")
-            else()
-                message(FATAL_ERROR     "internal error")
-            endif()
-        endif()
-    endforeach()                     # }
+
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs INC_DIR LIB BYPRODUCTS)
+    cmake_parse_arguments(arg_INIT_EXT
+        "${options}" "${oneValueArgs}" "${multiValueArgs}"
+        ${ARGN}
+    )
+
+    foreach(v ${arg_INIT_EXT_INC_DIR})
+      list(APPEND ${name}_inc_dir      "${_ins}/${v}")
+    endforeach()
+    foreach(v ${arg_INIT_EXT_LIB})
+      list(APPEND ${name}_libs         "${_ins}/${v}")
+    endforeach()
+    foreach(v ${arg_INIT_EXT_BYPRODUCTS})
+      list(APPEND ${name}_byproducts   "${_ins}/${v}")
+    endforeach()
+
     if(NOT TD_EXTERNALS_USE_ONLY)
         add_library(${name}_imp STATIC IMPORTED)
     endif()
