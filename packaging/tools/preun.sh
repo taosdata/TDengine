@@ -168,8 +168,10 @@ ${csudo}rm -f ${inc_link_dir}/tdef.h || :
 ${csudo}rm -f ${inc_link_dir}/taosudf.h || :
 ${csudo}rm -f ${inc_link_dir}/taosws.h || :
 ${csudo}rm -f ${lib_link_dir}/libtaos.*   || :
+${csudo}rm -f ${lib_link_dir}/libtaosnative.*   || :
 ${csudo}rm -f ${lib_link_dir}/libtaosws.so   || :
 ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
 ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
 
 ${csudo}rm -f ${log_link_dir}            || :

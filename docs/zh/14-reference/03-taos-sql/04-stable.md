@@ -22,6 +22,7 @@ table_option: {
     COMMENT 'string_value'
   | SMA(col_name [, col_name] ...)  
   | KEEP value
+  | VIRTUAL {0 | 1}
 }
 ```
 
@@ -36,6 +37,7 @@ table_option: {
 4. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考 [按列压缩](../compress)
 5. 关于 table_option 中的参数说明，请参考 [建表 SQL 说明](../table)
 6. 关于 table_option 中的 keep 参数，仅对超级表生效，keep 参数的详细说明可以参考 [数据库说明](02-database.md)，唯一不同的是超级表 keep 不会立即影响查询结果，仅在 compact 后生效。
+7. 关于 table_option 中的 virtual 参数，仅对超级表生效，指定为 1 表示创建虚拟超级表，为 0 表示创建超级表，默认为 0。创建虚拟超级表时，column_definition 中只支持 type_name 选项，不支持定义额外主键列以及压缩选项。
 
 ## 查看超级表
 

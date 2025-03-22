@@ -39,10 +39,7 @@
 #include <taos.h>
 #include <taoserror.h>
 #include <toolsdef.h>
-
-#ifdef WEBSOCKET
-#include <taosws.h>
-#endif
+#include "../../inc/pub.h"
 
 
 //
@@ -378,22 +375,18 @@ typedef struct arguments {
     bool     performance_print;
     bool     dotReplace;
     int      dumpDbCount;
-#ifdef WEBSOCKET
-    bool     restful;
-    bool     cloud;
-    int      ws_timeout;
+
+    int8_t   connMode;
+    bool     port_inputted;
     char    *dsn;
-    char    *cloudToken;
-    int      cloudPort;
-    char     cloudHost[MAX_HOSTNAME_LEN];
-#endif
 
     // put rename db string
     char      * renameBuf;
     SRenameDB * renameHead;
     // retry for call engine api
     int32_t     retryCount;
-    int32_t     retrySleepMs;      
+    int32_t     retrySleepMs;  
+        
 } SArguments;
 
 bool isSystemDatabase(char *dbName);
@@ -480,6 +473,7 @@ int64_t dumpANormalTableNotBelong(
 void* openQuery(void** taos_v , const char * sql);
 void closeQuery(void* res);
 int32_t readRow(void *res, int32_t idx, int32_t col, uint32_t *len, char **data);
+void engineError(char * module, char * fun, int32_t code);
 
 
 extern struct arguments g_args;

@@ -1374,6 +1374,10 @@ static void checkWriteCrashLogToFileInNewThead() {
     }
     taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
     setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
+    int32_t code = tsem_post(&gCrashBasicInfo.sem);
+    if (code != 0 ) {
+      uError("failed to post sem for crashBasicInfo, code:%d", code);
+    }
     TAOS_UNUSED(tsem_post(&gCrashBasicInfo.sem));
   }
 }

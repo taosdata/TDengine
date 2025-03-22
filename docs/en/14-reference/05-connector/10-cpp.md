@@ -682,7 +682,7 @@ The basic API is used to establish database connections and provide a runtime en
   - **Interface Description**: Cleans up the runtime environment, should be called before the application exits.
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
-  - **Interface Description**: Sets client options, currently supports locale (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), timezone (`TSDB_OPTION_TIMEZONE`), and configuration file path (`TSDB_OPTION_CONFIGDIR`). Locale, character set, and timezone default to the current settings of the operating system.
+  - **Interface Description**: Sets client options, currently supports locale (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), timezone (`TSDB_OPTION_TIMEZONE`), configuration file path (`TSDB_OPTION_CONFIGDIR`), and driver type (`TSDB_OPTION_DRIVER`). Locale, character set, and timezone default to the current settings of the operating system. The driver type can be either the native interface(`native`) or the WebSocket interface(`websocket`), with the default being `websocket`.
   - **Parameter Description**:
     - `option`: [Input] Setting item type.
     - `arg`: [Input] Setting item value.

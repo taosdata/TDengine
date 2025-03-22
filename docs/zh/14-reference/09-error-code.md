@@ -44,6 +44,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000107 | Ref ID is removed                 | 引用的 ref 资源已经释放               | 保留现场和日志，github 上报 issue |
 | 0x80000108 | Invalid Ref ID                    | 无效 ref ID                        | 保留现场和日志，github 上报 issue |
 | 0x8000010A | Ref is not there                  | ref 信息不存在                     | 保留现场和日志，github 上报 issue |
+| 0x8000010B | Driver was not loaded                   | 未在系统路径中找到 libtaosnative.so 或 libtaosws.so                      | 重新安装客户端驱动 |
+| 0x8000010C | Function was not loaded from the driver | 在 libtaos.so 中定义的一些函数在 libtaosnative.so 或 libtaosws.so 中未实现 | 保留现场和日志，github 上报 issue |
 | 0x80000110 | Unexpected generic error          | 系统内部错误                       | 保留现场和日志，github 上报 issue |
 | 0x80000111 | Action in progress                | 操作进行中                         | 1.等待操作完成 2.根据需要取消操作 3.当超出合理时间仍然未完成可保留现场和日志，或联系客户支持 |
 | 0x80000112 | Out of range                      | 配置参数超出允许值范围                 | 更改参数                                                                                                                                           |
@@ -589,3 +591,17 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80006206 | Virtual table not support in Topic                      | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表              |
 | 0x80006207 | Virtual super table query not support origin table from different databases                      | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库 |
 
+
+## TDgpt
+
+| 错误码     | 错误描述              | 可能的出错场景或者可能的原因                                                     | 建议用户采取的措施             |
+| ---------- | --------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
+| 0x80000440 | Analysis service response is NULL | 分析服务返回错误                                                   | 检查服务端日志确认返回信息是否正确 |
+| 0x80000441 | Analysis service can't access     | 分析服务无法使用 |  检查 anoded 服务是否可用        |
+| 0x80000442 | Analysis algorithm is missing     | 未指定分析算法名称     |   增加算法名称        |
+| 0x80000443 | Analysis algorithm not loaded | 指定算法未加载   |   指定算法未加载   |
+| 0x80000444 | Analysis invalid buffer type  | 缓存数据格式不对  | 具体查看server端的错误日志     |
+| 0x80000445 | Analysis failed since anode return error            | anode 返回错误信息  | 请检查服务端日志确认问题原因     |
+| 0x80000446 | Analysis failed since too many input rows for anode | 输入数据太多   | 减小分析数据输入规模     |
+| 0x80000447 | white-noise data not processed                      | 白噪声数据不分析   |    |
+| 0x80000448 | Analysis internal error, not processed                 | anode 出现内部错误   | 具体查看server端的日志 (taosanode.app.log)   |

@@ -221,7 +221,7 @@ class TDTestCase(TBase):
     def checkTmqJson(self, benchmark, json):
         OK_RESULT = "Consumed total msgs: 30, total rows: 300000"
         cmd =  benchmark + " -f " + json
-        output,error = frame.eos.run(cmd, 600)
+        output, error, code = frame.eos.run(cmd, 600)
         if output.find(OK_RESULT) != -1:
             tdLog.info(f"succ: {cmd} found '{OK_RESULT}'")
         else:

@@ -112,7 +112,9 @@ bool          taosDirEntryIsDir(TdDirEntryPtr pDirEntry);
 char         *taosGetDirEntryName(TdDirEntryPtr pDirEntry);
 int32_t       taosCloseDir(TdDirPtr *ppDir);
 
-int taosGetDirSize(const char *path, int64_t *size);
+int32_t taosAppPath(char *path, int32_t maxLen);
+int32_t taosGetDirSize(const char *path, int64_t *size);
+
 #ifdef __cplusplus
 }
 #endif

@@ -59,7 +59,6 @@ tools/upx*
 html/
 /.vs
 /CMakeFiles/3.10.2
-/CMakeCache.txt
 /Makefile
 /*.cmake
 /src/cq/test/CMakeFiles/cqtest.dir/*.cmake

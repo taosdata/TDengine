@@ -24,7 +24,7 @@
                 "cachemodel": "'both'",
                 "cachesize": 100,
                 "stt_trigger": 1,
-                "vgroups ": 3
+                "vgroups": 3
             },
             "super_tables": [
                 {
