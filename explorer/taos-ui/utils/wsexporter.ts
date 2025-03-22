@@ -1,6 +1,7 @@
 import streamSaver from 'streamsaver';
 import { connect, TaosResult } from '@tdengine/websocket';
 import { json2csv } from 'json-2-csv';
+import FileSaver from "file-saver";
 
 declare global {
   interface Window {
@@ -86,4 +87,47 @@ export async function wsExport(gatewayURL: string, token: string, sql: string, w
     !result && writer.close();
     ws.close();
   }
+}
+
+/**
+ * 将本地数据直接导出
+ */
+export function localExport(queryResult: any) {
+  const FileName = getFileName();
+  const data = convertToCsvData(queryResult.data, queryResult.head)
+  const blob = new Blob([data], {
+    type: "text/csv;charset=utf-8;",
+  });
+  FileSaver.saveAs(blob, FileName);
+};
+
+/**
+ * 将table数据转成csv数据
+ * @param {Array<Record<string, any>>} data 表格数据
+ * @param {Array<string>} head 表头数据
+ * @returns
+ */
+function convertToCsvData(data: any, head: any) {
+  const csvHeader = handlerData(head);
+  const csvRows = data.map((row:any) => {
+    return handlerData(row);
+  });
+  return csvHeader + '\n' + csvRows.join('\n');
+}
+
+function handlerData(data: any) {
+  return data
+    .map((item: any) => {
+      // 如果字段中包含逗号或双引号，则用双引号包裹，并且内部的双引号需要转义
+      let field = item;
+      if (item.field) {
+        field = item.field;
+      }
+      if (field.includes(',') || field.includes('"')) {
+        return `"${field.replace(/"/g, '""')}"`;
+      } else {
+        return field;
+      }
+    })
+    .join(',');
 }
