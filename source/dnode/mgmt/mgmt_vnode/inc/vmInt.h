@@ -32,12 +32,17 @@ typedef struct SVnodeMgmt {
   const char           *name;
   SQueryAutoQWorkerPool queryPool;
   SAutoQWorkerPool      streamPool;
+  SAutoQWorkerPool      streamLongExecPool;
+  SWWorkerPool          streamCtrlPool;
+  SWWorkerPool          streamChkPool;
   SWWorkerPool          fetchPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
-  SHashObj             *hash;
+  SHashObj             *runngingHash;
   SHashObj             *closedHash;
-  TdThreadRwlock        lock;
+  SHashObj             *creatingHash;
+  TdThreadRwlock        hashLock;
+  TdThreadMutex         mutex;
   SVnodesStat           state;
   STfs                 *pTfs;
   TdThread              thread;
@@ -71,6 +76,9 @@ typedef struct {
   SMultiWorker pApplyW;
   STaosQueue  *pQueryQ;
   STaosQueue  *pStreamQ;
+  STaosQueue  *pStreamCtrlQ;
+  STaosQueue  *pStreamLongExecQ;
+  STaosQueue  *pStreamChkQ;
   STaosQueue  *pFetchQ;
   STaosQueue  *pMultiMgmQ;
 } SVnodeObj;
@@ -96,6 +104,8 @@ SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict);
 void       vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
 void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed);
+void       vmCleanPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
+void       vmCloseFailedVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
@@ -113,6 +123,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt);
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
 int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
+int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
 
 // vmWorker.c
 int32_t vmStartWorker(SVnodeMgmt *pMgmt);
@@ -129,6 +140,10 @@ int32_t vmPutMsgToSyncRdQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToStreamCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToStreamLongExecQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
+int32_t vmPutMsgToStreamChkQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMultiMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);

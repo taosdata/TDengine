@@ -49,18 +49,20 @@ const char *ttlV1Tbname = "ttlv1.idx";
 int32_t ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *logPrefix, int32_t flushThreshold) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t startNs = taosGetTimestampNs();
+  int32_t pathLen = 0;
 
   *ppTtlMgr = NULL;
 
   STtlManger *pTtlMgr = (STtlManger *)tdbOsCalloc(1, sizeof(*pTtlMgr));
   if (pTtlMgr == NULL) TAOS_RETURN(terrno);
 
-  char *logBuffer = (char *)tdbOsCalloc(1, strlen(logPrefix) + 1);
+  pathLen = strlen(logPrefix) + 1;
+  char *logBuffer = (char *)tdbOsCalloc(1, pathLen);
   if (logBuffer == NULL) {
     tdbOsFree(pTtlMgr);
     TAOS_RETURN(terrno);
   }
-  (void)strcpy(logBuffer, logPrefix);
+  tstrncpy(logBuffer, logPrefix, pathLen);
   pTtlMgr->logPrefix = logBuffer;
   pTtlMgr->flushThreshold = flushThreshold;
 

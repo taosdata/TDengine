@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#ifdef USE_STREAM
 #ifndef _STREAM_INC_H_
 #define _STREAM_INC_H_
 
@@ -37,16 +37,16 @@ extern "C" {
 #define META_HB_CHECK_INTERVAL             200
 #define META_HB_SEND_IDLE_COUNTER          25  // send hb every 5 sec
 #define STREAM_TASK_KEY_LEN                ((sizeof(int64_t)) << 1)
-#define STREAM_TASK_QUEUE_CAPACITY         20480
-#define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (30)
+#define STREAM_TASK_QUEUE_CAPACITY         5120
+#define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (10)
 
 // clang-format off
-#define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define stWarn(...)  do { if (stDebugFlag & DEBUG_WARN)  { taosPrintLog("STM WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define stInfo(...)  do { if (stDebugFlag & DEBUG_INFO)  { taosPrintLog("STM ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define stDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("STM ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
-#define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
+#define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
+#define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
+#define stWarn(...)  do { if (stDebugFlag & DEBUG_WARN)  { taosPrintLog("STM WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }} while(0)
+#define stInfo(...)  do { if (stDebugFlag & DEBUG_INFO)  { taosPrintLog("STM INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }} while(0)
+#define stDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("STM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
+#define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM TRACE ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 typedef struct SStreamTmrInfo {
@@ -144,6 +144,8 @@ struct SStreamQueue {
   STaosQall*  qall;
   void*       qItem;
   int8_t      status;
+  STaosQueue* pChkptQueue;
+  void*       qChkptItem;
 };
 
 struct SStreamQueueItem {
@@ -192,7 +194,6 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
-void    streamTaskSetFailedCheckpointId(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask);
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
@@ -201,6 +202,7 @@ void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 void    streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo);
+int32_t streamTaskAddIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId);
 
 void              streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo);
 EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
@@ -241,12 +243,25 @@ int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32
                                int64_t checkpointId, SRpcMsg* pMsg);
 
 int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
-int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
+int32_t streamCreateTriggerBlock(SStreamTrigger** pTrigger, int32_t type, int32_t blockType);
 int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
                                        STimeWindow* pLatestWindow, const char* id);
+int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlock, int32_t type);
+
+// inject stream errors
+void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
+
+int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type);
+int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList);
+int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
+int32_t uploadCheckpointToS3(const char* id, const char* path);
+int32_t deleteCheckpointFile(const char* id, const char* name);
+int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
+                                        int32_t transId);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* ifndef _STREAM_INC_H_ */
+#endif /* USE_STREAM */

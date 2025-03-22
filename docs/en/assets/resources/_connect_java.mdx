@@ -1,0 +1,15 @@
+```java title="Native Connection"
+{{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java}}
+```
+
+```java title="REST Connection"
+{{#include docs/examples/java/src/main/java/com/taos/example/RESTConnectExample.java:main}}
+```
+
+When using REST connections, if the amount of data queried is large, you can also enable batch fetching.
+
+```java title="Enable Batch Fetching" {4}
+{{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
+```
+
+For more connection parameter configurations, refer to [Java Connector](../../connector/java)

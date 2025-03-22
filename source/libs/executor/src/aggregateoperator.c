@@ -15,6 +15,7 @@
 
 #include "filter.h"
 #include "function.h"
+#include "nodes.h"
 #include "os.h"
 #include "querynodes.h"
 #include "tfill.h"
@@ -184,6 +185,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
+  if(!pAggInfo) {
+    qError("function:%s, pAggInfo is NULL", __func__);
+    return false;
+  }
   if (pOperator->blocking && pAggInfo->hasValidBlock) {
     return false;
   }
@@ -333,6 +338,10 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
+  if (!pOperator || (pOperator->exprSupp.numOfExprs > 0 && pCtx == NULL)) {
+    qError("%s failed at line %d since pCtx is NULL.", __func__, __LINE__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   for (int32_t k = 0; k < pOperator->exprSupp.numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       // todo add a dummy function to avoid process check
@@ -351,7 +360,7 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
         if (pCtx[k].fpSet.cleanup != NULL) {
           pCtx[k].fpSet.cleanup(&pCtx[k]);
         }
-        qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
+        qError("%s aggregate function error happens, code:%s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
         return code;
       }
     }
@@ -573,7 +582,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
   }
 
   uint32_t defaultPgsz = 0;
-  uint32_t defaultBufsz = 0;
+  int64_t defaultBufsz = 0;
   code = getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
   if (code) {
     qError("failed to get buff page size, rowSize:%d", pAggSup->resultRowSize);
@@ -794,7 +803,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
           if (pCtx[k].fpSet.cleanup != NULL) {
             pCtx[k].fpSet.cleanup(&pCtx[k]);
           }
-          qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
+          qError("%s apply functions error, code:%s", GET_TASKID(taskInfo), tstrerror(code));
           taskInfo->code = code;
           return code;
         }

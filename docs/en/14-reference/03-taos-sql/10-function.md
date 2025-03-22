@@ -1,13 +1,11 @@
 ---
 title: Functions
-sidebar_label: Functions
-description: This document describes the standard SQL functions available in TDengine.
-toc_max_heading_level: 4
+slug: /tdengine-reference/sql-manual/functions
 ---
 
-## Scalar Functions
+## Single Row Functions
 
-Scalar functions return one result for each row.
+Single row functions return a result row for each row in the query results.
 
 ### Mathematical Functions
 
@@ -17,17 +15,17 @@ Scalar functions return one result for each row.
 ABS(expr)
 ```
 
-**Description**: The absolute value of a specific field.
+**Function Description**: Gets the absolute value of the specified field.
 
-**Return value type**: Same as the field being used
+**Return Type**: Consistent with the original data type of the specified field.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+**Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
 #### ACOS
 
@@ -35,17 +33,17 @@ ABS(expr)
 ACOS(expr)
 ```
 
-**Description**: The arc cosine of a specific field.
+**Function Description**: Gets the arccosine of the specified field.
 
-**Return value type**: Double
+**Return Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+**Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
 #### ASIN
 
@@ -53,18 +51,17 @@ ACOS(expr)
 ASIN(expr)
 ```
 
-**Description**: The arc sine of a specific field.
+**Function Description**: Gets the arcsine of the specified field.
 
-**Return value type**: Double
+**Return Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
-
+**Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
 #### ATAN
 
@@ -72,18 +69,17 @@ ASIN(expr)
 ATAN(expr)
 ```
 
-**Description**: The arc tangent of a specific field.
+**Function Description**: Gets the arctangent of the specified field.
 
-**Return value type**: Double
+**Return Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
-
+**Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
 #### CEIL
 
@@ -91,17 +87,17 @@ ATAN(expr)
 CEIL(expr)
 ```
 
-**Description**: The rounded up value of a specific field
+**Function Description**: Gets the ceiling of the specified field.
 
-**Return value type**: Same as the field being used
+**Return Type**: Consistent with the original data type of the specified field.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+**Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
 #### COS
 
@@ -109,17 +105,17 @@ CEIL(expr)
 COS(expr)
 ```
 
-**Description**: The cosine of a specific field.
+**Function Description**: Gets the cosine of the specified field.
 
-**Return value type**: Double
+**Return Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+**Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
 #### FLOOR
 
@@ -127,56 +123,120 @@ COS(expr)
 FLOOR(expr)
 ```
 
-**Description**: The rounded down value of a specific field
- **More explanations**: The restrictions are same as those of the `CEIL` function.
+**Function Description**: Gets the floor of the specified field.
+ Other usage notes see [CEIL](#ceil) function description.
+
+#### GREATEST
+```sql
+GREATEST(expr1, expr2[, expr]...)
+```
+
+**Function Description**: Get the maximum value of all input parameters. The minimum number of parameters for this function is 2.
+
+**Version**：ver-3.3.6.0
+
+**Return Type**：Refer to the comparison rules. The comparison type is the final return type.
+
+**Applicable Data Types**:
+- Numeric types: timestamp, bool, integer and floating point types
+- Strings types: nchar and varchar types.
+
+**Comparison rules**: The following rules describe the conversion method of the comparison operation:
+- If any parameter is NULL, the comparison result is NULL.
+- If all parameters in the comparison operation are string types, compare them as string types
+- If all parameters are numeric types, compare them as numeric types.
+- If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
+- In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
+
+**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+
+
+#### LEAST
+```sql
+LEAST(expr1, expr2[, expr]...)
+```
+
+**Function Description**：Get the minimum value of all input parameters. The rest of the description is the same as the [GREATEST](#greatest) function.
 
 #### LOG
 
 ```sql
-LOG(expr [, base])
+LOG(expr1[, expr2])
 ```
 
-**Description**: The logarithm of a specific field with `base` as the radix. If you do not enter a base, the natural logarithm of the field is returned.
+**Function Description**: Gets the logarithm of expr1 to the base expr2. If the expr2 parameter is omitted, it returns the natural logarithm of the specified field.
 
-**Return value type**: Double
+**Return Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
-
+**Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
 #### POW
 
 ```sql
-POW(expr, power)
+POW(expr1, expr2)
 ```
 
-**Description**: The power of a specific field with `power` as the exponent.
+**Function Description**: Gets the power of expr1 raised to the exponent expr2.
 
-**Return value type**: Double
+**Return Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
-
+**Usage Instructions**: Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
 
 #### ROUND
 
 ```sql
-ROUND(expr)
+ROUND(expr[, digits])
 ```
 
-**Description**: The rounded value of a specific field.
- **More explanations**: The restrictions are same as those of the `CEIL` function.
+**Function Description**: Obtains the rounded result of the specified field.
 
+**Return Result Type**: Consistent with the original data type of the specified field.
+
+**Applicable Data Types**:
+
+- `expr`: Numeric type.
+- `digits`: Numeric type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` or `digits` is NULL, returns NULL.
+- If `digits` is specified, it retains `digits` decimal places, default is 0.
+- If the input value is of INTEGER type, regardless of the value of `digits`, it will only return INTEGER type, without retaining decimals.
+- `digits` greater than zero means operating on the decimal places, rounding to `digits` decimal places. If the number of decimal places is less than `digits`, no rounding operation is performed, and it is returned directly.
+- `digits` less than zero means discarding the decimal places and rounding the number to the left of the decimal point by `digits` places. If the number of places to the left of the decimal point is less than `digits`, returns 0.
+- Since the DECIMAL type is not yet supported, this function will use DOUBLE and FLOAT to represent results containing decimals, but DOUBLE and FLOAT have precision limits, and using this function may be meaningless when there are too many digits.
+- Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
+- `digits` is supported from version 3.3.3.0.
+
+**Example**:
+
+```sql
+taos> select round(8888.88);
+      round(8888.88)       |
+============================
+      8889.000000000000000 |
+
+taos> select round(8888.88,-1);
+     round(8888.88,-1)     |
+============================
+      8890.000000000000000 |
+```
 
 #### SIN
 
@@ -184,17 +244,17 @@ ROUND(expr)
 SIN(expr)
 ```
 
-**Description**: The sine of a specific field.
+**Function Description**: Obtains the sine result of the specified field.
 
-**Return value type**: Double
+**Return Result Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+**Usage Instructions**: Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
 
 #### SQRT
 
@@ -202,17 +262,17 @@ SIN(expr)
 SQRT(expr)
 ```
 
-**Description**: The square root of a specific field.
+**Function Description**: Obtains the square root of the specified field.
 
-**Return value type**: Double
+**Return Result Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+**Usage Instructions**: Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
 
 #### TAN
 
@@ -220,21 +280,361 @@ SQRT(expr)
 TAN(expr)
 ```
 
-**Description**: The tangent of a specific field.
+**Function Description**: Obtains the tangent result of the specified field.
 
-**Return value type**: Double
+**Version**: ver-3.3.3.0
 
-**Applicable data types**: Numeric
+**Return Result Type**: DOUBLE.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Usage**: This function can only be used on data columns. It can be used with selection and projection functions but not with aggregation functions.
+**Applicable to**: Tables and supertables.
 
-### Concatenation Functions
+**Usage Instructions**: Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
 
-Concatenation functions take strings as input and produce string or numeric values as output.
+#### PI
+
+```sql
+PI()
+```
+
+**Function Description**: Returns the value of π (pi).
+
+**Return Result Type**: DOUBLE.
+
+**Applicable Data Types**: None.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- π ≈ 3.141592653589793.
+- Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
+
+**Example**:
+
+```sql
+taos> select pi();
+           pi()            |
+============================
+         3.141592653589793 |
+```
+
+##### TRUNCATE
+
+```sql
+TRUNCATE(expr, digits)
+```
+
+**Function Description**: Gets the truncated value of the specified field to the specified number of digits.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: Consistent with the original data type of the `expr` field.
+
+**Applicable Data Types**:
+
+- `expr`: Numeric type.
+- `digits`: Numeric type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` or `digits` is NULL, return NULL.
+- Truncation is done directly to the specified number of digits without rounding.
+- `digits` greater than zero means operating on the decimal places, truncating to `digits` decimal places. If the number of decimal places is less than `digits`, no truncation is performed, and the value is returned directly.
+- `digits` equal to zero means dropping the decimal places.
+- `digits` less than zero means dropping the decimal places and zeroing the positions to the left of the decimal point up to `digits`. If the number of positions to the left of the decimal point is less than `digits`, return 0.
+- Since the DECIMAL type is not yet supported, this function uses DOUBLE and FLOAT to represent results containing decimals, but DOUBLE and FLOAT have precision limits, and using this function may be meaningless when the number of digits is too large.
+- Can only be used with regular columns, selection, and projection functions, not with aggregation functions.
+
+**Example**:
+
+```sql
+taos> select truncate(8888.88, 0);
+ truncate(8888.88, 0)    |
+============================
+    8888.000000000000000 |
+     
+taos> select truncate(8888.88, -1);
+ truncate(8888.88, -1)   |
+============================
+    8880.000000000000000 |
+```
+
+#### EXP
+
+```sql
+EXP(expr)
+```
+
+**Function Description**: Returns the value of e (the base of natural logarithms) raised to the specified power.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` is NULL, return NULL.
+- Can only be used with regular columns, selection, and projection functions, not with aggregation functions.
+
+**Example**:
+
+```sql
+taos> select exp(2);
+          exp(2)           |
+============================
+         7.389056098930650 |
+```
+
+#### LN
+
+```sql
+LN(expr)
+```
+
+**Function Description**: Returns the natural logarithm of the specified parameter.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` is NULL, return NULL.
+- If `expr` is less than or equal to 0, return NULL.
+- Can only be used with regular columns, selection, and projection functions, not with aggregation functions.
+
+**Example**:
+
+```sql
+taos> select ln(10);
+          ln(10)           |
+============================
+         2.302585092994046 |
+```
+
+#### MOD
+
+```sql
+MOD(expr1, expr2)
+```
+
+**Function Description**: Calculates the result of expr1 % expr2.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- Returns NULL if `expr2` is 0.
+- Returns NULL if `expr1` or `expr2` is NULL.
+- Can only be used with regular columns, selection (Selection), and projection (Projection) functions, not with aggregation (Aggregation) functions.
+
+**Example**:
+
+```sql
+taos> select mod(10,3);
+         mod(10,3)         |
+============================
+         1.000000000000000 |
+
+taos> select mod(1,0);
+         mod(1,0)          |
+============================
+ NULL                      |
+```
+
+#### RAND
+
+```sql
+RAND([seed])
+```
+
+**Function Description**: Returns a uniformly distributed random number from 0 to 1.
+
+**Version**: ver-3.3.3.0
+
+**Return Result Type**: DOUBLE.
+
+**Applicable Data Types**:
+
+- `seed`: INTEGER.
+
+**Nested Subquery Support**: Applicable to inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If a `seed` value is specified, it will use the specified `seed` as the random seed to ensure the generated random number sequence is deterministic.
+- Can only be used with regular columns, selection (Selection), and projection (Projection) functions, not with aggregation (Aggregation) functions.
+
+**Example**:
+
+```sql
+taos> select rand();
+          rand()           |
+============================
+         0.202092426923147 |
+         
+taos> select rand();
+          rand()           |
+============================
+         0.131537788143166 |
+         
+taos> select rand(1);
+          rand(1)          |
+============================
+         0.000007826369259 |
+         
+taos> select rand(1);
+          rand(1)          |
+============================
+         0.000007826369259 |
+```
+
+#### SIGN
+
+```sql
+SIGN(expr)
+```
+
+**Function Description**: Returns the sign of the specified parameter.
+
+**Version**: ver-3.3.3.0
+
+**Return Result Type**: Consistent with the original data type of the specified field.
+
+**Applicable Data Types**: Numeric types.
+
+**Nested Subquery Support**: Applicable to inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- Returns -1 if `expr` is negative,
+- Returns 1 if `expr` is positive,
+- Returns 0 if `expr` is 0,
+- Returns NULL if `expr` is NULL,
+- Can only be used with regular columns, selection (Selection), and projection (Projection) functions, not with aggregation (Aggregation) functions.
+
+**Example**:
+
+```sql
+taos> select sign(-1);
+       sign(-1)        |
+========================
+                    -1 |
+
+taos> select sign(1);
+        sign(1)        |
+========================
+                     1 |
+
+taos> select sign(0);
+        sign(0)        |
+========================
+                     0 |
+```
+
+#### DEGREES
+
+```sql
+DEGREES(expr)
+```
+
+**Function Description**: Calculates the value of the specified parameter converted from radians to degrees.
+
+**Version**: ver-3.3.3.0
+
+**Return Result Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Nested Subquery Support**: Applicable to inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- If `expr` is NULL, it returns NULL.
+- degree = radian * 180 / π.
+- Can only be used with regular columns, selection (Selection), and projection (Projection) functions, not with aggregation (Aggregation) functions.
+
+**Example**:
+
+```sql
+taos> select degrees(PI());
+       degrees(pi())       |
+============================
+       180.000000000000000 |
+```
+
+#### RADIANS
+
+```sql
+RADIANS(expr)
+```
+
+**Function Description**: Calculates the value of the specified parameter converted from degrees to radians.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- If `expr` is NULL, it returns NULL.
+- radian = degree * π / 180.
+- Can only be used with regular columns, selection (Selection), and projection (Projection) functions, not with aggregation (Aggregation) functions.
+
+**Example**:
+
+```sql
+taos> select radians(180);
+       radians(180)        |
+============================
+         3.141592653589793 |
+```
+
+### String Functions
+
+The input parameters for string functions are of string type, and the return results are of numeric type or string type.
 
 #### CHAR_LENGTH
 
@@ -242,49 +642,70 @@ Concatenation functions take strings as input and produce string or numeric valu
 CHAR_LENGTH(expr)
 ```
 
-**Description**: The length in number of characters of a string
+**Function Description**: String length counted in characters.
 
-**Return value type**: Bigint
+**Return Type**: BIGINT.
 
-**Applicable data types**: VARCHAR and NCHAR
+**Applicable Data Types**: VARCHAR, NCHAR.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Unlike the `LENGTH()` function, for multibyte characters, such as Chinese characters, the `CHAR_LENGTH()` function counts them as one character, length 1, while `LENGTH()` calculates their byte count, length 3. For example, `CHAR_LENGTH('你好') = 2`, `LENGTH('你好') = 6`.
+- If `expr` is NULL, it returns NULL.
+
+**Example**:
+
+```sql
+taos> select char_length('Hello world');
+ char_length('Hello world') |
+=============================
+                         11 |
+ 
+taos> select char_length('你好 世界');
+      char_length('你好 世界') |
+===============================
+                            5 |
+```
 
 #### CONCAT
 
 ```sql
-CONCAT(expr1, expr2 [, expr] ...)
+CONCAT(expr1, expr2 [, expr] ... )
 ```
 
-**Description**: The concatenation result of two or more strings
+**Function Description**: String concatenation function.
 
-**Return value type**: If the concatenated strings are VARCHARs, the result is a VARCHAR. If the concatenated strings are NCHARs, the result is an NCHAR. If an input value is null, the result is null.
+**Return Type**: If all parameters are of VARCHAR type, the result type is VARCHAR. If parameters include NCHAR type, the result type is NCHAR. If parameters include NULL values, the output is NULL.
 
-**Applicable data types**: VARCHAR and NCHAR You can concatenate between 2 and 8 strings.
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 8 parameters.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 #### CONCAT_WS
 
 ```sql
-CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
+CONCAT_WS(separator_expr, expr1, expr2 [, expr] ... )
 ```
 
-**Description**: The concatenation result of two or more strings with separator
+**Function Description**: String concatenation function with a separator.
 
-**Return value type**: If the concatenated strings are VARCHARs, the result is a VARCHAR. If the concatenated strings are NCHARs, the result is an NCHAR. If an input value is null, the result is null.
+**Return Type**: If all parameters are of VARCHAR type, the result type is VARCHAR. If parameters include NCHAR type, the result type is NCHAR. If parameters include NULL values, the output is NULL.
 
-**Applicable data types**: VARCHAR and NCHAR You can concatenate between 3 and 9 strings.
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 3 parameters and a maximum of 9 parameters.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 #### LENGTH
 
@@ -292,16 +713,15 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 LENGTH(expr)
 ```
 
-**Description**: The length in bytes
+**Function Description**: Length in bytes.
 
-**Return value type**: Bigint
+**Return Result Type**: BIGINT.
 
-**Applicable data types**: VARCHAR and NCHAR and VARBINARY 
+**Applicable Data Types**: VARCHAR, NCHAR, VARBINARY.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 #### LOWER
 
@@ -309,16 +729,15 @@ LENGTH(expr)
 LOWER(expr)
 ```
 
-**Description**: Convert the input string to lower case
+**Function Description**: Converts the string argument value to all lowercase letters.
 
-**Return value type**: Same as input
+**Return Result Type**: Same as the original type of the input field.
 
-**Applicable data types**: VARCHAR and NCHAR
+**Applicable Data Types**: VARCHAR, NCHAR.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 #### LTRIM
 
@@ -326,50 +745,195 @@ LOWER(expr)
 LTRIM(expr)
 ```
 
-**Description**: Remove the left leading blanks of a string
+**Function Description**: Returns the string after removing left-side spaces.
 
-**Return value type**: Same as input
+**Return Result Type**: Same as the original type of the input field.
 
-**Applicable data types**: VARCHAR and NCHAR
+**Applicable Data Types**: VARCHAR, NCHAR.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 #### RTRIM
 
 ```sql
-LTRIM(expr)
+RTRIM(expr)
 ```
 
-**Description**: Remove the right tailing blanks of a string
+**Function Description**: Returns the string after removing right-side spaces.
 
-**Return value type**: Same as input
+**Return Result Type**: Same as the original type of the input field.
 
-**Applicable data types**: VARCHAR and NCHAR
+**Applicable Data Types**: VARCHAR, NCHAR.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-
-#### SUBSTR
+#### TRIM
 
 ```sql
-SUBSTR(expr, pos [, len])
+TRIM([{LEADING | TRAILING | BOTH} [remstr] FROM] expr)
+TRIM([remstr FROM] expr)
 ```
 
-**Description**: The sub-string starting from `pos` with length of `len` from the original string `str` - If `len` is not specified, it means from `pos` to the end.
+**Function Description**: Returns the string expr with all prefixes or suffixes of remstr removed.
 
-**Return value type**: Same as input
+**Version**: ver-3.3.3.0
 
-**Applicable data types**: VARCHAR and NCHAR Parameter `pos` can be an positive or negative integer; If it's positive, the starting position will be counted from the beginning of the string; if it's negative, the starting position will be counted from the end of the string.
+**Return Result Type**: Same as the original type of the input field expr.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Applicable Data Types**:
 
-**Applicable table types**: table, STable
+- remstr: VARCHAR, NCHAR.
+- expr: VARCHAR, NCHAR.
 
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- The first optional variable [LEADING | BOTH | TRAILING] specifies which side of the string to trim:
+  - LEADING removes specified characters from the beginning of the string.
+  - TRAILING removes specified characters from the end of the string.
+  - BOTH (default) removes specified characters from both the beginning and the end of the string.
+- The second optional variable [remstr] specifies the string to be trimmed:
+  - If remstr is not specified, spaces are trimmed by default.
+  - remstr can specify multiple characters, such as trim('ab' from 'abacd'), where 'ab' is treated as a whole to be trimmed, resulting in the trimmed result 'acd'.
+- If expr is NULL, returns NULL.
+- This function is multibyte safe.
+
+**Examples**:
+
+```sql
+taos> select trim('        a         ');
+ trim('        a         ') |
+=============================
+ a                          |
+ 
+taos> select trim(leading from '        a         ');
+ trim(leading from '        a         ') |
+==========================================
+ a                                       |
+ 
+
+taos> select trim(leading 'b' from 'bbbbbbbba         ');
+ trim(leading 'b' from 'bbbbbbbba         ') |
+==============================================
+ a                                           |
+ 
+taos> select trim(both 'b' from 'bbbbbabbbbbb');
+ trim(both 'b' from 'bbbbbabbbbbb') |
+=====================================
+ a                                  |
+```
+
+#### SUBSTRING/SUBSTR
+
+```sql
+SUBSTRING/SUBSTR(expr, pos [, len])
+SUBSTRING/SUBSTR(expr FROM pos [FOR len])
+```
+
+**Function Description**: Returns a substring of string `expr` starting at position `pos`. If `len` is specified, it returns the substring starting at position `pos` with length `len`.
+
+**Return Result Type**: Same as the original type of the input field `expr`.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR, NCHAR.
+- `pos`: Integer type.
+- `len`: Integer type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `pos` is positive, the result is the substring of `expr` starting from the left to the right from position `pos`.
+- If `pos` is negative, the result is the substring of `expr` starting from the right to the left from position `pos`.
+- If any argument is NULL, returns NULL.
+- This function is multi-byte safe.
+- If `len` is less than 1, returns an empty string.
+- `pos` is 1-based; if `pos` is 0, returns an empty string.
+- If `pos` + `len` exceeds `len(expr)`, returns the substring from `pos` to the end of the string, equivalent to executing `substring(expr, pos)`.
+- Function `SUBSTRING` is equal to `SUBSTR`, supported from ver-3.3.3.0.
+- Syntax `SUBSTRING/SUBSTR(expr FROM pos [FOR len])` is supported from ver-3.3.3.0.
+
+**Examples**:
+
+```sql
+taos> select substring('tdengine', 0);
+ substring('tdengine', 0) |
+===========================
+                          |
+
+taos> select substring('tdengine', 3);
+ substring('tdengine', 3) |
+===========================
+ engine                   |
+
+taos> select substring('tdengine', 3,3);
+ substring('tdengine', 3,3) |
+=============================
+ eng                        |
+
+taos> select substring('tdengine', -3,3);
+ substring('tdengine', -3,3) |
+==============================
+ ine                         |
+
+taos> select substring('tdengine', -3,-3);
+ substring('tdengine', -3,-3) |
+===============================
+                              |
+```
+
+#### SUBSTRING_INDEX
+
+```sql
+SUBSTRING_INDEX(expr, delim, count)
+```
+
+**Function Description**: Returns a substring of `expr` cut at the position where the delimiter appears the specified number of times.
+
+**Version**: ver-3.3.3.0
+
+**Return Result Type**: Same as the original type of the input field `expr`.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR, NCHAR.
+- `delim`: VARCHAR, NCHAR.
+- `count`: INTEGER.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `count` is positive, the result is the substring of `expr` from the left to the right up to the position where `delim` appears for the `count` time.
+- If `count` is negative, the result is the substring of `expr` from the right to the left up to the position where `delim` appears for the absolute value of `count`.
+- If any argument is NULL, returns NULL.
+- This function is multi-byte safe.
+
+**Examples**:
+
+```sql
+taos> select substring_index('www.tdengine.com','.',2);
+ substring_index('www.tdengine.com','.',2) |
+============================================
+ www.tdengine                              |
+
+taos> select substring_index('www.tdengine.com','.',-2);
+ substring_index('www.tdengine.com','.',-2) |
+=============================================
+ tdengine.com                               |
+```
 
 #### UPPER
 
@@ -377,20 +941,227 @@ SUBSTR(expr, pos [, len])
 UPPER(expr)
 ```
 
-**Description**: Convert the input string to upper case
+**Function Description**: Converts the string argument value to all uppercase letters.
 
-**Return value type**: Same as input
+**Return Result Type**: Same as the original type of the input field.
 
-**Applicable data types**: VARCHAR and NCHAR
+**Applicable Data Types**: VARCHAR, NCHAR.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: table, STable
+**Applicable to**: Tables and supertables.
 
+#### CHAR
+
+```sql
+CHAR(expr1 [, expr2] [, expr3] ...)
+```
+
+**Function Description**: Treats the input parameters as integers and returns the characters corresponding to these integers in ASCII encoding.
+
+**Version**: ver-3.3.3.0
+
+**Return Result Type**: VARCHAR.
+
+**Applicable Data Types**: Integer types, VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- Values exceeding 255 will be converted into multi-byte results, such as `CHAR(256)` equivalent to `CHAR(1,0)`, `CHAR(256 * 256)` equivalent to `CHAR(1,0,0)`.
+- NULL values in input parameters will be skipped.
+- If the input parameters are of string type, they will be converted to numeric type for processing.
+- If the character corresponding to the input parameter is a non-printable character, the return value will still contain the character corresponding to that parameter, but it may not be displayed.
+- This function can have at most 2^31 - 1 input parameters.
+
+**Examples**:
+
+```sql
+taos> select char(77);
+ char(77) |
+===========
+ M        |
+ 
+taos> select char(77,77);
+ char(77,77) |
+==============
+ MM          |
+ 
+taos> select char(77 * 256 + 77);
+ char(77 * 256 + 77) |
+======================
+ MM                  |
+ 
+taos> select char(77,NULL,77);
+ char(77,null,77) |
+===================
+ MM               |
+```
+
+#### ASCII
+
+```sql
+ASCII(expr)
+```
+
+**Function Description**: Returns the ASCII code of the first character of the string.
+
+**Version**: ver-3.3.3.0
+
+**Return Result Data Type**: BIGINT.
+
+**Applicable Data Types**: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` is NULL, return NULL.
+- If the first character of `expr` is a multi-byte character, only the ASCII code of the first byte of that character will be returned.
+
+**Examples**:
+
+```sql
+taos> select ascii('testascii');
+ ascii('testascii') |
+=====================
+                116 |
+```
+
+#### POSITION
+
+```sql
+POSITION(expr1 IN expr2)
+```
+
+**Function Description**: Calculates the position of string `expr1` in string `expr2`.
+
+**Version**: ver-3.3.3.0
+
+**Return Result Type**: BIGINT.
+
+**Applicable Data Types**:
+
+- `expr1`: VARCHAR, NCHAR.
+- `expr2`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr1` or `expr2` is NULL, return NULL.
+- If `expr1` does not exist in `expr2`, return 0.
+- If `expr1` is an empty string, it is considered to always successfully match in `expr2`, returning 1.
+- The returned position is 1-based.
+- This function is multi-byte safe.
+
+**Examples**:
+
+```sql
+taos> select position('a' in 'cba');
+ position('a' in 'cba') |
+=========================
+                      3 |
+ 
+ 
+taos> select position('' in 'cba');
+ position('' in 'cba') |
+========================
+                     1 |
+ 
+taos> select position('d' in 'cba');
+ position('d' in 'cba') |
+=========================
+                      0 |
+```
+
+#### REPLACE
+
+```sql
+REPLACE(expr, from_str, to_str)
+```
+
+**Function Description**: Replaces all occurrences of `from_str` in the string with `to_str`.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: Same as the original type of the input field `expr`.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR, NCHAR.
+- `from_str`: VARCHAR, NCHAR.
+- `to_str`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- This function is case-sensitive.
+- If any argument is NULL, returns NULL.
+- This function is multibyte safe.
+
+**Example**:
+
+```sql
+taos> select replace('aabbccAABBCC', 'AA', 'DD');
+ replace('aabbccAABBCC', 'AA', 'DD') |
+======================================
+ aabbccDDBBCC                        |
+```
+
+#### REPEAT
+
+```sql
+REPEAT(expr, count)
+```
+
+**Function Description**: Returns a string that repeats the string `expr` a specified number of times.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: Same as the original type of the input field `expr`.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR, NCHAR.
+- `count`: INTEGER.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `count < 1`, returns an empty string.
+- If `expr` or `count` is NULL, returns NULL.
+
+**Example**:
+
+```sql
+taos> select repeat('abc',5);
+      repeat('abc',5)      |
+============================
+ abcabcabcabcabc           |
+            
+taos> select repeat('abc',-1);
+ repeat('abc',-1) |
+===================
+                  |
+```
 
 ### Conversion Functions
 
-Conversion functions change the data type of a value.
+Conversion functions convert values from one data type to another.
 
 #### CAST
 
@@ -398,23 +1169,24 @@ Conversion functions change the data type of a value.
 CAST(expr AS type_name)
 ```
 
-**Description**: Convert the input data `expr` into the type specified by `type_name`.
+**Function Description**: Data type conversion function, returns the result of converting `expr` to the type specified by `type_name`.
 
-**Return value type**: The type specified by parameter `type_name`
+**Return Type**: The type specified in CAST (`type_name`).
 
-**Applicable data types**: All data types except JSON and VARBINARY. If type_name is VARBINARY, expr can only be VARCHAR.
+**Applicable Data Types**: The type of input parameter `expr` can be any type except JSON and VARBINARY. If `type_name` is VARBINARY, then `expr` must be of VARCHAR type.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Notes**:
 
-- Error will be reported for unsupported type casting
-- Some values of some supported data types may not be casted, below are known issues:
-        1. Some strings cannot be converted to numeric values. For example, the string `a` may be converted to `0`. However, this does not produce an error.
-        2. If a converted numeric value is larger than the maximum size for the specified type, an overflow will occur. However, this does not produce an error.
-        3. If a converted string value is larger than the maximum size for the specified type, the output value will be truncated. However, this does not produce an error.
+- Unsupported type conversions will result in an error.
+- For supported types, if some values cannot be correctly converted, the output of the conversion function will prevail. Current possible scenarios include:
+        1) Invalid character situations when converting string types to numeric types, e.g., "a" might convert to 0, but will not throw an error.
+        2) When converting to numeric types, if the value exceeds the range that `type_name` can represent, it will overflow, but will not throw an error.
+        3) When converting to string types, if the converted length exceeds the length specified in `type_name`, it will be truncated, but will not throw an error.
+- The DECIMAL type does not support conversion to or from JSON, VARBINARY, or GEOMETRY types.
 
 #### TO_ISO8601
 
@@ -422,21 +1194,20 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**Description**: The ISO8601 date/time format converted from a UNIX timestamp, plus the timezone. You can specify any time zone with the timezone parameter. If you do not enter this parameter, the time zone on the client is used.
+**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with additional timezone information. The `timezone` parameter allows users to specify any timezone information for the output. If the `timezone` parameter is omitted, the output will include the current client system's timezone information.
 
-**Return value type**: VARCHAR
+**Return Data Type**: VARCHAR type.
 
-**Applicable data types**: Integers and timestamps
+**Applicable Data Types**: INTEGER, TIMESTAMP.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Notes**:
 
-- You can specify a time zone in the following format: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00").
-- The precision of the input timestamp will be recognized automatically according to the precision of the table used, milliseconds will be used if no table is specified.
-
+- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00").
+- The precision of the input timestamp is determined by the precision of the table queried, if no table is specified, the precision is milliseconds.
 
 #### TO_JSON
 
@@ -444,16 +1215,15 @@ TO_ISO8601(expr [, timezone])
 TO_JSON(str_literal)
 ```
 
-**Description**: Converts a string into JSON.
+**Function Description**: Converts a string literal to JSON type.
 
-**Return value type**: JSON
+**Return Data Type**: JSON.
 
-**Applicable data types**: JSON strings in the form `{"literal": literal}`. `{}` indicates a null value. The key must be a string literal. The value can be a numeric literal, string literal, Boolean literal, or null literal. str_literal cannot include escape characters.
+**Applicable Data Types**: JSON strings, in the form '\{ "literal" : literal }'. '\{}' represents a null value. Keys must be string literals, and values can be numeric literals, string literals, boolean literals, or null literals. Escape characters are not supported in str_literal.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: table, STable
-
+**Applicable to**: Tables and supertables.
 
 #### TO_UNIXTIMESTAMP
 
@@ -466,21 +1236,21 @@ return_timestamp: {
 }
 ```
 
-**Description**: UNIX timestamp converted from a string of date/time format
+**Function Description**: Converts a datetime format string into a timestamp.
 
-**Return value type**: BIGINT, TIMESTAMP
+**Return Data Type**: BIGINT, TIMESTAMP.
 
-**Applicable column types**: VARCHAR and NCHAR
+**Applicable Fields**: VARCHAR, NCHAR.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Notes**:
 
-- The input string must be compatible with ISO8601/RFC3339 standard, NULL will be returned if the string can't be converted
-- The precision of the returned timestamp is same as the precision set for the current data base in use
-- return_timestamp indicates whether the returned value type is TIMESTAMP or not. If this parameter set to 1, function will return TIMESTAMP type. Otherwise function will return BIGINT type. If parameter is omitted, default return value type is BIGINT.
+- The input datetime string must conform to the ISO8601/RFC3339 standards, and formats that cannot be converted will return NULL.
+- The precision of the returned timestamp is consistent with the time precision setting of the current DATABASE.
+- return_timestamp specifies whether the function's return value is of TIMESTAMP type; setting it to 1 returns TIMESTAMP type, setting it to 0 returns BIGINT type. If not specified, it defaults to BIGINT type.
 
 #### TO_CHAR
 
@@ -488,60 +1258,61 @@ return_timestamp: {
 TO_CHAR(ts, format_str_literal)
 ```
 
-**Description**: Convert a ts column to string as the format specified
+**Function Description**: Converts a timestamp type to a string according to the specified format
 
-**Version**: Since ver-3.2.2.0
+**Version**: ver-3.2.2.0
 
-**Return value type**: VARCHAR
+**Return Data Type**: VARCHAR
 
-**Applicable column types**: TIMESTAMP
+**Applicable Fields**: TIMESTAMP
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables
 
 **Supported Formats**
 
-| **Format**          | **Comment**                                    | **example**               |
-| ------------------- | ---------------------------------------------- | ------------------------- |
-| AM,am,PM,pm         | Meridiem indicator(without periods)            | 07:00:00am                |
-| A.M.,a.m.,P.M.,p.m. | Meridiem indicator(with periods)               | 07:00:00a.m.              |
-| YYYY,yyyy           | year, 4 or more digits                         | 2023-10-10                |
-| YYY,yyy             | year, last 3 digits                            | 023-10-10                 |
-| YY,yy               | year, last 2 digits                            | 23-10-10                  |
-| Y,y                 | year, last digit                               | 3-10-10                   |
-| MONTH               | full uppercase of month                        | 2023-JANUARY-01           |
-| Month               | full capitalized month                         | 2023-January-01           |
-| month               | full lowercase of month                        | 2023-january-01           |
-| MON                 | abbreviated uppercase of month(3 char)         | JAN, SEP                  |
-| Mon                 | abbreviated capitalized month                  | Jan, Sep                  |
-| mon                 | abbreviated lowercase of month                 | jan, sep                  |
-| MM,mm               | month number 01-12                             | 2023-01-01                |
-| DD,dd               | month day, 01-31                               |                           |
-| DAY                 | full uppercase of week day                     | MONDAY                    |
-| Day                 | full capitalized week day                      | Monday                    |
-| day                 | full lowercase of week day                     | monday                    |
-| DY                  | abbreviated uppercase of week day              | MON                       |
-| Dy                  | abbreviated capitalized week day               | Mon                       |
-| dy                  | abbreviated lowercase of week day              | mon                       |
-| DDD                 | year day, 001-366                              |                           |
-| D,d                 | week day number, 1-7, Sunday(1) to Saturday(7) |                           |
-| HH24,hh24           | hour of day, 00-23                             | 2023-01-30 23:59:59       |
-| hh12,HH12, hh, HH   | hour of day, 01-12                             | 2023-01-30 12:59:59PM     |
-| MI,mi               | minute, 00-59                                  |                           |
-| SS,ss               | second, 00-59                                  |                           |
-| MS,ms               | milli second, 000-999                          |                           |
-| US,us               | micro second, 000000-999999                    |                           |
-| NS,ns               | nano second, 000000000-999999999               |                           |
-| TZH,tzh             | time zone hour                                 | 2023-01-30 11:59:59PM +08 |
+| **Format**            | **Description**                           | **Example**               |
+| ------------------- | ----------------------------------------- | ------------------------- |
+| AM,am,PM,pm         | AM/PM without dots                        | 07:00:00am                |
+| A.M.,a.m.,P.M.,p.m. | AM/PM with dots                           | 07:00:00a.m.              |
+| YYYY,yyyy           | Year, 4 or more digits                    | 2023-10-10                |
+| YYY,yyy             | Year, last 3 digits                       | 023-10-10                 |
+| YY,yy               | Year, last 2 digits                       | 23-10-10                  |
+| Y,y                 | Year, last digit                          | 3-10-10                   |
+| MONTH               | Month, uppercase                          | 2023-JANUARY-01           |
+| Month               | Month, first letter uppercase             | 2023-January-01           |
+| month               | Month, lowercase                          | 2023-january-01           |
+| MON                 | Month, abbreviation, uppercase (three characters) | JAN, SEP              |
+| Mon                 | Month, abbreviation, first letter uppercase | Jan, Sep                |
+| mon                 | Month, abbreviation, lowercase            | jan, sep                  |
+| MM,mm               | Month, numeric 01-12                      | 2023-01-01                |
+| DD,dd               | Day of the month, 01-31                   |                           |
+| DAY                 | Day of the week, uppercase                | MONDAY                    |
+| Day                 | Day of the week, first letter uppercase   | Monday                    |
+| day                 | Day of the week, lowercase                | monday                    |
+| DY                  | Day of the week, abbreviation, uppercase  | MON                       |
+| Dy                  | Day of the week, abbreviation, first letter uppercase | Mon             |
+| dy                  | Day of the week, abbreviation, lowercase  | mon                       |
+| DDD                 | Day of the year, 001-366                  |                           |
+| D,d                 | Day of the week, numeric, 1-7, Sunday(1) to Saturday(7) |               |
+| HH24,hh24           | Hour, 00-23                               | 2023-01-30 23:59:59       |
+| hh12,HH12, hh, HH   | Hour, 01-12                               | 2023-01-30 12:59:59PM     |
+| MI,mi               | Minute, 00-59                             |                           |
+| SS,ss               | Second, 00-59                             |                           |
+| MS,ms               | Millisecond, 000-999                      |                           |
+| US,us               | Microsecond, 000000-999999                |                           |
+| NS,ns               | Nanosecond, 000000000-999999999           |                           |
+| TZH,tzh             | Time zone hours                           | 2023-01-30 11:59:59PM +08 |
 
-**More explanations**:
-- The output format of `Month`, `Day` are left aligined, like`2023-OCTOBER  -01`, `2023-SEPTEMBER-01`, `September` is the longest, no paddings. Week days are slimilar.
-- When `ms`,`us`,`ns` are used in `to_char`, like `to_char(ts, 'yyyy-mm-dd hh:mi:ss.ms.us.ns')`, The time of `ms`,`us`,`ns` corresponds to the same fraction seconds. When ts is `1697182085123`, the output of `ms` is `123`, `us` is `123000`, `ns` is `123000000`.
-- If we want to output some characters of format without converting, surround it with double quotes. `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If want to output double quotes, add a back slash before double quote, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
-- For formats that output digits, the uppercase and lowercase formats are the same.
-- It's recommended to put time zone in the format, if not, the default time zone will be that in server or client.
-- The precision of the input timestamp will be recognized automatically according to the precision of the table used, milliseconds will be used if no table is specified.
+**Usage Instructions**:
+
+- The output format for `Month`, `Day`, etc., is left-aligned with spaces added to the right, such as `2023-OCTOBER  -01`, `2023-SEPTEMBER-01`. September has the longest number of letters among the months, so there is no space for September. Weeks are similar.
+- When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
+- Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
+- Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
+- It is recommended to include timezone information in the time format; if not included, the default output timezone is the timezone configured by the server or client.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
 
 #### TO_TIMESTAMP
 
@@ -549,36 +1320,36 @@ TO_CHAR(ts, format_str_literal)
 TO_TIMESTAMP(ts_str_literal, format_str_literal)
 ```
 
-**Description**: Convert a formated timestamp string to a timestamp
+**Function Description**: Converts a string to a timestamp according to the specified format.
 
-**Version**: Since ver-3.2.2.0
+**Version**: ver-3.2.2.0
 
-**Return value type**: TIMESTAMP
+**Return Result Data Type**: TIMESTAMP
 
-**Applicable column types**: VARCHAR
+**Applicable Fields**: VARCHAR
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to inner and outer queries
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables
 
-**Supported Formats**: The same as `TO_CHAR`.
+**Supported Formats**: Same as `to_char`
 
-**More explanations**:
-- When `ms`, `us`, `ns` are used in `to_timestamp`, if multi of them are specified, the results are accumulated. For example, `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` will output the timestamp of `2023-10-10 10:10:10.123456789`.
-- The uppercase or lowercase of `MONTH`, `MON`, `DAY`, `DY` and formtas that output digits have same effect when used in `to_timestamp`, like `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month` can be replaced by `MONTH`, or `month`. The cases are ignored.
-- If multi times are specified for one component, the previous will be overwritten. Like `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, the output year will be `2022`.
-- To avoid unexpected time zone used during the convertion, it's recommended to put time zone in the ts string, e.g. '2023-10-10 10:10:10+08'. If time zone not specified, default will be that in server or client.
-- The default timestamp if some components are not specified will be: `1970-01-01 00:00:00` with the timezone specified or default to local timezone. Only `DDD` is specified without `DD` is not supported currently, e.g. format 'yyyy-mm-ddd' is not supported, but 'yyyy-mm-dd' is supported.
-- If `AM` or `PM` is specified in formats, the Hour must between `1-12`.
-- In some cases, `to_timestamp` can convert correctly even the format and the timestamp string are not totally matched. Like `to_timetamp('200101/2', 'yyyyMM1/dd')`, the digit `1` in format string are ignored, and the output timestsamp is `2001-01-02 00:00:00`. Spaces and tabs in formats and tiemstamp string are also ignored automatically.
-- The precision of the output timestamp will be the same as the table in SELECT stmt, millisecond will be used if no table is specified. The output of `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')` will be truncated to millisecond precision. If a nano precision table is specified, no truncation will be applied. Like `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`.
+**Usage Instructions**:
 
+- If `ms`, `us`, `ns` are specified at the same time, then the resulting timestamp includes the sum of these three fields. For example, `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` outputs the timestamp corresponding to `2023-10-10 10:10:10.123456789`.
+- `MONTH`, `MON`, `DAY`, `DY` and other formats that output numbers have the same meaning in uppercase and lowercase, such as `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month` can be replaced with `MONTH` or `Month`.
+- If the same field is specified multiple times, the earlier specification will be overridden. For example, `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, the output year is `2022`.
+- To avoid using an unintended timezone during conversion, it is recommended to carry timezone information in the time, for example, '2023-10-10 10:10:10+08'; if no timezone is specified, the default timezone is the one specified by the server or client.
+- If a complete time is not specified, then the default time value is `1970-01-01 00:00:00` in the specified or default timezone, and the unspecified parts use the corresponding parts of this default value. Formats that only specify the year and day without specifying the month and day, like 'yyyy-mm-DDD', are not supported, but 'yyyy-mm-DD' is supported.
+- If the format string contains `AM`, `PM`, etc., then the hour must be in 12-hour format, ranging from 01-12.
+- `to_timestamp` conversion has a certain tolerance mechanism; even when the format string and timestamp string do not completely correspond, conversion is sometimes possible, like: `to_timestamp('200101/2', 'yyyyMM1/dd')`, the extra 1 in the format string will be discarded. Extra whitespace characters (spaces, tabs, etc.) in the format string and timestamp string will also be automatically ignored. For example, `to_timestamp('  23 年 - 1 月 - 01 日  ', 'yy 年-MM月-dd日')` can be successfully converted. Although fields like `MM` require two digits (with a leading zero if only one digit), in `to_timestamp`, a single digit can also be successfully converted.
+- The precision of the output timestamp is the same as the precision of the queried table; if no table is specified, then the output precision is milliseconds. For example, `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')` will truncate microseconds and nanoseconds. If a nanosecond table is specified, truncation will not occur, like `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`.
 
 ### Time and Date Functions
 
-These functions perform operations on times and dates.
+Time and date functions operate on timestamp types.
 
-All functions that return the current time, such as `NOW`, `TODAY`, and `TIMEZONE`, are calculated only once per statement even if they appear multiple times.
+All functions that return the current time, such as NOW, TODAY, and TIMEZONE, are calculated only once in a SQL statement, no matter how many times they appear.
 
 #### NOW
 
@@ -586,22 +1357,21 @@ All functions that return the current time, such as `NOW`, `TODAY`, and `TIMEZON
 NOW()
 ```
 
-**Description**: The current time of the client side system
+**Function Description**: Returns the current system time of the client.
 
-**Return value type**: TIMESTAMP
+**Return Result Data Type**: TIMESTAMP.
 
-**Applicable column types**: TIMESTAMP only
+**Applicable Fields**: When used in WHERE or INSERT statements, it can only be applied to fields of TIMESTAMP type.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**More explanations**:
+**Usage Instructions**:
 
-- Add and Subtract operation can be performed, for example NOW() + 1s, the time unit can be:
-        b(nanosecond), u(microsecond), a(millisecond)), s(second), m(minute), h(hour), d(day), w(week)
-- The precision of the returned timestamp is same as the precision set for the current data base in use
-
+- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units include:
+        b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 
 #### TIMEDIFF
 
@@ -609,22 +1379,43 @@ NOW()
 TIMEDIFF(expr1, expr2 [, time_unit])
 ```
 
-**Description**: The difference between two timestamps, and rounded to the time unit specified by `time_unit`
+**Function Description**: Returns the result of the timestamp `expr1` - `expr2`, which may be negative, and approximated to the precision specified by the `time_unit`.
 
-**Return value type**: BIGINT
+**Return Result Type**: BIGINT.
 
-**Applicable column types**: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format
+**Applicable Data Types**:
 
-**Applicable table types**: standard tables and supertables
+- `expr1`: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 standard date-time format.
+- `expr2`: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 standard date-time format.
+- `time_unit`: See usage instructions.
+- `timediff` return the absolute value of the difference between timestamp `expr1` and `expr2` before ver-3.3.3.0.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**More explanations**:
-- Time unit specified by `time_unit` can be:
-          1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
-- The precision of the returned timestamp is same as the precision set for the current data base in use
-- If the input data is not formatted as a timestamp, the returned value is null.
+**Applicable to**: Tables and supertables.
 
+**Usage Instructions**:
+
+- Supported time units `time_unit` include: 1b(nanoseconds), 1u(microseconds), 1a(milliseconds), 1s(seconds), 1m(minutes), 1h(hours), 1d(days), 1w(weeks).
+- If the time unit `time_unit` is not specified, the precision of the returned time difference is consistent with the time precision set in the current DATABASE.
+- Returns NULL if the input contains strings that do not conform to the date-time format.
+- Returns NULL if `expr1` or `expr2` is NULL.
+- If `time_unit` is NULL, it is equivalent to the time unit not being specified.
+- The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
+
+**Example**:
+
+```sql
+taos> select timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s);
+ timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s) |
+============================================================
+                                                        -1 |
+
+taos> select timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s);
+ timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s) |
+============================================================
+                                                         1 |
+```
 
 #### TIMETRUNCATE
 
@@ -637,26 +1428,28 @@ use_current_timezone: {
 }
 ```
 
-**Description**: Truncate the input timestamp with unit specified by `time_unit`
+**Function Description**: Truncates the timestamp according to the specified time unit `time_unit`.
 
-**Return value type**: TIMESTAMP
+**Return Result Data Type**: TIMESTAMP.
 
-**Applicable column types**: UNIX-style timestamps in BIGINT and TIMESTAMP format and other timestamps in VARCHAR and NCHAR format
+**Applicable Fields**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 standard date-time format.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
-- Time unit specified by `time_unit` can be:
-          1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
-- The precision of the returned timestamp is same as the precision set for the current data base in use
-- The precision of the input timestamp will be recognized automatically according to the precision of the table used, milliseconds will be used if no table is specified.
-- If the input data is not formatted as a timestamp, the returned value is null.
-- When using 1d/1w as the time unit to truncate timestamp, you can specify whether to truncate based on the current time zone by setting the use_current_timezone parameter.
-  Value 0 indicates truncation using the UTC time zone, value 1 indicates truncation using the current time zone.
-  For example, if the time zone configured by the Client is UTC + 0800, TIMETRUNCATE ('2020-01-01 23:00:00', 1d, 0) returns the result of '2020-01-01 08:00:00'.
-  When using TIMETRUNCATE ('2020-01-01 23:00:00', 1d, 1), the result is 2020-01-01 00:00:00 '.
-  When use_current_timezone is not specified, use_current_timezone defaults to 1.
-- When truncating a time value to the week (1w), weeks are determined using the Unix epoch (1970-01-01T00:00:00Z UTC). The Unix epoch was on a Thursday, so all calculated weeks begin on Thursday.
+**Usage Instructions**:
+
+- Supported time units `time_unit` include:
+          1b(nanoseconds), 1u(microseconds), 1a(milliseconds), 1s(seconds), 1m(minutes), 1h(hours), 1d(days), 1w(weeks).
+- The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
+- The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
+- Returns NULL if the input contains strings that do not conform to the date-time format.
+- When using 1d/1w as the time unit to truncate timestamps, the `use_current_timezone` parameter can be set to specify whether to truncate based on the current timezone.
+  A value of 0 means truncation using the UTC timezone, and a value of 1 means truncation using the current timezone.
+  For example, if the client's configured timezone is UTC+0800, then TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) returns the East Eight Zone time '2020-01-01 08:00:00'.
+  Using TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) returns the East Eight Zone time '2020-01-01 00:00:00'.
+  When `use_current_timezone` is not specified, the default value is 1.
+- When truncating the time value to a week (1w), the calculation of timetruncate is based on the Unix timestamp (January 1, 1970, 00:00:00 UTC). Since the Unix timestamp starts on a Thursday,
+  all truncated dates are Thursdays.
 
 #### TIMEZONE
 
@@ -664,14 +1457,13 @@ use_current_timezone: {
 TIMEZONE()
 ```
 
-**Description**: The timezone of the client side system
+**Function Description**: Returns the current timezone information of the client.
 
-**Applicable data types**: VARCHAR
+**Return Data Type**: VARCHAR.
 
-**Applicable column types**: None
+**Applicable Fields**: None
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 #### TODAY
 
@@ -679,26 +1471,193 @@ TIMEZONE()
 TODAY()
 ```
 
-**Description**: The timestamp of 00:00:00 of the client side system
+**Function Description**: Returns the system time at midnight of the current day for the client.
 
-**Return value type**: TIMESTAMP
+**Return Data Type**: TIMESTAMP.
 
-**Applicable column types**: TIMESTAMP only
+**Applicable Fields**: Can only be used with TIMESTAMP type fields when used in WHERE or INSERT statements.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Instructions**:
 
-- Add and Subtract operation can be performed, for example TODAY() + 1s, the time unit can be:
-                b(nanosecond), u(microsecond), a(millisecond)), s(second), m(minute), h(hour), d(day), w(week)
-- The precision of the returned timestamp is same as the precision set for the current data base in use
+- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units include:
+                b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
 
+#### WEEK
+
+```sql
+WEEK(expr [, mode])
+```
+
+**Function Description**: Returns the week number of the input date.
+
+**Version**: ver-3.3.3.0
+
+**Return Result Type**: BIGINT.
+
+**Applicable Data Types**:
+
+- `expr`: BIGINT, TIMESTAMP type representing a timestamp, or VARCHAR, NCHAR type conforming to ISO8601/RFC3339 date and time standards.
+- `mode`: An integer between 0 - 7.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` is NULL, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- `mode` is used to specify whether the week starts on Sunday or Monday, and whether the return value range is 1 - 53 or 0 - 53. The following table details the calculation methods corresponding to different modes:
+
+| Mode | First Day of the Week | Return Value Range  | Calculation Method for the 1st Week         |
+| ---- | --------------------- | ------------------- | ------------------------------------------ |
+| 0    | Sunday                | 0 - 53              | The first week containing Sunday is week 1 |
+| 1    | Monday                | 0 - 53              | The first week containing at least four days is week 1 |
+| 2    | Sunday                | 1 - 53              | The first week containing Sunday is week 1 |
+| 3    | Monday                | 1 - 53              | The first week containing at least four days is week 1 |
+| 4    | Sunday                | 0 - 53              | The first week containing at least four days is week 1 |
+| 5    | Monday                | 0 - 53              | The first week containing Monday is week 1 |
+| 6    | Sunday                | 1 - 53              | The first week containing at least four days is week 1 |
+| 7    | Monday                | 1 - 53              | The first week containing Monday is week 1 |
+
+- When the return value range is 0 - 53, dates before the 1st week are considered week 0.
+- When the return value range is 1 - 53, dates before the 1st week are considered the last week of the previous year.
+- For example, with `2000-01-01`,
+  - In `mode=0`, the return value is `0` because the first Sunday of that year is `2000-01-02`, making `2000-01-02` the start of week 1, thus `2000-01-01` is week 0, returning 0.
+  - In `mode=1`, the return value is `0` because the week containing `2000-01-01` only has two days, `2000-01-01 (Saturday)` and `2000-01-02 (Sunday)`, making `2000-01-03` the start of the first week, thus `2000-01-01` is week 0, returning 0.
+  - In `mode=2`, the return value is `52` because `2000-01-02` starts week 1, and with the return value range being 1-53, `2000-01-01` is considered the last week of the previous year, i.e., the 52nd week of 1999, returning 52.
+
+**Example**:
+
+```sql
+taos> select week('2000-01-01',0);
+ week('2000-01-01',0)  |
+========================
+                     0 |
+
+taos> select week('2000-01-01',1);
+ week('2000-01-01',1)  |
+========================
+                     0 |
+
+taos> select week('2000-01-01',2);
+ week('2000-01-01',2)  |
+========================
+                    52 |
+
+taos> select week('2000-01-01',3);
+ week('2000-01-01',3)  |
+========================
+                    52 |
+```
+
+#### WEEKOFYEAR
+
+```sql
+WEEKOFYEAR(expr)
+```
+
+**Function Description**: Returns the week number of the input date.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: BIGINT.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Equivalent to `WEEK(expr, 3)`, where the first day of the week is Monday, and the return value ranges from 1 to 53, with the first week containing four or more days being week 1.
+- If `expr` is NULL, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+
+**Example**:
+
+```sql
+taos> select weekofyear('2000-01-01');
+ weekofyear('2000-01-01') |
+===========================
+                       52 |
+```
+
+#### WEEKDAY
+
+```sql
+WEEKDAY(expr)
+```
+
+**Function Description**: Returns the weekday of the input date.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: BIGINT.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Return value 0 represents Monday, 1 represents Tuesday ... 6 represents Sunday.
+- If `expr` is NULL, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+
+**Example**:
+
+```sql
+taos> select weekday('2000-01-01');
+ weekday('2000-01-01') |
+========================
+                     5 |
+```
+
+#### DAYOFWEEK
+
+```sql
+DAYOFWEEK(expr)
+```
+
+**Function Description**: Returns the weekday of the input date.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: BIGINT.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Return value 1 represents Sunday, 2 represents Monday ... 7 represents Saturday.
+- If `expr` is NULL, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+
+**Example**:
+
+```sql
+taos> select dayofweek('2000-01-01');
+ dayofweek('2000-01-01') |
+==========================
+                       7 |
+```
 
 ## Aggregate Functions
 
-Aggregate functions return one row per group. You can use windows or GROUP BY to group data. Otherwise, the entire query is considered a single group.
+Aggregate functions return a single result row for each group of the result set of a query. Groups can be specified by a GROUP BY or window partition clause; if none is specified, the entire result set is considered a single group.
 
-TDengine supports the following aggregate functions:
+TDengine supports aggregate queries on data. The following aggregate functions are provided.
 
 ### APERCENTILE
 
@@ -711,18 +1670,19 @@ algo_type: {
 }
 ```
 
-**Description**: Similar to `PERCENTILE`, but a simulated result is returned
+**Function Description**: Calculates the approximate percentile ranks of values in a specified column of a table/supertable, similar to the PERCENTILE function but returns an approximate result.
 
-**Return value type**: DOUBLE
+**Return Data Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**Explanations**:
-- _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
-- `algo_type` can only be input as `default` or `t-digest` Enter `default` to use a histogram-based algorithm. Enter `t-digest` to use the t-digest algorithm to calculate the approximation of the quantile. `default` is used by default.
-- The approximation result of `t-digest` algorithm is sensitive to input data order. For example, when querying STable with different input data order there might be minor differences in calculated results.
+**Description**:
+
+- The range of p is [0,100], where 0 is equivalent to MIN and 100 is equivalent to MAX.
+- algo_type can be "default" or "t-digest". When the input is "default", the function uses a histogram-based algorithm for calculation. When the input is "t-digest", it uses the t-digest algorithm to calculate the approximate percentile. If algo_type is not specified, the "default" algorithm is used.
+- The approximate result of the "t-digest" algorithm is sensitive to the order of input data, and different input orders may result in slight discrepancies in supertable queries.
 
 ### AVG
 
@@ -730,14 +1690,15 @@ algo_type: {
 AVG(expr)
 ```
 
-**Description**: The average value of the specified fields.
+**Function Description**: Calculates the average value of the specified field.
 
-**Return value type**: DOUBLE
+**Return Data Type**: DOUBLE, DECIMAL.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
+**Description**: When the input type is DECIMAL, the output type is also DECIMAL. The precision and scale of the output conform to the rules described in the data type section. The result type is obtained by dividing the SUM type by UINT64. If the SUM result causes a DECIMAL type overflow, a DECIMAL OVERFLOW error is reported.
 
 ### COUNT
 
@@ -745,19 +1706,18 @@ AVG(expr)
 COUNT({* | expr})
 ```
 
-**Description**: The number of records in the specified fields.
+**Function Description**: Counts the number of record rows for the specified field.
 
-**Return value type**: BIGINT
+**Return Data Type**: BIGINT.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: All field types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanation**:
+**Usage Notes**:
 
-- Wildcard (\*) is used to represent all columns.
-If you input a specific column, the number of non-null values in the column is returned.
-
+- An asterisk (*) can be used to replace a specific field, using an asterisk (*) returns the total number of records.
+- If the counting field is a specific column, it returns the number of non-NULL value records in that column.
 
 ### ELAPSED
 
@@ -765,25 +1725,25 @@ If you input a specific column, the number of non-null values in the column is r
 ELAPSED(ts_primary_key [, time_unit])
 ```
 
-**Description**: `elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calculated time length within each time window. If it's used without `INTERVAL` clause, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
+**Function Description**: The elapsed function expresses the continuous duration within the statistical period, and when used in conjunction with the twa function, it can calculate the area under the statistical curve. When specifying a window with the INTERVAL clause, it calculates the time range covered by data in each window within the given time range; if there is no INTERVAL clause, it returns the time range covered by data for the entire given time range. Note that ELAPSED does not return the absolute value of the time range, but the number of units obtained by dividing the absolute value by the time_unit. Stream computing only supports this function in FORCE_WINDOW_CLOSE mode.
 
-**Return value type**: Double if the input value is not NULL;
+**Return Result Type**: DOUBLE.
 
-**Return value type**: TIMESTAMP
+**Applicable Data Types**: TIMESTAMP.
 
-**Applicable tables**: table, STable, outer in nested query
+**Applicable to**: Tables, supertables, outer queries of nested queries
 
-**Explanations**:
-- `ts_primary_key` parameter can only be the first column of a table, i.e. timestamp primary key.
-- The minimum value of `time_unit` is the time precision of the database. If `time_unit` is not specified, the time precision of the database is used as the default time unit. Time unit specified by `time_unit` can be:
-          1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
-- It can be used with `INTERVAL` to get the time valid time length of each time window. Please be noted that the return value is same as the time window for all time windows except for the first and the last time window.
-- `order by asc/desc` has no effect on the result.
-- `group by tbname` must be used together when `elapsed` is used against a STable.
-- `group by` must NOT be used together when `elapsed` is used against a table or sub table.
-- When used in nested query, it's only applicable when the inner query outputs an implicit timestamp column as the primary key. For example, `select elapsed(ts) from (select diff(value) from sub1)` is legal usage while `select elapsed(ts) from (select * from sub1)` is not. In addition, because elapsed has a strict dependency on the timeline, a statement like `select elapsed(ts) from (select diff(value) from st group by tbname) will return a meaningless result.
-- It can't be used with `leastsquares`, `diff`, `derivative`, `top`, `bottom`, `last_row`, `interp`.
+**Notes**:
 
+- The ts_primary_key parameter can only be the first column of the table, i.e., the TIMESTAMP type primary key column.
+- Returns according to the time unit specified by the time_unit parameter, with the minimum being the time resolution of the database. If the time_unit parameter is not specified, the time resolution of the database is used as the time unit. Supported time units time_unit include:
+          1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- Can be used in combination with interval, returning the timestamp difference for each time window. It is important to note that, except for the first and last time windows, the timestamp differences for the middle windows are all the length of the window.
+- order by asc/desc does not affect the calculation of the difference.
+- For supertables, it needs to be used in combination with the group by tbname clause, and cannot be used directly.
+- For regular tables, it is not supported in combination with the group by clause.
+- For nested queries, it is only valid when the inner query outputs an implicit timestamp column. For example, the statement select elapsed(ts) from (select diff(value) from sub1), the diff function causes the inner query to output an implicit timestamp column, which is the primary key column and can be used as the first parameter of the elapsed function. Conversely, for example, the statement select elapsed(ts) from (select * from sub1), the ts column output to the outer layer no longer has the meaning of the primary key column and cannot use the elapsed function. Additionally, as a function strongly dependent on the timeline, forms like select elapsed(ts) from (select diff(value) from st group by tbname) although will return a calculation result, it has no practical significance, and such usage will also be restricted in the future.
+- Not supported in combination with leastsquares, diff, derivative, top, bottom, last_row, interp, and other functions.
 
 ### LEASTSQUARES
 
@@ -791,14 +1751,13 @@ ELAPSED(ts_primary_key [, time_unit])
 LEASTSQUARES(expr, start_val, step_val)
 ```
 
-**Description**: The linear regression function of a specified column, `start_val` is the initial value and `step_val` is the step value.
+**Function Description**: Calculates the linear equation of the values of a column in the table. start_val is the initial value of the independent variable, step_val is the step value of the independent variable.
 
-**Return value type**: A string in the format of "(slope, intercept)"
+**Return Data Type**: String expression (slope, intercept).
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: expr must be a numeric type.
 
-**Applicable table types**: table only
-
+**Applicable to**: Tables.
 
 ### SPREAD
 
@@ -806,29 +1765,82 @@ LEASTSQUARES(expr, start_val, step_val)
 SPREAD(expr)
 ```
 
-**Description**: The difference between the max and the min of a specific column
+**Function Description**: Calculates the difference between the maximum and minimum values of a column in the table.
 
-**Return value type**: DOUBLE
+**Return Data Type**: DOUBLE.
 
-**Applicable data types**: Integers and timestamps
+**Applicable Data Types**: INTEGER, TIMESTAMP.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-
-### STDDEV
+### STDDEV/STDDEV_POP
 
 ```sql
-STDDEV(expr)
+STDDEV/STDDEV_POP(expr)
 ```
 
-**Description**: Standard deviation of a specific column in a table or STable
+**Function Description**: Calculates the population standard deviation of a column in the table.
 
-**Return value type**: DOUBLE
+**Return Data Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
+**Description**:
+- Function `STDDEV_POP` equals `STDDEV` and is supported from ver-3.3.3.0.
+
+**Example**:
+
+```sql
+taos> select id from test_stddev;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> select stddev_pop(id) from test_stddev;
+      stddev_pop(id)       |
+============================
+         1.414213562373095 |
+```
+
+### VAR_POP
+
+```sql
+VAR_POP(expr)
+```
+
+**Function Description**: Calculates the population variance of a column in a table.
+
+**Version**: ver-3.3.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Example**:
+
+```sql
+taos> select id from test_var;
+     id      |
+==============
+           3 |
+           1 |
+           2 |
+           4 |
+           5 |
+
+taos> select var_pop(id) from test_var;
+        var_pop(id)        |
+============================
+         2.000000000000000 |
+```
 
 ### SUM
 
@@ -836,14 +1848,15 @@ STDDEV(expr)
 SUM(expr)
 ```
 
-**Description**: The sum of a specific column in a table or STable
+**Function Description**: Calculates the sum of a column in a table/supertable.
 
-**Return value type**: DOUBLE or BIGINT
+**Return Data Type**: DOUBLE, BIGINT,DECIMAL.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
+**Description**: When the input type is DECIMAL, the output type is DECIMAL(38, scale), where precision is the maximum value currently supported, and scale is the scale of the input type. If the SUM result overflows, a DECIMAL OVERFLOW error is reported.
 
 ### HYPERLOGLOG
 
@@ -851,16 +1864,16 @@ SUM(expr)
 HYPERLOGLOG(expr)
 ```
 
-**Description**:
-  The cardinal number of a specific column is returned by using hyperloglog algorithm. The benefit of using hyperloglog algorithm is that the memory usage is under control when the data volume is huge.
-  However, when the data volume is very small, the result may be not accurate, it's recommended to use `select count(data) from (select unique(col) as data from table)` in this case.
+**Function Description**:
 
-**Return value type**: Integer
+- Uses the hyperloglog algorithm to return the cardinality of a column. This algorithm significantly reduces memory usage with large data volumes, providing an estimated cardinality with a standard error of 0.81%.
+- For smaller data volumes, this algorithm may not be very accurate. Alternatively, use `select count(data) from (select unique(col) as data from table)`.
 
-**Applicable data types**: Numeric
+**Return Result Type**: INTEGER.
 
-**Applicable table types**: standard tables and supertables
+**Applicable Data Types**: Any type.
 
+**Applicable to**: Tables and supertables.
 
 ### HISTOGRAM
 
@@ -868,54 +1881,53 @@ HYPERLOGLOG(expr)
 HISTOGRAM(expr, bin_type, bin_description, normalized)
 ```
 
-**Description**: Returns count of data points in user-specified ranges.
+**Function Description**: Statistics of data distribution according to user-specified intervals.
 
-**Return value type** If normalized is set to 1, a DOUBLE is returned; otherwise a BIGINT is returned
+**Return Result Type**: If the normalized parameter is set to 1, the result type is DOUBLE, otherwise it is BIGINT.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric fields.
 
-**Applicable table types**: table, STable
+**Applicable to**: Tables and supertables.
 
-**Explanations**:
-- bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin".
-- bin_description: parameter to describe how to generate buckets can be in the following JSON formats for each bin_type respectively:
-    - "user_input": "[1, 3, 5, 7]":
-       User specified bin values.
+**Detailed Description**:
 
-    - "linear_bin": "&lcub;"start": 0.0, "width": 5.0, "count": 5, "infinity": true&rcub;"
-       "start" - bin starting point.       "width" - bin offset.       "count" - number of bins generated.       "infinity" - whether to add (-inf, inf) as start/end point in generated set of bins.
-       The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
+- bin_type: User-specified bucket type, valid inputs are "user_input", "linear_bin", "log_bin".
+- bin_description: Describes how to generate bucket intervals, for the three types of buckets, the descriptions are as follows (all in JSON format strings):
+  - "user_input": "[1, 3, 5, 7]"
+       User specifies the exact values for bins.
 
-    - "log_bin": "&lcub;"start":1.0, "factor": 2.0, "count": 5, "infinity": true&rcub;"
-       "start" - bin starting point.       "factor" - exponential factor of bin offset.       "count" - number of bins generated.       "infinity" - whether to add (-inf, inf) as start/end point in generated range of bins.
-       The above "linear_bin" descriptor generates a set of bins: [-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
-- normalized: setting to 1/0 to turn on/off result normalization. Valid values are 0 or 1.
+  - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" indicates the starting point of data, "width" indicates the offset for each bin, "count" is the total number of bins, "infinity" indicates whether to add (-inf, inf) as the interval start and end points,
+       generating intervals as [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
 
+  - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" indicates the starting point of data, "factor" indicates the exponential growth factor, "count" is the total number of bins, "infinity" indicates whether to add (-inf, inf) as the interval start and end points,
+       generating intervals as [-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
+- normalized: Whether to normalize the results to between 0 and 1. Valid inputs are 0 and 1.
 
 ### PERCENTILE
 
 ```sql
-PERCENTILE(expr, p [, p1] ...)
+PERCENTILE(expr, p [, p1] ... )
 ```
 
-**Description**: The value whose rank in a specific column matches the specified percentage. If such a value matching the specified percentage doesn't exist in the column, an interpolation value will be returned.
+**Function Description**: Calculates the percentile values for a column in a table.
 
-**Return value type**: This function takes 2 minimum and 11 maximum parameters, and it can simultaneously return 10 percentiles at most. If 2 parameters are given, a single percentile is returned and the value type is DOUBLE.
-                       If more than 2 parameters are given, the return value type is a VARCHAR string, the format of which is a JSON ARRAY containing all return values.
+**Return Data Type**: The function requires a minimum of 2 parameters and can accept up to 11 parameters. It can return up to 10 percentile values at once. When the number of parameters is 2, it returns one percentile as a DOUBLE. When the number of parameters is more than 2, it returns a VARCHAR type, formatted as a JSON array containing multiple return values.
 
-**Applicable column types**: Numeric
+**Applicable Fields**: Numeric types.
 
-**Applicable table types**: table only
+**Applicable to**: Tables.
 
-**More explanations**:
+**Usage Instructions**:
 
-- _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
-- When calculating multiple percentiles of a specific column, a single PERCENTILE function with multiple parameters is advised, as this can largely reduce the query response time.
-  For example, using SELECT percentile(col, 90, 95, 99) FROM table will perform better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
+- *P* values range from 0≤*P*≤100, where P=0 is equivalent to MIN and P=100 is equivalent to MAX;
+- When calculating multiple percentiles for the same column, it is recommended to use one PERCENTILE function with multiple parameters to significantly reduce the response time of the query.
+  For example, using the query SELECT percentile(col, 90, 95, 99) FROM table performs better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
 
 ## Selection Functions
 
-Selection functions return one or more results depending. You can specify the timestamp column, tbname pseudocolumn, or tag columns to show which rows contain the selected value.
+Selection functions choose one or more rows from the query result set based on semantics. Users can specify the output of the ts column or other columns (including tbname and tag columns), making it easy to know which data row the selected values originate from.
 
 ### BOTTOM
 
@@ -923,19 +1935,19 @@ Selection functions return one or more results depending. You can specify the ti
 BOTTOM(expr, k)
 ```
 
-**Description**: The least _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
+**Function Description**: Calculates the smallest *k* non-NULL values of a column in a table/supertable. If multiple data entries have the same value and exceed the limit of k entries, the system randomly selects the required number of entries from those with the same value.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the applied field.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanation**:
+**Usage Instructions**:
 
-- _k_ must be in range [1,100]
-- The timestamp associated with the selected values are returned too
-- Can't be used with `FILL`
+- *k* value range is 1≤*k*≤100;
+- The system also returns the associated timestamp column;
+- Limitation: BOTTOM function does not support the FILL clause.
 
 ### FIRST
 
@@ -943,63 +1955,20 @@ BOTTOM(expr, k)
 FIRST(expr)
 ```
 
-**Description**: The first non-null value of a specific column in a table or STable
+**Function Description**: Calculates the first non-NULL value written in a column of a table/supertable.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the applied field.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: All fields.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanation**:
+**Usage Instructions**:
 
-- FIRST(\*) can be used to get the first non-null value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), FIRST(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
-- NULL will be returned if all the values of the specified column are all NULL
-- A result will NOT be returned if all the columns in the result set are all NULL
-- For a table with composite primary key, the data with the smallest primary key value is returned.
-
-### INTERP
-
-```sql
-INTERP(expr [, ignore_null_values])
-
-ignore_null_values: {
-    0
-  | 1
-}
-```
-
-**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned. The value of `ignore_null_values` can be 0 or 1, 1 means null values are ignored. The default value of this parameter is 0.
-
-
-**Return value type**: Same as the column being operated upon
-
-**Applicable data types**: Numeric
-
-**Applicable table types**: standard tables and supertables
-
-**More explanations**
-
-- `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
-- The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
-- `INTERP` must be used along with `RANGE`, `EVERY`, `FILL` keywords.
-- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1 &lt;= timestamp2. timestamp1 is the starting point of the output time range. timestamp2 is the ending point of the output time range.
-- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY(time_unit)`. Starting from timestamp1, one interpolation is performed for every time interval specified `time_unit` parameter. The parameter `time_unit` must be an integer, with no quotes, with a time unit of: a(millisecond)), s(second), m(minute), h(hour), d(day), or w(week). For example, `EVERY(500a)` will interpolate every 500 milliseconds.
-- Interpolation is performed based on `FILL` parameter. For more information about FILL clause, see [FILL Clause](../distinguished/#fill-clause).
-- When only one timestamp value is specified in `RANGE` clause, `INTERP` is used to generate interpolation at this point in time. In this case, `EVERY` clause can be omitted. For example, SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
-- `INTERP` can be applied to supertable by interpolating primary key sorted data of all its childtables. It can also be used with `partition by tbname` when applied to supertable to generate interpolation on each single timeline.
-- Pseudocolumn `_irowts` can be used along with `INTERP` to return the timestamps associated with interpolation points(support after version 3.0.2.0).
-- Pseudocolumn `_isfilled` can be used along with `INTERP` to indicate whether the results are original records or data points generated by interpolation algorithm(support after version 3.0.3.0).
-- For a table with composite primary key, onley the data with the smallest primary key value is used to generate interpolation.
-
-**Example**
-
-- We use the smart meters example used in this documentation to illustrate how to use the INTERP function.
-- We want to downsample every 1 hour and use a linear fill for missing values. Note the order in which the "partition by" clause and the "range", "every" and "fill" parameters are used.
-
-```sql
-SELECT _irowts,INTERP(current) FROM test.meters PARTITION BY TBNAME RANGE('2017-07-22 00:00:00','2017-07-24 12:25:00') EVERY(1h) FILL(LINEAR)
-```
+- To return the first non-NULL value of each column (smallest timestamp), use FIRST(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), FIRST(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
+- If all values in a column in the result set are NULL, the return for that column is also NULL;
+- If all columns in the result set are NULL, no results are returned.
+- For tables with composite primary keys, if there are multiple entries with the smallest timestamp, only the data with the smallest composite primary key is returned.
 
 ### LAST
 
@@ -1007,21 +1976,20 @@ SELECT _irowts,INTERP(current) FROM test.meters PARTITION BY TBNAME RANGE('2017-
 LAST(expr)
 ```
 
-**Description**: The last non-NULL value of a specific column in a table or STable
+**Function Description**: Returns the last non-NULL value written in a column of a table/supertable.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the applied field.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: All fields.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanation**:
+**Usage Instructions**:
 
-- LAST(\*) can be used to get the last non-NULL value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), LAST(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
-- If the values of a column in the result set are all NULL, NULL is returned for that column; if all columns in the result are all NULL, no result will be returned.
-- When it's used on a STable, if there are multiple values with the timestamp in the result set, one of them will be returned randomly and it's not guaranteed that the same value is returned if the same query is run multiple times.
-- For a table with composite primary key, the data with the largest primary key value is returned.
-
+- To return the last (timestamp largest) non-NULL value of each column, you can use LAST(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), LAST(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
+- If all values in a column in the result set are NULL, the return result for that column is also NULL; if all columns in the result set are NULL, no result is returned.
+- When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
+- For tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
 
 ### LAST_ROW
 
@@ -1029,20 +1997,20 @@ LAST(expr)
 LAST_ROW(expr)
 ```
 
-**Description**: The last row of a table or STable
+**Function Description**: Returns the last record of a table/supertable.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the applied field.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: All fields.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Instructions**:
 
-- LAST_ROW(\*) can be used to get the last value of all columns; When querying a super table and multiResultFunctionStarReturnTags is set to 0 (default), LAST_ROW(\*) only returns columns of super table; When set to 1, returns columns and tags of the super table.
-- When it's used on a STable, if there are multiple values with the timestamp in the result set, one of them will be returned randomly and it's not guaranteed that the same value is returned if the same query is run multiple times.
-- Can't be used with `INTERVAL`.
-- Like `LAST`, the data with the largest primary key value is returned for a table with composite primary key.
+- To return the last record (timestamp largest) of each column, you can use LAST_ROW(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), LAST_ROW(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
+- When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
+- Cannot be used with INTERVAL.
+- Similar to the LAST function, for tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
 
 ### MAX
 
@@ -1050,14 +2018,16 @@ LAST_ROW(expr)
 MAX(expr)
 ```
 
-**Description**: The maximum value of a specific column of a table or STable
+**Function Description**: Calculates the maximum value of a column in a table/supertable.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the applied field.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types, VARCHAR, NCHAR.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
+**Usage Instructions**: 
+- The max function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `max` only accept numeric parameter before ver-3.3.3.0).
 
 ### MIN
 
@@ -1065,14 +2035,16 @@ MAX(expr)
 MIN(expr)
 ```
 
-**Description**: The minimum value of a specific column in a table or STable
+**Function Description**: Calculates the minimum value of a column in a table/supertable.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the applied field.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types, VARCHAR, NCHAR.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
+**Usage Instructions**: 
+- The min function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `min` only accept numeric parameter before ver-3.3.3.0).
 
 ### MODE
 
@@ -1080,14 +2052,13 @@ MIN(expr)
 MODE(expr)
 ```
 
-**Description**:The value which has the highest frequency of occurrence. One random value is returned if there are multiple values which have highest frequency of occurrence.
+**Function Description**: Returns the most frequently occurring value, if there are multiple values with the same highest frequency, it randomly outputs one of them.
 
-**Return value type**: Same as the input data
+**Return Data Type**: Consistent with the input data type.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: All field types.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 ### SAMPLE
 
@@ -1095,33 +2066,31 @@ MODE(expr)
 SAMPLE(expr, k)
 ```
 
-**Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
+**Function Description**: Gets k sample values of the data. The valid input range for parameter k is 1 ≤ k ≤ 1000.
 
-**Return value type**: Same as the column being operated
+**Return Result Type**: Same as the original data type.
 
-**Applicable data types**: Any data type
+**Applicable Data Types**: All field types.
 
-**Applicable nested query**: Inner query and Outer query
+**Nested Subquery Support**: Applicable to both inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 ### TAIL
 
 ```sql
-TAIL(expr, k, offset_val)
+TAIL(expr, k [, offset_rows])
 ```
 
-**Description**: The next _k_ rows are returned after skipping the last `offset_val` rows, NULL values are not ignored. `offset_val` is optional parameter. When it's not specified, the last _k_ rows are returned. When `offset_val` is used, the effect is same as `order by ts desc LIMIT k OFFSET offset_val`.
+**Function Description**: Returns the last k records after skipping the last offset_val records, not ignoring NULL values. offset_val can be omitted. In this case, it returns the last k records. When offset_val is provided, the function is equivalent to `order by ts desc LIMIT k OFFSET offset_val`.
 
-**Parameter value range**: k: [1,100] offset_val: [0,100]
+**Parameter Range**: k: [1,100] offset_val: [0,100].
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the applied field.
 
-**Applicable data types**: Any data type except for timestamp, i.e. the primary key
+**Applicable Data Types**: Suitable for any type except the time primary key column.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables, supertables.
 
 ### TOP
 
@@ -1129,19 +2098,19 @@ TAIL(expr, k, offset_val)
 TOP(expr, k)
 ```
 
-**Description**: The greatest _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
+**Function Description**: Calculates the top k largest non-NULL values of a column in a table/supertable. If multiple data entries have the same value and including all would exceed the limit of k, the system will randomly select the required number from those with the same value.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the field of the application.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanation**:
+**Usage Instructions**:
 
-- _k_ must be in range [1,100]
-- The timestamp associated with the selected values are returned too
-- Can't be used with `FILL`
+- *k* value range is 1≤*k*≤100;
+- The system also returns the timestamp column associated with the record;
+- Limitation: TOP function does not support the FILL clause.
 
 ### UNIQUE
 
@@ -1149,18 +2118,39 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
-**Description**: Return the unique values of this column. The effect is similar to `distinct` keyword. Return the row with the earliest timestamp for duplicate data. For a table with composite primary key, only the data with the smallest primary key value is returned.
+**Function Description**: Returns the deduplicated values of the column. This function is similar to distinct. For the same data, it returns the one with the smallest timestamp. For queries on tables with composite primary keys, if there are multiple records with the smallest timestamp, only the data with the smallest composite primary key is returned.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return Data Type**: Same as the field of the application.
 
-**Applicable column types**: Any data types
+**Applicable Data Types**: All types of fields.
 
-**Applicable table types**: table, STable
+**Applicable to**: Tables and supertables.
+
+### COLS​
+
+```sql​
+COLS​(func(expr), output_expr1, [, output_expr2] ... )​
+```
+
+**Function Description**: On the data row where the execution result of function func(expr) is located, execute the expression output_expr1, [, output_expr2], return its result, and the result of func (expr) is not output.​
+
+**Return Data Type**: Returns multiple columns of data, and the data type of each column is the type of the result returned by the corresponding expression.​
+
+**Applicable Data Types**: All type fields.​
+
+**Applicable to**: Tables and Super Tables.​
+
+**Usage Instructions**:
+- Func function type: must be a single-line selection function (output result is a single-line selection function, for example, last is a single-line selection function, but top is a multi-line selection function).​
+- Mainly used to obtain the associated columns of multiple selection function results in a single SQL query. For example: select cols(max(c0), ts), cols(max(c1), ts) from ... can be used to get the different ts values of the maximum values of columns c0 and c1.
+- The result of the parameter func is not returned. If you need to output the result of func, you can add additional output columns, such as: select first(ts), cols(first(ts), c1) from ..
+- When there is only one column in the output, you can set an alias for the function. For example, you can do it like this: "select cols(first (ts), c1) as c11 from ...".
+- Output one or more columns, and you can set an alias for each output column of the function. For example, you can do it like this: "select (first (ts), c1 as c11, c2 as c22) from ...".
 
 
-## Time-Series Extensions
+## Time-Series Specific Functions
 
-TDengine includes extensions to standard SQL that are intended specifically for time-series use cases. The functions enabled by these extensions require complex queries to implement in general-purpose databases. By offering them as built-in extensions, TDengine reduces user workload.
+Time-Series specific functions are tailor-made by TDengine to meet the query scenarios of time-series data. In general databases, implementing similar functionalities usually requires complex query syntax and is inefficient. TDengine has built these functionalities into functions, greatly reducing the user's cost of use.
 
 ### CSUM
 
@@ -1168,21 +2158,20 @@ TDengine includes extensions to standard SQL that are intended specifically for 
 CSUM(expr)
 ```
 
-**Description**: The cumulative sum of each row for a specific column, NULL value will be discard.
+**Function Description**: Cumulative sum, ignoring NULL values.
 
-**Return value type**: Long integer for integers; Double for floating points. uint64_t for unsigned integers
+**Return Result Type**: If the input column is an integer type, the return value is long integer (int64_t), for floating-point numbers, the return value is double precision floating point (Double). For unsigned integer types, the return value is unsigned long integer (uint64_t).
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Instructions**:
 
-- Arithmetic operation can't be performed on the result of `csum` function
-- Can only be used with aggregate functions This function can be used with supertables and standard tables.
-
+- Does not support +, -, *, / operations, such as csum(col1) + csum(col2).
+- Can only be used with aggregation functions. This function can be applied to both basic tables and supertables.
 
 ### DERIVATIVE
 
@@ -1195,17 +2184,17 @@ ignore_negative: {
 }
 ```
 
-**Description**: The derivative of a specific column. The time rage can be specified by parameter `time_interval`, the minimum allowed time range is 1 second (1s); the value of `ignore_negative` can be 0 or 1, 1 means negative values are ignored. For tables with composite primary key, the data with the smallest primary key value is used to calculate the derivative.
+**Function Description**: Calculates the rate of change per unit of a column in the table. The length of the unit time interval can be specified by the time_interval parameter, which can be as short as 1 second (1s); the value of the ignore_negative parameter can be 0 or 1, where 1 means to ignore negative values. For queries on tables with composite primary keys, if there are multiple records with the same timestamp, only the data with the smallest composite primary key is involved in the calculation.
 
-**Return value type**: DOUBLE
+**Return Data Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanation**:
+**Usage Instructions**:
 
-- It can be used together with a selected column. For example: select \_rowts, DERIVATIVE() from.
+- Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE(col1, 1s, 1) from tb1.
 
 ### DIFF
 
@@ -1220,30 +2209,61 @@ ignore_option: {
 }
 ```
 
-**Description**: The difference of each row with its previous row for a specific column. `ignore_option` takes the value of 0|1|2|3, the default value is 0 if it's not specified. 
-- `0` means that negative values ​​(diff results) are not ignored and null values ​​are not ignored
-- `1` means that negative values ​​(diff results) are treated as null values
-- `2` means that negative values ​​(diff results) are not ignored but null values ​​are ignored
-- `3` means that negative values ​​(diff results) are ignored and null values ​​are ignored
-- For tables with composite primary key, the data with the smallest primary key value is used to calculate the difference.
+**Function Description**: Calculates the difference between a specific column in the table and the current column's previous valid value. ignore_option can be 0|1|2|3, and can be omitted, defaulting to 0.
 
-**Return value type**: `bool`, `timestamp` and `integer` value type all return `int_64`, `float` type returns `double`; if the diff result overflows, it is returned as overflow.
+- `0` means do not ignore (diff result) negative values and do not ignore null values
+- `1` means treat (diff result) negative values as null values
+- `2` means do not ignore (diff result) negative values but ignore null values
+- `3` means ignore (diff result) negative values and ignore null values
+- For queries on tables with composite primary keys, if there are multiple records with the same timestamp, only the data with the smallest composite primary key is involved in the calculation.
 
-**Applicable data types**: Numeric type, timestamp and bool type.
+**Return Data Type**: For bool, timestamp, and integer value types, returns int_64; for floating-point types, returns double; if the diff result overflows, it returns the overflowed value.
 
-**Applicable table types**: standard tables and supertables
+**Applicable Data Types**: Numeric types, timestamp, and bool types.
 
-**More explanation**:
+**Applicable to**: Tables and supertables.
 
-- diff is to calculate the difference of a specific column in current row and the **first valid data before the row**. The **first valid data before the row** refers to the most adjacent non-null value of same column with smaller timestamp.
-- The diff result of numeric type is the corresponding arithmatic difference; the timestamp is calculated based on the timestamp precision of the database; when calculating diff, `true` is treated as 1 and `false` is treated as 0
-- If the data of current row is NULL or can't find the **first valid data before the current row**, the diff result is NULL
-- When ignoring negative values ​​(ignore_option is set to 1 or 3), if the diff result is negative, the result is set to null, and then filtered according to the null value filtering rule
-- When the diff result has an overflow, whether to ignore the negative value depends on the result of the logical operation is positive or negative. For example, the value of 9223372036854775800 - (-9223372036854775806) exceeds the range of BIGINT, and the diff result will display the overflow value -10, but it will not be ignored as a negative value
-- Single or multiple diffs can be used in a single statement, and for each diff you can specify same or different `ignore_option`. When there are multiple diffs in a single statement, when and only when all the diff results are NULL for a row and each diff's `ignore_option` is specified as ignoring NULL, the output of this row will be removed from the result set.
-- Can be used with the selected associated columns. For example: `select _rowts, DIFF()`.
-- When there is not composite primary key, if there are the same timestamps across different subtables, it will prompt "Duplicate timestamps not allowed"
-- When using with composite primary key, there may be same combination of timestamp and complete primary key across sub-tables, which row will be used depends on which row is found first, that means the result of running diff() multiple times may be different in such a case
+**Usage Instructions**:
+
+- diff calculates the difference between the specific column of the current row and the previous valid data of the same column, where the previous valid data refers to the nearest non-null value in the same column with a smaller timestamp.
+- For numeric types, the diff result is the corresponding arithmetic difference; for timestamp types, the difference is calculated based on the timestamp precision of the database; for bool types, true is considered as 1, and false as 0
+- If the current row data is null or no previous valid data is found in the same column, the diff result is null
+- When ignoring negative values (ignore_option set to 1 or 3), if the diff result is negative, the result is set to null, then filtered according to the null value filtering rules
+- When the diff result overflows, whether the result is `a negative value to be ignored` depends on whether the logical operation result is positive or negative, for example, the value of 9223372036854775800 - (-9223372036854775806) exceeds the range of BIGINT, the diff result will show the overflow value -10, but it will not be ignored as a negative value
+- A single statement can use one or multiple diffs, and each diff can specify the same or different ignore_option; when there is more than one diff in a single statement, only when all diff results of a row are null and all ignore_options are set to ignore null values, the row is excluded from the result set
+- Can be used with associated columns. For example: select _rowts, DIFF() from.
+- When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
+- When using composite primary keys, the timestamp and primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
+
+### INTERP
+
+```sql
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
+```
+
+**Function Description**: Returns the record value or interpolated value of a specified column at a specified time slice. The ignore_null_values parameter can be 0 or 1, where 1 means to ignore NULL values, default is 0.
+
+**Return Data Type**: Same as the field type.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**
+
+- INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](../query-data/#interp).
+- When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL](../time-series-extensions/#fill-clause) parameter.
+- When INTERP is applied to a supertable, it will sort all the subtable data under that supertable by primary key column and perform interpolation calculations, and can also be used with PARTITION BY tbname to force the results to a single timeline.
+- When using INTERP with FILL PREV/NEXT/NEAR modes, its behavior differs from window queries. If data exists at the slice, no FILL operation will be performed, even if the current value is NULL.
+- INTERP can be used with the pseudocolumn _irowts to return the timestamp corresponding to the interpolation point (supported from version 3.0.2.0).
+- INTERP can be used with the pseudocolumn _isfilled to display whether the return result is from the original record or generated by the interpolation algorithm (supported from version 3.0.3.0).
+- INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
+- For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
 
 ### IRATE
 
@@ -1251,14 +2271,13 @@ ignore_option: {
 IRATE(expr)
 ```
 
-**Description**: instantaneous rate on a specific column. The last two samples in the specified time range are used to calculate instantaneous rate. If the last sample value is smaller, then only the last sample value is used instead of the difference between the last two sample values. For tables with composite primary key, the data with the smallest primary key value is used to calculate the rate.
+**Function Description**: Calculates the instantaneous growth rate. It uses the last two sample data points in the time interval to calculate the instantaneous growth rate; if these two values are decreasing, then only the last value is used for the calculation, rather than the difference between the two. For queries on tables with composite primary keys, if there are multiple data points with the same timestamp, only the data corresponding to the smallest composite primary key is used in the calculation.
 
-**Return value type**: DOUBLE
+**Return Data Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
-
+**Applicable to**: Tables and supertables.
 
 ### MAVG
 
@@ -1266,21 +2285,20 @@ IRATE(expr)
 MAVG(expr, k)
 ```
 
-**Description**: The moving average of continuous _k_ values of a specific column. If the number of input rows is less than _k_, nothing is returned. The applicable range of _k_ is [1,1000].
+**Function Description**: Calculates the moving average of consecutive k values. If the number of input rows is less than k, no result is output. The valid input range for parameter k is 1 ≤ k ≤ 1000.
 
-**Return value type**: DOUBLE
+**Return Result Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Nested query**: It can be used in both the outer query and inner query in a nested query.
+**Nested Subquery Support**: Applicable to inner and outer queries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Notes**:
 
-- Arithmetic operation can't be performed on the result of `MAVG`.
-- Can only be used with data columns, can't be used with tags. - Can't be used with aggregate functions.
-
+- Does not support +, -, *, / operations, such as mavg(col1, k1) + mavg(col2, k1);
+- Can only be used with regular columns, selection, and projection functions, not with aggregation functions;
 
 ### STATECOUNT
 
@@ -1288,25 +2306,24 @@ MAVG(expr, k)
 STATECOUNT(expr, oper, val)
 ```
 
-**Description**: The number of continuous rows satisfying the specified conditions for a specific column. The result is shown as an extra column for each row. If the specified condition is evaluated as true, the number is increased by 1; otherwise the number is reset to -1. If the input value is NULL, then the corresponding row is skipped.
+**Function Description**: Returns the number of consecutive records that meet a certain condition, with the result appended as a new column to each row. The condition is calculated based on the parameters, adding 1 if the condition is true, resetting to -1 if false, and skipping the data if it is NULL.
 
-**Applicable parameter values**:
+**Parameter Range**:
 
-- oper : Can be one of `'LT'` (lower than), `'GT'` (greater than), `'LE'` (lower than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), the value is case insensitive, the value must be in quotes.
-- val: Numeric types
+- oper: "LT" (less than), "GT" (greater than), "LE" (less than or equal to), "GE" (greater than or equal to), "NE" (not equal to), "EQ" (equal to), case insensitive.
+- val: Numeric
 
-**Return value type**: Integer
+**Return Result Type**: INTEGER.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable nested query**: Outer query only
+**Nested Subquery Support**: Not applicable to subqueries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Notes**:
 
-- Can't be used with window operation, like interval/state_window/session_window
-
+- Cannot be used with window operations, such as interval/state_window/session_window.
 
 ### STATEDURATION
 
@@ -1314,26 +2331,25 @@ STATECOUNT(expr, oper, val)
 STATEDURATION(expr, oper, val, unit)
 ```
 
-**Description**: The length of time range in which all rows satisfy the specified condition for a specific column. The result is shown as an extra column for each row. The length for the first row that satisfies the condition is 0. Next, if the condition is evaluated as true for a row, the time interval between current row and its previous row is added up to the time range; otherwise the time range length is reset to -1. If the value of the column is NULL, the corresponding row is skipped.
+**Function Description**: Returns the duration of time for consecutive records that meet a certain condition, with the result appended as a new column to each row. The condition is calculated based on the parameters, adding the time length between two records if the condition is true (the time length of the first record meeting the condition is counted as 0), resetting to -1 if false, and skipping the data if it is NULL.
 
-**Applicable parameter values**:
+**Parameter Range**:
 
-- oper : Can be one of `'LT'` (lower than), `'GT'` (greater than), `'LE'` (lower than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), the value is case insensitive, the value must be in quotes.
-- val: Numeric types
-- unit: The unit of time interval. Enter one of the following options: 1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks) If you do not enter a unit of time, the precision of the current database is used by default.
+- oper: `'LT'` (less than), `'GT'` (greater than), `'LE'` (less than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), case insensitive, but must be enclosed in `''`.
+- val: Numeric
+- unit: Time unit of the duration, possible values: 1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). If omitted, defaults to the current database precision.
 
-**Return value type**: Integer
+**Return Result Type**: INTEGER.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable nested query**: Outer query only
+**Nested Subquery Support**: Not applicable to subqueries.
 
-**Applicable table types**: standard tables and supertables
+**Applicable to**: Tables and supertables.
 
-**More explanations**:
+**Usage Notes**:
 
-- Can't be used with window operation, like interval/state_window/session_window
-
+- Cannot be used with window operations, such as interval/state_window/session_window.
 
 ### TWA
 
@@ -1341,15 +2357,13 @@ STATEDURATION(expr, oper, val, unit)
 TWA(expr)
 ```
 
-**Description**: Time weighted average on a specific column within a time range. For tables with composite primary key, the data with the smallest primary key value is used to calculate the average.
+**Function Description**: Time-weighted average function. Calculates the time-weighted average of a column in a table over a period of time. For queries on tables with composite primary keys, if there are multiple data points with the same timestamp, only the data corresponding to the smallest composite primary key is used in the calculation. Stream computing supports this function only in FORCE_WINDOW_CLOSE mode.
 
-**Return value type**: DOUBLE
+**Return Data Type**: DOUBLE.
 
-**Applicable data types**: Numeric
+**Applicable Data Types**: Numeric types.
 
-**Applicable table types**: standard tables and supertables
-
-
+**Applicable to**: Tables and supertables.
 
 ## System Information Functions
 
@@ -1359,8 +2373,7 @@ TWA(expr)
 SELECT DATABASE();
 ```
 
-**Description**: The current database. If no database is specified upon logging in and no database is specified with `USE` after login, NULL will be returned by `select database()`.
-
+**Description**: Returns the currently logged-in database. If no default database was specified at login and the USE command has not been used to switch databases, it returns NULL.
 
 ### CLIENT_VERSION
 
@@ -1368,7 +2381,7 @@ SELECT DATABASE();
 SELECT CLIENT_VERSION();
 ```
 
-**Description**: The client version.
+**Description**: Returns the client version.
 
 ### SERVER_VERSION
 
@@ -1376,7 +2389,7 @@ SELECT CLIENT_VERSION();
 SELECT SERVER_VERSION();
 ```
 
-**Description**: The server version.
+**Description**: Returns the server version.
 
 ### SERVER_STATUS
 
@@ -1384,7 +2397,7 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
-**Description**: The server status. When checking the status of a cluster, the recommended way is to use `SHOW CLUSTER ALIVE;`. Unlike `SELECT SERVER_STATUS();`, it does not return an error when some nodes in the cluster are unavailable; instead, it returns different status codes. Plese check [SHOW CLUSTER ALIVE](https://docs.tdengine.com/reference/taos-sql/show/#show-cluster-alive) for details.
+**Description**: Checks if all dnodes on the server are online; if so, it returns success, otherwise, it returns an error that the connection could not be established. To check the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which, unlike `SELECT SERVER_STATUS();`, does not return an error when some nodes in the cluster are unavailable, but instead returns different status codes, see: [SHOW CLUSTER ALIVE](../show-commands/#show-cluster-alive)
 
 ### CURRENT_USER
 
@@ -1392,14 +2405,11 @@ SELECT SERVER_STATUS();
 SELECT CURRENT_USER();
 ```
 
-**Description**: get current user.
-
+**Description**: Retrieves the current user.
 
 ## Geometry Functions
 
 ### Geometry Input Functions
-
-Geometry input functions create geometry data from WTK.
 
 #### ST_GeomFromText
 
@@ -1407,21 +2417,17 @@ Geometry input functions create geometry data from WTK.
 ST_GeomFromText(VARCHAR WKT expr)
 ```
 
-**Description**: Return a specified GEOMETRY value from Well-Known Text representation (WKT).
+**Function Description**: Creates geometry data from a specified geometric value based on Well-Known Text (WKT) representation.
 
-**Return value type**: GEOMETRY
+**Return Type**: GEOMETRY
 
-**Applicable data types**: VARCHAR
+**Applicable Data Types**: VARCHAR
 
-**Applicable table types**: standard tables and supertables
+**Applicable Table Types**: Basic tables and supertables
 
-**Explanations**：
-- The input can be one of WTK string, like POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION.
-- The output is a GEOMETRY data type, internal defined as binary string.
+**Usage Instructions**: The input can be one of the WKT strings, such as POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION. The output is the GEOMETRY data type defined in binary string form.
 
 ### Geometry Output Functions
-
-Geometry output functions convert geometry data into WTK.
 
 #### ST_AsText
 
@@ -1429,20 +2435,17 @@ Geometry output functions convert geometry data into WTK.
 ST_AsText(GEOMETRY geom)
 ```
 
-**Description**: Return a specified Well-Known Text representation (WKT) value from GEOMETRY data.
+**Function Description**: Returns the specified Well-Known Text (WKT) representation from geometry data.
 
-**Return value type**: VARCHAR
+**Return Type**: VARCHAR
 
-**Applicable data types**: GEOMETRY
+**Applicable Data Types**: GEOMETRY
 
-**Applicable table types**: standard tables and supertables
+**Applicable Table Types**: Basic tables and supertables
 
-**Explanations**：
-- The output can be one of WTK string, like POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION.
+**Usage Instructions**: The output can be one of the WKT strings, such as POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION.
 
-### Geometry Relationships Functions
-
-Geometry relationships functions determine spatial relationships between geometries.
+### Geometry Relationship Functions
 
 #### ST_Intersects
 
@@ -1450,17 +2453,15 @@ Geometry relationships functions determine spatial relationships between geometr
 ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
-**Description**: Compares two geometries and returns true if they intersect.
+**Function Description**: Compares two geometry objects and returns true if they intersect.
 
-**Return value type**: BOOL
+**Return Type**: BOOL
 
-**Applicable data types**: GEOMETRY, GEOMETRY
+**Applicable Data Types**: GEOMETRY, GEOMETRY
 
-**Applicable table types**: standard tables and supertables
+**Applicable Table Types**: Basic tables and supertables
 
-**Explanations**：
-- Geometries intersect if they have any point in common.
-
+**Usage Instructions**: If the two geometry objects share any point, they intersect.
 
 #### ST_Equals
 
@@ -1468,17 +2469,15 @@ ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
-**Description**: Returns TRUE if the given geometries are "spatially equal".
+**Function Description**: Returns TRUE if the given geometry objects are "spatially equal".
 
-**Return value type**: BOOL
+**Return Type**: BOOL
 
-**Applicable data types**: GEOMETRY, GEOMETRY
+**Applicable Data Types**: GEOMETRY, GEOMETRY
 
-**Applicable table types**: standard tables and supertables
+**Applicable Table Types**: Basic tables and supertables
 
-**Explanations**：
-- 'Spatially equal' means ST_Contains(A,B) = true and ST_Contains(B,A) = true, and the ordering of points can be different but represent the same geometry structure.
-
+**Usage Instructions**: "Spatially equal" means that ST_Contains(A,B) = true and ST_Contains(B,A) = true, and the order of points may differ but represent the same geometric structure.
 
 #### ST_Touches
 
@@ -1486,18 +2485,15 @@ ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
 ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
-**Description**: Returns TRUE if A and B intersect, but their interiors do not intersect.
+**Function Description**: Returns TRUE if A and B intersect, but their interiors do not intersect.
 
-**Return value type**: BOOL
+**Return Type**: BOOL
 
-**Applicable data types**: GEOMETRY, GEOMETRY
+**Applicable Data Types**: GEOMETRY, GEOMETRY
 
-**Applicable table types**: standard tables and supertables
+**Applicable Table Types**: Basic tables and supertables
 
-**Explanations**：
-- A and B have at least one point in common, and the common points lie in at least one boundary.
-- For Point/Point inputs the relationship is always FALSE, since points do not have a boundary.
-
+**Usage Instructions**: A and B have at least one common point, and these common points are located on at least one boundary. For point/point input, the relationship is always FALSE, because points have no boundaries.
 
 #### ST_Covers
 
@@ -1505,17 +2501,15 @@ ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
-**Description**: Returns TRUE if every point in Geometry B lies inside (intersects the interior or boundary of) Geometry A.
+**Function Description**: Returns TRUE if every point in B is inside the geometric shape A (intersecting with the interior or boundary).
 
-**Return value type**: BOOL
+**Return Type**: BOOL
 
-**Applicable data types**: GEOMETRY, GEOMETRY
+**Applicable Data Types**: GEOMETRY, GEOMETRY
 
-**Applicable table types**: standard tables and supertables
+**Applicable Table Types**: Basic tables and supertables
 
-**Explanations**：
-- A covers B means no point of B lies outside (in the exterior of) A.
-
+**Usage Instructions**: A contains B means that no points in B are outside of A (on the outside).
 
 #### ST_Contains
 
@@ -1523,17 +2517,15 @@ ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
 ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
-**Description**: Returns TRUE if geometry A contains geometry B.
+**Function Description**: Returns TRUE if geometric shape A contains geometric shape B.
 
-**Return value type**: BOOL
+**Return Type**: BOOL
 
-**Applicable data types**: GEOMETRY, GEOMETRY
+**Applicable Data Types**: GEOMETRY, GEOMETRY
 
-**Applicable table types**: standard tables and supertables
+**Applicable Table Types**: Basic tables and supertables
 
-**Explanations**：
-- A contains B if and only if all points of B lie inside (i.e. in the interior or boundary of) A (or equivalently, no points of B lie in the exterior of A), and the interiors of A and B have at least one point in common.
-
+**Usage Instructions**: A contains B if and only if all points of B are inside A (i.e., located inside or on the boundary) (or equivalently, no points of B are outside A), and the interiors of A and B have at least one point in common.
 
 #### ST_ContainsProperly
 
@@ -1541,13 +2533,12 @@ ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
 ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
-**Description**: Returns TRUE if every point of B lies inside A.
+**Function Description**: Returns TRUE if every point of B is inside A.
 
-**Return value type**: BOOL
+**Return Type**: BOOL
 
-**Applicable data types**: GEOMETRY, GEOMETRY
+**Applicable Data Types**: GEOMETRY, GEOMETRY
 
-**Applicable table types**: standard tables and supertables
+**Applicable Table Types**: Basic tables and supertables
 
-**Explanations**：
-- There is no point of B that lies on the boundary of A or in the exterior of A.
+**Usage Instructions**: No points of B are on the boundary or outside of A.

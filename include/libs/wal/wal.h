@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "ttrace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,6 +37,7 @@ extern "C" {
 #define WAL_FILE_LEN      (WAL_PATH_LEN + 32)
 #define WAL_MAGIC         0xFAFBFCFDF4F3F2F1ULL
 #define WAL_SCAN_BUF_SIZE (1024 * 1024 * 3)
+#define WAL_JSON_BUF_SIZE 30
 
 typedef enum {
   TAOS_WAL_SKIP = 0,
@@ -169,7 +171,8 @@ void    walClose(SWal *);
 
 // write interfaces
 // By assigning index by the caller, wal gurantees linearizability
-int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
+int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen,
+                     const STraceId *trace);
 int32_t walFsync(SWal *, bool force);
 
 // apis for lifecycle management

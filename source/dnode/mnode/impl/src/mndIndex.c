@@ -81,7 +81,7 @@ int32_t mndInitIdx(SMnode *pMnode) {
 
 static int32_t mndFindSuperTableTagId(const SStbObj *pStb, const char *tagName, int8_t *hasIdx) {
   for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
-    if (strcasecmp(pStb->pTags[tag].name, tagName) == 0) {
+    if (taosStrcasecmp(pStb->pTags[tag].name, tagName) == 0) {
       if (IS_IDX_ON(&pStb->pTags[tag])) {
         *hasIdx = 1;
       }
@@ -664,6 +664,7 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
   pNew->pColumns = NULL;
   pNew->pCmpr = NULL;
   pNew->pTags = NULL;
+  pNew->pExtSchemas = NULL;
   pNew->updateTime = taosGetTimestampMs();
   pNew->lock = 0;
 
@@ -673,8 +674,6 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
     code = TSDB_CODE_MND_TAG_NOT_EXIST;
     TAOS_RETURN(code);
   }
-  col_id_t colId = pOld->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId));
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
   SSchema *pTag = pNew->pTags + tag;
 
@@ -735,6 +734,7 @@ _OVER:
     taosMemoryFree(newStb.pTags);
     taosMemoryFree(newStb.pColumns);
     taosMemoryFree(newStb.pCmpr);
+    taosMemoryFreeClear(newStb.pExtSchemas);
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
@@ -806,16 +806,7 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
     TAOS_RETURN(code);
   }
 
-  col_id_t colId = pStb->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pStb->name, pStb->uid, colId));
-
-  // SSchema *pTag = pStb->pTags + tag;
-  // if (IS_IDX_ON(pTag)) {
-  //   terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
-  //   return -1;
-  // }
   code = mndAddIndexImpl(pMnode, pReq, pDb, pStb, &idxObj);
-
   TAOS_RETURN(code);
 }
 
@@ -858,6 +849,7 @@ _OVER:
   taosMemoryFree(newObj.pTags);
   taosMemoryFree(newObj.pColumns);
   taosMemoryFree(newObj.pCmpr);
+  taosMemoryFreeClear(newObj.pExtSchemas);
 
   mndTransDrop(pTrans);
   mndReleaseStb(pMnode, pStb);
@@ -947,7 +939,7 @@ int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxOb
     pIter = sdbFetch(pSdb, SDB_IDX, pIter, (void **)&pIdx);
     if (pIter == NULL) break;
 
-    if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
+    if (pIdx->stbUid == pStb->uid && taosStrcasecmp(pIdx->colName, tagName) == 0) {
       memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
       sdbRelease(pSdb, pIdx);
       sdbCancelFetch(pSdb, pIter);

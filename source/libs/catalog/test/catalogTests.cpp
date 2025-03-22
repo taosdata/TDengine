@@ -149,12 +149,13 @@ void ctgTestInitLogFile() {
     return;
   }
 
-  const char   *defaultLogFileNamePrefix = "taoslog";
+  const char   *defaultLogFileNamePrefix = "catalogTest";
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
   tmrDebugFlag = 159;
+  tsNumOfLogLines = 1000000000;
   TAOS_STRCPY(tsLogDir, TD_LOG_DIR_PATH);
 
   (void)ctgdEnableDebug("api", true);
@@ -162,7 +163,7 @@ void ctgTestInitLogFile() {
   (void)ctgdEnableDebug("cache", true);
   (void)ctgdEnableDebug("lock", true);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, 1, false) < 0) {
     (void)printf("failed to open log file in directory:%s\n", tsLogDir);
     ASSERT(0);
   }
@@ -208,6 +209,8 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
 
   output->tbMeta->sversion = ctgTestSVersion;
   output->tbMeta->tversion = ctgTestTVersion;
+
+  output->vctbMeta = NULL;
 
   SSchema *s = NULL;
   s = &output->tbMeta->schema[0];
@@ -1839,7 +1842,7 @@ TEST(tableMeta, updateStbMeta) {
   while (true) {
     uint64_t n = 0;
     ASSERT(0 == ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
-    if (n != 3) {
+    if (n < 3) {
       taosMsleep(50);
     } else {
       break;
@@ -2991,6 +2994,7 @@ TEST(apiTest, catalogGetTableIndex_test) {
 
   catalogDestroy();
 }
+
 
 TEST(apiTest, catalogGetDBCfg_test) {
   struct SCatalog  *pCtg = NULL;

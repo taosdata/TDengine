@@ -4,15 +4,18 @@ import sys
 import time
 import os
 import platform
+import random
+import string
 
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.tserror import *
 import subprocess
 
 class TDTestCase:
-
+    updatecfgDict = {'udfdResFuncs': "udf1,udf2"}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -54,8 +57,32 @@ class TDTestCase:
         else:
             self.libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libchange_udf_no_init = subprocess.Popen('find %s -name "libchange_udf_no_init.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libchange_udf_no_process = subprocess.Popen('find %s -name "libchange_udf_no_process.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libchange_udf_no_destroy = subprocess.Popen('find %s -name "libchange_udf_no_destroy.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libchange_udf_init_failed = subprocess.Popen('find %s -name "libchange_udf_init_failed.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libchange_udf_process_failed = subprocess.Popen('find %s -name "libchange_udf_process_failed.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libchange_udf_destroy_failed = subprocess.Popen('find %s -name "libchange_udf_destory_failed.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libchange_udf_normal = subprocess.Popen('find %s -name "libchange_udf_normal.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            
         self.libudf1 = self.libudf1.replace('\r','').replace('\n','')
         self.libudf2 = self.libudf2.replace('\r','').replace('\n','')
+        self.libchange_udf_no_init = self.libchange_udf_no_init.replace('\r','').replace('\n','')
+        self.libchange_udf_no_process = self.libchange_udf_no_process.replace('\r','').replace('\n','')
+        self.libchange_udf_normal = self.libchange_udf_normal.replace('\r','').replace('\n','')
+        self.libchange_udf_no_destroy = self.libchange_udf_no_destroy.replace('\r','').replace('\n','')
+        self.libchange_udf_init_failed = self.libchange_udf_init_failed.replace('\r','').replace('\n','')
+        self.libchange_udf_process_failed = self.libchange_udf_process_failed.replace('\r','').replace('\n','')
+        self.libchange_udf_destroy_failed = self.libchange_udf_destroy_failed.replace('\r','').replace('\n','')
+        tdLog.info(f"udf1 so path is {self.libudf1}")
+        tdLog.info(f"udf2 so path is {self.libudf2}")
+        tdLog.info(f"change_udf_no_init so path is {self.libchange_udf_no_init}")
+        tdLog.info(f"change_udf_no_process so path is {self.libchange_udf_no_process}")
+        tdLog.info(f"change_udf_no_destroy so path is {self.libchange_udf_no_destroy}")
+        tdLog.info(f"change_udf_init_failed so path is {self.libchange_udf_init_failed}")
+        tdLog.info(f"change_udf_process_failed so path is {self.libchange_udf_process_failed}")
+        tdLog.info(f"change_udf_destroy_failed so path is {self.libchange_udf_destroy_failed}")
+        tdLog.info(f"change_udf_normal so path is {self.libchange_udf_normal}")
 
 
     def prepare_data(self):
@@ -595,20 +622,25 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
 
         cfgPath = buildPath + "/../sim/dnode1/cfg"
-        udfdPath = buildPath +'/build/bin/udfd'
+        udfdPath = buildPath +'/build/bin/taosudf'
 
         for i in range(3):
 
-            tdLog.info(" loop restart udfd  %d_th" % i)
+            tdLog.info(" loop restart taosudf  %d_th" % i)
 
             tdSql.query("select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
-            # stop udfd cmds
-            get_processID = "ps -ef | grep -w udfd | grep -v grep| grep -v defunct | awk '{print $2}'"
-            processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
+              
+            clean_env = os.environ.copy()
+            clean_env.pop('ASAN_OPTIONS', None)
+            clean_env.pop('LD_PRELOAD', None)
+            get_processID = "ps -ef | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
+            processID = subprocess.check_output(get_processID, shell=True, env=clean_env).decode("utf-8")
+            tdLog.info("taosudf process ID: %s" % processID)
             stop_udfd = " kill -9 %s" % processID
             os.system(stop_udfd)
+            
 
             time.sleep(2)
 
@@ -616,9 +648,9 @@ class TDTestCase:
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
 
-            # # start udfd  cmds
+            # # start taosudf  cmds
             # start_udfd = "nohup " + udfdPath +'-c' +cfgPath +" > /dev/null 2>&1 &"
-            # tdLog.info("start udfd : %s " % start_udfd)
+            # tdLog.info("start taosudf : %s " % start_udfd)
 
     def test_function_name(self):
         tdLog.info(" create function name is not build_in functions ")
@@ -652,13 +684,128 @@ class TDTestCase:
             tdDnodes.start(1)
             time.sleep(2)
 
+    def test_udfd_cmd(self):
+        tdLog.info(" test taosudf -V ")
+        os.system("taosudf -V")
+        tdLog.info(" test taosudf -c ")
+        os.system("taosudf -c")
+        
+        letters = string.ascii_letters + string.digits + '\\'
+        path = ''.join(random.choice(letters) for i in range(5000))
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        os.system(f"taosudf -c {path}")
+   
+    def test_change_udf_normal(self, func_name):
+        # create function with normal file
+        tdSql.execute(f"create function {func_name} as '%s' outputtype int"%self.libchange_udf_normal)
+        functions = tdSql.getResult("show functions")
+        for function in functions:
+            if f"{func_name}" in function[0]:
+                tdLog.info(f"create {func_name} functions success, using {self.libchange_udf_normal}")
+                break
+        tdSql.query(f"select num1 , {func_name}(num1) ,num2 ,{func_name}(num2),num3 ,{func_name}(num3),num4 ,{func_name}(num4) from db.tb", TSDB_CODE_UDF_FUNC_EXEC_FAILURE)
+        tdSql.checkData(0,0,None)
+        tdSql.checkData(0,1,None)
+        tdSql.checkData(0,2,1)
+        tdSql.checkData(0,3,1)
+        tdSql.checkData(0,4,1.000000000)
+        tdSql.checkData(0,5,1)
+        tdSql.checkData(0,6,"binary1")
+        tdSql.checkData(0,7,1)
+        tdSql.query(f"select {func_name}(num1) from db.tb", TSDB_CODE_UDF_FUNC_EXEC_FAILURE)
+        tdSql.execute(f"drop function {func_name}")
+        tdSql.error(f"select {func_name}(num1) from db.tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
+        tdLog.info(f"change udf test finished, using {self.libchange_udf_normal}")
 
+    def test_change_udf_failed(self, func_name, lib_name):
+        tdLog.info(f"test change udf start: using {lib_name}")
+        tdSql.error(f"select num1 , {func_name}(num1) ,num2 ,{func_name}(num2),num3 ,{func_name}(num3),num4 ,{func_name}(num4) from db.tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
+        tdSql.execute(f"create function {func_name} as '{lib_name}' outputtype int")
+        functions = tdSql.getResult("show functions")
+        for function in functions:
+            if f"{func_name}" in function[0]:
+                tdLog.info(f"create {func_name} functions success, using {lib_name}")
+                break     
+
+        tdSql.error(f"select num1 , {func_name}(num1) ,num2 ,{func_name}(num2),num3 ,{func_name}(num3),num4 ,{func_name}(num4) from db.tb", TSDB_CODE_UDF_FUNC_EXEC_FAILURE)
+        tdSql.error(f"select {func_name}(num1) from db.tb", TSDB_CODE_UDF_FUNC_EXEC_FAILURE)
+        tdSql.execute(f"drop function {func_name}")
+        tdSql.error(f"select {func_name}(num1) from db.tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
+        tdLog.info(f"change udf test finished, using {lib_name}")
+        
+    def test_change_udf_reverse(self):
+        tdSql.execute("create database if not exists db  duration 100")
+        tdSql.execute("use db")
+        
+        func_name = "udf_reverse"
+        tdSql.execute(f"create function {func_name} as '%s' outputtype nchar(256)"%self.libchange_udf_normal)
+        functions = tdSql.getResult("show functions")
+        for function in functions:
+            if f"{func_name}" in function[0]:
+                tdLog.info(f"create {func_name} functions success, using {self.libchange_udf_normal}")
+                break
+                
+        tdSql.error(f"select {func_name}(c8) from db.t1", TSDB_CODE_TSC_INTERNAL_ERROR)
+        tdSql.execute(f"drop function {func_name}")
+        tdSql.error(f"select {func_name}(num1) from db.tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
+        
+        self.test_change_udf_normal("change_udf_normal")
+        tdSql.execute(f"create function {func_name} as '%s' outputtype varchar(256)"%self.libchange_udf_normal)
+        functions = tdSql.getResult("show functions")
+        for function in functions:
+            if f"{func_name}" in function[0]:
+                tdLog.info(f"create {func_name} functions success, using {self.libchange_udf_normal}")
+                break
+                
+        tdSql.query(f"select {func_name}(c8) from db.t1 order by ts")
+        tdSql.checkData(0,0, None)
+        tdSql.checkData(1,0, "1yranib")
+        tdSql.checkData(2,0, "2yranib")
+        tdSql.checkData(3,0, "3yranib")
+        
+        
+             
+    def unexpected_using_test(self):
+        tdSql.execute("use db ")
+        
+        # create function without wrong file path
+        tdSql.error("create function udf1 as '%s_wrongpath' outputtype int;"%self.libudf1, TAOS_SYSTEM_ERROR|2)
+        tdSql.error("create aggregate function udf2 as '%s_wrongpath' outputtype double;"%self.libudf2, TAOS_SYSTEM_ERROR|2)
+        
+        tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
+        tdSql.query("select num1 , udf1(num1) ,num2 ,udf1(num2),num3 ,udf1(num3),num4 ,udf1(num4) from tb")
+        
+        self.test_change_udf_normal("change_udf_normal")
+        self.test_change_udf_failed("change_udf_no_init", self.libchange_udf_no_init)
+        
+        self.test_change_udf_normal("change_udf_normal")
+        self.test_change_udf_failed("change_udf_no_process", self.libchange_udf_no_process)
+        
+        self.test_change_udf_normal("change_udf_normal")
+        self.test_change_udf_failed("change_udf_no_destroy", self.libchange_udf_no_destroy)
+        
+        self.test_change_udf_normal("change_udf_normal")
+        self.test_change_udf_failed("change_udf_init_failed", self.libchange_udf_init_failed)
+        
+        self.test_change_udf_normal("change_udf_normal")
+        self.test_change_udf_failed("change_udf_process_failed", self.libchange_udf_process_failed)
+        
+        self.test_change_udf_normal("change_udf_normal")
+        self.test_change_udf_failed("libchange_udf_destroy_failed", self.libchange_udf_destroy_failed)
+        
+        tdSql.query("select num1 , udf1(num1) ,num2 ,udf1(num2),num3 ,udf1(num3),num4 ,udf1(num4) from tb")
+        tdSql.execute(f"drop function udf1")
+        tdSql.error("select num1 , udf1(num1) ,num2 ,udf1(num2),num3 ,udf1(num3),num4 ,udf1(num4) from tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
+
+    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring     
         print(" env is ok for all ")
+        self.test_udfd_cmd()
         self.prepare_udf_so()
         self.prepare_data()
+        
+        self.unexpected_using_test()
         self.create_udf_function()
+        self.test_change_udf_reverse()
         self.basic_udf_query()
         self.loop_kill_udfd()
         tdSql.execute(" drop function udf1 ")

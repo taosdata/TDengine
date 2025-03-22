@@ -182,9 +182,17 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   int32_t            lino = 0;
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  if (pInfo == NULL || pTaskInfo == NULL) {
+    qError("%s failed at line %d since pInfo or pTaskInfo is NULL.", __func__, __LINE__);
+    return NULL;
+  }
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
   SSDataBlock* pResBlock = pInfo->pFinalRes;
+  if (pResBlock == NULL) {
+    qError("%s failed at line %d since pResBlock is NULL.", __func__, __LINE__);
+    return NULL;
+  }
 
   blockDataCleanup(pResBlock);
 
@@ -379,10 +387,10 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
     return terrno;
   }
 
-  if (pInfo->pFillInfo == NULL || pInfo->p == NULL) {
+  if (pInfo->pFillInfo == NULL) {
     taosMemoryFree(pInfo->pFillInfo);
     taosMemoryFree(pInfo->p);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   } else {
     return TSDB_CODE_SUCCESS;
   }
@@ -560,7 +568,7 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     next = ekey;
     while (next < pInfo->win.ekey) {
       next = taosTimeAdd(ekey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
-                         pInfo->pFillInfo->interval.precision);
+                         pInfo->pFillInfo->interval.precision, NULL);
       ekey = next > pInfo->win.ekey ? ekey : next;
     }
     pInfo->win.ekey = ekey;
@@ -569,7 +577,7 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     next = skey;
     while (next < pInfo->win.skey) {
       next = taosTimeAdd(skey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
-                         pInfo->pFillInfo->interval.precision);
+                         pInfo->pFillInfo->interval.precision, NULL);
       skey = next > pInfo->win.skey ? skey : next;
     }
     taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);

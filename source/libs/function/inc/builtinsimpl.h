@@ -31,9 +31,9 @@ int32_t i32VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, b
 int32_t floatVectorCmpAVX2(const float* pData, int32_t numOfRows, bool isMinFunc, float* res);
 int32_t doubleVectorCmpAVX2(const double* pData, int32_t numOfRows, bool isMinFunc, double* res);
 
-int32_t     saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
-int32_t     updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
-int32_t     loadTupleData(SqlFunctionCtx* pCtx, const STuplePos* pPos, char** value);
+int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
+int32_t updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
+int32_t loadTupleData(SqlFunctionCtx* pCtx, const STuplePos* pPos, char** value);
 
 int32_t functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
@@ -45,7 +45,7 @@ bool              getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEn
 int32_t           countFunction(SqlFunctionCtx* pCtx);
 
 #ifdef BUILD_NO_CALL
-int32_t           countInvertFunction(SqlFunctionCtx* pCtx);
+int32_t countInvertFunction(SqlFunctionCtx* pCtx);
 #endif
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
@@ -53,10 +53,10 @@ bool              getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv)
 int32_t           sumFunction(SqlFunctionCtx* pCtx);
 
 #ifdef BUILD_NO_CALL
-int32_t           sumInvertFunction(SqlFunctionCtx* pCtx);
+int32_t sumInvertFunction(SqlFunctionCtx* pCtx);
 #endif
 
-int32_t           sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 int32_t minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 bool    getMinmaxFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
@@ -78,7 +78,7 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx);
 #endif
 
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
-int32_t getAvgInfoSize();
+int32_t getAvgInfoSize(SFunctionNode* pFunc);
 
 bool    getStdFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t stdFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
@@ -102,7 +102,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t leastSQRCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool    getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-int32_t  percentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t percentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t percentileFunction(SqlFunctionCtx* pCtx);
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 void    percentileFunctionCleanupExt(SqlFunctionCtx* pCtx);
@@ -211,7 +211,7 @@ int32_t mavgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
 int32_t mavgFunction(SqlFunctionCtx* pCtx);
 
 bool    getSampleFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-int32_t  sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t sampleFunction(SqlFunctionCtx* pCtx);
 int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
@@ -230,7 +230,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 void    modeFunctionCleanupExt(SqlFunctionCtx* pCtx);
 
 bool    getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-int32_t  twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t twaFunction(SqlFunctionCtx* pCtx);
 int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
@@ -246,6 +246,10 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t groupConstValueFunction(SqlFunctionCtx* pCtx);
 int32_t groupConstValueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+int32_t blockDBUsageSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t blockDBUsageFunction(SqlFunctionCtx* pCtx);
+int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 #ifdef __cplusplus
 }

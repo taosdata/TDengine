@@ -214,6 +214,16 @@ class TDCom:
         telnet_url = "http://127.0.0.1:6041/opentsdb/v1/put/telnet"
         return header, sql_url, sqlt_url, sqlutc_url, influx_url, telnet_url
 
+    def getTaosdPath(self, dnodeID="dnode1"):
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        taosdPath = buildPath + "/../sim/" + dnodeID
+        tdLog.info("taosdPath: %s" % taosdPath)
+        return taosdPath
+
     def genTcpParam(self):
         MaxBytes = 1024*1024
         host ='127.0.0.1'
@@ -1839,7 +1849,8 @@ class TDCom:
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
         else:
             self.query_result_file = f"./temp_{test_case}.result"
-            os.system(f"taos -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  ")
+            cfgPath = self.getClientCfgPath()
+            os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  ")
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):

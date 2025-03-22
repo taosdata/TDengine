@@ -36,14 +36,15 @@ static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     dTrace("msg:%p, get from snode-write queue", pMsg);
     int32_t code = sndProcessWriteMsg(pMgmt->pSnode, pMsg, NULL);
-    if (code < 0) {
-      dGError("snd, msg:%p failed to process write since %s", pMsg, tstrerror(code));
-      if (pMsg->info.handle != NULL) {
-        tmsgSendRsp(pMsg);
-      }
-    } else {
-      smSendRsp(pMsg, 0);
-    }
+    // if (code < 0) {
+    //   dGError("snd, msg:%p failed to process write since %s", pMsg, tstrerror(code));
+    //   if (pMsg->info.handle != NULL) {
+    //     tmsgSendRsp(pMsg);
+    //   }
+    // } else {
+    //   smSendRsp(pMsg, 0);
+    // }
+    smSendRsp(pMsg, code);
 
     dTrace("msg:%p, is freed", pMsg);
     rpcFreeCont(pMsg->pCont);
@@ -161,6 +162,9 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
     case WRITE_QUEUE:
       code = smPutNodeMsgToWriteQueue(pMgmt, pMsg);
       break;
+    case STREAM_CHKPT_QUEUE:
+      code = smPutNodeMsgToStreamQueue(pMgmt, pMsg);
+      break;
     default:
       code = TSDB_CODE_INVALID_PARA;
       rpcFreeCont(pMsg->pCont);
@@ -171,7 +175,6 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 }
 
 int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t       code = 0;
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->writeWroker, 0);
   if (pWorker == NULL) {
     return TSDB_CODE_INVALID_MSG;
@@ -197,3 +200,10 @@ int32_t smPutNodeMsgToStreamQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
 }
+
+//int32_t smPutNodeMsgToChkptQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+//  SSingleWorker *pWorker = &pMgmt->chkptWorker;
+//
+//  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
+//  return taosWriteQitem(pWorker->queue, pMsg);
+//}

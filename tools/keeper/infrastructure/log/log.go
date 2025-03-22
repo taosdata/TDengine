@@ -13,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 	rotatelogs "github.com/taosdata/file-rotatelogs/v2"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
-
 	"github.com/taosdata/taoskeeper/version"
 )
 
@@ -113,8 +112,7 @@ var once sync.Once
 
 func ConfigLog() {
 	once.Do(func() {
-		err := SetLevel(config.Conf.LogLevel)
-		if err != nil {
+		if err := SetLevel(config.Conf.LogLevel); err != nil {
 			panic(err)
 		}
 		writer, err := rotatelogs.New(

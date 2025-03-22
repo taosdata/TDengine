@@ -347,11 +347,13 @@ static SPageInfo* getPageInfoFromPayload(void* page) {
   return ppi;
 }
 
-int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMemBufSize, const char* id,
                            const char* dir) {
+  int32_t code = 0;
   *pBuf = NULL;
   SDiskbasedBuf* pPBuf = taosMemoryCalloc(1, sizeof(SDiskbasedBuf));
   if (pPBuf == NULL) {
+    code = terrno;
     goto _error;
   }
 
@@ -362,12 +364,14 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->pFile = NULL;
   pPBuf->id = taosStrdup(id);
   if (id != NULL && pPBuf->id == NULL) {
+    code = terrno;
     goto _error;
   }
   pPBuf->fileSize = 0;
   pPBuf->pFree = taosArrayInit(4, sizeof(SFreeListItem));
   pPBuf->freePgList = tdListNew(POINTER_BYTES);
   if (pPBuf->pFree == NULL || pPBuf->freePgList == NULL) {
+    code = terrno;
     goto _error;
   }
 
@@ -379,6 +383,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->inMemPages = inMemBufSize / pagesize;  // maximum allowed pages, it is a soft limit.
   pPBuf->lruList = tdListNew(POINTER_BYTES);
   if (pPBuf->lruList == NULL) {
+    code = terrno;
     goto _error;
   }
 
@@ -386,21 +391,24 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
   pPBuf->pIdList = taosArrayInit(4, POINTER_BYTES);
   if (pPBuf->pIdList == NULL) {
+    code = terrno;
     goto _error;
   }
 
   pPBuf->all = tSimpleHashInit(64, fn);
   if (pPBuf->all == NULL) {
+    code = terrno;
     goto _error;
   }
 
   pPBuf->prefix = (char*)dir;
   pPBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
   if (pPBuf->emptyDummyIdList == NULL) {
+    code = terrno;
     goto _error;
   }
 
-  //  qDebug("QInfo:0x%"PRIx64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
+  //  qDebug("QInfo:0x%"PRIx64 ", create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
   //  pPBuf->pageSize, pPBuf->inMemPages, pPBuf->path);
 
   *pBuf = pPBuf;
@@ -409,7 +417,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
 _error:
   destroyDiskbasedBuf(pPBuf);
   *pBuf = NULL;
-  return TSDB_CODE_OUT_OF_MEMORY;
+  return code;
 }
 
 static char* doExtractPage(SDiskbasedBuf* pBuf) {
@@ -644,7 +652,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (needRemoveFile) {
     int32_t ret = taosRemoveFile(pBuf->path);
     if (ret != 0) {  // print the error and discard this error info
-      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(errno));
+      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(ERRNO));
     }
   }
 

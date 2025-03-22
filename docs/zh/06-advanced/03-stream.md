@@ -23,11 +23,11 @@ CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name
 SUBTABLE(expression) AS subquery
 
 stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE | CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
- FILL_HISTORY   [0|1]
+ FILL_HISTORY   [0|1] [ASYNC]
  IGNORE UPDATE  [0|1]
 }
 
@@ -52,24 +52,28 @@ window_cluse: {
 }
 ```
 
-subquery 支持会话窗口、状态窗口与滑动窗口。其中，会话窗口与状态窗口搭配超级表时必须与 partition by tbname 一起使用。
+subquery 支持会话窗口、状态窗口、时间窗口、事件窗口与计数窗口。其中，状态窗口、事件窗口与计数窗口搭配超级表时必须与 partition by tbname 一起使用。
 
 1. 其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间间隔超过 tol_val，则自动开启下一个窗口。
 
-2. EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。 start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+2. STATE_WINDOW 是状态窗口，col 用来标识状态量，相同的状态量数值则归属于同一个状态窗口，col 数值改变后则当前窗口结束，自动开启下一个窗口。
 
-3. COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。 count_val 是常量，是正整数，必须大于等于 2，小于 2147483648。 count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val 。 sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
+3. INTERVAL 是时间窗口，又可分为滑动时间窗口和翻转时间窗口。INTERVAL 子句用于指定窗口相等时间周期，SLIDING 字句用于指定窗口向前滑动的时间。当 interval_val 与 sliding_val 相等的时候，时间窗口即为翻转时间窗口，否则为滑动时间窗口，注意：sliding_val 必须小于等于 interval_val。
+
+4. EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+
+5. COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。count_val 是常量，是正整数，必须大于等于 2，小于 2147483648。count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
 
 窗口的定义与时序数据窗口查询中的定义完全相同，具体可参考 TDengine 窗口函数部分。
 
-如下 SQL 将创建一个流计算，执行后 TDengine 会自动创建名为avg_vol 的超级表，此流计算以 1min 为时间窗口、30s 为前向增量统计这些智能电表的平均电压，并将来自 meters 的数据的计算结果写入 avg_vol，不同分区的数据会分别创建子表并写入不同子表。
+如下 SQL 将创建一个流计算，执行后 TDengine 会自动创建名为 avg_vol 的超级表，此流计算以 1min 为时间窗口、30s 为前向增量统计这些智能电表的平均电压，并将来自 meters 的数据的计算结果写入 avg_vol，不同分区的数据会分别创建子表并写入不同子表。
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
 ```
 
 本节涉及的相关参数的说明如下。
-- stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，则会自动创建；如果已存在，则检查列的 schema 信息。详见 6.3.8 节。
+- stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，则会自动创建；如果已存在，则检查列的 schema 信息。
 - tags 子句定义了流计算中创建标签的规则。通过 tags 字段可以为每个分区对应的子表生成自定义的标签值。
 
 ## 流式计算的规则和策略
@@ -97,6 +101,13 @@ PARTITION 子句中，为 tbname 定义了一个别名 tname， 在 PARTITION �
 
 通过启用 fill_history 选项，创建的流计算任务将具备处理创建前、创建过程中以及创建后写入的数据的能力。这意味着，无论数据是在流创建之前还是之后写入的，都将纳入流计算的范围，从而确保数据的完整性和一致性。这一设置为用户提供了更大的灵活性，使其能够根据实际需求灵活处理历史数据和新数据。
 
+注意：
+- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
+
+- 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
+
+- 另外，不要同时异步创建多个流，可能由于事务冲突导致后面创建的流失败。
+
 比如，创建一个流，统计所有智能电表每 10s 产生的数据条数，并且计算历史数据。SQL 如下：
 ```sql
 create stream if not exists count_history_s fill_history 1 into count_history as select count(*) from power.meters interval(10s)
@@ -120,11 +131,16 @@ create stream if not exists count_history_s fill_history 1 into count_history as
 1. AT_ONCE：写入立即触发。
 2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）。
 3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
-4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（不支持滑动）；FILL_HISTORY必须为 0，IGNORE EXPIRED 必须为 1，IGNORE UPDATE 必须为 1；FILL 只支持 PREV 、NULL、 NONE、VALUE。
+4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（支持滑动）；该模式时，FILL_HISTORY 自动设置为 0，IGNORE EXPIRED 自动设置为 1，IGNORE UPDATE 自动设置为 1；FILL 只支持 PREV 、NULL、 NONE、VALUE。
+   - 该模式可用于实现连续查询，比如，创建一个流，每隔 1s 查询一次过去 10s 窗口内的数据条数。SQL 如下：
+   ```sql
+   create stream if not exists continuous_query_s trigger force_window_close into continuous_query as select count(*) from power.meters interval(10s) sliding(1s)
+   ```
+5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是60分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`。
 
 窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，此时事件时间无法更新，可能导致无法得到最新的计算结果。
 
-因此，流计算提供了以事件时间结合处理时间计算的 MAX_DELAY 触发模式。MAX_DELAY 模式在窗口关闭时会立即触发计算。此外，当数据写入后，计算触发的时间超过 max delay 指定的时间，则立即触发计算。
+因此，流计算提供了以事件时间结合处理时间计算的 MAX_DELAY 触发模式：MAX_DELAY 模式在窗口关闭时会立即触发计算，它的单位可以自行指定，具体单位：a（毫秒）、s（秒）、m（分）、h（小时）、d（天）、w（周）。此外，当数据写入后，计算触发的时间超过 MAX_DELAY 指定的时间，则立即触发计算。
 
 ### 流计算的窗口关闭
 
@@ -163,7 +179,7 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 
 ### 写入已存在的超级表
 
-当流计算结果需要写入已存在的超级表时，应确保 stb_name 列与 subquery 输出结果之间的对应关系正确。如果 stb_name 列与 subquery 输出结果的位置、数量完全匹配，那么不需要显式指定对应关系；如果数据类型不匹配，系统会自动将 subquery 输出结果的类型转换为对应的 stb_name 列的类型。
+当流计算结果需要写入已存在的超级表时，应确保 stb_name 列与 subquery 输出结果之间的对应关系正确。如果 stb_name 列与 subquery 输出结果的位置、数量完全匹配，那么不需要显式指定对应关系；如果数据类型不匹配，系统会自动将 subquery 输出结果的类型转换为对应的 stb_name 列的类型。创建流计算时不能指定 stb_name 的列和 TAG 的数据类型，否则会报错。
 
 对于已经存在的超级表，系统会检查列的 schema 信息，确保它们与 subquery 输出结果相匹配。以下是一些关键点。
 1. 检查列的 schema 信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于 4096 bytes 时才报错，其余场景都能进行类型转换。
@@ -175,7 +191,7 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 
 用户可以为每个 partition 对应的子表生成自定义的 TAG 值，如下创建流的语句，
 ```sql
-CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varchar(100)) as select _wstart, count(*) from power.meters partition by concat("tag-", tbname) as alias_tag interval(10s));
+CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varchar(100)) as select _wstart, count(*) from power.meters partition by concat("tag-", tbname) as alias_tag interval(10s);
 ```
 
 在 PARTITION 子句中，为 concat（"tag-"， tbname）定义了一个别名 alias_tag， 对应超级表 output_tag_s 的自定义 TAG 的名字。在上述示例中，流新创建的子表的 TAG 将以前缀 'tag-' 连接原表名作为 TAG 的值。会对 TAG 信息进行如下检查。
@@ -250,7 +266,7 @@ flush database stream_dest_db;   ---- 流计算写入数据的超级表所在的
 
 ```sql
 create stream streams1 into test1.streamst as select  _wstart, count(a) c1  from test.st interval(1s) ;
-drop database streams1;
+drop stream streams1;
 flush database test;
 flush database test1;
 ```

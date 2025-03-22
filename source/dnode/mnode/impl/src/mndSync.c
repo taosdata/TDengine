@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndSync.h"
 #include "mndCluster.h"
+#include "mndStream.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "mndStream.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -326,6 +326,17 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   }
 }
 
+void mndAfterRestored(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
+  SMnode *pMnode = pFsm->data;
+
+  if (!pMnode->deploy) {
+    if (sdbAfterRestored(pMnode->pSdb) != 0) {
+      mError("failed to prepare sdb while start mnode");
+    }
+    mInfo("vgId:1, sync restore finished and restore sdb success");
+  }
+}
+
 int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
   mInfo("start to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
@@ -440,6 +451,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
+  pFsm->FpAfterRestoredCb = mndAfterRestored;
   pFsm->FpLeaderTransferCb = NULL;
   pFsm->FpApplyQueueEmptyCb = mndApplyQueueEmpty;
   pFsm->FpApplyQueueItems = mndApplyQueueItems;
@@ -507,7 +519,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     mError("failed to open sync, tsem_init, since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
-  pMgmt->sync = syncOpen(&syncInfo, 1); // always check
+  pMgmt->sync = syncOpen(&syncInfo, 1);  // always check
   if (pMgmt->sync <= 0) {
     if (terrno != 0) code = terrno;
     mError("failed to open sync since %s", tstrerror(code));
@@ -546,7 +558,7 @@ void mndSyncCheckTimeout(SMnode *pMnode) {
       // pMgmt->transSeq = 0;
       // terrno = TSDB_CODE_SYN_TIMEOUT;
       // pMgmt->errCode = TSDB_CODE_SYN_TIMEOUT;
-      //if (tsem_post(&pMgmt->syncSem) < 0) {
+      // if (tsem_post(&pMgmt->syncSem) < 0) {
       //  mError("failed to post sem");
       //}
     } else {

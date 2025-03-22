@@ -55,16 +55,10 @@ int32_t validateQueryPlanNode(SValidatePlanContext* pCxt, SQueryPlan* pPlan) {
     SNode* pSubNode = NULL;
     SNodeListNode* pSubplans = (SNodeListNode*)pNode;
     FOREACH(pSubNode, pSubplans->pNodeList) {
-      if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pNode)) {
-        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-        break;
-      }
-      
       code = doValidatePhysiNode(pCxt, pSubNode);
-      if (code) {
-        break;
-      }
+      if (code) break;
     }
+    if (code) break;
   }
 
   return code;
@@ -84,6 +78,7 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE:
       return validateMergePhysiNode(pCxt, (SMergePhysiNode*)pNode);
@@ -95,6 +90,9 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
@@ -119,6 +117,12 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return validateSubplanNode(pCxt, (SSubplan*)pNode);
@@ -142,24 +146,7 @@ int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode* pNode = NULL;
-  FOREACH(pNode, pPlan->pSubplans) {
-    if (QUERY_NODE_NODE_LIST != nodeType(pNode)) {
-      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-      break;
-    }
-
-    SNode* pSubNode = NULL;
-    SNodeListNode* pSubplans = (SNodeListNode*)pNode;
-    FOREACH(pSubNode, pSubplans->pNodeList) {
-      code = doValidatePhysiNode(&cxt, pSubNode);
-      if (code) {
-        break;
-      }
-    }
-    if (code) {
-      break;
-    }
-  }
+  code = validateQueryPlanNode(&cxt, pPlan);
 
   destoryValidatePlanContext(&cxt);
   return code;

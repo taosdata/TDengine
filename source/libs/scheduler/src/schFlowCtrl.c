@@ -42,7 +42,7 @@ void schFreeFlowCtrl(SSchJob *pJob) {
 
 int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   if (!SCH_IS_QUERY_JOB(pJob)) {
-    SCH_JOB_DLOG("job no need flow ctrl, queryJob:%d", SCH_IS_QUERY_JOB(pJob));
+    SCH_JOB_TLOG("job no need flow ctrl, queryJob:%d", SCH_IS_QUERY_JOB(pJob));
     return TSDB_CODE_SUCCESS;
   }
 
@@ -50,16 +50,11 @@ int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   int32_t taskNum = taosArrayGetSize(pJob->dataSrcTasks);
   for (int32_t i = 0; i < taskNum; ++i) {
     SSchTask *pTask = *(SSchTask **)taosArrayGet(pJob->dataSrcTasks, i);
-    if (NULL == pTask) {
-      SCH_JOB_DLOG("fail to get the %dth task", i);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-    }
-
     sum += pTask->plan->execNodeStat.tableNum;
   }
 
   if (schMgmt.cfg.maxNodeTableNum <= 0 || sum < schMgmt.cfg.maxNodeTableNum) {
-    SCH_JOB_DLOG("job no need flow ctrl, totalTableNum:%" PRId64, sum);
+    SCH_JOB_TLOG("job no need flow ctrl, totalTableNum:%" PRId64, sum);
     return TSDB_CODE_SUCCESS;
   }
 

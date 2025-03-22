@@ -102,7 +102,7 @@ class TDTestCase:
                     "alias": "tsMinDiskFreeSize",
                     "values": ["51200K", "100M", "1G"],
                     "check_values": ["52428800", "104857600", "1073741824"],
-                    "except_values": ["1024K", "1.1G", "1T"]
+                    "except_values": ["1024K", "2049G", "3T"]
                 },
                 {
                     "name": "tmqMaxTopicNum",
@@ -224,7 +224,8 @@ class TDTestCase:
             for i in range(len(values)):
                 v = values[i]
                 dnode = random.choice(p_list)
-                tdSql.execute(f'alter {dnode} "{name} {v}";')
+                tdSql.execute(f'alter all dnodes "{name} {v}";')
+                sleep(0.5)
                 value = self.svr_get_param_value(name)
                 tdLog.debug(f"value: {value}")
                 if check_values:

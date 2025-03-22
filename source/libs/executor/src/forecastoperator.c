@@ -12,13 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "executorInt.h"
 #include "filter.h"
-#include "function.h"
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
-#include "storageapi.h"
 #include "tanalytics.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -29,25 +28,26 @@
 #ifdef USE_ANALYTICS
 
 typedef struct {
-  char     algoName[TSDB_ANAL_ALGO_NAME_LEN];
-  char     algoUrl[TSDB_ANAL_ALGO_URL_LEN];
-  char     algoOpt[TSDB_ANAL_ALGO_OPTION_LEN];
-  int64_t  maxTs;
-  int64_t  minTs;
-  int64_t  numOfRows;
-  uint64_t groupId;
-  int64_t  optRows;
-  int64_t  cachedRows;
-  int32_t  numOfBlocks;
-  int16_t  resTsSlot;
-  int16_t  resValSlot;
-  int16_t  resLowSlot;
-  int16_t  resHighSlot;
-  int16_t  inputTsSlot;
-  int16_t  inputValSlot;
-  int8_t   inputValType;
-  int8_t   inputPrecision;
-  SAnalBuf analBuf;
+  char         algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
+  char         algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
+  char         algoOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  int64_t      maxTs;
+  int64_t      minTs;
+  int64_t      numOfRows;
+  uint64_t     groupId;
+  int64_t      optRows;
+  int64_t      cachedRows;
+  int32_t      numOfBlocks;
+  int64_t      timeout;
+  int16_t      resTsSlot;
+  int16_t      resValSlot;
+  int16_t      resLowSlot;
+  int16_t      resHighSlot;
+  int16_t      inputTsSlot;
+  int16_t      inputValSlot;
+  int8_t       inputValType;
+  int8_t       inputPrecision;
+  SAnalyticBuf analyBuf;
 } SForecastSupp;
 
 typedef struct SForecastOperatorInfo {
@@ -72,17 +72,20 @@ static FORCE_INLINE int32_t forecastEnsureBlockCapacity(SSDataBlock* pBlock, int
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
-  if (pSupp->cachedRows > ANAL_FORECAST_MAX_ROWS) {
-    return TSDB_CODE_ANAL_ANODE_TOO_MANY_ROWS;
+static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* id) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  SAnalyticBuf* pBuf = &pSupp->analyBuf;
+
+  if (pSupp->cachedRows > ANALY_FORECAST_MAX_ROWS) {
+    code = TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
+    qError("%s rows:%" PRId64 " for forecast cache, error happens, code:%s, upper limit:%d", id, pSupp->cachedRows,
+           tstrerror(code), ANALY_FORECAST_MAX_ROWS);
+    return code;
   }
 
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   lino = 0;
-  SAnalBuf* pBuf = &pSupp->analBuf;
-
-  qDebug("block:%d, %p rows:%" PRId64, pSupp->numOfBlocks, pBlock, pBlock->info.rows);
   pSupp->numOfBlocks++;
+  qDebug("%s block:%d, %p rows:%" PRId64, id, pSupp->numOfBlocks, pBlock, pBlock->info.rows);
 
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, pSupp->inputValSlot);
@@ -97,123 +100,154 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
     pSupp->maxTs = MAX(pSupp->maxTs, ts);
     pSupp->numOfRows++;
 
-    code = taosAnalBufWriteColData(pBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, &ts);
-    if (TSDB_CODE_SUCCESS != code) return code;
+    code = taosAnalyBufWriteColData(pBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, &ts);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("%s failed to write ts in buf, code:%s", id, tstrerror(code));
+      return code;
+    }
 
-    code = taosAnalBufWriteColData(pBuf, 1, valType, val);
-    if (TSDB_CODE_SUCCESS != code) return code;
+    code = taosAnalyBufWriteColData(pBuf, 1, valType, val);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("%s failed to write val in buf, code:%s", id, tstrerror(code));
+      return code;
+    }
   }
 
   return 0;
 }
 
-static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
-  SAnalBuf* pBuf = &pSupp->analBuf;
-  int32_t   code = 0;
+static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
+  SAnalyticBuf* pBuf = &pSupp->analyBuf;
+  int32_t       code = 0;
 
   for (int32_t i = 0; i < 2; ++i) {
-    code = taosAnalBufWriteColEnd(pBuf, i);
+    code = taosAnalyBufWriteColEnd(pBuf, i);
     if (code != 0) return code;
   }
 
-  code = taosAnalBufWriteDataEnd(pBuf);
+  code = taosAnalyBufWriteDataEnd(pBuf);
   if (code != 0) return code;
 
-  code = taosAnalBufWriteOptStr(pBuf, "option", pSupp->algoOpt);
+  code = taosAnalyBufWriteOptStr(pBuf, "option", pSupp->algoOpt);
   if (code != 0) return code;
 
-  code = taosAnalBufWriteOptStr(pBuf, "algo", pSupp->algoName);
+  code = taosAnalyBufWriteOptStr(pBuf, "algo", pSupp->algoName);
   if (code != 0) return code;
 
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
   if (pSupp->inputPrecision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pSupp->inputPrecision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
-  code = taosAnalBufWriteOptStr(pBuf, "prec", prec);
+  code = taosAnalyBufWriteOptStr(pBuf, "prec", prec);
   if (code != 0) return code;
 
-  int64_t wncheck = ANAL_FORECAST_DEFAULT_WNCHECK;
-  bool    hasWncheck = taosAnalGetOptInt(pSupp->algoOpt, "wncheck", &wncheck);
+  int64_t wncheck = ANALY_FORECAST_DEFAULT_WNCHECK;
+  bool    hasWncheck = taosAnalyGetOptInt(pSupp->algoOpt, "wncheck", &wncheck);
   if (!hasWncheck) {
-    qDebug("forecast wncheck not found from %s, use default:%" PRId64, pSupp->algoOpt, wncheck);
+    qDebug("%s forecast wncheck not found from %s, use default:%" PRId64, id, pSupp->algoOpt, wncheck);
   }
-  code = taosAnalBufWriteOptInt(pBuf, "wncheck", wncheck);
+  code = taosAnalyBufWriteOptInt(pBuf, "wncheck", wncheck);
   if (code != 0) return code;
 
   bool noConf = (pSupp->resHighSlot == -1 && pSupp->resLowSlot == -1);
-  code = taosAnalBufWriteOptInt(pBuf, "return_conf", !noConf);
+  code = taosAnalyBufWriteOptInt(pBuf, "return_conf", !noConf);
   if (code != 0) return code;
 
-  pSupp->optRows = ANAL_FORECAST_DEFAULT_ROWS;
-  bool hasRows = taosAnalGetOptInt(pSupp->algoOpt, "rows", &pSupp->optRows);
+  pSupp->optRows = ANALY_FORECAST_DEFAULT_ROWS;
+  bool hasRows = taosAnalyGetOptInt(pSupp->algoOpt, "rows", &pSupp->optRows);
   if (!hasRows) {
-    qDebug("forecast rows not found from %s, use default:%" PRId64, pSupp->algoOpt, pSupp->optRows);
+    qDebug("%s forecast rows not found from %s, use default:%" PRId64, id, pSupp->algoOpt, pSupp->optRows);
   }
-  code = taosAnalBufWriteOptInt(pBuf, "forecast_rows", pSupp->optRows);
+
+  if (pSupp->optRows > ANALY_FORECAST_RES_MAX_ROWS) {
+    qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_FORECAST_RES_MAX_ROWS,
+           pSupp->optRows);
+    return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
+  }
+
+  code = taosAnalyBufWriteOptInt(pBuf, "forecast_rows", pSupp->optRows);
   if (code != 0) return code;
 
-  int64_t conf = ANAL_FORECAST_DEFAULT_CONF;
-  bool    hasConf = taosAnalGetOptInt(pSupp->algoOpt, "conf", &conf);
+  int64_t conf = ANALY_FORECAST_DEFAULT_CONF;
+  bool    hasConf = taosAnalyGetOptInt(pSupp->algoOpt, "conf", &conf);
   if (!hasConf) {
-    qDebug("forecast conf not found from %s, use default:%" PRId64, pSupp->algoOpt, conf);
+    qDebug("%s forecast conf not found from %s, use default:%" PRId64, id, pSupp->algoOpt, conf);
   }
-  code = taosAnalBufWriteOptInt(pBuf, "conf", conf);
+  code = taosAnalyBufWriteOptInt(pBuf, "conf", conf);
   if (code != 0) return code;
 
   int32_t len = strlen(pSupp->algoOpt);
   int64_t every = (pSupp->maxTs - pSupp->minTs) / (pSupp->numOfRows - 1);
   int64_t start = pSupp->maxTs + every;
-  bool    hasStart = taosAnalGetOptInt(pSupp->algoOpt, "start", &start);
+  bool    hasStart = taosAnalyGetOptInt(pSupp->algoOpt, "start", &start);
   if (!hasStart) {
-    qDebug("forecast start not found from %s, use %" PRId64, pSupp->algoOpt, start);
+    qDebug("%s forecast start not found from %s, use %" PRId64, id, pSupp->algoOpt, start);
   }
-  code = taosAnalBufWriteOptInt(pBuf, "start", start);
+  code = taosAnalyBufWriteOptInt(pBuf, "start", start);
   if (code != 0) return code;
 
-  bool hasEvery = taosAnalGetOptInt(pSupp->algoOpt, "every", &every);
+  bool hasEvery = taosAnalyGetOptInt(pSupp->algoOpt, "every", &every);
   if (!hasEvery) {
-    qDebug("forecast every not found from %s, use %" PRId64, pSupp->algoOpt, every);
+    qDebug("%s forecast every not found from %s, use %" PRId64, id, pSupp->algoOpt, every);
   }
-  code = taosAnalBufWriteOptInt(pBuf, "every", every);
+  code = taosAnalyBufWriteOptInt(pBuf, "every", every);
   if (code != 0) return code;
 
-  code = taosAnalBufClose(pBuf);
+  code = taosAnalyBufClose(pBuf);
   return code;
 }
 
-static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock) {
-  SAnalBuf* pBuf = &pSupp->analBuf;
-  int32_t   resCurRow = pBlock->info.rows;
-  int8_t    tmpI8;
-  int16_t   tmpI16;
-  int32_t   tmpI32;
-  int64_t   tmpI64;
-  float     tmpFloat;
-  double    tmpDouble;
-  int32_t   code = 0;
+static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
+  SAnalyticBuf* pBuf = &pSupp->analyBuf;
+  int32_t       resCurRow = pBlock->info.rows;
+  int8_t        tmpI8 = 0;
+  int16_t       tmpI16 = 0;
+  int32_t       tmpI32 = 0;
+  int64_t       tmpI64 = 0;
+  float         tmpFloat = 0;
+  double        tmpDouble = 0;
+  int32_t       code = 0;
 
   SColumnInfoData* pResValCol = taosArrayGet(pBlock->pDataBlock, pSupp->resValSlot);
-  if (NULL == pResValCol) return TSDB_CODE_OUT_OF_RANGE;
+  if (NULL == pResValCol) {
+    return terrno;
+  }
 
-  SColumnInfoData* pResTsCol = (pSupp->resTsSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resTsSlot) : NULL);
-  SColumnInfoData* pResLowCol = (pSupp->resLowSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resLowSlot) : NULL);
+  SColumnInfoData* pResTsCol = ((pSupp->resTsSlot != -1) ? taosArrayGet(pBlock->pDataBlock, pSupp->resTsSlot) : NULL);
+  SColumnInfoData* pResLowCol =
+      ((pSupp->resLowSlot != -1) ? taosArrayGet(pBlock->pDataBlock, pSupp->resLowSlot) : NULL);
   SColumnInfoData* pResHighCol =
       (pSupp->resHighSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resHighSlot) : NULL);
 
-  SJson* pJson = taosAnalSendReqRetJson(pSupp->algoUrl, ANAL_HTTP_TYPE_POST, pBuf);
-  if (pJson == NULL) return terrno;
+  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout * 1000);
+  if (pJson == NULL) {
+    return terrno;
+  }
 
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
-  if (code < 0) goto _OVER;
-  if (rows <= 0) goto _OVER;
+  if (rows < 0 && code == 0) {
+    char pMsg[1024] = {0};
+    code = tjsonGetStringValue(pJson, "msg", pMsg);
+    if (code != 0) {
+      qError("%s failed to get msg from rsp, unknown error", pId);
+    } else {
+      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+    }
+
+    tjsonDelete(pJson);
+    return TSDB_CODE_ANA_INTERNAL_ERROR;
+  }
+
+  if (code < 0) {
+    goto _OVER;
+  }
 
   SJson* res = tjsonGetObjectItem(pJson, "res");
   if (res == NULL) goto _OVER;
   int32_t ressize = tjsonGetArraySize(res);
   bool    returnConf = (pSupp->resHighSlot != -1 || pSupp->resLowSlot != -1);
-  if (returnConf) {
-    if (ressize != 4) goto _OVER;
-  } else if (ressize != 2) {
+
+  if ((returnConf && (ressize != 4)) || ((!returnConf) && (ressize != 2))) {
     goto _OVER;
   }
 
@@ -313,56 +347,40 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock) {
     resCurRow++;
   }
 
-  // for (int32_t i = rows; i < pSupp->optRows; ++i) {
-  //   colDataSetNNULL(pResValCol, rows, (pSupp->optRows - rows));
-  //   if (pResTsCol != NULL) {
-  //     colDataSetNNULL(pResTsCol, rows, (pSupp->optRows - rows));
-  //   }
-  //   if (pResLowCol != NULL) {
-  //     colDataSetNNULL(pResLowCol, rows, (pSupp->optRows - rows));
-  //   }
-  //   if (pResHighCol != NULL) {
-  //     colDataSetNNULL(pResHighCol, rows, (pSupp->optRows - rows));
-  //   }
-  // }
-
-  // if (rows == pSupp->optRows) {
-  //   pResValCol->hasNull = false;
-  // }
-
   pBlock->info.rows += rows;
 
   if (pJson != NULL) tjsonDelete(pJson);
   return 0;
 
 _OVER:
-  if (pJson != NULL) tjsonDelete(pJson);
+  tjsonDelete(pJson);
   if (code == 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
   }
-  qError("failed to perform forecast finalize since %s", tstrerror(code));
-  return TSDB_CODE_INVALID_JSON_FORMAT;
+
+  qError("%s failed to perform forecast finalize since %s", pId, tstrerror(code));
+  return code;
 }
 
-static int32_t forecastAggregateBlocks(SForecastSupp* pSupp, SSDataBlock* pResBlock) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   lino = 0;
-  SAnalBuf* pBuf = &pSupp->analBuf;
+static int32_t forecastAggregateBlocks(SForecastSupp* pSupp, SSDataBlock* pResBlock, const char* pId) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
+  SAnalyticBuf* pBuf = &pSupp->analyBuf;
 
-  code = forecastCloseBuf(pSupp);
+  code = forecastCloseBuf(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = forecastEnsureBlockCapacity(pResBlock, 1);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = forecastAnalysis(pSupp, pResBlock);
+  code = forecastAnalysis(pSupp, pResBlock, pId);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  uInfo("block:%d, forecast finalize", pSupp->numOfBlocks);
+  uInfo("%s block:%d, forecast finalize", pId, pSupp->numOfBlocks);
 
 _end:
   pSupp->numOfBlocks = 0;
-  taosAnalBufDestroy(&pSupp->analBuf);
+  taosAnalyBufDestroy(&pSupp->analyBuf);
   return code;
 }
 
@@ -373,9 +391,10 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SForecastOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*           pResBlock = pInfo->pRes;
   SForecastSupp*         pSupp = &pInfo->forecastSupp;
-  SAnalBuf*              pBuf = &pSupp->analBuf;
+  SAnalyticBuf*          pBuf = &pSupp->analyBuf;
   int64_t                st = taosGetTimestampUs();
   int32_t                numOfBlocks = pSupp->numOfBlocks;
+  const char*            pId = GET_TASKID(pOperator->pTaskInfo);
 
   blockDataCleanup(pResBlock);
 
@@ -389,45 +408,46 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
       pSupp->cachedRows += pBlock->info.rows;
-      qDebug("group:%" PRId64 ", blocks:%d, rows:%" PRId64 ", total rows:%" PRId64, pSupp->groupId, numOfBlocks,
+      qDebug("%s group:%" PRId64 ", blocks:%d, rows:%" PRId64 ", total rows:%" PRId64, pId, pSupp->groupId, numOfBlocks,
              pBlock->info.rows, pSupp->cachedRows);
-      code = forecastCacheBlock(pSupp, pBlock);
+      code = forecastCacheBlock(pSupp, pBlock, pId);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      qDebug("group:%" PRId64 ", read finish for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
-      code = forecastAggregateBlocks(pSupp, pResBlock);
+      qDebug("%s group:%" PRId64 ", read finish for new group coming, blocks:%d", pId, pSupp->groupId, numOfBlocks);
+      code = forecastAggregateBlocks(pSupp, pResBlock, pId);
       QUERY_CHECK_CODE(code, lino, _end);
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
       pSupp->cachedRows = pBlock->info.rows;
-      qDebug("group:%" PRId64 ", new group, rows:%" PRId64 ", total rows:%" PRId64, pSupp->groupId, pBlock->info.rows,
-             pSupp->cachedRows);
-      code = forecastCacheBlock(pSupp, pBlock);
+      qDebug("%s group:%" PRId64 ", new group, rows:%" PRId64 ", total rows:%" PRId64, pId, pSupp->groupId,
+             pBlock->info.rows, pSupp->cachedRows);
+      code = forecastCacheBlock(pSupp, pBlock, pId);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pResBlock->info.rows > 0) {
       (*ppRes) = pResBlock;
-      qDebug("group:%" PRId64 ", return to upstream, blocks:%d", pResBlock->info.id.groupId, numOfBlocks);
+      qDebug("%s group:%" PRId64 ", return to upstream, blocks:%d", pId, pResBlock->info.id.groupId, numOfBlocks);
       return code;
     }
   }
 
   if (numOfBlocks > 0) {
-    qDebug("group:%" PRId64 ", read finish, blocks:%d", pSupp->groupId, numOfBlocks);
-    code = forecastAggregateBlocks(pSupp, pResBlock);
+    qDebug("%s group:%" PRId64 ", read finish, blocks:%d", pId, pSupp->groupId, numOfBlocks);
+    code = forecastAggregateBlocks(pSupp, pResBlock, pId);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
-  qDebug("all groups finished, cost:%" PRId64 "us", cost);
+  qDebug("%s all groups finished, cost:%" PRId64 "us", pId, cost);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", pId, __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+
   (*ppRes) = (pResBlock->info.rows == 0) ? NULL : pResBlock;
   return code;
 }
@@ -498,7 +518,7 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs) {
           pSupp->inputPrecision = pTsNode->node.resType.precision;
           pSupp->inputValSlot = pValNode->slotId;
           pSupp->inputValType = pValNode->node.resType.type;
-          tstrncpy(pSupp->algoOpt, "algo=arima", TSDB_ANAL_ALGO_OPTION_LEN);
+          tstrncpy(pSupp->algoOpt, "algo=arima", TSDB_ANALYTIC_ALGO_OPTION_LEN);
         } else {
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
@@ -509,51 +529,65 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs) {
   return 0;
 }
 
-static int32_t forecastParseAlgo(SForecastSupp* pSupp) {
+static int32_t forecastParseAlgo(SForecastSupp* pSupp, const char* id) {
   pSupp->maxTs = 0;
   pSupp->minTs = INT64_MAX;
   pSupp->numOfRows = 0;
 
-  if (!taosAnalGetOptStr(pSupp->algoOpt, "algo", pSupp->algoName, sizeof(pSupp->algoName))) {
-    qError("failed to get forecast algorithm name from %s", pSupp->algoOpt);
-    return TSDB_CODE_ANAL_ALGO_NOT_FOUND;
+  if (!taosAnalyGetOptStr(pSupp->algoOpt, "algo", pSupp->algoName, sizeof(pSupp->algoName))) {
+    qError("%s failed to get forecast algorithm name from %s", id, pSupp->algoOpt);
+    return TSDB_CODE_ANA_ALGO_NOT_FOUND;
   }
 
-  if (taosAnalGetAlgoUrl(pSupp->algoName, ANAL_ALGO_TYPE_FORECAST, pSupp->algoUrl, sizeof(pSupp->algoUrl)) != 0) {
-    qError("failed to get forecast algorithm url from %s", pSupp->algoName);
-    return TSDB_CODE_ANAL_ALGO_NOT_LOAD;
+  bool hasTimeout = taosAnalyGetOptInt(pSupp->algoOpt, "timeout", &pSupp->timeout);
+  if (!hasTimeout) {
+    qDebug("%s not set the timeout val, set default:%d", id, ANALY_DEFAULT_TIMEOUT);
+    pSupp->timeout = ANALY_DEFAULT_TIMEOUT;
+  } else {
+    if (pSupp->timeout <= 0 || pSupp->timeout > ANALY_MAX_TIMEOUT) {
+      qDebug("%s timeout val:%" PRId64 "s is invalid (greater than 10min or less than 1s), use default:%dms",
+             id, pSupp->timeout, ANALY_DEFAULT_TIMEOUT);
+      pSupp->timeout = ANALY_DEFAULT_TIMEOUT;
+    } else {
+      qDebug("%s timeout val is set to: %" PRId64 "s", id, pSupp->timeout);
+    }
+  }
+
+  if (taosAnalyGetAlgoUrl(pSupp->algoName, ANALY_ALGO_TYPE_FORECAST, pSupp->algoUrl, sizeof(pSupp->algoUrl)) != 0) {
+    qError("%s failed to get forecast algorithm url from %s", id, pSupp->algoName);
+    return TSDB_CODE_ANA_ALGO_NOT_LOAD;
   }
 
   return 0;
 }
 
 static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
-  SAnalBuf* pBuf = &pSupp->analBuf;
-  int64_t   ts = 0;  // taosGetTimestampMs();
+  SAnalyticBuf* pBuf = &pSupp->analyBuf;
+  int64_t       ts = 0;  // taosGetTimestampMs();
 
-  pBuf->bufType = ANAL_BUF_TYPE_JSON_COL;
+  pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
   snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%" PRId64, tsTempDir, ts);
-  int32_t code = tsosAnalBufOpen(pBuf, 2);
+  int32_t code = tsosAnalyBufOpen(pBuf, 2);
   if (code != 0) goto _OVER;
 
-  code = taosAnalBufWriteColMeta(pBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
+  code = taosAnalyBufWriteColMeta(pBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
   if (code != 0) goto _OVER;
 
-  code = taosAnalBufWriteColMeta(pBuf, 1, pSupp->inputValType, "val");
+  code = taosAnalyBufWriteColMeta(pBuf, 1, pSupp->inputValType, "val");
   if (code != 0) goto _OVER;
 
-  code = taosAnalBufWriteDataBegin(pBuf);
+  code = taosAnalyBufWriteDataBegin(pBuf);
   if (code != 0) goto _OVER;
 
   for (int32_t i = 0; i < 2; ++i) {
-    code = taosAnalBufWriteColBegin(pBuf, i);
+    code = taosAnalyBufWriteColBegin(pBuf, i);
     if (code != 0) goto _OVER;
   }
 
 _OVER:
   if (code != 0) {
-    (void)taosAnalBufClose(pBuf);
-    taosAnalBufDestroy(pBuf);
+    (void)taosAnalyBufClose(pBuf);
+    taosAnalyBufDestroy(pBuf);
   }
   return code;
 }
@@ -571,6 +605,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
     goto _error;
   }
 
+  const char*             pId = pTaskInfo->id.str;
   SForecastSupp*          pSupp = &pInfo->forecastSupp;
   SForecastFuncPhysiNode* pForecastPhyNode = (SForecastFuncPhysiNode*)pPhyNode;
   SExprSupp*              pExprSup = &pOperator->exprSupp;
@@ -602,7 +637,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   code = forecastParseOutput(pSupp, pExprSup);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = forecastParseAlgo(pSupp);
+  code = forecastParseAlgo(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = forecastCreateBuf(pSupp);
@@ -626,7 +661,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
 
   *pOptrInfo = pOperator;
 
-  qDebug("forecast env is initialized, option:%s", pSupp->algoOpt);
+  qDebug("%s forecast env is initialized, option:%s", pId, pSupp->algoOpt);
   return TSDB_CODE_SUCCESS;
 
 _error:
@@ -645,7 +680,7 @@ static void destroyForecastInfo(void* param) {
   blockDataDestroy(pInfo->pRes);
   pInfo->pRes = NULL;
   cleanupExprSupp(&pInfo->scalarSup);
-  taosAnalBufDestroy(&pInfo->forecastSupp.analBuf);
+  taosAnalyBufDestroy(&pInfo->forecastSupp.analyBuf);
   taosMemoryFreeClear(param);
 }
 

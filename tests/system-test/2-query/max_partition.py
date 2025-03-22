@@ -64,6 +64,10 @@ class TDTestCase:
         tdSql.query(f"select tbname , max(c1)  from {dbname}.sub_stb_1 where c1 is null group by c1 order by c1 desc ")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,"sub_stb_1")
+        tdSql.query(f"select tbname , max(c1)  from {dbname}.sub_stb_1 group by c1 order by c1 desc ")
+        rows = tdSql.queryRows
+        tdSql.query(f"select tbname , max(c1)  from {dbname}.sub_stb_1 where c1 is null or (1<2) group by c1 order by c1 desc ")
+        tdSql.checkRows(rows)
 
         tdSql.query(f"select max(c1) ,c2 ,t2,tbname from {dbname}.stb group by abs(c1) order by abs(c1)")
         tdSql.checkRows(self.row_nums+1)

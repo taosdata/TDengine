@@ -71,6 +71,7 @@ int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       code = taosWriteQitem(pMgmt->queryWorker.queue, pMsg);
       return code;
     case READ_QUEUE:
+    case STATUS_QUEUE:
     case FETCH_QUEUE:
       dTrace("msg:%p, is created and will put into qnode-fetch queue, len:%d", pMsg, pRpc->contLen);
       code = taosWriteQitem(pMgmt->fetchWorker.queue, pMsg);
@@ -104,8 +105,8 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
   int32_t code = 0;
 
   SSingleWorkerCfg queryCfg = {
-      .min = tsNumOfVnodeQueryThreads,
-      .max = tsNumOfVnodeQueryThreads,
+      .min = tsNumOfQnodeQueryThreads,
+      .max = tsNumOfQnodeQueryThreads,
       .name = "qnode-query",
       .fp = (FItem)qmProcessQueue,
       .param = pMgmt,
@@ -116,6 +117,8 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     dError("failed to start qnode-query worker since %s", tstrerror(code));
     return code;
   }
+
+  tsNumOfQueryThreads += tsNumOfQnodeQueryThreads;
 
   SSingleWorkerCfg fetchCfg = {
       .min = tsNumOfQnodeFetchThreads,

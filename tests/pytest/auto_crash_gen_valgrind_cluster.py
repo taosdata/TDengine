@@ -16,7 +16,18 @@ msg_dict = {0: "success", 1: "failed", 2: "other errors", 3: "crash occured", 4:
 # formal
 hostname = socket.gethostname()
 
-group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
+group_url_test = (
+    'https://open.feishu.cn/open-apis/bot/v2/hook/7e409a8e-4390-4043-80d0-4e0dd2cbae7d'
+)
+
+notification_robot_url = (
+    "https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9"
+)
+
+alert_robot_url = (
+    "https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3"
+)
+
 
 def get_msg(text):
     return {
@@ -37,12 +48,12 @@ def get_msg(text):
     }
 
 
-def send_msg(json):
+def send_msg(url:str,json:dict):
     headers = {
         'Content-Type': 'application/json'
     }
 
-    req = requests.post(url=group_url, headers=headers, json=json)
+    req = requests.post(url=url, headers=headers, json=json)
     inf = req.json()
     if "StatusCode" in inf and inf["StatusCode"] == 0:
         pass
@@ -225,7 +236,7 @@ def start_taosd():
     else:
         pass
 
-    start_cmd = 'cd %s && python3 test.py -N 4 -M 1 '%(start_path)
+    start_cmd = 'cd %s && python3 test.py -N 4 -M 1 -G '%(start_path)
     os.system(start_cmd +">>/dev/null")
 
 def get_cmds(args_list):
@@ -376,18 +387,29 @@ def main():
             core_dir = "none"
 
         text = f'''
-        exit status: {msg_dict[status]}
-        test scope: crash_gen
-        owner: pxiao
-        hostname: {hostname}
-        start time: {starttime}
-        end time: {endtime}
-        git commit :  {git_commit}
-        log dir: {log_dir}
-        core dir: {core_dir}
-        cmd: {cmd}'''
+Result: {msg_dict[status]}
 
-        send_msg(get_msg(text))
+Details
+Owner: Jayden Jia
+Start time: {starttime}
+End time: {endtime}
+Hostname: {hostname}
+Commit:  {git_commit}
+Cmd: {cmd}
+Log dir: {log_dir}
+Core dir: {core_dir}
+'''
+
+        text_result=text.split("Result: ")[1].split("Details")[0].strip()
+        print(text_result)
+
+        if text_result == "success":
+            send_msg(notification_robot_url, get_msg(text))
+        else:
+            send_msg(alert_robot_url, get_msg(text))
+            send_msg(notification_robot_url, get_msg(text))
+
+        #send_msg(get_msg(text))
     except Exception as e:
         print("exception:", e)
     exit(status)

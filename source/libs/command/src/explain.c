@@ -420,6 +420,52 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
+      SVirtualScanPhysiNode *pVirtualTableScanNode = (SVirtualScanPhysiNode *)pNode;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_VIRTUAL_TABLE_SCAN_FORMAT, pVirtualTableScanNode->scan.tableName.tname);
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      if (pVirtualTableScanNode->scan.pScanPseudoCols) {
+        EXPLAIN_ROW_APPEND(EXPLAIN_PSEUDO_COLUMNS_FORMAT, pVirtualTableScanNode->scan.pScanPseudoCols->length);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pVirtualTableScanNode->scan.node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                           nodesGetOutputNumFromSlotList(pVirtualTableScanNode->scan.node.pOutputDataBlockDesc->pSlots));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pVirtualTableScanNode->scan.node.pOutputDataBlockDesc->outputRowSize);
+        EXPLAIN_ROW_APPEND_LIMIT(pVirtualTableScanNode->scan.node.pLimit);
+        EXPLAIN_ROW_APPEND_SLIMIT(pVirtualTableScanNode->scan.node.pSlimit);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        if (pResNode->pExecInfo) {
+          QRY_ERR_RET(qExplainBufAppendVerboseExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+          if (tlen) {
+            EXPLAIN_ROW_END();
+            QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+          }
+        }
+
+        if (pVirtualTableScanNode->scan.node.pConditions) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pVirtualTableScanNode->scan.node.pConditions, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
@@ -676,9 +722,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
             EXPLAIN_ROW_APPEND(EXPLAIN_WIN_OFFSET_FORMAT, pStart->literal, pEnd->literal);
             EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
           }
-          if (NULL != pJoinNode->pJLimit) {
+          if (NULL != pJoinNode->pJLimit && NULL != ((SLimitNode*)pJoinNode->pJLimit)->limit) {
             SLimitNode* pJLimit = (SLimitNode*)pJoinNode->pJLimit;
-            EXPLAIN_ROW_APPEND(EXPLAIN_JLIMIT_FORMAT, pJLimit->limit);
+            EXPLAIN_ROW_APPEND(EXPLAIN_JLIMIT_FORMAT, pJLimit->limit->datum.i);
             EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
           }
           if (IS_WINDOW_JOIN(pJoinNode->subType)) {
@@ -748,7 +794,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
       SAggPhysiNode *pAggNode = (SAggPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_AGG_FORMAT, (pAggNode->pGroupKeys ? "GroupAggragate" : "Aggragate"));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_AGG_FORMAT, (pAggNode->pGroupKeys ? "GroupAggregate" : "Aggregate"));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -988,6 +1034,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pIntNode->window.node.pOutputDataBlockDesc->outputRowSize);
         EXPLAIN_ROW_APPEND_LIMIT(pIntNode->window.node.pLimit);
         EXPLAIN_ROW_APPEND_SLIMIT(pIntNode->window.node.pSlimit);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIMERANGE_FORMAT, pIntNode->timeRange.skey, pIntNode->timeRange.ekey);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         uint8_t precision = qExplainGetIntervalPrecision(pIntNode);
@@ -2053,7 +2102,7 @@ static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
 
       if (0 != taosHashPut(groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
         qError("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
-        QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        QRY_ERR_JRET(terrno);
       }
     }
 

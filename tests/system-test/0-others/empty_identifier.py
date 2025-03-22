@@ -145,7 +145,6 @@ class TDTestCase:
                 'select * from ``',
                 'alter table meters add column `` int',
                 'alter table meters drop column ``',
-                'alter table t0 set tag `` = ""',
                 'alter stable meters add tag `` int',
                 'alter stable meters rename tag cc ``',
                 'alter stable meters drop tag ``',

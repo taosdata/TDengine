@@ -24,10 +24,35 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 
+#define PAR_ERR_RET(c)                \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
+#define PAR_RET(c)                    \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+#define PAR_ERR_JRET(c)              \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
+
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);
-  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SName*, bool, SHashObj*, SHashObj*, const char*);
+  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SName*, bool, SHashObj*, SHashObj*, const char*, bool);
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
@@ -101,6 +126,9 @@ typedef struct SParseContext {
   int8_t           biMode;
   SArray*          pSubMetaList;
   setQueryFn       setQueryFp;
+  timezone_t       timezone;
+  void            *charsetCxt;
+  bool             streamRunHistory;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -110,7 +138,7 @@ bool    qParseDbName(const char* pStr, size_t length, char** pDbName);
 // for async mode
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                            const struct SMetaData* pMetaData, SQuery* pQuery);
+                            struct SMetaData* pMetaData, SQuery* pQuery);
 int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, const struct SMetaData* pMetaData,
                           SQuery* pQuery);
 int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock);
@@ -125,7 +153,7 @@ int32_t qInitKeywordsTable();
 void    qCleanupKeywordsTable();
 
 int32_t qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                               SStbInterlaceInfo* pBuildInfo);
+                               SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
 int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks);
 // int32_t     qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx,
 // int32_t tbNum);
@@ -139,27 +167,32 @@ void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
 STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
 int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);
 
-int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx);
+int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx, void *charsetCxt);
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                              STSchema** pTSchema, SBindInfo* pBindInfos);
-int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
+                              STSchema** pTSchema, SBindInfo* pBindInfos, void* charsetCxt);
+int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                int32_t colIdx, int32_t rowNum);
+                                int32_t colIdx, int32_t rowNum, void* charsetCxt);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
-int32_t qBuildStmtStbColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_STB** fields);
+int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool hasCtbName, int32_t* fieldNum,
+                               TAOS_FIELD_ALL** fields);
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                           TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
+                           TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 
-int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx);
+int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt);
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                               STSchema** pTSchema, SBindInfo2* pBindInfos);
-int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen);
+                               STSchema** pTSchema, SBindInfo2* pBindInfos, void *charsetCxt);
+int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                            void* charsetCxt);
 int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                 int32_t colIdx, int32_t rowNum);
+                                 int32_t colIdx, int32_t rowNum, void* charsetCxt);
+int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                           STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt);
 int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen);
+                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt,
+                            SVCreateTbReq* pCreateTbReq);
 
 void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
@@ -169,16 +202,19 @@ void qDestroyBoundColInfo(void* pInfo);
 
 int32_t smlInitHandle(SQuery** query);
 int32_t smlBuildRow(STableDataCxt* pTableCxt);
-int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* kv, int32_t index);
+int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* kv, int32_t index, void* charsetCxt);
 int32_t smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta, STableDataCxt** cxt);
 
 void    clearColValArraySml(SArray* pCols);
 int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols,
                     STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
-                    char* msgBuf, int32_t msgBufLen);
+                    char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
-int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* fields,
-                     int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw);
+int32_t smlBuildOutputRaw(SQuery* handle, SHashObj* pVgHash);
+int     rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* pTableMeta, void* data);
+int     rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* fields,
+                         int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw);
+int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fields, char* errstr, int32_t errstrLen);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
@@ -186,7 +222,7 @@ int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 void    destoryCatalogReq(SCatalogReq* pCatalogReq);
 bool    isPrimaryKeyImpl(SNode* pExpr);
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                                  SStbInterlaceInfo* pBuildInfo);
+                                  SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
 
 #ifdef __cplusplus
 }

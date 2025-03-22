@@ -26,10 +26,10 @@ class TDTestCase:
     def run(self):
         print("==============step1")
         try:
-            tdSql.execute("create user abc pass '123456'")
+            tdSql.execute("create user abc pass '123456rf@#'")
         except Exception as e:
             tdLog.exit(e)
-        print("create user abc pass '123456'")
+        print("create user abc pass '123456rf@#'")
 
         print("==============step2")
         try:

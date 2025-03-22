@@ -166,7 +166,7 @@ static void printHelp() {
 char* getCurrentTimeString(char* timeString) {
   time_t    tTime = taosGetTimestampSec();
   struct tm tm;
-  taosLocalTime(&tTime, &tm, NULL, 0);
+  taosLocalTime(&tTime, &tm, NULL, 0, NULL);
   sprintf(timeString, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
           tm.tm_min, tm.tm_sec);
 
@@ -185,7 +185,7 @@ void initLogFile() {
   char filename[256];
   char tmpString[128];
 
-  pid_t process_id = getpid();
+  pid_t process_id = taosGetPId();
 
   if (0 != strlen(g_stConfInfo.topic)) {
     sprintf(filename, "/tmp/tmqlog-%d-%s.txt", process_id, getCurrentTimeString(tmpString));
@@ -472,10 +472,10 @@ static char* shellFormatTimestamp(char* buf, int32_t bufSize, int64_t val, int32
   }
 
   struct tm ptm;
-  if (taosLocalTime(&tt, &ptm, buf, bufSize) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize, NULL) == NULL) {
     return buf;
   }
-  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
+  size_t pos = taosStrfTime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);

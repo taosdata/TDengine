@@ -5,7 +5,11 @@ node {
 }
 file_zh_changed = ''
 file_en_changed = ''
-file_no_doc_changed = ''
+file_no_doc_changed = '1'
+file_only_tdgpt_change_except = '1'
+tdgpt_file = "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics"
+
+
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -69,13 +73,23 @@ def check_docs(){
         file_no_doc_changed = sh (
             script: '''
                 cd ${WKC}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v "*.md" || :
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" || :
             ''',
             returnStdout: true
         ).trim()
+
+        file_only_tdgpt_change_except = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" ||:
+            ''',
+            returnStdout: true
+        ).trim()
+
         echo "file_zh_changed: ${file_zh_changed}"
         echo "file_en_changed: ${file_en_changed}"
         echo "file_no_doc_changed: ${file_no_doc_changed}"
+        echo "file_only_tdgpt_change_except: ${file_only_tdgpt_change_except}"
     }
 }
 
@@ -97,16 +111,6 @@ def build_pre_docs(){
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD 
-        '''
-
-        sh '''
-             cd ${DOC_WKC}/${tools_repo}
-            git reset --hard
-            git clean -f
-            git fetch
-            git remote prune origin
-            git checkout ''' + env.CHANGE_TARGET + '''
-            git pull >/dev/null
         '''
     }
 }
@@ -354,9 +358,10 @@ def pre_test_build_win() {
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%/tests/ci
-        pip3 install taospy==2.7.16 
-        pip3 install taos-ws-py==0.3.3
+        pip3 install taospy==2.7.21 
+        pip3 install taos-ws-py==0.3.8
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taosnative.dll C:\\Windows\\System32
     '''
     return 1
 }
@@ -375,7 +380,9 @@ def run_win_test() {
     bat '''
         echo "windows test ..."
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taosnative.dll C:\\Windows\\System32
         ls -l C:\\Windows\\System32\\taos.dll
+        ls -l C:\\Windows\\System32\\taosnative.dll
         time /t
         cd %WIN_SYSTEM_TEST_ROOT%
         echo "testing ..."
@@ -385,7 +392,7 @@ def run_win_test() {
 }
 
 pipeline {
-    agent none
+    agent any
     options { skipDefaultCheckout() } 
     environment{
         WKDIR = '/var/lib/jenkins/workspace'
@@ -451,8 +458,8 @@ pipeline {
 
         stage('run test') {
             when {
-                allOf {
-                    not { expression { file_no_doc_changed == '' }}
+                expression {
+                    file_no_doc_changed != '' && env.CHANGE_TARGET != 'docs-cloud'
                 }
             }
             parallel {
@@ -463,19 +470,27 @@ pipeline {
                         WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
                         WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
                     }
+                    when {
+                        beforeAgent true
+                        expression { file_only_tdgpt_change_except != '' }
+                    }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 126, unit: 'MINUTES'){
-                                pre_test_win()
-                                pre_test_build_win()
-                                run_win_ctest()
-                                run_win_test()
+                                    pre_test_win()
+                                    pre_test_build_win()
+                                    run_win_ctest()
+                                    run_win_test()
                             }
                         }
                     }
                 }
                 stage('mac test') {
                     agent{label " Mac_catalina "}
+                    when {
+                        beforeAgent true
+                        expression { file_only_tdgpt_change_except != '' }
+                    }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 60, unit: 'MINUTES'){
@@ -551,28 +566,25 @@ pipeline {
                                        cd ${WKC}/tests/parallel_test
                                        ./run_scan_container.sh -d ${WKDIR} -b ${BRANCH_NAME}_${BUILD_ID}  -f ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt ''' + extra_param + '''
                                     '''
-                                    sh '''
-                                        cd ${WKC}/tests/parallel_test
-                                        export DEFAULT_RETRY_TIME=2
-                                        date
-                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
-                                    '''
+                                     if ( file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ ) {
+                                        sh '''
+                                            cd ${WKC}/tests/parallel_test
+                                            export DEFAULT_RETRY_TIME=2
+                                            date
+                                            timeout 600 time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 300 ''' + extra_param + '''
+                                        '''
+                                    }
+                                    if ( file_only_tdgpt_change_except != '' ) {
+                                        sh '''
+                                            cd ${WKC}/tests/parallel_test
+                                            export DEFAULT_RETRY_TIME=2
+                                            date
+                                            ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ''' + extra_param + '''
+                                        '''
+                                    }
                                 }
                             }
                         }
-                        /*catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 15, unit: 'MINUTES'){
-                                script {
-                                    sh '''
-                                        echo "packaging ..."
-                                        date
-                                        rm -rf ${WKC}/release/*
-                                        cd ${WKC}/packaging
-                                        ./release.sh -v cluster -n 3.0.0.100 -s static
-                                    '''
-                                }
-                            }
-                        }*/
                     }
                 }
             }

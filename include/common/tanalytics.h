@@ -25,11 +25,14 @@
 extern "C" {
 #endif
 
-#define ANAL_FORECAST_DEFAULT_ROWS    10
-#define ANAL_FORECAST_DEFAULT_CONF    95
-#define ANAL_FORECAST_DEFAULT_WNCHECK 1
-#define ANAL_FORECAST_MAX_ROWS        10000
-#define ANAL_ANOMALY_WINDOW_MAX_ROWS  10000
+#define ANALY_FORECAST_DEFAULT_ROWS    10
+#define ANALY_FORECAST_DEFAULT_CONF    95
+#define ANALY_FORECAST_DEFAULT_WNCHECK 1
+#define ANALY_FORECAST_MAX_ROWS        40000
+#define ANALY_FORECAST_RES_MAX_ROWS    1024
+#define ANALY_ANOMALY_WINDOW_MAX_ROWS  40000
+#define ANALY_DEFAULT_TIMEOUT          60
+#define ANALY_MAX_TIMEOUT              600
 
 typedef struct {
   EAnalAlgoType type;
@@ -39,15 +42,15 @@ typedef struct {
 } SAnalyticsUrl;
 
 typedef enum {
-  ANAL_BUF_TYPE_JSON = 0,
-  ANAL_BUF_TYPE_JSON_COL = 1,
-  ANAL_BUF_TYPE_OTHERS,
+  ANALYTICS_BUF_TYPE_JSON = 0,
+  ANALYTICS_BUF_TYPE_JSON_COL = 1,
+  ANALYTICS_BUF_TYPE_OTHERS,
 } EAnalBufType;
 
 typedef enum {
-  ANAL_HTTP_TYPE_GET = 0,
-  ANAL_HTTP_TYPE_POST,
-} EAnalHttpType;
+  ANALYTICS_HTTP_TYPE_GET = 0,
+  ANALYTICS_HTTP_TYPE_POST,
+} EAnalyHttpType;
 
 typedef struct {
   TdFilePtr filePtr;
@@ -61,34 +64,34 @@ typedef struct {
   char         fileName[TSDB_FILENAME_LEN];
   int32_t      numOfCols;
   SAnalyticsColBuf *pCols;
-} SAnalBuf;
+} SAnalyticBuf;
 
 int32_t taosAnalyticsInit();
 void    taosAnalyticsCleanup();
-SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalBuf *pBuf);
+SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout);
 
-int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
-bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
-bool    taosAnalGetOptInt(const char *option, const char *optName, int64_t *optValue);
-int64_t taosAnalGetVersion();
-void    taosAnalUpdate(int64_t newVer, SHashObj *pHash);
+int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
+bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
+bool    taosAnalyGetOptInt(const char *option, const char *optName, int64_t *optValue);
+int64_t taosAnalyGetVersion();
+void    taosAnalyUpdate(int64_t newVer, SHashObj *pHash);
 
-int32_t tsosAnalBufOpen(SAnalBuf *pBuf, int32_t numOfCols);
-int32_t taosAnalBufWriteOptStr(SAnalBuf *pBuf, const char *optName, const char *optVal);
-int32_t taosAnalBufWriteOptInt(SAnalBuf *pBuf, const char *optName, int64_t optVal);
-int32_t taosAnalBufWriteOptFloat(SAnalBuf *pBuf, const char *optName, float optVal);
-int32_t taosAnalBufWriteColMeta(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName);
-int32_t taosAnalBufWriteDataBegin(SAnalBuf *pBuf);
-int32_t taosAnalBufWriteColBegin(SAnalBuf *pBuf, int32_t colIndex);
-int32_t taosAnalBufWriteColData(SAnalBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue);
-int32_t taosAnalBufWriteColEnd(SAnalBuf *pBuf, int32_t colIndex);
-int32_t taosAnalBufWriteDataEnd(SAnalBuf *pBuf);
-int32_t taosAnalBufClose(SAnalBuf *pBuf);
-void    taosAnalBufDestroy(SAnalBuf *pBuf);
+int32_t tsosAnalyBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols);
+int32_t taosAnalyBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal);
+int32_t taosAnalyBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal);
+int32_t taosAnalyBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal);
+int32_t taosAnalyBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName);
+int32_t taosAnalyBufWriteDataBegin(SAnalyticBuf *pBuf);
+int32_t taosAnalyBufWriteColBegin(SAnalyticBuf *pBuf, int32_t colIndex);
+int32_t taosAnalyBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue);
+int32_t taosAnalyBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex);
+int32_t taosAnalyBufWriteDataEnd(SAnalyticBuf *pBuf);
+int32_t taosAnalyBufClose(SAnalyticBuf *pBuf);
+void    taosAnalyBufDestroy(SAnalyticBuf *pBuf);
 
-const char   *taosAnalAlgoStr(EAnalAlgoType algoType);
-EAnalAlgoType taosAnalAlgoInt(const char *algoName);
-const char   *taosAnalAlgoUrlStr(EAnalAlgoType algoType);
+const char   *taosAnalysisAlgoType(EAnalAlgoType algoType);
+EAnalAlgoType taosAnalyAlgoInt(const char *algoName);
+const char   *taosAnalyAlgoUrlStr(EAnalAlgoType algoType);
 
 #ifdef __cplusplus
 }

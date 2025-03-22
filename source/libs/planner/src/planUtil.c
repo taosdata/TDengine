@@ -26,6 +26,14 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "not support cross join";
     case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
       return "Not supported join conditions";
+    case TSDB_CODE_PAR_NOT_SUPPORT_JOIN:
+      return "Not supported join since '%s'";
+    case TSDB_CODE_PLAN_SLOT_NOT_FOUND:
+      return "not found slot id by slot key";
+    case TSDB_CODE_PLAN_INVALID_TABLE_TYPE:
+      return "Planner invalid table type";
+    case TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE:
+      return "Planner invalid query control plan type";
     default:
       break;
   }
@@ -68,17 +76,18 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
         return DEAL_RES_ERROR;
       }
       pCol->node.resType = pExpr->resType;
-      strcpy(pCol->colName, pExpr->aliasName);
+      tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
       if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
         SFunctionNode* pFunc = (SFunctionNode*)pNode;
         if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
           SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
           if (NULL != pVal) {
-            strcpy(pCol->tableAlias, pVal->literal);
-            strcpy(pCol->tableName, pVal->literal);
+            tstrncpy(pCol->tableAlias, pVal->literal, TSDB_TABLE_NAME_LEN);
+            tstrncpy(pCol->tableName, pVal->literal, TSDB_TABLE_NAME_LEN);
           }
         }
       }
+      pCol->node.relatedTo = pExpr->relatedTo;
       return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
                                                                                     : DEAL_RES_ERROR);
     }
@@ -592,8 +601,12 @@ int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, b
   if (pParent->pLimit && (cloneWhat & CLONE_LIMIT)) {
     code = nodesCloneNode(pParent->pLimit, (SNode**)&pLimit);
     if (TSDB_CODE_SUCCESS == code) {
-      pLimit->limit += pLimit->offset;
-      pLimit->offset = 0;
+      if (pLimit->limit && pLimit->offset) {
+        pLimit->limit->datum.i += pLimit->offset->datum.i;
+      }
+      if (pLimit->offset) {
+        pLimit->offset->datum.i = 0;
+      }
       cloned = true;
     }
   }
@@ -601,8 +614,12 @@ int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, b
   if (pParent->pSlimit && (cloneWhat & CLONE_SLIMIT)) {
     code = nodesCloneNode(pParent->pSlimit, (SNode**)&pSlimit);
     if (TSDB_CODE_SUCCESS == code) {
-      pSlimit->limit += pSlimit->offset;
-      pSlimit->offset = 0;
+      if (pSlimit->limit && pSlimit->offset) {
+        pSlimit->limit->datum.i += pSlimit->offset->datum.i;
+      }
+      if (pSlimit->offset) {
+        pSlimit->offset->datum.i = 0;
+      }
       cloned = true;
     }
   }
@@ -636,9 +653,9 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
   SFunctionNode* pFunc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (pFunc) {
-    strcpy(pFunc->functionName, "_group_key");
-    strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
-    strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
+    tstrncpy(pFunc->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
+    tstrncpy(pFunc->node.aliasName, pGroupCol->node.aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.userAlias, pGroupCol->node.userAlias, TSDB_COL_NAME_LEN);
     SNode* pNew = NULL;
     code = nodesCloneNode((SNode*)pGroupCol, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
@@ -655,7 +672,7 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
       int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
       (void)taosHashBinary(name, len);
-      strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+      tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {

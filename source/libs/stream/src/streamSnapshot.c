@@ -119,23 +119,21 @@ static int64_t kBlockSize = 64 * 1024;
 int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path, void* pMeta);
 void    streamSnapHandleDestroy(SStreamSnapHandle* handle);
 
-// static void streamBuildFname(char* path, char* file, char* fullname)
-
-#define STREAM_ROCKSDB_BUILD_FULLNAME(path, file, fullname) \
-  do {                                                      \
-    sprintf(fullname, "%s%s%s", path, TD_DIRSEP, file);     \
-  } while (0)
-
 int32_t streamGetFileSize(char* path, char* name, int64_t* sz) {
   int32_t ret = 0;
+  int32_t len = strlen(path) + 32;
 
-  char* fullname = taosMemoryCalloc(1, strlen(path) + 32);
+  char* fullname = taosMemoryCalloc(1, len);
   if (fullname == NULL) {
     stError("failed to get file:%s size, code: out of memory", name);
     return terrno;
   }
 
-  sprintf(fullname, "%s%s%s", path, TD_DIRSEP, name);
+  ret = snprintf(fullname, len, "%s%s%s", path, TD_DIRSEP, name);
+  if (ret < 0 || ret >= len) {
+    stError("%s failed to set the file path for get the file size, code: out of buffer", name);
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
 
   ret = taosStatFile(fullname, sz, NULL, NULL);
   taosMemoryFree(fullname);
@@ -146,7 +144,7 @@ int32_t streamGetFileSize(char* path, char* name, int64_t* sz) {
 TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
   char fullname[256] = {0};
 
-  STREAM_ROCKSDB_BUILD_FULLNAME(path, name, fullname);
+  (void) snprintf(fullname, tListLen(fullname),"%s%s%s", path, TD_DIRSEP, name);
   return taosOpenFile(fullname, opt);
 }
 
@@ -155,35 +153,74 @@ int32_t streamCreateTaskDbSnapInfo(void* arg, char* path, SArray* pSnap) { retur
 int32_t streamDestroyTaskDbSnapInfo(void* arg, SArray* snap) { return taskDbDestroySnap(arg, snap); }
 
 void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
-  if (qDebugFlag & DEBUG_DEBUG) {
-    int16_t cap = 512;
+  int16_t cap = 512;
 
+  if (qDebugFlag & DEBUG_DEBUG) {
     char* buf = taosMemoryCalloc(1, cap);
     if (buf == NULL) {
       stError("%s failed to alloc memory, reason:%s", STREAM_STATE_TRANSFER, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
       return;
     }
 
-    int32_t nBytes = snprintf(buf + strlen(buf), cap, "[");
-    if (nBytes <= 0 || nBytes >= cap) {
-      taosMemoryFree(buf);
-      stError("%s failed to write buf, reason:%s", STREAM_STATE_TRANSFER, tstrerror(TSDB_CODE_OUT_OF_RANGE));
-      return;
-    }
+    int32_t len = 0;
+    int32_t wlen = 1;
 
-    if (pSnapFile->pCurrent) sprintf(buf, "current: %s,", pSnapFile->pCurrent);
-    if (pSnapFile->pMainfest) sprintf(buf + strlen(buf), "MANIFEST: %s,", pSnapFile->pMainfest);
-    if (pSnapFile->pOptions) sprintf(buf + strlen(buf), "options: %s,", pSnapFile->pOptions);
-    if (pSnapFile->pSst) {
-      for (int32_t i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
-        char* name = taosArrayGetP(pSnapFile->pSst, i);
-        if (strlen(buf) + strlen(name) < cap) sprintf(buf + strlen(buf), "%s,", name);
+    do {
+      buf[0] = '[';
+      if (pSnapFile->pCurrent) {
+        len = snprintf(buf + wlen, cap - wlen, "current: %s,", pSnapFile->pCurrent);
+        if (len > 0 && len < (cap - wlen)) {
+          wlen += len;
+        } else {
+          stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+          break;
+        }
       }
+
+      if (pSnapFile->pMainfest) {
+        len = snprintf(buf + wlen, cap - wlen, "MANIFEST: %s,", pSnapFile->pMainfest);
+        if (len > 0 && len < (cap - wlen)) {
+          wlen += len;
+        } else {
+          stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+          break;
+        }
+      }
+
+      if (pSnapFile->pOptions) {
+        len = snprintf(buf + wlen, cap - wlen, "options: %s,", pSnapFile->pOptions);
+        if (len > 0 && len < (cap - wlen)) {
+          wlen += len;
+        } else {
+          stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+          break;
+        }
+      }
+
+      if (pSnapFile->pSst) {
+        for (int32_t i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
+          char* name = taosArrayGetP(pSnapFile->pSst, i);
+          if (strlen(buf) + strlen(name) < cap) {
+            len = snprintf(buf + wlen, cap - wlen, "%s,", name);
+            if (len > 0 && len < (cap - wlen)) {
+              wlen += len;
+            } else {
+              stError("%s failed to build buf for debug, code: out of buffer", STREAM_STATE_TRANSFER);
+              break;
+            }
+          }
+        }
+      }
+    } while (0);
+
+    if (wlen < cap) {
+      buf[wlen] = ']';
     }
-    if ((strlen(buf)) < cap) sprintf(buf + strlen(buf) - 1, "]");
+    buf[cap - 1] = '\0';
 
     stInfo("%s %" PRId64 "-%" PRId64 " get file list: %s", STREAM_STATE_TRANSFER, pSnapFile->snapInfo.streamId,
            pSnapFile->snapInfo.taskId, buf);
+
     taosMemoryFree(buf);
   }
 }
@@ -355,7 +392,7 @@ int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBacke
     return terrno;
   }
 
-  nBytes = snprintf(path, cap, "%s%s%s%s%s%" PRId64 "", pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+  nBytes = snprintf(path, cap, "%s%s%s%s%s%" PRId64, pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                     "checkpoint", pSnap->chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
@@ -697,7 +734,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
   if (pSnapFile->fd == 0) {
     pSnapFile->fd = streamOpenFile(pSnapFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pSnapFile->fd == NULL) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pHandle->metaPath, TD_DIRSEP,
               pHdr->name, tstrerror(code));
     }
@@ -737,7 +774,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
     SBackendFileItem* pItem2 = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
     pSnapFile->fd = streamOpenFile(pSnapFile->path, pItem2->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pSnapFile->fd == NULL) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pSnapFile->path, TD_DIRSEP,
               pHdr->name, tstrerror(code));
       return code;
@@ -771,16 +808,23 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
   SBackendSnapFile2* pDbSnapFile = taosArrayGet(pHandle->pDbSnapSet, pHandle->currIdx);
   if (pDbSnapFile->inited == 0) {
     char idstr[64] = {0};
-    sprintf(idstr, "0x%" PRIx64 "-0x%x", snapInfo.streamId, (int32_t)(snapInfo.taskId));
+    (void)snprintf(idstr, tListLen(idstr), "0x%" PRIx64 "-0x%x", snapInfo.streamId, (int32_t)(snapInfo.taskId));
 
-    char* path = taosMemoryCalloc(1, strlen(pHandle->metaPath) + 256);
+    int32_t bufLen = strlen(pHandle->metaPath) + 256;
+    char*   path = taosMemoryCalloc(1, bufLen);
     if (path == NULL) {
       stError("s-task:0x%x failed to prepare meta header buffer, code:Out of memory", (int32_t) snapInfo.taskId);
       return terrno;
     }
 
-    sprintf(path, "%s%s%s%s%s%s%s%" PRId64 "", pHandle->metaPath, TD_DIRSEP, idstr, TD_DIRSEP, "checkpoints", TD_DIRSEP,
-            "checkpoint", snapInfo.chkpId);
+    int32_t ret = snprintf(path, bufLen, "%s%s%s%s%s%s%s%" PRId64, pHandle->metaPath, TD_DIRSEP, idstr, TD_DIRSEP,
+                   "checkpoints", TD_DIRSEP, "checkpoint", snapInfo.chkpId);
+    if (ret < 0 || ret >= bufLen) {
+      stError("s-task:0x%x failed to set the path for take snapshot, code: out of buffer, %s", (int32_t)snapInfo.taskId,
+              pHandle->metaPath);
+      return TSDB_CODE_OUT_OF_BUFFER;
+    }
+
     if (!taosIsDir(path)) {
       code = taosMulMkDir(path);
       stInfo("%s mkdir %s", STREAM_STATE_TRANSFER, path);

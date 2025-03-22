@@ -1,0 +1,17 @@
+import PkgListV3 from "/components/PkgListV3";
+
+1. Download the client installation package
+
+   <PkgListV3 type={8} sys="macOS" />
+
+2. Run the installer and follow the prompts to select the default values to complete the installation. If the installation is blocked, you can right-click or press Ctrl and click on the installation package, then choose `Open`.
+3. Configure taos.cfg
+
+   Edit the `taos.cfg` file (default path /etc/taos/taos.cfg), and change `firstEP` to the End Point of the TDengine server, for example: `h1.tdengine.com:6030`
+
+:::tip
+
+1. If the TDengine service is not deployed on the local machine and only the application driver is installed, then only `firstEP` needs to be configured in `taos.cfg`, there is no need to configure `FQDN` on the local machine.
+2. To prevent the “Unable to resolve FQDN” error when connecting to the server, it is recommended to ensure that the local `/etc/hosts` file has been configured with the correct FQDN value of the server, or that the DNS service has been properly set up.
+
+:::

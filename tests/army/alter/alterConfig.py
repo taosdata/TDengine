@@ -100,6 +100,88 @@ class TDTestCase(TBase):
         tdSql.query('show dnodes')
         tdSql.checkData(0, 3, "64")
 
+    def checkKeyValue(self, res, key, value, ikey = 0, ival = 1):
+        result = False
+        for row in res:
+            if row[ikey] == key:
+                if row[ival] != value:
+                    raise Exception(f"key:{key} value:{row[ival]} != {value}")
+                else:
+                    tdLog.info(f"key:{key} value:{row[ival]} == {value}")
+                    result = True
+                    break
+        if not result:
+            raise Exception(f"key:{key} not found")
+
+    def checkRows(self, sql, nExpect, nRetry):
+        for i in range(nRetry):
+            res = tdSql.getResult(sql)
+            if len(res) == nExpect:
+                break
+            time.sleep(1)
+        if len(res) != nExpect:
+            raise Exception(f"rows:{len(res)} != {nExpect}")
+
+    def alterBypassFlag(self):
+        """Add test case for altering bypassFlag(TD-32907)
+        """
+        tdSql.execute(f"drop database if exists db")
+        tdSql.execute(f"create database db")
+        tdSql.execute("use db")
+        self.checkKeyValue(tdSql.getResult("show local variables;"), "bypassFlag", "0")
+        self.checkKeyValue(tdSql.getResult("show dnode 1 variables like 'bypassFlag'"), "bypassFlag", "0", 1, 2)
+        tdSql.execute("alter local 'bypassFlag 1'")
+        self.checkKeyValue(tdSql.getResult("show local variables;"), "bypassFlag", "1")
+        self.checkKeyValue(tdSql.getResult("show dnode 1 variables like 'bypassFlag'"), "bypassFlag", "0", 1, 2)
+        tdSql.execute("create table stb0(ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ctb0 using stb0 tags(0)")
+        tdSql.execute("insert into ctb0 values(now, 1)")
+        tdSql.query("select * from stb0")
+        tdSql.checkRows(0)
+        tdSql.execute("alter local 'bypassFlag 0'")
+        tdSql.execute("alter all dnodes 'bypassFlag 2'")
+        self.checkKeyValue(tdSql.getResult("show local variables"), "bypassFlag", "0")
+        self.checkKeyValue(tdSql.getResult("show dnode 1 variables like 'bypassFlag'"), "bypassFlag", "2", 1, 2)
+        tdSql.execute("insert into ctb0 values(now, 2)")
+        tdSql.query("select * from stb0")
+        tdSql.checkRows(0)
+        tdSql.execute("alter all dnodes 'bypassFlag 4'")
+        self.checkKeyValue(tdSql.getResult("show dnode 1 variables like 'bypassFlag'"), "bypassFlag", "4", 1, 2)
+        tdSql.execute("insert into ctb0 values(now, 4)")
+        tdSql.execute("insert into ctb1 using stb0 tags(1) values(now, 10)")
+        tdSql.query("select * from stb0")
+        tdSql.checkRows(0)
+        tdSql.query("show db.tables")
+        tdSql.checkRows(2)
+        tdSql.execute("alter all dnodes 'bypassFlag 8'")
+        self.checkKeyValue(tdSql.getResult("show dnode 1 variables like 'bypassFlag'"), "bypassFlag", "8", 1, 2)
+        tdSql.execute("insert into ctb0 values(now, 8)")
+        tdSql.execute("insert into ctb1 values(now, 18)")
+        tdSql.query("select * from stb0")
+        tdSql.checkRows(2)
+        tdSql.execute("flush database db")
+        self.checkRows("select * from stb0", 0, 10)
+        tdSql.execute("alter all dnodes 'bypassFlag 0'")
+        self.checkKeyValue(tdSql.getResult("show local variables"), "bypassFlag", "0")
+        self.checkKeyValue(tdSql.getResult("show dnode 1 variables like 'bypassFlag'"), "bypassFlag", "0", 1, 2)
+        tdSql.execute("insert into ctb0 values(now, 80)")
+        tdSql.execute("insert into ctb1 values(now, 180)")
+        tdSql.query("select * from stb0")
+        tdSql.checkRows(2)
+        tdSql.execute("flush database db")
+        for i in range(5):
+            self.checkRows("select * from stb0", 2, 1)
+            time.sleep(1)
+
+    def alter_err_case(self):
+        tdSql.error(f"alter local 'audit 0'",expectErrInfo="Config not found")
+        tdSql.error(f"alter dnode 1 'audit 1'",expectErrInfo="Invalid config option")
+    
+    def alter_dnode_1_case(self):
+        tdSql.execute("alter dnode 1 'numOfRpcThreads' '5'")
+        tdSql.execute("alter dnode 1 'rpcQueueMemoryAllowed' '15242880'")
+        tdSql.execute("alter dnode 1 'syncLogBufferMemoryAllowed' '115728640'")
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -110,6 +192,11 @@ class TDTestCase(TBase):
         self.alterTtlConfig()
         # TS-5390
         self.alterCachemodel()
+        # TD-32907
+        self.alterBypassFlag()
+        # TS-5007
+        self.alter_err_case()
+        self.alter_dnode_1_case()
 
         tdLog.success(f"{__file__} successfully executed")
 

@@ -1,105 +1,110 @@
 ---
-title: Database
-sidebar_label: Database
-description: This document describes how to create and perform operations on databases.
+title: Databases
+slug: /tdengine-reference/sql-manual/manage-databases
 ---
 
-## Create a Database
+## Create Database
 
 ```sql
 CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
- 
+
 database_options:
     database_option ...
- 
+
 database_option: {
-    BUFFER value
+    VGROUPS value
+  | PRECISION {'ms' | 'us' | 'ns'}
+  | REPLICA value
+  | BUFFER value
+  | PAGES value
+  | PAGESIZE  value
   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
   | COMP {0 | 1 | 2}
   | DURATION value
-  | WAL_FSYNC_PERIOD value
   | MAXROWS value
   | MINROWS value
   | KEEP value
-  | PAGES value
-  | PAGESIZE  value
-  | PRECISION {'ms' | 'us' | 'ns'}
-  | REPLICA value
-  | WAL_LEVEL {1 | 2}
-  | VGROUPS value
-  | SINGLE_STABLE {0 | 1}
+  | KEEP_TIME_OFFSET value
   | STT_TRIGGER value
+  | SINGLE_STABLE {0 | 1}
   | TABLE_PREFIX value
   | TABLE_SUFFIX value
+  | DNODES value
   | TSDB_PAGESIZE value
+  | WAL_LEVEL {1 | 2}
+  | WAL_FSYNC_PERIOD value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
 }
 ```
 
-## Parameters
+### Parameter Description
 
-- BUFFER: specifies the size (in MB) of the write buffer for each vnode. Enter a value between 3 and 16384. The default value is 256.
-- CACHEMODEL: specifies how the latest data in subtables is stored in the cache. The default value is none.
-  - none: The latest data is not cached.
-  - last_row: The last row of each subtable is cached. This option significantly improves the performance of the LAST_ROW function.
-  - last_value: The last non-null value of each column in each subtable is cached. This option significantly improves the performance of the LAST function under normal circumstances, such as statements including the WHERE, ORDER BY, GROUP BY, and INTERVAL keywords.
-  - both: The last row of each subtable and the last non-null value of each column in each subtable are cached.
-    Note: If you turn on cachemodel, then turn off, and turn on again, the result of last/last_row may be wrong, don't do like this, it's strongly recommended to always turn on the cache using "both".
-- CACHESIZE: specifies the amount (in MB) of memory used for subtable caching on each vnode. Enter a value between 1 and 65536. The default value is 1.
-- COMP: specifies how databases are compressed. The default value is 2.
-  - 0: Compression is disabled.
-  - 1: One-pass compression is enabled.
-  - 2: Two-pass compression is enabled.
-- DURATION: specifies the time period contained in each data file. After the time specified by this parameter has elapsed, TDengine creates a new data file to store incoming data. You can use m (minutes), h (hours), and d (days) as the unit, for example DURATION 100h or DURATION 10d. If you do not include a unit, d is used by default.
-- WAL_FSYNC_PERIOD: specifies the interval (in milliseconds) at which data is written from the WAL to disk. This parameter takes effect only when the WAL parameter is set to 2. The default value is 3000. Enter a value between 0 and 180000. The value 0 indicates that incoming data is immediately written to disk.
-- MAXROWS: specifies the maximum number of rows recorded in a block. The default value is 4096.
-- MINROWS: specifies the minimum number of rows recorded in a block. The default value is 100.
-- KEEP: specifies the time for which data is retained. Enter a value between 1 and 365000. The default value is 3650. The value of the KEEP parameter must be greater than or equal to three times of the value of the DURATION parameter. TDengine automatically deletes data that is older than the value of the KEEP parameter. You can use m (minutes), h (hours), and d (days) as the unit, for example KEEP 100h or KEEP 10d. If you do not include a unit, d is used by default. TDengine Enterprise supports [Tiered Storage](https://docs.tdengine.com/tdinternal/arch/#tiered-storage) function, thus multiple KEEP values (comma separated and up to 3 values supported, and meet keep 0 &lt;= keep 1 &lt;= keep 2, e.g. KEEP 100h,100d,3650d) are supported; TDengine OSS does not support Tiered Storage function (although multiple keep values are configured, they do not take effect, only the maximum keep value is used as KEEP).
-- PAGES: specifies the number of pages in the metadata storage engine cache on each vnode. Enter a value greater than or equal to 64. The default value is 256. The space occupied by metadata storage on each vnode is equal to the product of the values of the PAGESIZE and PAGES parameters. The space occupied by default is 1 MB.
-- PAGESIZE: specifies the size (in KB) of each page in the metadata storage engine cache on each vnode. The default value is 4. Enter a value between 1 and 16384.
-- PRECISION: specifies the precision at which a database records timestamps. Enter ms for milliseconds, us for microseconds, or ns for nanoseconds. The default value is ms.
-- REPLICA: specifies the number of replicas that are made of the database. Enter 1, 2 or 3. The default value is 1. 2 is only available in TDengine Enterprise since version 3.3.0.0. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.
-- WAL_LEVEL: specifies whether fsync is enabled. The default value is 1.
-  - 1: WAL is enabled but fsync is disabled.
-  - 2: WAL and fsync are both enabled.
-- VGROUPS: specifies the initial number of vgroups when a database is created.
-- SINGLE_STABLE: specifies whether the database can contain more than one supertable.
-  - 0: The database can contain multiple supertables.
-  - 1: The database can contain only one supertable.
-- STT_TRIGGER: specifies the number of file merges triggered by flushed files. The default is 8, ranging from 1 to 16. For high-frequency scenarios with few tables, it is recommended to use the default configuration or a smaller value for this parameter; For multi-table low-frequency scenarios, it is recommended to configure this parameter with a larger value.
-- TABLE_PREFIX: The prefix in the table name that is ignored when distributing a table to a vgroup when it's a positive number, or only the prefix is used when distributing a table to a vgroup, the default value is 0; For example, if the table name v30001, then "0001" is used if TSDB_PREFIX is set to 2 but "v3" is used if TSDB_PREFIX is set to -2; It can help you to control the distribution of tables.
-- TABLE_SUFFIX: The suffix in the table name that is ignored when distributing a table to a vgroup when it's a positive number, or only the suffix is used when distributing a table to a vgroup, the default value is 0; For example, if the table name v30001, then "v300" is used if TSDB_SUFFIX is set to 2 but "01" is used if TSDB_SUFFIX is set to -2; It can help you to control the distribution of tables. 
-- TSDB_PAGESIZE: The page size of the data storage engine in a vnode. The unit is KB. The default is 4 KB. The range is 1 to 16384, that is, 1 KB to 16 MB.
-- WAL_RETENTION_PERIOD: specifies the maximum time of which WAL files are to be kept for consumption. This parameter is used for data subscription. Enter a time in seconds. The default value is 3600, which means the data in latest 3600 seconds will be kept in WAL for data subscription. Please adjust this parameter to a more proper value for your data subscription.
-- WAL_RETENTION_SIZE: specifies the maximum total size of which WAL files are to be kept for consumption. This parameter is used for data subscription. Enter a size in KB. The default value is 0. A value of 0 indicates that the total size of WAL files to keep for consumption has no upper limit.
-### Example Statement
+- VGROUPS: The number of initial vgroups in the database.
+- PRECISION: The timestamp precision of the database. ms for milliseconds, us for microseconds, ns for nanoseconds, default is ms.
+- REPLICA: Indicates the number of database replicas, which can be 1, 2, or 3, default is 1; 2 is only available in the enterprise version 3.3.0.0 and later. In a cluster, the number of replicas must be less than or equal to the number of DNODEs. The following restrictions apply:
+  - Operations such as SPLITE VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
+  - A single-replica database can be changed to a double-replica database, but changing from double replicas to other numbers of replicas, or from three replicas to double replicas is not supported.
+- BUFFER: The size of the memory pool for writing into a VNODE, in MB, default is 256, minimum is 3, maximum is 16384.
+- PAGES: The number of cache pages in a VNODE's metadata storage engine, default is 256, minimum 64. A VNODE's metadata storage occupies PAGESIZE * PAGES, which by default is 1MB of memory.
+- PAGESIZE: The page size of a VNODE's metadata storage engine, in KB, default is 4 KB. Range is 1 to 16384, i.e., 1 KB to 16 MB.
+- CACHEMODEL: Indicates whether to cache the latest data of subtables in memory. Default is none.
+  - none: Indicates no caching.
+  - last_row: Indicates caching the latest row of data of subtables. This will significantly improve the performance of the LAST_ROW function.
+  - last_value: Indicates caching the latest non-NULL value of each column of subtables. This will significantly improve the performance of the LAST function without special effects (WHERE, ORDER BY, GROUP BY, INTERVAL).
+  - both: Indicates enabling caching of both the latest row and column.
+    Note: Switching CacheModel values back and forth may cause inaccurate results for last/last_row queries, please operate with caution. It is recommended to keep it turned on.
+- CACHESIZE: The size of memory used for caching the latest data of subtables in each vnode. Default is 1, range is [1, 65536], in MB.
+- COMP: Indicates the compression flag for database files, default value is 2, range is [0, 2].
+  - 0: Indicates no compression.
+  - 1: Indicates first-stage compression.
+  - 2: Indicates two-stage compression.
+- DURATION: The time span for storing data in data files. Can use unit-specified formats, such as DURATION 100h, DURATION 10d, etc., supports m (minutes), h (hours), and d (days) three units. If no time unit is added, the default unit is days, e.g., DURATION 50 means 50 days.
+- MAXROWS: The maximum number of records in a file block, default is 4096.
+- MINROWS: The minimum number of records in a file block, default is 100.
+- KEEP: Indicates the number of days data files are kept, default value is 3650, range [1, 365000], and must be greater than or equal to 3 times the DURATION parameter value. The database will automatically delete data that has been saved for longer than the KEEP value to free up storage space. KEEP can use unit-specified formats, such as KEEP 100h, KEEP 10d, etc., supports m (minutes), h (hours), and d (days) three units. It can also be written without a unit, like KEEP 50, where the default unit is days. The enterprise version supports multi-tier storage feature, thus, multiple retention times can be set (multiple separated by commas, up to 3, satisfying keep 0 \<= keep 1 \<= keep 2, such as KEEP 100h,100d,3650d); the community version does not support multi-tier storage feature (even if multiple retention times are configured, it will not take effect, KEEP will take the longest retention time).
+- KEEP_TIME_OFFSET: Effective from version 3.2.0.0. The delay execution time for deleting or migrating data that has been saved for longer than the KEEP value, default value is 0 (hours). After the data file's save time exceeds KEEP, the deletion or migration operation will not be executed immediately, but will wait an additional interval specified by this parameter, to avoid peak business periods.
+- STT_TRIGGER: Indicates the number of file merges triggered by disk files. For scenarios with few tables and high-frequency writing, this parameter is recommended to use the default configuration; for scenarios with many tables and low-frequency writing, this parameter is recommended to be set to a larger value.
+- SINGLE_STABLE: Indicates whether only one supertable can be created in this database, used in cases where the supertable has a very large number of columns.
+  - 0: Indicates that multiple supertables can be created.
+  - 1: Indicates that only one supertable can be created.
+- TABLE_PREFIX: When it is a positive value, it ignores the specified length prefix of the table name when deciding which vgroup to allocate a table to; when it is a negative value, it only uses the specified length prefix of the table name when deciding which vgroup to allocate a table to; for example, assuming the table name is "v30001", when TSDB_PREFIX = 2, use "0001" to decide which vgroup to allocate to, when TSDB_PREFIX = -2, use "v3" to decide which vgroup to allocate to.
+- TABLE_SUFFIX: When it is a positive value, it ignores the specified length suffix of the table name when deciding which vgroup to allocate a table to; when it is a negative value, it only uses the specified length suffix of the table name when deciding which vgroup to allocate a table to; for example, assuming the table name is "v30001", when TSDB_SUFFIX = 2, use "v300" to decide which vgroup to allocate to, when TSDB_SUFFIX = -2, use "01" to decide which vgroup to allocate to.
+- TSDB_PAGESIZE: The page size of a VNODE's time-series data storage engine, in KB, default is 4 KB. Range is 1 to 16384, i.e., 1 KB to 16 MB.
+- DNODES: Specifies the list of DNODEs where the VNODE is located, such as '1,2,3', separated by commas and without spaces between characters, only supported in the enterprise version.
+- WAL_LEVEL: WAL level, default is 1.
+  - 1: Write WAL, but do not perform fsync.
+  - 2: Write WAL and perform fsync.
+- WAL_FSYNC_PERIOD: When the WAL_LEVEL parameter is set to 2, it is used to set the disk writing period. Default is 3000, in milliseconds. Minimum is 0, meaning immediate disk writing upon each write; maximum is 180000, i.e., three minutes.
+- WAL_RETENTION_PERIOD: For data subscription consumption, the maximum duration strategy for additional retention of WAL log files. WAL log cleaning is not affected by the consumption status of subscription clients. In seconds. Default is 3600, meaning WAL retains the most recent 3600 seconds of data, please modify this parameter to an appropriate value according to the needs of data subscription.
+- WAL_RETENTION_SIZE: For data subscription consumption, the maximum cumulative size strategy for additional retention of WAL log files. In KB. Default is 0, meaning there is no upper limit on cumulative size.
+
+### Database Creation Example
 
 ```sql
 create database if not exists db vgroups 10 buffer 10
-
 ```
 
-The preceding SQL statement creates a database named db that has 10 vgroups and whose vnodes have a 10 MB cache.
+The above example creates a database named db with 10 vgroups, where each vnode is allocated 10MB of write buffer.
 
-### Specify the Database in Use
+### Using the Database
 
-```
+```sql
 USE db_name;
 ```
 
-The preceding SQL statement switches to the specified database. (If you connect to TDengine over the REST API, this statement does not take effect.)
+Use/switch database (not valid in REST connection mode).
 
-## Drop a Database
+## Delete Database
 
-```
+```sql
 DROP DATABASE [IF EXISTS] db_name
 ```
 
-The preceding SQL statement deletes the specified database. This statement will delete all tables in the database and destroy all vgroups associated with it. Exercise caution when using this statement.
+Deletes the database. All tables contained in the Database will be deleted, and all vgroups of that database will also be destroyed, so use with caution!
 
-## Change Database Configuration
+## Modify Database Parameters
 
 ```sql
 ALTER DATABASE db_name [alter_database_options]
@@ -119,57 +124,54 @@ alter_database_option: {
   | KEEP value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
+  | MINROWS value
 }
 ```
 
-###  ALTER CACHESIZE
+### Modify CACHESIZE
 
-The command of changing database configuration parameters is easy to use, but it's hard to determine whether a parameter is proper or not. In this section we will describe how to determine whether cachesize is big enough.
+The command to modify database parameters is simple, but the difficulty lies in determining whether a modification is needed and how to modify it. This section describes how to judge whether the cachesize is sufficient.
 
-1. How to check cachesize?
+1. How to view cachesize?
 
-You can use  `select * from information_schema.ins_databases;` to get the value of cachesize.
+You can view the specific values of these cachesize through select * from information_schema.ins_databases;.
 
-2. How to check cacheload?
+2. How to view cacheload?
 
-You can use `show <db_name>.vgroups;` to check the value of cacheload.
+You can view cacheload through show \<db_name>.vgroups;
 
-3. Determine whether cachesize is big engough
+3. Determine if cachesize is sufficient
 
-If the value of `cacheload` is very close to the value of `cachesize`, then it's very probably that `cachesize` is too small. If the value of `cacheload` is much smaller than the value of `cachesize`, then `cachesize` is big enough. You can use this simple principle to determine. Depending on how much memory is available in your system, you can choose to double `cachesize` or incrase it by even 5 or more times.
-
-4. stt_trigger
-
-Pleae make sure stopping data writing before trying to alter stt_trigger parameter. 
+If cacheload is very close to cachesize, then cachesize may be too small. If cacheload is significantly less than cachesize, then cachesize is sufficient. You can decide whether to modify cachesize based on this principle. The specific modification value can be determined based on the available system memory, whether to double it or increase it several times.
 
 :::note
-Other parameters cannot be modified after the database has been created.
+Other parameters are not supported for modification in version 3.0.0.0
 
 :::
 
-## View Databases
+## View Database
 
-### View All Databases
+### View all databases in the system
 
-```
+```sql
 SHOW DATABASES;
 ```
 
-### View the CREATE Statement for a Database
-
-```
-SHOW CREATE DATABASE db_name;
-```
-
-The preceding SQL statement can be used in migration scenarios. This command can be used to get the CREATE statement, which can be used in another TDengine instance to create the exact same database.
-
-### View Database Configuration
+### Display a database's creation statement
 
 ```sql
-SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES WHERE NAME='DBNAME' \G;
+SHOW CREATE DATABASE db_name \G;
 ```
 
-The preceding SQL statement shows the value of each parameter for the specified database. One value is displayed per line.
+Commonly used for database migration. For an existing database, it returns its creation statement; executing this statement in another cluster will result in a Database with the exact same settings.
+
+### View Database Parameters
+
+```sql
+SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES WHERE NAME='db_name' \G;
+```
+
+Lists the configuration parameters of the specified database, displaying one parameter per line.
 
 ## Delete Expired Data
 
@@ -177,28 +179,51 @@ The preceding SQL statement shows the value of each parameter for the specified 
 TRIM DATABASE db_name;
 ```
 
-The preceding SQL statement deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+Deletes expired data and reorganizes data according to the multi-level storage configuration.
 
-## Flush Data
+## Flush Memory Data to Disk
 
 ```sql
 FLUSH DATABASE db_name;
 ```
 
-Flush data from memory onto disk. Before shutting down a node, executing this command can avoid data restore after restarting and speed up the startup process.
+Flushes data in memory to disk. Executing this command before shutting down a node can avoid data replay after restart, speeding up the startup process.
 
-## Redistribute Vgroup
+## Adjust the Distribution of VNODEs in VGROUP
 
 ```sql
 REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3]
 ```
 
-Adjust the distribution of vnodes in the vgroup according to the given list of dnodes. 
+Adjusts the distribution of vnodes in a vgroup according to the given list of dnodes. Since the maximum number of replicas is 3, a maximum of 3 dnodes can be entered.
 
-## Balance Vgroup
+## Automatically Adjust the Distribution of VNODEs in VGROUP
 
 ```sql
 BALANCE VGROUP
 ```
 
-Automatically adjusts the distribution of vnodes in all vgroups of the cluster, which is equivalent to load balancing the data of the cluster at the vnode level.
+Automatically adjusts the distribution of vnodes in all vgroups of the cluster, equivalent to performing data load balancing at the vnode level for the cluster.
+
+## Check Database Working Status
+
+```sql
+SHOW db_name.ALIVE;
+```
+
+Query the availability status of the database db_name, with return values of 0 (unavailable), 1 (fully available), or 2 (partially available, indicating that some VNODEs in the database are available while others are not).
+
+## View DB Disk Usage 
+
+```sql 
+select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
+```  
+
+View the disk usage of each module in the DB.
+
+```sql
+SHOW db_name.disk_info;
+```
+View the compression ratio and disk usage of the database db_name
+
+This command is essentially equivalent to `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`

@@ -43,6 +43,7 @@ typedef struct SDataDispatchHandle {
   SDataSinkHandle     sink;
   SDataSinkManager*   pManager;
   SDataBlockDescNode* pSchema;
+  SDataSinkNode*      pSinkNode;
   STaosQueue*         pDataBlocks;
   SDataDispatchBuf    nextOutput;
   int32_t             outPutColCounts;
@@ -50,6 +51,7 @@ typedef struct SDataDispatchHandle {
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  uint64_t            flags;
   void*               pCompressBuf;
   int32_t             bufSize;
   TdThreadMutex       mutex;
@@ -266,7 +268,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   QRY_ERR_JRET(taosWriteQitem(pDispatcher->pDataBlocks, pBuf));
 
   int32_t status = updateStatus(pDispatcher);
-  *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY);
+  *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY) && !(pDispatcher->flags & DS_FLAG_PROCESS_ONE_BLOCK);
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -355,6 +357,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDispatcher->cachedSize);
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);
+  nodesDestroyNode((SNode*)pDispatcher->pSinkNode);
 
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
@@ -378,6 +381,13 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
 
   *size = atomic_load_64(&pDispatcher->cachedSize);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
+  SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
+
+  *pFlags = atomic_load_64(&pDispatcher->flags);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -428,12 +438,13 @@ int32_t getOutputColCounts(SDataBlockDescNode* pInputDataBlockDesc) {
   return numOfCols;
 }
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
+int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, bool processOneBlock) {
   int32_t code;
+  SDataSinkNode* pDataSink = *ppDataSink;
   code = blockDescNodeCheck(pDataSink->pInputDataBlockDesc);
   if (code) {
     qError("failed to check input data block desc, code:%d", code);
-    return code;
+    goto _return;
   }
 
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
@@ -448,10 +459,12 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;
   dispatcher->sink.fGetCacheSize = getCacheSize;
-
+  dispatcher->sink.fGetFlags = getSinkFlags;
   dispatcher->pManager = pManager;
   pManager = NULL;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
+  dispatcher->pSinkNode = pDataSink;
+  *ppDataSink = NULL;
   dispatcher->outPutColCounts = getOutputColCounts(dispatcher->pSchema);
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
@@ -466,6 +479,11 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
     goto _return;
   }
 
+  dispatcher->flags = DS_FLAG_USE_MEMPOOL;
+  if (processOneBlock) {
+    dispatcher->flags |= DS_FLAG_PROCESS_ONE_BLOCK;
+  }
+
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
 
@@ -476,5 +494,9 @@ _return:
   if (dispatcher) {
     dsDestroyDataSinker(dispatcher);
   }
+
+  nodesDestroyNode((SNode *)*ppDataSink);
+  *ppDataSink = NULL;
+  
   return terrno;
 }

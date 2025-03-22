@@ -67,24 +67,29 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
   for (int32_t i = 0; i < numOfCols; ++i) {
     // 1. valid types
     if (!isValidDataType(pSchema[i].type)) {
+      qError("The %d col/tag data type error, type:%d", i, pSchema[i].type);
       return false;
     }
 
     // 2. valid length for each type
     if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
+        qError("The %d col/tag var data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
         return false;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
+        qError("The %d col/tag nchar data len error, len:%d", i, pSchema[i].bytes);
         return false;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pSchema[i].bytes > TSDB_MAX_GEOMETRY_LEN) {
+        qError("The %d col/tag geometry data len error, len:%d", i, pSchema[i].bytes);
         return false;
       }
     } else {
       if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
+        qError("The %d col/tag data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
         return false;
       }
     }
@@ -92,6 +97,7 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
     // 3. valid column names
     for (int32_t j = i + 1; j < numOfCols; ++j) {
       if (strncmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
+        qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, j, pSchema[j].name);
         return false;
       }
     }
@@ -104,23 +110,28 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
 
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags) {
   if (!pSchema || !VALIDNUMOFCOLS(numOfCols)) {
+    qError("invalid numOfCols: %d", numOfCols);
     return false;
   }
 
   if (!VALIDNUMOFTAGS(numOfTags)) {
+    qError("invalid numOfTags: %d", numOfTags);
     return false;
   }
 
   /* first column must be the timestamp, which is a primary key */
   if (pSchema[0].type != TSDB_DATA_TYPE_TIMESTAMP) {
+    qError("invalid first column type: %d", pSchema[0].type);
     return false;
   }
 
   if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
+    qError("validate schema columns failed");
     return false;
   }
 
   if (!doValidateSchema(&pSchema[numOfCols], numOfTags, TSDB_MAX_TAGS_LEN)) {
+    qError("validate schema tags failed");
     return false;
   }
 
@@ -137,6 +148,8 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
 }
 
 int32_t initTaskQueue() {
+  memset(&taskQueue, 0, sizeof(taskQueue));
+  
   taskQueue.wrokrerPool.name = "taskWorkPool";
   taskQueue.wrokrerPool.min = tsNumOfTaskQueueThreads;
   taskQueue.wrokrerPool.max = tsNumOfTaskQueueThreads;
@@ -152,7 +165,7 @@ int32_t initTaskQueue() {
     return -1;
   }
 
-  qDebug("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
+  qInfo("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
   return 0;
 }
 
@@ -187,6 +200,18 @@ int32_t taosAsyncRecover() {
     return -1;
   }
   return taskQueue.wrokrerPool.pCb->afterRecoverFromBlocking(&taskQueue.wrokrerPool);
+}
+
+int32_t taosStmt2AsyncBind(__async_exec_fn_t bindFn, void* bindParam) {
+  SSchedMsg* pSchedMsg;
+  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
+  if (rc) return rc;
+  pSchedMsg->fp = NULL;
+  pSchedMsg->ahandle = bindFn;
+  pSchedMsg->thandle = bindParam;
+  // pSchedMsg->msg = code;
+
+  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -318,7 +343,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
       break;
     }
     default:
-      qError("invalid exec result for request type %d", pRes->msgType);
+      qError("invalid exec result for request type:%d", pRes->msgType);
   }
 }
 // clang-format on
@@ -397,7 +422,7 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       }
 
       *str = '"';
-      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1);
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1, NULL);
       if (length <= 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -430,7 +455,7 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-void parseTagDatatoJson(void* p, char** jsonStr) {
+void parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt) {
   if (!p || !jsonStr) {
     qError("parseTagDatatoJson invalid input, line:%d", __LINE__);
     return;
@@ -475,9 +500,10 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
         if (tagJsonValue == NULL) {
           goto end;
         }
-        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
+        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue, charsetCxt);
         if (length < 0) {
-          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC,
+                 charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
                  pTagVal->pData);
           taosMemoryFree(tagJsonValue);
           goto end;
@@ -534,6 +560,15 @@ end:
   *jsonStr = string;
 }
 
+int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName) {
+  colRef->id = colId;
+  colRef->hasRef = true;
+  tstrncpy(colRef->refDbName, refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(colRef->refTableName, refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   QUERY_PARAM_CHECK(pDst);
   if (NULL == pSrc) {
@@ -550,19 +585,29 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
 
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   int32_t schemaExtSize = 0;
-  if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
+  int32_t colRefSize = 0;
+  if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
     schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
-  *pDst = taosMemoryMalloc(metaSize + schemaExtSize);
+  if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
+    colRefSize = pSrc->numOfColRefs * sizeof(SColRef);
+  }
+  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
   if (NULL == *pDst) {
     return terrno;
   }
   memcpy(*pDst, pSrc, metaSize);
-  if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
+  if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
     (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
     memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
   } else {
     (*pDst)->schemaExt = NULL;
+  }
+  if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
+    (*pDst)->colRef = (SColRef*)((char*)*pDst + metaSize + schemaExtSize);
+    memcpy((*pDst)->colRef, pSrc->colRef, colRefSize);
+  } else {
+    (*pDst)->colRef = NULL;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -624,7 +669,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
         qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
         taosHashCancelIterate(pSrc->vgHash, pIter);
         freeVgInfo(*pDst);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
 
       pIter = taosHashIterate(pSrc->vgHash, pIter);
@@ -707,3 +752,10 @@ void freeDbCfgInfo(SDbCfgInfo* pInfo) {
 void* getTaskPoolWorkerCb() {
   return taskQueue.wrokrerPool.pCb;
 }
+
+
+void tFreeStreamVtbOtbInfo(void* param);
+void tFreeStreamVtbVtbInfo(void* param);
+void tFreeStreamVtbDbVgInfo(void* param);
+
+

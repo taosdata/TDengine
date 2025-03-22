@@ -18,6 +18,7 @@
 #include "taoserror.h"
 
 int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
+  int32_t code = 0;
   if (vstr == NULL) {
     return terrno = TSDB_CODE_INVALID_VERSION_STRING;
   }
@@ -31,7 +32,10 @@ int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
     if (vstr[spos] != '.') {
       tmp[spos - tpos] = vstr[spos];
     } else {
-      vnum[vpos] = atoi(tmp);
+      code = taosStr2int32(tmp, &vnum[vpos]);
+      if (code != 0) {
+        return code;
+      }
       memset(tmp, 0, sizeof(tmp));
       vpos++;
       tpos = spos + 1;
@@ -39,7 +43,10 @@ int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
   }
 
   if ('\0' != tmp[0] && vpos < 4) {
-    vnum[vpos] = atoi(tmp);
+    code = taosStr2int32(tmp, &vnum[vpos]);
+    if (code != 0) {
+      return code;
+    }
   }
 
   if (vnum[0] <= 0) {

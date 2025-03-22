@@ -23,8 +23,8 @@ var adapterLog = log.GetLogger("ADP")
 type adapterReqType int
 
 const (
-	rest adapterReqType = iota // 0 - rest
-	ws                         // 1 - ws
+	rest adapterReqType = iota
+	ws
 )
 
 type Adapter struct {
@@ -210,7 +210,7 @@ var adapterTableSql = "create stable if not exists `adapter_requests` (" +
 	"`other_fail` int unsigned, " +
 	"`query_in_process` int unsigned, " +
 	"`write_in_process` int unsigned ) " +
-	"tags (`endpoint` varchar(32), `req_type` tinyint unsigned )"
+	"tags (`endpoint` varchar(255), `req_type` tinyint unsigned )"
 
 func (a *Adapter) createTable() error {
 	if a.conn == nil {

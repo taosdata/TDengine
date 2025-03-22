@@ -153,7 +153,10 @@ static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCa
   return code;
 }
 
-static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
+static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, void *charsetCxt) {
+  if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
+    return TSDB_CODE_APP_ERROR;
+  }
   if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
     taosMemoryFreeClear(pVal->datum.p);
   }
@@ -197,7 +200,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
 
       int32_t output = 0;
       if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes,
-                         &output)) {
+                         &output, charsetCxt)) {
         return terrno;
       }
       varDataSetLen(pVal->datum.p, output);
@@ -218,7 +221,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
 
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
   if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode)) {
-    sprintf(((SExprNode*)pNode)->aliasName, "#%d", *(int32_t*)pContext);
+    snprintf(((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN, "#%d", *(int32_t*)pContext);
     ++(*(int32_t*)pContext);
   }
   return DEAL_RES_CONTINUE;
@@ -289,7 +292,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
 }
 
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                            const struct SMetaData* pMetaData, SQuery* pQuery) {
+                            struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
@@ -368,6 +371,7 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableIndex);
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
+  taosArrayDestroy(pCatalogReq->pVSubTable);
 }
 
 void tfreeSParseQueryRes(void* p) {
@@ -395,7 +399,7 @@ void qDestroyParseContext(SParseContext* pCxt) {
 void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode((SNode*)pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
-  return extractResultSchema(pRoot, numOfCols, pSchema);
+  return extractResultSchema(pRoot, numOfCols, pSchema, NULL);
 }
 
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
@@ -414,19 +418,19 @@ int32_t qInitKeywordsTable() { return taosInitKeywordsTable(); }
 
 void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }
 
-int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
+int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx, void *charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (colIdx < 0) {
     int32_t size = taosArrayGetSize(pQuery->pPlaceholderValues);
     for (int32_t i = 0; i < size; ++i) {
-      code = setValueByBindParam((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, i), pParams + i);
+      code = setValueByBindParam((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, i), pParams + i, charsetCxt);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
     }
   } else {
-    code = setValueByBindParam((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, colIdx), pParams);
+    code = setValueByBindParam((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, colIdx), pParams, charsetCxt);
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
@@ -440,7 +444,10 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
   return code;
 }
 
-static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
+static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, void* charsetCxt) {
+  if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
+    return TSDB_CODE_APP_ERROR;
+  }
   if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
     taosMemoryFreeClear(pVal->datum.p);
   }
@@ -484,7 +491,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
 
       int32_t output = 0;
       if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes,
-                         &output)) {
+                         &output, charsetCxt)) {
         return terrno;
       }
       varDataSetLen(pVal->datum.p, output);
@@ -503,28 +510,25 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx) {
+int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (colIdx < 0) {
     int32_t size = taosArrayGetSize(pQuery->pPlaceholderValues);
     for (int32_t i = 0; i < size; ++i) {
-      code = setValueByBindParam2((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, i), pParams + i);
+      code = setValueByBindParam2((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, i), pParams + i, charsetCxt);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
     }
   } else {
-    code = setValueByBindParam2((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, colIdx), pParams);
+    code = setValueByBindParam2((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, colIdx), pParams, charsetCxt);
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = NULL;
     code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
-    if (NULL == pQuery->pRoot) {
-      code = code;
-    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     rewriteExprAlias(pQuery->pRoot);

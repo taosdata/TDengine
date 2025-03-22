@@ -58,7 +58,7 @@ int32_t getKeyBuff(TSKEY ts, int64_t tbUid, void* pVal, int32_t len, char* buff)
   return sizeof(TSKEY) + sizeof(int64_t) + len;
 }
 
-int32_t getValueBuff(TSKEY ts, char* pVal, int32_t len, char* buff) {
+static int32_t getValueBuff(TSKEY ts, char* pVal, int32_t len, char* buff) {
   *(TSKEY*)buff = ts;
   if (len == 0) {
     return sizeof(TSKEY);
@@ -445,6 +445,11 @@ int32_t updateInfoSerialize(SEncoder* pEncoder, const SUpdateInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (!pInfo) {
+    if (tEncodeI32(pEncoder, -1) < 0) {
+      code = TSDB_CODE_FAILED;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    uDebug("%s line:%d. it did not have updateinfo", __func__, __LINE__);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -550,6 +555,10 @@ int32_t updateInfoDeserialize(SDecoder* pDeCoder, SUpdateInfo* pInfo) {
   
   int32_t size = 0;
   if (tDecodeI32(pDeCoder, &size) < 0) return -1;
+
+  if (size < 0) {
+    return -1;
+  }
   pInfo->pTsBuckets = taosArrayInit(size, sizeof(TSKEY));
   QUERY_CHECK_NULL(pInfo->pTsBuckets, code, lino, _error, terrno);
 

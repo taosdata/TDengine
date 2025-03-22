@@ -80,6 +80,7 @@ typedef struct SFillInfo {
   SFillTagColInfo* pTags;     // tags value for filling gap
   const char*      id;
   SExecTaskInfo*   pTaskInfo;
+  int8_t           isFilled;
 } SFillInfo;
 
 typedef struct SResultCellData {
@@ -119,7 +120,8 @@ typedef struct SStreamFillInfo {
   int32_t                delIndex;
   uint64_t               curGroupId;
   bool                   hasNext;
-  SResultRowData*        pNonFillRow;                 
+  SResultRowData*        pNonFillRow;
+  void*                  pTempBuff;
 } SStreamFillInfo;
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);

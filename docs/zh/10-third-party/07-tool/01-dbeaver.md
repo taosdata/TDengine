@@ -10,7 +10,7 @@ DBeaver 是一款流行的跨平台数据库管理工具，方便开发者、数
 
 使用 DBeaver 管理 TDengine 需要以下几方面的准备工作。
 
-- 安装 DBeaver。DBeaver 支持主流操作系统包括 Windows、macOS 和 Linux。请注意[下载](https://dbeaver.io/download/)正确平台和版本（23.1.1+）的安装包。详细安装步骤请参考 [DBeaver 官方文档](https://github.com/dbeaver/dbeaver/wiki/Installation)。
+- 安装 DBeaver。DBeaver 支持主流操作系统包括 Windows、macOS 和 Linux。请注意 [下载](https://dbeaver.io/download/) 正确平台和版本（23.1.1+）的安装包。详细安装步骤请参考 [DBeaver 官方文档](https://github.com/dbeaver/dbeaver/wiki/Installation)。
 - 如果使用独立部署的 TDengine 集群，请确认 TDengine 正常运行，并且 taosAdapter 已经安装并正常运行，具体细节请参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)。
 
 ## 使用 DBeaver 访问内部部署的 TDengine
@@ -19,7 +19,7 @@ DBeaver 是一款流行的跨平台数据库管理工具，方便开发者、数
 
  ![DBeaver 连接 TDengine](./dbeaver/dbeaver-connect-tdengine-zh.webp)
 
-2. 配置 TDengine 连接，填入主机地址、端口号、用户名和密码。如果 TDengine 部署在本机，可以只填用户名和密码，默认用户名为 root，默认密码为 taosdata。点击“测试连接”可以对连接是否可用进行测试。如果本机没有安装 TDengine Java
+2. 配置 TDengine 连接，填入主机地址、端口号（6041）、用户名和密码。如果 TDengine 部署在本机，可以只填用户名和密码，默认用户名为 root，默认密码为 taosdata。点击“测试连接”可以对连接是否可用进行测试。如果本机没有安装 TDengine Java
  连接器，DBeaver 会提示下载安装。
 
  ![配置 TDengine 连接](./dbeaver/dbeaver-config-tdengine-zh.webp)

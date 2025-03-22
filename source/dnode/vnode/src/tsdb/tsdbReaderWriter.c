@@ -104,7 +104,7 @@ int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppF
   }
 
   pFD->path = (char *)&pFD[1];
-  strcpy(pFD->path, path);
+  memcpy(pFD->path, path, strlen(path) + 1);
   pFD->szPage = szPage;
   pFD->flag = flag;
   pFD->szPage = szPage;
@@ -174,8 +174,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
         opts.source = pFD->pBuf + count;
         opts.result = PacketData;
         opts.unitLen = 128;
-        // strncpy(opts.key, tsEncryptKey, 16);
-        strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+        tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
         NewLen = CBC_Encrypt(&opts);
 
@@ -248,8 +247,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
       opts.source = pFD->pBuf + count;
       opts.result = PacketData;
       opts.unitLen = 128;
-      // strncpy(opts.key, tsEncryptKey, 16);
-      strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
       NewLen = CBC_Decrypt(&opts);
 
@@ -344,7 +342,7 @@ _exit:
   }
   return code;
 }
-
+#ifdef USE_S3
 static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
   int32_t    code = 0;
   int32_t    lino;
@@ -411,8 +409,9 @@ _exit:
   }
   return code;
 }
-
+#endif
 static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
+#ifdef USE_S3
   int32_t code = 0;
   int32_t lino;
   int64_t n = 0;
@@ -515,6 +514,9 @@ _exit:
     TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
   }
   return code;
+#else
+  return TSDB_CODE_INTERNAL_ERROR;
+#endif
 }
 
 int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint,
@@ -570,7 +572,7 @@ int32_t tsdbFsyncFile(STsdbFD *pFD, int32_t encryptAlgorithm, char *encryptKey) 
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (taosFsyncFile(pFD->pFD) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ERRNO), lino, _exit);
   }
 
 _exit:

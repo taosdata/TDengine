@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 #include "mndPrivilege.h"
-#include "systable.h"
 #include "mndUser.h"
+#include "systable.h"
 
 #define SHOW_STEP_SIZE            100
 #define SHOW_COLS_STEP_SIZE       4096
@@ -60,10 +60,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_DNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_MNODE;
-/*
-  } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
-    type = TSDB_MGMT_TABLE_MODULE;
-*/
+    /*
+      } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
+        type = TSDB_MGMT_TABLE_MODULE;
+    */
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_QNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
@@ -132,6 +132,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_COMPACT;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TRANSACTION_DETAIL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOGS, len) == 0) {
@@ -142,6 +144,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ENCRYPTIONS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TSMAS, len) == 0) {
     type = TSDB_MGMT_TABLE_TSMAS;
+  } else if (strncasecmp(name, TSDB_INS_DISK_USAGE, len) == 0) {
+    type = TSDB_MGMT_TABLE_USAGE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_FILESETS, len) == 0) {
+    type = TSDB_MGMT_TABLE_FILESETS;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -232,7 +238,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   SRetrieveTableReq retrieveReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq));
 
-  mDebug("process to retrieve systable req db:%s, tb:%s", retrieveReq.db, retrieveReq.tb);
+  mDebug("process to retrieve systable req db:%s, tb:%s, compactId:%" PRId64, retrieveReq.db, retrieveReq.tb,
+         retrieveReq.compactId);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
@@ -263,7 +270,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  if(pShow->type == TSDB_MGMT_TABLE_COL){   // expend capacity for ins_columns
+  if (pShow->type == TSDB_MGMT_TABLE_COL) {  // expend capacity for ins_columns
     rowsToRead = SHOW_COLS_STEP_SIZE;
   } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES) {
     rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
@@ -288,7 +295,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
   if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
-    if(strcmp(pReq->info.conn.user, "root") != 0){
+    if (strcmp(pReq->info.conn.user, "root") != 0) {
       mError("The operation is not permitted, user:%s, pShow->type:%d", pReq->info.conn.user, pShow->type);
       code = TSDB_CODE_MND_NO_RIGHTS;
       TAOS_RETURN(code);
@@ -334,7 +341,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
-  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns + dataEncodeBufSize;
+  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
+         dataEncodeBufSize;
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
@@ -362,9 +370,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
 
     int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, pShow->pMeta->numOfColumns);
-    if(len < 0){
+    if (len < 0) {
       mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
-      code =  terrno;
+      code = terrno;
       return code;
     }
   }
@@ -388,7 +396,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 _exit:
   mndReleaseShowObj(pShow, false);
   blockDataDestroy(pBlock);
-  if(pRsp) {
+  if (pRsp) {
     rpcFreeCont(pRsp);
   }
   return code;

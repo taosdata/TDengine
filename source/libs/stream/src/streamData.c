@@ -14,6 +14,7 @@
  */
 
 #include "streamInt.h"
+#include "ttime.h"
 
 static int32_t streamMergedSubmitNew(SStreamMergedSubmit** pSubmit) {
   *pSubmit = NULL;
@@ -109,6 +110,7 @@ int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t
 
     pDataBlock->info.type = pRetrieve->streamBlockType;
     pDataBlock->info.childId = pReq->upstreamChildId;
+    pDataBlock->info.id.uid = be64toh(pRetrieve->useconds);
   }
 
   pData->blocks = pArray;
@@ -273,6 +275,10 @@ int32_t streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem
 }
 
 void streamFreeQitem(SStreamQueueItem* data) {
+  if (data == NULL) {
+    return;
+  }
+
   int8_t type = data->type;
   if (type == STREAM_INPUT__GET_RES) {
     blockDataDestroy(((SStreamTrigger*)data)->pBlock);
@@ -300,20 +306,24 @@ void streamFreeQitem(SStreamQueueItem* data) {
     blockDataDestroy(pRefBlock->pBlock);
     taosFreeQitem(pRefBlock);
   } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-             type == STREAM_INPUT__TRANS_STATE) {
+             type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__RECALCULATE) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     taosArrayDestroyEx(pBlock->blocks, freeItems);
     taosFreeQitem(pBlock);
   }
 }
 
-int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval, STimeWindow* pLatestWindow, const char* id) {
+int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t interval, SInterval* pInterval,
+                                       STimeWindow* pLatestWindow, const char* id) {
   QRY_PARAM_CHECK(pTrigger);
-  int64_t         ts = INT64_MIN;
+
   SStreamTrigger* p = NULL;
+  int64_t         ts = taosGetTimestamp(pInterval->precision);
+  int64_t         skey = pLatestWindow->skey + pInterval->sliding;
 
   int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
   if (code) {
+    stError("s-task:%s failed to create force_window trigger, code:%s", id, tstrerror(code));
     return code;
   }
 
@@ -324,26 +334,10 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigge
     return terrno;
   }
 
-  // let's calculate the previous time window
-  SInterval interval = {.interval = trigger,
-                        .sliding = trigger,
-                        .intervalUnit = pInterval->intervalUnit,
-                        .slidingUnit = pInterval->slidingUnit};
-
-  ts = taosGetTimestampMs();
-
-  if (pLatestWindow->skey == INT64_MIN) {
-    STimeWindow window = getAlignQueryTimeWindow(&interval, ts - trigger);
-
-    p->pBlock->info.window.skey = window.skey;
-    p->pBlock->info.window.ekey = TMAX(ts, window.ekey);
-  } else {
-    int64_t skey = pLatestWindow->skey + trigger;
-    p->pBlock->info.window.skey = skey;
-    p->pBlock->info.window.ekey = TMAX(ts, skey + trigger);
-  }
-
+  p->pBlock->info.window.skey = skey;
+  p->pBlock->info.window.ekey = TMAX(ts, skey + pInterval->interval);
   p->pBlock->info.type = STREAM_GET_RESULT;
+
   stDebug("s-task:%s force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, id,
           p->pBlock->info.window.skey, p->pBlock->info.window.ekey);
 
@@ -351,23 +345,72 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigge
   return code;
 }
 
-int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger) {
+int32_t streamCreateTriggerBlock(SStreamTrigger** pTrigger, int32_t type, int32_t blockType) {
   QRY_PARAM_CHECK(pTrigger);
-  SStreamTrigger* p = NULL;
 
-  int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
+  SStreamTrigger* p = NULL;
+  int32_t         code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
   if (code) {
     return code;
   }
 
-  p->type = STREAM_INPUT__GET_RES;
+  p->type = (int8_t) type;
   p->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (p->pBlock == NULL) {
     taosFreeQitem(p);
     return terrno;
   }
 
-  p->pBlock->info.type = STREAM_GET_ALL;
+  p->pBlock->info.type = blockType;
   *pTrigger = p;
+  return code;
+}
+
+int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlock, int32_t type) {
+  int32_t           code = 0;
+  SSDataBlock*      p = NULL;
+  SStreamDataBlock* pRecalc = NULL;
+
+  if (pBlock != NULL) {
+    *pBlock = NULL;
+  }
+
+  code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock), (void**)&pRecalc);
+  if (code) {
+    return code;
+  }
+
+  p = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (p == NULL) {
+    code = terrno;
+    goto _err;
+  }
+
+  pRecalc->type = STREAM_INPUT__RECALCULATE;
+
+  p->info.type = type;
+  p->info.rows = 1;
+  p->info.childId = pTask->info.selfChildId;
+
+  pRecalc->blocks = taosArrayInit(4, sizeof(SSDataBlock));  // pBlock;
+  if (pRecalc->blocks == NULL) {
+    code = terrno;
+    goto _err;
+  }
+
+  void* px = taosArrayPush(pRecalc->blocks, p);
+  if (px == NULL) {
+    code = terrno;
+    goto _err;
+  }
+
+  taosMemoryFree(p);
+  *pBlock = pRecalc;
+
+  return code;
+
+_err:
+  taosMemoryFree(p);
+  taosFreeQitem(pRecalc);
   return code;
 }

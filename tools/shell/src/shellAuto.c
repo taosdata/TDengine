@@ -112,6 +112,7 @@ SWords shellCommands[] = {
     {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
 #endif
+    {"desc <all_table>;", 0, 0, NULL},
     {"describe <all_table>;", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>;", 0, 0, NULL},
@@ -453,7 +454,7 @@ SMatch*    lastMatch = NULL;  // save last match result
 int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
-void printfIntroduction(bool community) {
+void printfIntroduction(EVersionType type) {
   printf("  *********************************  Tab Completion  *************************************\n");
   char secondLine[160] = "\0";
   sprintf(secondLine, "  *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
@@ -473,11 +474,11 @@ void printfIntroduction(bool community) {
   printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                    *\n");
   printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                          *\n");
   printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                         *\n");
-  if(community) {
-  printf("  * ------------------------------------------------------------------------------------ *\n");
-  printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
-  printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
-  printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                 *\n");
+  if (type == TSDB_VERSION_OSS) {
+    printf("  * ------------------------------------------------------------------------------------ *\n");
+    printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
+    printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
+    printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                   *\n");
   }
   printf("  ****************************************************************************************\n\n");
 }
@@ -662,6 +663,7 @@ void showHelp() {
     now - current time \n\
   Example : \n\
     select * from t1 where ts > now - 2w + 3d and ts <= now - 1w -2h ;\n");
+  printf(ERROR_CODE_DETAIL);
   printf("\n");
 }
 
@@ -785,7 +787,7 @@ void GenerateVarType(int type, char** p, int count) {
 //
 
 // init shell auto function , shell start call once
-bool shellAutoInit() {
+void shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
   for (int32_t i = 0; i < count; i++) {
@@ -814,8 +816,6 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
   GenerateVarType(WT_VAR_GLOBALKEYS, global_keys, sizeof(global_keys) / sizeof(char*));
   GenerateVarType(WT_VAR_FIELD_OPTIONS, field_options, sizeof(field_options) / sizeof(char*));
-
-  return true;
 }
 
 // set conn

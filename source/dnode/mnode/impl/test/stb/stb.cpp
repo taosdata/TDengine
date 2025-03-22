@@ -25,6 +25,7 @@ class MndTestStb : public ::testing::Test {
   void* BuildCreateDbReq(const char* dbname, int32_t* pContLen);
   void* BuildDropDbReq(const char* dbname, int32_t* pContLen);
   void* BuildCreateStbReq(const char* stbname, int32_t* pContLen);
+  void* BuildCreateStbDuplicateReq(const char* stbname, int32_t* pContLen);
   void* BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen);
   void* BuildAlterStbDropTagReq(const char* stbname, const char* tagname, int32_t* pContLen);
   void* BuildAlterStbUpdateTagNameReq(const char* stbname, const char* tagname, const char* newtagname,
@@ -118,6 +119,71 @@ void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
     field.bytes = 8;
     field.type = TSDB_DATA_TYPE_BIGINT;
     strcpy(field.name, "tag2");
+    taosArrayPush(createReq.pTags, &field);
+  }
+
+  {
+    SField field = {0};
+    field.bytes = 16;
+    field.type = TSDB_DATA_TYPE_BINARY;
+    strcpy(field.name, "tag3");
+    taosArrayPush(createReq.pTags, &field);
+  }
+
+  int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
+  void*   pHead = rpcMallocCont(tlen);
+  tSerializeSMCreateStbReq(pHead, tlen, &createReq);
+  tFreeSMCreateStbReq(&createReq);
+  *pContLen = tlen;
+  return pHead;
+}
+
+void* MndTestStb::BuildCreateStbDuplicateReq(const char* stbname, int32_t* pContLen) {
+  SMCreateStbReq createReq = {0};
+  createReq.numOfColumns = 2;
+  createReq.numOfTags = 4;
+  createReq.igExists = 0;
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+  strcpy(createReq.name, stbname);
+
+  {
+    SField field = {0};
+    field.bytes = 8;
+    field.type = TSDB_DATA_TYPE_TIMESTAMP;
+    strcpy(field.name, "ts");
+    taosArrayPush(createReq.pColumns, &field);
+  }
+
+  {
+    SField field = {0};
+    field.bytes = 12;
+    field.type = TSDB_DATA_TYPE_BINARY;
+    strcpy(field.name, "col1");
+    taosArrayPush(createReq.pColumns, &field);
+  }
+
+  {
+    SField field = {0};
+    field.bytes = 2;
+    field.type = TSDB_DATA_TYPE_TINYINT;
+    strcpy(field.name, "tag1");
+    taosArrayPush(createReq.pTags, &field);
+  }
+
+  {
+    SField field = {0};
+    field.bytes = 8;
+    field.type = TSDB_DATA_TYPE_BIGINT;
+    strcpy(field.name, "tag2");
+    taosArrayPush(createReq.pTags, &field);
+  }
+
+  {
+    SField field = {0};
+    field.bytes = 16;
+    field.type = TSDB_DATA_TYPE_BINARY;
+    strcpy(field.name, "tag3");
     taosArrayPush(createReq.pTags, &field);
   }
 
@@ -893,6 +959,29 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+}
+
+TEST_F(MndTestStb, 09_Create_Duplicate_Stb) {
+  const char* dbname = "1.d2";
+  const char* stbname = "1.d2.stb";
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateDbReq(dbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbDuplicateReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_DUP_COL_NAMES);
     rpcFreeCont(pRsp->pCont);
   }
 }

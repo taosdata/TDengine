@@ -1,12 +1,14 @@
 ---
-title: Insert
-sidebar_label: Insert
-description: This document describes the SQL commands and syntax for inserting data into TDengine.
+title: Data Ingestion
+slug: /tdengine-reference/sql-manual/insert-data
 ---
 
-## Syntax
-The writing of records supports two syntaxes, normal syntax and super table syntax. In the normal syntax, the table name immediately following `INSERT INTO` represents subtable names or regular table names. In the super table syntax, the table name immediately following `INSERT INTO` represents the super table name.
+## Writing Syntax
+
+There are two syntaxes supported for writing records: normal syntax and supertable syntax. Under normal syntax, the table name immediately following INSERT INTO is either a subtable name or a regular table name. Under supertable syntax, the table name immediately following INSERT INTO is a supertable name.
+
 ### Normal Syntax
+
 ```sql
 INSERT INTO
     tb_name
@@ -21,104 +23,108 @@ INSERT INTO
 
 INSERT INTO tb_name [(field1_name, ...)] subquery
 ```
-### Super Table Syntax
+
+### Supertable Syntax
+
 ```sql
 INSERT INTO
-    stb1_name [(field1_name, ...)]       
+    stb1_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
-    [stb2_name [(field1_name, ...)]  
+    [stb2_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     ...];
 ```
 
-**Timestamps**
+**About Timestamps**
 
-1. All data writes must include a timestamp. With regard to timestamps, note the following:
+1. TDengine requires that inserted data must have timestamps. Pay attention to the following points regarding the timestamps:
 
-2. The precision of a timestamp depends on its format. The precision configured for the database affects only timestamps that are inserted as long integers (UNIX time). Timestamps inserted as date and time strings are not affected. As an example, the timestamp 2021-07-13 16:16:48 is equivalent to 1626164208 in UNIX time. This UNIX time is modified to 1626164208000 for databases with millisecond precision, 1626164208000000 for databases with microsecond precision, and 1626164208000000000 for databases with nanosecond precision.
+2. Different timestamp formats can affect precision differently. String format timestamps are not affected by the precision setting of the DATABASE they belong to; however, long integer format timestamps are affected by the DATABASE's precision setting. For example, the UNIX seconds for the timestamp "2021-07-13 16:16:48" is 1626164208. Therefore, it needs to be written as 1626164208000 in millisecond precision, 1626164208000000 in microsecond precision, and 1626164208000000000 in nanosecond precision.
 
-3. If you want to insert multiple rows simultaneously, do not use the NOW function in the timestamp. Using the NOW function in this situation will cause multiple rows to have the same timestamp and prevent them from being stored correctly. This is because the NOW function obtains the current time on the client, and multiple instances of NOW in a single statement will return the same time.
-   The earliest timestamp that you can use when inserting data is equal to the current time on the server minus the value of the KEEP parameter (You can configure the KEEP parameter when you create a database and the default value is 3650 days). The latest timestamp you can use when inserting data depends on the PRECISION parameter (You can configure the PRECISION parameter when you create a database, ms means milliseconds, us means microseconds, ns means nanoseconds, and the default value is milliseconds). If the timestamp precision is milliseconds or microseconds, the latest timestamp is the Unix epoch (January 1st, 1970 at 00:00:00.000 UTC) plus 1000 years, that is, January 1st, 2970 at 00:00:00.000 UTC; If the timestamp precision is nanoseconds, the latest timestamp is the Unix epoch plus 292 years, that is, January 1st, 2262 at 00:00:00.000000000 UTC.
+3. When inserting multiple rows of data at once, do not set the value of the first column's timestamp to NOW for all rows. This will cause multiple records in the statement to use the same timestamp, potentially leading to data overwriting and not all rows being correctly saved. This happens because the NOW function is resolved to the client execution time of the SQL statement, and multiple NOW markers in the same statement will be replaced with the exact same timestamp value.
+   The oldest record timestamp allowed for insertion is relative to the current server time, minus the configured KEEP value (the number of days data is retained, which can be specified when creating the database, default is 3650 days). The newest record timestamp allowed for insertion depends on the database's PRECISION value (timestamp precision, which can be specified when creating the database, ms for milliseconds, us for microseconds, ns for nanoseconds, default is milliseconds): if it is milliseconds or microseconds, the value is January 1, 1970, 00:00:00.000 UTC plus 1000 years, i.e., January 1, 2970, 00:00:00.000 UTC; if it is nanoseconds, the value is January 1, 1970, 00:00:00.000000000 UTC plus 292 years, i.e., January 1, 2262, 00:00:00.000000000 UTC.
 
-**Syntax**
+**Syntax Notes**
 
-1. You can insert data into specified columns. Any columns in which you do not insert data will be assigned a null value.
+1. You can specify the columns for which values are to be inserted; for columns not specified, the database will automatically fill them with NULL.
 
-2. The VALUES clause inserts one or more rows of data into a table.
+2. The VALUES syntax indicates the row or rows of data to be inserted.
 
-3. The FILE clause inserts tags or data from a comma-separates values (CSV) file. Do not include headers in your CSV files.
+3. The FILE syntax indicates that the data comes from a CSV file (comma-separated, with each value enclosed in single quotes), which does not require a header. For creating subtables only, refer to the 'Table' section.
 
-4. A single `INSERT ... VALUES` statement and `INSERT ... FILE` statement can write data to multiple tables.
+4. Both `INSERT ... VALUES` and `INSERT ... FILE` statements can insert data into multiple tables in a single INSERT statement.
 
-5. The INSERT statement is fully parsed before being executed, so that if any element of the statement fails, the entire statement will fail. For example, the following statement will not create a table because the latter part of the statement is invalid:
+5. INSERT statements are fully parsed before execution, preventing situations where data errors occur but table creation succeeds.
 
-   ```sql
-   INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
-   ```
+```sql
+INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
+```
 
-6. However, an INSERT statement that writes data to multiple subtables can succeed for some tables and fail for others. This situation is caused because vnodes perform write operations independently of each other. One vnode failing to write data does not affect the ability of other vnodes to write successfully.
+6. When inserting data into multiple subtables, there may still be cases where some data fails to write while other data writes successfully. This is because multiple subtables may be distributed across different VNODEs. After the client fully parses the INSERT statement, it sends the data to each involved VNODE, where each VNODE independently performs the write operation. If a VNODE fails to write due to some reason (such as network issues or disk failure), it will not affect the write operations of other VNODE nodes.
 7. The primary key column value must be specified and cannot be NULL.
 
-**Normal Syntax**
-1. The USING clause automatically creates the specified subtable if it does not exist. If it's unknown whether the table already exists, the table can be created automatically while inserting using the SQL statement below. To use this functionality, a STable must be used as template and tag values must be provided. Any tags that you do not specify will be assigned a null value.
+**Standard Syntax Explanation**
 
-2. Data from TDengine can be inserted into a specified table using the `INSERT ... subquery` statement. Arbitrary query statements are supported. This syntax can only be used for subtables and normal tables, and does not support automatic table creation.
+1. The USING clause is for automatic table creation syntax. If a user is unsure whether a table exists when writing data, they can use the automatic table creation syntax to create a non-existent table during data writing; if the table already exists, a new table will not be created. Automatic table creation requires using a supertable as a template and specifying the TAGS values for the data table. It is possible to specify only some TAGS column values, with unspecified TAGS columns set to NULL.
 
-**Super Table Syntax**
+2. You can use the `INSERT ... subquery` statement to insert data from TDengine into a specified table. The subquery can be any query statement. This syntax can only be used for subtables and regular tables, and does not support automatic table creation.
 
-1. The tbname column must be included in the field_name list and represents the name of the child table. This column is of string type, and the use of the . character is not permitted in the tbname column.
+**Supertable Syntax Explanation**
 
-2. Tag columns are eligible for inclusion in the field_name list. If the specified child table doesn't exist, a new child table will be generated with the provided tag values. In the absence of specified tag values, the newly created table will have all NULL tag values. Existing child table tag values remain unchanged.
+1. The tbname column must be specified in the field_name list, otherwise, it will result in an error. The tbname column is the subtable name, which is a string type. Characters do not need to be escaped and cannot include the dot '.'.
 
-3. Param binding is not supported.
-## Insert a Record
+2. The field_name list supports tag columns. When a subtable already exists, specifying tag values will not trigger a modification of the tag values; when a subtable does not exist, the specified tag values will be used to establish the subtable. If no tag columns are specified, all tag column values are set to NULL.
 
-Single row or multiple rows specified with VALUES can be inserted into a specific table. A single row is inserted using the below statement.
+3. Parameter binding for writing is not supported.
+
+## Inserting a Record
+
+Specify the table name of an already created data subtable, and provide one or more rows of data using the VALUES keyword to write these data into the database. For example, execute the following statement to write a single record:
 
 ```sql
 INSERT INTO d1001 VALUES (NOW, 10.2, 219, 0.32);
 ```
 
-## Insert Multiple Records
+## Inserting Multiple Records
 
-Double rows are inserted using the below statement.
+Alternatively, you can write two records with the following statement:
 
 ```sql
 INSERT INTO d1001 VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32) (1626164208000, 10.15, 217, 0.33);
 ```
 
-## Write to a Specified Column
+## Specifying Columns for Insertion
 
-Data can be inserted into specific columns, either single row or multiple row, while other columns will be inserted as NULL value. The key (timestamp) cannot be null. For example:
+When inserting records into a data subtable, whether inserting one row or multiple rows, you can map the data to specific columns. For columns not mentioned in the SQL statement, the database will automatically fill them with NULL. The primary key (timestamp) cannot be NULL. For example:
 
 ```sql
 INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', 10.27, 0.31);
 ```
 
-## Insert Into Multiple Tables
+## Inserting Records into Multiple Tables
 
-One or multiple rows can be inserted into multiple tables in a single SQL statement, with or without specifying specific columns. For example:
+You can insert one or more records into multiple tables in a single statement, and also specify columns during the insertion process. For example:
 
 ```sql
 INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
             d1002 (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
 ```
 
-## Automatically Create Table When Inserting
+## Automatic Table Creation During Record Insertion
 
-If it's unknown whether the table already exists, the table can be created automatically while inserting using the SQL statement below. To use this functionality, a STable must be used as template and tag values must be provided. For example:
+If a user is unsure whether a table exists when writing data, they can use the automatic table creation syntax to create a non-existent table during data writing; if the table already exists, a new table will not be created. Automatic table creation requires using a supertable as a template and specifying the TAGS values for the data table. For example:
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
 ```
 
-It's not necessary to provide values for all tags when creating tables automatically, the tags without values provided will be set to NULL. For example:
+You can also specify only some TAGS column values during automatic table creation, with unspecified TAGS columns set to NULL. For example:
 
 ```sql
 INSERT INTO d21001 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);
 ```
 
-Multiple rows can also be inserted into the same table in a single SQL statement. For example:
+The automatic table creation syntax also supports inserting records into multiple tables in a single statement. For example:
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
@@ -126,41 +132,50 @@ INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('202
             d21003 USING meters (groupId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
 ```
 
-## Insert Rows From A File
+## Inserting Data Records from a File
 
-Besides using `VALUES` to insert one or multiple rows, the data to be inserted can also be prepared in a CSV file with comma as separator and timestamp and string field value quoted by single quotes. Table definition is not required in the CSV file. For example, if file "/tmp/csvfile.csv" contains the below data:
+In addition to using the VALUES keyword to insert one or more rows of data, you can also place the data to be written in a CSV file (separated by commas, with timestamps and string type values enclosed in single quotes) for SQL commands to read. The CSV file does not need a header. For example, if the content of the /tmp/csvfile.csv file is:
 
-```
+```csv
 '2021-07-13 14:07:34.630', 10.2, 219, 0.32
 '2021-07-13 14:07:35.779', 10.15, 217, 0.33
 ```
 
-Then data in this file can be inserted by the SQL statement below:
+Then the following command can be used to write the data in this file to the subtable:
 
 ```sql
 INSERT INTO d1001 FILE '/tmp/csvfile.csv';
 ```
 
-## Create Tables Automatically and Insert Rows From File
+## Inserting Data Records from a File and Automatically Creating Tables
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
 ```
 
-When writing data from a file, you can automatically create the specified subtable if it does not exist. For example:
+You can also insert records into multiple tables in one statement with automatic table creation. For example:
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
             d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
 ```
-## Super Table Syntax
 
-Automatically creating table and the table name is specified through the `tbname` column
+## Inserting Data into a Supertable and Automatically Creating Subtables
+
+Automatically create tables, with table names specified by the tbname column
 
 ```sql
-INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase) 
-                values('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32) 
+INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
+                VALUES ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32)
                 ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-                ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)        
+                ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)
 ```
 
+## Inserting Data into a Supertable from a CSV File and Automatically Creating Subtables
+
+Create subtables for the supertable based on the contents of the CSV file, and populate the respective columns and tags
+
+```sql
+INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
+                FILE '/tmp/csvfile_21002.csv'
+```

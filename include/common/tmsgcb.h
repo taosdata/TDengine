@@ -31,12 +31,16 @@ typedef enum {
   QUERY_QUEUE,
   FETCH_QUEUE,
   READ_QUEUE,
+  STATUS_QUEUE,
   WRITE_QUEUE,
   APPLY_QUEUE,
   SYNC_QUEUE,
   SYNC_RD_QUEUE,
   STREAM_QUEUE,
   ARB_QUEUE,
+  STREAM_CTRL_QUEUE,
+  STREAM_LONG_EXEC_QUEUE,
+  STREAM_CHKPT_QUEUE,
   QUEUE_MAX,
 } EQueueType;
 
@@ -47,7 +51,7 @@ typedef int32_t (*GetQueueSizeFp)(void* pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(const SEpSet* pEpSet, SRpcMsg* pMsg);
 typedef void (*SendRspFp)(SRpcMsg* pMsg);
 typedef void (*RegisterBrokenLinkArgFp)(struct SRpcMsg* pMsg);
-typedef void (*ReleaseHandleFp)(SRpcHandleInfo* pHandle, int8_t type);
+typedef void (*ReleaseHandleFp)(SRpcHandleInfo* pHandle, int8_t type, int32_t status);
 typedef void (*ReportStartup)(const char* name, const char* desc);
 
 typedef struct {
@@ -76,7 +80,7 @@ int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg);
 int32_t tmsgSendSyncReq(const SEpSet* epSet, SRpcMsg* pMsg);
 void    tmsgSendRsp(SRpcMsg* pMsg);
 void    tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg);
-void    tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type);
+void    tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type, int32_t code);
 void    tmsgReportStartup(const char* name, const char* desc);
 bool    tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
 void    tmsgUpdateDnodeEpSet(SEpSet* epset);

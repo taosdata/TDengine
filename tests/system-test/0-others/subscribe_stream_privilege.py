@@ -114,7 +114,7 @@ class TDTestCase:
         consumer_dict = {
             "group.id": "g1",
             "td.connect.user": self.user_name,
-            "td.connect.pass": "test",
+            "td.connect.pass": "123456rf@#",
             "auto.offset.reset": "earliest"
         }
         consumer = Consumer(consumer_dict)
@@ -167,7 +167,7 @@ class TDTestCase:
 
     def create_user(self):
         tdSql.execute(f'create topic {self.topic_name} as database {self.dbnames[0]}')
-        tdSql.execute(f'create user {self.user_name} pass "test"')
+        tdSql.execute(f'create user {self.user_name} pass "123456rf@#"')
 
     def run(self):
         self.prepare_data()

@@ -106,8 +106,8 @@ typedef enum {
   TRN_CONFLICT_GLOBAL = 1,
   TRN_CONFLICT_DB = 2,
   TRN_CONFLICT_DB_INSIDE = 3,
-//  TRN_CONFLICT_TOPIC = 4,
-//  TRN_CONFLICT_TOPIC_INSIDE = 5,
+  //  TRN_CONFLICT_TOPIC = 4,
+  //  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
   TRN_CONFLICT_TSMA = 7,
 } ETrnConflct;
@@ -132,6 +132,12 @@ typedef enum {
   TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
 } ETrnExec;
+
+typedef enum {
+  TRN_KILL_MODE_SKIP = 0,
+  TRN_KILL_MODE_INTERUPT = 1,
+  // TRN_KILL_MODE_ROLLBACK = 2,
+} ETrnKillMode;
 
 typedef enum {
   DND_REASON_ONLINE = 0,
@@ -201,6 +207,8 @@ typedef struct {
   SRWLatch      lockRpcArray;
   int64_t       mTraceId;
   TdThreadMutex mutex;
+  bool          ableToBeKilled;
+  ETrnKillMode  killMode;
 } STrans;
 
 typedef struct {
@@ -308,6 +316,8 @@ typedef struct {
   int64_t            dbUid;
   SArbGroupMember    members[TSDB_ARB_GROUP_MEMBER_NUM];
   int8_t             isSync;
+  int32_t            code;
+  int64_t            updateTimeMs;
   SArbAssignedLeader assignedLeader;
   int64_t            version;
 
@@ -315,6 +325,25 @@ typedef struct {
   bool          mutexInited;
   TdThreadMutex mutex;
 } SArbGroup;
+
+typedef struct {
+  char         name[CFG_NAME_MAX_LEN];
+  ECfgDataType dtype;
+  union {
+    bool    bval;
+    float   fval;
+    int32_t i32;
+    int64_t i64;
+    char*   str;
+  };
+} SConfigObj;
+
+int32_t    tEncodeSConfigObj(SEncoder* pEncoder, const SConfigObj* pObj);
+int32_t    tDecodeSConfigObj(SDecoder* pDecoder, SConfigObj* pObj);
+int32_t    mndInitConfigObj(SConfigItem* pItem, SConfigObj* pObj);
+SConfigObj mndInitConfigVersion();
+int32_t    mndUpdateObj(SConfigObj* pObj, const char* name, char* value);
+void       tFreeSConfigObj(SConfigObj* obj);
 
 typedef struct {
   int32_t maxUsers;
@@ -423,6 +452,10 @@ typedef struct {
   int8_t  s3Compact;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
+  int8_t  compactTimeOffset;  // hour
+  int32_t compactInterval;    // minute
+  int32_t compactStartTime;   // minute
+  int32_t compactEndTime;     // minute
 } SDbCfg;
 
 typedef struct {
@@ -445,6 +478,10 @@ typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   int64_t    syncTerm;
+  int64_t    syncAppliedIndex;
+  int64_t    lastSyncAppliedIndexUpdateTime;
+  double     appliedRate;
+  int64_t    syncCommitIndex;
   bool       syncRestore;
   bool       syncCanRead;
   int64_t    roleTimeMs;
@@ -489,8 +526,8 @@ typedef struct {
   int64_t        dstTbUid;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
-  int8_t         timezone;
-  int32_t        dstVgId;  // for stream
+  int8_t         timezone;  // int8_t is not enough, timezone is unit of second
+  int32_t        dstVgId;   // for stream
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
@@ -524,6 +561,7 @@ typedef struct {
   col_id_t colId;
   int32_t  cmprAlg;
 } SCmprObj;
+
 typedef struct {
   char      name[TSDB_TABLE_FNAME_LEN];
   char      db[TSDB_DB_FNAME_LEN];
@@ -553,6 +591,9 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+  int64_t   keep;
+  SExtSchema* pExtSchemas;
+  int8_t    virtualStb;
 } SStbObj;
 
 typedef struct {
@@ -649,12 +690,12 @@ typedef struct {
   int32_t maxPollIntervalMs;
 } SMqConsumerObj;
 
-int32_t         tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
-                           char *topic, SCMSubscribeReq *subscribe, SMqConsumerObj** ppConsumer);
-void            tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
-void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
-int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
-void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
+int32_t tNewSMqConsumerObj(int64_t consumerId, char* cgroup, int8_t updateType, char* topic, SCMSubscribeReq* subscribe,
+                           SMqConsumerObj** ppConsumer);
+void    tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
+void    tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
+int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
+void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
 typedef struct {
   int32_t vgId;
@@ -693,11 +734,11 @@ typedef struct {
   char*     qmsg;  // SubPlanToString
 } SMqSubscribeObj;
 
-int32_t          tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub);
-int32_t          tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj **ppSub);
-void             tDeleteSubscribeObj(SMqSubscribeObj* pSub);
-int32_t          tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
-void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
+int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
+int32_t tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
+void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
+int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
+void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
 
 // typedef struct {
 //   int32_t epoch;
@@ -747,6 +788,7 @@ typedef struct SStreamConf {
   int64_t watermark;
 } SStreamConf;
 
+
 typedef struct {
   char     name[TSDB_STREAM_FNAME_LEN];
   SRWLatch lock;
@@ -777,10 +819,10 @@ typedef struct {
   char*   sql;
   char*   ast;
   char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTask>>
 
-  SArray* pHTasksList;  // generate the results for already stored ts data
-  int64_t hTaskUid;     // stream task for history ts data
+  SArray* pTaskList;       // SArray<SArray<SStreamTask>>
+  SArray* pHTaskList;     // generate the results for already stored ts data
+  int64_t hTaskUid;        // stream task for history ts data
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
@@ -796,8 +838,10 @@ typedef struct {
 
   int32_t indexForMultiAggBalance;
   int8_t  subTableWithoutMd5;
-  char    reserve[256];
+  char    reserve[TSDB_RESERVE_VALUE_LEN];
 
+  SSHashObj*  pVTableMap;  // do not serialize
+  SQueryPlan* pPlan;  // do not serialize
 } SStreamObj;
 
 typedef struct SStreamSeq {
@@ -846,6 +890,8 @@ typedef struct {
   int64_t startTime;
   int32_t newNumberFileset;
   int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
 } SCompactDetailObj;
 
 typedef struct {

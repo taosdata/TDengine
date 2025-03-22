@@ -1,0 +1,56 @@
+#### Configure taosAdapter
+
+Method to configure taosAdapter to receive StatsD data:
+
+- Enable the configuration item in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
+
+    ```toml
+    ...
+    [statsd]
+    enable = true
+    port = 6044
+    db = "statsd"
+    user = "root"
+    password = "taosdata"
+    worker = 10
+    gatherInterval = "5s"
+    protocol = "udp"
+    maxTCPConnections = 250
+    tcpKeepAlive = false
+    allowPendingMessages = 50000
+    deleteCounters = true
+    deleteGauges = true
+    deleteSets = true
+    deleteTimings = true
+    ...
+    ```
+
+    The default database name written by taosAdapter is `statsd`, but you can also modify the db item in the taosAdapter configuration file to specify a different name. Fill in the user and password with the actual TDengine configuration values. After modifying the configuration file, taosAdapter needs to be restarted.
+
+- You can also use taosAdapter command line arguments or set environment variables to enable the taosAdapter to receive StatsD data. For more details, please refer to the taosAdapter reference manual.
+
+#### Configure StatsD
+
+To use StatsD, download its [source code](https://github.com/statsd/statsd). Modify its configuration file according to the example file `exampleConfig.js` found in the root directory of the local source code download. Replace \<taosAdapter's host> with the domain name or IP address of the server running taosAdapter, and \<port for StatsD> with the port that taosAdapter uses to receive StatsD data (default is 6044).
+
+```text
+Add to the backends section "./backends/repeater"
+Add to the repeater section { host:'<taosAdapter's host>', port: <port for StatsD>}
+```
+
+Example configuration file:
+
+```js
+{
+port: 8125
+, backends: ["./backends/repeater"]
+, repeater: [{ host: '127.0.0.1', port: 6044}]
+}
+```
+
+After adding the following content, start StatsD (assuming the configuration file is modified to config.js).
+
+```shell
+npm install
+node stats.js config.js &
+```

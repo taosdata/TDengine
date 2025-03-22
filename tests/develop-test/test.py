@@ -22,6 +22,9 @@ import json
 import platform
 import socket
 import threading
+import ast
+import importlib
+import os
 
 import toml
 
@@ -35,6 +38,8 @@ from util.taosadapter import *
 import taos
 import taosrest
 
+from taos.cinterface import *
+taos.taos_options(6, "native")
 
 def checkRunTimeError():
     import win32gui
@@ -55,6 +60,17 @@ def checkRunTimeError():
         hwnd = win32gui.FindWindow(None, "Microsoft Visual C++ Runtime Library")
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
+
+def get_local_classes_in_order(file_path):
+    with open(file_path, "r", encoding="utf-8") as file:
+        tree = ast.parse(file.read(), filename=file_path)
+    
+    classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    return classes
+
+def dynamicLoadModule(fileName):
+    moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+    return importlib.import_module(moduleName, package='..')
 
 
 if __name__ == "__main__":
@@ -295,10 +311,11 @@ if __name__ == "__main__":
         updateCfgDictStr = ""
         # adapter_cfg_dict_str = ''
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
+                ucase = case_class()
                 if (json.dumps(updateCfgDict) == "{}") and hasattr(
                     ucase, "updatecfgDict"
                 ):
@@ -434,10 +451,11 @@ if __name__ == "__main__":
         except:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
+                ucase = case_class()
                 if json.dumps(updateCfgDict) == "{}":
                     updateCfgDict = ucase.updatecfgDict
                 if json.dumps(adapter_cfg_dict) == "{}":

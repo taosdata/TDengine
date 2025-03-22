@@ -78,9 +78,34 @@ class TDTestCase:
                 tdSql.error(f'create table {sql} (ts timestamp,c0 int)')
         tdSql.execute(f'trim database `{dbname}`')
         tdSql.execute(f'drop database `{dbname}`')
+
+    def tb_name_len_check(self):
+        dbname = tdCom.getLongName(10)
+        tdSql.execute(f'create database if not exists `{dbname}` vgroups 1 replica 1')
+        tdSql.execute(f'use `{dbname}`')
+        tdSql.execute(f'CREATE STABLE `test_csv` (`ts` TIMESTAMP, `c1` VARCHAR(2000), `c2` VARCHAR(2000)) TAGS (`c3` VARCHAR(2000))')
+        tbname = "test_csv_a12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012"
+        tdSql.execute(f"INSERT INTO `{tbname}`\
+                using `test_csv` (`c3`) tags('a12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890')\
+                (`ts`,`c1`,`c2`) values(1591060628000,'a','1');")
+        tdSql.query(f'select * from {tbname}')
+        tdSql.checkRows(1)
+        tdSql.execute(f'drop table {tbname}')
+
+        tdSql.execute(f"INSERT INTO `{dbname}`.`{tbname}`\
+                using `{dbname}`.`test_csv` (`c3`) tags('a12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890')\
+                (`ts`,`c1`,`c2`) values(1591060628000,'a','1');")
+        tdSql.query(f'select * from {tbname}')
+        tdSql.checkRows(1)
+        tdSql.execute(f'drop table {tbname}')
+       
+        tdSql.execute(f'trim database `{dbname}`')
+        tdSql.execute(f'drop database `{dbname}`')
+
     def run(self):
         self.db_name_check()
         self.tb_name_check()
+        self.tb_name_len_check()
 
     def stop(self):
         tdSql.close()

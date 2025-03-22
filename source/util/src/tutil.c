@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tutil.h"
 #include "tlog.h"
+#include "regex.h"
 
 void *tmemmem(const char *haystack, int32_t hlen, const char *needle, int32_t nlen) {
   const char *limit;
@@ -277,7 +278,7 @@ char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   return string;
 }
 
-int64_t strnatoi(char *num, int32_t len) {
+int64_t strnatoi(const char *num, int32_t len) {
   int64_t ret = 0, i, dig, base = 1;
 
   if (len > (int32_t)strlen(num)) {
@@ -328,9 +329,9 @@ char *strbetween(char *string, char *begin, char *end) {
   return result;
 }
 
-int32_t tintToHex(uint64_t val, char hex[]) {
-  const char hexstr[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+static const char hexstr[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
+int32_t tintToHex(uint64_t val, char hex[]) {
   int32_t j = 0, k = 0;
   if (val == 0) {
     hex[j++] = hexstr[0];
@@ -354,13 +355,12 @@ int32_t titoa(uint64_t val, size_t radix, char str[]) {
     return 0;
   }
 
-  const char *s = "0123456789abcdef";
   char        buf[65] = {0};
 
   int32_t  i = 0;
   uint64_t v = val;
   do {
-    buf[i++] = s[v % radix];
+    buf[i++] = hexstr[v % radix];
     v /= radix;
   } while (v > 0);
 
@@ -372,13 +372,12 @@ int32_t titoa(uint64_t val, size_t radix, char str[]) {
   return i;
 }
 
-int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]) {
+int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char str[]) {
   int32_t i;
-  char    hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
   for (i = 0; i < len; i++) {
-    hexstr[i * 2] = hexval[((bytes[i] >> 4u) & 0xF)];
-    hexstr[(i * 2) + 1] = hexval[(bytes[i]) & 0x0F];
+    str[i * 2] = hexstr[((bytes[i] >> 4u) & 0xF)];
+    str[(i * 2) + 1] = hexstr[(bytes[i]) & 0x0F];
   }
 
   return 0;
@@ -414,25 +413,6 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]) {
   }
 
   return 0;
-}
-
-char *taosIpStr(uint32_t ipInt) {
-  static char    ipStrArray[3][30];
-  static int32_t ipStrIndex = 0;
-
-  char *ipStr = ipStrArray[(ipStrIndex++) % 3];
-  // sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt
-  // >> 24));
-  sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
-  return ipStr;
-}
-
-void taosIp2String(uint32_t ip, char *str) {
-  sprintf(str, "%u.%u.%u.%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24));
-}
-
-void taosIpPort2String(uint32_t ip, uint16_t port, char *str) {
-  sprintf(str, "%u.%u.%u.%u:%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24), port);
 }
 
 size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize) {
@@ -508,9 +488,9 @@ size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rs
 int32_t parseCfgReal(const char *str, float *out) {
   float val;
   char  *endPtr;
-  errno = 0;
+  SET_ERRNO(0);
   val = taosStr2Float(str, &endPtr);
-  if (str == endPtr || errno == ERANGE || isnan(val)) {
+  if (str == endPtr || ERRNO == ERANGE || isnan(val)) {
     return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;
@@ -519,4 +499,88 @@ int32_t parseCfgReal(const char *str, float *out) {
   }
   *out = val;
   return TSDB_CODE_SUCCESS;
+}
+
+bool tIsValidFileName(const char *fileName, const char *pattern) {
+  const char *fileNamePattern = "^[a-zA-Z0-9_.-]+$";
+
+  regex_t fileNameReg;
+
+  if (pattern) fileNamePattern = pattern;
+
+  if (regcomp(&fileNameReg, fileNamePattern, REG_EXTENDED) != 0) {
+    fprintf(stderr, "failed to compile file name pattern:%s\n", fileNamePattern);
+    return false;
+  }
+
+  int32_t code = regexec(&fileNameReg, fileName, 0, NULL, 0);
+  regfree(&fileNameReg);
+  if (code != 0) {
+    return false;
+  }
+  return true;
+}
+
+bool tIsValidFilePath(const char *filePath, const char *pattern) {
+  const char *filePathPattern = "^[a-zA-Z0-9:/\\_.-]+$";
+  return tIsValidFileName(filePath, pattern ? pattern : filePathPattern);
+}
+
+bool taosIsBigChar(char c) {
+  if (c >= 'A' && c <= 'Z') {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool taosIsSmallChar(char c) {
+  if (c >= 'a' && c <= 'z') {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool taosIsNumberChar(char c) {
+  if (c >= '0' && c <= '9') {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool taosIsSpecialChar(char c) {
+  switch (c) {
+    case '!':
+    case '@':
+    case '#':
+    case '$':
+    case '%':
+    case '^':
+    case '&':
+    case '*':
+    case '(':
+    case ')':
+    case '-':
+    case '_':
+    case '+':
+    case '=':
+    case '[':
+    case ']':
+    case '{':
+    case '}':
+    case ':':
+    case ';':
+    case '>':
+    case '<':
+    case '?':
+    case '|':
+    case '~':
+    case ',':
+    case '.':
+    return true;
+    default:
+    return false;
+  }
 }

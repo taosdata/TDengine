@@ -127,12 +127,89 @@ class WalRetentionEnv : public ::testing::Test {
     SWalCfg cfg;
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
-    cfg.committed =-1;
+    cfg.committed = -1;
     cfg.retentionPeriod = -1;
     cfg.retentionSize = 0;
     cfg.rollPeriod = 0;
     cfg.vgId = 0;
     cfg.level = TAOS_WAL_FSYNC;
+    pWal = walOpen(pathName, &cfg);
+    ASSERT(pWal != NULL);
+  }
+
+  void TearDown() override {
+    walClose(pWal);
+    pWal = NULL;
+  }
+
+  SWal*       pWal = NULL;
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
+};
+
+class WalSkipLevel : public ::testing::Test {
+ protected:
+  static void SetUpTestCase() {
+    int code = walInit(NULL);
+    ASSERT(code == 0);
+  }
+
+  static void TearDownTestCase() { walCleanUp(); }
+
+  void walResetEnv() {
+    TearDown();
+    taosRemoveDir(pathName);
+    SetUp();
+  }
+
+  void SetUp() override {
+    SWalCfg cfg;
+    cfg.rollPeriod = -1;
+    cfg.segSize = -1;
+    cfg.committed = -1;
+    cfg.retentionPeriod = -1;
+    cfg.retentionSize = 0;
+    cfg.rollPeriod = 0;
+    cfg.vgId = 1;
+    cfg.level = TAOS_WAL_SKIP;
+    pWal = walOpen(pathName, &cfg);
+    ASSERT(pWal != NULL);
+  }
+
+  void TearDown() override {
+    walClose(pWal);
+    pWal = NULL;
+  }
+
+  SWal*       pWal = NULL;
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
+};
+
+class WalEncrypted : public ::testing::Test {
+ protected:
+  static void SetUpTestCase() {
+    int code = walInit(NULL);
+    ASSERT(code == 0);
+  }
+
+  static void TearDownTestCase() { walCleanUp(); }
+
+  void walResetEnv() {
+    TearDown();
+    taosRemoveDir(pathName);
+    SetUp();
+  }
+
+  void SetUp() override {
+    SWalCfg cfg;
+    cfg.rollPeriod = -1;
+    cfg.segSize = -1;
+    cfg.committed = -1;
+    cfg.retentionPeriod = -1;
+    cfg.retentionSize = 0;
+    cfg.rollPeriod = 0;
+    cfg.vgId = 0;
+    cfg.level = TAOS_WAL_FSYNC;
+    cfg.encryptAlgorithm = 1;
     pWal = walOpen(pathName, &cfg);
     ASSERT(pWal != NULL);
   }
@@ -202,10 +279,10 @@ TEST_F(WalKeepEnv, readOldMeta) {
   syncMeta.term = UINT64_MAX;
 
   for (int i = 0; i < 10; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
-    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen, NULL);
     ASSERT_EQ(code, TSDB_CODE_WAL_INVALID_VER);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -235,10 +312,10 @@ TEST_F(WalKeepEnv, readOldMeta) {
 TEST_F(WalCleanEnv, write) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
-    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen, NULL);
     ASSERT_EQ(code, TSDB_CODE_WAL_INVALID_VER);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -249,7 +326,7 @@ TEST_F(WalCleanEnv, write) {
 TEST_F(WalCleanEnv, rollback) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -272,7 +349,7 @@ TEST_F(WalCleanEnv, rollback) {
 TEST_F(WalCleanEnv, rollbackMultiFile) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
     if (i == 5) {
@@ -294,7 +371,7 @@ TEST_F(WalCleanEnv, rollbackMultiFile) {
 
   ASSERT_EQ(pWal->vers.lastVer, 5);
 
-  code = walAppendLog(pWal, 6, 6, syncMeta, (void*)ranStr, ranStrLen);
+  code = walAppendLog(pWal, 6, 6, syncMeta, (void*)ranStr, ranStrLen, NULL);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pWal->vers.lastVer, 6);
 
@@ -306,7 +383,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
   int code;
   int i;
   for (i = 0; i < 100; i++) {
-    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
     code = walCommit(pWal, i);
@@ -319,11 +396,11 @@ TEST_F(WalCleanDeleteEnv, roll) {
   ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
 
-  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen);
+  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
   ASSERT_NE(code, 0);
 
   for (; i < 200; i++) {
-    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
     ASSERT_EQ(code, 0);
     code = walCommit(pWal, i);
     ASSERT_EQ(pWal->vers.commitVer, i);
@@ -346,7 +423,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
     ASSERT_EQ(code, 0);
   }
   for (int i = 0; i < 1000; i++) {
@@ -373,6 +450,245 @@ TEST_F(WalKeepEnv, readHandleRead) {
   walCloseReader(pRead);
 }
 
+TEST_F(WalKeepEnv, walLogExist) {
+  walResetEnv();
+  int         code;
+  SWalReader* pRead = walOpenReader(pWal, NULL, 0);
+  ASSERT(pRead != NULL);
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  walLogExist(pWal, 0);
+  ASSERT_EQ(code, 0);
+  walCloseReader(pRead);
+}
+
+TEST_F(WalKeepEnv, walScanLogGetLastVerHeadMissMatch) {
+  walResetEnv();
+  int code;
+  do {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, 0);
+    sprintf(newStr, "%s-%d", ranStr, 0);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len, NULL);
+  } while (0);
+
+  int  i = 0;
+  char newStr[100];
+  sprintf(newStr, "%s-%d", ranStr, i);
+  int           len = strlen(newStr);
+  int64_t       offset = walGetCurFileOffset(pWal);
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+
+  pWal->writeHead.head.version = i;
+  pWal->writeHead.head.bodyLen = len;
+  pWal->writeHead.head.msgType = 0;
+  pWal->writeHead.head.ingestTs = taosGetTimestampUs();
+
+  pWal->writeHead.head.syncMeta = syncMeta;
+
+  pWal->writeHead.cksumHead = 1;
+  pWal->writeHead.cksumBody = walCalcBodyCksum(newStr, len);
+  taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead));
+  taosWriteFile(pWal->pLogFile, newStr, len);
+
+  int64_t lastVer = 0;
+  code = walScanLogGetLastVer(pWal, 0, &lastVer);
+  ASSERT_EQ(code, TSDB_CODE_WAL_CHKSUM_MISMATCH);
+}
+
+TEST_F(WalKeepEnv, walScanLogGetLastVerBodyMissMatch) {
+  walResetEnv();
+  int code;
+  do {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, 0);
+    sprintf(newStr, "%s-%d", ranStr, 0);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len, NULL);
+  } while (0);
+
+  int  i = 0;
+  char newStr[100];
+  sprintf(newStr, "%s-%d", ranStr, i);
+  int           len = strlen(newStr);
+  int64_t       offset = walGetCurFileOffset(pWal);
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+
+  pWal->writeHead.head.version = i;
+  pWal->writeHead.head.bodyLen = len;
+  pWal->writeHead.head.msgType = 0;
+  pWal->writeHead.head.ingestTs = taosGetTimestampUs();
+
+  pWal->writeHead.head.syncMeta = syncMeta;
+
+  pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
+  pWal->writeHead.cksumBody = 1;
+  taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead));
+  taosWriteFile(pWal->pLogFile, newStr, len);
+
+  int64_t lastVer = 0;
+  code = walScanLogGetLastVer(pWal, 0, &lastVer);
+  ASSERT_EQ(code, TSDB_CODE_WAL_CHKSUM_MISMATCH);
+}
+
+TEST_F(WalKeepEnv, walCheckAndRepairIdxFile) {
+  walResetEnv();
+  int code;
+  do {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, 0);
+    sprintf(newStr, "%s-%d", ranStr, 0);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len, NULL);
+  } while (0);
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  for (int i = 1; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    pWal->writeHead.head.version = i;
+    pWal->writeHead.head.bodyLen = len;
+    pWal->writeHead.head.msgType = 0;
+    pWal->writeHead.head.ingestTs = taosGetTimestampUs();
+    pWal->writeHead.head.syncMeta = syncMeta;
+    pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
+    pWal->writeHead.cksumBody = walCalcBodyCksum(newStr, len);
+    taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead));
+    taosWriteFile(pWal->pLogFile, newStr, len);
+  }
+  pWal->vers.lastVer = 99;
+  pFileInfo->lastVer = 99;
+  code = walCheckAndRepairIdx(pWal);
+  ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalKeepEnv, walRestoreFromSnapshot1) {
+  walResetEnv();
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  code = walRestoreFromSnapshot(pWal, 50);
+  ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalKeepEnv, walRestoreFromSnapshot2) {
+  walResetEnv();
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  SWalRef* ref = walOpenRef(pWal);
+  ref->refVer = 10;
+  code = walRestoreFromSnapshot(pWal, 99);
+  ASSERT_EQ(code, -1);
+}
+
+TEST_F(WalKeepEnv, walRollback) {
+  walResetEnv();
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  code = walRollback(pWal, -1);
+  ASSERT_EQ(code, TSDB_CODE_WAL_INVALID_VER);
+  pWal->vers.lastVer = 50;
+  pWal->vers.commitVer = 40;
+  pWal->vers.snapshotVer = 40;
+  SWalFileInfo* fileInfo = walGetCurFileInfo(pWal);
+
+  code = walRollback(pWal, 48);
+  ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalKeepEnv, walChangeWrite) {
+  walResetEnv();
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walChangeWrite(pWal, 50);
+  ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalCleanEnv, walRepairLogFileTs2) {
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  for (i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  for (i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  // Try to step in ts repair logic.
+  SWalFileInfo* pFileInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 2);
+  pFileInfo->closeTs = -1;
+
+  code = walCheckAndRepairMeta(pWal);
+  ASSERT_EQ(code, 0);
+}
+
 TEST_F(WalRetentionEnv, repairMeta1) {
   walResetEnv();
   int code;
@@ -382,7 +698,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
     ASSERT_EQ(code, 0);
   }
 
@@ -428,7 +744,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
     ASSERT_EQ(code, 0);
   }
 
@@ -456,44 +772,6 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   walCloseReader(pRead);
 }
 
-class WalSkipLevel : public ::testing::Test {
- protected:
-  static void SetUpTestCase() {
-    int code = walInit(NULL);
-    ASSERT(code == 0);
-  }
-
-  static void TearDownTestCase() { walCleanUp(); }
-
-  void walResetEnv() {
-    TearDown();
-    taosRemoveDir(pathName);
-    SetUp();
-  }
-
-  void SetUp() override {
-    SWalCfg cfg;
-    cfg.rollPeriod = -1;
-    cfg.segSize = -1;
-    cfg.committed =-1;
-    cfg.retentionPeriod = -1;
-    cfg.retentionSize = 0;
-    cfg.rollPeriod = 0;
-    cfg.vgId = 1;
-    cfg.level = TAOS_WAL_SKIP;
-    pWal = walOpen(pathName, &cfg);
-    ASSERT(pWal != NULL);
-  }
-
-  void TearDown() override {
-    walClose(pWal);
-    pWal = NULL;
-  }
-
-  SWal*       pWal = NULL;
-  const char* pathName = TD_TMP_DIR_PATH "wal_test";
-};
-
 TEST_F(WalSkipLevel, restart) {
   walResetEnv();
   int code;
@@ -503,11 +781,45 @@ TEST_F(WalSkipLevel, restart) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
     ASSERT_EQ(code, 0);
   }
 
   TearDown();
 
   SetUp();
+}
+
+TEST_F(WalSkipLevel, roll) {
+  int code;
+  int i;
+  for (i = 0; i < 100; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+  }
+  walBeginSnapshot(pWal, i - 1, 0);
+  walEndSnapshot(pWal);
+  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
+  ASSERT_NE(code, 0);
+  for (; i < 200; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+  }
+  code = walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(code, 0);
+  code = walEndSnapshot(pWal);
+  ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalEncrypted, write) {
+  int code;
+  for (int i = 0; i < 100; i++) {
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, NULL);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(pWal->vers.lastVer, i);
+  }
+  code = walSaveMeta(pWal);
+  ASSERT_EQ(code, 0);
 }

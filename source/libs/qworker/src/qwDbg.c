@@ -61,6 +61,10 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
 
       break;
     case JOB_TASK_STATUS_SUCC:
+    if (newStatus == JOB_TASK_STATUS_PART_SUCC) {
+        QW_TASK_DLOG("task status update from %s to %s", jobTaskStatusStr(oriStatus), jobTaskStatusStr(newStatus));
+        return TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS;
+      }
       if (newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_FAIL) {
         QW_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
@@ -96,7 +100,7 @@ void qwDbgDumpSchInfo(SQWorker *mgmt, SQWSchStatus *sch, int32_t i) {
   int32_t taskNum = taosHashGetSize(sch->tasksHash);
   QW_DLOG("***The %dth scheduler status, hbBrokenTs:%" PRId64 ",taskNum:%d", i, sch->hbBrokenTs, taskNum);
 
-  uint64_t qId, cId, tId;
+  uint64_t qId, cId, tId, sId = 0;
   int32_t  eId;
   SQWTaskStatus *pTask = NULL;
   void *pIter = taosHashIterate(sch->tasksHash, NULL);
@@ -118,19 +122,20 @@ void qwDbgDumpTasksInfo(SQWorker *mgmt) {
 
   int32_t i = 0;
   SQWTaskCtx *ctx = NULL;
-  uint64_t qId, cId, tId;
+  uint64_t qId, cId, tId, sId;
   int32_t  eId;
   void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     ctx = (SQWTaskCtx *)pIter;
     void       *key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, cId, tId, eId);
+    sId = ctx->sId;
     
     QW_TASK_DLOG("%p lock:%x, phase:%d, type:%d, explain:%d, needFetch:%d, localExec:%d, queryMsgType:%d, "
-      "sId:%" PRId64 ", level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "
+      "level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "
       "rspCode:%x, affectedRows:%" PRId64 ", taskHandle:%p, sinkHandle:%p, tbNum:%d, events:%d,%d,%d,%d,%d",
       ctx, ctx->lock, ctx->phase, ctx->taskType, ctx->explain, ctx->needFetch, ctx->localExec, ctx->queryMsgType,
-      ctx->sId, ctx->level, ctx->queryGotData, ctx->queryRsped, ctx->queryEnd, ctx->queryContinue, 
+      ctx->level, ctx->queryGotData, ctx->queryRsped, ctx->queryEnd, ctx->queryContinue, 
       ctx->queryInQueue, ctx->rspCode, ctx->affectedRows, ctx->taskHandle, ctx->sinkHandle, (int32_t)taosArrayGetSize(ctx->tbInfo),
       ctx->events[QW_EVENT_CANCEL], ctx->events[QW_EVENT_READY], 
       ctx->events[QW_EVENT_FETCH], ctx->events[QW_EVENT_DROP], ctx->events[QW_EVENT_CQUERY]);
@@ -167,6 +172,37 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
   qwDbgDumpTasksInfo(mgmt);
 }
 
+void qwDbgDumpJobsInfo(void) {
+  if (!gQWDebug.dumpEnable) {
+    return;
+  }
+
+  qDebug("total remain job num %d, task initNum:%" PRId64 " - %" PRId64 ", task destroyNum:%" PRId64 " - %" PRId64 " - %" PRId64, 
+      taosHashGetSize(gQueryMgmt.pJobInfo), atomic_load_64(&gQueryMgmt.stat.taskInitNum), atomic_load_64(&gQueryMgmt.stat.taskRunNum), 
+      atomic_load_64(&gQueryMgmt.stat.taskExecDestroyNum), atomic_load_64(&gQueryMgmt.stat.taskSinkDestroyNum),
+      atomic_load_64(&gQueryMgmt.stat.taskDestroyNum));
+
+  size_t keyLen = 0;
+  char* id = NULL;
+  int32_t jobIdx = 0;
+  SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
+  while (NULL != pJob) {
+    qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " the %dth remain job", pJob->memInfo->jobId, pJob->memInfo->clientId, jobIdx++);
+
+    int32_t sessionIdx = 0;
+    SQWSessionInfo* pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, NULL);
+    while (NULL != pSession) {
+      qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d the %dth remain session", 
+          pSession->qId, pSession->sId, pSession->cId, pSession->tId, pSession->eId, sessionIdx++);
+
+      pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, pSession);    
+    }
+
+    pJob = (SQWJobInfo *)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
+  }
+}
+
+
 int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code, SEpSet *pEpSet) {
   int32_t contLen = 0;
   char   *rsp = NULL;
@@ -201,7 +237,7 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
 
   tmsgSendRsp(&rpcRsp);
 
-  qDebug("response %s msg, code: %s", TMSG_INFO(rspType), tstrerror(code));
+  qDebug("response %s msg, code:%s", TMSG_INFO(rspType), tstrerror(code));
 
   return TSDB_CODE_SUCCESS;
 }

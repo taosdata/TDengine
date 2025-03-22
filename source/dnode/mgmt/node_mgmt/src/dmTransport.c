@@ -119,7 +119,7 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
 static void dmUpdateAnalFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   SRetrieveAnalAlgoRsp rsp = {0};
   if (tDeserializeRetrieveAnalAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
-    taosAnalUpdate(rsp.ver, rsp.hash);
+    taosAnalyUpdate(rsp.ver, rsp.hash);
     rsp.hash = NULL;
   }
   tFreeRetrieveAnalAlgoRsp(&rsp);
@@ -164,6 +164,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
     case TDMT_VND_SUBMIT_RSP:
+    case TDMT_MND_GET_DB_INFO_RSP:
       code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:
@@ -214,8 +215,6 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   } else if ((pRpc->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRpc->code == TSDB_CODE_RPC_BROKEN_LINK) &&
              (!IsReq(pRpc)) && (pRpc->pCont == NULL)) {
     dGError("msg:%p, type:%s pCont is NULL, err: %s", pRpc, TMSG_INFO(pRpc->msgType), tstrerror(pRpc->code));
-    code = pRpc->code;
-    goto _OVER;
   }
 
   if (pHandle->defaultNtype == NODE_END) {
@@ -256,7 +255,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pRpc->info.wrapper = pWrapper;
 
-  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
+  EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
+  if (IsReq(pRpc) && pRpc->msgType != TDMT_SYNC_HEARTBEAT && pRpc->msgType != TDMT_SYNC_HEARTBEAT_REPLY)
+    itype = RPC_QITEM;
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) goto _OVER;
 
@@ -370,7 +371,9 @@ static inline int32_t dmSendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 
 static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) { (void)rpcRegisterBrokenLinkArg(pMsg); }
 
-static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { (void)rpcReleaseHandle(pHandle, type); }
+static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type, int32_t status) {
+  (void)rpcReleaseHandle(pHandle, type, status);
+}
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_MNODE_NOT_FOUND ||

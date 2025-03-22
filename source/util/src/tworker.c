@@ -256,7 +256,7 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
   return NULL;
 }
 
-STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem fp) {
+STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem fp, int32_t minNum) {
   int32_t     code;
   STaosQueue *queue;
 
@@ -280,7 +280,10 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
   int32_t queueNum = taosGetQueueNumber(pool->qset);
   int32_t curWorkerNum = taosArrayGetSize(pool->workers);
   int32_t dstWorkerNum = ceilf(queueNum * pool->ratio);
-  if (dstWorkerNum < 2) dstWorkerNum = 2;
+
+  if (dstWorkerNum < minNum) {
+    dstWorkerNum = minNum;
+  }
 
   // spawn a thread to process queue
   while (curWorkerNum < dstWorkerNum) {
@@ -822,6 +825,8 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
 
 int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
   int32_t code;
+
+  pool->exit = false;
 
   (void)taosThreadMutexInit(&pool->poolLock, NULL);
   (void)taosThreadMutexInit(&pool->backupLock, NULL);

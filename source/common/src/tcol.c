@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include "tcol.h"
 #include "tcompression.h"
 #include "tutil.h"
@@ -61,8 +62,9 @@ uint8_t getDefaultEncode(uint8_t type) {
       return TSDB_COLVAL_ENCODE_DISABLED;
     case TSDB_DATA_TYPE_VARBINARY:
       return TSDB_COLVAL_ENCODE_DISABLED;
+    case TSDB_DATA_TYPE_DECIMAL64:
     case TSDB_DATA_TYPE_DECIMAL:
-      return TSDB_COLVAL_ENCODE_DELTAD;
+      return TSDB_COLVAL_ENCODE_DISABLED;
     case TSDB_DATA_TYPE_BLOB:
       return TSDB_COLVAL_ENCODE_SIMPLE8B;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -109,8 +111,9 @@ uint16_t getDefaultCompress(uint8_t type) {
       return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_VARBINARY:
       return TSDB_COLVAL_COMPRESS_ZSTD;
+    case TSDB_DATA_TYPE_DECIMAL64:
     case TSDB_DATA_TYPE_DECIMAL:
-      return TSDB_COLVAL_COMPRESS_LZ4;
+      return TSDB_COLVAL_COMPRESS_ZSTD;
     case TSDB_DATA_TYPE_BLOB:
       return TSDB_COLVAL_COMPRESS_LZ4;
     case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -267,7 +270,7 @@ bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(encode)) {
-    strncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
   return checkColumnEncode(encode) && validColEncode(type, columnEncodeVal(encode));
@@ -284,7 +287,7 @@ bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(compress)) {
-    strncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
 
@@ -306,7 +309,7 @@ bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnLevelOrSetDefault(uint8_t type, char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(level)) {
-    strncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
   return checkColumnLevel(level) && validColCompressLevel(type, columnLevelVal(level));
@@ -330,7 +333,7 @@ void setColLevel(uint32_t* compress, uint8_t level) {
 
 int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
                                uint32_t* compress) {
-  if(compress == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  if (compress == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (check && !validColEncode(type, encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   setColEncode(compress, encode);
 
@@ -347,8 +350,12 @@ int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressTy
   return TSDB_CODE_SUCCESS;
 }
 
-bool useCompress(uint8_t tableType) {
+bool withExtSchema(uint8_t tableType) {
   return TSDB_SUPER_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_CHILD_TABLE == tableType;
+}
+
+bool hasRefCol(uint8_t tableType) {
+  return TSDB_VIRTUAL_NORMAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType;
 }
 
 int8_t validColCompressLevel(uint8_t type, uint8_t level) {
@@ -412,6 +419,8 @@ int8_t validColEncode(uint8_t type, uint8_t l1) {
     return TSDB_COLVAL_ENCODE_SIMPLE8B == l1 || TSDB_COLVAL_ENCODE_XOR == l1 ? 1 : 0;
   } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
     return 1;
+  } else if (type == TSDB_DATA_TYPE_DECIMAL64 || type == TSDB_DATA_TYPE_DECIMAL) {
+    return l1 == TSDB_COLVAL_ENCODE_DISABLED ? 1 : 0;
   }
   return 0;
 }

@@ -81,8 +81,8 @@ void veriry_stmt(TAOS* taos) {
     float   f4[10];
     double  f8[10];
     char    bin[10][40];
-    char    blob[10][80];
-    char    blob2[10][80];
+    char    blob[10][1];
+    char    blob2[10][1];
   } v;
 
   int32_t* t8_len = malloc(sizeof(int32_t) * 10);
@@ -218,8 +218,14 @@ void veriry_stmt(TAOS* taos) {
     for (int j = 0; j < sizeof(v.bin[0]); ++j) {
       v.bin[i][j] = (char)(i + '0');
     }
-    strcpy(v.blob2[i], "一二三四五六七十九八");
-    strcpy(v.blob[i], "一二三四五六七八九十");
+    v.blob[i][0] = 'a' + i;
+    v.blob2[i][0] = 'A' + i;
+
+    // v.blob2[i] = malloc(strlen("一二三四五六七十九八"));
+    // v.blob[i] = malloc(strlen("十九八七六五四三二一"));
+
+    // strcpy(v.blob2[i], "一二三四五六七十九八");
+    // strcpy(v.blob[i], "十九八七六五四三二一");
 
     t8_len[i] = sizeof(int8_t);
     t16_len[i] = sizeof(int16_t);
@@ -228,10 +234,9 @@ void veriry_stmt(TAOS* taos) {
     float_len[i] = sizeof(float);
     double_len[i] = sizeof(double);
     bin_len[i] = sizeof(v.bin[0]);
-    blob_len[i] = (int32_t)strlen(v.blob[i]);
-    blob_len2[i] = (int32_t)strlen(v.blob2[i]);
+    blob_len[i] = sizeof(char);
+    blob_len2[i] = sizeof(char);
   }
-
   char*            tbname = "m1";
   TAOS_STMT2_BIND* bind_cols[1] = {&params[0]};
   TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, &bind_cols[0]};
@@ -252,10 +257,10 @@ void veriry_stmt(TAOS* taos) {
   }
   printf("param_count: %d\n", param_count);
   */
-  TAOS_FIELD_E* fields = NULL;
+  TAOS_FIELD_ALL* fields = NULL;
   int           field_count = -1;
   start = clock();
-  code = taos_stmt2_get_fields(stmt, TAOS_FIELD_COL, &field_count, NULL);
+  code = taos_stmt2_get_fields(stmt, &field_count, NULL);
   end = clock();
   printf("get fields time:%f\n", (double)(end - start) / CLOCKS_PER_SEC);
   if (code != 0) {

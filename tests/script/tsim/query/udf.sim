@@ -8,7 +8,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c udf -v 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sql alter user root pass 'taosdata2'
+sql alter user root pass '12s34(*&xx'
 system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode1 -s start
 

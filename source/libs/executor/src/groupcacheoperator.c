@@ -384,7 +384,7 @@ void freeGcBlkBufInfo(void* ptr) {
 static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstreamCtx* pCtx, SGcBlkCacheInfo* pCache, SGcBlkBufInfo* pBufInfo) {
   if (0 != taosHashPut(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId), pBufInfo, sizeof(*pBufInfo))) {
     freeGcBlkBufInfo(pBufInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pBufInfo = taosHashGet(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId));
   if (NULL == pBufInfo) {
@@ -641,7 +641,7 @@ static FORCE_INLINE void initGcVgroupCtx(SOperatorInfo* pOperator, SGcVgroupCtx*
   pVgCtx->pTbList = pTbList;
   pVgCtx->id = vgId;
   (void)snprintf(pVgCtx->fileCtx.baseFilename, sizeof(pVgCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d_%d", 
-     tsTempDir, getpid(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, downstreamId, vgId);
+     tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, downstreamId, vgId);
   pVgCtx->fileCtx.baseFilename[sizeof(pVgCtx->fileCtx.baseFilename) - 1] = 0;
 
   pVgCtx->fileCtx.baseNameLen = strlen(pVgCtx->fileCtx.baseFilename);
@@ -906,7 +906,7 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
 
   *ppGrp = taosHashGet(pGrpHash, &uid, sizeof(uid));
   if (NULL == *ppGrp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   QRY_ERR_RET(initNewGroupData(pCtx, *ppGrp, pParam->downstreamIdx, vgId, pGCache->batchFetch, pGcParam->needCache));
 
@@ -962,6 +962,7 @@ static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSD
       fakeGcParam.needCache = true;
       fakeParam.downstreamIdx = pSession->downstreamIdx;
       fakeParam.value = &fakeGcParam;
+      fakeParam.reUse = false;
       code = addNewGroupData(pOperator, &fakeParam, &pGroup, GROUP_CACHE_DEFAULT_VGID, pBlock->info.id.groupId);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
@@ -1147,12 +1148,12 @@ static int32_t groupCacheSessionWait(struct SOperatorInfo* pOperator, SGcDownstr
   if (NULL == pGroup->waitQueue) {
     pGroup->waitQueue = taosArrayInit(1, POINTER_BYTES);
     if (NULL == pGroup->waitQueue) {
-      QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      QRY_ERR_JRET(terrno);
     }
   }
   
   if (NULL == taosArrayPush(pGroup->waitQueue, &pSession)) {
-    QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_JRET(terrno);
   }
 
   if (!pSession->semInit) {
@@ -1413,7 +1414,7 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     pCtx->lastBlkUid = 0;
     pCtx->pVgTbHash = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
     if (NULL == pCtx->pVgTbHash) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     tSimpleHashSetFreeFp(pCtx->pVgTbHash, freeSGcVgroupCtx);      
 
@@ -1453,7 +1454,7 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     }
 
     (void)snprintf(pCtx->fileCtx.baseFilename, sizeof(pCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d", 
-      tsTempDir, getpid(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pCtx->id);
+      tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pCtx->id);
     pCtx->fileCtx.baseFilename[sizeof(pCtx->fileCtx.baseFilename) - 1] = 0;
     pCtx->fileCtx.baseNameLen = strlen(pCtx->fileCtx.baseFilename);
   }

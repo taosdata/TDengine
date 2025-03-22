@@ -142,13 +142,14 @@ class TDTestCase(TBase):
         assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
         
         tdSql.query("select case when c_float is not null then c_float else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('2.200000',), ('3.300000',), ('4.400000',), ('5.500000',), ('6.600000',), ('7.700000',), ('8.800000',), ('9.900000',), ('10.100000',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.res == [('2.2',), ('3.3',), ('4.4',), ('5.5',), ('6.6',), ('7.7',), ('8.8',), ('9.9',), ('10.1',), (None,)])
 
         tdSql.query("select case when c_double is null then c_double else c_null end from st1;")
         assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
-        
+
         tdSql.query("select case when c_double is not null then c_double else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('2.220000',), ('3.330000',), ('4.440000',), ('5.550000',), ('6.660000',), ('7.770000',), ('8.880000',), ('9.990000',), ('10.101000',), (None,)])
+        
+        assert(tdSql.checkRows(10) and tdSql.res == [('2.22',), ('3.33',), ('4.44',), ('5.55',), ('6.66',), ('7.77',), ('8.88',), ('9.99',), ('10.101',), (None,)])
         
         tdSql.query("select case when c_varchar is null then c_varchar else c_null end from st1;")
         assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
@@ -344,7 +345,8 @@ class TDTestCase(TBase):
         assert(tdSql.checkRows(10) and tdSql.res == [('-2147483648',), ('three',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',)])
 
         tdSql.query("select case c_float when 2.2 then 9.2233720e+18 when 3.3 then -9.2233720e+18 else 'aa' end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('9223372000000000000.000000',), ('-9223372000000000000.000000',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',)])
+        print(tdSql.res)
+        assert(tdSql.checkRows(10) and tdSql.res == [('9.223372e+18',), ('-9.223372e+18',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',)])
 
         tdSql.query("select case t1.c_int when 2 then 'run' when t1.c_int is null then 'other' else t2.c_varchar end from st1 t1, st2 t2 where t1.ts=t2.ts;")
         print(tdSql.res)

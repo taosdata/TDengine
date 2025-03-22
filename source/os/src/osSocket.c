@@ -40,10 +40,24 @@
 #if defined(DARWIN)
 #include <dispatch/dispatch.h>
 #include "osEok.h"
-#else
+#elif !defined(TD_ASTRA)
 #include <sys/epoll.h>
 #endif
 #endif
+
+#ifdef TD_ASTRA
+#ifndef __BYTE_ORDER
+#define __BYTE_ORDER _BYTE_ORDER
+#endif
+
+#ifndef __BIG_ENDIAN
+#define __BIG_ENDIAN _BIG_ENDIAN
+#endif
+
+#ifndef __LITTLE_ENDIAN
+#define __LITTLE_ENDIAN _LITTLE_ENDIAN
+#endif
+#endif // TD_ASTRA
 
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
@@ -84,7 +98,7 @@ int32_t taosCloseSocketNoCheck1(SocketFd fd) {
 #else
   int32_t code = close(fd);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return code;
@@ -143,17 +157,17 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
 #else
   int32_t code = setsockopt(pSocket->fd, level, optname, optval, (int)optlen);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return 0;
 #endif
 }
 
-const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len) {
+const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len) {
   const char *r = inet_ntop(AF_INET, &ipInt, dstStr, len);
   if (NULL == r) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   return r;
@@ -184,7 +198,7 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 
   fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (-1 == fd) {  // exception
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return false;
   }
 
@@ -205,7 +219,7 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 
   /* bind socket to server address */
   if (-1 == bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd))) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
     return false;
   }
@@ -233,15 +247,19 @@ int32_t taosBlockSIGPIPE() {
 }
 
 int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
+  int32_t code = 0;
   OS_PARAM_CHECK(fqdn);
   OS_PARAM_CHECK(ip);
+  int64_t limitMs = 1000;
+  int64_t st = taosGetTimestampMs(), cost = 0;
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
   int     iResult;
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult != 0) {
-    return TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
+    code = TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
+    goto _err;
   }
 #endif
 
@@ -260,12 +278,12 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
         inRetry = true;
         continue;
       } else if (EAI_SYSTEM == ret) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return terrno;
+        code = TAOS_SYSTEM_ERROR(ERRNO);
+        goto _err;
       }
 
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return terrno;
+      code = TAOS_SYSTEM_ERROR(ERRNO);
+      goto _err;
     }
 
     struct sockaddr    *sa = result->ai_addr;
@@ -275,8 +293,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
     *ip = ia.s_addr;
 
     freeaddrinfo(result);
-
-    return 0;
+    goto _err;
   }
 #else
   struct addrinfo hints = {0};
@@ -292,11 +309,11 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
     struct in_addr      ia = si->sin_addr;
     *ip = ia.s_addr;
     freeaddrinfo(result);
-    return 0;
+    goto _err;
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, errno, strerror(errno));
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, ERRNO, strerror(ERRNO));
     } else {
       // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
     }
@@ -305,9 +322,16 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
 #endif
 
     *ip = 0xFFFFFFFF;
-    return TSDB_CODE_RPC_FQDN_ERROR;
+    code = TSDB_CODE_RPC_FQDN_ERROR;
+    goto _err;
   }
 #endif
+_err:
+  cost = taosGetTimestampMs() - st;
+  if (cost >= limitMs) {
+    uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
+  }
+  return code;
 }
 
 int32_t taosGetFqdn(char *fqdn) {
@@ -340,8 +364,9 @@ int32_t taosGetFqdn(char *fqdn) {
 #else  // linux
 
 #endif  // linux
-
-#if defined(LINUX)
+#if defined(TD_ASTRA)
+  tstrncpy(fqdn, hostname, TD_FQDN_LEN);  
+#elif defined(LINUX)
 
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
@@ -353,7 +378,7 @@ int32_t taosGetFqdn(char *fqdn) {
       if (EAI_AGAIN == ret) {
         continue;
       } else if (EAI_SYSTEM == ret) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
         return terrno;
       }
 
@@ -386,20 +411,27 @@ int32_t taosGetFqdn(char *fqdn) {
   return 0;
 }
 
-void tinet_ntoa(char *ipstr, uint32_t ip) {
+void taosInetNtoa(char *ipstr, uint32_t ip) {
   if (ipstr == NULL) {
     return;
   }
-  (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
+  unsigned char *bytes = (unsigned char *) &ip;
+  (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
+}
+
+uint32_t taosInetAddr(const char *ipstr){
+  if (ipstr == NULL) {
+    return 0;
+  }
+  return inet_addr(ipstr);
 }
 
 int32_t taosIgnSIGPIPE() {
   sighandler_t h = signal(SIGPIPE, SIG_IGN);
   if (SIG_ERR == h) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
-
   return 0;
 }
 
@@ -415,7 +447,7 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
 #endif
 
   if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -431,10 +463,18 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   //  taosCloseSocketNoCheck1(fd);
   //  return -1;
   //}
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  uint32_t conn_timeout_ms = timeout;
+  if (0 != setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms)) || 
+      0 != setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
+    return terrno;
+  }
 #else  // Linux like systems
   uint32_t conn_timeout_ms = timeout;
   if (-1 == setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
     return terrno;
   }
@@ -490,12 +530,12 @@ uint64_t taosNtoh64(uint64_t val) {
 }
 
 int32_t taosSetSockOpt2(int32_t fd) {
-#if defined(WINDOWS) || defined(DARWIN)
+#if defined(WINDOWS) || defined(DARWIN) || defined(TD_ASTRA)
   return 0;
 #else
   int32_t ret = setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
   if (ret < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   } else {
     return 0;

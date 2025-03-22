@@ -72,6 +72,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2
 #define TD_FILE_ACCESS_WRITE_OK 0x4
+#define TD_FILE_ACCESS_EXEC_OK  0x8
 
 #define TD_TMP_FILE_PREFIX "tdengine-"
 
@@ -82,9 +83,11 @@ int32_t taosUnLockFile(TdFilePtr pFile);
 
 int32_t taosUmaskFile(int32_t maskVal);
 
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *atime);
+int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
+int32_t taosGetFileDiskID(const char *path, int64_t *diskid);
+bool    taosCheckFileDiskID(const char *path, int64_t *actDiskID, int64_t expDiskID);
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno);
-int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime);
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime);
 bool    taosCheckExistFile(const char *pathname);
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence);
@@ -127,7 +130,8 @@ size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *strea
 int    taosCloseCFile(FILE *);
 int    taosSetAutoDelFile(char *path);
 
-bool lastErrorIsFileNotExist();
+FILE   *taosOpenFileForStream(const char *path, int32_t tdFileOptions);
+bool    lastErrorIsFileNotExist();
 
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \

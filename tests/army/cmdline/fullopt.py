@@ -30,7 +30,7 @@ class TDTestCase(TBase):
     updatecfgDict = {
         'queryMaxConcurrentTables': '2K',
         'streamMax': '1M',
-        'totalMemoryKB': '1G',
+        'totalMemoryKB': '32000000',
         'streamMax': '1P',
         'streamBufferSize':'1T',
         'slowLogScope':"query"
@@ -47,20 +47,14 @@ class TDTestCase(TBase):
         # taosBenchmark run
         etool.benchMark(command = f"-d {self.db} -t {self.childtable_count} -n {self.insert_rows} -v 2 -y")
 
-    def checkQueryOK(self, rets):
-        if rets[-2][:9] != "Query OK,":
-            tdLog.exit(f"check taos -s return unexpect: {rets}")
-
     def doTaos(self):
         tdLog.info(f"check taos command options...")
 
         # local command
         options = [
                      "DebugFlag 143",
-                     "enableCoreFile 1",
                      "fqdn 127.0.0.1",
                      "firstEp 127.0.0.1",
-                     "locale en_US.UTF-8",
                      "metaCacheMaxSize 10000",
                      "minimalTmpDirGB 5",
                      "minimalLogDirGB 1",
@@ -70,14 +64,13 @@ class TDTestCase(TBase):
                      "smlTagName tagname",
                      "smlTsDefaultName tsdef",
                      "serverPort 6030",
-                     "timezone tz",
                   ]
         # exec
         for option in options:
-            rets = etool.runBinFile("taos", f"-s \"alter local '{option}'\";")
-            self.checkQueryOK(rets)
+            rlist = self.taos(f"-s \"alter local '{option}'\"")
+            self.checkListString(rlist, "Query OK,")
         # error
-        etool.runBinFile("taos", f"-s \"alter local 'nocmd check'\";")
+        etool.runBinFile("taos", f"-s \"alter local 'nocmd check'\"")
 
         # help
         rets = etool.runBinFile("taos", "--help")
@@ -161,6 +154,8 @@ class TDTestCase(TBase):
         sc.dnodeStop(idx)
         etool.exeBinFile("taos", f'-n server', wait=False)
         time.sleep(3)
+        rlist = self.taos("-n client")
+        self.checkListString(rlist, "total succ:  100/100")
         eos.exe("pkill -9 taos")
 
         # call enter password

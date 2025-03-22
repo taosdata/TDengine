@@ -1,9 +1,9 @@
 ---
-title: Reference Manual
-description: This document describes TDengine utilities.
+title: TDengine Reference
+slug: /tdengine-reference
 ---
 
-This section describes the TDengine utilities.
+The reference manual provides the most detailed introduction to TDengine itself, TDengine connectors for various languages, and built-in tools.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

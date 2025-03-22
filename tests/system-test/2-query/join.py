@@ -6,6 +6,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.tserror import *
 
 PRIMARY_COL = "ts"
 
@@ -352,7 +353,166 @@ class TDTestCase:
         tdSql.execute( f"insert into {dbname}.nt1 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )" )
         tdSql.execute( f"insert into {dbname}.nt1 values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )" )
 
-
+    def join_semantic_test(self, dbname=DBNAME):
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 semi join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 anti join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 outer join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 asof join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 window join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left semi join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left anti join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(0)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left outer join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left asof join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 left window join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right semi join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right anti join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(0)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right outer join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right asof join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 right window join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.checkRows(self.rows)
+        
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts join db1.ct1 as cy2 on ct1.ts=cy2.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 full semi join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 full anti join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 full outer join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.query("select * from db.ct1 join db.ct2 join db.ct3 on ct2.ts=ct3.ts on ct1.ts=ct2.ts")
+        tdSql.checkRows(0)
+        tdSql.execute(f'create table db.ct1_2 using db.stb1 tags ( 102 )')
+        tdSql.execute(f'create table db.ct1_3 using db.stb1 tags ( 103 )')
+        tdSql.execute(f'insert into db.ct1_2 (select * from db.ct1)')
+        tdSql.execute(f'insert into db.ct1_3 (select * from db.ct1)')
+        tdSql.query("select * from db.ct1 join db.ct1_2 join db.ct1_3 on ct1_2.ts=ct1_3.ts on ct1.ts=ct1_2.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 full asof join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 full window join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        
+        tdSql.execute("drop table db.ct1_2")
+        tdSql.execute("drop table db.ct1_3")
+        
+    def ts5863(self, dbname=DBNAME):
+        tdSql.execute(f"CREATE STABLE {dbname}.`st_quality` (`ts` TIMESTAMP, `quality` INT, `val` NCHAR(64), `rts` TIMESTAMP) \
+            TAGS (`cx` VARCHAR(10), `gyd` VARCHAR(10), `gx` VARCHAR(10), `lx` VARCHAR(10)) SMA(`ts`,`quality`,`val`)")
+        
+        tdSql.execute(f"create table {dbname}.st_q1 using {dbname}.st_quality tags ('cx', 'gyd', 'gx1', 'lx1')")
+        
+        sql1 = f"select t.val as batch_no, a.tbname as sample_point_code, min(cast(a.val as double)) as `min`, \
+            max(cast(a.val as double)) as `max`, avg(cast(a.val as double)) as `avg` from {dbname}.st_quality t \
+            left join {dbname}.st_quality a on a.ts=t.ts and a.cx=t.cx and a.gyd=t.gyd \
+            where t.ts >= 1734574900000 and t.ts <=  1734575000000   \
+            and t.tbname = 'st_q1'   \
+            and a.tbname in ('st_q2', 'st_q3') \
+            group by t.val, a.tbname"
+        tdSql.query(sql1)
+        tdSql.checkRows(0)
+        
+        tdSql.execute(f"create table {dbname}.st_q2 using {dbname}.st_quality tags ('cx2', 'gyd2', 'gx2', 'lx2')")
+        tdSql.execute(f"create table {dbname}.st_q3 using {dbname}.st_quality tags ('cx', 'gyd', 'gx3', 'lx3')")
+        tdSql.execute(f"create table {dbname}.st_q4 using {dbname}.st_quality tags ('cx', 'gyd', 'gx4', 'lx4')")
+        
+        tdSql.query(sql1)
+        tdSql.checkRows(0)
+        
+        tdSql.execute(f"insert into {dbname}.st_q1 values (1734574900000, 1, '1', 1734574900000)")
+        tdSql.query(sql1)
+        tdSql.checkRows(0)
+        tdSql.execute(f"insert into {dbname}.st_q2 values (1734574900000, 1, '1', 1734574900000)")
+        tdSql.query(sql1)
+        tdSql.checkRows(0)
+        tdSql.execute(f"insert into {dbname}.st_q3 values (1734574900000, 1, '1', 1734574900000)")
+        tdSql.query(sql1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 'st_q3')
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        
+        tdSql.execute(f"insert into {dbname}.st_q1 values (1734574900001, 2, '2', 1734574900000)")
+        tdSql.execute(f"insert into {dbname}.st_q3 values (1734574900001, 2, '2', 1734574900000)")
+        sql2 = f"select t.val as batch_no, a.tbname as sample_point_code, min(cast(a.val as double)) as `min`, \
+            max(cast(a.val as double)) as `max`, avg(cast(a.val as double)) as `avg` from {dbname}.st_quality t \
+            left join {dbname}.st_quality a on a.ts=t.ts and a.cx=t.cx and a.gyd=t.gyd \
+            where t.ts >= 1734574900000 and t.ts <=  1734575000000   \
+            and t.tbname = 'st_q1'   \
+            and a.tbname in ('st_q2', 'st_q3') \
+            group by t.val, a.tbname order by batch_no"
+        tdSql.query(sql2)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 'st_q3')
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, 'st_q3')
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, 2)
+        sql3 = f"select  min(cast(a.val as double)) as `min`  from {dbname}.st_quality t left join {dbname}.st_quality \
+            a on a.ts=t.ts and a.cx=t.cx where   t.tbname = 'st_q3' and a.tbname in ('st_q3', 'st_q2')"
+        tdSql.execute(f"insert into {dbname}.st_q1 values (1734574900002, 2, '2', 1734574900000)")
+        tdSql.execute(f"insert into {dbname}.st_q4 values (1734574900002, 2, '2', 1734574900000)")
+        tdSql.execute(f"insert into {dbname}.st_q1 values (1734574900003, 3, '3', 1734574900000)")
+        tdSql.execute(f"insert into {dbname}.st_q3 values (1734574900003, 3, '3', 1734574900000)") 
+        tdSql.query(sql3)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        sql3 = f"select  min(cast(a.val as double)) as `min`, max(cast(a.val as double)) as `max`, avg(cast(a.val as double)) as `avg`  \
+            from {dbname}.st_quality t left join {dbname}.st_quality a \
+            on a.ts=t.ts and a.cx=t.cx where   t.tbname = 'st_q3' and a.tbname in ('st_q3', 'st_q2')"
+        tdSql.query(sql3)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 3) 
+        tdSql.checkData(0, 2, 2)
+        tdSql.query(sql1)
+        tdSql.checkRows(3)
+        tdSql.query(sql2)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 'st_q3')
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, 'st_q3')
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, 2)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(2, 1, 'st_q3')
+        tdSql.checkData(2, 2, 3)
+        tdSql.checkData(2, 3, 3)
+        tdSql.checkData(2, 4, 3)     
+        
     def run(self):
         tdSql.prepare()
 
@@ -374,6 +534,8 @@ class TDTestCase:
         tdSql.execute(f"use {dbname1}")
         self.__create_tb(dbname=dbname1)
         self.__insert_data(dbname=dbname1)
+        
+        self.join_semantic_test({dbname1})
 
         tdSql.query("select ct1.c_int from db.ct1 as ct1 join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)
@@ -410,6 +572,7 @@ class TDTestCase:
         self.all_test()
         tdSql.query("select count(*) from db.ct1")
         tdSql.checkData(0, 0, self.rows)
+        self.ts5863(dbname=dbname1)
 
     def stop(self):
         tdSql.close()

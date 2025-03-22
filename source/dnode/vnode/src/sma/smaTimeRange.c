@@ -36,9 +36,13 @@ int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
 }
 
 int32_t tdProcessTSmaCreate(SSma *pSma, int64_t ver, const char *msg) {
+#ifdef USE_TSMA
   int32_t code = tdProcessTSmaCreateImpl(pSma, ver, msg);
 
   TAOS_RETURN(code);
+#else
+  return TSDB_CODE_SUCCESS;
+#endif
 }
 
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days) {
@@ -129,7 +133,7 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t ver, const char *pMsg
     pReq.schemaRow = pCfg->schemaRow;
     pReq.schemaTag = pCfg->schemaTag;
 
-    TAOS_CHECK_EXIT(metaCreateSTable(SMA_META(pSma), ver, &pReq));
+    TAOS_CHECK_EXIT(metaCreateSuperTable(SMA_META(pSma), ver, &pReq));
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_TSMA_INVALID_STAT);
   }
@@ -192,7 +196,8 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
 
     int32_t cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1;
 
-    TAOS_CHECK_EXIT(buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true, &tbData.pCreateTbReq));
+    TAOS_CHECK_EXIT(buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true, &tbData.pCreateTbReq,
+                                            ""));
 
     {
       uint64_t groupId = pDataBlock->info.id.groupId;
@@ -204,7 +209,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
           continue;
         }
 
-        if( taosArrayPush(pReq->aSubmitTbData, &tbData) == NULL) {
+        if (taosArrayPush(pReq->aSubmitTbData, &tbData) == NULL) {
           code = terrno;
           continue;
         }

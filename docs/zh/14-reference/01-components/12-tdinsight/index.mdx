@@ -60,6 +60,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 - **Databases** - 数据库个数。
 - **Connections** - 当前连接个数。
 - **DNodes/MNodes/VGroups/VNodes**：每种资源的总数和存活数。
+- **Classified Connection Counts**：当前活跃连接数，按用户、应用和 ip 分类。
 - **DNodes/MNodes/VGroups/VNodes Alive Percent**：每种资源的存活数/总数的比例，启用告警规则，并在资源存活率（1 分钟内平均健康资源比例）不足 100%时触发。
 - **Measuring Points Used**：启用告警规则的测点数用量（社区版无数据，默认情况下是健康的）。
 
@@ -145,6 +146,44 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 还有上述分类的细分维度折线图。
 
+### 预配置告警规则自动导入
+
+涛思总结用户使用经验，整理出 14 个常用的告警规则（alert rule），能够对集群关键指标进行监测并及时上报指标异常、超限等告警信息。  
+从 TDengine-server 3.3.4.3 版本（tdengine-datasource 3.6.3）开始，TDengine Datasource 支持预配置告警规则自动导入功能，用户可将 14 个告警规则一键导入 Grafana（11 及以上版本），直接使用。  
+预配置告警规则导入方法如下图所示，在 tdengine-datasource setting 界面，打开 “Load Tengine Alert” 开关，点击 “Save & test” 按钮后，插件会自动加载上述告警规则, 规则会放入以数据源名称 + “-alert” 的 grafana 告警目录中。如不需要，关闭 “Load TDengine Alert” 开关，点击 “Clear TDengine Alert” 旁边的按钮则会清除此数据源已导入的所有告警规则。 
+
+![TDengine Alert](./assets/TDengine-Alert.webp)  
+
+导入后，点击 Grafana 左侧 “Alert rules” ，可查看当前所有告警规则。 
+用户只需配置联络点（Contact points），即可获取告警通知。联络点配置方法见[告警配置](https://docs.taosdata.com/third-party/visual/grafana/#%E5%91%8A%E8%AD%A6%E9%85%8D%E7%BD%AE)。
+
+![Alert-rules](./assets/Alert-rules.webp) 
+
+14 个告警规则具体配置如下：  
+
+| 规则名称| 规则阈值| 无监控数据时的行为 | 数据扫描间隔 |持续时间 | 执行SQL              |
+| ------ | --------- | ---------------- | ----------- |------- |----------------------|
+|dnode 节点的CPU负载|均值 > 80%|触发告警|5分钟|5分钟 |`select now(),  dnode_id, last(cpu_system) as cup_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_id having first(_ts) > 0 `|
+|dnode 节点的的内存 |均值 > 60%|触发告警|5分钟|5分钟|`select now(), dnode_id, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_id`|
+|dnode 节点的磁盘容量占用 | > 80%|触发告警|5分钟|5分钟|`select now(), dnode_id, data_dir_level, data_dir_name, last(used)  / last(total)  * 100 as used from log.taosd_dnodes_data_dirs where _ts >= (now - 5m) and _ts < now partition by dnode_id, data_dir_level, data_dir_name`|
+|集群授权到期 |< 60天|触发告警|1天|0秒|`select now(), cluster_id, last(grants_expire_time) / 86400 as expire_time from log.taosd_cluster_info where  _ts >= (now - 24h)  and _ts < now  partition by cluster_id having first(_ts) > 0 `|
+|测点数达到授权测点数|>= 90%|触发告警|1天|0秒|`select  now(), cluster_id,  CASE  WHEN max(grants_timeseries_total)  > 0.0 THEN max(grants_timeseries_used)  /max(grants_timeseries_total) * 100.0   ELSE 0.0    END AS result from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id  having timetruncate(first(_ts), 1m) > 0`|
+|查询并发请求数 | > 100|不触发报警|1分钟|0秒|`select now() as ts, count(*) as slow_count from performance_schema.perf_queries`|
+|慢查询执行最长时间 （无时间窗口） |> 300秒|不触发报警|1分钟|0秒|`select now() as ts, count(*) as slow_count from performance_schema.perf_queries where exec_usec>300000000`|
+|dnode下线 |total != alive|触发告警|30秒|0秒|`select now(),  cluster_id, last(dnodes_total)  - last(dnodes_alive) as dnode_offline  from log.taosd_cluster_info where _ts >= (now -30s) and _ts < now partition by cluster_id having first(_ts) > 0`|
+|vnode下线 |total != alive|触发告警|30秒|0秒|`select now(),  cluster_id, last(vnodes_total)  - last(vnodes_alive) as vnode_offline  from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having first(_ts) > 0 `|
+|数据删除请求数 |> 0|不触发报警|30秒|0秒|``select  now(), count(`count`)  as `delete_count`  from log.taos_sql_req  where sql_type = 'delete' and _ts >= (now -30s) and _ts < now``|
+|Adapter RESTful 请求失败 |> 5|不触发报警|30秒|0秒|``select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now``|
+|Adapter WebSocket 请求失败 |> 5|不触发报警|30秒|0秒|``select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now``|
+|dnode 数据上报缺少 |< 3|触发告警|180秒|0秒|`select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0`|
+|dnode 重启 |max(update_time) > last(update_time)|触发告警|90秒|0秒|`select now(),  dnode_id, max(uptime) - last(uptime) as dnode_restart  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now  partition by dnode_id`|
+
+用户可参考上述告警规则，根据自己业务需求进行修改与完善。  
+Grafana7.5 及以下版本，Dashboards 与 Alert rules 功能合在一起，而之后的新版本两个功能是分开的。为兼容 Grafana7.5 及以下版本，TDinsight 面板中增加了 Alert Used Only 面板，仅 Grafana7.5 及以下版本需要使用。
+
+![Alert Used Only](./assets/Alert-Used-Only.webp)
+
+
 ## 升级
 下面三种方式都可以进行升级：
 - 用图形界面，若有新版本，可以在 ”TDengine Datasource“ 插件页面点击 update 升级。
@@ -155,10 +194,11 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 针对不同的安装方式，卸载时：
 - 用图形界面，在 ”TDengine Datasource“ 插件页面点击 ”Uninstall“ 卸载。
 - 通过 `TDinsight.sh` 脚本安装的 TDinsight，可以使用命令行 `TDinsight.sh -R` 清理相关资源。
-- 手动安装的 TDinsight，要完全卸载，需要清理以下内容：
+- 手动安装的 TDinsight，要完全卸载，需要按照顺序清理以下内容：
   1. Grafana 中的 TDinsight Dashboard。
-  2. Grafana 中的 Data Source 数据源。
-  3. 从插件安装目录删除 `tdengine-datasource` 插件。
+  2. Grafana 中的 Alert rules 告警规则。
+  3. Grafana 中的 Data Source 数据源。
+  4. 从插件安装目录删除 `tdengine-datasource` 插件。
 
 ## 附录
 

@@ -75,8 +75,10 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    if (syncLogReplStart(pMgr, pNode) != 0) {
-      sError("vgId:%d, failed to start log replication to dnode:%d", pNode->vgId, DID(&(pNode->replicasId[i])));
+    int32_t          ret = 0;
+    if ((ret = syncLogReplStart(pMgr, pNode)) != 0) {
+      sWarn("vgId:%d, failed to start log replication to dnode:%d since %s", pNode->vgId, DID(&(pNode->replicasId[i])),
+            tstrerror(ret));
     }
   }
 
@@ -88,11 +90,33 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   pMsg->destId = *destRaftId;
   TAOS_CHECK_RETURN(syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg));
 
+  int32_t nRef = 0;
+  if (pSyncNode != NULL) {
+    nRef = atomic_add_fetch_32(&pSyncNode->sendCount, 1);
+    if (nRef <= 0) {
+      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+    }
+  }
+
+  SSyncLogReplMgr* mgr = syncNodeGetLogReplMgr(pSyncNode, (SRaftId*)destRaftId);
+  if (mgr != NULL) {
+    nRef = atomic_add_fetch_32(&mgr->sendCount, 1);
+    if (nRef <= 0) {
+      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+    }
+  }
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
-  return syncNodeSendMsgById(destId, pSyncNode, pMsg);
+  SRaftId destIdTmp = *destId;
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(destId, pSyncNode, pMsg));
+
+  int64_t tsMs = taosGetTimestampMs();
+  syncIndexMgrSetSentTime(pSyncNode->pMatchIndex, &destIdTmp, tsMs);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
@@ -115,8 +139,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
 
     // send msg
     TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
-    STraceId* trace = &(rpcMsg.info.traceId);
-    sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
+    sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
     syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
     int32_t ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
     if (ret != 0) {

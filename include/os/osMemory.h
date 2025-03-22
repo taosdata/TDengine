@@ -25,10 +25,22 @@ extern "C" {
 #if !defined(WINDOWS)
 
 #ifndef ALLOW_FORBID_FUNC
-#define malloc  MALLOC_FUNC_TAOS_FORBID
-#define calloc  CALLOC_FUNC_TAOS_FORBID
+#ifdef malloc
+#undef malloc
+#endif
+#define malloc MALLOC_FUNC_TAOS_FORBID
+#ifdef calloc
+#undef calloc
+#endif
+#define calloc CALLOC_FUNC_TAOS_FORBID
+#ifdef realloc
+#undef realloc
+#endif
 #define realloc REALLOC_FUNC_TAOS_FORBID
-#define free    FREE_FUNC_TAOS_FORBID
+#ifdef free
+#undef free
+#endif
+#define free FREE_FUNC_TAOS_FORBID
 #ifdef strdup
 #undef strdup
 #define strdup STRDUP_FUNC_TAOS_FORBID
@@ -36,35 +48,32 @@ extern "C" {
 #endif  // ifndef ALLOW_FORBID_FUNC
 #endif  // if !defined(WINDOWS)
 
-// #define taosMemoryMalloc  malloc
-// #define taosMemoryCalloc  calloc
-// #define taosMemoryRealloc realloc
-// #define taosMemoryFree    free
-
 int32_t taosMemoryDbgInit();
 int32_t taosMemoryDbgInitRestore();
-void   *taosMemoryMalloc(int64_t size);
-void   *taosMemoryCalloc(int64_t num, int64_t size);
-void   *taosMemoryRealloc(void *ptr, int64_t size);
-char   *taosStrdup(const char *ptr);
-void    taosMemoryFree(void *ptr);
-int64_t taosMemorySize(void *ptr);
+void   *taosMemMalloc(int64_t size);
+void   *taosMemCalloc(int64_t num, int64_t size);
+void   *taosMemRealloc(void *ptr, int64_t size);
+char   *taosStrdupi(const char *ptr);
+char   *taosStrndupi(const char *ptr, int64_t size);
+void    taosMemFree(void *ptr);
+int64_t taosMemSize(void *ptr);
 void    taosPrintBackTrace();
-void    taosMemoryTrim(int32_t size);
-void   *taosMemoryMallocAlign(uint32_t alignment, int64_t size);
+int32_t taosMemTrim(int32_t size, bool* trimed);
+void   *taosMemMallocAlign(uint32_t alignment, int64_t size);
 
 #define TAOS_MEMSET(_s, _c, _n) ((void)memset(_s, _c, _n))
 #define TAOS_MEMCPY(_d, _s, _n) ((void)memcpy(_d, _s, _n))
 #define TAOS_MEMMOVE(_d, _s, _n) ((void)memmove(_d, _s, _n))
 
-#define taosMemoryFreeClear(ptr)   \
+#define taosMemFreeClear(ptr)      \
   do {                             \
     if (ptr) {                     \
-      taosMemoryFree((void *)ptr); \
+      taosMemFree((void *)ptr);    \
       (ptr) = NULL;                \
     }                              \
   } while (0)
 
+#include "osMemPool.h"  
 #define TAOS_MEMORY_REALLOC(ptr, len)          \
   do {                                         \
     void *tmp = taosMemoryRealloc(ptr, (len)); \

@@ -174,6 +174,8 @@ char*   nodesGetNameFromColumnNode(SNode* pNode);
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
 void    nodesSortList(SNodeList** pList, int32_t (*)(SNode* pNode1, SNode* pNode2));
 void    destroyFuncParam(void* pFuncStruct);
+int32_t nodesListDeduplicate(SNodeList** pList);
+
 
 #ifdef __cplusplus
 }

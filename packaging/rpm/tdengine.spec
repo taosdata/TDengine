@@ -44,6 +44,7 @@ echo version: %{_version}
 echo buildroot: %{buildroot}
 
 libfile="libtaos.so.%{_version}"
+nativelibfile="libtaosnative.so.%{_version}"
 wslibfile="libtaosws.so"
 
 # create install path, and cp file
@@ -68,20 +69,20 @@ if [ -f %{_compiledir}/test/cfg/taosadapter.service ]; then
     cp %{_compiledir}/test/cfg/taosadapter.service %{buildroot}%{homepath}/cfg
 fi
 
-if [ -f %{_compiledir}/../build-taoskeeper/config/taoskeeper.toml ]; then
-    cp %{_compiledir}/../build-taoskeeper/config/taoskeeper.toml %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_compiledir}/test/cfg/taoskeeper.toml ]; then
+    cp %{_compiledir}/test/cfg/taoskeeper.toml %{buildroot}%{homepath}/cfg ||:
 fi
 
-if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper.service ]; then
-    cp %{_compiledir}/../build-taoskeeper/taoskeeper.service %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_compiledir}/test/cfg/taoskeeper.service ]; then
+    cp %{_compiledir}/test/cfg/taoskeeper.service %{buildroot}%{homepath}/cfg ||:
 fi
 
-if [ -f %{_compiledir}/../../../explorer/target/taos-explorer.service ]; then
-    cp %{_compiledir}/../../../explorer/target/taos-explorer.service %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_taosxdir}/explorer/server/examples/explorer.service ]; then
+    cp %{_taosxdir}/explorer/server/examples/explorer.service %{buildroot}%{homepath}/cfg/taos-explorer.service ||:
 fi
 
-if [ -f %{_compiledir}/../../../explorer/server/examples/explorer.toml ]; then
-    cp %{_compiledir}/../../../explorer/server/examples/explorer.toml %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_taosxdir}/explorer/server/examples/explorer.toml ]; then
+    cp %{_taosxdir}/explorer/server/examples/explorer.toml %{buildroot}%{homepath}/cfg ||:
 fi
 
 #cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
@@ -92,7 +93,7 @@ cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
-cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/taosudf                 %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../../enterprise/packaging/start-all.sh  %{buildroot}%{homepath}/bin
@@ -100,23 +101,24 @@ cp %{_compiledir}/../../enterprise/packaging/stop-all.sh  %{buildroot}%{homepath
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh
 
-if [ -f %{_compiledir}/../../../explorer/target/release/taos-explorer ]; then
-    cp %{_compiledir}/../../../explorer/target/release/taos-explorer %{buildroot}%{homepath}/bin
+if [ -f %{_taosxdir}/target/release/taos-explorer ]; then
+    cp %{_taosxdir}/target/release/taos-explorer %{buildroot}%{homepath}/bin
 fi
 
-if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper ]; then
-    cp %{_compiledir}/../build-taoskeeper/taoskeeper %{buildroot}%{homepath}/bin
+if [ -f %{_compiledir}/build/bin//taoskeeper ]; then
+    cp %{_compiledir}/build/bin//taoskeeper %{buildroot}%{homepath}/bin
 fi
 
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
+cp %{_compiledir}/build/lib/${nativelibfile}        %{buildroot}%{homepath}/driver
 [ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/util/tdef.h       %{buildroot}%{homepath}/include
+cp %{_compiledir}/../include/util/tdef.h            %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/libs/function/taosudf.h       %{buildroot}%{homepath}/include
 [ -f %{_compiledir}/build/include/taosws.h ] && cp %{_compiledir}/build/include/taosws.h            %{buildroot}%{homepath}/include ||:
 #cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
@@ -233,7 +235,7 @@ if [ $1 -eq 0 ];then
     # Remove all links
     ${csudo}rm -f ${bin_link_dir}/taos       || :
     ${csudo}rm -f ${bin_link_dir}/taosd      || :
-    ${csudo}rm -f ${bin_link_dir}/udfd       || :
+    ${csudo}rm -f ${bin_link_dir}/taosudf    || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
     ${csudo}rm -f ${bin_link_dir}/taoskeeper       || :
     ${csudo}rm -f ${bin_link_dir}/taosdump       || :
@@ -246,6 +248,8 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :  
     ${csudo}rm -f ${inc_link_dir}/taows.h     || :    
     ${csudo}rm -f ${lib_link_dir}/libtaos.so  || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosnative.so  || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosnative.so  || :
     ${csudo}rm -f ${lib_link_dir}/libtaosws.so  || :
     ${csudo}rm -f ${lib64_link_dir}/libtaosws.so  || :
 

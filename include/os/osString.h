@@ -20,14 +20,30 @@
 extern "C" {
 #endif
 
+#ifdef TD_ASTRA
+#define DISALLOW_NCHAR_WITHOUT_ICONV
+#endif
+
 typedef wchar_t TdWchar;
 typedef int32_t TdUcs4;
-#if !defined(DISALLOW_NCHAR_WITHOUT_ICONV) && defined(DARWIN)
+#if !defined(DISALLOW_NCHAR_WITHOUT_ICONV)// && defined(DARWIN)
 #include "iconv.h"
 #else
-typedef void   *iconv_t;
+typedef void *iconv_t;
 #endif
-typedef enum { M2C = 0, C2M } ConvType;
+typedef enum { M2C = 0, C2M, CM_NUM } ConvType;
+
+typedef struct {
+  iconv_t conv;
+  int8_t  inUse;
+} SConv;
+
+typedef struct {
+  SConv  *gConv[CM_NUM];
+  int32_t convUsed[CM_NUM];
+  int32_t gConvMaxNum[CM_NUM];
+  char    charset[TD_CHARSET_LEN];
+} SConvInfo;
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
@@ -55,38 +71,42 @@ typedef enum { M2C = 0, C2M } ConvType;
 #ifdef strndup
 #undef strndup
 #endif
-#define strndup     STR_TO_F_FUNC_TAOS_FORBID
+#define strndup STR_TO_F_FUNC_TAOS_FORBID
 
 #endif
 
 #define tstrncpy(dst, src, size)         \
   do {                                   \
     (void)strncpy((dst), (src), (size)); \
-    (dst)[(size) - 1] = 0;               \
+    (dst)[(size)-1] = 0;                 \
   } while (0)
 
 int64_t tsnprintf(char *dst, int64_t size, const char *format, ...);
-#define TAOS_STRCPY(_dst, _src) ((void)strcpy(_dst, _src))
+#define TAOS_STRCPY(_dst, _src)         ((void)strcpy(_dst, _src))
 #define TAOS_STRNCPY(_dst, _src, _size) ((void)strncpy(_dst, _src, _size))
-#define TAOS_STRCAT(_dst, _src) ((void)strcat(_dst, _src))
-#define TAOS_STRNCAT(_dst, _src, len) ((void)strncat(_dst, _src, len))
+#define TAOS_STRCAT(_dst, _src)         ((void)strcat(_dst, _src))
+#define TAOS_STRNCAT(_dst, _src, len)   ((void)strncat(_dst, _src, len))
 
 char   *tstrdup(const char *src);
+char   *tstrndup(const char *str, int64_t size);
 int32_t taosUcs4len(TdUcs4 *ucs4);
 int32_t taosStr2int64(const char *str, int64_t *val);
-int32_t taosStr2int16(const char *str, int16_t *val);
 int32_t taosStr2int32(const char *str, int32_t *val);
+int32_t taosStr2int16(const char *str, int16_t *val);
 int32_t taosStr2int8(const char *str, int8_t *val);
 
-int32_t taosConvInit(void);
-void    taosConvDestroy();
-iconv_t taosAcquireConv(int32_t *idx, ConvType type);
-void    taosReleaseConv(int32_t idx, iconv_t conv, ConvType type);
-int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs);
+int32_t taosStr2Uint64(const char *str, uint64_t *val);
+int32_t taosStr2Uint32(const char *str, uint32_t *val);
+int32_t taosStr2Uint16(const char *str, uint16_t *val);
+int32_t taosStr2Uint8(const char *str, uint8_t *val);
+
+iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt);
+void    taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void* charsetCxt);
+int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* charsetCxt);
 int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv);
-bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len);
-int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes);
-int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4);
+bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt);
+int32_t taosUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes);
+int32_t taosUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4);
 bool    taosValidateEncodec(const char *encodec);
 int32_t taosHexEncode(const unsigned char *src, char *dst, int32_t len, int32_t bufSize);
 int32_t taosHexDecode(const char *src, char *dst, int32_t len);
@@ -111,10 +131,16 @@ double   taosStr2Double(const char *str, char **pEnd);
 float    taosStr2Float(const char *str, char **pEnd);
 int32_t  taosHex2Ascii(const char *z, uint32_t n, void **data, uint32_t *size);
 int32_t  taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size);
-char    *taosStrndup(const char *s, int n);
-//int32_t  taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
-bool isHex(const char* z, uint32_t n);
-bool isValidateHex(const char* z, uint32_t n);
+// int32_t  taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
+bool isHex(const char *z, uint32_t n);
+bool isValidateHex(const char *z, uint32_t n);
+
+#ifdef TD_ASTRA
+static FORCE_INLINE size_t strnlen(const char *s, size_t maxlen) {
+  const char *end = (const char *)memchr(s, '\0', maxlen);
+  return end ? (size_t)(end - s) : maxlen;
+}
+#endif
 
 #ifdef __cplusplus
 }

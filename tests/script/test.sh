@@ -43,9 +43,9 @@ CODE_DIR=`pwd`
 
 IN_TDINTERNAL="community"
 if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  cd ../../..
+  pushd ../../..
 else
-  cd ../../
+  pushd ../../
 fi
 
 TOP_DIR=`pwd`
@@ -102,21 +102,27 @@ echo "dataDir            $DATA_DIR"               >> $TAOS_CFG
 echo "logDir             $LOG_DIR"                >> $TAOS_CFG
 echo "scriptDir          ${CODE_DIR}"             >> $TAOS_CFG
 echo "numOfLogLines      100000000"               >> $TAOS_CFG
-echo "rpcDebugFlag       143"                     >> $TAOS_CFG
+echo "simdebugFlag       135"                     >> $TAOS_CFG
 echo "tmrDebugFlag       131"                     >> $TAOS_CFG
-echo "cDebugFlag         143"                     >> $TAOS_CFG
-echo "udebugFlag         143"                     >> $TAOS_CFG
-echo "debugFlag          143"                     >> $TAOS_CFG
+echo "udebugFlag         135"                     >> $TAOS_CFG
+echo "rpcDebugFlag       135"                     >> $TAOS_CFG
+echo "jnidebugFlag       135"                     >> $TAOS_CFG
+echo "qdebugFlag         135"                     >> $TAOS_CFG
+echo "cDebugFlag         135"                     >> $TAOS_CFG
+echo "tqClientDebugFlag  135"                     >> $TAOS_CFG
 echo "wal                0"                       >> $TAOS_CFG
 echo "asyncLog           0"                       >> $TAOS_CFG
 echo "locale             en_US.UTF-8"             >> $TAOS_CFG
 echo "enableCoreFile     1"                       >> $TAOS_CFG
+echo "minReservedMemorySize     1024"             >> $TAOS_CFG
 echo " "                                          >> $TAOS_CFG
 
 ulimit -n 600000
 ulimit -c unlimited
 
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
+
+popd
 
 if [ -n "$FILE_NAME" ]; then
   echo "------------------------------------------------------------------------"

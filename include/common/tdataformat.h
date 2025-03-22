@@ -43,6 +43,8 @@ typedef struct SColData   SColData;
 
 typedef struct SRowKey      SRowKey;
 typedef struct SValueColumn SValueColumn;
+struct SColumnDataAgg;
+typedef struct SColumnDataAgg* SColumnDataAggPtr;
 
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
@@ -95,13 +97,13 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
-#define tRowGetKey(_pRow, _pKey)           \
-  do {                                     \
-    (_pKey)->ts = (_pRow)->ts;             \
-    (_pKey)->numOfPKs = 0;                 \
-    if ((_pRow)->numOfPKs > 0) {           \
-      tRowGetPrimaryKey((_pRow), (_pKey)); \
-    }                                      \
+#define tRowGetKey(_pRow, _pKey)                       \
+  do {                                                 \
+    (_pKey)->ts = taosGetInt64Aligned(&((_pRow)->ts)); \
+    (_pKey)->numOfPKs = 0;                             \
+    if ((_pRow)->numOfPKs > 0) {                       \
+      tRowGetPrimaryKey((_pRow), (_pKey));             \
+    }                                                  \
   } while (0)
 
 // SValueColumn ================================
@@ -154,7 +156,7 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
-int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
+int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf, void *charsetCxt);
 
 // SColData ================================
 typedef struct {
@@ -173,6 +175,8 @@ typedef struct {
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);
+typedef int32_t (*checkWKBGeometryFn)(const unsigned char *geoWKB, size_t nGeom);
+typedef int32_t (*initGeosFn)();
 
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
@@ -180,26 +184,29 @@ void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 void    tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key);
 
-extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
+extern void (*tColDataCalcSMA[])(SColData *pColData, SColumnDataAggPtr pAggs);
 
 int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer *output, SBuffer *assist);
 int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *colData, SBuffer *assist);
 
 // for stmt bind
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                               checkWKBGeometryFn cgeos);
 int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data);
 // for encode/decode
-int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
-int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
+int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
+int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
+int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
 // STRUCT ================================
 struct STColumn {
@@ -239,6 +246,8 @@ typedef struct {
   uint32_t offset;
 } SPrimaryKeyIndex;
 
+#define DATUM_MAX_SIZE 16
+
 struct SValue {
   int8_t type;
   union {
@@ -249,6 +258,16 @@ struct SValue {
     };
   };
 };
+
+#define VALUE_GET_DATUM(pVal, type)  \
+  (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) ? (pVal)->pData : (void*)&(pVal)->val
+
+#define VALUE_GET_TRIVIAL_DATUM(pVal) ((pVal)->val)
+#define VALUE_SET_TRIVIAL_DATUM(pVal, v) (pVal)->val = v
+
+void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len);
+void valueCloneDatum(SValue *pDst, const SValue *pSrc, int8_t type);
+void valueClearDatum(SValue *pVal, int8_t type);
 
 #define TD_MAX_PK_COLS 2
 struct SRowKey {
@@ -375,10 +394,11 @@ typedef struct {
   TAOS_MULTI_BIND *bind;
 } SBindInfo;
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                          SArray *rowArray);
+                          SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 // stmt2 binding
-int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen);
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                                checkWKBGeometryFn cgeos);
 
 typedef struct {
   int32_t          columnId;
@@ -388,7 +408,7 @@ typedef struct {
 } SBindInfo2;
 
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray);
+                           SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 #endif
 

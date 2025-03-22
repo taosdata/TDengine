@@ -45,7 +45,7 @@ var dnodeEpLen = strconv.Itoa(255)
 
 var CreateClusterInfoSql = "create table if not exists cluster_info (" +
 	"ts timestamp, " +
-	"first_ep binary(134), " +
+	"first_ep binary(255), " +
 	"first_ep_dnode_id int, " +
 	"version binary(12), " +
 	"master_uptime float, " +

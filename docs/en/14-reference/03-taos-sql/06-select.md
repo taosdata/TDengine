@@ -1,10 +1,9 @@
 ---
-title: Select
-sidebar_label: Select
-description: This document describes how to query data in TDengine.
+title: Data Querying
+slug: /tdengine-reference/sql-manual/query-data
 ---
 
-## Syntax
+## Query Syntax
 
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
@@ -24,7 +23,7 @@ SELECT [hints] [DISTINCT] [TAGS] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARA_TABLES_SORT | PARTITION_FIRST | SMALLDATA_TS_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -56,13 +55,13 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
+  | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val])
 
 interp_clause:
-    RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
+      RANGE(ts_val [, ts_val] [, surrounding_time_val]) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
@@ -85,27 +84,27 @@ order_expr:
 
 ## Hints
 
-Hints are a means of user control over query optimization for individual statements. Hints will be ignore automatically if they are not applicable to the current query statement. The specific instructions are as follows:
+Hints are a means for users to control the optimization of individual statement queries. When a Hint is not applicable to the current query statement, it will be automatically ignored. The specific instructions are as follows:
 
-- Hints syntax starts with `/*+` and ends with `*/`,  spaces are allowed before or after.
+- Hints syntax starts with `/*+` and ends with `*/`, spaces may exist before and after.
 - Hints syntax can only follow the SELECT keyword.
-- Each hints can contain multiple hint, separated by spaces. When multiple hints conflict or are identical, whichever comes first takes effect.
-- When an error occurs with a hint in hints, the effective hint before the error is still valid, and the current and subsequent hints are ignored.
-- hint_param_list are arguments to each hint, which varies according to each hint.
+- Each Hints can contain multiple Hints, separated by spaces. If multiple Hints conflict or are the same, the first one prevails.
+- If an error occurs in one of the Hints, the valid Hints before the error remain effective, and the current and subsequent Hints are ignored.
+- hint_param_list is the parameter list for each Hint, which varies depending on the Hint.
 
-The list of currently supported Hints is as follows:
+The currently supported Hints list is as follows:
 
-|    **Hint**   |    **Params**  |         **Comment**        |       **Scope**            |
-| :-----------: | -------------- | -------------------------- | -----------------------------------|
-| BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable           |
-| NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable           |
-| SORT_FOR_GROUP| None           | Use sort for partition, conflict with PARTITION_FIRST     | With normal column in partition by list |
-| PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
-| PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used. When there are numerous tables, each with long rows, the corresponding algorithm associated with this prompt may consume a substantial amount of memory, potentially leading to an Out Of Memory (OOM) situation. | Sorting the supertable rows by timestamp  |
-| SMALLDATA_TS_SORT| None             | When sorting the supertable rows by timestamp, if the length of query columns >= 256, and there are relatively few rows, this hint can improve performance. | Sorting the supertable rows by timestamp  |
-| SKIP_TSMA| None| To explicitly disable tsma optimization for select query|Select query with agg funcs|
+|    **Hint**   |    **Parameter**    |         **Description**           |       **Applicable Scope**         |
+| :-----------: | -------------- | -------------------------- | -----------------------------|
+| BATCH_SCAN    | None             | Use batch table reading         | Supertable JOIN statements             |
+| NO_BATCH_SCAN | None             | Use sequential table reading         | Supertable JOIN statements             |
+| SORT_FOR_GROUP| None             | Use sort method for grouping, conflicts with PARTITION_FIRST  | When partition by list includes regular columns  |
+| PARTITION_FIRST| None             | Use PARTITION to calculate groups before aggregation, conflicts with SORT_FOR_GROUP | When partition by list includes regular columns  |
+| PARA_TABLES_SORT| None             | When sorting supertable data by timestamp, use memory instead of temporary disk space. When there are many subtables and rows are large, it will use a lot of memory and may cause OOM | When sorting supertable data by timestamp  |
+| SMALLDATA_TS_SORT| None             | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance | When sorting supertable data by timestamp  |
+| SKIP_TSMA | None | Explicitly disable TSMA query optimization | Queries with Agg functions |
 
-For example:
+Examples:
 
 ```sql
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
@@ -115,61 +114,60 @@ SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 ```
 
-## Lists
+## List
 
-A query can be performed on some or all columns. Data and tag columns can all be included in the SELECT list.
+Query statements can specify some or all columns as the return results. Both data columns and tag columns can appear in the list.
 
-### Wildcards
+### Wildcard
 
-You can use an asterisk (\*) as a wildcard character to indicate all columns. For normal tables or sub-tables, the asterisk indicates only data columns. For supertables, tag columns are also included when using asterisk (\*).
+The wildcard * can be used to refer to all columns. For basic tables and subtables, only regular columns are included in the results. For supertables, tag columns are also included.
 
 ```sql
 SELECT * FROM d1001;
 ```
 
-You can use a table name as a prefix before an asterisk. For example, the following SQL statements both return all columns from the d1001 table:
+The wildcard supports table name prefixes, the following two SQL statements both return all columns:
 
 ```sql
 SELECT * FROM d1001;
 SELECT d1001.* FROM d1001;
 ```
 
-However, in a JOIN query, using a table name prefix with an asterisk returns different results. In this case, querying * returns all data in all columns in all tables (not including tags), whereas using a table name prefix returns all data in all columns in the specified table only.
+In JOIN queries, there is a difference between a prefixed *and an unprefixed*; * returns all column data from all tables (excluding tags), while a prefixed wildcard returns only the column data from that table.
 
 ```sql
 SELECT * FROM d1001, d1003 WHERE d1001.ts=d1003.ts;
 SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 ```
 
-The first of the preceding SQL statements returns all columns from the d1001 and d1003 tables, but the second of the preceding SQL statements returns all columns from the d1001 table only.
+In the above query statements, the former returns all columns from both d1001 and d1003, while the latter only returns all columns from d1001.
 
-With regard to the other SQL functions that support wildcards, the differences are as follows:
-`count(*)` only returns one column. `first`, `last`, and `last_row` return all columns.
+In the process of using SQL functions for queries, some SQL functions support wildcard operations. The difference is:
+The `count(*)` function only returns one column. The `first`, `last`, `last_row` functions return all columns.
 
 ### Tag Columns
 
-You can query tag columns in supertables and subtables and receive results in the same way as querying data columns.
+In queries involving supertables and subtables, *tag columns* can be specified, and the values of the tag columns are returned along with the data of the regular columns.
 
 ```sql
 SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
 
-### Alias Name
+### Aliases
 
-The naming rules for aliases are the same as those for columns, and it supports directly specifying Chinese aliases in UTF-8 encoding format.
+The naming rules for aliases are the same as for columns, supporting direct specification of Chinese aliases in UTF-8 encoding format.
 
+### Deduplication of Results
 
-### Distinct Values
+The `DISTINCT` keyword can be used to deduplicate one or more columns in the result set, and the columns can be either tag columns or data columns.
 
-The DISTINCT keyword returns only values that are different over one or more columns. You can use the DISTINCT keyword with tag columns and data columns.
-
-The following SQL statement returns distinct values from a tag column:
+Deduplication of tag columns:
 
 ```sql
 SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
 ```
 
-The following SQL statement returns distinct values from a data column:
+Deduplication of data columns:
 
 ```sql
 SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
@@ -177,63 +175,73 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 :::info
 
-1. Configuration parameter `maxNumOfDistinctRes` in `taos.cfg` is used to control the number of rows to output. The minimum configurable value is 100,000, the maximum configurable value is 100,000,000, the default value is 1,000,000. If the actual number of rows exceeds the value of this parameter, only the number of rows specified by this parameter will be output.
-2. It can't be guaranteed that the results selected by using `DISTINCT` on columns of `FLOAT` or `DOUBLE` are exactly unique because of the precision errors in floating point numbers.
+1. The configuration parameter maxNumOfDistinctRes in the cfg file limits the number of data rows that DISTINCT can output. The minimum value is 100000, the maximum value is 100000000, and the default value is 10000000. If the actual calculation result exceeds this limit, only a portion within this range will be output.
+2. Due to the inherent precision mechanism of floating-point numbers, using DISTINCT on FLOAT and DOUBLE columns may not guarantee the complete uniqueness of the output values under specific conditions.
 
 :::
 
-### Column Names
+### Tag Query
 
-When using `SELECT`, the column names in the result set will be the same as that in the select clause if `AS` is not used. `AS` can be used to rename the column names in the result set. For example:
+When only tag columns are queried, the `TAGS` keyword can specify the return of tag columns for all subtables. Each subtable returns one row of tag columns.
+
+Return the tag columns of all subtables:
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+```
+
+### Result Set Column Names
+
+In the `SELECT` clause, if the column names of the result set are not specified, the default column names of the result set use the expression names in the `SELECT` clause. Additionally, users can use `AS` to rename the columns in the result set. For example:
 
 ```sql
 taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 ```
 
-`AS` can't be used together with `first(*)`, `last(*)`, or `last_row(*)`.
+However, renaming individual columns is not supported for `first(*)`, `last(*)`, `last_row(*)`.
 
-### Pseudocolumns
+### Pseudo Columns
 
-**Pseudocolumn:** A pseudo-column behaves like a table column but is not actually stored in the table. You can select from pseudo-columns, but you cannot insert, update, or delete their values. A pseudo-column is also similar to a function without arguments. This section describes these pseudo-columns:
+**Pseudo Columns**: The behavior of pseudocolumns is similar to regular data columns, but they are not actually stored in the table. Pseudocolumns can be queried, but cannot be inserted, updated, or deleted. Pseudo columns are somewhat like functions without parameters. Below are the available pseudo columns:
 
 **TBNAME**
-The TBNAME pseudocolumn in a supertable contains the names of subtables within the supertable.
+`TBNAME` can be considered a special tag in a supertable, representing the table name of a subtable.
 
-The following SQL statement returns all unique subtable names and locations within the meters supertable:
+Retrieve all subtable names and related tag information from a supertable:
 
-```mysql
+```sql
 SELECT TAGS TBNAME, location FROM meters;
 ```
 
-Use the `INS_TAGS` system table in `INFORMATION_SCHEMA` to query the information for subtables in a supertable. For example, the following statement returns the name and tag values for each subtable in the `meters` supertable.
+It is recommended that users query the subtable tag information of supertables using the INS_TAGS system table under INFORMATION_SCHEMA, for example, to get all subtable names and tag values of the supertable meters:
 
-```mysql
+```sql
 SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tags WHERE stable_name='meters';
 ```
 
-The following SQL statement returns the number of subtables within the meters supertable.
+Count the number of subtables under a supertable:
 
-```mysql
+```sql
 SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 ```
 
-In the preceding two statements, only tags can be used as filtering conditions in the WHERE clause. 
+Both queries only support adding filtering conditions for tags (TAGS) in the WHERE clause.
 
-**\_QSTART and \_QEND**
+**\_QSTART/\_QEND**
 
-The \_QSTART and \_QEND pseudocolumns contain the beginning and end of the time range of a query. If the WHERE clause in a statement does not contain valid timestamps, the time range is equal to [-2^63, 2^63 - 1].
+\_qstart and \_qend represent the query time range input by the user, i.e., the time range limited by the primary key timestamp condition in the WHERE clause. If there is no valid primary key timestamp condition in the WHERE clause, the time range is [-2^63, 2^63-1].
 
-The \_QSTART and \_QEND pseudocolumns cannot be used in a WHERE clause.
+\_qstart and \_qend cannot be used in the WHERE clause.
 
-**\_WSTART, \_WEND, and \_WDURATION**
+**\_WSTART/\_WEND/\_WDURATION**
+\_wstart pseudocolumn, \_wend pseudo column, and \_wduration pseudo column
+\_wstart represents the window start timestamp, \_wend represents the window end timestamp, \_wduration represents the window duration.
 
-The \_WSTART, \_WEND, and \_WDURATION pseudocolumns indicate the beginning, end, and duration of a window.
+These three pseudocolumns can only be used in window slicing queries within time windows, and must appear after the window slicing clause.
 
-These pseudocolumns can be used only in time window-based aggregations and must occur after the aggregation clause.
+**\_c0/\_ROWTS**
 
-**\_c0 and \_ROWTS**
-
-In TDengine, the first column of all tables must be a timestamp. This column is the primary key of the table. The \_c0 and \_ROWTS pseudocolumns both represent the values of this column. These pseudocolumns enable greater flexibility and standardization. For example, you can use functions such as MAX and MIN with these pseudocolumns.
+In TDengine, the first column of all tables must be of timestamp type and serve as the primary key. The pseudocolumns `_rowts` and `_c0` both represent the value of this column. Compared to the actual primary key timestamp column, using pseudo-columns is more flexible and semantically standard. For example, they can be used with functions like max and min.
 
 ```sql
 select _rowts, max(current) from meters;
@@ -241,198 +249,204 @@ select _rowts, max(current) from meters;
 
 **\_IROWTS**
 
-The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolumn can be used to retrieve the corresponding timestamp column associated with the interpolation results.
+The `_irowts` pseudocolumn can only be used with the interp function to return the timestamp column corresponding to the interpolation result of the interp function.
 
 ```sql
 select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
 ```
 
-### TAGS Query
-
-The TAGS keyword returns only tag columns from all child tables when only tag columns are specified. One row containing tag columns is returned for each child table.
+**\_IROWTS\_ORIGIN**
+The `_irowts_origin` pseudocolumn can only be used with the interp function, is not supported in stream computing, and is only applicable for FILL types PREV/NEXT/NEAR. It returns the timestamp column of the original data used by the interp function. If there are no values within the range, it returns NULL.
 
 ```sql
-SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(NEXT);
 ```
 
 ## Query Objects
 
-`FROM` can be followed by a number of tables or super tables, or can be followed by a sub-query.
-If no database is specified as current database in use, table names must be preceded with database name, for example, `power.d1001`.
+The FROM keyword can be followed by a list of tables (supertables) or the result of a subquery.
+If the user's current database is not specified, the database name can be used before the table name to specify the database to which the table belongs. For example, using `power.d1001` to cross-database use tables.
 
-You can perform INNER JOIN statements based on the primary key. The following conditions apply:
+TDengine supports INNER JOIN based on the timestamp primary key, with the following rules:
 
-1. You can use FROM table list or an explicit JOIN clause.
-2. For standard tables and subtables, you must specify an ON condition and the condition must be equivalent to the primary key.
-3. For supertables, the ON condition must be equivalent to the primary key. In addition, the tag columns of the tables on which the INNER JOIN is performed must have a one-to-one relationship. You cannot specify an OR condition.
-4. The tables that are included in a JOIN clause must be of the same type (supertable, standard table, or subtable).
-5. You can include subqueries before and after the JOIN keyword.
-6. You cannot include a FILL clause and a JOIN clause in the same statement.
+1. Supports both FROM table list and explicit JOIN clause syntax.
+2. For basic tables and subtables, the ON condition must have and only have an equality condition on the timestamp primary key.
+3. For supertables, in addition to the equality condition on the timestamp primary key, the ON condition also requires an equality condition on the label columns that can be corresponded one-to-one, and does not support OR conditions.
+4. Tables involved in JOIN calculations must be of the same type, i.e., all must be supertables, subtables, or basic tables.
+5. Both sides of JOIN support subqueries.
+6. Does not support mixing with the FILL clause.
+
+## INTERP
+The INTERP clause is a dedicated syntax for the INTERP function (../function/#interp). When an SQL statement contains an INTERP clause, it can only query the INTERP function and cannot be used with other functions. Additionally, the INTERP clause cannot be used simultaneously with window clauses (window_clause) or group by clauses (group_by_clause). The INTERP function must be used with the RANGE, EVERY, and FILL clauses; stream computing does not support the use of RANGE but requires the use of the EVERY and FILL keywords.
+- The output time range for INTERP is specified by the RANGE(timestamp1, timestamp2) field, which must satisfy timestamp1 \<= timestamp2. Here, timestamp1 is the start value of the output time range, i.e., if the conditions for interpolation are met at timestamp1, then timestamp1 is the first record output, and timestamp2 is the end value of the output time range, i.e., the timestamp of the last record output cannot be greater than timestamp2.
+- INTERP determines the number of results within the output time range based on the EVERY(time_unit) field, starting from timestamp1 and interpolating at fixed intervals of time (time_unit value), where time_unit can be time units: 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). For example, EVERY(500a) will interpolate the specified data every 500 milliseconds.
+- INTERP determines how to interpolate at each time point that meets the output conditions based on the FILL field. For how to use the FILL clause, refer to [FILL Clause](../time-series-extensions/)
+- INTERP can interpolate at a single time point specified in the RANGE field, in which case the EVERY field can be omitted. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
+- INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in stream computing and window queries. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR).(Supported from version 3.3.4.9).
+- INTERP `RANGE` clause supports the expansion of the time range (supported from version 3.3.4.9), such as `RANGE('2023-01-01 00:00:00', 10s)` means to find data 10s before and after the time point '2023-01-01 00:00:00' for interpolation, FILL PREV/NEXT/NEAR respectively means to look for data forward/backward/around the time point, if there is no data around the time point, then use the value specified by FILL for interpolation, therefore the FILL clause must specify a value at this time. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1). Currently, only the combination of time point and time range is supported, not the combination of time interval and time range, i.e., RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h) is not supported. The specified time range rules are similar to EVERY, the unit cannot be year or month, the value cannot be 0, and cannot have quotes. When using this extension, other FILL modes except FILL PREV/NEXT/NEAR are not supported, and the EVERY clause cannot be specified.
 
 ## GROUP BY
 
-If you use a GROUP BY clause, the SELECT list can only include the following items:
+If a GROUP BY clause is specified in the statement, the SELECT list can only contain the following expressions:
 
 1. Constants
 2. Aggregate functions
-3. Expressions that are consistent with the expression following the GROUP BY clause
-4. Expressions that include the preceding expression
+3. Expressions identical to those after GROUP BY.
+4. Expressions containing the above expressions
 
-The GROUP BY clause groups each row of data by the value of the expression following the clause and returns a combined result for each group.
+The GROUP BY clause groups each row of data according to the value of the expression after GROUP BY and returns a summary row for each group.
 
-In the GROUP BY clause, columns from a table or view can be grouped by specifying the column name. These columns do not need to be included in the SELECT list.
+The GROUP BY clause can group by any column in the table or view by specifying the column name, which does not need to appear in the SELECT list.
 
-You can specify integers in GROUP BY expression to indicate the expressions in the select list used for grouping. For example, 1 indicates the first item in the select list.
+The GROUP BY clause can use positional syntax, where the position is a positive integer starting from 1, indicating the grouping by the nth expression in the SELECT list.
 
-You can specify column names in result set to indicate the expressions in the select list used for grouping.
+The GROUP BY clause can use the result set column name, indicating grouping by the specified expression in the SELECT list.
 
-When using position and result set column names for grouping in the GROUP BY clause, the corresponding expressions in the select list must not be aggregate functions.
+When using positional syntax and result set column names for grouping in the GROUP BY clause, the corresponding expressions in the SELECT list cannot be aggregate functions.
 
-The GROUP BY clause does not guarantee that the results are ordered. If you want to ensure that grouped data is ordered, use the ORDER BY clause.
-
+This clause groups rows but does not guarantee the order of the result set. To sort the groups, use the ORDER BY clause.
 
 ## PARTITION BY
 
-The PARTITION BY clause is a TDengine-specific extension to standard SQL introduced in TDengine 3.0. This clause partitions data based on the part_list and performs computations per partition.
+The PARTITION BY clause is a distinctive syntax introduced in TDengine 3.0, used to partition data based on part_list, allowing various calculations within each partition slice.
 
-PARTITION BY and GROUP BY have similar meanings. They both group data according to a specified list and then perform calculations. The difference is that PARTITION BY does not have various restrictions on the SELECT list of the GROUP BY clause. Any operation can be performed within the group (constants, aggregations, scalars, expressions, etc.). Therefore, PARTITION BY is fully compatible with GROUP BY in terms of usage. All places that use the GROUP BY clause can be replaced with PARTITION BY, there may be differences in the query results while no aggregation function in the query.
+PARTITION BY is similar in basic meaning to GROUP BY, both involving grouping data by a specified list and then performing calculations. The difference is that PARTITION BY does not have the various restrictions of the GROUP BY clause's SELECT list, allowing any operation within the group (constants, aggregates, scalars, expressions, etc.), thus PARTITION BY is fully compatible with GROUP BY, and all places using the GROUP BY clause can be replaced with PARTITION BY. Note that without aggregate queries, the results of the two may differ.
 
-Because PARTITION BY does not require returning a row of aggregated data, it can also support various window operations after grouping slices. All window operations that need to be grouped can only use the PARTITION BY clause.
+Since PARTITION BY does not require returning a single row of aggregated data, it also supports various window operations after group slicing, and all window operations requiring grouping can only use the PARTITION BY clause.
 
-For more information, see TDengine Extensions.
+See [TDengine Distinctive Queries](../time-series-extensions/)
 
 ## ORDER BY
 
-The ORDER BY keyword orders query results. If you do not include an ORDER BY clause in a query, the order of the results can be inconsistent.
+The ORDER BY clause sorts the result set. If ORDER BY is not specified, the order of the result set returned by the same query multiple times cannot be guaranteed.
 
-You can specify integers after ORDER BY to indicate the order in which you want the items in the SELECT list to be displayed. For example, 1 indicates the first item in the select list.
+ORDER BY can use positional syntax, where the position is indicated by a positive integer starting from 1, representing the expression in the SELECT list used for sorting.
 
-You can specify ASC for ascending order or DESC for descending order.
+ASC indicates ascending order, and DESC indicates descending order.
 
-You can also use the NULLS keyword to specify the position of null values. Ascending order uses NULLS LAST by default. Descending order uses NULLS FIRST by default.
+The NULLS syntax is used to specify the position of NULL values in the output of the sorting. NULLS LAST is the default for ascending order, and NULLS FIRST is the default for descending order.
 
 ## LIMIT
 
-The LIMIT keyword controls the number of results that are displayed. You can also use the OFFSET keyword to specify the result to display first. `LIMIT` and `OFFSET` are executed after `ORDER BY` in the query execution. You can include an offset in a LIMIT clause. For example, LIMIT 5 OFFSET 2 can also be written LIMIT 2, 5. Both of these clauses display the third through the seventh results.
+LIMIT controls the number of output rows, and OFFSET specifies starting from which row to begin output. The execution order of LIMIT/OFFSET is after ORDER BY. LIMIT 5 OFFSET 2 can be abbreviated as LIMIT 2, 5, both outputting data from row 3 to row 7.
 
-In a statement that includes a PARTITION BY/GROUP BY clause, the LIMIT keyword is performed on each partition/group, not on the entire set of results.
+When there is a PARTITION BY/GROUP BY clause, LIMIT controls the output within each partition slice, not the total result set output.
 
 ## SLIMIT
 
-The SLIMIT keyword is used with a PARTITION BY/GROUP BY clause to control the number of partitions/groups that are displayed. You can include an offset in a SLIMIT clause. For example, SLIMIT 5 OFFSET 2 can also be written LIMIT 2, 5. Both of these clauses display the third through the seventh partitions/groups.
+SLIMIT is used with the PARTITION BY/GROUP BY clause to control the number of output slices. SLIMIT 5 SOFFSET 2 can be abbreviated as SLIMIT 2, 5, both indicating output from the 3rd to the 7th slice.
 
-Note: If you include an ORDER BY clause, only one partition/group can be displayed.
+Note that if there is an ORDER BY clause, only one slice is output.
 
-## Special Query
+## Special Features
 
-Some special query functions can be invoked without `FROM` sub-clause.
+Some special query functions can be executed without using the FROM clause.
 
-### Obtain Current Database
+### Get Current Database
 
-The following SQL statement returns the current database. If a database has not been specified on login or with the `USE` command, a null value is returned.
+The following command retrieves the current database with database(). If no default database was specified at login, and the `USE` command was not used to switch databases, it returns NULL.
 
 ```sql
 SELECT DATABASE();
 ```
 
-### Obtain Current Version
+### Get Server and Client Version Numbers
 
 ```sql
 SELECT CLIENT_VERSION();
 SELECT SERVER_VERSION();
 ```
 
-### Obtain Server Status
+### Get Server Status
 
-The following SQL statement returns the status of the TDengine server. An integer indicates that the server is running normally. An error code indicates that an error has occurred. This statement can also detect whether a connection pool or third-party tool is connected to TDengine properly. By using this statement, you can ensure that connections in a pool are not lost due to an incorrect heartbeat detection statement.
+Server status check statement. If the server is normal, it returns a number (e.g., 1). If the server is abnormal, it returns an error code. This SQL syntax is compatible with connection pools checking the status of TDengine and third-party tools checking the status of database servers. It can also prevent connection pool disconnections caused by incorrect heartbeat check SQL statements.
 
 ```sql
 SELECT SERVER_STATUS();
 ```
 
-### Obtain Current Time
+### Get Current Time
 
 ```sql
 SELECT NOW();
 ```
 
-### Obtain Current Date
+### Get Current Date
 
 ```sql
 SELECT TODAY();
 ```
 
-### Obtain Current Time Zone
+### Get Current Time Zone
 
 ```sql
 SELECT TIMEZONE();
 ```
 
-### Obtain Current User
+### Get Current User
 
 ```sql
 SELECT CURRENT_USER();
 ```
 
-## Regular Expression
+## Regular Expression Filtering
 
 ### Syntax
 
-```txt
+```text
 WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 ```
 
-### Specification
+### Regular Expression Standards
 
-TDengine supports POSIX regular expression syntax. For more information, see [Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html).
+Ensure that the regular expressions used comply with the POSIX standards, specific standards can be found at [Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
 
-### Restrictions
+### Usage Restrictions
 
-Regular expression filtering is supported only on table names (TBNAME), BINARY tags, and NCHAR tags. Regular expression filtering cannot be performed on data columns.
+Regular expression filtering can only be applied to table names (i.e., tbname filtering), binary/nchar type values.
 
-A regular expression string cannot exceed 128 bytes. You can configure this value by modifying the maxRegexStringLen parameter on the TDengine Client. The modified value takes effect when the client is restarted.
+The length of the regular match string cannot exceed 128 bytes. You can set and adjust the maximum allowed regular match string length through the parameter *maxRegexStringLen*, which is a client configuration parameter and requires a restart to take effect.
 
-## CASE Expressions
+## CASE Expression
 
 ### Syntax
 
-```txt
+```text
 CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
 CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
 ```
 
 ### Description
-CASE expressions let you use IF ... THEN ... ELSE logic in SQL statements without having to invoke procedures. 
 
-The first CASE syntax returns the `result` for the first `value`=`compare_value` comparison that is true. 
+TDengine allows users to use IF ... THEN ... ELSE logic in SQL statements through CASE expressions.
 
-The second syntax returns the `result` for the first `condition` that is true. 
+The first CASE syntax returns the result where the first value equals compare_value, if no compare_value matches, it returns the result after ELSE, if there is no ELSE part, it returns NULL.
 
-If no comparison or condition is true, the result after ELSE is returned, or NULL if there is no ELSE part.
+The second syntax returns the result where the first condition is true. If no condition matches, it returns the result after ELSE, if there is no ELSE part, it returns NULL.
 
-The return type of the CASE expression is the result type of the first WHEN WHEN part, and the result type of the other WHEN WHEN parts and ELSE parts can be converted to them, otherwise TDengine will report an error.
+The return type of the CASE expression is the result type of the first WHEN THEN part, and the result types of the other WHEN THEN parts and the ELSE part must be convertible to it, otherwise TDengine will report an error.
 
-### Examples
+### Example
 
-A device has three status codes to display its status. The statements are as follows:
+A device has three status codes, displaying its status, the statement is as follows:
 
 ```sql
 SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
 ```
 
-The average voltage value of the smart meter is counted. When the voltage is less than 200 or more than 250, it is considered that the statistics is wrong, and the value is corrected to 220. The statement is as follows:
+Calculate the average voltage of smart meters, and if the voltage is less than 200 or greater than 250, it is considered a statistical error, and the value is corrected to 220, the statement is as follows:
 
 ```sql
 SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
 ```
 
-## JOIN
+## JOIN Clause
 
-Before the 3.3.0.0 version, TDengine only supported Inner Join queries. Since the 3.3.0.0 version, TDengine supports a wider range of JOIN types, including LEFT JOIN, RIGHT JOIN, FULL JOIN, SEMI JOIN, ANTI-SEMI JOIN in traditional databases, as well as ASOF JOIN and WINDOW JOIN in time series databases. JOIN operations are supported between subtables, normal tables, super tables, and subqueries.
+Before version 3.3.0.0, TDengine only supported inner joins. From version 3.3.0.0, TDengine supports a wider range of JOIN types, including traditional database joins like LEFT JOIN, RIGHT JOIN, FULL JOIN, SEMI JOIN, ANTI-SEMI JOIN, as well as time-series specific joins like ASOF JOIN, WINDOW JOIN. JOIN operations are supported between subtables, regular tables, supertables, and subqueries.
 
-### Examples
+### Example
 
-INNER JOIN between normal tables:
+JOIN operation between regular tables:
 
 ```sql
 SELECT *
@@ -440,7 +454,7 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-LEFT JOIN between super tables:
+LEFT JOIN operation between supertables:
 
 ```sql
 SELECT *
@@ -448,7 +462,7 @@ FROM temp_stable t1 LEFT JOIN temp_stable t2
 ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-LEFT ASOF JOIN between child table and super table:
+LEFT ASOF JOIN operation between a subtable and a supertable:
 
 ```sql
 SELECT *
@@ -456,71 +470,73 @@ FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
 ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-For more information about JOIN operations, please refer to the page [TDengine Join](../join).
+For more information on JOIN operations, see the page [TDengine Join Queries](../join-queries/)
 
-## Nested Query
+## Nested Queries
 
-Nested query is also called sub query. This means that in a single SQL statement the result of inner query can be used as the data source of the outer query.
+"Nested queries," also known as "subqueries," mean that in a single SQL statement, the result of the "inner query" can be used as the computation object for the "outer query."
 
-From 2.2.0.0, unassociated sub query can be used in the `FROM` clause. Unassociated means the sub query doesn't use the parameters in the parent query. More specifically, in the `tb_name_list` of `SELECT` statement, an independent SELECT statement can be used. So a complete nested query looks like:
+Starting from version 2.2.0.0, TDengine's query engine began to support non-correlated subqueries in the FROM clause (meaning the subquery does not use parameters from the parent query). That is, in the tb_name_list position of a regular SELECT statement, an independent SELECT statement is used instead (enclosed in English parentheses), thus a complete nested query SQL statement looks like:
 
-```
+```sql
 SELECT ... FROM (SELECT ... FROM ...) ...;
 ```
 
 :::info
 
-- The result of a nested query is returned as a virtual table used by the outer query. It's recommended to give an alias to this table for the convenience of using it in the outer query.
-- Outer queries support directly referencing columns or pseudo-columns of inner queries in the form of column names or \`column names\`.
-- JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
-- The features that can be used in the inner query are the same as those that can be used in a non-nested query.
-  - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.
-- Compared to the non-nested query, the functionality that can be used in the outer query has the following restrictions:
-  - Functions
-    - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like INTERP,DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE.
-    - If the result set returned by the inner query are not sorted in order by timestamp, then functions relying on data ordered by timestamp can't be used in the outer query, like LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE. 
-    - Functions that need to scan the data twice can't be used in the outer query, like PERCENTILE.
+- The result of the inner query will serve as a "virtual table" for the outer query, and it is recommended to alias this virtual table for easy reference in the outer query.
+- The outer query supports direct referencing of columns or pseudocolumns from the inner query by column name or `column name`.
+- Both inner and outer queries support regular table-to-table/supertable joins. The result of the inner query can also participate in JOIN operations with data subtables.
+- The functional features supported by the inner query are consistent with those of non-nested queries.
+  - The ORDER BY clause in the inner query generally has no meaning and is recommended to be avoided to prevent unnecessary resource consumption.
+- Compared to non-nested queries, the outer query has the following limitations in supported functional features:
+  - Part of calculation functions:
+    - If the result data of the inner query does not provide timestamps, then functions implicitly dependent on timestamps will not work properly in the outer query. Examples include: INTERP, DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE.
+    - If the result data of the inner query is not ordered by timestamp, then functions dependent on data being ordered by time will not work properly in the outer query. Examples include: LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE.
+    - Functions that require two passes of scanning will not work properly in the outer query. Examples of such functions include: PERCENTILE.
 
 :::
 
-## UNION ALL
+:::
 
-```txt title=Syntax
+## UNION Clause
+
+```text title=Syntax
 SELECT ...
-UNION ALL SELECT ...
-[UNION ALL SELECT ...]
+UNION [ALL] SELECT ...
+[UNION [ALL] SELECT ...]
 ```
 
-TDengine supports the `UNION ALL` operation. `UNION ALL` operator can be used to combine the result set from multiple select statements as long as the result set of these select statements have exactly the same columns. `UNION ALL` doesn't remove redundant rows from multiple result sets. In a single SQL statement, at most 100 `UNION ALL` can be supported.
+TDengine supports the UNION [ALL] operator. This means that if multiple SELECT clauses return result sets with the exact same structure (column names, column types, number of columns, order), these result sets can be combined together using UNION [ALL].
 
-### Examples
+## SQL Examples
 
-table `tb1` is created using below SQL statement:
+For the following example, the table tb1 is created with the statement:
 
-```
+```sql
 CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
 ```
 
-The rows in the past one hour in `tb1` can be selected using below SQL statement:
+Query all records from tb1 for the past hour:
 
-```
+```sql
 SELECT * FROM tb1 WHERE ts >= NOW - 1h;
 ```
 
-The rows between 2018-06-01 08:00:00.000 and 2018-06-02 08:00:00.000 and col3 ends with 'nny' can be selected in the descending order of timestamp using below SQL statement:
+Query the table tb1 for the time range from 2018-06-01 08:00:00.000 to 2018-06-02 08:00:00.000, and records where the string of col3 ends with 'nny', results ordered by timestamp in descending order:
 
-```
+```sql
 SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
 ```
 
-The sum of col1 and col2 for rows later than 2018-06-01 08:00:00.000 and whose col2 is bigger than 1.2 can be selected and renamed as "complex", while only 10 rows are output from the 5th row, by below SQL statement:
+Query the sum of col1 and col2, named as complex, where the time is greater than 2018-06-01 08:00:00.000, col2 is greater than 1.2, and only output the first 10 records starting from the 5th:
 
-```
+```sql
 SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
 ```
 
-The rows in the past 10 minutes and whose col2 is bigger than 3.14 are selected and output to the result file `/home/testoutput.csv` with below SQL statement:
+Query records from the past 10 minutes where col2 is greater than 3.14, and output the results to the file `/home/testoutput.csv`:
 
-```
+```sql
 SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
 ```

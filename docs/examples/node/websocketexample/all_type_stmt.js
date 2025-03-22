@@ -95,8 +95,8 @@ async function all_type_example() {
         tagParams.setBoolean([true]);
         tagParams.setVarchar(["hello"]);
         tagParams.setNchar(["stmt"]);
-        tagParams.setGeometry([geometryData]);
         tagParams.setVarBinary([vbData]);
+        tagParams.setGeometry([geometryData]);
         await stmt.setTags(tagParams);
 
 
@@ -108,8 +108,8 @@ async function all_type_example() {
         bindParams.setBoolean([true]);
         bindParams.setVarchar(["hello"]);
         bindParams.setNchar(["stmt"]);
-        bindParams.setGeometry([geometryData]);
         bindParams.setVarBinary([vbData]);
+        bindParams.setGeometry([geometryData]);
 
         await stmt.bind(bindParams);
         await stmt.batch();

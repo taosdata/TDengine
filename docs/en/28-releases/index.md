@@ -1,6 +1,6 @@
 ---
-title: Releases
-description: This document describes TDengine products that have been released.
+title: Release History
+slug: /release-history
 ---
 
 ```mdx-code-block

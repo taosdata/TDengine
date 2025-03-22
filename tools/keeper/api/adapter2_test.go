@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -95,4 +96,39 @@ func TestAdapter2(t *testing.T) {
 	assert.Equal(t, uint32(2), data.Data[0][15])
 
 	conn.Exec(context.Background(), "drop database "+c.Metrics.Database.Name, util.GetQidOwn())
+}
+
+func Test_adapterTableSql(t *testing.T) {
+	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
+	defer conn.Close()
+
+	dbName := "db_202412031446"
+	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn())
+	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn())
+
+	conn, _ = db.NewConnectorWithDb("root", "taosdata", "127.0.0.1", 6041, dbName, false)
+	defer conn.Close()
+
+	conn.Exec(context.Background(), adapterTableSql, util.GetQidOwn())
+
+	testCases := []struct {
+		ep      string
+		wantErr bool
+	}{
+		{"", false},
+		{"hello", false},
+		{strings.Repeat("a", 128), false},
+		{strings.Repeat("a", 255), false},
+		{strings.Repeat("a", 256), true},
+	}
+
+	for i, tc := range testCases {
+		sql := fmt.Sprintf("create table d%d using adapter_requests tags ('%s', 0)", i, tc.ep)
+		_, err := conn.Exec(context.Background(), sql, util.GetQidOwn())
+		if tc.wantErr {
+			assert.Error(t, err) // [0x2653] Value too long for column/tag: endpoint
+		} else {
+			assert.NoError(t, err)
+		}
+	}
 }

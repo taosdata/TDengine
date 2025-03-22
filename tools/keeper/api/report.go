@@ -332,7 +332,7 @@ func (r *Reporter) handlerFunc() gin.HandlerFunc {
 
 		logger.Tracef("report data:%s", string(data))
 		if e := json.Unmarshal(data, &report); e != nil {
-			logger.Errorf("error occurred while unmarshal request, data:%s, error:%s", data, err)
+			logger.Errorf("error occurred while unmarshal request, data:%s, error:%v", data, e)
 			return
 		}
 		var sqls []string
@@ -384,7 +384,7 @@ func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts s
 		sqls = append(sqls, fmt.Sprintf("insert into d_info_%s using d_info tags (%d, '%s', '%s') values ('%s', '%s')",
 			ClusterID+strconv.Itoa(dnode.DnodeID), dnode.DnodeID, dnode.DnodeEp, ClusterID, ts, dnode.Status))
 		dtotal++
-		if "ready" == dnode.Status {
+		if dnode.Status == "ready" {
 			dalive++
 		}
 	}
@@ -393,8 +393,8 @@ func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts s
 		sqls = append(sqls, fmt.Sprintf("insert into m_info_%s using m_info tags (%d, '%s', '%s') values ('%s', '%s')",
 			ClusterID+strconv.Itoa(mnode.MnodeID), mnode.MnodeID, mnode.MnodeEp, ClusterID, ts, mnode.Role))
 		mtotal++
-		//LEADER FOLLOWER CANDIDATE ERROR
-		if "ERROR" != mnode.Role {
+		// LEADER FOLLOWER CANDIDATE ERROR
+		if mnode.Role != "ERROR" {
 			malive++
 		}
 	}

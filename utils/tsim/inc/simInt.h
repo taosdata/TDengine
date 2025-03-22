@@ -16,6 +16,10 @@
 #ifndef _TD_SIM_INT_H_
 #define _TD_SIM_INT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "os.h"
 
 #include "cJSON.h"
@@ -55,42 +59,14 @@
 #define FAILED_POSTFIX  ""
 #endif
 
-#define simFatal(...)                                            \
-  {                                                              \
-    if (simDebugFlag & DEBUG_FATAL) {                            \
-      taosPrintLog("SIM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
-    }                                                            \
-  }
-#define simError(...)                                            \
-  {                                                              \
-    if (simDebugFlag & DEBUG_ERROR) {                            \
-      taosPrintLog("SIM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
-    }                                                            \
-  }
-#define simWarn(...)                                           \
-  {                                                            \
-    if (simDebugFlag & DEBUG_WARN) {                           \
-      taosPrintLog("SIM WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
-    }                                                          \
-  }
-#define simInfo(...)                                      \
-  {                                                       \
-    if (simDebugFlag & DEBUG_INFO) {                      \
-      taosPrintLog("SIM ", DEBUG_INFO, 255, __VA_ARGS__); \
-    }                                                     \
-  }
-#define simDebug(...)                                               \
-  {                                                                 \
-    if (simDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("SIM ", DEBUG_DEBUG, simDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  }
-#define simTrace(...)                                               \
-  {                                                                 \
-    if (simDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("SIM ", DEBUG_TRACE, simDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  }
+// clang-format off
+#define simFatal(...) { if (simDebugFlag & DEBUG_FATAL) { taosPrintLog("SIM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
+#define simError(...) { if (simDebugFlag & DEBUG_ERROR) { taosPrintLog("SIM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
+#define simWarn(...)  { if (simDebugFlag & DEBUG_WARN)  { taosPrintLog("SIM WARN  ", DEBUG_WARN,  255, __VA_ARGS__); }}
+#define simInfo(...)  { if (simDebugFlag & DEBUG_INFO)  { taosPrintLog("SIM INFO  ", DEBUG_INFO,  255, __VA_ARGS__); }}
+#define simDebug(...) { if (simDebugFlag & DEBUG_DEBUG) { taosPrintLog("SIM DEBUG ", DEBUG_DEBUG, simDebugFlag, __VA_ARGS__); }}
+#define simTrace(...) { if (simDebugFlag & DEBUG_TRACE) { taosPrintLog("SIM TRACE ", DEBUG_TRACE, simDebugFlag, __VA_ARGS__); }}
+// clang-format on
 
 enum { SIM_SCRIPT_TYPE_MAIN, SIM_SCRIPT_TYPE_BACKGROUND };
 
@@ -161,8 +137,8 @@ typedef struct _script_t {
   int32_t           type;
   bool              killed;
   void             *taos;
-  char              rows[12];                                                         // number of rows data retrieved
-  char              cols[12];                                                        // number of columns data retrieved
+  char              rows[12];  // number of rows data retrieved
+  char              cols[12];  // number of columns data retrieved
   char              data[MAX_QUERY_ROW_NUM][MAX_QUERY_COL_NUM][MAX_QUERY_VALUE_LEN];  // query results
   char              system_exit_code[12];
   char              system_ret_content[MAX_SYSTEM_RESULT_LEN];
@@ -192,7 +168,7 @@ SScript *simParseScript(char *fileName);
 SScript *simProcessCallOver(SScript *script);
 void    *simExecuteScript(void *script);
 void     simInitsimCmdList();
-bool     simSystemInit();
+void     simSystemInit();
 void     simSystemCleanUp();
 char    *simGetVariable(SScript *script, char *varName, int32_t varLen);
 bool     simExecuteExpCmd(SScript *script, char *option);
@@ -213,5 +189,12 @@ bool     simExecuteLineInsertCmd(SScript *script, char *option);
 bool     simExecuteLineInsertErrorCmd(SScript *script, char *option);
 bool     simExecuteSetBIModeCmd(SScript *script, char *option);
 void     simVisuallizeOption(SScript *script, char *src, char *dst);
+
+int32_t simEntry(int32_t argc, char **argv);
+void    simHandleSignal(int32_t signo, void *sigInfo, void *context);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*_TD_SIM_INT_H_*/

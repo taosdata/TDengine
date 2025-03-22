@@ -236,3 +236,28 @@ sql drop view view6;
 sql drop view view7;
 sql drop view view8;
 
+sql use testb;
+sql create view viewx1 as select ts, t from (select last(ts) as ts, last(f) as f, t from st3 partition by t order by ts desc);
+sql create view viewx2 as select ts, t from (select last(dt) as ts, last(f) as f, t from st3 partition by t order by ts desc);
+sql create view viewx3 as select ts1, t from (select last(ts) as ts1, last(f) as f, t from st3 partition by t order by ts1 desc);
+sql create view viewx4 as select f, t from (select last(ts) as f, last(g) as g, t from st3 partition by t order by f desc);
+sql select * from viewx1;
+if $rows != 4 then
+  return -1
+endi
+sql select * from viewx2;
+if $rows != 4 then
+  return -1
+endi
+sql select * from viewx3;
+if $rows != 4 then
+  return -1
+endi
+sql select * from viewx4;
+if $rows != 4 then
+  return -1
+endi
+sql drop view viewx1;
+sql drop view viewx2;
+sql drop view viewx3;
+sql drop view viewx4;

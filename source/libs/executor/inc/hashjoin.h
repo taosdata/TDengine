@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+#include "executorInt.h"
+#include "operator.h"
+
 #define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
 #define HJOIN_DEFAULT_BLK_ROWS_NUM 4096
 #define HJOIN_BLK_SIZE_LIMIT 10485760
@@ -27,8 +30,7 @@ extern "C" {
 
 typedef int32_t (*hJoinImplFp)(SOperatorInfo*);
 
-
-#pragma pack(push, 1) 
+#pragma pack(push, 1)
 typedef struct SBufRowInfo {
   void*    next;
   uint16_t pageId;

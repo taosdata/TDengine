@@ -41,6 +41,7 @@ typedef struct SDataCacheEntry {
 typedef struct SDataDeleterHandle {
   SDataSinkHandle     sink;
   SDataSinkManager*   pManager;
+  SDataSinkNode*      pSinkNode;
   SDataBlockDescNode* pSchema;
   SDataDeleterNode*   pDeleter;
   SDeleterParam*      pParam;
@@ -50,6 +51,7 @@ typedef struct SDataDeleterHandle {
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  uint64_t            flags;
   TdThreadMutex       mutex;
 } SDataDeleterHandle;
 
@@ -96,7 +98,7 @@ static int32_t toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* p
     pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
   }
 
-  qDebug("delete %" PRId64 " rows, from %" PRId64 " to %" PRId64 "", pRes->affectedRows, pRes->skey, pRes->ekey);
+  qDebug("delete %" PRId64 " rows, from %" PRId64 " to %" PRId64, pRes->affectedRows, pRes->skey, pRes->ekey);
 
   pBuf->useSize += pEntry->dataLen;
 
@@ -111,14 +113,14 @@ static int32_t allocBuf(SDataDeleterHandle* pDeleter, const SInputData* pInput, 
   if (taosQueueItemSize(pDeleter->pDataBlocks) > capacity) {
     qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
            taosQueueItemSize(pDeleter->pDataBlocks));
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   pBuf->allocSize = sizeof(SDataCacheEntry) + sizeof(SDeleterRes);
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
-    qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));
+    qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(ERRNO));
     return terrno;
   }
 
@@ -257,6 +259,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDeleter->pDataBlocks);
   (void)taosThreadMutexDestroy(&pDeleter->mutex);
+  nodesDestroyNode((SNode*)pDeleter->pSinkNode);
+  pDeleter->pSinkNode = NULL;
 
   taosMemoryFree(pDeleter->pManager);
 
@@ -270,8 +274,18 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
+
+static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
+  SDataDeleterHandle* pDispatcher = (SDataDeleterHandle*)pHandle;
+
+  *pFlags = atomic_load_64(&pDispatcher->flags);
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t createDataDeleter(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle,
                           void* pParam) {
+  SDataSinkNode* pDataSink = *ppDataSink;
   int32_t code = TSDB_CODE_SUCCESS;
   if (pParam == NULL) {
     code = TSDB_CODE_QRY_INVALID_INPUT;
@@ -296,9 +310,12 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   deleter->sink.fGetData = getDataBlock;
   deleter->sink.fDestroy = destroyDataSinker;
   deleter->sink.fGetCacheSize = getCacheSize;
+  deleter->sink.fGetFlags = getSinkFlags;
   deleter->pManager = pManager;
   deleter->pDeleter = pDeleterNode;
   deleter->pSchema = pDataSink->pInputDataBlockDesc;
+  deleter->pSinkNode = pDataSink;
+  *ppDataSink = NULL;
 
   deleter->pParam = pParam;
   deleter->status = DS_BUF_EMPTY;
@@ -307,6 +324,7 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   if (code) {
     goto _end;
   }
+  deleter->flags = DS_FLAG_USE_MEMPOOL;
   code = taosThreadMutexInit(&deleter->mutex, NULL);
   if (code) {
     goto _end;
@@ -323,6 +341,9 @@ _end:
   } else {
     taosMemoryFree(pManager);
   }
+
+  nodesDestroyNode((SNode *)*ppDataSink);
+  *ppDataSink = NULL;
   
   return code;
 }

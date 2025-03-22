@@ -128,6 +128,41 @@ class TDTestCase:
         self.constant_check(database,sql1,sql2,1)
         self.constant_check(database,sql1,sql2,2)
 
+        #TS-5677
+        sql1 = "select tbname, _wstart, case when (q_tinyint >= 0) THEN 1 ELSE 0 END status from %s.stable_1  \
+            where ts < now partition by tbname  state_window(case when q_tinyint>=0 then 1 else 0 end);"  %database
+        sql2 = "select count(*), _wstart, case when (q_tinyint >= 0) THEN 1 ELSE 0 END status from %s.stable_1  \
+            where ts < now partition by tbname  state_window(case when q_tinyint>=0 then 1 else 0 end);"  %database
+        sql3 = "select tbname, max(q_int), _wstart, case when (q_tinyint >= 0) THEN 1 ELSE 0 END status from %s.stable_1  \
+            where ts < now partition by tbname  state_window(case when q_tinyint>=0 then 1 else 0 end);"  %database
+        sql3 = "select t_int, tbname, max(q_int), _wstart, case when (q_tinyint >= 0) THEN 1 ELSE 0 END status from %s.stable_1  \
+            where ts < now partition by tbname  state_window(case when q_tinyint>=0 then 1 else 0 end);"  %database
+        tdSql.query(sql1)
+        rows = tdSql.queryRows
+        tdSql.query(sql2)
+        tdSql.checkRows(rows)
+        tdSql.query(sql3)
+        tdSql.checkRows(rows)
+
+        sql1 = "select t_int, _wstart, case when (q_tinyint >= 0) THEN 1 ELSE 0 END status from %s.stable_1  \
+            where ts < now partition by t_int  state_window(case when q_tinyint>=0 then 1 else 0 end);"  %database
+        sql2 = "select count(*), _wstart, case when (q_tinyint >= 0) THEN 1 ELSE 0 END status from %s.stable_1  \
+            where ts < now partition by t_int  state_window(case when q_tinyint>=0 then 1 else 0 end);"  %database
+        tdSql.query(sql1)
+        rows = tdSql.queryRows
+        tdSql.query(sql2)
+        tdSql.checkRows(rows)
+
+        sql2 = "select t_int, count(*), _wstart, case when (q_tinyint >= 0) THEN 1 ELSE 0 END status from %s.stable_1  \
+            where ts < now partition by tbname, t_int  state_window(case when q_tinyint>=0 then 1 else 0 end);"  %database
+        sql2 = "select tbname, count(*), _wstart, case when (q_tinyint >= 0) THEN 1 ELSE 0 END status from %s.stable_1  \
+            where ts < now partition by tbname, t_int  state_window(case when q_tinyint>=0 then 1 else 0 end);"  %database
+        tdSql.query(sql1)
+        tdSql.query(sql1)
+        rows = tdSql.queryRows
+        tdSql.query(sql2)
+        tdSql.checkRows(rows)
+
     def casewhen_list(self):
         a1,a2,a3 = random.randint(-2147483647,2147483647),random.randint(-2147483647,2147483647),random.randint(-2147483647,2147483647)
         casewhen_lists = ['first  case when %d then %d end last' %(a1,a2) ,     #'first  case when 3 then 4 end last' , 

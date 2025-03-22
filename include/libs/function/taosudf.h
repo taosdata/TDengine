@@ -237,18 +237,20 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
       (void)memcpy(data->fixLenCol.data + meta->bytes * currentRow, pData, meta->bytes);
     } else {
       int32_t dataLen = varDataTLen(pData);
-      if (meta->type == TSDB_DATA_TYPE_JSON) {
-        if (*pData == TSDB_DATA_TYPE_NULL) {
-          dataLen = 0;
-        } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
-          dataLen = varDataTLen(pData + sizeof(char));
-        } else if (*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
-          dataLen = sizeof(int64_t);
-        } else if (*pData == TSDB_DATA_TYPE_BOOL) {
-          dataLen = sizeof(char);
-        }
-        dataLen += sizeof(char);
-      }
+      // This is a piece of code to help users implement udf. It is only called during testing. 
+      // Currently, the json type is not supported and will not be called.
+      // if (meta->type == TSDB_DATA_TYPE_JSON) {
+      //   if (*pData == TSDB_DATA_TYPE_NULL) {
+      //     dataLen = 0;
+      //   } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
+      //     dataLen = varDataTLen(pData + sizeof(char));
+      //   } else if (*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
+      //     dataLen = sizeof(int64_t);
+      //   } else if (*pData == TSDB_DATA_TYPE_BOOL) {
+      //     dataLen = sizeof(char);
+      //   }
+      //   dataLen += sizeof(char);
+      // }
 
       if (data->varLenCol.payloadAllocLen < data->varLenCol.payloadLen + dataLen) {
         uint32_t newSize = data->varLenCol.payloadAllocLen;
@@ -345,10 +347,10 @@ typedef int32_t (*TScriptCloseFunc)();
   extern int32_t udfDebugFlag;
   #define udfFatal(...) { if (udfDebugFlag & 1) { taosPrintLog("UDF FATAL ", 1, 255, __VA_ARGS__); }}
   #define udfError(...) { if (udfDebugFlag & 1) { taosPrintLog("UDF ERROR ", 1, 255, __VA_ARGS__); }}
-  #define udfWarn(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF WARN ",  2, 255, __VA_ARGS__); }}
-  #define udfInfo(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF ",       2, 255, __VA_ARGS__); }}
-  #define udfDebug(...) { if (udfDebugFlag & 4) { taosPrintLog("UDF ",       4, udfDebugFlag, __VA_ARGS__); }}
-  #define udfTrace(...) { if (udfDebugFlag & 8) { taosPrintLog("UDF ",       8, udfDebugFlag, __VA_ARGS__); }}
+  #define udfWarn(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF WARN  ", 2, 255, __VA_ARGS__); }}
+  #define udfInfo(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF INFO  ", 2, 255, __VA_ARGS__); }}
+  #define udfDebug(...) { if (udfDebugFlag & 4) { taosPrintLog("UDF DEBUG ", 4, udfDebugFlag, __VA_ARGS__); }}
+  #define udfTrace(...) { if (udfDebugFlag & 8) { taosPrintLog("UDF TRACE ", 8, udfDebugFlag, __VA_ARGS__); }}
 #endif
 // clang-format on
 

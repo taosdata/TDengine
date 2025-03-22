@@ -19,6 +19,8 @@
 #include "operator.h"
 #include "querytask.h"
 #include "streamexecutorInt.h"
+#include "streaminterval.h"
+#include "streamsession.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -32,11 +34,6 @@
 #define IS_MID_INTERVAL_OP(op)   ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL)
 
 #define IS_FINAL_SESSION_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION)
-#define IS_NORMAL_SESSION_OP(op)                                    \
-  ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION || \
-   (op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION)
-
-#define IS_NORMAL_STATE_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE)
 
 #define DEAULT_DELETE_MARK                 INT64_MAX
 #define STREAM_INTERVAL_OP_STATE_NAME      "StreamIntervalHistoryState"
@@ -48,22 +45,9 @@
 
 #define MAX_STREAM_HISTORY_RESULT 20000000
 
-typedef struct SStateWindowInfo {
-  SResultWindowInfo winInfo;
-  SStateKeys*       pStateKey;
-} SStateWindowInfo;
-
-typedef struct SPullWindowInfo {
-  STimeWindow window;
-  uint64_t    groupId;
-  STimeWindow calWin;
-} SPullWindowInfo;
-
 static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
-typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
-
-static int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn) {
+int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn) {
   int firstPos = 0, lastPos = num - 1, midPos = -1;
   int numOfRows = 0;
 
@@ -195,7 +179,7 @@ static void removeResults(SArray* pWins, SSHashObj* pUpdatedMap) {
   }
 }
 
-static int32_t compareWinKey(void* pKey, void* data, int32_t index) {
+int32_t compareWinKey(void* pKey, void* data, int32_t index) {
   void* pDataPos = taosArrayGet((SArray*)data, index);
   return winKeyCmprImpl(pKey, pDataPos);
 }
@@ -235,7 +219,30 @@ static void doDeleteWindow(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId)
   pAPI->stateStore.streamStateDel(pInfo->pState, &key);
 }
 
-static int32_t getChildIndex(SSDataBlock* pBlock) { return pBlock->info.childId; }
+int32_t getChildIndex(SSDataBlock* pBlock) { return pBlock->info.childId; }
+
+static void doDeleteWindowByGroupId(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  SStorageAPI*                 pAPI = &pOperator->pTaskInfo->storageAPI;
+  SStreamIntervalOperatorInfo* pInfo = pOperator->info;
+
+  SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t* pGroupIdData = (uint64_t*)pGpIdCol->pData;
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    uint64_t groupId = pGroupIdData[i];
+    void*   pIte = NULL;
+    int32_t iter = 0;
+    while ((pIte = tSimpleHashIterate(pInfo->aggSup.pResultRowHashTable, pIte, &iter)) != NULL) {
+      size_t keyLen = 0;
+      SWinKey* pKey = tSimpleHashGetKey(pIte, &keyLen);
+      if (pKey->groupId == groupId) {
+        int32_t tmpRes = tSimpleHashIterateRemove(pInfo->aggSup.pResultRowHashTable, pKey, keyLen, &pIte, &iter);
+        qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
+      }
+    }
+
+    pAPI->stateStore.streamStateDelByGroupId(pInfo->pState, groupId);
+  }
+}
 
 static int32_t doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, SSDataBlock* pBlock, SArray* pUpWins,
                                SSHashObj* pUpdatedMap, SHashObj* pInvalidWins) {
@@ -358,7 +365,7 @@ static int32_t closeStreamIntervalWindow(SSHashObj* pHashMap, STimeWindowAggSupp
     void*       chIds = taosHashGet(pPullDataMap, pWinKey, sizeof(SWinKey));
     STimeWindow win = {
         .skey = pWinKey->ts,
-        .ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1,
+        .ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1,
     };
     if (isCloseWindow(&win, pTwSup)) {
       if (chIds && pPullDataMap) {
@@ -391,13 +398,13 @@ _end:
 
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval) {
   STimeWindow w = {.skey = ts, .ekey = INT64_MAX};
-  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
   return w;
 }
 
-static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWins, int32_t* index,
+static void doBuildDeleteResult(SExecTaskInfo* pTaskInfo, SArray* pWins, int32_t* index,
                                 SSDataBlock* pBlock) {
-  doBuildDeleteResultImpl(&pInfo->stateStore, pInfo->pState, pWins, index, pBlock);
+  doBuildDeleteResultImpl(&pTaskInfo->storageAPI.stateStore, pTaskInfo->streamInfo.pState, pWins, index, pBlock);
 }
 
 void doBuildDeleteResultImpl(SStateStore* pAPI, SStreamState* pState, SArray* pWins, int32_t* index,
@@ -444,7 +451,7 @@ _end:
 
 void destroyFlusedPos(void* pRes) {
   SRowBuffPos* pPos = (SRowBuffPos*)pRes;
-  if (!pPos->needFree && !pPos->pRowBuff) {
+  if (pPos->needFree && !pPos->pRowBuff) {
     taosMemoryFreeClear(pPos->pKey);
     taosMemoryFree(pPos);
   }
@@ -456,17 +463,19 @@ void destroyFlusedppPos(void* ppRes) {
 }
 
 void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
-  if (pGroupResInfo->freeItem) {
-    int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+  int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+  if (pGroupResInfo->index >= 0 && pGroupResInfo->index < size) {
     for (int32_t i = pGroupResInfo->index; i < size; i++) {
       void* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
       destroyFlusedPos(pPos);
     }
-    pGroupResInfo->freeItem = false;
   }
+
+  pGroupResInfo->freeItem = false;
   taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->pRows = NULL;
   pGroupResInfo->index = 0;
+  pGroupResInfo->delIndex = 0;
 }
 
 void destroyStreamFinalIntervalOperatorInfo(void* param) {
@@ -480,6 +489,8 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
                       false);
     pInfo->pOperator = NULL;
   }
+
+  destroyStreamBasicInfo(&pInfo->basic);
   cleanupAggSup(&pInfo->aggSup);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
@@ -634,7 +645,7 @@ _end:
 }
 
 bool hasIntervalWindow(void* pState, SWinKey* pKey, SStateStore* pStore) {
-  return pStore->streamStateCheck(pState, pKey);
+  return pStore->streamStateCheck(pState, pKey, false, NULL);
 }
 
 int32_t setIntervalOutputBuf(void* pState, STimeWindow* win, SRowBuffPos** pResult, int64_t groupId,
@@ -720,7 +731,7 @@ static void clearSpecialDataBlock(SSDataBlock* pBlock) {
   blockDataCleanup(pBlock);
 }
 
-static void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pBlock) {
+void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   clearSpecialDataBlock(pBlock);
@@ -851,7 +862,7 @@ static int32_t processPullOver(SSDataBlock* pBlock, SHashObj* pMap, SHashObj* pF
           }
         }
       }
-      winTs = taosTimeAdd(winTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+      winTs = taosTimeAdd(winTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
     }
   }
   if (pBeOver) {
@@ -917,7 +928,7 @@ int32_t getOutputBuf(void* pState, SRowBuffPos* pPos, SResultRow** pResult, SSta
 }
 
 void buildDataBlockFromGroupRes(SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock, SExprSupp* pSup,
-                                SGroupResInfo* pGroupResInfo) {
+                                SGroupResInfo* pGroupResInfo, SArray* pSessionKeys) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -991,6 +1002,14 @@ void buildDataBlockFromGroupRes(SOperatorInfo* pOperator, void* pState, SSDataBl
       }
     }
 
+    if (pSessionKeys) {
+      SSessionKey key = {.groupId = groupId, .win = pRow->win};
+      for (int32_t j = 0; j < pRow->numOfRows; ++j) {
+        const void* px = taosArrayPush(pSessionKeys, &key);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+    }
+
     pBlock->info.rows += pRow->numOfRows;
   }
 
@@ -1005,23 +1024,24 @@ _end:
 }
 
 void doBuildStreamIntervalResult(SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock,
-                                 SGroupResInfo* pGroupResInfo) {
+                                 SGroupResInfo* pGroupResInfo, SArray* pSessionKeys) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   // set output datablock version
   pBlock->info.version = pTaskInfo->version;
 
   blockDataCleanup(pBlock);
+  taosArrayClear(pSessionKeys);
   if (!hasRemainResults(pGroupResInfo)) {
     return;
   }
 
   // clear the existed group id
   pBlock->info.id.groupId = 0;
-  buildDataBlockFromGroupRes(pOperator, pState, pBlock, &pOperator->exprSupp, pGroupResInfo);
+  buildDataBlockFromGroupRes(pOperator, pState, pBlock, &pOperator->exprSupp, pGroupResInfo, pSessionKeys);
 }
 
-static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
-                                           TSKEY* primaryKeys, int32_t prevPosition) {
+int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
+                                    TSKEY* primaryKeys, int32_t prevPosition) {
   int32_t startPos = prevPosition + 1;
   if (startPos == pDataBlockInfo->rows) {
     startPos = -1;
@@ -1149,6 +1169,14 @@ static int32_t doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pS
     code = setIntervalOutputBuf(pInfo->pState, &nextWin, &pResPos, groupId, pSup->pCtx, numOfOutput,
                                 pSup->rowEntryInfoOffset, &pInfo->aggSup, &pInfo->stateStore, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    if (winCode != TSDB_CODE_SUCCESS && IS_NORMAL_INTERVAL_OP(pOperator) &&
+        BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_OPEN)) {
+      SSessionKey key = {.win = nextWin, .groupId = groupId};
+      code = addIntervalAggNotifyEvent(SNOTIFY_EVENT_WINDOW_OPEN, &key, &pInfo->basic.notifyEventSup,
+                                       pTaskInfo->streamInfo.pNotifyEventStat);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
     pResult = (SResultRow*)pResPos->pRowBuff;
 
@@ -1371,7 +1399,10 @@ int32_t doStreamIntervalEncodeOpState(void** buf, int32_t len, SOperatorInfo* pO
   // 5.dataVersion
   tlen += taosEncodeFixedI64(buf, pInfo->dataVersion);
 
-  // 6.checksum
+  // 6.basicInfo
+  tlen += encodeStreamBasicInfo(buf, &pInfo->basic);
+
+  // 7.checksum
   if (buf) {
     uint32_t cksum = taosCalcChecksum(0, pData, len - sizeof(uint32_t));
     tlen += taosEncodeFixedU32(buf, cksum);
@@ -1387,18 +1418,20 @@ void doStreamIntervalDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   int32_t                      lino = 0;
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
+  void*                        pDataEnd = POINTER_SHIFT(buf, len);
   if (!pInfo) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  // 6.checksum
+  // 7.checksum
   int32_t dataLen = len - sizeof(uint32_t);
   void*   pCksum = POINTER_SHIFT(buf, dataLen);
   if (taosCheckChecksum(buf, dataLen, *(uint32_t*)pCksum) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
+  pDataEnd = pCksum;
 
   // 1.pResultRowHashTable
   int32_t mapSize = 0;
@@ -1454,6 +1487,12 @@ void doStreamIntervalDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   // 5.dataVersion
   buf = taosDecodeFixedI64(buf, &pInfo->dataVersion);
 
+  // 6.basicInfo
+  if (buf < pDataEnd) {
+    code = decodeStreamBasicInfo(&buf, &pInfo->basic);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
@@ -1466,7 +1505,7 @@ void doStreamIntervalSaveCheckpoint(SOperatorInfo* pOperator) {
     int32_t len = doStreamIntervalEncodeOpState(NULL, 0, pOperator);
     void*   buf = taosMemoryCalloc(1, len);
     if (!buf) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return;
     }
     void* pBuf = buf;
@@ -1503,8 +1542,12 @@ _end:
 static int32_t buildIntervalResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   int32_t                      code = TSDB_CODE_SUCCESS;
+  int32_t                      lino = 0;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   uint16_t                     opType = pOperator->operatorType;
+  SStreamNotifyEventSupp*      pNotifySup = &pInfo->basic.notifyEventSup;
+  STaskNotifyEventStat*        pNotifyEventStat = pTaskInfo->streamInfo.pNotifyEventStat;
+  bool                         addNotifyEvent = false;
 
   // check if query task is closed or not
   if (isTaskKilled(pTaskInfo)) {
@@ -1512,6 +1555,8 @@ static int32_t buildIntervalResult(SOperatorInfo* pOperator, SSDataBlock** ppRes
     return code;
   }
 
+  addNotifyEvent = IS_NORMAL_INTERVAL_OP(pOperator) &&
+                   BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
   if (IS_FINAL_INTERVAL_OP(pOperator)) {
     doBuildPullDataBlock(pInfo->pPullWins, &pInfo->pullIndex, pInfo->pPullDataRes);
     if (pInfo->pPullDataRes->info.rows != 0) {
@@ -1522,21 +1567,46 @@ static int32_t buildIntervalResult(SOperatorInfo* pOperator, SSDataBlock** ppRes
     }
   }
 
-  doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
+  doBuildDeleteResult(pTaskInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows != 0) {
     // process the rest of the data
     printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
+    if (addNotifyEvent) {
+      code = addAggDeleteNotifyEvent(pInfo->pDelRes, pNotifySup, pNotifyEventStat);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     (*ppRes) = pInfo->pDelRes;
     return code;
   }
 
-  doBuildStreamIntervalResult(pOperator, pInfo->pState, pInfo->binfo.pRes, &pInfo->groupResInfo);
+  doBuildStreamIntervalResult(pOperator, pInfo->pState, pInfo->binfo.pRes, &pInfo->groupResInfo,
+                              addNotifyEvent ? pNotifySup->pSessionKeys : NULL);
   if (pInfo->binfo.pRes->info.rows != 0) {
     printDataBlock(pInfo->binfo.pRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
+    if (addNotifyEvent) {
+      code = addAggResultNotifyEvent(pInfo->binfo.pRes, pNotifySup->pSessionKeys,
+                                     pTaskInfo->streamInfo.notifyResultSchema, pNotifySup, pNotifyEventStat);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     (*ppRes) = pInfo->binfo.pRes;
     return code;
   }
 
+  code = buildNotifyEventBlock(pTaskInfo, pNotifySup, pNotifyEventStat);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pNotifySup->pEventBlock && pNotifySup->pEventBlock->info.rows > 0) {
+    printDataBlock(pNotifySup->pEventBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    (*ppRes) = pNotifySup->pEventBlock;
+    return code;
+  }
+
+  code = removeOutdatedNotifyEvents(&pInfo->twAggSup, pNotifySup, pNotifyEventStat);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
   (*ppRes) = NULL;
   return code;
 }
@@ -1694,7 +1764,7 @@ static int32_t doStreamFinalIntervalAggNext(SOperatorInfo* pOperator, SSDataBloc
       }
       taosArrayDestroy(delWins);
 
-      doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
+      doBuildDeleteResult(pTaskInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
       if (pInfo->pDelRes->info.rows != 0) {
         // process the rest of the data
         printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
@@ -1834,7 +1904,7 @@ int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption) {
   return deleteMark;
 }
 
-static TSKEY compareTs(void* pKey) {
+TSKEY compareTs(void* pKey) {
   SWinKey* pWinKey = (SWinKey*)pKey;
   return pWinKey->ts;
 }
@@ -1932,7 +2002,9 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
                                 .intervalUnit = pIntervalPhyNode->intervalUnit,
                                 .slidingUnit = pIntervalPhyNode->slidingUnit,
                                 .offset = pIntervalPhyNode->offset,
-                                .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
+                                .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
+                                .timeRange = pIntervalPhyNode->timeRange};
+  calcIntervalAutoOffset(&pInfo->interval);
   pInfo->twAggSup = (STimeWindowAggSupp){
       .waterMark = pIntervalPhyNode->window.watermark,
       .calTrigger = pIntervalPhyNode->window.triggerType,
@@ -2021,7 +2093,7 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->pState->pResultRowStore.resultRowGet = getResultRowFromBuf;
   pInfo->pState->pResultRowStore.resultRowPut = putResultRowToBuf;
   pInfo->pState->pExprSupp = &pOperator->exprSupp;
-  
+
   code =
       pAPI->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize,
                                            compareTs, pInfo->pState, pInfo->twAggSup.deleteMark, GET_TASKID(pTaskInfo),
@@ -2067,6 +2139,10 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
                             optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   }
   setOperatorStreamStateFn(pOperator, streamIntervalReleaseState, streamIntervalReloadState);
+
+  code = initStreamBasicInfo(&pInfo->basic, pOperator);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
       pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL) {
     pInfo->basic.primaryPkIndex = -1;
@@ -2107,6 +2183,27 @@ void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
   taosMemoryFreeClear(pSup->pDummyCtx);
 }
 
+void destroyResultWinInfo(void* pRes) {
+  SResultWindowInfo* pWinRes = (SResultWindowInfo*)pRes;
+  destroyFlusedPos(pWinRes->pStatePos);
+}
+
+void clearSessionGroupResInfo(SGroupResInfo* pGroupResInfo) {
+  int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+  if (pGroupResInfo->index >= 0 && pGroupResInfo->index < size) {
+    for (int32_t i = pGroupResInfo->index; i < size; i++) {
+      SResultWindowInfo* pRes = (SResultWindowInfo*) taosArrayGet(pGroupResInfo->pRows, i);
+      destroyFlusedPos(pRes->pStatePos);
+      pRes->pStatePos = NULL;
+    }
+  }
+
+  pGroupResInfo->freeItem = false;
+  taosArrayDestroy(pGroupResInfo->pRows);
+  pGroupResInfo->pRows = NULL;
+  pGroupResInfo->index = 0;
+}
+
 void destroyStreamSessionAggOperatorInfo(void* param) {
   if (param == NULL) {
     return;
@@ -2118,11 +2215,13 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
+
+  destroyStreamBasicInfo(&pInfo->basic);
   cleanupExprSupp(&pInfo->scalarSupp);
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -2143,6 +2242,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->historyWins);
   blockDataDestroy(pInfo->pCheckpointRes);
   tSimpleHashCleanup(pInfo->pPkDeleted);
+  destroyNonBlockAggSupptor(&pInfo->nbSup);
 
   taosMemoryFreeClear(param);
 }
@@ -2172,7 +2272,7 @@ void initDummyFunction(SqlFunctionCtx* pDummy, SqlFunctionCtx* pCtx, int32_t num
 }
 
 int32_t initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type, int32_t tsColIndex,
-                       STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic) {
+                       STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic, int64_t recalculateInterval) {
   SExecTaskInfo* pTaskInfo = downstream->pTaskInfo;
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -2183,7 +2283,7 @@ int32_t initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, 
   }
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    code = initDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic);
+    code = initDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic, recalculateInterval);
     return code;
   }
   SStreamScanInfo* pScanInfo = downstream->info;
@@ -2200,6 +2300,15 @@ int32_t initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, 
   if (!hasSrcPrimaryKeyCol(pBasic)) {
     pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
   }
+
+  pBasic->pTsDataState = pScanInfo->basic.pTsDataState;
+
+  if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION) {
+    pScanInfo->scanAllTables = true;
+  }
+  pScanInfo->recalculateInterval = recalculateInterval;
+  pScanInfo->windowSup.parentType = type;
+  pScanInfo->recParam.gap = pAggSup->gap;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2246,8 +2355,8 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   }
 
   if (stateType == STREAM_STATE_BUFF_SORT) {
-  pSup->pState->pFileState = NULL;
-  code = pSup->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize,
+    pSup->pState->pFileState = NULL;
+    code = pSup->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize,
                                                 funResSize, sesionTs, pSup->pState, pTwAggSup->deleteMark, taskIdStr,
                                                 pHandle->checkpointId, stateType, &pSup->pState->pFileState);
   } else if (stateType == STREAM_STATE_BUFF_HASH_SORT || stateType == STREAM_STATE_BUFF_HASH_SEARCH) {
@@ -2265,6 +2374,8 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pExpSup->pCtx[i].saveHandle.pState = pSup->pState;
   }
+
+  pSup->pCur = NULL;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2307,24 +2418,23 @@ bool inWinRange(STimeWindow* range, STimeWindow* cur) {
 void clearOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) { pAPI->streamStateClearBuff(pState, pPos); }
 
 int32_t setSessionOutputBuf(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endTs, uint64_t groupId,
-                            SResultWindowInfo* pCurWin) {
+                            SResultWindowInfo* pCurWin, int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   pCurWin->sessionWin.groupId = groupId;
   pCurWin->sessionWin.win.skey = startTs;
   pCurWin->sessionWin.win.ekey = endTs;
   int32_t size = pAggSup->resultRowSize;
-  int32_t winCode = TSDB_CODE_SUCCESS;
   code = pAggSup->stateStore.streamStateSessionAddIfNotExist(pAggSup->pState, &pCurWin->sessionWin, pAggSup->gap,
-                                                             (void**)&pCurWin->pStatePos, &size, &winCode);
+                                                             (void**)&pCurWin->pStatePos, &size, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (winCode == TSDB_CODE_SUCCESS && !inWinRange(&pAggSup->winRange, &pCurWin->sessionWin.win)) {
-    winCode = TSDB_CODE_FAILED;
+  if (*pWinCode == TSDB_CODE_SUCCESS && !inWinRange(&pAggSup->winRange, &pCurWin->sessionWin.win)) {
+    *pWinCode = TSDB_CODE_FAILED;
     clearOutputBuf(pAggSup->pState, pCurWin->pStatePos, &pAggSup->pSessionAPI->stateStore);
   }
 
-  if (winCode == TSDB_CODE_SUCCESS) {
+  if (*pWinCode == TSDB_CODE_SUCCESS) {
     pCurWin->isOutput = true;
     if (pCurWin->pStatePos->needFree) {
       pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &pCurWin->sessionWin);
@@ -2335,7 +2445,6 @@ int32_t setSessionOutputBuf(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY e
   }
   qDebug("===stream===set session window buff .start:%" PRId64 ",end:%" PRId64 ",groupid:%" PRIu64,
          pCurWin->sessionWin.win.skey, pCurWin->sessionWin.win.ekey, pCurWin->sessionWin.groupId);
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2450,6 +2559,7 @@ int32_t updateSessionWindowInfo(SStreamAggSupporter* pAggSup, SResultWindowInfo*
         code = saveDeleteRes(pStDeleted, pWinInfo->sessionWin);
         QUERY_CHECK_CODE(code, lino, _end);
       }
+
       removeSessionResult(pAggSup, pStUpdated, pResultRows, &pWinInfo->sessionWin);
       pWinInfo->sessionWin.win.skey = pStartTs[i];
     }
@@ -2572,8 +2682,8 @@ _end:
   return code;
 }
 
-static int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SSHashObj* pStUpdated,
-                                    SSHashObj* pStDeleted, bool addGap, int32_t* pWinNum) {
+int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SSHashObj* pStUpdated,
+                             SSHashObj* pStDeleted, bool addGap, int32_t* pWinNum, bool* pIsEnd) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
   SExprSupp*                     pSup = &pOperator->exprSupp;
@@ -2585,11 +2695,21 @@ static int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo*
   int32_t                        numOfOutput = pOperator->exprSupp.numOfExprs;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
 
+  if (pIsEnd != NULL) {
+    (*pIsEnd) = false;
+  }
   // Just look for the window behind StartIndex
   while (1) {
     SResultWindowInfo winInfo = {0};
     getNextSessionWinInfo(pAggSup, pStUpdated, pCurWin, &winInfo);
-    if (!IS_VALID_SESSION_WIN(winInfo) || !isInWindow(pCurWin, winInfo.sessionWin.win.skey, pAggSup->gap) ||
+    if (!IS_VALID_SESSION_WIN(winInfo)) {
+      if (pIsEnd != NULL) {
+        (*pIsEnd) = true;
+      }
+      releaseOutputBuf(pAggSup->pState, winInfo.pStatePos, &pAggSup->pSessionAPI->stateStore);
+      break;
+    }
+    if (!isInWindow(pCurWin, winInfo.sessionWin.win.skey, pAggSup->gap) ||
         !inWinRange(&pAggSup->winRange, &winInfo.sessionWin.win)) {
       releaseOutputBuf(pAggSup->pState, winInfo.pStatePos, &pAggSup->pSessionAPI->stateStore);
       break;
@@ -2690,8 +2810,16 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
       continue;
     }
     SResultWindowInfo winInfo = {0};
-    code = setSessionOutputBuf(pAggSup, startTsCols[i], endTsCols[i], groupId, &winInfo);
+    int32_t           winCode = TSDB_CODE_SUCCESS;
+    code = setSessionOutputBuf(pAggSup, startTsCols[i], endTsCols[i], groupId, &winInfo, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    if (winCode != TSDB_CODE_SUCCESS && IS_NORMAL_SESSION_OP(pOperator) &&
+        BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_OPEN)) {
+      code = addSessionAggNotifyEvent(SNOTIFY_EVENT_WINDOW_OPEN, &winInfo.sessionWin, &pInfo->basic.notifyEventSup,
+                                      pTaskInfo->streamInfo.pNotifyEventStat);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
     // coverity scan error
     if (!winInfo.pStatePos) {
@@ -2710,7 +2838,7 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
                               pOperator, winDelta);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = compactSessionWindow(pOperator, &winInfo, pStUpdated, pStDeleted, addGap, NULL);
+    code = compactSessionWindow(pOperator, &winInfo, pStUpdated, pStDeleted, addGap, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = saveSessionOutputBuf(pAggSup, &winInfo);
@@ -2793,14 +2921,86 @@ inline int32_t sessionKeyCompareAsc(const void* pKey1, const void* pKey2) {
   return 0;
 }
 
-void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite) {
+static int32_t appendToDeleteDataBlock(SOperatorInfo* pOp, SSDataBlock *pBlock, SSessionKey *pKey) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
-  SStorageAPI*   pAPI = &pOp->pTaskInfo->storageAPI;
   SExecTaskInfo* pTaskInfo = pOp->pTaskInfo;
+
+  QUERY_CHECK_NULL(pBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pKey, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  code = colDataSetVal(pStartTsCol, pBlock->info.rows, (const char*)&pKey->win.skey, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  code = colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)&pKey->win.skey, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  colDataSetNULL(pUidCol, pBlock->info.rows);
+
+  SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  code = colDataSetVal(pGpCol, pBlock->info.rows, (const char*)&pKey->groupId, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SColumnInfoData* pCalStCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  colDataSetNULL(pCalStCol, pBlock->info.rows);
+
+  SColumnInfoData* pCalEdCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  colDataSetNULL(pCalEdCol, pBlock->info.rows);
+
+  SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
+  if (!pTableCol) {
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  void*        tbname = NULL;
+  int32_t      winCode = TSDB_CODE_SUCCESS;
+  SStorageAPI* pAPI = &pOp->pTaskInfo->storageAPI;
+  code =
+      pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, pKey->groupId, &tbname, false, &winCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (winCode != TSDB_CODE_SUCCESS) {
+    colDataSetNULL(pTableCol, pBlock->info.rows);
+  } else {
+    char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
+    STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
+    code = colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pAPI->stateStore.streamStateFreeVal(tbname);
+  }
+  pBlock->info.rows += 1;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite,
+                            SGroupResInfo* pGroupResInfo) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pOp->pTaskInfo;
+  int64_t        minWindowSize = getMinWindowSize(pOp);
+  int32_t        numOfRows = getNumOfTotalRes(pGroupResInfo);
 
   blockDataCleanup(pBlock);
   int32_t size = tSimpleHashGetSize(pStDeleted);
+  if (minWindowSize > 0) {
+    // Add the number of windows that are below the minimum width limit.
+    for (int32_t i = pGroupResInfo->delIndex; i < numOfRows; ++i) {
+      SResultWindowInfo* pWinInfo = taosArrayGet(pGroupResInfo->pRows, i);
+      SRowBuffPos*       pPos = pWinInfo->pStatePos;
+      SSessionKey*       pKey = (SSessionKey*)pPos->pKey;
+      if (pKey->win.ekey - pKey->win.skey < minWindowSize) {
+        size++;
+      }
+    }
+  }
   if (size == 0) {
     return;
   }
@@ -2813,48 +3013,21 @@ void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlo
       break;
     }
     SSessionKey*     res = tSimpleHashGetKey(*Ite, NULL);
-    SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
-    code = colDataSetVal(pStartTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
+    code = appendToDeleteDataBlock(pOp, pBlock, res);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
 
-    SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
-    code = colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
-    colDataSetNULL(pUidCol, pBlock->info.rows);
-
-    SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
-    code = colDataSetVal(pGpCol, pBlock->info.rows, (const char*)&res->groupId, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    SColumnInfoData* pCalStCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
-    colDataSetNULL(pCalStCol, pBlock->info.rows);
-
-    SColumnInfoData* pCalEdCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-    colDataSetNULL(pCalEdCol, pBlock->info.rows);
-
-    SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
-    if (!pTableCol) {
-      QUERY_CHECK_CODE(code, lino, _end);
+  if (minWindowSize > 0) {
+    for (int32_t i = pGroupResInfo->delIndex; i < numOfRows; ++i) {
+      SResultWindowInfo* pWinInfo = taosArrayGet(pGroupResInfo->pRows, i);
+      SRowBuffPos*       pPos = pWinInfo->pStatePos;
+      SSessionKey*       pKey = (SSessionKey*)pPos->pKey;
+      if (pKey->win.ekey - pKey->win.skey < minWindowSize) {
+        code = appendToDeleteDataBlock(pOp, pBlock, pKey);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
-
-    void*   tbname = NULL;
-    int32_t winCode = TSDB_CODE_SUCCESS;
-    code = pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, res->groupId, &tbname, false,
-                                                  &winCode);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    if (winCode != TSDB_CODE_SUCCESS) {
-      colDataSetNULL(pTableCol, pBlock->info.rows);
-    } else {
-      char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
-      STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
-      code = colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-      pAPI->stateStore.streamStateFreeVal(tbname);
-    }
-    pBlock->info.rows += 1;
+    pGroupResInfo->delIndex = numOfRows;
   }
 
 _end:
@@ -2906,7 +3079,8 @@ static int32_t rebuildSessionWindow(SOperatorInfo* pOperator, SArray* pWinArray,
 
         if (winCode == TSDB_CODE_SUCCESS && inWinRange(&pWinKey->win, &childWin.sessionWin.win)) {
           if (num == 0) {
-            code = setSessionOutputBuf(pAggSup, pWinKey->win.skey, pWinKey->win.ekey, pWinKey->groupId, &parentWin);
+            code = setSessionOutputBuf(pAggSup, pWinKey->win.skey, pWinKey->win.ekey, pWinKey->groupId, &parentWin,
+                                       &winCode);
             QUERY_CHECK_CODE(code, lino, _end);
 
             parentWin.sessionWin = childWin.sessionWin;
@@ -2928,7 +3102,7 @@ static int32_t rebuildSessionWindow(SOperatorInfo* pOperator, SArray* pWinArray,
                                   &pInfo->twAggSup.timeWindowData);
           QUERY_CHECK_CODE(code, lino, _end);
 
-          code = compactSessionWindow(pOperator, &parentWin, pStUpdated, NULL, true, NULL);
+          code = compactSessionWindow(pOperator, &parentWin, pStUpdated, NULL, true, NULL, NULL);
           QUERY_CHECK_CODE(code, lino, _end);
 
           releaseOutputBuf(pAggSup->pState, childWin.pStatePos, &pAggSup->stateStore);
@@ -3046,10 +3220,11 @@ void initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
   pGroupResInfo->index = 0;
   pGroupResInfo->pBuf = NULL;
   pGroupResInfo->freeItem = false;
+  pGroupResInfo->delIndex = 0;
 }
 
 int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock, SExprSupp* pSup,
-                                    SGroupResInfo* pGroupResInfo) {
+                                    SGroupResInfo* pGroupResInfo, SArray* pSessionKeys) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -3058,6 +3233,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
   SqlFunctionCtx* pCtx = pSup->pCtx;
+  int64_t         minWindowSize = getMinWindowSize(pOperator);
 
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
 
@@ -3098,6 +3274,13 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
       pGroupResInfo->index += 1;
       continue;
     }
+    // skip the window which is less than the windowMinSize
+    if (pKey->win.ekey - pKey->win.skey < minWindowSize) {
+      qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64, pKey->groupId,
+             pKey->win.ekey - pKey->win.skey, minWindowSize);
+      pGroupResInfo->index += 1;
+      continue;
+    }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
       break;
@@ -3129,6 +3312,13 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
       }
     }
 
+    if (pSessionKeys) {
+      for (int32_t j = 0; j < pRow->numOfRows; ++j) {
+        const void* px = taosArrayPush(pSessionKeys, pKey);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+    }
+
     pBlock->info.dataLoad = 1;
     pBlock->info.rows += pRow->numOfRows;
   }
@@ -3142,7 +3332,8 @@ _end:
   return code;
 }
 
-void doBuildSessionResult(SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo, SSDataBlock* pBlock) {
+void doBuildSessionResult(SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo, SSDataBlock* pBlock,
+                          SArray* pSessionKeys) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -3150,6 +3341,7 @@ void doBuildSessionResult(SOperatorInfo* pOperator, void* pState, SGroupResInfo*
   pBlock->info.version = pTaskInfo->version;
 
   blockDataCleanup(pBlock);
+  taosArrayClear(pSessionKeys);
   if (!hasRemainResults(pGroupResInfo)) {
     cleanupGroupResInfo(pGroupResInfo);
     goto _end;
@@ -3157,7 +3349,7 @@ void doBuildSessionResult(SOperatorInfo* pOperator, void* pState, SGroupResInfo*
 
   // clear the existed group id
   pBlock->info.id.groupId = 0;
-  code = buildSessionResultDataBlock(pOperator, pState, pBlock, &pOperator->exprSupp, pGroupResInfo);
+  code = buildSessionResultDataBlock(pOperator, pState, pBlock, &pOperator->exprSupp, pGroupResInfo, pSessionKeys);
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pBlock->info.rows == 0) {
@@ -3172,22 +3364,59 @@ _end:
 
 static int32_t buildSessionResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
   SOptrBasicInfo*                pBInfo = &pInfo->binfo;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
-  doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
+  SStreamNotifyEventSupp*        pNotifySup = &pInfo->basic.notifyEventSup;
+  STaskNotifyEventStat*          pNotifyEventStat = pTaskInfo->streamInfo.pNotifyEventStat;
+  bool                           addNotifyEvent = false;
+  addNotifyEvent = IS_NORMAL_SESSION_OP(pOperator) &&
+                   BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
+  doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator, &pInfo->groupResInfo);
   if (pInfo->pDelRes->info.rows > 0) {
     printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    if (addNotifyEvent) {
+      code = addAggDeleteNotifyEvent(pInfo->pDelRes, pNotifySup, pNotifyEventStat);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     (*ppRes) = pInfo->pDelRes;
     return code;
   }
 
-  doBuildSessionResult(pOperator, pAggSup->pState, &pInfo->groupResInfo, pBInfo->pRes);
+  doBuildSessionResult(pOperator, pAggSup->pState, &pInfo->groupResInfo, pBInfo->pRes,
+                       addNotifyEvent ? pNotifySup->pSessionKeys : NULL);
   if (pBInfo->pRes->info.rows > 0) {
     printDataBlock(pBInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    if (addNotifyEvent) {
+      // Adjust the window end time based on the Session Window gap
+      for (int32_t i = 0; i < taosArrayGetSize(pNotifySup->pSessionKeys); ++i) {
+        SSessionKey* pKey = taosArrayGet(pNotifySup->pSessionKeys, i);
+        pKey->win.ekey += pAggSup->gap;
+      }
+      code = addAggResultNotifyEvent(pBInfo->pRes, pNotifySup->pSessionKeys, pTaskInfo->streamInfo.notifyResultSchema,
+                                     pNotifySup, pNotifyEventStat);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     (*ppRes) = pBInfo->pRes;
     return code;
+  }
+
+  code = buildNotifyEventBlock(pTaskInfo, pNotifySup, pNotifyEventStat);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pNotifySup->pEventBlock && pNotifySup->pEventBlock->info.rows > 0) {
+    printDataBlock(pNotifySup->pEventBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    (*ppRes) = pNotifySup->pEventBlock;
+    return code;
+  }
+
+  code = removeOutdatedNotifyEvents(&pInfo->twAggSup, pNotifySup, pNotifyEventStat);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   (*ppRes) = NULL;
   return code;
@@ -3293,7 +3522,10 @@ int32_t doStreamSessionEncodeOpState(void** buf, int32_t len, SOperatorInfo* pOp
   // 4.dataVersion
   tlen += taosEncodeFixedI64(buf, pInfo->dataVersion);
 
-  // 5.checksum
+  // 5.basicInfo
+  tlen += encodeStreamBasicInfo(buf, &pInfo->basic);
+
+  // 6.checksum
   if (isParent) {
     if (buf) {
       uint32_t cksum = taosCalcChecksum(0, pData, len - sizeof(uint32_t));
@@ -3311,13 +3543,14 @@ int32_t doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpe
   int32_t                        lino = 0;
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+  void*                        pDataEnd = POINTER_SHIFT(buf, len);
   if (!pInfo) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
   SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
 
-  // 5.checksum
+  // 6.checksum
   if (isParent) {
     int32_t dataLen = len - sizeof(uint32_t);
     void*   pCksum = POINTER_SHIFT(buf, dataLen);
@@ -3326,6 +3559,7 @@ int32_t doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpe
       code = TSDB_CODE_FAILED;
       QUERY_CHECK_CODE(code, lino, _end);
     }
+    pDataEnd = pCksum;
   }
 
   // 1.streamAggSup.pResultRows
@@ -3362,6 +3596,12 @@ int32_t doStreamSessionDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpe
   buf = taosDecodeFixedI64(buf, &pInfo->dataVersion);
   if (ppBuf) {
     (*ppBuf) = buf;
+  }
+
+  // 5.basicInfo
+  if (buf < pDataEnd) {
+    code = decodeStreamBasicInfo(&buf, &pInfo->basic);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
@@ -3767,7 +4007,7 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
     }
 
     int32_t winNum = 0;
-    code = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true, &winNum);
+    code = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true, &winNum, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (winNum > 0) {
@@ -3890,7 +4130,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
     goto _error;
   }
   if (pHandle) {
-    pInfo->isHistoryOp = pHandle->fillHistory;
+    pInfo->isHistoryOp = (pHandle->fillHistory == STREAM_HISTORY_OPERATOR);
   }
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
@@ -3902,9 +4142,9 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
   QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, terrno);
   pInfo->pOperator = pOperator;
+  initNonBlockAggSupptor(&pInfo->nbSup, NULL, NULL);
 
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
-  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,
+  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), nodeType(pSessionNode), true,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
   if (pPhyNode->type != QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
     // for stream
@@ -3919,15 +4159,31 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
-  pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doStreamSessionAggNext, NULL, destroyStreamSessionAggOperatorInfo,
-                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
+
+  code = initStreamBasicInfo(&pInfo->basic, pOperator);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    if (pHandle->fillHistory == STREAM_HISTORY_OPERATOR) {
+      setFillHistoryOperatorFlag(&pInfo->basic);
+    } else if (pHandle->fillHistory == STREAM_RECALCUL_OPERATOR) {
+      setRecalculateOperatorFlag(&pInfo->basic);
+    }
+    pOperator->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, doStreamSessionNonblockAggNext, NULL, destroyStreamSessionAggOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamSessionNonblockReleaseState, streamSessionNonblockReloadState);
+  } else {
+    pOperator->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, doStreamSessionAggNext, NULL, destroyStreamSessionAggOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
+  }
 
   if (downstream) {
     pInfo->basic.primaryPkIndex = -1;
     code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
-                          &pInfo->twAggSup, &pInfo->basic);
+                          &pInfo->twAggSup, &pInfo->basic, pSessionNode->window.recalculateInterval);
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = appendDownstream(pOperator, &downstream, 1);
@@ -4149,9 +4405,7 @@ int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhys
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  SStorageAPI*                   pAPI = &pTaskInfo->storageAPI;
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-  pOperator->operatorType = pPhyNode->type;
   pInfo->pOperator = pOperator;
 
   if (pPhyNode->type != QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
@@ -4160,8 +4414,6 @@ int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhys
                             optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
     setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionSemiReloadState);
   }
-  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), pPhyNode->type, false, OP_NOT_OPENED, pInfo,
-                  pTaskInfo);
 
   if (numOfChild > 0) {
     pInfo->pChildren = taosArrayInit(numOfChild, sizeof(void*));
@@ -4175,7 +4427,7 @@ int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
       SStreamSessionAggOperatorInfo* pChInfo = pChildOp->info;
       pChInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
-      pAPI->stateStore.streamStateSetNumber(pChInfo->streamAggSup.pState, i, pInfo->primaryTsIndex);
+      pTaskInfo->storageAPI.stateStore.streamStateSetNumber(pChInfo->streamAggSup.pState, i, pInfo->primaryTsIndex);
       void* tmp = taosArrayPush(pInfo->pChildren, &pChildOp);
       if (!tmp) {
         code = terrno;
@@ -4228,10 +4480,12 @@ void destroyStreamStateOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+
+  destroyStreamBasicInfo(&pInfo->basic);
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   cleanupExprSupp(&pInfo->scalarSupp);
   if (pInfo->pChildren != NULL) {
@@ -4251,6 +4505,7 @@ void destroyStreamStateOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->historyWins);
   blockDataDestroy(pInfo->pCheckpointRes);
   tSimpleHashCleanup(pInfo->pPkDeleted);
+  destroyNonBlockAggSupptor(&pInfo->nbSup);
 
   taosMemoryFreeClear(param);
 }
@@ -4282,12 +4537,39 @@ bool compareWinStateKey(SStateKeys* left, SStateKeys* right) {
   return compareVal(left->pData, right);
 }
 
+void getNextStateWin(const SStreamAggSupporter* pAggSup, SStateWindowInfo* pNextWin, bool asc) {
+  SStreamStateCur* pCur = NULL;
+
+  if (pAggSup == NULL || pNextWin == NULL) {
+    return;
+  }
+
+  if (asc)
+    pCur = pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pNextWin->winInfo.sessionWin);
+  else
+    pCur = pAggSup->stateStore.streamStateSessionSeekKeyPrev(pAggSup->pState, &pNextWin->winInfo.sessionWin);
+  int32_t nextSize = pAggSup->resultRowSize;
+  int32_t winCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &pNextWin->winInfo.sessionWin,
+                                                                     (void**)&pNextWin->winInfo.pStatePos, &nextSize);
+  if (winCode != TSDB_CODE_SUCCESS) {
+    SET_SESSION_WIN_INVALID(pNextWin->winInfo);
+  } else {
+    pNextWin->pStateKey =
+        (SStateKeys*)((char*)pNextWin->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - pAggSup->stateKeySize));
+    pNextWin->pStateKey->bytes = pAggSup->stateKeySize - sizeof(SStateKeys);
+    pNextWin->pStateKey->type = pAggSup->stateKeyType;
+    pNextWin->pStateKey->pData = (char*)pNextWin->pStateKey + sizeof(SStateKeys);
+    pNextWin->pStateKey->isNull = false;
+    pNextWin->winInfo.isOutput = true;
+  }
+  pAggSup->stateStore.streamStateFreeCur(pCur);
+}
+
 int32_t getStateWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SStateWindowInfo* pCurWin,
                                 SStateWindowInfo* pNextWin) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  int32_t          lino = 0;
-  SStreamStateCur* pCur = NULL;
-  int32_t          size = pAggSup->resultRowSize;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t size = pAggSup->resultRowSize;
   pCurWin->winInfo.sessionWin.groupId = pKey->groupId;
   pCurWin->winInfo.sessionWin.win.skey = pKey->win.skey;
   pCurWin->winInfo.sessionWin.win.ekey = pKey->win.ekey;
@@ -4311,24 +4593,9 @@ int32_t getStateWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey,
          pCurWin->winInfo.sessionWin.win.ekey);
 
   pNextWin->winInfo.sessionWin = pCurWin->winInfo.sessionWin;
-  pCur = pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pNextWin->winInfo.sessionWin);
-  int32_t nextSize = pAggSup->resultRowSize;
-  int32_t winCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &pNextWin->winInfo.sessionWin,
-                                                                     (void**)&pNextWin->winInfo.pStatePos, &nextSize);
-  if (winCode != TSDB_CODE_SUCCESS) {
-    SET_SESSION_WIN_INVALID(pNextWin->winInfo);
-  } else {
-    pNextWin->pStateKey =
-        (SStateKeys*)((char*)pNextWin->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - pAggSup->stateKeySize));
-    pNextWin->pStateKey->bytes = pAggSup->stateKeySize - sizeof(SStateKeys);
-    pNextWin->pStateKey->type = pAggSup->stateKeyType;
-    pNextWin->pStateKey->pData = (char*)pNextWin->pStateKey + sizeof(SStateKeys);
-    pNextWin->pStateKey->isNull = false;
-    pNextWin->winInfo.isOutput = true;
-  }
+  getNextStateWin(pAggSup, pNextWin, true);
 
 _end:
-  pAggSup->stateStore.streamStateFreeCur(pCur);
   qDebug("===stream===get state next win buff. skey:%" PRId64 ", endkey:%" PRId64,
          pNextWin->winInfo.sessionWin.win.skey, pNextWin->winInfo.sessionWin.win.ekey);
   if (code != TSDB_CODE_SUCCESS) {
@@ -4338,9 +4605,8 @@ _end:
 }
 
 int32_t setStateOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId, char* pKeyData,
-                          SStateWindowInfo* pCurWin, SStateWindowInfo* pNextWin) {
-  int32_t          size = pAggSup->resultRowSize;
-  SStreamStateCur* pCur = NULL;
+                          SStateWindowInfo* pCurWin, SStateWindowInfo* pNextWin, int32_t* pWinCode) {
+  int32_t size = pAggSup->resultRowSize;
   pCurWin->winInfo.sessionWin.groupId = groupId;
   pCurWin->winInfo.sessionWin.win.skey = ts;
   pCurWin->winInfo.sessionWin.win.ekey = ts;
@@ -4388,29 +4654,16 @@ int32_t setStateOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t group
     }
   }
 
+  *pWinCode = winCode;
+
   qDebug("===stream===set state cur win buff. skey:%" PRId64 ", endkey:%" PRId64, pCurWin->winInfo.sessionWin.win.skey,
          pCurWin->winInfo.sessionWin.win.ekey);
 
   pNextWin->winInfo.sessionWin = pCurWin->winInfo.sessionWin;
-  pCur = pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pNextWin->winInfo.sessionWin);
-  int32_t nextSize = pAggSup->resultRowSize;
-  winCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &pNextWin->winInfo.sessionWin,
-                                                             (void**)&pNextWin->winInfo.pStatePos, &nextSize);
-  if (winCode != TSDB_CODE_SUCCESS) {
-    SET_SESSION_WIN_INVALID(pNextWin->winInfo);
-  } else {
-    pNextWin->pStateKey =
-        (SStateKeys*)((char*)pNextWin->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - pAggSup->stateKeySize));
-    pNextWin->pStateKey->bytes = pAggSup->stateKeySize - sizeof(SStateKeys);
-    pNextWin->pStateKey->type = pAggSup->stateKeyType;
-    pNextWin->pStateKey->pData = (char*)pNextWin->pStateKey + sizeof(SStateKeys);
-    pNextWin->pStateKey->isNull = false;
-    pNextWin->winInfo.isOutput = true;
-  }
+  getNextStateWin(pAggSup, pNextWin, true);
   qDebug("===stream===set state next win buff. skey:%" PRId64 ", endkey:%" PRId64,
          pNextWin->winInfo.sessionWin.win.skey, pNextWin->winInfo.sessionWin.win.ekey);
 _end:
-  pAggSup->stateStore.streamStateFreeCur(pCur);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -4464,6 +4717,19 @@ _end:
   return code;
 }
 
+static bool isWinResult(SSessionKey* pKey, SSHashObj* pSeUpdate, SSHashObj* pResults) {
+  SSessionKey checkKey = {0};
+  getSessionHashKey(pKey, &checkKey);
+  if (tSimpleHashGet(pSeUpdate, &checkKey, sizeof(SSessionKey)) != NULL) {
+    return true;
+  }
+
+  if (tSimpleHashGet(pResults, &checkKey, sizeof(SSessionKey)) != NULL) {
+    return true;
+  }
+  return false;
+}
+
 static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, SSHashObj* pSeUpdated,
                                  SSHashObj* pStDeleted) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -4478,6 +4744,8 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SResultRow*                  pResult = NULL;
   int32_t                      winRows = 0;
   SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
+  SStreamNotifyEventSupp*      pNotifySup = &pInfo->basic.notifyEventSup;
+  STaskNotifyEventStat*        pNotifyEventStat = pTaskInfo->streamInfo.pNotifyEventStat;
 
   pInfo->dataVersion = TMAX(pInfo->dataVersion, pSDataBlock->info.version);
   pAggSup->winRange = pTaskInfo->streamInfo.fillHistoryWindow;
@@ -4513,10 +4781,34 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     bool             allEqual = true;
     SStateWindowInfo curWin = {0};
     SStateWindowInfo nextWin = {0};
-    code = setStateOutputBuf(pAggSup, tsCols[i], groupId, pKeyData, &curWin, &nextWin);
+    int32_t          winCode = TSDB_CODE_SUCCESS;
+    code = setStateOutputBuf(pAggSup, tsCols[i], groupId, pKeyData, &curWin, &nextWin, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    releaseOutputBuf(pAggSup->pState, nextWin.winInfo.pStatePos, &pAPI->stateStore);
+    if (winCode != TSDB_CODE_SUCCESS && pTaskInfo->streamInfo.eventTypes) {
+      SStateWindowInfo prevWin = {.winInfo.sessionWin = curWin.winInfo.sessionWin};
+      getNextStateWin(pAggSup, &prevWin, false);
+      qDebug("===stream===get state prev win buff. skey:%" PRId64 ", endkey:%" PRId64,
+             prevWin.winInfo.sessionWin.win.skey, prevWin.winInfo.sessionWin.win.ekey);
+      releaseOutputBuf(pAggSup->pState, prevWin.winInfo.pStatePos, &pAPI->stateStore);
+      // For ordered data, the previous window's closure did not record the corresponding state values, so they need to
+      // be added here.
+      if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE) &&
+          IS_VALID_SESSION_WIN(prevWin.winInfo)) {
+        code = addStateAggNotifyEvent(SNOTIFY_EVENT_WINDOW_CLOSE, &prevWin.winInfo.sessionWin, prevWin.pStateKey,
+                                      curWin.pStateKey, true, pNotifySup, pNotifyEventStat);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_OPEN)) {
+        code = addStateAggNotifyEvent(SNOTIFY_EVENT_WINDOW_OPEN, &curWin.winInfo.sessionWin, curWin.pStateKey,
+                                      prevWin.pStateKey, false, pNotifySup, pNotifyEventStat);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    }
+
+    if (isWinResult(&nextWin.winInfo.sessionWin, pSeUpdated, pAggSup->pResultRows) == false) {
+      releaseOutputBuf(pAggSup->pState, nextWin.winInfo.pStatePos, &pAPI->stateStore);
+    }
 
     setSessionWinOutputInfo(pSeUpdated, &curWin.winInfo);
     code = updateStateWindowInfo(pAggSup, &curWin, &nextWin, tsCols, groupId, pKeyColInfo, rows, i, &allEqual,
@@ -4559,6 +4851,14 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       getSessionHashKey(&curWin.winInfo.sessionWin, &key);
       code =
           tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    // If this is a windown recalculation, add the corresponding state values here since the next window may not require
+    // recalculation.
+    if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE)) {
+      code = addStateAggNotifyEvent(SNOTIFY_EVENT_WINDOW_CLOSE, &curWin.winInfo.sessionWin, curWin.pStateKey,
+                                    nextWin.pStateKey, false, pNotifySup, pNotifyEventStat);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -4604,7 +4904,10 @@ int32_t doStreamStateEncodeOpState(void** buf, int32_t len, SOperatorInfo* pOper
   // 4.dataVersion
   tlen += taosEncodeFixedI64(buf, pInfo->dataVersion);
 
-  // 5.checksum
+  // 5.basicInfo
+  tlen += encodeStreamBasicInfo(buf, &pInfo->basic);
+
+  // 6.checksum
   if (isParent) {
     if (buf) {
       uint32_t cksum = taosCalcChecksum(0, pData, len - sizeof(uint32_t));
@@ -4623,12 +4926,13 @@ int32_t doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   int32_t                      lino = 0;
   SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
+  void*                        pDataEnd = POINTER_SHIFT(buf, len);
   if (!pInfo) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  // 5.checksum
+  // 6.checksum
   if (isParent) {
     int32_t dataLen = len - sizeof(uint32_t);
     void*   pCksum = POINTER_SHIFT(buf, dataLen);
@@ -4637,6 +4941,7 @@ int32_t doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
       code = TSDB_CODE_FAILED;
       QUERY_CHECK_CODE(code, lino, _end);
     }
+    pDataEnd = pCksum;
   }
 
   // 1.streamAggSup.pResultRows
@@ -4676,6 +4981,12 @@ int32_t doStreamStateDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
     (*ppBuf) = buf;
   }
 
+  // 5.basicInfo
+  if (buf < pDataEnd) {
+    code = decodeStreamBasicInfo(&buf, &pInfo->basic);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
@@ -4703,22 +5014,52 @@ void doStreamStateSaveCheckpoint(SOperatorInfo* pOperator) {
 
 static int32_t buildStateResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                      code = TSDB_CODE_SUCCESS;
+  int32_t                      lino = 0;
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*              pBInfo = &pInfo->binfo;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
-
-  doBuildDeleteDataBlock(pOperator, pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
+  SStreamNotifyEventSupp*      pNotifySup = &pInfo->basic.notifyEventSup;
+  STaskNotifyEventStat*        pNotifyEventStat = pTaskInfo->streamInfo.pNotifyEventStat;
+  bool                         addNotifyEvent = false;
+  addNotifyEvent = BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
+  doBuildDeleteDataBlock(pOperator, pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator, &pInfo->groupResInfo);
   if (pInfo->pDelRes->info.rows > 0) {
     printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    if (addNotifyEvent) {
+      code = addAggDeleteNotifyEvent(pInfo->pDelRes, pNotifySup, pNotifyEventStat);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     (*ppRes) = pInfo->pDelRes;
     return code;
   }
 
-  doBuildSessionResult(pOperator, pInfo->streamAggSup.pState, &pInfo->groupResInfo, pBInfo->pRes);
+  doBuildSessionResult(pOperator, pInfo->streamAggSup.pState, &pInfo->groupResInfo, pBInfo->pRes,
+                       addNotifyEvent ? pNotifySup->pSessionKeys : NULL);
   if (pBInfo->pRes->info.rows > 0) {
     printDataBlock(pBInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    if (addNotifyEvent) {
+      code = addAggResultNotifyEvent(pBInfo->pRes, pNotifySup->pSessionKeys, pTaskInfo->streamInfo.notifyResultSchema,
+                                     pNotifySup, pNotifyEventStat);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     (*ppRes) = pBInfo->pRes;
     return code;
+  }
+
+  code = buildNotifyEventBlock(pTaskInfo, pNotifySup, pNotifyEventStat);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pNotifySup->pEventBlock && pNotifySup->pEventBlock->info.rows > 0) {
+    printDataBlock(pNotifySup->pEventBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    (*ppRes) = pNotifySup->pEventBlock;
+    return code;
+  }
+
+  code = removeOutdatedNotifyEvents(&pInfo->twAggSup, pNotifySup, pNotifyEventStat);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   (*ppRes) = NULL;
   return code;
@@ -4896,8 +5237,8 @@ void streamStateReleaseState(SOperatorInfo* pOperator) {
   }
 }
 
-static int32_t compactStateWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SResultWindowInfo* pNextWin,
-                                  SSHashObj* pStUpdated, SSHashObj* pStDeleted) {
+int32_t compactStateWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SResultWindowInfo* pNextWin,
+                           SSHashObj* pStUpdated, SSHashObj* pStDeleted) {
   SExprSupp*                   pSup = &pOperator->exprSupp;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
@@ -5076,7 +5417,7 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   }
 
   if (pHandle) {
-    pInfo->isHistoryOp = pHandle->fillHistory;
+    pInfo->isHistoryOp = (pHandle->fillHistory == STREAM_HISTORY_OPERATOR);
   }
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
@@ -5088,7 +5429,7 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   pInfo->destHasPrimaryKey = pStateNode->window.destHasPrimaryKey;
   pInfo->pOperator = pOperator;
 
-  setOperatorInfo(pOperator, "StreamStateAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, true, OP_NOT_OPENED,
+  setOperatorInfo(pOperator, "StreamStateAggOperator", nodeType(pPhyNode), true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   // for stream
   void*   buff = NULL;
@@ -5101,16 +5442,35 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     taosMemoryFree(buff);
     QUERY_CHECK_CODE(code, lino, _error);
   }
+  initNonBlockAggSupptor(&pInfo->nbSup, NULL, NULL);
+  code = initStreamBasicInfo(&pInfo->basic, pOperator);
+  QUERY_CHECK_CODE(code, lino, _error);
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAggNext, NULL, destroyStreamStateOperatorInfo,
-                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamStateReloadState);
+  if (pStateNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    if (pHandle->fillHistory == STREAM_HISTORY_OPERATOR) {
+      setFillHistoryOperatorFlag(&pInfo->basic);
+    } else if (pHandle->fillHistory == STREAM_RECALCUL_OPERATOR) {
+      setRecalculateOperatorFlag(&pInfo->basic);
+    }
+
+    pOperator->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, doStreamStateNonblockAggNext, NULL, destroyStreamStateOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamStateNonblockReleaseState, streamStateNonblockReloadState);
+  } else {
+    pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAggNext, NULL, destroyStreamStateOperatorInfo,
+                                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamStateReloadState);
+  }
+
   code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
-                        &pInfo->twAggSup, &pInfo->basic);
+                        &pInfo->twAggSup, &pInfo->basic, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->trueForLimit = pStateNode->trueForLimit;
 
   *pOptrInfo = pOperator;
   return TSDB_CODE_SUCCESS;
@@ -5215,7 +5575,12 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
       code = getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
-    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE || pBlock->info.type == STREAM_DROP_CHILD_TABLE) {
+    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+      printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pBlock;
+      return code;
+    } else if (pBlock->info.type == STREAM_DROP_CHILD_TABLE) {
+      doDeleteWindowByGroupId(pOperator, pBlock);
       printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       (*ppRes) = pBlock;
       return code;
@@ -5229,8 +5594,8 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
       continue;
     } else {
       if (pBlock->info.type != STREAM_NORMAL && pBlock->info.type != STREAM_INVALID) {
-        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-        QUERY_CHECK_CODE(code, lino, _end);
+        qDebug("===stream===%s ignore recv block. type:%d", GET_TASKID(pTaskInfo), pBlock->info.type);
+        continue;
       }
     }
 
@@ -5314,8 +5679,9 @@ _end:
   return code;
 }
 
-static int32_t createStreamSingleIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
-                                                      SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+int32_t createStreamSingleIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+                                               SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
+                                               SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -5342,7 +5708,9 @@ static int32_t createStreamSingleIntervalOperatorInfo(SOperatorInfo* downstream,
       .slidingUnit = pIntervalPhyNode->slidingUnit,
       .offset = pIntervalPhyNode->offset,
       .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
+      .timeRange = pIntervalPhyNode->timeRange,
   };
+  calcIntervalAutoOffset(&pInfo->interval);
 
   pInfo->twAggSup =
       (STimeWindowAggSupp){.waterMark = pIntervalPhyNode->window.watermark,
@@ -5436,6 +5804,9 @@ static int32_t createStreamSingleIntervalOperatorInfo(SOperatorInfo* downstream,
                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamIntervalReleaseState, streamIntervalReloadState);
 
+  code = initStreamBasicInfo(&pInfo->basic, pOperator);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->recvGetAll = false;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
@@ -5471,17 +5842,6 @@ _error:
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
-}
-
-int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
-                                         SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
-  SStreamIntervalPhysiNode* pIntervalPhyNode = (SStreamIntervalPhysiNode*)pPhyNode;
-  if (pIntervalPhyNode->window.triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-    return createStreamIntervalSliceOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, pOptrInfo);
-  } else {
-    return createStreamSingleIntervalOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, pOptrInfo);
-  }
-  return TSDB_CODE_SUCCESS;
 }
 
 static void doStreamMidIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, SSHashObj* pUpdatedMap) {
@@ -5620,7 +5980,7 @@ static SSDataBlock* buildMidIntervalResult(SOperatorInfo* pOperator) {
   }
 
   qDebug("===stream=== build mid interval result");
-  doBuildDeleteResult(pInfo, pInfo->pMidPullDatas, &pInfo->midDelIndex, pInfo->pDelRes);
+  doBuildDeleteResult(pTaskInfo, pInfo->pMidPullDatas, &pInfo->midDelIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows != 0) {
     // process the rest of the data
     printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
@@ -5740,7 +6100,7 @@ static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock*
       }
       taosArrayDestroy(delWins);
 
-      doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
+      doBuildDeleteResult(pTaskInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
       if (pInfo->pDelRes->info.rows != 0) {
         // process the rest of the data
         printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));

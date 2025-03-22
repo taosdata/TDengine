@@ -53,6 +53,8 @@ if $rows != 5 then
   return -1
 endi
 
+sleep 500
+
 print =============== show vgroups2
 sql show d2.vgroups
 if $rows != 2 then
@@ -108,6 +110,8 @@ if $data30 != 12 then
 endi
 
 print =============== show vnodes on dnode 1
+print =============== Wait for the synchronization status of vnode and Mnode, heartbeat for one second
+sleep 1000
 sql show vnodes on dnode 1
 if $rows != 9 then
   return -1
@@ -126,13 +130,14 @@ if $data12 != d2 then
 endi
 
 if $data13 != leader then
+    print expect leader , actual $13
     return -1
 endi
 
-print $data14
-print $data15
+print $data14 , $data15
 
 if $data16 != 1 then
+    print expect 1, acutal $data16
     return -1
 endi
 

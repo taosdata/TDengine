@@ -39,7 +39,7 @@ class TDSimClient:
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "dDebugFlag":"131",
-            "cDebugFlag": "131",
+            "cDebugFlag": "135",
             "uDebugFlag": "131",
             "jniDebugFlag": "131",
             "qDebugFlag": "135",
@@ -48,7 +48,8 @@ class TDSimClient:
             "telemetryReporting": "0",
             "tqDebugflag": "135",
             "stDebugflag":"135",
-            "safetyCheckLevel":"2"
+            "safetyCheckLevel":"2",
+            "minReservedMemorySize":"1024"
         }
 
     def getLogDir(self):
@@ -136,7 +137,7 @@ class TDDnode:
             "dDebugFlag": "131",
             "vDebugFlag": "131",
             "tqDebugFlag": "135",
-            "cDebugFlag": "131",
+            "cDebugFlag": "135",
             "stDebugFlag": "135",
             "smaDebugFlag": "131",
             "jniDebugFlag": "131",

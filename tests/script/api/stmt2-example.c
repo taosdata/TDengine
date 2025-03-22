@@ -33,30 +33,48 @@ void do_stmt(TAOS* taos) {
 
   char*           tbs[2] = {"tb", "tb2"};
   int             t1_val[2] = {0, 1};
-  int             t2_len[2] = {3, 3};
-  TAOS_STMT2_BIND tags[2][2] = {{{0, &t1_val[0], NULL, NULL, 0}, {0, "a1", &t2_len[0], NULL, 0}},
-                                {{0, &t1_val[1], NULL, NULL, 0}, {0, "a2", &t2_len[1], NULL, 0}}};
+  int             t2_len[2] = {5, 5};
+  int             t3_len[2] = {sizeof(int), sizeof(int)};
+  TAOS_STMT2_BIND tags[2][2] = {{{0, &t1_val[0], &t3_len[0], NULL, 0}, {0, "after1", &t2_len[0], NULL, 0}},
+                                {{0, &t1_val[1], &t3_len[1], NULL, 0}, {0, "after2", &t2_len[1], NULL, 0}}};
   TAOS_STMT2_BIND params[2][2] = {
-      {{TSDB_DATA_TYPE_TIMESTAMP, v.ts, NULL, is_null, 2}, {TSDB_DATA_TYPE_BINARY, v.b, b_len, is_null2, 2}},
-      {{TSDB_DATA_TYPE_TIMESTAMP, v.ts, NULL, is_null, 2}, {TSDB_DATA_TYPE_BINARY, v.b, b_len, is_null2, 2}}};
+      {{TSDB_DATA_TYPE_TIMESTAMP, v.ts, t64_len, is_null, 2}, {TSDB_DATA_TYPE_BINARY, v.b, b_len, NULL, 2}},
+      {{TSDB_DATA_TYPE_TIMESTAMP, v.ts, t64_len, is_null, 2}, {TSDB_DATA_TYPE_BINARY, v.b, b_len, NULL, 2}}};
   TAOS_STMT2_BIND* tagv[2] = {&tags[0][0], &tags[1][0]};
   TAOS_STMT2_BIND* paramv[2] = {&params[0][0], &params[1][0]};
   TAOS_STMT2_BINDV bindv = {2, &tbs[0], &tagv[0], &paramv[0]};
 
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
-  const char* sql = "insert into db.? using db.stb tags(?, ?) values(?,?)";
-  int         code = taos_stmt2_prepare(stmt, sql, 0);
+
+  // Equivalent to :
+  // const char* sql = "insert into db.? using db.stb tags(?, ?) values(?,?)";
+  const char* sql = "insert into db.stb(tbname,ts,b,t1,t2) values(?,?,?,?,?)";
+
+  int code = taos_stmt2_prepare(stmt, sql, 0);
   if (code != 0) {
     printf("failed to execute taos_stmt2_prepare. error:%s\n", taos_stmt2_error(stmt));
     taos_stmt2_close(stmt);
     return;
   }
 
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  if (code != 0) {
+    printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
+  } else {
+    printf("col nums:%d\n", fieldNum);
+    for (int i = 0; i < fieldNum; i++) {
+      printf("field[%d]: %s, data_type:%d, field_type:%d\n", i, pFields[i].name, pFields[i].type,
+             pFields[i].field_type);
+    }
+  }
+
+
   int64_t ts = 1591060628000;
   for (int i = 0; i < 2; ++i) {
-    // v.ts[i] = ts++;
-    v.ts[i] = ts;
-    // t64_len[i] = sizeof(int64_t);
+    v.ts[i] = ts++;
+    t64_len[i] = sizeof(int64_t);
   }
   strcpy(v.b, "abcdefg");
   b_len[0] = (int)strlen(v.b);
@@ -71,6 +89,7 @@ void do_stmt(TAOS* taos) {
     return;
   }
 
+  taos_stmt2_free_fields(stmt, pFields);
   taos_stmt2_close(stmt);
 }
 

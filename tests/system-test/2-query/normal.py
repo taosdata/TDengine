@@ -75,6 +75,25 @@ class TDTestCase:
         tdSql.checkData(1, 1, 3)
         tdSql.checkData(2, 1, 9)
         
+        tdSql.query(f"select * from {dbname}.stb_1  order by ts")
+        rows = tdSql.queryRows
+        tdSql.query(f"select * from {dbname}.stb_1 where col1 in (1, 2) or (1<2) order by ts")
+        tdSql.checkRows(rows)
+        
+        tdSql.query(f"select * from (select * from {dbname}.stb_1 where col1 in (1, 9, 3) or (1<2) order by ts)")
+        tdSql.checkRows(rows)
+        
+        tdSql.query(f"select * from {dbname}.stb_1 where col1 in (1, 2) and (1<2) order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 2)
+        
+        tdSql.query(f"select * from {dbname}.stb_1 where col1 in (1, 9, 3) and (1<2) order by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(2, 1, 9)
+        
         tdSql.query(f"select * from {dbname}.stb_1 where col1 in (1, 9, 3, 'xy') order by ts")
         tdSql.checkRows(3)
         tdSql.checkData(0, 1, 1)
@@ -160,7 +179,7 @@ class TDTestCase:
         tdSql.prepare()
         
         self.timeZoneTest()
-        # self.inAndNotinTest()
+        self.inAndNotinTest()
 
 
     def stop(self):

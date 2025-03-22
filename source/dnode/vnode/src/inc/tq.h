@@ -33,12 +33,12 @@ extern "C" {
 
 // tqDebug ===================
 // clang-format off
-#define tqFatal(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define tqError(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define tqWarn(...)  do { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
-#define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqFatal(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
+#define tqError(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
+#define tqWarn(...)  do { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }} while(0)
+#define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }} while(0)
+#define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  TRACE ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
@@ -90,6 +90,7 @@ typedef struct {
   // for replay
   SSDataBlock* block;
   int64_t      blockTime;
+  SHashObj*    tableCreateTimeHash;  // for process create table msg in submit if fetch raw data
 } STqHandle;
 
 struct STQ {
@@ -112,14 +113,13 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 void    tqDestroyTqHandle(void* data);
 
 // tqRead
-int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* offset);
+int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* offset, const SMqPollReq* pRequest);
 int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest);
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
 
 // tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded);
-int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, const SMqPollReq* pRequest);
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId);
 void    tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 
@@ -127,11 +127,11 @@ void    tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 int32_t tqMetaOpen(STQ* pTq);
 void    tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
-int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen);
-int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen);
+int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, uint32_t kLen, const void* value, uint32_t vLen);
+int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, uint32_t kLen);
 int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
-int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen);
-int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, int32_t vLen);
+int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, uint32_t vLen);
+int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, uint32_t vLen);
 int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);
 int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset);
@@ -148,7 +148,7 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name);
 // tq util
 int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type, EStreamType blockType);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
-int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
+int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
 void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
@@ -157,8 +157,13 @@ int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_
 int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
 
 int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock,
-                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq);
+                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq, const char* id);
 int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
+
+// tq send notifications
+int32_t tqInitNotifyHandleMap(SStreamNotifyHandleMap** ppMap);
+void    tqDestroyNotifyHandleMap(SStreamNotifyHandleMap** ppMap);
+int32_t tqSendAllNotifyEvents(const SArray* pBlocks, SStreamTask* pTask, SVnode* pVnode);
 
 #define TQ_ERR_GO_TO_END(c)          \
   do {                               \

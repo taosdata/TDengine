@@ -118,9 +118,14 @@ public class TestAll {
     }
 
     @Test
-    public void testWsStmtBasic() throws Exception {
+    public void testWsStmtStd() throws Exception {
         dropDB("power");
-        WSParameterBindingBasicDemo.main(args);
+        WSParameterBindingStdInterfaceDemo.main(args);
+    }
+    @Test
+    public void testWsStmtExtend() throws Exception {
+        dropDB("power");
+        WSParameterBindingExtendInterfaceDemo.main(args);
     }
 
     @Test

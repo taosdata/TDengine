@@ -25,9 +25,9 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
 
   tfsUpdateSize(pMgmt->pTfs);
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
-  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL || *ppVnode == NULL) continue;
@@ -43,19 +43,19 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     if (taosArrayPush(pInfo->pVloads, &vload) == NULL) {
       dError("failed to push vnode load");
     }
-    pIter = taosHashIterate(pMgmt->hash, pIter);
+    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
 void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoadLite));
   if (!pInfo->pVloads) return;
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
-  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL || *ppVnode == NULL) continue;
@@ -71,10 +71,10 @@ void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
         }
       }
     }
-    pIter = taosHashIterate(pMgmt->hash, pIter);
+    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
@@ -137,10 +137,10 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
     dError("failed to get vgroup ids");
     return;
   }
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
   for (int i = 0; i < list_size; i++) {
     int32_t vgroup_id = vgroup_ids[i];
-    void   *vnode = taosHashGet(pMgmt->hash, &vgroup_id, sizeof(int32_t));
+    void   *vnode = taosHashGet(pMgmt->runngingHash, &vgroup_id, sizeof(int32_t));
     if (vnode == NULL) {
       r = taos_counter_delete(tsInsertCounter, keys[i]);
       if (r) {
@@ -148,7 +148,7 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
       }
     }
   }
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
   if (vgroup_ids) taosMemoryFree(vgroup_ids);
   if (keys) taosMemoryFree(keys);
   return;
@@ -183,10 +183,10 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
       if ((pRetention->freq >= 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
     }
   }
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   pCfg->tsdbCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   if (pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4) {
-    strncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+    tstrncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->tsdbCfg.encryptAlgorithm = 0;
@@ -199,19 +199,19 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.retentionSize = pCreate->walRetentionSize;
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   pCfg->walCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   if (pCfg->walCfg.encryptAlgorithm == DND_CA_SM4) {
-    strncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+    tstrncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->walCfg.encryptAlgorithm = 0;
 #endif
 
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   pCfg->tdbEncryptAlgorithm = pCreate->encryptAlgorithm;
   if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
-    strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+    tstrncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->tdbEncryptAlgorithm = 0;
@@ -378,11 +378,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
-  if (vnodeCreate(path, &vnodeCfg, diskPrimary, pMgmt->pTfs) < 0) {
-    dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
+  if ((code = vnodeCreate(path, &vnodeCfg, diskPrimary, pMgmt->pTfs)) < 0) {
+    dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
     vmReleaseVnode(pMgmt, pVnode);
+    vmCleanPrimaryDisk(pMgmt, req.vgId);
     (void)tFreeSCreateVnodeReq(&req);
-    code = terrno != 0 ? terrno : -1;
     return code;
   }
 
@@ -422,23 +422,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
 _OVER:
+  vmCleanPrimaryDisk(pMgmt, req.vgId);
+
   if (code != 0) {
-    int32_t r = 0;
-    r = taosThreadRwlockWrlock(&pMgmt->lock);
-    if (r != 0) {
-      dError("vgId:%d, failed to lock since %s", req.vgId, tstrerror(r));
-    }
-    if (r == 0) {
-      dInfo("vgId:%d, remove from hash", req.vgId);
-      r = taosHashRemove(pMgmt->hash, &req.vgId, sizeof(int32_t));
-      if (r != 0) {
-        dError("vgId:%d, failed to remove vnode since %s", req.vgId, tstrerror(r));
-      }
-    }
-    r = taosThreadRwlockUnlock(&pMgmt->lock);
-    if (r != 0) {
-      dError("vgId:%d, failed to unlock since %s", req.vgId, tstrerror(r));
-    }
+    vmCloseFailedVnode(pMgmt, req.vgId);
+
     vnodeClose(pImpl);
     vnodeDestroy(0, path, pMgmt->pTfs, 0);
   } else {
@@ -895,7 +883,7 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   size_t size = taosArrayGetSize(arbHbReq.hbMembers);
 
   arbHbRsp.dnodeId = pMgmt->pData->dnodeId;
-  strncpy(arbHbRsp.arbToken, arbHbReq.arbToken, TSDB_ARB_TOKEN_SIZE);
+  tstrncpy(arbHbRsp.arbToken, arbHbReq.arbToken, TSDB_ARB_TOKEN_SIZE);
   arbHbRsp.hbMembers = taosArrayInit(size, sizeof(SVArbHbRspMember));
   if (arbHbRsp.hbMembers == NULL) {
     goto _OVER;
@@ -978,6 +966,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_TABLE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_UPDATE_TAG_VAL, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_VSUBTABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_CFG, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_BATCH_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
@@ -1018,29 +1007,35 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DEPLOY, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DROP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_RUN, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DISPATCH, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DISPATCH_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DISPATCH, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DISPATCH_RSP, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK_RSP, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_CHECKPOINT_READY, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_CHECKPOINT_READY_RSP, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_TRIGGER, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_TRIGGER_RSP, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_UPDATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_RESET, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_ALL_STOP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_REQ_CHKPT_RSP, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_CHKPT_REPORT_RSP, vmPutMsgToStreamCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_SCAN_HISTORY, vmPutMsgToStreamLongExecQueue, 0) == NULL) goto _OVER;
+
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_CHKPT_EXEC, vmPutMsgToStreamChkQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_GET_STREAM_PROGRESS, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
+
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_UPDATE_CHKPT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_CONSEN_CHKPT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_PAUSE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_RESUME, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_STOP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_CHECK_POINT_SOURCE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_CHECKPOINT_READY, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_CHECKPOINT_READY_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_TRIGGER, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_TRIGGER_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_UPDATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_RESET, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_REQ_CHKPT_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_CHKPT_REPORT_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_GET_STREAM_PROGRESS, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_UPDATE_CHKPT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_CONSEN_CHKPT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIG, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;

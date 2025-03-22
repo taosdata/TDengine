@@ -1542,7 +1542,7 @@ class TDTestCase:
 
     def query_precision(self):
         def generate_data(precision="ms"):
-            tdSql.execute("create database if not exists db_%s precision '%s';" %(precision, precision))
+            tdSql.execute("create database if not exists db_%s keep 36500 precision '%s';" %(precision, precision))
             tdSql.execute("use db_%s;" %precision)
             tdSql.execute("create stable db_%s.st (ts timestamp , id int) tags(ind int);"%precision)
             tdSql.execute("create table db_%s.tb1 using st tags(1);"%precision)

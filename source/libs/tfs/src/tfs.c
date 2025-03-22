@@ -19,7 +19,6 @@
 
 static int32_t   tfsMount(STfs *pTfs, SDiskCfg *pCfg);
 static int32_t   tfsCheck(STfs *pTfs);
-static int32_t   tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg);
 static int32_t   tfsFormatDir(char *idir, char *odir);
 static int32_t   tfsGetDiskByName(STfs *pTfs, const char *dir, STfsDisk **ppDisk);
 static int32_t   tfsOpendirImpl(STfs *pTfs, STfsDir *pDir);
@@ -40,7 +39,7 @@ int32_t tfsOpen(SDiskCfg *pCfg, int32_t ndisk, STfs **ppTfs) {
   }
 
   if (taosThreadSpinInit(&pTfs->lock, 0) != 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _exit);
   }
 
   for (int32_t level = 0; level < TFS_MAX_TIERS; level++) {
@@ -153,29 +152,34 @@ int32_t tfsGetDisksAtLevel(STfs *pTfs, int32_t level) {
 
 int32_t tfsGetLevel(STfs *pTfs) { return pTfs->nlevel; }
 
-int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId) {
-  pDiskId->level = expLevel;
-  pDiskId->id = -1;
-
-  if (pDiskId->level >= pTfs->nlevel) {
-    pDiskId->level = pTfs->nlevel - 1;
+int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, const char *label, SDiskID *pDiskId) {
+  if (expLevel >= pTfs->nlevel || expLevel < 0) {
+    expLevel = pTfs->nlevel - 1;
   }
 
-  if (pDiskId->level < 0) {
-    pDiskId->level = 0;
-  }
-
-  while (pDiskId->level >= 0) {
-    pDiskId->id = tfsAllocDiskOnTier(&pTfs->tiers[pDiskId->level]);
-    if (pDiskId->id < 0) {
-      pDiskId->level--;
-      continue;
+  for (; expLevel >= 0; expLevel--) {
+    if (tfsAllocDiskAtLevel(pTfs, expLevel, label, pDiskId) == 0) {
+      TAOS_RETURN(0);
     }
-
-    TAOS_RETURN(0);
   }
 
   TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+}
+
+int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskID *pDiskId) {
+  if (level < 0 || level >= pTfs->nlevel) {
+    TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+  }
+
+  pDiskId->level = level;
+  pDiskId->id = -1;
+
+  pDiskId->id = tfsAllocDiskOnTier(&pTfs->tiers[pDiskId->level], label);
+  if (pDiskId->id < 0) {
+    TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+  }
+
+  TAOS_RETURN(0);
 }
 
 const char *tfsGetPrimaryPath(STfs *pTfs) { return TFS_PRIMARY_DISK(pTfs)->path; }
@@ -200,10 +204,8 @@ bool tfsIsSameFile(const STfsFile *pFile1, const STfsFile *pFile2) {
   if (pFile1->did.level != pFile2->did.level) return false;
   if (pFile1->did.id != pFile2->did.id) return false;
   char nameBuf1[TMPNAME_LEN], nameBuf2[TMPNAME_LEN];
-  (void)strncpy(nameBuf1, pFile1->rname, TMPNAME_LEN);
-  (void)strncpy(nameBuf2, pFile2->rname, TMPNAME_LEN);
-  nameBuf1[TMPNAME_LEN - 1] = 0;
-  nameBuf2[TMPNAME_LEN - 1] = 0;
+  tstrncpy(nameBuf1, pFile1->rname, TMPNAME_LEN);
+  tstrncpy(nameBuf2, pFile2->rname, TMPNAME_LEN);
   TAOS_UNUSED(taosRealPath(nameBuf1, NULL, TMPNAME_LEN));
   TAOS_UNUSED(taosRealPath(nameBuf2, NULL, TMPNAME_LEN));
   if (strncmp(nameBuf1, nameBuf2, TMPNAME_LEN) != 0) return false;
@@ -247,13 +249,13 @@ void tfsDirname(const STfsFile *pFile, char *dest) {
   tstrncpy(tname, pFile->aname, TSDB_FILENAME_LEN);
   tstrncpy(dest, taosDirName(tname), TSDB_FILENAME_LEN);
 }
-
+#if 0
 void tfsAbsoluteName(STfs *pTfs, SDiskID diskId, const char *rname, char *aname) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
 
   (void)snprintf(aname, TSDB_FILENAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
 }
-
+#endif
 int32_t tfsRemoveFile(const STfsFile *pFile) { return taosRemoveFile(pFile->aname); }
 
 int32_t tfsCopyFile(const STfsFile *pFile1, const STfsFile *pFile2) {
@@ -269,7 +271,7 @@ int32_t tfsMkdirAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   }
   (void)snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
   if (taosMkDir(aname) != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   TAOS_RETURN(0);
@@ -281,7 +283,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   char   *s = NULL;
   char   *dir = NULL;
   if ((code = tfsMkdirAt(pTfs, rname, diskId)) < 0) {
-    if (errno == ENOENT) {
+    if (ERRNO == ENOENT) {
       // Try to create upper
       if ((s = taosStrdup(rname)) == NULL) {
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
@@ -342,7 +344,7 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
 
   TAOS_RETURN(0);
 }
-
+#if 0
 bool tfsDirExistAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
   char      aname[TMPNAME_LEN];
@@ -350,7 +352,7 @@ bool tfsDirExistAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   (void)snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
   return taosDirExist(aname);
 }
-
+#endif
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
   if (rname[0] == 0) {
     TAOS_RETURN(0);
@@ -382,8 +384,8 @@ static int32_t tfsRenameAt(STfs *pTfs, SDiskID diskId, const char *orname, const
   (void)snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
   (void)snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
 
-  if (taosRenameFile(oaname, naname) != 0 && errno != ENOENT) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);  // TODO: use return value of taosRenameFile directly
+  if (taosRenameFile(oaname, naname) != 0 && ERRNO != ENOENT) {
+    int32_t code = TAOS_SYSTEM_ERROR(ERRNO);  // TODO: use return value of taosRenameFile directly
     fError("%s failed to rename %s to %s since %s", __func__, oaname, naname, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -517,7 +519,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
+int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   int32_t code = 0;
   char    dirName[TSDB_FILENAME_LEN] = "\0";
 
@@ -563,39 +565,60 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
+#ifndef TD_ASTRA
   if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
     fError("failed to mount %s to FS since no R/W access rights", pCfg->dir);
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
+#else  // TD_ASTRA_TODO
+  if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK)) {
+    fError("failed to mount %s to FS since no access rights", pCfg->dir);
+    TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
+  }
+#endif
 
   if (!taosIsDir(dirName)) {
     fError("failed to mount %s to FS since not a directory", pCfg->dir);
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
-  strncpy(pCfg->dir, dirName, TSDB_FILENAME_LEN);
+  tstrncpy(pCfg->dir, dirName, TSDB_FILENAME_LEN);
 
   TAOS_RETURN(0);
 }
 
 static int32_t tfsFormatDir(char *idir, char *odir) {
+#ifndef TD_ASTRA
+  int32_t   code = 0, lino = 0;
   wordexp_t wep = {0};
+  int32_t   dirLen = 0;
+  char      tmp[PATH_MAX] = {0};
 
-  int32_t code = wordexp(idir, &wep, 0);
+  code = wordexp(idir, &wep, 0);
   if (code != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(code));
+    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(code));
   }
 
-  char tmp[PATH_MAX] = {0};
-  if (taosRealPath(wep.we_wordv[0], tmp, PATH_MAX) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    wordfree(&wep);
-    TAOS_RETURN(code);
-  }
-  strcpy(odir, tmp);
+  TAOS_CHECK_EXIT(taosRealPath(wep.we_wordv[0], tmp, PATH_MAX));
 
+  dirLen = strlen(tmp);
+  if (dirLen < 0 || dirLen >= TSDB_FILENAME_LEN) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_RANGE);
+  }
+
+  tstrncpy(odir, tmp, TSDB_FILENAME_LEN);
+
+_exit:
   wordfree(&wep);
+  if (code != 0) {
+    fError("failed to mount %s to FS at line %d since %s, real path:%s, len:%d", idir, lino, tstrerror(code), tmp,
+           dirLen);
+  }
+  TAOS_RETURN(code);
+#else
+  tstrncpy(odir, idir, TSDB_FILENAME_LEN);
   TAOS_RETURN(0);
+#endif
 }
 
 static int32_t tfsCheck(STfs *pTfs) {
@@ -661,7 +684,7 @@ static int32_t tfsOpendirImpl(STfs *pTfs, STfsDir *pTfsDir) {
     }
     pTfsDir->pDir = taosOpenDir(adir);
     if (pTfsDir->pDir != NULL) break;
-    fWarn("%s failed to open dir %s since %s", __func__, adir, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    fWarn("%s failed to open dir %s since %s", __func__, adir, tstrerror(TAOS_SYSTEM_ERROR(ERRNO)));
   }
 
   TAOS_RETURN(0);
@@ -718,4 +741,23 @@ int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
   TAOS_UNUSED(tfsUnLock(pTfs));
 
   TAOS_RETURN(0);
+}
+
+int32_t tfsUpdateDiskDisable(STfs *pTfs, const char *dir, int8_t disable) {
+  TAOS_UNUSED(tfsLock(pTfs));
+  for (int32_t level = 0; level < pTfs->nlevel; level++) {
+    STfsTier *pTier = &pTfs->tiers[level];
+    for (int32_t disk = 0; disk < pTier->ndisk; ++disk) {
+      STfsDisk *pDisk = pTier->disks[disk];
+      if (strcmp(pDisk->path, dir) == 0) {
+        pDisk->disable = disable;
+        TAOS_UNUSED(tfsUnLock(pTfs));
+        fInfo("disk %s is %s", dir, disable ? "disabled" : "enabled");
+        TAOS_RETURN(TSDB_CODE_SUCCESS);
+      }
+    }
+  }
+  TAOS_UNUSED(tfsUnLock(pTfs));
+  fError("failed to update disk disable since %s not found", dir);
+  TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
 }

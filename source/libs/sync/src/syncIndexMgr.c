@@ -155,6 +155,18 @@ void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, i
          DID(pRaftId), CID(pRaftId));
 }
 
+void syncIndexMgrSetSentTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t sentTime) {
+  for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      (pIndexMgr->sentTimeArr)[i] = sentTime;
+      return;
+    }
+  }
+
+  sError("vgId:%d, indexmgr set sent-time:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, sentTime,
+         DID(pRaftId), CID(pRaftId));
+}
+
 int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
@@ -164,6 +176,19 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId
   }
 
   sError("vgId:%d, indexmgr get recv-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
+  return TSDB_CODE_SYN_INVALID_ID;
+}
+
+int64_t syncIndexMgrGetSentTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+  for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      int64_t recvTime = (pIndexMgr->sentTimeArr)[i];
+      return recvTime;
+    }
+  }
+
+  sError("vgId:%d, indexmgr get sent-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
          CID(pRaftId));
   return TSDB_CODE_SYN_INVALID_ID;
 }

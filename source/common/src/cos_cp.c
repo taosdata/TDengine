@@ -217,7 +217,7 @@ static int32_t cos_cp_save_json(cJSON const* json, SCheckpoint* checkpoint) {
   }
 
   if (taosFsyncFile(fp) < 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _exit);
   }
 
 _exit:
@@ -350,7 +350,7 @@ void cos_cp_update(SCheckpoint* checkpoint, int32_t part_index, char const* etag
   checkpoint->parts[part_index].crc64 = crc64;
 }
 
-void cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t size, int32_t mtime,
+void cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t size, int64_t mtime,
                          char const* upload_id, int64_t part_size) {
   int i = 0;
 
@@ -375,7 +375,7 @@ void cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t 
 
 static bool cos_cp_verify_md5(SCheckpoint* cp) { return true; }
 
-bool cos_cp_is_valid_upload(SCheckpoint* checkpoint, int64_t size, int32_t mtime) {
+bool cos_cp_is_valid_upload(SCheckpoint* checkpoint, int64_t size, int64_t mtime) {
   if (cos_cp_verify_md5(checkpoint) && checkpoint->file_size == size && checkpoint->file_last_modified == mtime) {
     return true;
   }

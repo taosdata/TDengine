@@ -31,10 +31,10 @@ extern "C" {
 // clang-format off
 #define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
 #define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
-#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
-#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
-#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
-#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN  ", DEBUG_WARN,  255, __VA_ARGS__); }}
+#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND INFO  ", DEBUG_INFO,  255, __VA_ARGS__); }}
+#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND DEBUG ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
+#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND TRACE ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
@@ -56,10 +56,12 @@ extern "C" {
   }
 
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
+#define SDB_GET_FLOAT(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawFloat, float)
 #define SDB_GET_INT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt32, int32_t)
 #define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
 #define SDB_GET_INT8(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
 #define SDB_GET_UINT8(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawUInt8, uint8_t)
+#define SDB_GET_BOOL(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawBool, bool)
 
 #define SDB_GET_RESERVE(pRaw, dataPos, valLen, pos) \
   {                                                 \
@@ -81,6 +83,8 @@ extern "C" {
 #define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
 #define SDB_SET_INT8(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
 #define SDB_SET_UINT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawUInt8, uint8_t)
+#define SDB_SET_FLOAT(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawFloat, float)
+#define SDB_SET_BOOL(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawBool, bool)
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)              \
   {                                                                  \
@@ -113,6 +117,7 @@ typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
+typedef int32_t (*SdbAfterRestoredFp)(SMnode *pMnode);
 typedef int32_t (*SdbValidateFp)(SMnode *pMnode, void *pTrans, SSdbRaw *pRaw);
 typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
@@ -162,7 +167,8 @@ typedef enum {
   SDB_GRANT = 26,  // grant log
   SDB_ARBGROUP = 27,
   SDB_ANODE = 28,
-  SDB_MAX = 29
+  SDB_CFG = 29,
+  SDB_MAX = 30
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -182,30 +188,31 @@ typedef struct SSdbRow {
 } SSdbRow;
 
 typedef struct SSdb {
-  SMnode        *pMnode;
-  SWal          *pWal;
-  int64_t        sync;
-  char          *currDir;
-  char          *tmpDir;
-  int64_t        commitIndex;
-  int64_t        commitTerm;
-  int64_t        commitConfig;
-  int64_t        applyIndex;
-  int64_t        applyTerm;
-  int64_t        applyConfig;
-  int64_t        tableVer[SDB_MAX];
-  int64_t        maxId[SDB_MAX];
-  EKeyType       keyTypes[SDB_MAX];
-  SHashObj      *hashObjs[SDB_MAX];
-  TdThreadRwlock locks[SDB_MAX];
-  SdbInsertFp    insertFps[SDB_MAX];
-  SdbUpdateFp    updateFps[SDB_MAX];
-  SdbDeleteFp    deleteFps[SDB_MAX];
-  SdbDeployFp    deployFps[SDB_MAX];
-  SdbEncodeFp    encodeFps[SDB_MAX];
-  SdbDecodeFp    decodeFps[SDB_MAX];
-  SdbValidateFp  validateFps[SDB_MAX];
-  TdThreadMutex  filelock;
+  SMnode            *pMnode;
+  SWal              *pWal;
+  int64_t            sync;
+  char              *currDir;
+  char              *tmpDir;
+  int64_t            commitIndex;
+  int64_t            commitTerm;
+  int64_t            commitConfig;
+  int64_t            applyIndex;
+  int64_t            applyTerm;
+  int64_t            applyConfig;
+  int64_t            tableVer[SDB_MAX];
+  int64_t            maxId[SDB_MAX];
+  EKeyType           keyTypes[SDB_MAX];
+  SHashObj          *hashObjs[SDB_MAX];
+  TdThreadRwlock     locks[SDB_MAX];
+  SdbInsertFp        insertFps[SDB_MAX];
+  SdbUpdateFp        updateFps[SDB_MAX];
+  SdbDeleteFp        deleteFps[SDB_MAX];
+  SdbDeployFp        deployFps[SDB_MAX];
+  SdbAfterRestoredFp afterRestoredFps[SDB_MAX];
+  SdbEncodeFp        encodeFps[SDB_MAX];
+  SdbDecodeFp        decodeFps[SDB_MAX];
+  SdbValidateFp      validateFps[SDB_MAX];
+  TdThreadMutex      filelock;
 } SSdb;
 
 typedef struct SSdbIter {
@@ -215,15 +222,16 @@ typedef struct SSdbIter {
 } SSdbIter;
 
 typedef struct {
-  ESdbType      sdbType;
-  EKeyType      keyType;
-  SdbDeployFp   deployFp;
-  SdbEncodeFp   encodeFp;
-  SdbDecodeFp   decodeFp;
-  SdbInsertFp   insertFp;
-  SdbUpdateFp   updateFp;
-  SdbDeleteFp   deleteFp;
-  SdbValidateFp validateFp;
+  ESdbType           sdbType;
+  EKeyType           keyType;
+  SdbDeployFp        deployFp;
+  SdbAfterRestoredFp afterRestoredFp;
+  SdbEncodeFp        encodeFp;
+  SdbDecodeFp        decodeFp;
+  SdbInsertFp        insertFp;
+  SdbUpdateFp        updateFp;
+  SdbDeleteFp        deleteFp;
+  SdbValidateFp      validateFp;
 } SSdbTable;
 
 typedef struct SSdbOpt {
@@ -264,6 +272,14 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table);
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t sdbDeploy(SSdb *pSdb);
+
+/**
+ * @brief prepare the initial rows of sdb.
+ *
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, -1 for failure.
+ */
+int32_t sdbAfterRestored(SSdb *pSdb);
 
 /**
  * @brief Load sdb from file.
@@ -373,7 +389,7 @@ int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
 /**
  * @brief get valid number of rows, removed rows are ignored
  */
-int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type);
+int32_t sdbGetValidSize(SSdb *pSdb, ESdbType type);
 
 /**
  * @brief Get the max id of the table, keyType of table should be INT32
@@ -407,17 +423,21 @@ SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
 int32_t  sdbSetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t val);
 int32_t  sdbSetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t val);
+int32_t  sdbSetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool val);
 int32_t  sdbSetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t val);
 int32_t  sdbSetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t val);
 int32_t  sdbSetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t val);
+int32_t  sdbSetRawFloat(SSdbRaw *pRaw, int32_t dataPos, float val);
 int32_t  sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_t valLen);
 int32_t  sdbSetRawDataLen(SSdbRaw *pRaw, int32_t dataLen);
 int32_t  sdbSetRawStatus(SSdbRaw *pRaw, ESdbStatus status);
 int32_t  sdbGetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t *val);
 int32_t  sdbGetRawUInt8(SSdbRaw *pRaw, int32_t dataPos, uint8_t *val);
+int32_t  sdbGetRawBool(SSdbRaw *pRaw, int32_t dataPos, bool *val);
 int32_t  sdbGetRawInt16(SSdbRaw *pRaw, int32_t dataPos, int16_t *val);
 int32_t  sdbGetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t *val);
 int32_t  sdbGetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t *val);
+int32_t  sdbGetRawFloat(SSdbRaw *pRaw, int32_t dataPos, float *val);
 int32_t  sdbGetRawBinary(SSdbRaw *pRaw, int32_t dataPos, char *pVal, int32_t valLen);
 int32_t  sdbGetRawSoftVer(SSdbRaw *pRaw, int8_t *sver);
 int32_t  sdbGetRawTotalSize(SSdbRaw *pRaw);

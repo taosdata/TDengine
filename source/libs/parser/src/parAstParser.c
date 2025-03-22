@@ -46,7 +46,7 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void*   pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  void* pParser = ParseAlloc((FMalloc)taosMemMalloc);
   if (!pParser) return terrno;
   int32_t i = 0;
   while (1) {
@@ -88,7 +88,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
-  ParseFree(pParser, (FFree)taosMemoryFree);
+  ParseFree(pParser, (FFree)taosAutoMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
     if (TSDB_CODE_SUCCESS != code) {
@@ -103,6 +103,7 @@ typedef struct SCollectMetaKeyCxt {
   SParseContext*   pParseCxt;
   SParseMetaCache* pMetaCache;
   SNode*           pStmt;
+  bool             collectVSubTables;
 } SCollectMetaKeyCxt;
 
 typedef struct SCollectMetaKeyFromExprCxt {
@@ -184,7 +185,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   }
   if (TSDB_CODE_SUCCESS == code &&
       (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) ||
-       0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) &&
+       0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE) ||
+       0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
   }
@@ -198,6 +200,9 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
 static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SRealTableNode* pRealTable) {
   pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, pRealTable->table.dbName, pRealTable->table.tableName,
                                                   AUTH_TYPE_READ);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVSubTables) {
+    pCxt->errCode = reserveVSubTableInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
+  }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
@@ -210,15 +215,15 @@ static int32_t isTbnameEqCondOperator(SOperatorNode* pOperator, char** ppTableNa
   if (pOperator->opType != OP_TYPE_EQUAL) {
     return TSDB_CODE_SUCCESS;
   }
-  
-  SValueNode*    pValueNode = NULL;
+
+  SValueNode* pValueNode = NULL;
   if (nodeType(pOperator->pLeft) == QUERY_NODE_FUNCTION &&
       0 == strcasecmp(((SFunctionNode*)(pOperator->pLeft))->functionName, "tbname") &&
       nodeType(pOperator->pRight) == QUERY_NODE_VALUE) {
     pValueNode = (SValueNode*)pOperator->pRight;
   } else if (nodeType(pOperator->pRight) == QUERY_NODE_FUNCTION &&
-     0 == strcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
-     nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
+             0 == strcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
+             nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
     pValueNode = (SValueNode*)pOperator->pLeft;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -233,13 +238,14 @@ static EDealRes collectMetaKeyFromOperator(SCollectMetaKeyFromExprCxt* pCxt, SOp
   if (!pCxt->tbnameCollect) {
     return DEAL_RES_CONTINUE;
   }
-  
+
   char*   pTableName = NULL;
   int32_t code = isTbnameEqCondOperator((SOperatorNode*)pOpNode, &pTableName);
   if (TSDB_CODE_SUCCESS != code) return DEAL_RES_CONTINUE;
   if (pTableName) {
     SSelectStmt* pSelect = (SSelectStmt*)pCxt->pComCxt->pStmt;
-    pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, ((SRealTableNode*)pSelect->pFromTable)->table.dbName, pTableName, AUTH_TYPE_READ);
+    pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, ((SRealTableNode*)pSelect->pFromTable)->table.dbName,
+                                                    pTableName, AUTH_TYPE_READ);
   }
 
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
@@ -314,6 +320,76 @@ static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTa
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, AUTH_TYPE_WRITE,
                                   pCxt->pMetaCache);
+  }
+  return code;
+}
+
+static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateVTableStmt* pStmt) {
+  int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, AUTH_TYPE_WRITE,
+                                  pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode *pNode = NULL;
+    FOREACH(pNode, pStmt->pCols) {
+      SColumnDefNode *pCol = (SColumnDefNode*)pNode;
+      if (NULL == pCol) {
+        code = TSDB_CODE_PAR_INVALID_COLUMN;
+        break;
+      }
+      SColumnOptions *pOptions = (SColumnOptions*)pCol->pOptions;
+      if (pOptions && pOptions->hasRef) {
+        code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pOptions->refDb,
+                                        pOptions->refTable, AUTH_TYPE_READ, pCxt->pMetaCache);
+        }
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+      }
+    }
+  }
+  return code;
+}
+
+static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCreateVSubTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache));
+  // super table's meta
+  PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->useDbName, pStmt->useTableName,pCxt->pMetaCache));
+  // child table's meta
+  PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
+  // check db's write auth
+  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL,
+                                     AUTH_TYPE_WRITE, pCxt->pMetaCache));
+  // check org table's read auth
+  SNode     *pNode = NULL;
+  SNodeList *pTmpNodeList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
+  if (NULL == pTmpNodeList) {
+    // no column reference
+    return TSDB_CODE_SUCCESS;
+  }
+
+  FOREACH(pNode, pTmpNodeList) {
+    SColumnRefNode *pColRef = (SColumnRefNode*)pNode;
+    if (NULL == pColRef) {
+      code = TSDB_CODE_PAR_INVALID_COLUMN;
+      break;
+    }
+    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName,
+                                        pCxt->pMetaCache));
+    PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName,
+                                          pCxt->pMetaCache));
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pColRef->refDbName,
+                                       pColRef->refTableName, AUTH_TYPE_READ, pCxt->pMetaCache));
   }
   return code;
 }
@@ -414,6 +490,30 @@ static int32_t collectMetaKeyFromDropStable(SCollectMetaKeyCxt* pCxt, SDropSuper
                                 AUTH_TYPE_WRITE, pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromDropVtable(SCollectMetaKeyCxt* pCxt, SDropVirtualTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pStmt->withOpt) {
+    code = reserveTableUidInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+    }
+  } else {
+    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+    if (TSDB_CODE_SUCCESS == code) {
+      code =
+          reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName,
+                                    pStmt->tableName, AUTH_TYPE_WRITE, pCxt->pMetaCache);
+    }
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
@@ -439,6 +539,20 @@ static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTab
                                   AUTH_TYPE_WRITE, pCxt->pMetaCache);
   }
   return code;
+}
+
+static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
+  PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache));
+  PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
+  PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
+  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+                                     AUTH_TYPE_WRITE, pCxt->pMetaCache));
+  if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF || pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
+    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName, pStmt->refTableName,
+                                       AUTH_TYPE_READ, pCxt->pMetaCache));
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t collectMetaKeyFromUseDatabase(SCollectMetaKeyCxt* pCxt, SUseDatabaseStmt* pStmt) {
@@ -479,8 +593,8 @@ static int32_t collectMetaKeyFromExplain(SCollectMetaKeyCxt* pCxt, SExplainStmt*
 
 static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
@@ -496,11 +610,13 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 }
 
 static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateStreamStmt* pStmt) {
+  pCxt->collectVSubTables = true;
+  
   int32_t code =
       reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pSubtable && NULL != pStmt->pQuery) {
     SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    int32_t code = nodesCloneNode(pStmt->pSubtable, &pSelect->pSubtable);
+    int32_t      code = nodesCloneNode(pStmt->pSubtable, &pSelect->pSubtable);
     if (NULL == pSelect->pSubtable) {
       return code;
     }
@@ -640,6 +756,20 @@ static int32_t collectMetaKeyFromShowTables(SCollectMetaKeyCxt* pCxt, SShowStmt*
   return code;
 }
 
+static int32_t collectMetaKeyFromShowFilesets(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_FILESETS,
+                                         pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,
+                               NULL, AUTH_TYPE_READ_OR_WRITE, pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowTags(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TAGS,
                                          pCxt->pMetaCache);
@@ -754,6 +884,12 @@ static int32_t collectMetaKeyFromShowCompactDetails(SCollectMetaKeyCxt* pCxt, SS
   return code;
 }
 
+static int32_t collectMetaKeyFromShowTransactionDetails(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                         TSDB_INS_TABLE_TRANSACTION_DETAILS, pCxt->pMetaCache);
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowGrantsFull(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_GRANTS_FULL,
                                  pCxt->pMetaCache);
@@ -780,8 +916,8 @@ static int32_t collectMetaKeyFromShowCreateDatabase(SCollectMetaKeyCxt* pCxt, SS
 
 static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShowCreateTableStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
@@ -798,8 +934,8 @@ static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShow
 
 static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowCreateViewStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->viewName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->viewName, TSDB_TABLE_NAME_LEN);
   char dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(&name, dbFName);
   int32_t code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->viewName, 0);
@@ -810,7 +946,7 @@ static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowC
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, pCxt->pMetaCache);
   }
-
+  pCxt->pMetaCache->forceFetchViewMeta = true;
   return code;
 }
 
@@ -840,8 +976,8 @@ static int32_t collectMetaKeyFromInsert(SCollectMetaKeyCxt* pCxt, SInsertStmt* p
 
 static int32_t collectMetaKeyFromShowBlockDist(SCollectMetaKeyCxt* pCxt, SShowTableDistributedStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromRealTableImpl(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ);
@@ -856,6 +992,10 @@ static int32_t collectMetaKeyFromShowSubscriptions(SCollectMetaKeyCxt* pCxt, SSh
 
 static int32_t collectMetaKeyFromCompactDatabase(SCollectMetaKeyCxt* pCxt, SCompactDatabaseStmt* pStmt) {
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+}
+
+static int32_t collectMetaKeyFromCompactVgroups(SCollectMetaKeyCxt* pCxt, SCompactVgroupsStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
 }
 
 static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
@@ -888,6 +1028,7 @@ static int32_t collectMetaKeyFromCreateViewStmt(SCollectMetaKeyCxt* pCxt, SCreat
 static int32_t collectMetaKeyFromDropViewStmt(SCollectMetaKeyCxt* pCxt, SDropViewStmt* pStmt) {
   int32_t code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName,
                                             pStmt->viewName, AUTH_TYPE_ALTER, pCxt->pMetaCache);
+  pCxt->pMetaCache->forceFetchViewMeta = true;
   return code;
 }
 
@@ -931,6 +1072,20 @@ static int32_t collectMetaKeyFromDropTSMAStmt(SCollectMetaKeyCxt* pCxt, SDropTSM
   return code;
 }
 
+static int32_t collectMetaKeyFromShowUsage(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_DISK_USAGE,
+                                         pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,
+                               NULL, AUTH_TYPE_READ_OR_WRITE, pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowTSMASStmt(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TSMAS,
                                  pCxt->pMetaCache);
@@ -959,6 +1114,10 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromFlushDatabase(pCxt, (SFlushDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return collectMetaKeyFromCreateTable(pCxt, (SCreateTableStmt*)pStmt);
+    case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT:
+      return collectMetaKeyFromCreateVTable(pCxt, (SCreateVTableStmt*)pStmt);
+    case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+      return collectMetaKeyFromCreateVSubTable(pCxt, (SCreateVSubTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return collectMetaKeyFromCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
@@ -967,10 +1126,14 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return collectMetaKeyFromDropStable(pCxt, (SDropSuperTableStmt*)pStmt);
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      return collectMetaKeyFromDropVtable(pCxt, (SDropVirtualTableStmt*)pStmt);
     case QUERY_NODE_ALTER_TABLE_STMT:
       return collectMetaKeyFromAlterTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return collectMetaKeyFromAlterStable(pCxt, (SAlterTableStmt*)pStmt);
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
+      return collectMetaKeyFromAlterVtable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:
       return collectMetaKeyFromUseDatabase(pCxt, (SUseDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_INDEX_STMT:
@@ -983,6 +1146,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromDescribe(pCxt, (SDescribeStmt*)pStmt);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return collectMetaKeyFromCompactDatabase(pCxt, (SCompactDatabaseStmt*)pStmt);
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
+      return collectMetaKeyFromCompactVgroups(pCxt, (SCompactVgroupsStmt*)pStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
     case QUERY_NODE_GRANT_STMT:
@@ -1020,7 +1185,10 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
       return collectMetaKeyFromShowStreams(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_VTABLES_STMT:
       return collectMetaKeyFromShowTables(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_FILESETS_STMT:
+      return collectMetaKeyFromShowFilesets(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TAGS_STMT:
       return collectMetaKeyFromShowTags(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -1055,6 +1223,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowCompacts(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       return collectMetaKeyFromShowCompactDetails(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
+      return collectMetaKeyFromShowTransactionDetails(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
       return collectMetaKeyFromShowGrantsFull(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
@@ -1066,6 +1236,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return collectMetaKeyFromShowCreateDatabase(pCxt, (SShowCreateDatabaseStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return collectMetaKeyFromShowCreateTable(pCxt, (SShowCreateTableStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
@@ -1074,6 +1245,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowApps(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return collectMetaKeyFromShowTransactions(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_USAGE_STMT:
+      return collectMetaKeyFromShowUsage(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:
       return collectMetaKeyFromDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_INSERT_STMT:
