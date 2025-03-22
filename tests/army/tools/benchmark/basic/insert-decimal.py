@@ -91,13 +91,14 @@ class TDTestCase(TBase):
         with open(json_file) as file:
              data = json.load(file)
 
+        tdLog.info("begin to fetch meta info")
         db          = data["databases"][0]
         db_name     = db['dbinfo']['name']
         stb         = db["super_tables"][0]
         stb_name    = stb['name']
         columns     = stb['columns']
 
-
+        tdLog.info("begin to check json decimal")
         self.check_decimal_scale(db_name, stb_name, columns[1])
         self.check_decimal_scale(db_name, stb_name, columns[9])
         tdLog.info("check json decimal scale successfully")
