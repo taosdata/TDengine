@@ -7,14 +7,14 @@ import fc_result from '../pic/fc-result.png';
 
 时序数据预测处理以持续一个时间段的时序数据作为输入，预测接下来一个连续时间区间内时间序列数据趋势。用户可以指定输出的（预测）时间序列数据点的数量，因此其输出的结果行数不确定。为此，TDengine 使用新 SQL 函数 `FORECAST` 提供时序数据预测服务。基础数据（用于预测的历史时间序列数据）是该函数的输入，预测结果是该函数的输出。用户可以通过 `FORECAST` 函数调用 Anode 提供的预测算法提供的服务。
 
-在后续章节中，使用时序数据表`foo`作为示例，介绍预测和异常检测算法的使用方式，`foo` 表的模式如下：
+在后续章节中，使用时序数据表 `foo` 作为示例，介绍预测和异常检测算法的使用方式，`foo` 表的模式如下：
 
-|列名称|类型|说明|
-|---|---|---|
-|ts| timestamp| 主时间戳列|
-|i32| int32| 4字节整数，设备测量值 metric|
+| 列名称 | 类型      | 说明                         |
+| ------ | --------- | ---------------------------- |
+| ts     | timestamp | 主时间戳列                   |
+| i32    | int32     | 4字节整数，设备测量值 metric |
 
-```bash
+```sql
 taos> select * from foo;
            ts            |      i32    |
 ========================================
@@ -29,6 +29,7 @@ taos> select * from foo;
 ```
 
 ### 语法
+
 ```SQL
 FORECAST(column_expr, option_expr)
 
@@ -41,21 +42,21 @@ algo=expr1
 [,start=start_ts_val]
 [,expr2]
 "}
-
 ```
+
 1. `column_expr`：预测的时序数据列，只支持数值类型列输入。
 2. `options`：预测函数的参数。字符串类型，其中使用 K=V 方式调用算法及相关参数。采用逗号分隔的 K=V 字符串表示，其中的字符串不需要使用单引号、双引号、或转义号等符号，不能使用中文及其他宽字符。预测支持 `conf`, `every`, `rows`, `start`, `rows` 几个控制参数，其含义如下：
 
 ### 参数说明
 
-|参数|含义|默认值|
-|---|---|---|
-|algo|预测分析使用的算法|holtwinters|
-|wncheck|白噪声（white noise data）检查|默认值为 1，0 表示不进行检查|
-|conf|预测数据的置信区间范围 ，取值范围 [0, 100]|95|
-|every|预测数据的采样间隔|输入数据的采样间隔|
-|start|预测结果的开始时间戳|输入数据最后一个时间戳加上一个采样间隔时间区间|
-|rows|预测结果的记录数|10|
+| 参数    | 含义                                       | 默认值                                         |
+| ------- | ------------------------------------------ | ---------------------------------------------- |
+| algo    | 预测分析使用的算法                         | holtwinters                                    |
+| wncheck | 白噪声（white noise data）检查             | 默认值为 1，0 表示不进行检查                   |
+| conf    | 预测数据的置信区间范围 ，取值范围 [0, 100] | 95                                             |
+| every   | 预测数据的采样间隔                         | 输入数据的采样间隔                             |
+| start   | 预测结果的开始时间戳                       | 输入数据最后一个时间戳加上一个采样间隔时间区间 |
+| rows    | 预测结果的记录数                           | 10                                             |
 
 1. 预测查询结果新增三个伪列，具体如下：`_FROWTS`：预测结果的时间戳、`_FLOW`：置信区间下界、`_FHIGH`：置信区间上界, 对于没有置信区间的预测算法，其置信区间同预测结果
 2. 更改参数 `START`：返回预测结果的起始时间，改变起始时间不会影响返回的预测数值，只影响起始时间。
@@ -73,7 +74,8 @@ FROM foo;
 SELECT  _flow, _fhigh, _frowts, FORECAST(i32, "algo=arima,alpha=95,period=10,wncheck=0")
 FROM foo;
 ```
-```
+
+```sql
 taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
         _flow         |        _fhigh        |       _frowts           | forecast(i32) |
 ========================================================================================
@@ -89,8 +91,8 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
         -1076.1566162 |         1214.4498291 | 2020-01-01 00:01:44.000 |            69 |
 ```
 
-
 ## 内置预测算法
+
 - [arima](./02-arima.md)
 - [holtwinters](./03-holtwinters.md)
 - CES (Complex Exponential Smoothing) 
@@ -110,6 +112,7 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 - TimesNet
 
 ## 算法有效性评估工具
+
 TDgpt 提供预测分析算法有效性评估工具 `analytics_compare`，调用该工具并设置合适的参数，能够使用 TDengine 中的数据作为回测依据，评估不同预测算法或相同的预测算法在不同的参数或训练模型的下的预测有效性。预测有效性的评估使用 `MSE` 和 `MAE` 指标作为依据，后续还将增加 `MAPE`指标。
 
 ```ini
@@ -135,14 +138,11 @@ gen_figure = true
 
 算法对比分析运行完成以后，生成 fc-results.xlsx 文件，其中包含了调用算法的预测分析误差、执行时间、调用参数等信息，如下表：
 
-
-|algorithm|params|MSE|elapsed_time(ms.)|
-|---|---|---|---|
-|holtwinters|{"trend":"add", "seasonal":"add"}|351.622| 125.1721|
-|arima|{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}|433.709| 45577.9187|
-
+| algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
+| ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
+| holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
+| arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
 
 如果设置了 `gen_figure` 为 true，分析结果中还会有绘制的分析预测结果图（如下图所示）。
 
 <img src={fc_result} width="360" alt="预测对比结果" />
-
