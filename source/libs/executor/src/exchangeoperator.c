@@ -1239,7 +1239,7 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
   freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
   pOperator->pOperatorGetParam = NULL;
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {

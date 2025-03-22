@@ -1430,6 +1430,7 @@ typedef struct {
   int64_t     watermark1;
   int64_t     watermark2;
   int32_t     ttl;
+  int32_t     keep;
   SArray*     pFuncs;
   int32_t     commentLen;
   char*       pComment;

@@ -90,31 +90,20 @@
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
 #
 # army/tools
 #
 
-# benchmark 66 cases
+# benchmark 64 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
-# benchmark 64 cases
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_tmq_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_interlace.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_offset_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
+
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
@@ -139,6 +128,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/queryMain.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
@@ -174,6 +164,7 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R

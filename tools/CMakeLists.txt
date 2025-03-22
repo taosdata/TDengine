@@ -13,7 +13,7 @@ IF(TD_WEBSOCKET)
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
@@ -31,7 +31,7 @@ IF(TD_WEBSOCKET)
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
@@ -50,7 +50,7 @@ IF(TD_WEBSOCKET)
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
@@ -136,7 +136,7 @@ ELSE()
             PREFIX "taosadapter"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
@@ -165,7 +165,7 @@ ELSE()
             PREFIX "taosadapter"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
@@ -190,12 +190,13 @@ ELSE()
             PREFIX "taosadapter"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
+            COMMAND tree ${CMAKE_BINARY_DIR}/build/lib
             COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
 
             # COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"

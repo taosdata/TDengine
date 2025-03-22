@@ -998,6 +998,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         streamMetaReleaseTask(pTask->pMeta, pHTask);
       } else if ((taskLevel == TASK_LEVEL__SOURCE) && pTask->info.hasAggTasks) {
         code = continueDispatchRecalculateStart((SStreamDataBlock*)pInput, pTask);
+        pInput = NULL;
       }
     }
 
