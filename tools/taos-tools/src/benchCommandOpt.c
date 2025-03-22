@@ -174,9 +174,9 @@ static void initStable() {
     c2->length = sizeof(int32_t);
     c3->length = sizeof(float);
 
-    tstrncpy(c1->name, "current", TSDB_COL_NAME_LEN + 1);
-    tstrncpy(c2->name, "voltage", TSDB_COL_NAME_LEN + 1);
-    tstrncpy(c3->name, "phase", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(c1->name, "current", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(c2->name, "voltage", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(c3->name, "phase", TSDB_COL_NAME_LEN + 1);
 
     c1->min = 9;
     c1->max = 10;    
@@ -219,8 +219,8 @@ static void initStable() {
     t1->length = sizeof(int32_t);
     t2->length = 24;
 
-    tstrncpy(t1->name, "groupid", TSDB_COL_NAME_LEN + 1);
-    tstrncpy(t2->name, "location", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(t1->name, "groupid", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(t2->name, "location", TSDB_COL_NAME_LEN + 1);
 
     t1->min = 1;
     t1->max = 100000;

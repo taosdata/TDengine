@@ -213,7 +213,7 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
             "`%s`.%s", g_queryInfo.dbName,
             g_queryInfo.superQueryInfo.childTblName[tblIndex]);
 
-    tstrncpy(outSql, inSql, pos - inSql + 1);
+    TOOLS_STRNCPY(outSql, inSql, pos - inSql + 1);
     snprintf(outSql + (pos - inSql), TSDB_MAX_ALLOWED_SQL_LEN - 1,
              "%s%s", subTblName, pos + strlen(mark));
     return 0;         
@@ -1241,7 +1241,7 @@ void freeSpecialQueryInfo() {
 
 void *queryKiller(void *arg) {
     char host[MAX_HOSTNAME_LEN] = {0};
-    tstrncpy(host, g_arguments->host, MAX_HOSTNAME_LEN);
+    TOOLS_STRNCPY(host, g_arguments->host, MAX_HOSTNAME_LEN);
 
     while (true) {
         TAOS *taos = taos_connect(g_arguments->host, g_arguments->user,
@@ -1271,12 +1271,12 @@ void *queryKiller(void *arg) {
 
                 if (execUSec > g_queryInfo.killQueryThreshold * 1000000) {
                     char sql[SHORT_1K_SQL_BUFF_LEN] = {0};
-                    tstrncpy(sql, (char*)row[2],
+                    TOOLS_STRNCPY(sql, (char*)row[2],
                              min(strlen((char*)row[2])+1,
                                  SHORT_1K_SQL_BUFF_LEN));
 
                     char killId[KILLID_LEN] = {0};
-                    tstrncpy(killId, (char*)row[0],
+                    TOOLS_STRNCPY(killId, (char*)row[0],
                             min(strlen((char*)row[0])+1, KILLID_LEN));
                     char killCommand[KILLID_LEN + 32] = {0};
                     snprintf(killCommand, sizeof(killCommand), "KILL QUERY '%s'", killId);
