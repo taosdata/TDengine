@@ -1362,20 +1362,24 @@ int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
   return TSDB_CODE_SUCCESS;  // always return true
 }
 
-void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader) {
+void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t term, bool isLeader) {
   streamMetaWLock(pMeta);
 
-  int64_t prevStage = pMeta->stage;
-  pMeta->stage = stage;
+  int64_t prevTerm = pMeta->stage;
+  int32_t prevRole = pMeta->role;
+
+  pMeta->stage = term;
+  pMeta->role = (isLeader) ? NODE_ROLE_LEADER : NODE_ROLE_FOLLOWER;
 
   // mark the sign to send msg before close all tasks
   // 1. for a leader vnode, always send msg before closing itself
   // 2. for a follower vnode, if it's changed from a leader, also sending msg before closing.
-  if (pMeta->role == NODE_ROLE_LEADER) {
+  if (prevRole == NODE_ROLE_LEADER) {
     pMeta->sendMsgBeforeClosing = true;
   }
 
-  if ((prevStage == NODE_ROLE_FOLLOWER || prevStage == NODE_ROLE_LEADER) && (taosArrayGetSize(pMeta->pTaskList) > 0)) {
+  if ((prevRole == NODE_ROLE_FOLLOWER || prevRole == NODE_ROLE_LEADER) && (prevRole != pMeta->role) &&
+      (taosArrayGetSize(pMeta->pTaskList) > 0)) {
     SStreamTask* pTask = NULL;
     STaskId*     pId = taosArrayGet(pMeta->pTaskList, 0);
 
@@ -1387,11 +1391,10 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
     }
   }
 
-  pMeta->role = (isLeader) ? NODE_ROLE_LEADER : NODE_ROLE_FOLLOWER;
   if (!isLeader) {
     streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
   } else {  // wait for nodeep update if become leader from follower
-    if (prevStage == NODE_ROLE_FOLLOWER) {
+    if (prevRole == NODE_ROLE_FOLLOWER) {
       pMeta->startInfo.tasksWillRestart = 1;
     }
   }
@@ -1399,18 +1402,19 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   streamMetaWUnLock(pMeta);
 
   if (isLeader) {
-    if (prevStage == NODE_ROLE_FOLLOWER) {
-      stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64
-             " restart after nodeEp being updated",
-             pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+    if (prevRole == NODE_ROLE_FOLLOWER) {
+      stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
+             " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64 " restart after nodeEp being updated",
+             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
     } else {
-      stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64,
-             pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+      stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
+             " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64,
+             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
     }
     streamMetaStartHb(pMeta);
   } else {
-    stInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d sendMsg beforeClosing:%d", pMeta->vgId,
-           stage, prevStage, isLeader, pMeta->sendMsgBeforeClosing);
+    stInfo("vgId:%d update term:%" PRId64 " prevTerm:%" PRId64 " prevRole:%d leader:%d sendMsg beforeClosing:%d",
+           pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->sendMsgBeforeClosing);
   }
 }
 

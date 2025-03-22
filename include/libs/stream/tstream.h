@@ -818,7 +818,7 @@ int32_t streamGetFatalError(const SStreamMeta* pMeta);
 
 void    streamMetaResetStartInfo(STaskStartInfo* pMeta, int32_t vgId);
 int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pTaskList);
-void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
+void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t term, bool isLeader);
 void    streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
