@@ -58,7 +58,7 @@ TEST(jsonTest, strToLowerCopy) {
     ASSERT_EQ(cmp, 0);
   }
 
-  // null
+  // check null
   char * p = strToLowerCopy(NULL);
   ASSERT_EQ(p, nullptr);
 }
