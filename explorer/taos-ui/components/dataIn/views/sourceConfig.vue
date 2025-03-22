@@ -287,7 +287,7 @@ async function handleDetailData(id: string | number) {
     data.from = data.from_json;
   }
 
-  sourceForm.agent = data.from.agent;
+  sourceForm.agent = data.via;
   sourceForm.type = data.from.type;
   getDataSource();
 
