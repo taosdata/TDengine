@@ -252,7 +252,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             if (tools_cJSON_IsNumber(dataPrecision)) {
                 precision = dataPrecision->valueint;
                 if (precision > TSDB_DECIMAL128_MAX_PRECISION || precision < 1) {
-                    errorPrint("Invalid precision value in json, precision: %d\n", precision);
+                    errorPrint("Invalid precision value of decimal type in json, precision: %d\n", precision);
                     goto PARSE_OVER;
                 }
             } else {
@@ -295,7 +295,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             if (tools_cJSON_IsNumber(dataScale)) {
                 scale = dataScale->valueint;
                 if (scale > maxScale) {
-                    errorPrint("Invalid scale value in json, precision: %d, scale: %d\n", precision, scale);
+                    errorPrint("Invalid scale value of decimal type in json, precision: %d, scale: %d\n", precision, scale);
                     goto PARSE_OVER;
                 }
             } else {

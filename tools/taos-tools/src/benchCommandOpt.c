@@ -64,7 +64,7 @@ void processSingleToken(char* token, BArray* fields, int index, bool isTag) {
     }
 
     // DECIMAL
-    reti = regcomp(&regex, "^DECIMAL\\s*\\(\\s*([1-9][0-9]?)\\s*,\\s*([0-9][0-9]?)\\s*\\)$", REG_ICASE | REG_EXTENDED);
+    reti = regcomp(&regex, "^DECIMAL\\s*\\(\\s*(-?[0-9]+)\\s*,\\s*(-?[0-9]+)\\s*\\)$", REG_ICASE | REG_EXTENDED);
     if (!reti) {
         reti = regexec(&regex, token, 3, pmatch, 0);
         if (!reti) {
@@ -77,7 +77,7 @@ void processSingleToken(char* token, BArray* fields, int index, bool isTag) {
 
             int p = atoi(precision), s = atoi(scale);
             if (p > TSDB_DECIMAL128_MAX_PRECISION || p <= 0 || s > p) {
-                errorPrint("Invalid DECIMAL args: %s\n", token);
+                errorPrint("Invalid value of decimal type in args, precision: %d, scale: %d\n", p, s);
                 exit(EXIT_FAILURE);
             }
             field->precision = p;
