@@ -345,7 +345,7 @@ bool allCheckDownstreamRspPartial(STaskStartInfo* pStartInfo, int32_t num, int32
 
     void* px = taosHashGet(pStartInfo->pReadyTaskSet, pTaskId, sizeof(STaskId));
     if (px == NULL) {
-      px = taosHashGet(pStartInfo->pFailedTaskSet, &pTaskId, sizeof(STaskId));
+      px = taosHashGet(pStartInfo->pFailedTaskSet, pTaskId, sizeof(STaskId));
       if (px == NULL) {
         stDebug("vgId:%d s-task:0x%x start result not rsp yet", vgId, (int32_t)pTaskId->taskId);
         return false;
