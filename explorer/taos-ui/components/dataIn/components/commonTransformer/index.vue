@@ -410,6 +410,7 @@
                       v-model="scope.row.exprname"
                       size="default"
                       class="mapping-rule-select"
+                      style="width: 110px;min-width:110px;"
                       @change="changeCurrentMapExpr(scope)"
                     >
                       <el-option v-for="item in mappingTypes" :key="item" :label="item" :value="item">{{

@@ -146,9 +146,9 @@
 
 <script lang="ts" setup>
 import ColumnItem from './columnItem.vue';
-import { cloneDeep } from 'lodash-es';
+// import { cloneDeep } from 'lodash-es';
 import { type_default_version_gte_3300, generateCreateStbSql } from './utils';
-import { ColumnStruct, CreateStableProps, TagStruct, CreateStableForm } from '../props';
+import { ColumnStruct, CreateStableProps, CreateStableForm } from '../props';
 import { isGte3300, stbNameRule, columnRule, tagRule } from '../utils';
 import { t } from 'locales';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
@@ -186,7 +186,7 @@ const activeNames = ref(['1', '2']);
 const currentSelectedDb = computed(() => props.dbData?.name);
 const emits = defineEmits(['success', 'cancel']);
 
-const tagDataClone: TagStruct[] = cloneDeep(formData.tags);
+// const tagDataClone: TagStruct[] = cloneDeep(formData.tags);
 const formTitle = computed(() => {
   if (props.isEdit) {
     return t('stb.editStable', [formData.name]);
@@ -211,7 +211,14 @@ function setFormData() {
   getStableStructReq(currentSelectedDb.value, props.stbName!).then(data => {
     formData.name = props.stbName!;
     formData.columns = data.columns;
+    formData.columns.forEach(c => {
+      c.origin_length = c.length
+    });
     formData.tags = data.tags;
+    formData.tags.forEach(t => {
+      t.origin_field = t.field;
+      t.origin_length = t.length;
+    })
   });
 }
 
@@ -220,15 +227,20 @@ function typeChange(data: ColumnStruct, type: 'column' | 'tag', index: number) {
   if (!props.isEdit) return;
   let params: changeStbStructData = {
     operation: 'modify ' + type,
-    first_field: data.field
+    first_field: data.field,
+    second_field: '',
   };
   if (type == 'tag') {
     //这里区分tag修改的是啥
     params = {
       operation: 'rename ' + type,
-      first_field: tagDataClone[index].field,
+      first_field: formData.tags[index].origin_field || '',
       second_field: `\`${data.field}\``
     };
+  }
+
+  if (data.length > 0 && data.origin_length !== data.length) {
+    params.second_field += composeType(data)
   }
   updateData(params);
 }

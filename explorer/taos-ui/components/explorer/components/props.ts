@@ -42,6 +42,8 @@ export interface ColumnStruct extends TagStruct {
 }
 
 export interface TagStruct {
+  origin_field?: string;
+  origin_length?: number;
   field: string;
   type: string;
   length: number;
