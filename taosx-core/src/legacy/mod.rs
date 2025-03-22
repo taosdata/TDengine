@@ -11,6 +11,15 @@ use std::{
     time::Duration,
 };
 
+use self::chunks::TimeChunks;
+use self::scheduler::Scheduler;
+use crate::utils::sql::TaosConnection;
+use crate::{
+    core_metrics::{get_metrics, CoreMetrics, TaskMetrics},
+    legacy::scheduler::Todo,
+    utils::{self, breakpoints::BreakpointDb, constants::VERSION_3_3_0, sql::get_v2_precision},
+    Action,
+};
 use anyhow::{bail, Context};
 use chrono::{DateTime, TimeZone, Utc};
 use futures_util::FutureExt;
@@ -21,16 +30,6 @@ use taos::*;
 use tokio::{sync::oneshot, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument, warn, Instrument};
-
-use crate::{
-    core_metrics::{get_metrics, CoreMetrics, TaskMetrics},
-    legacy::scheduler::Todo,
-    utils::{self, breakpoints::BreakpointDb, constants::VERSION_3_3_0, sql::get_v2_precision},
-    Action,
-};
-
-use self::chunks::TimeChunks;
-use self::scheduler::Scheduler;
 
 mod chunks;
 pub mod legacy_metric;
@@ -611,7 +610,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
 async fn sync_single_table_partial(
     source: TaosPool,
     target: TaosPool,
-    from: &mut utils::sql::TaosConnection,
+    from: &mut Option<TaosConnection>,
     stable: &Option<Arc<String>>,
     table: &Arc<String>,
     to: &Taos,
@@ -624,10 +623,19 @@ async fn sync_single_table_partial(
     metrics_arc: &Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     tracing::debug!("Syncing table {table} with range: {}", opts.time_range);
+
+    let cancel = CancellationToken::new();
+
     let metrics = metrics_arc.legacy();
     let (table, sql) = if opts.select_from_stable {
         if let Some(stable) = stable {
-            let stable_schema = from.describe(stable).await?;
+            let stable_schema = utils::sql::describe_table_with_connection_retries(
+                &source, from, stable, 5, &cancel,
+            )
+            .await
+            .context(format!("stable: {}", stable))
+            .context("describe stable error")?;
+
             let fields = stable_schema
                 .iter()
                 .filter(|f| !f.is_tag())
@@ -656,26 +664,10 @@ async fn sync_single_table_partial(
         (table, sql)
     };
 
-    let mut res = match from.query(&sql).await {
-        Ok(res) => res,
-        Err(_err) => {
-            let cancel = CancellationToken::new();
-            let new_connect = utils::sql::reconnect_with_max_retries(&source, 1, &cancel)
-                .in_current_span()
-                .await?;
-            *from = new_connect;
-            from.query(&sql)
-                .await
-                .with_context(|| format!("SQL: {sql}"))
-                .with_context(|| "query from source error")?
-        }
-    };
-
-    // let mut res = from
-    //     .query(&sql)
-    //     .await
-    //     .with_context(|| format!("SQL: {sql}"))
-    //     .with_context(|| "query from source error")?;
+    let mut res = utils::sql::query_sql_with_connection_retries(&source, from, &sql, 5, &cancel)
+        .await
+        .context(format!("SQL: {sql}"))
+        .context("query from source error")?;
 
     let fields = res.num_of_fields();
     let mut blocks = res.blocks();

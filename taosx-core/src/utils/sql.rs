@@ -5,12 +5,12 @@ use itertools::Itertools;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::{fmt::Write, io::Write as _, time::Duration};
-use taos::Precision;
 use taos::{
     taos_query::{common::Describe, Manager},
     AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Error as TaosError, RawBlock, Taos,
     TaosBuilder, TaosPool,
 };
+use taos::{Precision, ResultSet};
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
@@ -436,6 +436,44 @@ pub async fn write_raw_block_with_connection_retries(
                         .await
                 }
                 _ => Err(err.context(format!("Write block: {}", block.pretty_format()))),
+            }
+        }
+    }
+}
+
+pub async fn query_sql_with_connection_retries(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    sql: &str,
+    max_retries: u32,
+    cancel: &CancellationToken,
+) -> Result<ResultSet, TaosError> {
+    if taos.is_none() {
+        taos.replace(
+            reconnect_with_max_retries(pool, max_retries, cancel)
+                .in_current_span()
+                .await?,
+        );
+    }
+
+    match taos.as_ref().unwrap().query(sql).in_current_span().await {
+        Ok(res) => Ok(res),
+        Err(err) => {
+            if max_retries == 0 {
+                return Err(err.context(format!("query sql: {}", sql)));
+            }
+            let code = err.code();
+            let errno: i32 = code.into();
+            match errno {
+                0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    taos.replace(
+                        reconnect_with_max_retries(pool, max_retries, cancel)
+                            .in_current_span()
+                            .await?,
+                    );
+                    taos.as_ref().unwrap().query(sql).in_current_span().await
+                }
+                _ => Err(err.context(format!("query sql: {}", sql))),
             }
         }
     }
