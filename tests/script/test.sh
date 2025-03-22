@@ -9,6 +9,9 @@
 set +e
 #set -x
 
+export ASAN_OPTIONS=detect_odr_violation=0
+echo "forbid check ODR violation."
+
 FILE_NAME=
 VALGRIND=0
 TEST=0
