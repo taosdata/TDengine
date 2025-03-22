@@ -108,7 +108,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_tmq_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py

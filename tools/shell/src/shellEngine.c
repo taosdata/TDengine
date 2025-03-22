@@ -1355,17 +1355,22 @@ TAOS* createConnect(SShellArgs *pArgs) {
   }
 
   // connect main
+  TAOS * taos = NULL;
   if (pArgs->auth) {
-    return taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
+    taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
   } else {
-    return taos_connect(host, user, pwd, pArgs->database, port);
+    taos = taos_connect(host, user, pwd, pArgs->database, port);
   }
+
+  // host user pointer in dsnc address
+  free(dsnc);
+  return taos;
 }
 
 int32_t shellExecute(int argc, char *argv[]) {
   int32_t code = 0;
   printf(shell.info.clientVersion, shell.info.cusName, 
-             defaultMode(shell.args.connMode, shell.args.dsn) == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
+             workingMode(shell.args.connMode, shell.args.dsn) == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
              taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
