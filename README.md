@@ -127,13 +127,6 @@ brew install argp-standalone gflags pkgconfig
 
 ## 3.3 Prerequisites on Windows
 Not available for community edition.
-<details>
-
-<summary>Install required tools on Windows</summary>
-
-Work in Progress.
-
-</details>
 
 ## 3.4 Clone the repo
 
@@ -212,40 +205,6 @@ If you want to compile taosKeeper, you need to add the `-DBUILD_KEEPER=true` opt
 
 ## 4.3 Build on Windows
 Not available for community edition.
-<details>
-
-<summary>Detailed steps to build on Windows</summary>
-
-If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
-Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
-
-```cmd
-mkdir debug && cd debug
-"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
-cmake .. -G "NMake Makefiles"
-nmake
-```
-
-If you use the Visual Studio 2019 or 2017:
-
-please open a command window by executing "cmd.exe".
-Please specify "x64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
-
-```cmd
-mkdir debug && cd debug
-"c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
-cmake .. -G "NMake Makefiles"
-nmake
-```
-
-Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
-
-```cmd
-mkdir debug && cd debug
-cmake .. -G "NMake Makefiles"
-nmake
-```
-</details>
 
 # 5. Packaging
 
@@ -285,17 +244,6 @@ sudo make install
 
 ## 6.3 Install on Windows
 Not available for community edition.
-<details>
-
-<summary>Detailed steps to install on windows</summary>
-
-After building successfully, TDengine can be installed by:
-
-```cmd
-nmake install
-```
-
-</details>
 
 # 7. Running
 
@@ -360,25 +308,6 @@ If TDengine CLI connects the server successfully, welcome messages and version i
 
 ## 7.3 Run TDengine on Windows
 Not available for community edition.
-<details>
-
-<summary>Detailed steps to run on windows</summary>
-
-You can start TDengine server on Windows platform with below commands:
-
-```cmd
-.\build\bin\taosd.exe -c test\cfg
-```
-
-In another terminal, use the TDengine CLI to connect the server:
-
-```cmd
-.\build\bin\taos.exe -c test\cfg
-```
-
-option "-c test/cfg" specifies the system configuration file directory.
-
-</details>
 
 # 8. Testing
 
