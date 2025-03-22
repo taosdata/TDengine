@@ -15,6 +15,7 @@ use actix_web::{
 use actix_ws::{CloseCode, CloseReason, Session};
 use anyhow::anyhow;
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
@@ -144,6 +145,117 @@ pub(super) async fn get_tasks_count(
 ) -> impl Responder {
     match task_store.tasks_count(filter.into_inner()).await {
         Ok(tasks) => Ok(HttpResponse::Ok().body(format!("{tasks}"))),
+        Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct ExportTasksParams {
+    ids: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ExportTasksResult {
+    pub server_version: String,
+    pub version: String,
+    pub commit: String,
+    pub build: String,
+    pub cluster_id: String,
+    pub export_user: String,
+    pub export_time: String,
+    pub tasks_num: usize,
+    pub tasks: Vec<ExportTaskDetail>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ExportTaskDetail {
+    pub id: i64,
+    pub name: Option<String>,
+    pub from: serde_json::Value,
+    pub to: String,
+    pub parser: Option<serde_json::Value>,
+    pub via: Option<i64>,
+    pub jobs: u16,
+    pub compression_level: Option<u8>,
+    pub oneshot_topic: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Export tasks selected.
+///
+/// One could call the api endpoint with following curl.
+///
+/// ```shell
+/// curl localhost:6040/tasks/export
+/// ```
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "export tasks error", body = Failed)
+    ),
+    params(
+        ExportTasksParams
+    )
+)]
+#[get("/tasks/export")]
+pub(super) async fn export_tasks(
+    ids: Query<ExportTasksParams>,
+    task_store: Data<TaskControllerRef>,
+    req: HttpRequest,
+) -> impl Responder {
+    match task_store.tasks_export(ids.into_inner().ids).await {
+        Ok(named_file) => Ok(named_file.into_response(&req)),
+        Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct ImportTasksParams {
+    #[allow(dead_code)]
+    pub server_version: Option<String>,
+    #[allow(dead_code)]
+    pub version: Option<String>,
+    #[allow(dead_code)]
+    pub commit: Option<String>,
+    #[allow(dead_code)]
+    pub build: Option<String>,
+    #[allow(dead_code)]
+    pub cluster_id: Option<String>,
+    #[allow(dead_code)]
+    pub export_user: Option<String>,
+    #[allow(dead_code)]
+    pub export_time: Option<String>,
+    #[allow(dead_code)]
+    pub tasks_num: Option<usize>,
+    pub tasks: Vec<ExportTaskDetail>,
+    pub labels: Option<Vec<String>>,
+}
+
+/// Import tasks.
+///
+/// One could call the api endpoint with following curl.
+///
+/// ```shell
+/// curl -X POST "localhost:6040/tasks/import" -d '{"file": "..", "ids": "..", "agents": "..", "targets": ".."}'
+/// ```
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "import tasks error", body = Failed)
+    ),
+    params(
+        ImportTasksParams
+    )
+)]
+#[post("/tasks/import")]
+pub(super) async fn import_tasks(
+    params: Json<ImportTasksParams>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    match task_store.tasks_import(params.into_inner()).await {
+        Ok(count) => Ok(HttpResponse::Ok().json(serde_json::json!({"count": count}))),
         Err(err) => Err(Failed::from_error(err)),
     }
 }

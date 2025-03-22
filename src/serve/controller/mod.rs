@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
@@ -7,6 +9,7 @@ use std::sync::Arc;
 use std::vec;
 use std::{collections::HashMap, time::Duration};
 
+use actix_files::NamedFile;
 use agent::ActivityOrder;
 use anyhow::{anyhow, bail, Context};
 use async_backtrace::framed;
@@ -25,7 +28,7 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use sqlx::{ConnectOptions, Sqlite};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taosx_core::runners::kafka::KAFKA_ID;
 use taosx_core::runners::mqtt::MQTT_ID;
 use taosx_core::task_set::prelude::{HealthNotify, HealthState};
@@ -46,10 +49,11 @@ use self::trigger::Strategy;
 use super::data_sources::DataSourceDefinition;
 use super::scheduler::agent::{AgentId, TaskId};
 use super::scheduler::TaskScheduler;
+use super::task::ImportTasksParams;
 use crate::build;
 pub use crate::serve::controller::agent::Activity;
 use crate::serve::rpc::encode_csv_config_file;
-use crate::serve::task::DeleteTaskParam;
+use crate::serve::task::{DeleteTaskParam, ExportTaskDetail, ExportTasksResult};
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::runners::opc::csv::CsvParser;
@@ -933,6 +937,113 @@ impl TaskController {
         Ok(tasks.len())
     }
 
+    pub async fn tasks_export(&self, ids: Option<String>) -> anyhow::Result<NamedFile> {
+        tracing::info!("export tasks: {:?}", ids);
+        let sql = if let Some(ids) = ids {
+            format!("select * from task_with_labels where id in ({ids}) order by created_at desc")
+        } else {
+            "select * from task_with_labels order by created_at desc".to_string()
+        };
+        let tasks = sqlx::query_as::<_, Task>(&sql)
+            .fetch_all(&self.pool)
+            .in_current_span()
+            .await
+            .context("Database error")?;
+
+        // get cluster id and user from the first task
+        let (cluster_id, user) = if let Some(task) = tasks.first() {
+            let cluster_id = task.labels.find("cluster-id").unwrap_or_default();
+            let user = task.labels.find("user").unwrap_or_default();
+            (cluster_id, user)
+        } else {
+            ("", "")
+        };
+        let now = Utc::now();
+
+        let tasks = tasks
+            .iter()
+            .map(|task| {
+                let from_json = if let Ok(dsn) = task.from.clone().into_dsn() {
+                    dsn_to_json(&dsn)
+                } else {
+                    serde_json::Value::Null
+                };
+                ExportTaskDetail {
+                    id: task.id,
+                    name: task.name.clone(),
+                    from: from_json,
+                    to: task.to.clone(),
+                    parser: task.parser.clone(),
+                    via: task.via,
+                    jobs: task.jobs,
+                    compression_level: task.compression_level,
+                    oneshot_topic: task.oneshot_topic.clone(),
+                    created_at: task.created_at,
+                }
+            })
+            .collect_vec();
+        let result = ExportTasksResult {
+            server_version: build::TD_VERSION.to_string(),
+            version: build::PKG_VERSION.to_string(),
+            commit: build::COMMIT_HASH.to_string(),
+            build: format!("{} {}", build::BUILD_OS, build::BUILD_TIME),
+            cluster_id: cluster_id.to_string(),
+            export_user: user.to_string(),
+            export_time: now.to_rfc3339(),
+            tasks_num: tasks.len(),
+            tasks,
+        };
+        let result =
+            serde_json::to_string_pretty(&result).context("failed to serialize result to JSON")?;
+
+        let file_name_json = format!(
+            "/tmp/taos-explorer-tasks-{}.json",
+            now.format("%Y%m%d%H%M%S")
+        );
+        let mut file_json = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&file_name_json)
+            .context(format!("failed to create file {file_name_json}"))?;
+        file_json.write_all(result.as_bytes())?;
+        file_json.flush().context("failed to flush JSON file")?;
+
+        NamedFile::open(file_name_json).context("failed to open json file")
+    }
+
+    pub async fn tasks_import(&self, params: ImportTasksParams) -> anyhow::Result<usize> {
+        tracing::info!("import tasks: {:?}", params);
+        let tasks = params.tasks;
+
+        let mut count = 0;
+        for task in tasks {
+            let task = NewTask {
+                stream_type: None,
+                name: task.name,
+                trigger: None,
+                from: None,
+                from_json: Some(task.from),
+                from_cluster: None,
+                oneshot_topic: task.oneshot_topic,
+                to: task.to,
+                parser: task.parser,
+                to_cluster: None,
+                via: task.via,
+                clear: false,
+                jobs: task.jobs,
+                compression_level: task.compression_level,
+                force: false,
+                after_delete: None,
+                labels: params.labels.clone(),
+                not_start: true,
+            };
+            self.create(task).await?;
+            count += 1;
+        }
+        Ok(count)
+    }
+
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
         tracing::info!(task.name, task.via, "create new task");
@@ -989,7 +1100,7 @@ impl TaskController {
             BackupConfigBuilder::new(None, &from, &to).build().await?;
         }
 
-        if task.via.is_none() {
+        if task.via.is_none() && !task.not_start {
             validate_dsn(&from).await.ok()?;
         }
 

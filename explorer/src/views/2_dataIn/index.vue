@@ -10,6 +10,8 @@ import {
   getMetrics,
   getMetricsDesc,
   batchStartTask,
+  batchExportTask,
+  importTask,
   batchStopTask,
   batchDelTask,
   getTableProgress,
@@ -77,6 +79,8 @@ const props: Props = {
       batchStartTask,
       batchStopTask,
       batchDelTask,
+      batchExportTask,
+      importTask,
       start: excuteStart,
       stop: excuteStop,
       delete: excuteDel

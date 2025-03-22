@@ -27,6 +27,8 @@ interface TaskProps {
     batchStartTask: RequestApiFn<Recordable[]>;
     batchStopTask: RequestApiFn<Recordable[]>;
     batchDelTask: RequestApiFn<Recordable[]>;
+    batchExportTask: RequestApiFn<Recordable>;
+    importTask: RequestApiFn<Recordable>;
   };
 }
 

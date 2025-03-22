@@ -59,17 +59,18 @@ function add() {
   background-color: #ecf8ff;
   border-left: 5px solid #50bfff;
   border-radius: 4px;
+  .flex-end {
+    :deep(.el-button) {
+      font-size: 14px;
+      // background: transparent;
+    }
+
+    :deep(.el-button):hover {
+      color: #4259ce;
+      border: 1px solid #4259ce !important;
+    }
+  }
 }
 
-.flex-end {
-  :deep(.el-button) {
-    font-size: 14px;
-    background: transparent;
-  }
 
-  :deep(.el-button):hover {
-    color: #4259ce;
-    border: 1px solid #4259ce !important;
-  }
-}
 </style>

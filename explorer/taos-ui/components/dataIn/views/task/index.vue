@@ -59,6 +59,19 @@
           >{{ startCase(t('dataIn.delete') + t('dataIn.task')) }}</el-button
         >
       </el-tooltip>
+      
+      <el-button
+          link
+          type="primary"
+          size="default"
+          icon="Sell"
+          :disabled="isDisabled || dataInProps.isCommunity"
+          @click="handleExportTask"
+          >{{ startCase(t('dataIn.export') + t('dataIn.task')) }}</el-button
+        >
+
+      <task-import @importOK="refresh" />
+
     </PageTitle>
     <div>
       <el-table
@@ -299,9 +312,11 @@ import {
   getSourceConfig,
   dataInMockData
 } from '../../model/util';
+import { downloadByData } from '../../../../utils/files';
 import Metrics from './metrics.vue';
 import Activities from '../../components/activities.vue';
 import PageTitle from '../../components/pageTitle.vue';
+import TaskImport from '../../components/task-import.vue'
 import { ElMessage } from 'element-plus';
 import { getDataInProps } from '../../model/useDataIn';
 import { useActivitySubscription, ActivitieProps } from '../../model/useWebSoket';
@@ -540,6 +555,26 @@ function handlerConfirm(
       dataSourceTableRef.value.clearSelection();
       await refresh();
     });
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
+async function handleExportTask() {
+  try {
+    requestIng.value = true;
+    const ids = multipleSelection.value.map(item => item.id);
+    const res = await dataInProps.task.api.batchExportTask(ids);
+
+    if (res && res.code) {
+      return ElMessage.error(res.message);
+    }
+    downloadByData(res as BlobPart, `datain-tasks-${ids.join()}.json`);
+    setTimeout(() => {
+      requestIng.value = false;
+    }, 1000)
+    
+    dataSourceTableRef.value.clearSelection();
   } catch (err) {
     return Promise.reject(err);
   }

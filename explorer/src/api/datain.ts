@@ -374,6 +374,26 @@ export function batchDelTask(data: Record<string, any>) {
     data
   });
 }
+
+
+export function batchExportTask(ids: number[]) {
+  return request({
+    baseURL: import.meta.env.VITE_APP_X_API,
+    url: `/tasks/export?ids=${ids.join(',')}`,
+    method: 'get',
+    responseType: 'blob'
+  });
+}
+
+export function importTask(data: Recordable) {
+  return request({
+    baseURL: import.meta.env.VITE_APP_X_API,
+    url: `/tasks/import`,
+    method: 'post',
+    data
+  });
+}
+
 // 增加点位
 export function addOpcPoint(data: Record<string, any>) {
   return request({
