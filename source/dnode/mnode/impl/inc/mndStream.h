@@ -72,6 +72,7 @@ typedef struct SStreamExecInfo {
   bool             initTaskList;
   SArray          *pNodeList;
   int64_t          ts;  // snapshot ts
+  int64_t          chkptReportScanTs; // scan checkpoint report ts
   SStreamTransMgmt transMgmt;
   SHashObj        *pTaskMap;
   SArray          *pTaskList;
