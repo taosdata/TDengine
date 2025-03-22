@@ -179,13 +179,13 @@ remove_bin() {
 
 function clean_lib() {
   # Remove link
-  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  [ -f ${lib_link_dir}/libtaosnative.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosnative.* || :
-  [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+  ${csudo}find ${lib_link_dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib_link_dir} -name "libtaosnative.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib_link_dir} -name "libtaosws.*" -exec ${csudo}rm -f {} \; || :
 
-  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  [ -f ${lib64_link_dir}/libtaosnative.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
-  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
+  ${csudo}find ${lib64_link_dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib64_link_dir} -name "libtaosnative.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib64_link_dir} -name "libtaosws.*" -exec ${csudo}rm -f {} \; || :
   #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
 
