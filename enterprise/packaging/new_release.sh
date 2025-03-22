@@ -709,7 +709,7 @@ function preparepkg() {
         cusDomain=`echo "${productEmail}" | sed 's/^[^@]*@//'`
         sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" ${install_dir}/install.sh
 
-        sed -i's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh
+        sed -i 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh
         sed -i "s/PREFIX=\"taos\"/PREFIX=\"${prefix}\"/g" ${install_dir}/bin/remove.sh
         sed -i "s/productName=\"TDengine\"/productName=\"${productName}\"/g" ${install_dir}/bin/remove.sh
 
