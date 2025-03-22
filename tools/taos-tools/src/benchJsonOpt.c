@@ -251,7 +251,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             tools_cJSON *dataPrecision = tools_cJSON_GetObjectItem(column, "precision");
             if (tools_cJSON_IsNumber(dataPrecision)) {
                 precision = dataPrecision->valueint;
-                if (precision > TSDB_DECIMAL128_MAX_PRECISION || precision < 1) {
+                if (precision > TSDB_DECIMAL128_MAX_PRECISION || precision <= 0) {
                     errorPrint("Invalid precision value of decimal type in json, precision: %d\n", precision);
                     goto PARSE_OVER;
                 }
@@ -294,7 +294,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             tools_cJSON *dataScale = tools_cJSON_GetObjectItem(column, "scale");
             if (tools_cJSON_IsNumber(dataScale)) {
                 scale = dataScale->valueint;
-                if (scale > maxScale) {
+                if (scale < 0 || scale > maxScale) {
                     errorPrint("Invalid scale value of decimal type in json, precision: %d, scale: %d\n", precision, scale);
                     goto PARSE_OVER;
                 }

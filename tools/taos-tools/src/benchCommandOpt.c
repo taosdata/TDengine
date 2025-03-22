@@ -76,8 +76,12 @@ void processSingleToken(char* token, BArray* fields, int index, bool isTag) {
             scale[pmatch[2].rm_eo - pmatch[2].rm_so] = '\0';
 
             int p = atoi(precision), s = atoi(scale);
-            if (p > TSDB_DECIMAL128_MAX_PRECISION || p <= 0 || s > p) {
-                errorPrint("Invalid value of decimal type in args, precision: %d, scale: %d\n", p, s);
+            if (p > TSDB_DECIMAL128_MAX_PRECISION || p <= 0) {
+                errorPrint("Invalid precision value of decimal type in args, precision: %d, scale: %d\n", p, s);
+                exit(EXIT_FAILURE);
+            }
+            if (s < 0 || s > p) {
+                errorPrint("Invalid scale value of decimal type in args, precision: %d, scale: %d\n", p, s);
                 exit(EXIT_FAILURE);
             }
             field->precision = p;

@@ -38,6 +38,12 @@ class TDTestCase(TBase):
         eos.exe(cmd)
 
 
+    def exec_benchmark_and_check(self, benchmark, json_file, expect_info, options=""):
+        cmd = f"{benchmark} {options} -f {json_file}"
+        rlist = eos.runRetList(cmd, True, False, True)
+        self.checkListString(rlist, expect_info)
+
+
     def get_decimal_scale(self, dec):
         _, _, exponent = dec.as_tuple()
         return max(0, -exponent)
@@ -123,7 +129,62 @@ class TDTestCase(TBase):
 
 
     def check_json_others(self, benchmark, json_file, options=""):
-        pass
+        # check precision
+        new_json_file = self.genNewJson(json_file, self.func_precision_zero)
+        self.exec_benchmark_and_check(benchmark, new_json_file, "Invalid precision value of decimal type in json", options)
+        self.deleteFile(new_json_file)
+
+        new_json_file = self.genNewJson(json_file, self.func_precision_negative)
+        self.exec_benchmark_and_check(benchmark, new_json_file, "Invalid precision value of decimal type in json", options)
+        self.deleteFile(new_json_file)
+
+        new_json_file = self.genNewJson(json_file, self.func_precision_exceed_max)
+        self.exec_benchmark_and_check(benchmark, new_json_file, "Invalid precision value of decimal type in json", options)
+        self.deleteFile(new_json_file)
+
+        # check scale
+        new_json_file = self.genNewJson(json_file, self.func_scale_negative)
+        self.exec_benchmark_and_check(benchmark, new_json_file, "Invalid scale value of decimal type in json", options)
+        self.deleteFile(new_json_file)
+
+        new_json_file = self.genNewJson(json_file, self.func_scale_exceed_precision)
+        self.exec_benchmark_and_check(benchmark, new_json_file, "Invalid scale value of decimal type in json", options)
+        self.deleteFile(new_json_file)
+
+
+    def func_precision_zero(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['columns'].clear()
+        stb['columns'].append({ "type": "decimal", "name": "dec64a", "precision": 0, "scale": 0})
+
+
+    def func_precision_negative(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['columns'].clear()
+        stb['columns'].append({ "type": "decimal", "name": "dec64a", "precision": -3, "scale": 0})
+
+
+    def func_precision_exceed_max(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['columns'].clear()
+        stb['columns'].append({ "type": "decimal", "name": "dec64a", "precision": 39, "scale": 0})
+
+
+    def func_scale_negative(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['columns'].clear()
+        stb['columns'].append({ "type": "decimal", "name": "dec64a", "precision": 10, "scale": -3})
+
+
+    def func_scale_exceed_precision(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['columns'].clear()
+        stb['columns'].append({ "type": "decimal", "name": "dec64a", "precision": 10, "scale": 11})
 
 
     def check_cmd_normal(self, benchmark, options=""):
@@ -142,6 +203,30 @@ class TDTestCase(TBase):
         self.check_within_bounds(db_name, stb_name, {'name': 'c2', 'precision': 24, 'scale': 10})
 
 
+    def check_cmd_others(self, benchmark, options=""):
+        # check precision
+        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(0,0)' -t 10 -y"
+        rlist = eos.runRetList(cmd, True, False, True)
+        self.checkListString(rlist, "Invalid precision value of decimal type in args")
+
+        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(-3,0)' -t 10 -y"
+        rlist = eos.runRetList(cmd, True, False, True)
+        self.checkListString(rlist, "Invalid precision value of decimal type in args")
+
+        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(39,0)' -t 10 -y"
+        rlist = eos.runRetList(cmd, True, False, True)
+        self.checkListString(rlist, "Invalid precision value of decimal type in args")
+
+        # check scale
+        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(10,-3)' -t 10 -y"
+        rlist = eos.runRetList(cmd, True, False, True)
+        self.checkListString(rlist, "Invalid scale value of decimal type in args")
+
+        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(10,11)' -t 10 -y"
+        rlist = eos.runRetList(cmd, True, False, True)
+        self.checkListString(rlist, "Invalid scale value of decimal type in args")
+
+
     def run(self):
         # path
         benchmark = etool.benchMarkFile()
@@ -155,6 +240,9 @@ class TDTestCase(TBase):
 
         # check cmd normal
         self.check_cmd_normal(benchmark)
+
+        # check cmd others
+        self.check_cmd_others(benchmark)
 
 
     def stop(self):
