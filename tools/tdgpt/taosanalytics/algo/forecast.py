@@ -34,7 +34,7 @@ def do_forecast(input_list, ts_list, algo_name, params):
     check_fc_results(res)
 
     fc = res["res"]
-    draw_fc_results(input_list, len(fc) > 2, fc, len(fc[0]), algo_name)
+    # draw_fc_results(input_list, len(fc) > 2, fc, len(fc[0]), algo_name)
     return res
 
 
