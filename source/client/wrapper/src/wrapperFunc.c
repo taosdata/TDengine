@@ -649,6 +649,9 @@ TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lin
 }
 
 tmq_conf_t *tmq_conf_new() {
+  if (taos_init() != 0) {
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD);
+  }
   CHECK_PTR(fp_tmq_conf_new);
   return (*fp_tmq_conf_new)();
 }
@@ -669,6 +672,9 @@ void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *para
 }
 
 tmq_list_t *tmq_list_new() {
+  if (taos_init() != 0) {
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD)
+  }
   CHECK_PTR(fp_tmq_list_new);
   return (*fp_tmq_list_new)();
 }
@@ -694,6 +700,9 @@ char **tmq_list_to_c_array(const tmq_list_t *tlist) {
 }
 
 tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen) {
+  if (taos_init() != 0) {
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD)
+  }
   CHECK_PTR(fp_tmq_consumer_new);
   return (*fp_tmq_consumer_new)(conf, errstr, errstrLen);
 }
@@ -863,11 +872,17 @@ TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *de
 }
 
 void taos_write_crashinfo(int signum, void *sigInfo, void *context) {
+  if (taos_init() != 0) {
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD)
+  }
   CHECK_VOID(fp_taos_write_crashinfo);
   (*fp_taos_write_crashinfo)(signum, sigInfo, context);
 }
 
 char *getBuildInfo() {
+  if (taos_init() != 0) {
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD)
+  }
   CHECK_PTR(fp_getBuildInfo);
   return (*fp_getBuildInfo)();
 }
