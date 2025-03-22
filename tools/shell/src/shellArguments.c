@@ -381,8 +381,14 @@ static int32_t shellCheckArgs() {
       printf("Invalid cfgdir:%s\r\n", pArgs->cfgdir);
       return -1;
     } else {
-      if (taosExpandDir(pArgs->cfgdir, configDir, PATH_MAX) != 0) {
-        tstrncpy(configDir, pArgs->cfgdir, PATH_MAX);
+      if (taosExpandDir(pArgs->cfgdir, configDirShell, PATH_MAX) != 0) {
+        tstrncpy(configDirShell, pArgs->cfgdir, PATH_MAX);
+      }
+      // check cfg dir exist
+      if(!taosIsDir(configDirShell)) {
+        printf("folder not exist. cfgdir:%s  expand:%s\r\n", pArgs->cfgdir, configDirShell);
+        configDirShell[0] = 0;
+        return -1;          
       }
     }
   }
