@@ -1,3 +1,7 @@
+[![TDinternal Build](https://github.com/taosdata/TDinternal/actions/workflows/tdinternal-ci-build.yml/badge.svg)](https://github.com/taosdata/TDinternal/actions/workflows/tdinternal-ci-build.yml)
+[![TDinternal Test](https://github.com/taosdata/TDinternal/actions/workflows/tdinternal-test.yml/badge.svg)](https://github.com/taosdata/TDinternal/actions/workflows/tdinternal-test.yml)
+
+
 # Table of Contents
 
 1. [Introduction](#1-introduction)

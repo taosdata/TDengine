@@ -77,6 +77,7 @@ typedef struct {
   STsdb    *tsdb;
   int32_t   fid;
   SVATaskID taskid;
+  bool      s3Migrate;
 } SCompactArg;
 
 static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
@@ -614,7 +615,9 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&compactor.fset);
   TARRAY2_DESTROY(compactor.fopArr, NULL);
-  tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
+  if (!compactArg->s3Migrate) { 
+    tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
+  }
   taosMemoryFree(arg);
 
   if (code) {
@@ -625,7 +628,7 @@ _exit:
 
 static void tsdbCompactCancel(void *arg) { taosMemoryFree(arg); }
 
-static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
+static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool s3Migrate) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -650,6 +653,14 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
 
     arg->tsdb = tsdb;
     arg->fid = fset->fid;
+    arg->s3Migrate = s3Migrate;
+
+    // if the compact task is already running, skip it
+    // because the compact task may be running by s3 migrate
+    if (vnodeATaskValid(&fset->compactTask)) {
+      taosMemoryFree(arg);
+      continue;
+    }
 
     code = vnodeAsync(COMPACT_TASK_ASYNC, EVA_PRIORITY_NORMAL, tsdbCompact, tsdbCompactCancel, arg, &fset->compactTask);
     if (code) {
@@ -657,18 +668,19 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
       arg->taskid = fset->compactTask;
-      int64_t compactSize = 0;
-      if (fset->farr[TSDB_FTYPE_DATA]) {
-        compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
-      }
+      if (!s3Migrate) {
+        int64_t compactSize = 0;
+        if (fset->farr[TSDB_FTYPE_DATA]) {
+          compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
+        }
 
-      SSttLvl *lvl;
-      TARRAY2_FOREACH(fset->lvlArr, lvl) {
-        STFileObj *fobj;
-        TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
+        SSttLvl *lvl;
+        TARRAY2_FOREACH(fset->lvlArr, lvl) {
+          STFileObj *fobj;
+          TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
+        }
+        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
       }
-
-      TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
     }
   }
 
@@ -679,10 +691,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw) {
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate) {
   int32_t code = 0;
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  code = tsdbAsyncCompactImpl(tsdb, tw);
+  code = tsdbAsyncCompactImpl(tsdb, tw, s3Migrate);
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return code;
 }
