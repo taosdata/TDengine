@@ -68,14 +68,10 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 0, 10*10000)
 
         # add normal table
-        cmd = "%s -N -I sml -t 2 -n 10000  -y" % binPath
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-
-        tdSql.query("select count(*) from test.d0")
-        tdSql.checkData(0, 0, 1*10000)
-        tdSql.query("select count(*) from test.d1")
-        tdSql.checkData(0, 0, 1*10000)
+        cmd = "-N -I sml -t 2 -n 10000  -y"
+        rlist = self.benchmark(cmd, checkRun = False)
+        # expect failed
+        self.checkListString(rlist, "schemaless cannot work without stable")
 
     def stop(self):
         tdSql.close()

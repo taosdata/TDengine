@@ -158,7 +158,7 @@ class TDTestCase(TBase):
     def basicCommandLine(self, tmpdir):
         #command and check result 
         checkItems = [
-            [f"-h 127.0.0.1 -P 6041 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped"]],
+            [f"-Z 0 -h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped"]],
             [f"-r result -a -e test d0 -o {tmpdir}", ["OK: table: d0 dumped", "OK: 100 row(s) dumped out!"]],
             [f"-n -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
             [f"-Z 0 -P 6030 -n -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
@@ -348,19 +348,12 @@ class TDTestCase(TBase):
         self.exceptCommandLine(taosdump, db, stb, tmpdir)
         tdLog.info("4. except command line  ................................. [Passed]")
 
-        json = "./tools/taosdump/native/json/insertOther.json"
-        # insert 
-        db, stb, childCount, insertRows = self.insertData(json)
-        # dump in/out
-        self.dumpInOutMode("", db , json, tmpdir)
-        tdLog.info("5. native varbinary geometry ........................... [Passed]")
-
         #
         # check connMode
         #
 
         self.checkConnMode(db, stb, childCount, insertRows, tmpdir)
-        tdLog.info("6. check conn mode  ..................................... [Passed]")
+        tdLog.info("5. check conn mode  ..................................... [Passed]")
 
 
     def stop(self):

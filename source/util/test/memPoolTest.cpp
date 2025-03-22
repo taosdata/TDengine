@@ -729,7 +729,7 @@ int32_t mptGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
   }
   
   if (TSDB_CODE_SUCCESS != code) {
-    uError("get system avaiable memory size failed, error: 0x%x", code);
+    uError("get system available memory size failed, error: 0x%x", code);
     return code;
   }
 
