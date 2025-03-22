@@ -68,12 +68,15 @@ class TDTestCase(TBase):
         os.environ['TDENGINE_CLOUD_DSN'] = ""
 
     def checkCommandLine(self):
+        # default CONN_MODE
+        DEFAULT_CONN_MODE = "Native"
+
         # modes
         modes = ["", "-Z 1 -B 1", "-Z websocket", "-Z 0", "-Z native -B 2"]
         # result
         Rows = "insert rows: 9990"
         results1 = [
-            ["Connect mode is : WebSocket", Rows],
+            [f"Connect mode is : {DEFAULT_CONN_MODE}", Rows],
             ["Connect mode is : WebSocket", Rows],
             ["Connect mode is : WebSocket", Rows],
             ["Connect mode is : Native", Rows],
@@ -112,7 +115,7 @@ class TDTestCase(TBase):
         # ommand
         # 
         self.benchmarkCmd("-h 127.0.0.1", 5, 100, 10, ["insert rows: 500"])
-        self.benchmarkCmd("-h 127.0.0.1 -P 6041 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
+        self.benchmarkCmd("-h 127.0.0.1 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
         self.benchmarkCmd("-Z 0 -h 127.0.0.1 -P 6030 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
 
         #
@@ -120,7 +123,7 @@ class TDTestCase(TBase):
         #
 
         # 6041 is default
-        options = "-h 127.0.0.1 -P 6041 -uroot -ptaosdata"
+        options = "-Z 1 -h 127.0.0.1 -P 6041 -uroot -ptaosdata"
         json = "tools/benchmark/basic/json/connModePriorityErrHost.json"
         self.insertBenchJson(json, options, True)
 

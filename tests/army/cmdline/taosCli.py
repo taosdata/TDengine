@@ -263,7 +263,7 @@ class TDTestCase(TBase):
             ['-a "abc"', "[0x80000357]"],
         ]
         for arg in args:
-            rlist = self.taos("Z 0 " + arg[0])
+            rlist = self.taos("-Z 0 " + arg[0])
             if arg[1] != None:
                 self.checkListString(rlist, arg[1])
 
@@ -340,9 +340,14 @@ class TDTestCase(TBase):
             self.checkExcept(taos + " -s 'show dnodes;' " + option)
     
     def checkModeVersion(self):    
+
+        # check default conn mode        
+        #DEFAULT_CONN = "WebSocket"
+        DEFAULT_CONN = "Native"
+
         # results
         results = [
-            "WebSocket Client Version",
+            f"{DEFAULT_CONN} Client Version",
             "2022-10-01 00:01:39.000", 
             "Query OK, 100 row(s) in set"
         ]
@@ -351,8 +356,10 @@ class TDTestCase(TBase):
         cmd = f"-s 'select ts from test.d0'"
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
+        
         # websocket
         cmd = f"-Z 1 -s 'select ts from test.d0'"
+        results[0] = "WebSocket Client Version"
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)        
 
