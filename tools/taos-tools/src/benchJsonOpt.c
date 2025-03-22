@@ -1326,7 +1326,7 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         tools_cJSON *sampleFile =
             tools_cJSON_GetObjectItem(stbInfo, "sample_file");
         if (tools_cJSON_IsString(sampleFile)) {
-            tstrncpy(
+            TOOLS_STRNCPY(
                 superTable->sampleFile, sampleFile->valuestring,
                 MAX_FILE_NAME_LEN);
         } else {
@@ -1356,7 +1356,7 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         tools_cJSON *tagsFile =
             tools_cJSON_GetObjectItem(stbInfo, "tags_file");
         if (tools_cJSON_IsString(tagsFile)) {
-            tstrncpy(superTable->tagsFile, tagsFile->valuestring,
+            TOOLS_STRNCPY(superTable->tagsFile, tagsFile->valuestring,
                      MAX_FILE_NAME_LEN);
         } else {
             memset(superTable->tagsFile, 0, MAX_FILE_NAME_LEN);
@@ -1639,52 +1639,52 @@ static int getStreamInfo(tools_cJSON* json) {
                 return -1;
             }
             SSTREAM * stream = benchCalloc(1, sizeof(SSTREAM), true);
-            tstrncpy(stream->stream_name, stream_name->valuestring,
+            TOOLS_STRNCPY(stream->stream_name, stream_name->valuestring,
                      TSDB_TABLE_NAME_LEN);
-            tstrncpy(stream->stream_stb, stream_stb->valuestring,
+            TOOLS_STRNCPY(stream->stream_stb, stream_stb->valuestring,
                      TSDB_TABLE_NAME_LEN);
-            tstrncpy(stream->source_sql, source_sql->valuestring,
+            TOOLS_STRNCPY(stream->source_sql, source_sql->valuestring,
                      TSDB_DEFAULT_PKT_SIZE);
 
             tools_cJSON* trigger_mode =
                 tools_cJSON_GetObjectItem(streamObj, "trigger_mode");
             if (tools_cJSON_IsString(trigger_mode)) {
-                tstrncpy(stream->trigger_mode, trigger_mode->valuestring,
+                TOOLS_STRNCPY(stream->trigger_mode, trigger_mode->valuestring,
                          BIGINT_BUFF_LEN);
             }
 
             tools_cJSON* watermark =
                 tools_cJSON_GetObjectItem(streamObj, "watermark");
             if (tools_cJSON_IsString(watermark)) {
-                tstrncpy(stream->watermark, watermark->valuestring,
+                TOOLS_STRNCPY(stream->watermark, watermark->valuestring,
                          BIGINT_BUFF_LEN);
             }
 
             tools_cJSON* ignore_expired =
                 tools_cJSON_GetObjectItem(streamObj, "ignore_expired");
             if (tools_cJSON_IsString(ignore_expired)) {
-                tstrncpy(stream->ignore_expired, ignore_expired->valuestring,
+                TOOLS_STRNCPY(stream->ignore_expired, ignore_expired->valuestring,
                          BIGINT_BUFF_LEN);
             }
 
             tools_cJSON* ignore_update =
                 tools_cJSON_GetObjectItem(streamObj, "ignore_update");
             if (tools_cJSON_IsString(ignore_update)) {
-                tstrncpy(stream->ignore_update, ignore_update->valuestring,
+                TOOLS_STRNCPY(stream->ignore_update, ignore_update->valuestring,
                          BIGINT_BUFF_LEN);
             }
 
             tools_cJSON* fill_history =
                 tools_cJSON_GetObjectItem(streamObj, "fill_history");
             if (tools_cJSON_IsString(fill_history)) {
-                tstrncpy(stream->fill_history, fill_history->valuestring,
+                TOOLS_STRNCPY(stream->fill_history, fill_history->valuestring,
                          BIGINT_BUFF_LEN);
             }
 
             tools_cJSON* stream_stb_field =
                 tools_cJSON_GetObjectItem(streamObj, "stream_stb_field");
             if (tools_cJSON_IsString(stream_stb_field)) {
-                tstrncpy(stream->stream_stb_field,
+                TOOLS_STRNCPY(stream->stream_stb_field,
                          stream_stb_field->valuestring,
                          TSDB_DEFAULT_PKT_SIZE);
             }
@@ -1692,7 +1692,7 @@ static int getStreamInfo(tools_cJSON* json) {
             tools_cJSON* stream_tag_field =
                 tools_cJSON_GetObjectItem(streamObj, "stream_tag_field");
             if (tools_cJSON_IsString(stream_tag_field)) {
-                tstrncpy(stream->stream_tag_field,
+                TOOLS_STRNCPY(stream->stream_tag_field,
                          stream_tag_field->valuestring,
                          TSDB_DEFAULT_PKT_SIZE);
             }
@@ -1700,7 +1700,7 @@ static int getStreamInfo(tools_cJSON* json) {
             tools_cJSON* subtable =
                 tools_cJSON_GetObjectItem(streamObj, "subtable");
             if (tools_cJSON_IsString(subtable)) {
-                tstrncpy(stream->subtable, subtable->valuestring,
+                TOOLS_STRNCPY(stream->subtable, subtable->valuestring,
                          TSDB_DEFAULT_PKT_SIZE);
             }
 
@@ -1729,7 +1729,7 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
     if (cfgdir && (cfgdir->type == tools_cJSON_String)
             && (cfgdir->valuestring != NULL)) {
         if (!g_arguments->cfg_inputted) {
-            tstrncpy(g_configDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
+            TOOLS_STRNCPY(g_configDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
             debugPrint("configDir from cfg: %s\n", g_configDir);
         } else {
             warnPrint("configDir set by command line, so ignore cfg. cmd: %s\n", g_configDir);
@@ -2112,7 +2112,7 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
                         g_queryInfo.specifiedQueryInfo.queryTimes
                         * g_queryInfo.specifiedQueryInfo.concurrent,
                         sizeof(int64_t), true);
-                tstrncpy(sql->command, buf, bufLen - 1);
+                TOOLS_STRNCPY(sql->command, buf, bufLen - 1);
                 debugPrint("read file buffer: %s\n", sql->command);
                 memset(buf, 0, TSDB_MAX_ALLOWED_SQL_LEN);
             }
@@ -2142,7 +2142,7 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
                     if (tools_cJSON_IsString(sqlStr)) {
                         int strLen = strlen(sqlStr->valuestring) + 1;
                         sql->command = benchCalloc(1, strLen, true);
-                        tstrncpy(sql->command, sqlStr->valuestring, strLen);
+                        TOOLS_STRNCPY(sql->command, sqlStr->valuestring, strLen);
                         // default value is -1, which mean infinite loop
                         g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
                         tools_cJSON *endAfterConsume =
@@ -2176,7 +2176,7 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
                         tools_cJSON *result =
                             tools_cJSON_GetObjectItem(sqlObj, "result");
                         if (tools_cJSON_IsString(result)) {
-                            tstrncpy(sql->result, result->valuestring,
+                            TOOLS_STRNCPY(sql->result, result->valuestring,
                                      MAX_FILE_NAME_LEN);
                         } else {
                             memset(sql->result, 0, MAX_FILE_NAME_LEN);
@@ -2232,7 +2232,7 @@ int32_t readSuperQueryJson(tools_cJSON * superQuery) {
             tools_cJSON_GetObjectItem(superQuery, "stblname");
         if (stblname && stblname->type == tools_cJSON_String
                 && stblname->valuestring != NULL) {
-            tstrncpy(g_queryInfo.superQueryInfo.stbName,
+            TOOLS_STRNCPY(g_queryInfo.superQueryInfo.stbName,
                      stblname->valuestring,
                      TSDB_TABLE_NAME_LEN);
         }
@@ -2331,14 +2331,14 @@ int32_t readSuperQueryJson(tools_cJSON * superQuery) {
 
                 tools_cJSON *sqlStr = tools_cJSON_GetObjectItem(sql, "sql");
                 if (sqlStr && sqlStr->type == tools_cJSON_String) {
-                    tstrncpy(g_queryInfo.superQueryInfo.sql[j],
+                    TOOLS_STRNCPY(g_queryInfo.superQueryInfo.sql[j],
                              sqlStr->valuestring, TSDB_MAX_ALLOWED_SQL_LEN);
                 }
 
                 tools_cJSON *result = tools_cJSON_GetObjectItem(sql, "result");
                 if (result != NULL && result->type == tools_cJSON_String
                     && result->valuestring != NULL) {
-                    tstrncpy(g_queryInfo.superQueryInfo.result[j],
+                    TOOLS_STRNCPY(g_queryInfo.superQueryInfo.result[j],
                              result->valuestring, MAX_FILE_NAME_LEN);
                 } else {
                     memset(g_queryInfo.superQueryInfo.result[j], 0,
@@ -2579,7 +2579,7 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
                         topicObj, "name");
                 if (tools_cJSON_IsString(topicName)) {
                     //  int strLen = strlen(topicName->valuestring) + 1;
-                    tstrncpy(g_tmqInfo.consumerInfo.topicName[
+                    TOOLS_STRNCPY(g_tmqInfo.consumerInfo.topicName[
                                 g_tmqInfo.consumerInfo.topicCount],
                              topicName->valuestring, 255);
 
@@ -2592,7 +2592,7 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
                         topicObj, "sql");
                 if (tools_cJSON_IsString(sqlString)) {
                     //  int strLen = strlen(sqlString->valuestring) + 1;
-                    tstrncpy(g_tmqInfo.consumerInfo.topicSql[
+                    TOOLS_STRNCPY(g_tmqInfo.consumerInfo.topicSql[
                                 g_tmqInfo.consumerInfo.topicCount],
                              sqlString->valuestring, 255);
 

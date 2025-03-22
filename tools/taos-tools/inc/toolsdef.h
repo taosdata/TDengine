@@ -281,13 +281,12 @@ int32_t       toolsCloseDir(TdDirPtr *ppDir);
         *(__pN)=strlen(*(__pLine));                                     \
     } while(0)
 
-#ifndef tstrncpy
-#define tstrncpy(dst, src, size)       \
-    do {                               \
-        strncpy((dst), (src), (size)-1); \
-        (dst)[(size)-1] = 0;           \
+#define TOOLS_STRNCPY(dst, src, size)                                   \
+    do {                                                                \
+        strncpy((dst), (src), (size)-1);                                \
+        (dst)[(size)-1] = 0;                                            \
     } while (0)
-#endif
+
 
 #ifdef RELEASE
     #define TOOLS_ASSERT(x)   do { \

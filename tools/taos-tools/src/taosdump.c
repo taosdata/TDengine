@@ -606,7 +606,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
 
             if (full_path.we_wordv[0]) {
-                tstrncpy(g_args.inpath, full_path.we_wordv[0], DUMP_DIR_LEN);
+                TOOLS_STRNCPY(g_args.inpath, full_path.we_wordv[0], DUMP_DIR_LEN);
                 wordfree(&full_path);
             } else {
                 errorPrintReqArg3(CUS_PROMPT"dump", "-i or --inpath");
@@ -646,7 +646,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 errorPrint("Invalid path %s\n", arg);
                 exit(EXIT_FAILURE);
             }
-            tstrncpy(g_configDir, full_path.we_wordv[0], MAX_PATH_LEN);
+            TOOLS_STRNCPY(g_configDir, full_path.we_wordv[0], MAX_PATH_LEN);
             wordfree(&full_path);
             break;
 
@@ -845,9 +845,9 @@ static void copyHumanTimeToArg(char *timeStr, bool isStartTime) {
         timeStr += strlen("--end-time=");
     }
     if (isStartTime) {
-        tstrncpy(g_args.humanStartTime, timeStr, HUMAN_TIME_LEN);
+        TOOLS_STRNCPY(g_args.humanStartTime, timeStr, HUMAN_TIME_LEN);
     } else {
-        tstrncpy(g_args.humanEndTime, timeStr, HUMAN_TIME_LEN);
+        TOOLS_STRNCPY(g_args.humanEndTime, timeStr, HUMAN_TIME_LEN);
     }
 }
 
@@ -1015,12 +1015,12 @@ static int getTableRecordInfoImplNative(
 
         if (tryStable) {
             pTableRecordInfo->isStb = true;
-            tstrncpy(pTableRecordInfo->tableRecord.stable, table,
+            TOOLS_STRNCPY(pTableRecordInfo->tableRecord.stable, table,
                     TSDB_TABLE_NAME_LEN);
             isSet = true;
         } else {
             pTableRecordInfo->isStb = false;
-            tstrncpy(pTableRecordInfo->tableRecord.name,
+            TOOLS_STRNCPY(pTableRecordInfo->tableRecord.name,
                     (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                     min(TSDB_TABLE_NAME_LEN,
                         lengths[TSDB_SHOW_TABLES_NAME_INDEX] + 1));
@@ -1728,7 +1728,7 @@ void constructTableDesFromStb(const TableDes *stbTableDes,
         TableDes **ppTableDes) {
     TableDes *tableDes = *ppTableDes;
 
-    tstrncpy(tableDes->name, table, TSDB_TABLE_NAME_LEN);
+    TOOLS_STRNCPY(tableDes->name, table, TSDB_TABLE_NAME_LEN);
     tableDes->columns = stbTableDes->columns;
     tableDes->tags = stbTableDes->tags;
     memcpy(tableDes->cols, stbTableDes->cols,
@@ -1926,15 +1926,15 @@ static int getTableDesNative(
                 __func__, __LINE__, command, taos);
     }
 
-    tstrncpy(tableDes->name, table, TSDB_TABLE_NAME_LEN);
+    TOOLS_STRNCPY(tableDes->name, table, TSDB_TABLE_NAME_LEN);
     uint32_t columns = 0, tags = 0;
     while ((row = taos_fetch_row(res)) != NULL) {
         int32_t* lengths = taos_fetch_lengths(res);
         char type[20] = {0};
-        tstrncpy(tableDes->cols[colCount].field,
+        TOOLS_STRNCPY(tableDes->cols[colCount].field,
                 (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
                 lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX]+1);
-        tstrncpy(type, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+        TOOLS_STRNCPY(type, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                 lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX]+1);
         tableDes->cols[colCount].type = typeStrToType(type);
         tableDes->cols[colCount].length =
@@ -1946,7 +1946,7 @@ static int getTableDesNative(
                     min(
                         lengths[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
                         COL_NOTE_LEN-1));
-            tstrncpy(tableDes->cols[colCount].note,
+            TOOLS_STRNCPY(tableDes->cols[colCount].note,
                     note, lengths[TSDB_DESCRIBE_METRIC_NOTE_INDEX]+1);
         }
 
@@ -2090,7 +2090,7 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
 
     json_object_foreach(element, key, value) {
         if (0 == strcmp(key, "name")) {
-            tstrncpy(recordSchema->name, json_string_value(value),
+            TOOLS_STRNCPY(recordSchema->name, json_string_value(value),
                     RECORD_NAME_LEN);
         } else if (0 == strcmp(key, "fields")) {
             if (JSON_ARRAY == json_typeof(value)) {
@@ -2114,7 +2114,7 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
 
                     json_object_foreach(arr_element, ele_key, ele_value) {
                         if (0 == strcmp(ele_key, "name")) {
-                            tstrncpy(field->name,
+                            TOOLS_STRNCPY(field->name,
                                     json_string_value(ele_value),
                                     TSDB_COL_NAME_LEN-1);
                         } else if (0 == strcmp(ele_key, "type")) {
@@ -2736,25 +2736,25 @@ static AVROTYPE createDumpinList(const char *dbPath,
                             if (0 == strcmp(entryName, "dbs.sql")) {
                                 continue;
                             }
-                            tstrncpy(g_tsDumpInDebugFiles[nCount],
+                            TOOLS_STRNCPY(g_tsDumpInDebugFiles[nCount],
                                     entryName,
                                     min(namelen+1, MAX_FILE_NAME_LEN));
                             break;
 
                         case AVRO_NTB:
-                            tstrncpy(g_tsDumpInAvroNtbs[nCount],
+                            TOOLS_STRNCPY(g_tsDumpInAvroNtbs[nCount],
                                     entryName,
                                     min(namelen+1, MAX_FILE_NAME_LEN));
                             break;
 
                         case AVRO_TBTAGS:
-                            tstrncpy(g_tsDumpInAvroTagsTbs[nCount],
+                            TOOLS_STRNCPY(g_tsDumpInAvroTagsTbs[nCount],
                                     entryName,
                                     min(namelen+1, MAX_FILE_NAME_LEN));
                             break;
 
                         case AVRO_DATA:
-                            tstrncpy(g_tsDumpInAvroFiles[nCount],
+                            TOOLS_STRNCPY(g_tsDumpInAvroFiles[nCount],
                                     entryName,
                                     min(namelen+1, MAX_FILE_NAME_LEN));
                             break;
@@ -4596,7 +4596,7 @@ static int64_t dumpInAvroTbTagsImpl(
                     debugPrint("%s() LN%d stable : %s parsed from file:%s\n",
                             __func__, __LINE__, stb, fileName);
 
-                    tstrncpy(stbName, stb, TSDB_TABLE_NAME_LEN);
+                    TOOLS_STRNCPY(stbName, stb, TSDB_TABLE_NAME_LEN);
                     free(dupSeq);
                 }
 
@@ -6213,7 +6213,7 @@ static int dumpInAvroWorkThreads(const char *dbPath, const char *typeExt) {
                 "Thread[%d] takes care avro files total %"PRId64" files "
                 "from %"PRId64"\n",
                 t, pThreadInfo->count, pThreadInfo->from);
-        tstrncpy(pThreadInfo->dbPath, dbPath, MAX_DIR_LEN);
+        TOOLS_STRNCPY(pThreadInfo->dbPath, dbPath, MAX_DIR_LEN);
 
         if (pthread_create(pids + t, NULL,
                     dumpInAvroWorkThreadFp, (void*)pThreadInfo) != 0) {
@@ -9736,7 +9736,7 @@ static bool fillDBInfoWithFieldsNative(const int index,
         const int *lengths, int fieldCount) {
     for (int f = 0; f < fieldCount; f++) {
         if (0 == strcmp(fields[f].name, "name")) {
-            tstrncpy(g_dbInfos[index]->name, (char*)(row[f]),
+            TOOLS_STRNCPY(g_dbInfos[index]->name, (char*)(row[f]),
                     min(TSDB_DB_NAME_LEN, lengths[f]+1));
             debugPrint("%s() LN%d, db name: %s, len: %d\n",
                     __func__, __LINE__,
@@ -9772,7 +9772,7 @@ static bool fillDBInfoWithFieldsNative(const int index,
                 return false;
             }
         } else if (0 == strcmp(fields[f].name, "strict")) {
-            tstrncpy(g_dbInfos[index]->strict,
+            TOOLS_STRNCPY(g_dbInfos[index]->strict,
                     (char*)row[f], min(STRICT_LEN, lengths[f]+1));
             debugPrint("%s() LN%d: field: %d, keep: %s, length:%d\n",
                     __func__, __LINE__, f,
@@ -9785,14 +9785,14 @@ static bool fillDBInfoWithFieldsNative(const int index,
             g_dbInfos[index]->days = *((int16_t *)row[f]);
         } else if ((0 == strcmp(fields[f].name, "keep"))
                 || (0 == strcmp(fields[f].name, "keep0,keep1,keep2"))) {
-            tstrncpy(g_dbInfos[index]->keeplist, (char*)row[f],
+            TOOLS_STRNCPY(g_dbInfos[index]->keeplist, (char*)row[f],
                     min(KEEPLIST_LEN, lengths[f]+1));
             debugPrint("%s() LN%d: field: %d, keep: %s, length:%d\n",
                     __func__, __LINE__, f,
                     g_dbInfos[index]->keeplist,
                     lengths[f]);
         } else if (0 == strcmp(fields[f].name, "duration")) {
-            tstrncpy(g_dbInfos[index]->duration, (char*) row[f],
+            TOOLS_STRNCPY(g_dbInfos[index]->duration, (char*) row[f],
                     min(DURATION_LEN, lengths[f]+1));
             debugPrint("%s() LN%d: field: %d, duration: %s, length:%d\n",
                     __func__, __LINE__, f,
@@ -9871,7 +9871,7 @@ static bool fillDBInfoWithFieldsNative(const int index,
                 return false;
             }
         } else if (0 == strcmp(fields[f].name, "precision")) {
-            tstrncpy(g_dbInfos[index]->precision, (char*)row[f],
+            TOOLS_STRNCPY(g_dbInfos[index]->precision, (char*)row[f],
                     min(DB_PRECISION_LEN, lengths[f]+1));
             debugPrint("%s() LN%d, db precision: %s, len: %d\n",
                     __func__, __LINE__,
@@ -10343,7 +10343,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
 
     json_object_foreach(element, key, value) {
         if (0 == strcmp(key, "name")) {
-            tstrncpy(recordSchema->name, json_string_value(value),
+            TOOLS_STRNCPY(recordSchema->name, json_string_value(value),
                     RECORD_NAME_LEN);
         } else if (0 == strcmp(key, "fields")) {
             if (JSON_ARRAY == json_typeof(value)) {
@@ -10372,14 +10372,14 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
 
                     json_object_foreach(arr_element, ele_key, ele_value) {
                         if (0 == strcmp(ele_key, "name")) {
-                            tstrncpy(field->name,
+                            TOOLS_STRNCPY(field->name,
                                     json_string_value(ele_value),
                                     TSDB_COL_NAME_LEN-1);
                         } else if (0 == strcmp(ele_key, "type")) {
                             int ele_type = json_typeof(ele_value);
 
                             if (JSON_STRING == ele_type) {
-                                tstrncpy(field->type,
+                                TOOLS_STRNCPY(field->type,
                                         json_string_value(ele_value),
                                         TYPE_NAME_LEN-1);
                             } else if (JSON_ARRAY == ele_type) {
@@ -10398,7 +10398,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                                             "null")) {
                                             field->nullable = true;
                                         } else {
-                                            tstrncpy(field->type,
+                                            TOOLS_STRNCPY(field->type,
                                                     arr_type_ele_str,
                                                     TYPE_NAME_LEN-1);
                                         }
@@ -10420,11 +10420,11 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                                 } else if (0 == strcmp(arr_type_ele_value_str,
                                                             "array")) {
                                                     field->is_array = true;
-                                                    tstrncpy(field->type,
+                                                    TOOLS_STRNCPY(field->type,
                                                             arr_type_ele_value_str,
                                                             TYPE_NAME_LEN-1);
                                                 } else {
-                                                    tstrncpy(field->type,
+                                                    TOOLS_STRNCPY(field->type,
                                                             arr_type_ele_value_str,
                                                             TYPE_NAME_LEN-1);
                                                 }
@@ -10442,7 +10442,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                                         const char *arr_type_ele_value_value_str =
                                                             json_string_value(
                                                                      arr_type_ele_value_value);
-                                                        tstrncpy(field->array_type_str,
+                                                        TOOLS_STRNCPY(field->array_type_str,
                                                                 arr_type_ele_value_value_str,
                                                                 TYPE_NAME_LEN-1);
                                                     }
@@ -10461,7 +10461,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                     if (0 == strcmp(obj_key, "type")) {
                                         int obj_value_type = json_typeof(obj_value);
                                         if (JSON_STRING == obj_value_type) {
-                                            tstrncpy(field->type,
+                                            TOOLS_STRNCPY(field->type,
                                                     json_string_value(obj_value), TYPE_NAME_LEN-1);
                                             if (0 == strcmp(field->type, "array")) {
                                                 field->is_array = true;
@@ -10472,7 +10472,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
 
                                             json_object_foreach(obj_value, field_key, field_value) {
                                                 if (JSON_STRING == json_typeof(field_value)) {
-                                                    tstrncpy(field->type,
+                                                    TOOLS_STRNCPY(field->type,
                                                             json_string_value(field_value),
                                                             TYPE_NAME_LEN-1);
                                                 } else {
@@ -10484,7 +10484,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                         int obj_value_items = json_typeof(obj_value);
                                         if (JSON_STRING == obj_value_items) {
                                             field->is_array = true;
-                                            tstrncpy(field->array_type_str,
+                                            TOOLS_STRNCPY(field->array_type_str,
                                                     json_string_value(obj_value), TYPE_NAME_LEN-1);
                                         } else if (JSON_OBJECT == obj_value_items) {
                                             const char *item_key;
@@ -10492,7 +10492,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
 
                                             json_object_foreach(obj_value, item_key, item_value) {
                                                 if (JSON_STRING == json_typeof(item_value)) {
-                                                    tstrncpy(field->array_type_str,
+                                                    TOOLS_STRNCPY(field->array_type_str,
                                                             json_string_value(item_value),
                                                             TYPE_NAME_LEN-1);
                                                 }
