@@ -3,7 +3,6 @@ title: 预测算法
 description: 预测算法
 ---
 
-import fc_result from '../pic/fc.png';
 import fc_result_figure from '../pic/fc-result.png';
 
 时序数据预测处理以持续一个时间段的时序数据作为输入，预测接下来一个连续时间区间内时间序列数据趋势。用户可以指定输出的（预测）时间序列数据点的数量，因此其输出的结果行数不确定。为此，TDengine 使用新 SQL 函数 `FORECAST` 提供时序数据预测服务。基础数据（用于预测的历史时间序列数据）是该函数的输入，预测结果是该函数的输出。用户可以通过 `FORECAST` 函数调用 Anode 提供的预测算法提供的服务。
