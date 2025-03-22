@@ -38,7 +38,7 @@ TARGET_LINK_LIBRARIES(
 ADD_EXECUTABLE(userOperTest ../../../tests/script/api/passwdTest.c)
 TARGET_LINK_LIBRARIES(
         userOperTest
-        PUBLIC ${TAOS_NATIVE_LIB_STATIC}
+        PUBLIC ${TAOS_NATIVE_LIB}
 )
 
 ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
