@@ -139,6 +139,7 @@ res_start_time = 1730000000000
 gen_figure = true
 ```
 
+
 对比程序执行完成以后，会自动生成名称为`fc_result.xlsx` 的文件，第一个卡片是算法运行结果（如下表所示），分别包含了算法名称、执行调用参数、均方误差、执行时间 4 个指标。
 
 | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
