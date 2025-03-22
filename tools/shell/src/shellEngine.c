@@ -1355,11 +1355,16 @@ TAOS* createConnect(SShellArgs *pArgs) {
   }
 
   // connect main
+  TAOS * taos = NULL;
   if (pArgs->auth) {
-    return taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
+    taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
   } else {
-    return taos_connect(host, user, pwd, pArgs->database, port);
+    taos = taos_connect(host, user, pwd, pArgs->database, port);
   }
+
+  // host user pointer in dsnc address
+  free(dsnc);
+  return taos;
 }
 
 int32_t shellExecute(int argc, char *argv[]) {
