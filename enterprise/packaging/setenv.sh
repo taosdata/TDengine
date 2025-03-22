@@ -2,4 +2,4 @@
 
 # To access the release assets in
 # https://github.com/taosdata/operation/releases/latest
-GITHUB_TOKEN=
+export GITHUB_TOKEN=
