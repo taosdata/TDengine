@@ -39,7 +39,7 @@ class TDTestCase(TBase):
         os.system("%s" % cmd)
         time.sleep(2)
 
-        tdSql.query("select `vgroups` from information_schema.ins_databases where name='test'")
+        tdSql.query("select `vgroups` from information_schema.ins_databases  where name='test'")
         tdSql.checkData(0, 0, 3)
 
     def stop(self):
