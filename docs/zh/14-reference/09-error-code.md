@@ -604,4 +604,4 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000445 | Analysis failed since anode return error            | anode 返回错误信息  | 请检查服务端日志确认问题原因     |
 | 0x80000446 | Analysis failed since too many input rows for anode | 输入数据太多   | 减小分析数据输入规模     |
 | 0x80000447 | white-noise data not processed                      | 白噪声数据不分析   |    |
-| 0x80000448 | tdgpt internal error, not processed                 | anode 出现内部错误   | 具体查看server端的错误日志     |
+| 0x80000448 | Analysis internal error, not processed                 | anode 出现内部错误   | 具体查看server端的日志 (taosanode.app.log)   |
