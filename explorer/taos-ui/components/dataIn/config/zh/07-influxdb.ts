@@ -58,14 +58,13 @@ export default {
       description: 'InfluxDB 的鉴权认证。',
       field: 'authentication',
       type: 'tabs',
-      valueField: 'currentTab',
+      valueField: 'only-choose-one$',
       defaultValue: '2~x',
       multiple: false,
       children: [
         {
           label: '1.x 版本',
           name: '1~x',
-          field: '1~x',
           children: [
             {
               label: '版本',
@@ -112,7 +111,6 @@ export default {
         {
           label: '版本 2.x',
           name: '2~x',
-          field: '2~x',
           children: [
             {
               label: '版本',

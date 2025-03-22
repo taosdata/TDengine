@@ -287,6 +287,11 @@ export function formatFromData(from: Recordable) {
 
 // 将配置数据合入为 from.data 参数，也就是3.3.6.0版本之前的 dsn 字符串的 对象表达形式
 function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: any = {}, parentKey?: string) {
+  if (data["only-choose-one$"] && typeof data[data["only-choose-one$"]] === 'object') {
+    mergeToFromData(data[data["only-choose-one$"]], fromData, fullNameMap, data["only-choose-one$"]);
+    return;
+  }
+  
   const keys = Object.getOwnPropertyNames(data);
 
   keys.forEach(key => {

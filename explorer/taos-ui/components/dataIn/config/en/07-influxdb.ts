@@ -59,14 +59,13 @@ export default {
       description: 'Authentication is the process of verifying the identity before granting access to InfluxDB.',
       field: 'authentication',
       type: 'tabs',
-      valueField: 'a7dcf55a-a4ea-483b-8980-2db60cd2d8d6',
-      defaultValue: '2.x',
+      valueField: 'only-choose-one$',
+      defaultValue: '2~x',
       multiple: false,
       children: [
         {
           label: 'Version 1.x',
-          name: '1.x',
-          field: '1~x',
+          name: '1~x',
           children: [
             {
               label: 'Version',
@@ -113,8 +112,7 @@ export default {
         },
         {
           label: 'Version 2.x',
-          name: '2.x',
-          field: '2~x',
+          name: '2~x',
           children: [
             {
               label: 'Version',
