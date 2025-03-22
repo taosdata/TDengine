@@ -820,16 +820,12 @@ void parseStringToIntArray(char *str, BArray *arr) {
 // get interface name
 uint16_t getInterface(char *name) {
     uint16_t iface = TAOSC_IFACE;
-    if (0 == strcasecmp(name, "rest")) {
-        iface = REST_IFACE;
-    } else if (0 == strcasecmp(name, "stmt")) {
+    if (0 == strcasecmp(name, "stmt")) {
         iface = STMT_IFACE;
     } else if (0 == strcasecmp(name, "stmt2")) {
         iface = STMT2_IFACE;
     } else if (0 == strcasecmp(name, "sml")) {
         iface = SML_IFACE;
-    } else if (0 == strcasecmp(name, "sml-rest")) {
-        iface = SML_REST_IFACE;
     }
 
     return iface;
@@ -969,30 +965,7 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                                g_arguments->reqPerReq, SML_MAX_BATCH);
                     return -1;
                 }
-            } else if (isRest(superTable->iface)) {
-                if (g_arguments->reqPerReq > SML_MAX_BATCH) {
-                    errorPrint("reqPerReq (%u) larger than maximum (%d)\n",
-                               g_arguments->reqPerReq, SML_MAX_BATCH);
-                    return -1;
-                }
-                if (0 != convertServAddr(REST_IFACE,
-                                         false,
-                                         1)) {
-                    errorPrint("%s", "Failed to convert server address\n");
-                    return -1;
-                }
-                encodeAuthBase64();
-                g_arguments->rest_server_ver_major =
-                    getServerVersionRest(g_arguments->port + TSDB_PORT_HTTP);
             }
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
-            infoPrint("Since WebSocket interface is enabled, "
-                    "the interface %s is changed to use WebSocket.\n",
-                    stbIface->valuestring);
-            superTable->iface = TAOSC_IFACE;
-        }
-#endif
         }
 
 
@@ -1582,45 +1555,69 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
     tools_cJSON *cfgdir = tools_cJSON_GetObjectItem(json, "cfgdir");
     if (cfgdir && (cfgdir->type == tools_cJSON_String)
             && (cfgdir->valuestring != NULL)) {
-        tstrncpy(g_configDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
+        if (!g_arguments->cfg_inputted) {
+            tstrncpy(g_configDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
+            debugPrint("configDir from cfg: %s\n", g_configDir);
+        } else {
+            warnPrint("configDir set by command line, so ignore cfg. cmd: %s\n", g_configDir);
+        }        
     }
 
+    // dsn
+    tools_cJSON *dsn = tools_cJSON_GetObjectItem(json, "dsn");
+    if (tools_cJSON_IsString(dsn) && strlen(dsn->valuestring) > 0) {
+        if (g_arguments->dsn == NULL) {
+            g_arguments->dsn = dsn->valuestring;
+            infoPrint("read dsn from json. dsn=%s\n", g_arguments->dsn);
+        }
+    }    
+
+    // host
     tools_cJSON *host = tools_cJSON_GetObjectItem(json, "host");
     if (host && host->type == tools_cJSON_String && host->valuestring != NULL) {
-        if(g_arguments->host && strlen(g_arguments->host) > 0) {
-            warnPrint("command line already pass host is %s, json config host(%s) had been ignored.\n", g_arguments->host, host->valuestring);
-        } else {
+        if(g_arguments->host == NULL) {
             g_arguments->host = host->valuestring;
+            infoPrint("read host from json: %s .\n", g_arguments->host);
         }     
     }
 
+    // port
     tools_cJSON *port = tools_cJSON_GetObjectItem(json, "port");
     if (port && port->type == tools_cJSON_Number) {
-        if(g_arguments->port != DEFAULT_PORT) {
-            warnPrint("command line already pass port is %d, json config port(%d) had been ignored.\n", g_arguments->port, (uint16_t)port->valueint);
+        if (g_arguments->port_inputted) {
+            // command line input port first
+            warnPrint("command port: %d, json port ignored.\n", g_arguments->port);
         } else {
-            g_arguments->port = (uint16_t)port->valueint;
-            if(g_arguments->port != DEFAULT_PORT) {
-                infoPrint("json file config special port %d .\n", g_arguments->port);
-                g_arguments->port_inputted = true;
+            // default port set auto port
+            if (port->valueint != DEFAULT_PORT) {
+                g_arguments->port = (uint16_t)port->valueint;
+                infoPrint("read port form json: %d .\n", g_arguments->port);
+                g_arguments->port_inputted = true;    
             }
         }
     }
 
+    // user
     tools_cJSON *user = tools_cJSON_GetObjectItem(json, "user");
     if (user && user->type == tools_cJSON_String && user->valuestring != NULL) {
-        g_arguments->user = user->valuestring;
+        if (g_arguments->user == NULL) {
+            g_arguments->user = user->valuestring;
+            infoPrint("read user from json: %s .\n", g_arguments->user);
+        }
     }
 
+    // pass
     tools_cJSON *password = tools_cJSON_GetObjectItem(json, "password");
     if (password && password->type == tools_cJSON_String &&
         password->valuestring != NULL) {
-        g_arguments->password = password->valuestring;
+        if(g_arguments->password == NULL) {
+            g_arguments->password = password->valuestring;
+            infoPrint("read password from json: %s .\n", "******");
+        }        
     }
 
-    tools_cJSON *answerPrompt =
-        tools_cJSON_GetObjectItem(json,
-                                  "confirm_parameter_prompt");  // yes, no,
+    // yes, no
+    tools_cJSON *answerPrompt = tools_cJSON_GetObjectItem(json, "confirm_parameter_prompt");
     if (answerPrompt && answerPrompt->type == tools_cJSON_String
             && answerPrompt->valuestring != NULL) {
         if (0 == strcasecmp(answerPrompt->valuestring, "no")) {
@@ -1660,15 +1657,6 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
 
 static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     int32_t code = -1;
-
-#ifdef WEBSOCKET
-    tools_cJSON *dsn = tools_cJSON_GetObjectItem(json, "dsn");
-    if (tools_cJSON_IsString(dsn)) {
-        g_arguments->dsn = dsn->valuestring;
-        g_arguments->websocket = true;
-        infoPrint("set websocket true from json->dsn=%s\n", g_arguments->dsn);
-    }
-#endif
 
     // check after inserted
     tools_cJSON *checkSql = tools_cJSON_GetObjectItem(json, "check_sql");
@@ -1723,24 +1711,6 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     if (tools_cJSON_IsNumber(table_theads)) {
         g_arguments->table_threads = (uint32_t)table_theads->valueint;
     }
-
-#ifdef WEBSOCKET
-    if (!g_arguments->websocket) {
-#endif
-#ifdef LINUX
-    if (strlen(g_configDir)) {
-        wordexp_t full_path;
-        if (wordexp(g_configDir, &full_path, 0) != 0) {
-            errorPrint("Invalid path %s\n", g_configDir);
-            exit(EXIT_FAILURE);
-        }
-        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-        wordfree(&full_path);
-    }
-#endif
-#ifdef WEBSOCKET
-    }
-#endif
 
     tools_cJSON *numRecPerReq =
         tools_cJSON_GetObjectItem(json, "num_of_records_per_req");
@@ -2268,9 +2238,7 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
 
     tools_cJSON *queryMode = tools_cJSON_GetObjectItem(json, "query_mode");
     if (tools_cJSON_IsString(queryMode)) {
-        if (0 == strcasecmp(queryMode->valuestring, "rest")) {
-            g_queryInfo.iface = REST_IFACE;
-        } else if (0 == strcasecmp(queryMode->valuestring, "taosc")) {
+        if (0 == strcasecmp(queryMode->valuestring, "taosc")) {
             g_queryInfo.iface = TAOSC_IFACE;
         } else {
             errorPrint("Invalid query_mode value: %s\n",
@@ -2320,24 +2288,6 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
 
 static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     int32_t code = -1;
-
-    tools_cJSON *cfgdir = tools_cJSON_GetObjectItem(json, "cfgdir");
-    if (tools_cJSON_IsString(cfgdir)) {
-        tstrncpy(g_configDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
-    }
-
-#ifdef LINUX
-    if (strlen(g_configDir)) {
-        wordexp_t full_path;
-    if (wordexp(g_configDir, &full_path, 0) != 0) {
-            errorPrint("Invalid path %s\n", g_configDir);
-            exit(EXIT_FAILURE);
-    }
-        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-        wordfree(&full_path);
-    }
-#endif
-
     tools_cJSON *resultfile = tools_cJSON_GetObjectItem(json, "result_file");
     if (resultfile && resultfile->type == tools_cJSON_String
             && resultfile->valuestring != NULL) {
