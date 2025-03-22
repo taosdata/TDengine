@@ -145,6 +145,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
   if (!hasWncheck) {
     qDebug("%s forecast wncheck not found from %s, use default:%" PRId64, id, pSupp->algoOpt, wncheck);
   }
+
   code = taosAnalyBufWriteOptInt(pBuf, "wncheck", wncheck);
   if (code != 0) return code;
 
