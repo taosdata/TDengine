@@ -102,5 +102,5 @@ lof={"algo":"auto", "n_neighbor": 3}
 
 如果设置了 `gen_figure` 为 `true`，比较程序会自动将每个参与比较的算法分析结果采用图片方式呈现出来（如下图所示为 ksigma 的异常检测结果标注）。
 
-<img src={ad_result_figure} width="760" alt="异常检测标注图" />
+<img src={ad_result_figure} width="540" alt="异常检测标注图" />
 

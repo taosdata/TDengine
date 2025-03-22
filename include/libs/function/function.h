@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
+#include "functionResInfo.h"
 #include "tcommon.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
-#include "functionResInfo.h"
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
@@ -38,14 +38,15 @@ typedef struct SFuncExecEnv {
 } SFuncExecEnv;
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
-typedef void (*FExecCleanUp)(struct SqlFunctionCtx* pCtx);
+typedef void (*FExecCleanUp)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunctionCtx *pSourceCtx);
-typedef int32_t (*FExecDecode)(struct SqlFunctionCtx *pCtx, const char *buf, struct SResultRowEntryInfo *pResultCellInfo, int32_t version);
-typedef int32_t (*processFuncByRow)(SArray* pCtx);  // array of SqlFunctionCtx
+typedef int32_t (*FExecDecode)(struct SqlFunctionCtx *pCtx, const char *buf,
+                               struct SResultRowEntryInfo *pResultCellInfo, int32_t version);
+typedef int32_t (*processFuncByRow)(SArray *pCtx);  // array of SqlFunctionCtx
 
 typedef struct SScalarFuncExecFuncs {
   FExecGetEnv        getEnv;
@@ -119,8 +120,8 @@ typedef struct SInputColumnInfoData {
   int32_t           startRowIndex;    // handle started row index
   int64_t           numOfRows;        // the number of rows needs to be handled
   bool              blankFill;        // fill blank data to block for empty table
-  int32_t           numOfInputCols;   // PTS is not included
   bool              colDataSMAIsSet;  // if agg is set or not
+  int32_t           numOfInputCols;   // PTS is not included
   SColumnInfoData  *pPTS;             // primary timestamp column
   SColumnInfoData  *pPrimaryKey;      // primary key column
   SColumnInfoData **pData;
@@ -131,7 +132,7 @@ typedef struct SInputColumnInfoData {
 typedef struct SSerializeDataHandle {
   struct SDiskbasedBuf *pBuf;
   int32_t               currentPage;
-  SStreamState          *pState;
+  SStreamState         *pState;
 } SSerializeDataHandle;
 
 // incremental state storage
@@ -168,11 +169,14 @@ typedef struct STdbState {
   void               *pParNameDb;
   void               *pParTagDb;
   void               *txn;
+  int8_t              recalc;
 } STdbState;
 
 typedef struct SResultRowStore {
-  int32_t (*resultRowPut)(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
-  int32_t (*resultRowGet)(struct SExprSupp *pSup, const char* inBuf, size_t inBufSize, char **outBuf, size_t *outBufSize);
+  int32_t (*resultRowPut)(struct SExprSupp *pSup, const char *inBuf, size_t inBufSize, char **outBuf,
+                          size_t *outBufSize);
+  int32_t (*resultRowGet)(struct SExprSupp *pSup, const char *inBuf, size_t inBufSize, char **outBuf,
+                          size_t *outBufSize);
 } SResultRowStore;
 
 struct SStreamState {
@@ -187,6 +191,7 @@ struct SStreamState {
   int32_t                  tsIndex;
   SResultRowStore          pResultRowStore;
   struct SExprSupp        *pExprSupp;
+  char                     pTaskIdStr[65];
 };
 
 typedef struct SFunctionStateStore {
@@ -196,37 +201,37 @@ typedef struct SFunctionStateStore {
 
 typedef struct SFuncInputRow {
   TSKEY ts;
-  bool isDataNull;
-  char* pData;
-  char* pPk;
+  bool  isDataNull;
+  char *pData;
+  char *pPk;
 
-  SSDataBlock* block; // prev row block or src block
-  int32_t rowIndex; // prev row block ? 0 : rowIndex in srcBlock
+  SSDataBlock *block;     // prev row block or src block
+  int32_t      rowIndex;  // prev row block ? 0 : rowIndex in srcBlock
 
-  //TODO:
-  // int32_t startOffset; // for diff, derivative
-  // SPoint1 startPoint; // for twa
+  // TODO:
+  //  int32_t startOffset; // for diff, derivative
+  //  SPoint1 startPoint; // for twa
 } SFuncInputRow;
 
 typedef struct SFuncInputRowIter {
-  bool  hasPrev;
- 
-  SInputColumnInfoData* pInput;
-  SColumnInfoData* pDataCol;
-  SColumnInfoData* pPkCol;
-  TSKEY* tsList;
-  int32_t rowIndex;
-  int32_t inputEndIndex;
-  SSDataBlock* pSrcBlock;
+  bool hasPrev;
 
-  TSKEY prevBlockTsEnd;
-  bool prevIsDataNull;
-  char* pPrevData;
-  char* pPrevPk;
-  SSDataBlock* pPrevRowBlock; // pre one row block
+  SInputColumnInfoData *pInput;
+  SColumnInfoData      *pDataCol;
+  SColumnInfoData      *pPkCol;
+  TSKEY                *tsList;
+  int32_t               rowIndex;
+  int32_t               inputEndIndex;
+  SSDataBlock          *pSrcBlock;
+
+  TSKEY        prevBlockTsEnd;
+  bool         prevIsDataNull;
+  char        *pPrevData;
+  char        *pPrevPk;
+  SSDataBlock *pPrevRowBlock;  // pre one row block
 
   uint64_t groupId;
-  bool hasGroupId;
+  bool     hasGroupId;
 
   bool finalRow;
 } SFuncInputRowIter;
@@ -263,8 +268,9 @@ typedef struct SqlFunctionCtx {
   bool                 hasPrimaryKey;
   SFuncInputRowIter    rowIter;
   bool                 bInputFinished;
-  bool                 hasWindowOrGroup; // denote that the function is used with time window or group
-  bool                 needCleanup; // denote that the function need to be cleaned up
+  bool                 hasWindowOrGroup;  // denote that the function is used with time window or group
+  bool                 needCleanup;       // denote that the function need to be cleaned up
+  int32_t              inputType; // save the fuction input type funcs like finalize
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
@@ -276,12 +282,14 @@ typedef struct tExprNode {
       int32_t               num;
       struct SFunctionNode *pFunctNode;
       int32_t               functionType;
+      int32_t               bindExprID;
     } _function;
 
     struct {
       struct SNode *pRootNode;
     } _optrRoot;
   };
+  int32_t relatedTo;
 } tExprNode;
 
 struct SScalarParam {
@@ -289,21 +297,23 @@ struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   SHashObj        *pHashFilterOthers;
-  int32_t          hashValueType;
+  int32_t          filterValueType;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
   timezone_t       tz;
   void            *charsetCxt;
+  SArray          *pFilterArr; // for types that can't filter with hash
+  STypeMod         filterValueTypeMod;
 };
 
-static inline void setTzCharset(SScalarParam* param, timezone_t tz, void* charsetCxt){
+static inline void setTzCharset(SScalarParam *param, timezone_t tz, void *charsetCxt) {
   if (param == NULL) return;
   param->tz = tz;
   param->charsetCxt = charsetCxt;
 }
 
-#define cleanupResultRowEntry(p)  p->initialized = false
+#define cleanupResultRowEntry(p) p->initialized = false
 #define isRowEntryCompleted(p)   (p->complete)
 #define isRowEntryInitialized(p) (p->initialized)
 
@@ -313,11 +323,11 @@ typedef struct SPoint {
 } SPoint;
 
 void taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
-                                      int32_t inputType);
+                                   int32_t inputType, STypeMod inputTypeMod);
 
 #define LEASTSQUARES_DOUBLE_ITEM_LENGTH 25
-#define LEASTSQUARES_BUFF_LENGTH 128
-#define DOUBLE_PRECISION_DIGITS "16e"
+#define LEASTSQUARES_BUFF_LENGTH        128
+#define DOUBLE_PRECISION_DIGITS         "16e"
 
 #ifdef __cplusplus
 }

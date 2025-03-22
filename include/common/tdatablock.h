@@ -80,6 +80,9 @@ typedef struct SBlockOrderInfo {
 #define IS_JSON_NULL(type, data) \
   ((type) == TSDB_DATA_TYPE_JSON && (*(data) == TSDB_DATA_TYPE_NULL || tTagIsJsonNull(data)))
 
+#define GET_COL_DATA_TYPE(col) \
+  { .type = (col).type, .precision = (col).precision, .bytes = (col).bytes, .scale = (col).scale }
+
 static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
   if (!pColumnInfoData->hasNull) {
     return false;
@@ -174,17 +177,17 @@ static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint3
 static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(int64_t*)p = *(int64_t*)v;
+  taosSetPInt64Aligned((int64_t*)p, v);
 }
 
 static FORCE_INLINE void colDataSetFloat(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, float* v) {
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(float*)p = *(float*)v;
+  taosSetPFloatAligned((float*)p, v);
 }
 
 static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, double* v) {
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(double*)p = *(double*)v;
+  taosSetPDoubleAligned((double*)p, v);
 }
 
 int32_t getJsonValueLen(const char* data);
@@ -195,6 +198,8 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
 // For the VAR_DATA_TYPE type, if a row already has data before inserting it (judged by offset != -1),
 // it will be inserted at the original position and the old data will be overwritten.
 int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
+int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pVarData, int32_t varDataLen,
+                         bool isNull);
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData);
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows,
                          bool trimValue);
@@ -262,6 +267,8 @@ int32_t createDataBlock(SSDataBlock** pResBlock);
 void    blockDataDestroy(SSDataBlock* pBlock);
 void    blockDataFreeRes(SSDataBlock* pBlock);
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
+int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
+int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock, SSDataBlock** pResBlock);
 int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock);
 
 int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock);
@@ -285,6 +292,8 @@ bool    isAutoTableName(char* ctbName);
 int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId, size_t cap);
 int32_t buildCtbNameByGroupId(const char* stbName, uint64_t groupId, char** pName);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
+int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_t gid, bool newSubTableRule,
+                               char** dstTableName);
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
 

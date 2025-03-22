@@ -17,7 +17,6 @@
 #define TDENGINE_STREAMMSG_H
 
 #include "tmsg.h"
-//#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -257,6 +256,14 @@ typedef struct {
 
 int32_t tEncodeStreamTaskRunReq(SEncoder* pEncoder, const SStreamTaskRunReq* pReq);
 int32_t tDecodeStreamTaskRunReq(SDecoder* pDecoder, SStreamTaskRunReq* pReq);
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+} SStreamTaskStopReq;
+
+int32_t tEncodeStreamTaskStopReq(SEncoder* pEncoder, const SStreamTaskStopReq* pReq);
+int32_t tDecodeStreamTaskStopReq(SDecoder* pDecoder, SStreamTaskStopReq* pReq);
 
 #ifdef __cplusplus
 }

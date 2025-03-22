@@ -119,7 +119,7 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         int64_t childTblCountOfSuperTbl) {
     char cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
     snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
-             "select distinct tbname from %s.`%s` limit %" PRId64 "",
+             "select distinct tbname from %s.`%s` limit %" PRId64,
             dbName, stbName, childTblCountOfSuperTbl);
     TAOS_RES *res = taos_query(taos, cmd);
     int32_t   code = taos_errno(res);
@@ -1033,18 +1033,26 @@ int convertStringToDatatype(char *type, int length) {
         return TSDB_DATA_TYPE_BOOL;
     } else if (0 == strCompareN(type, "tinyint", length)) {
         return TSDB_DATA_TYPE_TINYINT;
+    } else if (0 == strCompareN(type, "tinyint unsigned", length)) {
+        return TSDB_DATA_TYPE_UTINYINT;
     } else if (0 == strCompareN(type, "utinyint", length)) {
         return TSDB_DATA_TYPE_UTINYINT;
     } else if (0 == strCompareN(type, "smallint", length)) {
         return TSDB_DATA_TYPE_SMALLINT;
+    } else if (0 == strCompareN(type, "smallint unsigned", length)) {
+        return TSDB_DATA_TYPE_USMALLINT;
     } else if (0 == strCompareN(type, "usmallint", length)) {
         return TSDB_DATA_TYPE_USMALLINT;
     } else if (0 == strCompareN(type, "int", length)) {
         return TSDB_DATA_TYPE_INT;
+    } else if (0 == strCompareN(type, "int unsigned", length)) {
+        return TSDB_DATA_TYPE_UINT;
     } else if (0 == strCompareN(type, "uint", length)) {
         return TSDB_DATA_TYPE_UINT;
     } else if (0 == strCompareN(type, "bigint", length)) {
         return TSDB_DATA_TYPE_BIGINT;
+    } else if (0 == strCompareN(type, "bigint unsigned", length)) {
+        return TSDB_DATA_TYPE_UBIGINT;
     } else if (0 == strCompareN(type, "ubigint", length)) {
         return TSDB_DATA_TYPE_UBIGINT;
     } else if (0 == strCompareN(type, "float", length)) {
@@ -1766,5 +1774,32 @@ int fetchChildTableName(char *dbName, char *stbName) {
     closeBenchConn(conn);
 
     // succ
+    return 0;
+}
+
+// skip prefix suffix blank
+int trimCaseCmp(char *str1, char *str2) {
+    // Skip leading whitespace in str1
+    while (isblank((unsigned char)*str1)) {
+        str1++;
+    }
+
+    // Compare characters case-insensitively
+    while (*str2 != '\0') {
+        if (tolower((unsigned char)*str1) != tolower((unsigned char)*str2)) {
+            return -1;
+        }
+        str1++;
+        str2++;
+    }
+
+    // Check if the remaining characters in str1 are all whitespace
+    while (*str1 != '\0') {    
+        if (!isblank((unsigned char)*str1)) {
+            return -1;
+        }
+        str1++;
+    }
+
     return 0;
 }

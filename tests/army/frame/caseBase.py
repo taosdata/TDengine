@@ -18,7 +18,11 @@ import datetime
 import random
 import copy
 import json
+import tempfile
+import uuid
 
+import frame.eos
+import frame.etool
 import frame.eutil
 from frame.log import *
 from frame.sql import *
@@ -231,6 +235,14 @@ class TBase:
 
         tdLog.info("sql1 same result with sql2.")
 
+    # check same value
+    def checkSame(self, real, expect, show = True):
+        if real == expect:
+            if show:
+                tdLog.info(f"check same succ. real={real} expect={expect}.")
+        else:
+            tdLog.exit(f"check same failed. real={real} expect={expect}.")
+
 #
 #   get db information
 #
@@ -269,6 +281,16 @@ class TBase:
                 break
         print(dics)
         return dics
+
+#
+#  run bin file
+#
+    # taos
+    def taos(self, command, show = True, checkRun = False):
+        return frame.etool.runBinFile("taos", command, show, checkRun)
+
+    def taosdump(self, command, show = True, checkRun = True, retFail = True):
+        return frame.etool.runBinFile("taosdump", command, show, checkRun, retFail)
 
 
 #
@@ -312,6 +334,17 @@ class TBase:
             tdLog.exit(f"list is empty {tips}")
 
 
+    # check list have str
+    def checkListString(self, vlist, s):
+        for i in range(len(vlist)):
+            if vlist[i].find(s) != -1:
+                # found
+                tdLog.info(f'found "{s}" on index {i} , line={vlist[i]}')
+                return 
+
+        # not found
+        tdLog.exit(f'faild, not found "{s}" on list:{vlist}')
+
 #
 #  str util
 #
@@ -328,7 +361,7 @@ class TBase:
 #  taosBenchmark 
 #
     
-    # run taosBenchmark and check insert Result
+    # insert
     def insertBenchJson(self, jsonFile, options="", checkStep=False):
         # exe insert 
         cmd = f"{options} -f {jsonFile}"        
@@ -395,4 +428,113 @@ class TBase:
             if vgroups != None:
                 tdSql.checkData(0, 0, vgroups)
 
-        return db, stb,child_count, insert_rows
+        return db, stb, child_count, insert_rows
+    
+    # insert & check
+    def benchInsert(self, jsonFile, options = "", results = None):
+        # exe insert 
+        benchmark = frame.etool.benchMarkFile()
+        cmd   = f"{benchmark} {options} -f {jsonFile}"
+        rlist = frame.eos.runRetList(cmd, True, True, True)
+        if results != None:
+            for result in results:
+                self.checkListString(rlist, result)
+        
+        # open json
+        with open(jsonFile, "r") as file:
+            data = json.load(file)
+        
+        # read json
+        dbs = data["databases"]
+        for db in dbs:
+            dbName = db["dbinfo"]["name"]        
+            stbs   = db["super_tables"]
+            for stb in stbs:
+                stbName        = stb["name"]
+                child_count    = stb["childtable_count"]
+                insert_rows    = stb["insert_rows"]
+                timestamp_step = stb["timestamp_step"]
+
+                # check result
+
+                # count
+                sql = f"select count(*) from {dbName}.{stbName}"
+                tdSql.checkAgg(sql, child_count * insert_rows)
+                # diff
+                sql = f"select * from (select diff(ts) as dif from {dbName}.{stbName} partition by tbname) where dif != {timestamp_step};"
+                tdSql.query(sql)
+                tdSql.checkRows(0)
+                # show 
+                tdLog.info(f"insert check passed. db:{dbName} stb:{stbName} child_count:{child_count} insert_rows:{insert_rows}\n")
+
+    # tmq
+    def tmqBenchJson(self, jsonFile, options="", checkStep=False):
+        # exe insert 
+        command = f"{options} -f {jsonFile}"
+        rlist = frame.etool.runBinFile("taosBenchmark", command, checkRun = True)
+
+        #
+        # check insert result
+        #
+        print(rlist)
+
+        return rlist
+
+    # generate new json file
+    def genNewJson(self, jsonFile, modifyFunc=None):
+        try:
+            with open(jsonFile, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            tdLog.info(f"the specified json file '{jsonFile}' was not found.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error reading the json file: {e}")
+            return None
+        
+        if callable(modifyFunc):
+            modifyFunc(data)
+        
+        tempDir = os.path.join(tempfile.gettempdir(), 'json_templates')
+        try:
+            os.makedirs(tempDir, exist_ok=True)
+        except PermissionError:
+            tdLog.info(f"no sufficient permissions to create directory at '{tempDir}'.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error creating temporary directory: {e}")
+            return None
+        
+        tempPath = os.path.join(tempDir, f"temp_{uuid.uuid4().hex}.json")
+
+        try:
+            with open(tempPath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            tdLog.info(f"error writing to temporary json file: {e}")
+            return None
+
+        tdLog.info(f"create temporary json file successfully, file: {tempPath}")
+        return tempPath
+
+    # delete file
+    def deleteFile(self, filename):
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception as err:
+            raise Exception(err)
+
+    # read file to list
+    def readFileToList(self, filePath):
+        try:
+            with open(filePath, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+            # Strip trailing newline characters
+            return [line.rstrip('\n') for line in lines]
+        except FileNotFoundError:
+            tdLog.info(f"Error: File not found {filePath}")
+            return []
+        except Exception as e:
+            tdLog.info(f"Error reading file: {e}")
+            return []

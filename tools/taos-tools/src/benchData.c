@@ -812,17 +812,6 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     continue;
                 }
             }
-            if (field->type == TSDB_DATA_TYPE_TIMESTAMP && !tag) {
-                n = snprintf(sampleDataBuf + pos, bufLen - pos, "now,");
-                if (n < 0 || n >= bufLen - pos) {
-                    errorPrint("%s() LN%d snprintf overflow\n",
-                               __func__, __LINE__);
-                    return -1;
-                } else {
-                    pos += n;
-                    continue;
-                }
-            }
             switch (field->type) {
                 case TSDB_DATA_TYPE_BOOL: {
                     bool boolTmp = tmpBool(field);
@@ -2151,7 +2140,7 @@ void generateSmlJsonTags(tools_cJSON *tagsList,
                             uint64_t start_table_from, int tbSeq) {
     tools_cJSON * tags = tools_cJSON_CreateObject();
     char *  tbName = benchCalloc(1, TSDB_TABLE_NAME_LEN, true);
-    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
              stbInfo->childTblPrefix, start_table_from + tbSeq);
     char *tagName = benchCalloc(1, TSDB_MAX_TAGS, true);
     for (int i = 0; i < stbInfo->tags->size; i++) {
@@ -2213,7 +2202,7 @@ void generateSmlTaosJsonTags(tools_cJSON *tagsList, SSuperTable *stbInfo,
                             uint64_t start_table_from, int tbSeq) {
     tools_cJSON * tags = tools_cJSON_CreateObject();
     char *  tbName = benchCalloc(1, TSDB_TABLE_NAME_LEN, true);
-    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
              stbInfo->childTblPrefix, tbSeq + start_table_from);
     tools_cJSON_AddStringToObject(tags, "id", tbName);
     char *tagName = benchCalloc(1, TSDB_MAX_TAGS, true);

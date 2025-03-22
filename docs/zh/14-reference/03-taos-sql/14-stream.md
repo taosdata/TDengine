@@ -8,13 +8,13 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
 stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE]
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE| CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
- FILL_HISTORY   [0|1]
+ FILL_HISTORY   [0|1] [ASYNC]
  IGNORE UPDATE  [0|1]
 }
 
@@ -85,6 +85,8 @@ CREATE STREAM streams1 IGNORE EXPIRED 1 WATERMARK 100s INTO streamt1 AS
 SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WINDOW(10);
 ```
 
+notification_definition 子句定义了窗口计算过程中，在窗口打开/关闭等指定事件发生时，需要向哪些地址发送通知。详见 [流式计算的事件通知](#流式计算的事件通知)
+
 ## 流式计算的 partition
 
 可以使用 PARTITION BY TBNAME，tag，普通列或者表达式，对一个流进行多分区的计算，每个分区的时间线与时间窗口是独立的，会各自聚合，并写入到目的表中的不同子表。
@@ -125,6 +127,13 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 
 如果该流任务已经彻底过期，并且您不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
 
+注意：
+- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
+
+- 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
+
+- 另外，不要同时异步创建多个流，可能由于事务冲突导致后面创建的流失败。
+
 ## 删除流式计算
 
 ```sql
@@ -156,7 +165,10 @@ SELECT * from information_schema.`ins_streams`;
 2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）
 
 3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
+
 4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（不支持滑动）；FILL_HISTORY 必须为 0，IGNORE EXPIRED 必须为 1，IGNORE UPDATE 必须为 1；FILL 只支持 PREV、NULL、NONE、VALUE。
+
+5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是60分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`
 
 由于窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，则事件时间无法更新，可能导致无法得到最新的计算结果。
 
@@ -298,4 +310,241 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 CREATE SNODE ON DNODE [id]
 ```
 其中的 id 是集群中的 dnode 的序号。请注意选择的dnode，流计算的中间状态将自动在其上进行备份。
-从 3.3.4.0 版本开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
+从 v3.3.4.0 开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
+
+## 流式计算的事件通知
+
+### 使用说明
+
+流式计算支持在窗口打开/关闭时，向外部系统发送相关的事件通知。用户通过 `notification_definition` 来指定需要通知的事件，以及用于接收通知消息的目标地址。
+
+```sql
+notification_definition:
+    NOTIFY (url [, url] ...) ON (event_type [, event_type] ...) [notification_options]
+
+event_type:
+    'WINDOW_OPEN'
+  | 'WINDOW_CLOSE'
+
+notification_options: {
+    NOTIFY_HISTORY [0|1]
+    ON_FAILURE [DROP|PAUSE]
+}
+```
+
+上述语法中的相关规则含义如下：
+1. `url`：指定通知的目标地址，必须包括协议、IP 或域名、端口号，并允许包含路径、参数。目前仅支持 websocket 协议。例如：`ws://localhost:8080`、`ws://localhost:8080/notify`、`wss://localhost:8080/notify?key=foo`。
+1. `event_type`：定义需要通知的事件，支持的事件类型有：
+    1. WINDOW_OPEN：窗口打开事件，所有类型的窗口打开时都会触发。
+    1. WINDOW_CLOSE：窗口关闭事件，所有类型的窗口关闭时都会触发。
+1. `NOTIFY_HISTORY`：控制是否在计算历史数据时触发通知，默认值为 0，即不触发。
+1. `ON_FAILURE`：向通知地址发送通知失败时(比如网络不佳场景)是否允许丢弃部分事件，默认值为 `PAUSE`。
+    1. PAUSE 表示发送通知失败时暂停流计算任务。taosd 会重试发送通知，直到发送成功后，任务自动恢复运行。
+    1. DROP 表示发送通知失败时直接丢弃事件信息，流计算任务继续运行，不受影响。
+
+比如，以下示例创建一个流，计算电表电流的每分钟平均值，并在窗口打开、关闭时向两个通知地址发送通知，计算历史数据时不发送通知，不允许在通知发送失败时丢弃通知：
+
+```sql
+CREATE STREAM avg_current_stream FILL_HISTORY 1
+    AS SELECT _wstart, _wend, AVG(current) FROM meters
+    INTERVAL (1m)
+    NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo')
+    ON ('WINDOW_OPEN', 'WINDOW_CLOSE');
+    NOTIFY_HISTORY 0
+    ON_FAILURE PAUSE;
+```
+
+当触发指定的事件时，taosd 会向指定的 URL 发送 POST 请求，消息体为 JSON 格式。一个请求可能包含若干个流的若干个事件，且事件类型不一定相同。
+事件信息视窗口类型而定：
+
+1. 时间窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+1. 状态窗口：开始时发送起始时间、前一个窗口的状态值、当前窗口的状态值；结束时发送起始时间、结束时间、计算结果、当前窗口的状态值、下一个窗口的状态值。
+1. 会话窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+1. 事件窗口：开始时发送起始时间，触发窗口打开的数据值和对应条件编号；结束时发送起始时间、结束时间、计算结果、触发窗口关闭的数据值和对应条件编号。
+1. 计数窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+
+通知消息的结构示例如下：
+
+```json
+{
+  "messageId": "unique-message-id-12345",
+  "timestamp": 1733284887203,
+  "streams": [
+    {
+      "streamName": "avg_current_stream",
+      "events": [
+        {
+          "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "eventType": "WINDOW_OPEN",
+          "eventTime": 1733284887097,
+          "windowId": "window-id-67890",
+          "windowType": "Time",
+          "windowStart": 1733284800000
+        },
+        {
+          "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "eventType": "WINDOW_CLOSE",
+          "eventTime": 1733284887197,
+          "windowId": "window-id-67890",
+          "windowType": "Time",
+          "windowStart": 1733284800000,
+          "windowEnd": 1733284860000,
+          "result": {
+            "_wstart": 1733284800000,
+            "avg(current)": 1.3
+          }
+        }
+      ]
+    },
+    {
+      "streamName": "max_voltage_stream",
+      "events": [
+        {
+          "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "eventType": "WINDOW_OPEN",
+          "eventTime": 1733284887231,
+          "windowId": "window-id-13579",
+          "windowType": "Event",
+          "windowStart": 1733284800000,
+          "triggerCondition": {
+            "conditionIndex": 0,
+            "fieldValue": {
+              "c1": 10,
+              "c2": 15
+            }
+          },
+        },
+        {
+          "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "eventType": "WINDOW_CLOSE",
+          "eventTime": 1733284887231,
+          "windowId": "window-id-13579",
+          "windowType": "Event",
+          "windowStart": 1733284800000,
+          "windowEnd": 1733284810000,
+          "triggerCondition": {
+            "conditionIndex": 1,
+            "fieldValue": {
+              "c1": 20
+              "c2": 3
+            }
+          },
+          "result": {
+            "_wstart": 1733284800000,
+            "max(voltage)": 220
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+后续小节是通知消息中各个字段的说明。
+
+### 根级字段说明
+
+1. messageId：字符串类型，是通知消息的唯一标识符，确保整条消息可以被追踪和去重。
+1. timestamp：长整型时间戳，表示通知消息生成的时间，精确到毫秒，即: '00:00, Jan 1 1970 UTC' 以来的毫秒数。
+1. streams：对象数组，包含多个流任务的事件信息。(详细信息见下节)
+
+### stream 对象的字段说明
+
+1. streamName：字符串类型，流任务的名称，用于标识事件所属的流。
+1. events：对象数组，该流任务下的事件列表，包含一个或多个事件对象。(详细信息见下节)
+
+### event 对象的字段说明
+
+#### 通用字段
+
+这部分是所有 event 对象所共有的字段。
+1. tableName：字符串类型，是对应目标子表的表名。
+1. eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
+1. eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
+1. windowId：字符串类型，窗口的唯一标识符，确保打开和关闭事件的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一窗口的 windowId 保持不变。
+1. windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
+
+#### 时间窗口相关字段
+
+这部分是 windowType 为 Time 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 状态窗口相关字段
+
+这部分是 windowType 为 State 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. prevState：与状态列的类型相同，表示上一个窗口的状态值。如果没有上一个窗口(即：现在是第一个窗口)，则为 NULL。
+    1. curState：与状态列的类型相同，表示当前窗口的状态值。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. curState：与状态列的类型相同，表示当前窗口的状态值。
+    1. nextState：与状态列的类型相同，表示下一个窗口的状态值。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 会话窗口相关字段
+
+这部分是 windowType 为 Session 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 事件窗口相关字段
+
+这部分是 windowType 为 Event 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+  1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+  1. triggerCondition：触发窗口开始的条件信息，包括以下字段：
+    1. conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从0开始编号。
+    1. fieldValue：键值对形式，包含条件列列名及其对应的值。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. triggerCondition：触发窗口关闭的条件信息，包括以下字段：
+        1. conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从0开始编号。
+        1. fieldValue：键值对形式，包含条件列列名及其对应的值。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 计数窗口相关字段
+
+这部分是 windowType 为 Count 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 窗口失效相关字段
+
+因为流计算过程中会遇到数据乱序、更新、删除等情况，可能造成已生成的窗口被删除，或者结果需要重新计算。此时会向通知地址发送一条 WINDOW_INVALIDATION 的通知，说明哪些窗口已经被删除。
+
+这部分是 eventType 为 WINDOW_INVALIDATION 时，event 对象才有的字段。
+1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. windowEnd: 长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+
+## 流式计算对虚拟表的支持
+
+从 v3.3.6.0 开始，流计算能够使用虚拟表（包括虚拟普通表、虚拟子表、虚拟超级表）作为数据源进行计算，语法和非虚拟表完全一致。
+
+但是虚拟表的行为与非虚拟表存在差异，所以目前在使用流计算对虚拟表进行计算时存在以下限制：
+
+1. 流计算中涉及的虚拟普通表/虚拟子表的 schema 不允许更改。
+1. 流计算过程中，如果修改虚拟表某一列对应的数据源，对流计算来说不生效。即：流计算仍只读取老的数据源。
+1. 流计算过程中，如果虚拟表某一列对应的原始表被删除，之后新建了同名的表和同名的列，流计算不会读取新表的数据。
+1. 流计算的 watermark 只能是 0，否则创建时就报错。
+1. 如果流计算的数据源是虚拟超级表，流计算任务启动后新增的子表不参与计算。
+1. 虚拟表的不同原始表的时间戳不完全一致，数据合并后可能会产生空值，暂不支持插值处理。
+1. 不处理数据的乱序、更新或删除。即：流创建时不能指定 `ignore update 0` 或者 `ignore expired 0`，否则报错。
+1. 不支持历史数据计算，即：流创建时不能指定 `fill_history 1`，否则报错。
+1. 不支持触发模式：MAX_DELAY, FORCE_WINDOW_CLOSE, CONTINUOUS_WINDOW_CLOSE。
+1. 不支持窗口类型：COUNT_WINDOW。

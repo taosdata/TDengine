@@ -52,7 +52,8 @@ typedef void   TAOS_SUB;
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
 #define TSDB_DATA_TYPE_GEOMETRY   20                      // geometry
-#define TSDB_DATA_TYPE_MAX        21
+#define TSDB_DATA_TYPE_DECIMAL64  21                      // decimal64
+#define TSDB_DATA_TYPE_MAX        22
 
 typedef enum {
   TSDB_OPTION_LOCALE,
@@ -247,11 +248,13 @@ typedef struct TAOS_STMT2_BINDV {
 DLL_EXPORT TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option);
 DLL_EXPORT int         taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 DLL_EXPORT int         taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
-DLL_EXPORT int         taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
-DLL_EXPORT int         taos_stmt2_close(TAOS_STMT2 *stmt);
-DLL_EXPORT int         taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);
-DLL_EXPORT int  taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields);
-DLL_EXPORT void taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields);
+DLL_EXPORT int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
+                                       void *param);
+DLL_EXPORT int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
+DLL_EXPORT int taos_stmt2_close(TAOS_STMT2 *stmt);
+DLL_EXPORT int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);
+DLL_EXPORT int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields);
+DLL_EXPORT void      taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_ALL *fields);
 DLL_EXPORT TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt);
 DLL_EXPORT char     *taos_stmt2_error(TAOS_STMT2 *stmt);
 
@@ -268,6 +271,7 @@ DLL_EXPORT int      taos_affected_rows(TAOS_RES *res);
 DLL_EXPORT int64_t  taos_affected_rows64(TAOS_RES *res);
 
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
+DLL_EXPORT TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res);
 DLL_EXPORT int         taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int         taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
 DLL_EXPORT int  taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
@@ -360,7 +364,8 @@ typedef enum tmq_res_t {
   TMQ_RES_INVALID = -1,
   TMQ_RES_DATA = 1,
   TMQ_RES_TABLE_META = 2,
-  TMQ_RES_METADATA = 3
+  TMQ_RES_METADATA = 3,
+  TMQ_RES_RAWDATA = 4
 } tmq_res_t;
 
 typedef struct tmq_topic_assignment {

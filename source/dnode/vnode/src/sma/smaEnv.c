@@ -423,7 +423,7 @@ static int32_t tdRsmaStartExecutor(const SSma *pSma) {
 
   for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
     if (taosThreadCreate(&pthread[i], &thAttr, tdRSmaExecutorFunc, (void *)pSma) != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       smaError("vgId:%d, failed to create pthread for rsma since %s", SMA_VID(pSma), tstrerror(code));
       TAOS_RETURN(code);
     }
@@ -457,7 +457,7 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
       if (taosCheckPthreadValid(pthread[i])) {
-        smaDebug("vgId:%d, start to join pthread for rsma:%" PRId64 "", SMA_VID(pSma), taosGetPthreadId(pthread[i]));
+        smaDebug("vgId:%d, start to join pthread for rsma:%" PRId64, SMA_VID(pSma), taosGetPthreadId(pthread[i]));
         (void)taosThreadJoin(pthread[i], NULL);
       }
     }

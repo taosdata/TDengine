@@ -17,24 +17,25 @@ TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存�
 ### 语法
 
 ```SQL
-compact DATABASE db_name [start with 'XXXX'] [end with 'YYYY']； 
-compact [db_name.]vgroups IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY']；
-show compacts；
+compact DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY];
+compact [db_name.]vgroups IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'] [META_ONLY];
+show compacts;
 show compact compact_id;
-kill compact compact_id；
+kill compact compact_id;
 ```
 
 ### 效果
 
--   扫描并压缩指定的 DB 中所有 vgroup 中 vnode 的所有数据文件
--   扫描并压缩 DB 中指定的 vgroup 列表中 vnode 的所有数据文件, 若 db_name 为空，则默认为当前数据库
--   compact 会删除被删除数据以及被删除的表的数据
--   compact 会合并多个 STT 文件
--   可通过 start with 关键字指定 compact 数据的起始时间
--   可通过 end with 关键字指定 compact 数据的终止时间
--   compact 命令会返回 compact 任务的 ID
--   compact 任务会在后台异步执行，可以通过 show compacts 命令查看 compact 任务的进度
--   show 命令会返回 compact 任务的 ID，可以通过 kill compact 命令终止 compact 任务
+- 扫描并压缩指定的 DB 中所有 vgroup 中 vnode 的所有数据文件
+- 扫描并压缩 DB 中指定的 vgroup 列表中 vnode 的所有数据文件, 若 db_name 为空，则默认为当前数据库
+- compact 会删除被删除数据以及被删除的表的数据
+- compact 会合并多个 STT 文件
+- 可通过 start with 关键字指定 compact 数据的起始时间
+- 可通过 end with 关键字指定 compact 数据的终止时间
+- 可通过 `META_ONLY` 关键字指定只 compact 元数据。元数据默认情况下不会 compact。
+- compact 命令会返回 compact 任务的 ID
+- compact 任务会在后台异步执行，可以通过 show compacts 命令查看 compact 任务的进度
+- show 命令会返回 compact 任务的 ID，可以通过 kill compact 命令终止 compact 任务
 
 
 ### 补充说明

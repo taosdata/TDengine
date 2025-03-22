@@ -198,6 +198,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
 
@@ -283,11 +284,16 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   return 0;
 }
 
-int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key) {
+int8_t streamTaskShouldRecalated(SStreamTask* pTask) { return pTask->info.fillHistory == 2 ? 1 : 0; }
+
+int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key, uint8_t recalated) {
   int32_t code = 0;
   int64_t chkpId = pTask->chkInfo.checkpointId;
 
+  // int8_t recalated = streamTaskShouldRecalated(pTask);
+
   streamMutexLock(&pMeta->backendMutex);
+  // streamId--taskId
   void** ppBackend = taosHashGet(pMeta->pTaskDbUnique, key, strlen(key));
   if ((ppBackend != NULL) && (*ppBackend != NULL)) {
     void* p = taskDbAddRef(*ppBackend);
@@ -299,7 +305,11 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
 
     STaskDbWrapper* pBackend = *ppBackend;
     pBackend->pMeta = pMeta;
-    pTask->pBackend = pBackend;
+    if (recalated) {
+      pTask->pRecalBackend = pBackend;
+    } else {
+      pTask->pBackend = pBackend;
+    }
 
     streamMutexUnlock(&pMeta->backendMutex);
     stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
@@ -322,7 +332,11 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   }
 
   int64_t tref = taosAddRef(taskDbWrapperId, pBackend);
-  pTask->pBackend = pBackend;
+  if (recalated) {
+    pTask->pRecalBackend = pBackend;
+  } else {
+    pTask->pBackend = pBackend;
+  }
   pBackend->refId = tref;
   pBackend->pTask = pTask;
   pBackend->pMeta = pMeta;
@@ -347,7 +361,11 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   }
   streamMutexUnlock(&pMeta->backendMutex);
 
-  stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
+  if (recalated) {
+    stDebug("s-task:0x%x set recalated backend %p", pTask->id.taskId, pBackend);
+  } else {
+    stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
+  }
   return 0;
 }
 
@@ -1073,6 +1091,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
     tDecoderClear(&decoder);

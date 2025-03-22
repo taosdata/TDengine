@@ -184,7 +184,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqConsumerNewIm
   }
   tmq_t *tmq = tmq_consumer_new((tmq_conf_t *)conf, msg, len);
   if (strlen(msg) > 0) {
-    jniError("jobj:%p, config:%p, tmq create consumer error: %s", jobj, conf, msg);
+    jniError("jobj:%p, config:%p, tmq create consumer error:%s", jobj, conf, msg);
     (*env)->CallVoidMethod(env, jconsumer, g_createConsumerErrorCallback, (*env)->NewStringUTF(env, msg));
     taosMemoryFreeClear(msg);
     return TMQ_CONSUMER_CREATE_ERROR;
@@ -264,7 +264,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqSubscriptionIm
   int32_t     res = tmq_subscription((tmq_t *)tmq, &topicList);
   if (res != JNI_SUCCESS) {
     tmq_list_destroy(topicList);
-    jniError("jobj:%p, tmq:%p, tmq get subscription error: %s", jobj, tmq, tmq_err2str(res));
+    jniError("jobj:%p, tmq:%p, tmq get subscription error:%s", jobj, tmq, tmq_err2str(res));
     return (jint)res;
   }
 

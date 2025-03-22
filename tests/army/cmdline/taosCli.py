@@ -42,7 +42,7 @@ class TDTestCase(TBase):
         tdLog.info(f"check describe show full.")
 
         # insert
-        json = "cmdline/json/taosCli.json"
+        json = "cmdline/json/taosCliDesc.json"
         db, stb, childCount, insertRows = self.insertBenchJson(json)
         # describe
         sql = f"describe {db}.{stb};"
@@ -53,12 +53,243 @@ class TDTestCase(TBase):
         tdSql.query(sql)
         tdSql.checkRows(2 + 1000)
 
+
+    def checkResultWithMode(self, db, stb, arg):
+        result = "Query OK, 10 row(s)"
+        mode = arg[0]
+        rowh = arg[1]
+        rowv = arg[2]
+        idx  = arg[3]
+        idxv = arg[4]
+
+        # use db
+        if mode != "-R":
+            rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
+            self.checkListString(rlist, "Database changed")
+
+        # hori
+        cmd = f'{mode} -s "select * from {db}.{stb} limit 10'
+        rlist = self.taos(cmd + '"')
+        # line count
+        self.checkSame(len(rlist), rowh)
+        # last line
+        self.checkSame(rlist[idx][:len(result)], result)
+
+        # vec
+        rlist = self.taos(cmd + '\G"')
+        # line count
+        self.checkSame(len(rlist), rowv)
+        self.checkSame(rlist[idxv], "*************************** 10.row ***************************")
+        # last line
+        self.checkSame(rlist[idx][:len(result)], result)
+
+        # -B have some problem need todo
+        self.taos(f'{mode} -B -s "select * from {db}.{stb} where ts < 1"')
+
+        # get empty result
+        rlist = self.taos(f'{mode} -r -s "select * from {db}.{stb} where ts < 1"')
+        self.checkListString(rlist, "Query OK, 0 row(s) in set")
+
+
+    def checkDecimalCommon(self, col, value):
+        rlist = self.taos(f'-s "select {col} from testdec.test"')
+        self.checkListString(rlist, value)
+
+        outfile = "decimal.csv"
+        self.taos(f'-s "select {col} from testdec.test>>{outfile}"')
+        rlist = self.readFileToList(outfile)
+        self.checkListString(rlist, value)
+        self.deleteFile(outfile)
+
+
+    def checkDecimal(self):
+        # prepare data
+        self.taos(f'-s "drop database if exists testdec"')
+        self.taos(f'-s "create database if not exists testdec"')
+        self.taos(f'-s "create table if not exists testdec.test(ts timestamp, dec64 decimal(10,6), dec128 decimal(24,10)) tags (note nchar(20))"')
+        self.taos(f'-s "create table testdec.d0 using testdec.test(note) tags(\'test\')"')
+        self.taos(f'-s "insert into testdec.d0 values(now(), \'9876.123456\', \'123456789012.0987654321\')"')
+        
+        # check decimal64
+        self.checkDecimalCommon("dec64", "9876.123456")
+
+        # check decimal128
+        self.checkDecimalCommon("dec128", "123456789012.0987654321")
+
+        self.taos(f'-s "drop database if exists testdec"')
+
+
+    def checkBasic(self):
+        tdLog.info(f"check describe show full.")
+
+        # insert
+        json = "cmdline/json/taosCli.json"
+        db, stb, childCount, insertRows = self.insertBenchJson(json)
+
+        # native restful websock test
+        args = [
+            ["",   18, 346, -2, 310], 
+            ["-R", 22, 350, -3, 313],
+            ["-T 40 -E http://localhost:6041", 21, 349, -3, 312]
+        ]
+        for arg in args:
+            self.checkResultWithMode(db, stb, arg)
+        
+        self.checkDecimal()
+
+
+    def checkDumpInOutMode(self, source, arg, db, insertRows):
+        mode = arg[0]
+        self.taos(f'{mode} -s "source {source}" ')
+        self.taos(f'{mode} -s "select * from {db}.d0>>d0.csv" ')
+        
+        # use db
+        rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
+        # update sql
+        rlist = self.taos(f'{mode} -s "alter local \'resetlog\';" ')
+        self.checkListString(rlist, "Query O")
+
+        # only native support csv import
+        if mode == "":
+            self.taos(f'{mode} -s "delete from {db}.d0" ')
+            self.taos(f'{mode} -s "insert into {db}.d0 file d0.csv" ')
+        
+        sql = f"select count(*) from {db}.d0"
+        self.taos(f'{mode} -B -s "{sql}" ')
+        tdSql.checkAgg(sql, insertRows)
+        sql = f"select first(voltage) from {db}.d0"
+        tdSql.checkFirstValue(sql, 1)
+        sql = f"select last(voltage) from {db}.d0"
+        tdSql.checkFirstValue(sql, 5)
+
+    def checkDumpInOut(self):
+        args = [
+            ["",   18], 
+            ["-R ", 22],
+            ["-E http://localhost:6041", 21]
+        ]
+
+        source = "cmdline/data/source.sql"
+        db = "db"
+        insertRows = 5
+        for arg in args:
+            # insert 
+            self.checkDumpInOutMode(source, arg, db, insertRows)
+
+    def checkVersion(self):
+        rlist1 = self.taos("-V")
+        rlist2 = self.taos("--version")
+
+        self.checkSame(rlist1, rlist2)
+        self.checkSame(len(rlist1), 5)
+
+        if len(rlist1[2]) < 42:
+            tdLog.exit("git commit id length is invalid: " + rlist1[2])
+
+
+    def checkHelp(self):
+        # help
+        rlist1 = self.taos("--help")
+        rlist2 = self.taos("-?")
+        self.checkSame(rlist1, rlist2)
+
+        # check return 
+        strings = [
+            "--auth=AUTH",
+            "--database=DATABASE",
+            "--version",
+            " --help"
+        ]
+        for string in strings:
+            self.checkListString(rlist1, string)
+    
+    def checkCommand(self):
+        # check coredump
+
+        # o logpath
+        char = 'a'
+        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
+        queryOK = "Query OK"
+
+        # invalid input check
+        args = [
+            [lname, "failed to create log at"],
+            ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
+            ['-o "./current/log/files/" -s"show databases;"', queryOK],
+            ['-a ""', "Invalid auth"],
+            ['-s "quit;"', "Welcome to the TDengine Command Line Interface"],
+            ['-a "abc"', "[0x80000357]"],
+            ['-h "" -s "show dnodes;"', "Invalid host"],
+            ['-u "" -s "show dnodes;"', "Invalid user"],
+            ['-P "" -s "show dnodes;"', "Invalid port"],
+            ['-u "AA" -s "show dnodes;"', "failed to connect to server"],
+            ['-p"abc" -s "show dnodes;"', "[0x80000357]"],
+            ['-d "abc" -s "show dnodes;"', "[0x80000388]"],
+            ['-N 0 -s "show dnodes;"', "Invalid pktNum"],
+            ['-N 10 -s "show dnodes;"', queryOK],
+            ['-w 0 -s "show dnodes;"', "Invalid displayWidth"],
+            ['-w 10 -s "show dnodes;"', queryOK],
+            ['-W 10 -s "show dnodes;"', None],
+            ['-l 0 -s "show dnodes;"', "Invalid pktLen"],
+            ['-l 10 -s "show dnodes;"', queryOK],
+            ['-C', "buildinfo"],
+            ['-B -s "show dnodes;"', queryOK],
+            ['-s "help;"', "Timestamp expression Format"],
+            ['-s ""', "Invalid commands"],
+            ['-t', "2: service ok"],
+            ['-uroot -p < cmdline/data/pwd.txt -s "show dnodes;"', queryOK],
+        ]
+
+        for arg in args:
+            rlist = self.taos(arg[0])
+            if arg[1] != None:
+                self.checkListString(rlist, arg[1])    
+    
+    # password
+    def checkPassword(self):
+        # 255 char max password
+        user    = "test_user"
+        pwd     = ""
+        pwdFile = "cmdline/data/pwdMax.txt"
+        with open(pwdFile) as file:
+            pwd = file.readline()
+        
+        sql = f"create user {user} pass '{pwd}' "
+        tdSql.execute(sql)
+         
+        cmds = [
+            f"-u{user} -p'{pwd}'      -s 'show databases;'",  # command pass
+            f"-u{user} -p < {pwdFile} -s 'show databases;'"   # input   pass
+        ]
+
+        for cmd in cmds:
+            rlist = self.taos(cmd)
+            self.checkListString(rlist, "Query OK,")
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         # check show whole
         self.checkDescribe()
+
+        # check basic
+        self.checkBasic()
+
+        # version
+        self.checkVersion()
+
+        # help
+        self.checkHelp()
+
+        # check command
+        self.checkCommand()
+
+        # check data in/out
+        self.checkDumpInOut()
+
+        # max password
+        self.checkPassword()
 
         tdLog.success(f"{__file__} successfully executed")
 

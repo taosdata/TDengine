@@ -51,7 +51,6 @@ pysim/
 tests/script/api/batchprepare
 taosadapter
 taosadapter-debug
-tools/taos-tools/*
 tools/taosws-rs/*
 tools/taosadapter/*
 tools/upx*
@@ -133,14 +132,12 @@ tools/THANKS
 tools/NEWS
 tools/COPYING
 tools/BUGS
-tools/taos-tools
 tools/taosws-rs
 tags
 .clangd
 *CMakeCache*
 *CMakeFiles*
 .history/
-*.txt
 *.tcl
 *.pc
 contrib/geos
@@ -156,6 +153,9 @@ pcre2_grep_test.sh
 pcre2_chartables.c
 geos-config
 config.h
+!contrib/xml2-cmake
+!contrib/xml2-cmake/linux_x86_64/include/config.h
+!contrib/xml2-cmake/CMakeLists.txt
 pcre2.h
 zconf.h
 version.h

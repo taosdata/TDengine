@@ -20,6 +20,9 @@
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 #ifdef LINUX
 
 #ifndef _ALPINE
@@ -149,7 +152,7 @@ typedef unsigned __int32 uint32_t;
 
 #define MAX_JSON_BUFF 6400000
 
-#define INPUT_BUF_LEN         256
+#define INPUT_BUF_LEN         512
 #define EXTRA_SQL_LEN         256
 #define DATATYPE_BUFF_LEN     (TINY_BUFF_LEN * 3)
 #define SML_MAX_BATCH          65536 * 32
@@ -476,6 +479,13 @@ typedef struct SChildTable_S {
     int32_t   pkCnt;
 } SChildTable;
 
+typedef enum {
+    CSV_COMPRESS_NONE       = 0,
+    CSV_COMPRESS_FAST       = 1,
+    CSV_COMPRESS_BALANCE    = 6,
+    CSV_COMPRESS_BEST       = 9
+} CsvCompressionLevel;
+
 #define PRIMARY_KEY "PRIMARY KEY"
 typedef struct SSuperTable_S {
     char      *stbName;
@@ -578,6 +588,15 @@ typedef struct SSuperTable_S {
 
     // execute sqls after create super table
     char **sqls;
+
+    char*     csv_file_prefix;
+    char*     csv_ts_format;
+    char*     csv_ts_interval;
+    char*     csv_tbname_alias;
+    long      csv_ts_intv_secs;
+    bool      csv_output_header;
+    CsvCompressionLevel csv_compress_level;
+
 } SSuperTable;
 
 typedef struct SDbCfg_S {
@@ -617,10 +636,8 @@ typedef struct SDataBase_S {
     int         durMinute;  // duration minutes
     BArray     *cfgs;
     BArray     *superTbls;
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     int32_t     vgroups;
     BArray      *vgArray;
-#endif  // TD_VER_COMPATIBLE_3_0_0_0
     bool        flush;
 } SDataBase;
 
@@ -774,16 +791,16 @@ typedef struct SArguments_S {
     int                 rest_server_ver_major;
     bool                check_sql;
     int                 suit;  // see define SUIT_
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     int16_t             inputted_vgroups;
-#endif
     enum CONTINUE_IF_FAIL_MODE continueIfFail;
     bool                mistMode;
     bool                escape_character;
     bool                pre_load_tb_meta;
-    char                csvPath[MAX_FILE_NAME_LEN];
-
     bool                bind_vgroup;
+
+    char*               output_path;
+    char                output_path_buf[MAX_PATH_LEN];
+
 } SArguments;
 
 typedef struct SBenchConn {
@@ -841,9 +858,7 @@ typedef struct SThreadInfo_S {
     BArray*     delayList;
     uint64_t    *query_delay_list;
     double      avg_delay;
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     SVGroup     *vg;
-#endif
 
     int         posOfTblCreatingBatch;
     int         posOfTblCreatingInterval;
@@ -1045,5 +1060,8 @@ void *queryKiller(void *arg);
 int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
+
+// trim prefix suffix blank cmp
+int trimCaseCmp(char *str1,char *str2);
 
 #endif   // INC_BENCH_H_

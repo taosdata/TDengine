@@ -96,7 +96,7 @@ void shellPrintHelp() {
 #endif
 }
 
-#ifdef LINUX
+#if defined(LINUX) && !defined(TD_ASTRA)
 #include <argp.h>
 #ifdef _ALPINE
 #include <termios.h>
@@ -270,7 +270,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   }
   return 0;
 }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_64)
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_64) || defined(TD_ASTRA)
 int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
 
@@ -337,7 +337,7 @@ static void shellInitArgs(int argc, char *argv[]) {
       if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
-        if (scanf("%128s", shell.args.password) > 1) {
+        if (scanf("%255s", shell.args.password) > 1) {
           fprintf(stderr, "password reading error\n");
         }
         taosSetConsoleEcho(true);
@@ -443,7 +443,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
-      "Copyright (c) 2023 by %s, all rights reserved.\r\n\r\n";
+      "Copyright (c) 2025 by %s, all rights reserved.\r\n\r\n";
 #ifdef CUS_NAME
   strcpy(shell.info.cusName, CUS_NAME);
 #else
@@ -476,6 +476,11 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #elif defined(_TD_DARWIN_64)
   shell.info.osname = "Darwin";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
+  if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
+#elif defined(TD_ASTRA)
+  shell.info.osname = "Astra";
+  snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:%sTDengine%s%s", TD_DIRSEP, TD_DIRSEP,
+           SHELL_HISTORY_FILE);  // TD_ASTRA_TODO getenv("HOME")
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #else
   shell.info.osname = "Linux";

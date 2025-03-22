@@ -18,6 +18,7 @@
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
+#include "decimal.h"
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
@@ -227,6 +228,18 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Some functions cannot appear in the select list at the same time";
     case TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR:
       return "Syntax error in regular expression";
+    case TSDB_CODE_PAR_TRUE_FOR_NEGATIVE:
+      return "True_for duration cannot be negative";
+    case TSDB_CODE_PAR_TRUE_FOR_UNIT:
+      return "Cannot use 'year' or 'month' as true_for duration";
+    case TSDB_CODE_PAR_INVALID_REF_COLUMN:
+      return "Invalid virtual table's ref column";
+    case TSDB_CODE_PAR_INVALID_TABLE_TYPE:
+      return "Invalid table type";
+    case TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE:
+      return "Invalid virtual table's ref column type";
+    case TSDB_CODE_PAR_MISMATCH_STABLE_TYPE:
+      return "Create child table using virtual super table";
     default:
       return "Unknown error";
   }
@@ -291,6 +304,8 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
 
 SSchema* getTableColumnSchema(const STableMeta* pTableMeta) { return (SSchema*)pTableMeta->schema; }
 
+SSchemaExt* getTableColumnExtSchema(const STableMeta* pTableMeta) { return pTableMeta->schemaExt; }
+
 static SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
   SSchema* pSchema = (SSchema*)pTableMeta->schema;
   return &pSchema[colIndex];
@@ -327,16 +342,23 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
 
   bool   hasSchemaExt = pTableMeta->schemaExt == NULL ? false : true;
   size_t schemaExtSize = hasSchemaExt ? pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0;
+  bool   hasColRef = pTableMeta->colRef == NULL ? false : true;
+  size_t colRefSize = hasColRef ? pTableMeta->numOfColRefs * sizeof(SColRef) : 0;
 
   size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
-  STableMeta* p = taosMemoryMalloc(size + schemaExtSize);
+  STableMeta* p = taosMemoryMalloc(size + schemaExtSize + colRefSize);
   if (NULL == p) return NULL;
 
-  memcpy(p, pTableMeta, schemaExtSize + size);
+  memcpy(p, pTableMeta, colRefSize + schemaExtSize + size);
   if (hasSchemaExt) {
     p->schemaExt = (SSchemaExt*)(((char*)p) + size);
   } else {
     p->schemaExt = NULL;
+  }
+  if (hasColRef) {
+    p->colRef = (SColRef*)(((char*)p) + size + schemaExtSize);
+  } else {
+    p->colRef = NULL;
   }
   return p;
 }
@@ -809,7 +831,7 @@ static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
   int32_t code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildDbReq(pMetaCache->pDbVgroup, &pCatalogReq->pDbVgroup);
@@ -849,6 +871,8 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
     code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pView);
   }
 #endif
+
+  TSWAP(pCatalogReq->pVSubTable, pMetaCache->pVSubTables);
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   pCatalogReq->forceFetchViewMeta = pMetaCache->forceFetchViewMeta;
   return code;
@@ -868,7 +892,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->timeLineCurMode = TIME_LINE_GLOBAL;
   select->onlyHasKeepOrderFunc = true;
-  select->timeRange = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&select->timeRange, TSWINDOW_INITIALIZER); 
   select->pHint = pHint;
   select->lastProcessByRowFuncId = -1;
   *ppSelect = (SNode*)select;
@@ -970,7 +994,7 @@ static int32_t putUdfToCache(const SArray* pUdfReq, const SArray* pUdfData, SHas
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
+int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
   int32_t code = putDbTableDataToCache(pCatalogReq->pTableMeta, pMetaData->pTableMeta, &pMetaCache->pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbDataToCache(pCatalogReq->pDbVgroup, pMetaData->pDbVgroup, &pMetaCache->pDbVgroup);
@@ -1010,6 +1034,10 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
     code = putDbTableDataToCache(pCatalogReq->pView, pMetaData->pView, &pMetaCache->pViews);
   }
 #endif
+
+  pMetaCache->pVSubTables = pMetaData->pVSubTables;
+  pMetaData->pVSubTables = NULL;
+  
   pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
 }
@@ -1098,8 +1126,9 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
     int32_t metaSize =
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
-        (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
-    const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize;
+        (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
+    int32_t colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
+    const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize;
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
 
@@ -1233,9 +1262,9 @@ int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFNam
   int32_t  code = getMetaDataFromHash(pDbFName, strlen(pDbFName), pMetaCache->pDbInfo, (void**)&pDbInfo);
   if (TSDB_CODE_SUCCESS == code) {
     *pVersion = pDbInfo->vgVer;
-    *pDbId = pDbInfo->dbId;
+    taosSetInt64Aligned(pDbId, pDbInfo->dbId);
     *pTableNum = pDbInfo->tbNum;
-    *pStateTs = pDbInfo->stateTs;
+    taosSetInt64Aligned(pStateTs, pDbInfo->stateTs);
   }
   return code;
 }
@@ -1346,6 +1375,25 @@ int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsm
   return reserveTableReqInDbCache(acctId, pDb, pTsmaName, &pMetaCache->pTSMAs);
 }
 
+int32_t reserveVSubTableInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  SName fullName = {0};
+  toName(acctId, pDb, pTable, &fullName);
+  
+  if (NULL == pMetaCache->pVSubTables) {
+    pMetaCache->pVSubTables = taosArrayInit(1, sizeof(fullName));
+    if (NULL == pMetaCache->pVSubTables) {
+      return terrno;
+    }
+  }
+  if (NULL == taosArrayPush(pMetaCache->pVSubTables, &fullName)) {
+    return terrno;
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
   char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t code = tNameExtractFullName(pName, fullName);
@@ -1406,6 +1454,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pTags = NULL;
   pNew->pSchemas = NULL;
   pNew->pSchemaExt = NULL;
+  pNew->pColRefs = NULL;
   if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
     if (!pNew->pComment) goto err;
@@ -1429,7 +1478,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemas = pSchema;
 
   SSchemaExt* pSchemaExt = NULL;
-  if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
+  if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt) {
     int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
     pSchemaExt = taosMemoryMalloc(schemaExtSize);
     if (!pSchemaExt) goto err;
@@ -1437,6 +1486,16 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   }
 
   pNew->pSchemaExt = pSchemaExt;
+
+  SColRef *pColRef = NULL;
+  if (hasRefCol(pCfg->tableType) && pCfg->pColRefs) {
+    int32_t colRefSize = pCfg->numOfColumns * sizeof(SColRef);
+    pColRef = taosMemoryMalloc(colRefSize);
+    if (!pColRef) goto err;
+    memcpy(pColRef, pCfg->pColRefs, colRefSize);
+  }
+
+  pNew->pColRefs = pColRef;
 
   return pNew;
 err:
@@ -1515,6 +1574,7 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
   taosHashCleanup(pMetaCache->pTableIndex);
   taosHashCleanup(pMetaCache->pTableCfg);
   taosHashCleanup(pMetaCache->pTableTSMAs);
+  taosArrayDestroyEx(pMetaCache->pVSubTables, tDestroySVSubTablesRsp);
 }
 
 int64_t int64SafeSub(int64_t a, int64_t b) {
@@ -1530,4 +1590,11 @@ int64_t int64SafeSub(int64_t a, int64_t b) {
     res = INT64_MIN;
   }
   return res;
+}
+
+STypeMod calcTypeMod(const SDataType* pType) {
+  if (IS_DECIMAL_TYPE(pType->type)) {
+    return decimalCalcTypeMod(pType->precision, pType->scale);
+  }
+  return 0;
 }

@@ -188,8 +188,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 The parameters listed in this section apply to all functional modes.
 
-- **filetype**: The function to test, possible values are `insert`, `query`, and `subscribe`. Corresponding to insert, query, and subscribe functions. Only one can be specified in each configuration file.
+- **filetype**: The function to test, possible values are `insert`, `query`, `subscribe` and `csvfile`. Corresponding to insert, query, subscribe and generate csv file functions. Only one can be specified in each configuration file.
+
 - **cfgdir**: Directory where the TDengine client configuration file is located, default path is /etc/taos.
+
+- **output_dir**: The directory specified for output files. When the feature category is csvfile, it refers to the directory where the generated csv files will be saved. The default value is ./output/.
 
 - **host**: Specifies the FQDN of the TDengine server to connect to, default value is localhost.
 
@@ -283,6 +286,27 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **repeat_ts_max** : Numeric type, when composite primary key is enabled, specifies the maximum number of records with the same timestamp to be generated
 - **sqls** : Array of strings type, specifies the array of sql to be executed after the supertable is successfully created, the table name specified in sql must be prefixed with the database name, otherwise an unspecified database error will occur
 
+- **csv_file_prefix**: String type, sets the prefix for the names of the generated csv files. Default value is "data".
+
+- **csv_ts_format**: String type, sets the format of the time string in the names of the generated csv files, following the `strftime` format standard. If not set, files will not be split by time intervals. Supported patterns include:
+  - %Y: Year as a four-digit number (e.g., 2025)
+  - %m: Month as a two-digit number (01 to 12)
+  - %d: Day of the month as a two-digit number (01 to 31)
+  - %H: Hour in 24-hour format as a two-digit number (00 to 23)
+  - %M: Minute as a two-digit number (00 to 59)
+  - %S: Second as a two-digit number (00 to 59)
+
+- **csv_ts_interval**: String type, sets the time interval for splitting generated csv file names. Supports daily, hourly, minute, and second intervals such as 1d/2h/30m/40s. The default value is "1d".
+
+- **csv_output_header**: String type, sets whether the generated csv files should contain column header descriptions. The default value is "yes".
+
+- **csv_tbname_alias**: String type, sets the alias for the tbname field in the column header descriptions of csv files. The default value is "device_id".
+
+- **csv_compress_level**: String type, sets the compression level for generating csv-encoded data and automatically compressing it into gzip file. This process directly encodes and compresses the data, rather than first generating a csv file and then compressing it. Possible values are:
+  - none: No compression
+  - fast: gzip level 1 compression
+  - balance: gzip level 6 compression
+  - best: gzip level 9 compression
 
 #### Tag and Data Columns
 
@@ -501,6 +525,17 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/tmq.json}}
+```
+
+</details>
+
+### Export CSV File Example
+
+<details>
+<summary>csv-export.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

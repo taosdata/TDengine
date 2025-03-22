@@ -249,14 +249,14 @@ int32_t tsdbTFileObjRef(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
 
   if (fobj->ref <= 0 || fobj->state != TSDB_FSTATE_LIVE) {
-    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    tsdbError("file %s, fobj:%p ref:%d", fobj->fname, fobj, fobj->ref);
     (void)taosThreadMutexUnlock(&fobj->mutex);
     return TSDB_CODE_FAILED;
   }
 
   nRef = ++fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
-  tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  tsdbTrace("ref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   return 0;
 }
 
@@ -266,11 +266,11 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   (void)taosThreadMutexUnlock(&fobj->mutex);
 
   if (nRef < 0) {
-    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+    tsdbError("file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
     return TSDB_CODE_FAILED;
   }
 
-  tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  tsdbTrace("unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
       tsdbRemoveFile(fobj->fname);
@@ -286,7 +286,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
     tsdbRemoveFile(fobj->fname);
     return;
   }
-
+#ifdef USE_S3
   if (!remove_all) {
     // remove local last chunk file
     char lc_path[TSDB_FILENAME_LEN];
@@ -330,19 +330,20 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
 
     tsdbRemoveFile(lc_path);
   }
+#endif
 }
 
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
   if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
-    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    tsdbError("file %s, fobj:%p ref:%d", fobj->fname, fobj, fobj->ref);
     (void)taosThreadMutexUnlock(&fobj->mutex);
     return TSDB_CODE_FAILED;
   }
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
-  tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     tsdbTFileObjRemoveLC(fobj, true);
     taosMemoryFree(fobj);
@@ -355,14 +356,14 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
 
   if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
     (void)taosThreadMutexUnlock(&fobj->mutex);
-    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    tsdbError("file %s, fobj:%p ref:%d", fobj->fname, fobj, fobj->ref);
     return TSDB_CODE_FAILED;
   }
 
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
-  tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     tsdbTFileObjRemoveLC(fobj, false);
     taosMemoryFree(fobj);
@@ -455,3 +456,5 @@ int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2) {
     return 0;
   }
 }
+
+const char *tsdbFTypeLabel(tsdb_ftype_t ftype) { return g_tfile_info[ftype].suffix; }

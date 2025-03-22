@@ -39,7 +39,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     auditSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
-      dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
+      dInfo("failed to set local info, dnodeId:%d clusterId:0x%" PRIx64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
             tstrerror(code));
     }
     (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
@@ -48,10 +48,10 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
 
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   int32_t code = 0;
-  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->ipWhiteVer, ver);
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
-      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->ipWhiteVer, ver);
       if (rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL) != 0) {
         dError("failed to disable ip white list on dnode");
       }
@@ -690,7 +690,7 @@ _exit:
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  int32_t code = dumpConfToDataBlock(pBlock, 1);
+  int32_t code = dumpConfToDataBlock(pBlock, 1, NULL);
   if (code != 0) {
     return code;
   }
@@ -711,6 +711,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (tDeserializeSRetrieveTableReq(pMsg->pCont, pMsg->contLen, &retrieveReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
+  dInfo("retrieve table:%s, user:%s, compactId:%" PRId64, retrieveReq.tb, retrieveReq.user, retrieveReq.compactId);
 #if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
     code = TSDB_CODE_MND_NO_RIGHTS;

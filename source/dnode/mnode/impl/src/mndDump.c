@@ -41,7 +41,7 @@ int32_t sendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 }
 
 char *i642str(int64_t val) {
-  static char str[24] = {0};
+  static threadlocal char str[24] = {0};
   (void)snprintf(str, sizeof(str), "%" PRId64, val);
   return str;
 }
@@ -198,6 +198,7 @@ void dumpStb(SSdb *pSdb, SJson *json) {
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "commentLen", i642str(pObj->commentLen)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "ast1Len", i642str(pObj->ast1Len)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "ast2Len", i642str(pObj->ast2Len)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "virtual", i642str(pObj->virtualStb)), pObj, &lino, _OVER);
 
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "numOfColumns", i642str(pObj->numOfColumns)), pObj, &lino, _OVER);
     SJson *columns = tjsonAddArrayToObject(item, "columns");

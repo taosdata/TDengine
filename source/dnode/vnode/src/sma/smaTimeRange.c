@@ -36,9 +36,13 @@ int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
 }
 
 int32_t tdProcessTSmaCreate(SSma *pSma, int64_t ver, const char *msg) {
+#ifdef USE_TSMA
   int32_t code = tdProcessTSmaCreateImpl(pSma, ver, msg);
 
   TAOS_RETURN(code);
+#else
+  return TSDB_CODE_SUCCESS;
+#endif
 }
 
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days) {

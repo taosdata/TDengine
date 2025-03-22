@@ -25,9 +25,10 @@ extern "C" {
 #include "function.h"
 
 typedef struct SOperatorValueType {
-  int32_t opResType;
-  int32_t selfType;
-  int32_t peerType;
+  int32_t  opResType;
+  int32_t  selfType;
+  int32_t  peerType;
+  STypeMod selfTypeMod;
 } SOperatorValueType;
 
 typedef struct SScalarCtx {
@@ -41,6 +42,9 @@ typedef struct SScalarCtx {
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
 #define SCL_DEFAULT_OP_NUM       10
+
+#define SCL_NEED_SRC_TABLE_FUNC(_type) ((_type) == FUNCTION_TYPE_TIMETRUNCATE)
+#define SCL_NEED_SRC_TABLE_OP(_type) ((_type) == OP_TYPE_ADD || (_type) == OP_TYPE_SUB)
 
 #define SCL_IS_NOTNULL_CONST_NODE(_node) ((QUERY_NODE_VALUE == (_node)->type) || (QUERY_NODE_NODE_LIST == (_node)->type))
 #define SCL_IS_CONST_NODE(_node) \
@@ -138,9 +142,10 @@ int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int
 int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam);
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 
-#define GET_PARAM_TYPE(_c)     ((_c)->columnData ? (_c)->columnData->info.type : (_c)->hashValueType)
+#define GET_PARAM_TYPE(_c)     ((_c)->columnData ? (_c)->columnData->info.type : (_c)->filterValueType)
 #define GET_PARAM_BYTES(_c)    ((_c)->columnData->info.bytes)
 #define GET_PARAM_PRECISON(_c) ((_c)->columnData->info.precision)
+#define GET_PARAM_SCALE(_c)    ((_c)->columnData->info.scale)
 
 void sclFreeParam(SScalarParam* param);
 int32_t doVectorCompare(SScalarParam* pLeft, SScalarParam *pLeftVar, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,
