@@ -66,12 +66,14 @@ int32_t taosDriverInit(EDriverType driverType) {
   } else {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
-
+  printf("load driver %s\n", driverName);
   if (tsDriver == NULL && tossGetDevelopPath(driverPath, driverName) == 0) {
+    printf("load driver tossGetDevelopPath from %s\n", driverPath);
     tsDriver = taosLoadDll(driverPath);
   }
 
   if (tsDriver == NULL && taosGetInstallPath(driverPath, driverName) == 0) {
+    printf("load driver taosGetInstallPath from %s\n", driverPath);
     tsDriver = taosLoadDll(driverPath);
   }
 

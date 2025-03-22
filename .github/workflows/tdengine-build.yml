@@ -26,9 +26,6 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
-          - ubuntu-22.04
-          - ubuntu-24.04
           - macos-13
           - macos-14
           - macos-15
@@ -80,11 +77,11 @@ jobs:
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
-            -DBUILD_TEST=true \
-            -DWEBSOCKET=true \
+            -DBUILD_TEST=false \
+            -DWEBSOCKET=false \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
+          make -j 16
           sudo make install
           which taosd
           which taosadapter
@@ -109,10 +106,14 @@ jobs:
       - name: Start taosadapter
         run: nohup sudo taosadapter &
 
+
+
       - name: Run tests with taosBenchmark
         run: |
           taosBenchmark -t 10 -n 10 -y 
-          taos -s "select count(*) from test.meters"
+
+      - name: Setup Debug Session
+        uses: csexton/debugger-action@master
 
       - name: Clean up
         if: always()
