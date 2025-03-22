@@ -506,30 +506,28 @@ function update_connectors() {
 }
 
 function prepare_taosinspect() {
+    if [ "$os_arch" != "x64" ] && [ "$os_arch" != "arm64" ]; then
+        echo "Error: Unsupported architecture $os_arch"
+        return
+    fi
+
+    # check if env var GITHUB_TOKEN is set
+    if [ -z "$GITHUB_TOKEN" ]; then
+        echo "Error: GITHUB_TOKEN is not set. Please set the GITHUB_TOKEN environment variable."
+        exit 1
+    fi
+
     cd ${baseDir}/${branch}
-    # GitHub API token
-    GITHUB_TOKEN="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"
 
     # Repository information
     REPO_OWNER="taosdata"
     REPO_NAME="operation"
 
-    # Get the latest release information
     latest_release=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-    "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest")
+        "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest")
 
-    if [ os_arch="x64" ];then
-        pkg_name="taosinspect_x64.tar.gz" 
-    elif [ os_arch="arm64" ];then
-        pkg_name="taosinspect_arm64.tar.gz"
-    else
-        echo "unsupported os_arch"
-        return 0
-    fi
-
+    pkg_name="taosinspect_$os_arch.tar.gz"
     asset_id=$(echo "$latest_release" | jq -r ".assets[] | select(.name == \"${pkg_name}\") | .id")
-
-
     # Check if asset ID was found
     if [ -z "$asset_id" ]; then
         echo "Error: ${pkg_name} not found in the latest release."
@@ -538,9 +536,9 @@ function prepare_taosinspect() {
 
     # Download the asset using the asset ID
     curl -L -o ${pkg_name} \
-    -H "Accept: application/octet-stream" \
-    -H "Authorization: Bearer $GITHUB_TOKEN" \
-    "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/assets/$asset_id"
+        -H "Accept: application/octet-stream" \
+        -H "Authorization: Bearer $GITHUB_TOKEN" \
+        "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/assets/$asset_id"
     echo "${pkg_name} has been downloaded successfully."
 
     tar -xvf ${pkg_name} 
@@ -1094,6 +1092,7 @@ function makepkg() {
     fi
 }
 
+# main
 build_TDengine &
 pid1=$!
 build_taosx &
