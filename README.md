@@ -82,7 +82,7 @@ For contributing/building/testing TDengine Connectors, please check the followin
 
 # 3. Prerequisites
 
-At the moment, TDengine server supports running on Linux/Windows/MacOS systems. Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service. TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
+At the moment, TDengine server supports running on Linux/MacOS systems(Windows is supported for Enterprise edition). Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service. TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
 
 If you want to compile taosAdapter or taosKeeper, you need to install Go 1.18 or above.
 
