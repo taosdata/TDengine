@@ -43,7 +43,7 @@
           <CsvTransformer
             v-else-if="item.type == 'csvData'"
             ref="csvDataRef"
-            :data="localData[item.field]"
+            v-model="localData[item.field]"
           ></CsvTransformer>
           <template v-else-if="item.type == 'tabs'">
             <el-tabs

@@ -9,19 +9,13 @@ export default {
   strict: true,
   config: [
     {
-      label: 'Groups-before',
-      field: 'groups_before',
-      hide: true,
-      children: []
-    },
-    {
       label: 'Groups-after',
       field: 'groups_after',
       hide: true,
       children: [
         {
           label: 'CSV Options',
-          field: 'b8c8db31-00bf-46cd-a46c-80a680cbea67',
+          field: '0d14aa37-292f-4d91-89a5-7f9f90bfe72a',
           description: 'CSV reading options',
           children: [
             {
@@ -44,7 +38,7 @@ export default {
               grid_two: false,
               type: 'number',
               min: 0,
-              max: null
+              // max: null
             },
             {
               label: 'Delimiter Char',

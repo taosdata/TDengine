@@ -9,12 +9,6 @@ export default {
   strict: true,
   config: [
     {
-      label: 'Groups-before',
-      field: 'groups_before',
-      hide: true,
-      children: []
-    },
-    {
       label: 'Groups-after',
       field: 'groups_after',
       hide: true,
@@ -123,9 +117,7 @@ export default {
       label: '',
       field: 'csvData',
       type: 'csvData',
-      children: [{ field: 'upload_csv_file' }, { field: 'monitor_file_directory', children: [] }],
-      defaultValue: 'upload_csv_file',
-      valueField: 'currentTab'
+      children: []
     },
     {
       label: '高级选项',

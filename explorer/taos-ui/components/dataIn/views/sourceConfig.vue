@@ -240,19 +240,6 @@ const toUrl = computed(() => {
   return (splitArr[0].startsWith('taos') ? '' : 'taos+') + url + (sourceForm.targetDB ? '/' + sourceForm.targetDB : '');
 });
 
-function getToUrl() {
-  if (dataInProps.isCloud) {
-    return (
-      'taos+' + instance?.gatewayUrl.replace('http', 'ws') + '/' + sourceForm.targetDB + '?token=' + instance?.token
-    );
-  }
-
-  const base_url = instance.gatewayUrl;
-  const splitArr = base_url?.split('//') || [];
-  const url = splitArr[0] + '//' + instance?.user + ':' + encodeURIComponent(instance?.password) + '@' + splitArr[1];
-  return (splitArr[0].startsWith('taos') ? '' : 'taos+') + url + (sourceForm.targetDB ? '/' + sourceForm.targetDB : '');
-}
-
 const labels = computed(() => {
   if (dataInProps.isCloud) {
     return ['ds', sourceForm.type, 'name::' + sourceForm.name, 'dsType::' + sourceForm.type];
@@ -290,9 +277,6 @@ onMounted(async () => {
     dataInProps.isIndusty ? (sourceForm.type = 'csv') : (sourceForm.type = 'tmq');
     getDataSource();
   }
-  console.log("now: ", getToUrl());
-  console.log("toUrl:", toUrl.value); 
-  console.log("instance", instance);
 });
 
 const isShowAgent = computed(() => !NoNeedAgentType.includes(sourceForm.type));
