@@ -17,10 +17,10 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     ts_col_name timestamp, 
     (create_defination[ ,create_defination] ...) 
      
- create_definition:
+  create_definition:
     vtb_col_name column_definition
     
-column_definition:
+  column_definition:
     type_name [FROM [db_name.]table_name.col_name]
 
 ```
@@ -33,9 +33,9 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     [(tag_name [, tag_name] ...)] 
     TAGS (tag_value [, tag_value] ...)
      
- create_definition:
+  create_definition:
     [stb_col_name FROM] [db_name.]table_name.col_name
- tag_value:
+  tag_value:
      const_value
 ```
 
@@ -66,7 +66,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 
 **示例**
 
-假设有表 t1, t2, t3 结构和数据如下：
+假设有表 t1、t2、t3 结构和数据如下：
 
 ![virtual-table-origin-table.png](pic/virtual-table-origin-table.png)
 
@@ -101,7 +101,7 @@ select c1, c2 from v1;
 
 ![virtual-table-query-res-part.png](pic/virtual-table-query-res-part.png)
 
-因为 c1, c2 列对应的原始表 t1, t2 中没有 0:00:03 这个时间戳，所以最后的结果也不会包含这个时间戳。
+因为 c1、c2 列对应的原始表 t1、t2 中没有 0:00:03 这个时间戳，所以最后的结果也不会包含这个时间戳。
 
 **使用限制**
 
@@ -205,7 +205,7 @@ SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
 
 **使用说明**
 
-1. 如果没有指定 db_name, 显示当前数据库下的所有虚拟普通表和虚拟子表的信息。若没有使用数据库并且没有指定 db_name, 则会报错 database not specified。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示虚拟普通表信息， CHILD 指定只显示虚拟子表信息。
+1. 如果没有指定 db_name，显示当前数据库下的所有虚拟普通表和虚拟子表的信息。若没有使用数据库并且没有指定 db_name, 则会报错 database not specified。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示虚拟普通表信息， CHILD 指定只显示虚拟子表信息。
 
 ### 显示虚拟表创建语句
 

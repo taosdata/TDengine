@@ -79,9 +79,9 @@ toc_max_heading_level: 4
 
 ### 虚拟表
 
-“一个设备一张表”的设计解决了工业和物联网等场景下的大多数时序数据管理和分析难题，但是在遇到更复杂的场景时，这种设计受到了设备复杂性的挑战。这种复杂性的根源在于一个设备无法简单的用一个或一组数据采集点来描述或管理，而业务分析往往需要综合多个或多组采集点的数据才能完成。以汽车或发电风机为例，整个设备（汽车或风机）中含有非常大量的传感器（数据采集点），这些传感器的输出和采集频率千差万别。一个超级表只能描述其中一种传感器，当需要综合多个传感器的数据进行分析计算时，只能通过多级关联查询的方式来进行，而这往往会导致易用性和性能方面的问题。
+“一个设备一张表”的设计解决了工业和物联网等场景下的大多数时序数据管理和分析难题，但是在遇到更复杂的场景时，这种设计受到了设备复杂性的挑战。根源在于一个设备无法简单的用一个或一组数据采集点来描述或管理，而业务分析往往需要综合多个或多组采集点的数据才能完成。以汽车或发电风机为例，整个设备（汽车或风机）中含有非常大量的传感器（数据采集点），这些传感器的输出和采集频率千差万别。一个超级表只能描述其中一种传感器，当需要综合多个传感器的数据进行分析计算时，只能通过多级关联查询的方式来进行，而这往往会导致易用性和性能方面的问题。
 
-为了解决这个问题，TDengine 引入虚拟表（Virtual Table，简称为 VTable）的概念。虚拟表是一种不存储实际数据而可以用于分析计算的表，它的数据来源为其它真实存储数据的子表、普通表，通过将不同列数据按照时间戳排序、对齐、合并的方式来生成虚拟表。同真实表类似，虚拟表也可以分为虚拟超级表、虚拟子表、虚拟普通表。虚拟超级表可以是一个设备或一组分析计算所需数据的完整集合，每个虚拟子表可以根据需要引用相同或不同的列，因此可以灵活地根据业务需要进行定义，最终可以达到千表千面的效果。虚拟表不能写入、删除数据，在查询使用上同真实表基本相同，支持虚拟超级表、虚拟子表、虚拟普通表上的任何查询。唯一的区别在于虚拟表的数据是每次查询计算时动态生成的，只有一个查询中引用的列才会被合并进虚拟表中，因此同一个虚拟表在不同的查询中所呈现的数据可能是不同的。
+为了解决这个问题，TDengine 引入虚拟表（Virtual Table，简称为 VTable）的概念。虚拟表是一种不存储实际数据而可以用于分析计算的表，它的数据来源为其它真实存储数据的子表、普通表，通过将不同列数据按照时间戳排序、对齐、合并的方式来生成虚拟表。同真实表类似，虚拟表也可以分为虚拟超级表、虚拟子表、虚拟普通表。虚拟超级表可以是一个设备或一组分析计算所需数据的完整集合，每个虚拟子表可以根据需要引用相同或不同的列，因此可以灵活地根据业务需要进行定义，最终达到千表千面的效果。虚拟表不能写入、删除数据，在查询使用上同真实表基本相同，支持虚拟超级表、虚拟子表、虚拟普通表上的任何查询。唯一的区别在于虚拟表的数据是每次查询计算时动态生成的，只有一个查询中引用的列才会被合并进虚拟表中，因此同一个虚拟表在不同的查询中所呈现的数据可能是不同的。
 
 虚拟超级表的主要功能特点包括：
 1. 列选择与拼接 <br />
@@ -91,7 +91,7 @@ toc_max_heading_level: 4
 3. 动态更新 <br />
    虚拟表根据原始表的数据变化自动更新，确保数据的实时性。虚拟表不需实际存储，计算在生成时动态完成。
 
-通过引入虚拟表的概念，现在 TDengine 可以非常方便的管理更大更复杂的设备数据。无论每个采集点如何建模（单列 or 多列），无论这些采集点的数据是分布在一个或多个库中，我们现在都可以通过定义虚拟子表的方式跨库跨表任意指定数据源，通过虚拟超级表的方式进行跨设备、跨分析的聚合运算，从此“一个设备一张表”彻底成为现实。
+通过引入虚拟表的概念，TDengine 可以非常方便的管理更大更复杂的设备数据。无论每个采集点如何建模（单列 or 多列），无论这些采集点的数据是分布在一个或多个库中，都可以通过定义虚拟子表的方式跨库跨表任意指定数据源，通过虚拟超级表的方式进行跨设备、跨分析的聚合运算，从此“一个设备一张表”彻底成为现实。
 
 ### 库
 
@@ -101,7 +101,7 @@ toc_max_heading_level: 4
 
 ### 时间戳
 
-时间戳在时序数据处理中扮演着至关重要的角色，特别是在应用程序需要从多个不同时区访问数据库时，这一问题变得更加复杂。在深入了解 TDengine 如何处理时间戳与时区之前，我们先介绍以下几个基本概念。
+时间戳在时序数据处理中扮演着至关重要的角色，特别是在应用程序需要从多个不同时区访问数据库时，这一问题变得更加复杂。在深入了解 TDengine 如何处理时间戳与时区之前，先介绍以下几个基本概念。
 - 本地日期时间：指特定地区的当地时间，通常表示为 yyyy-MM-dd hh:mm:ss.SSS 格式的字符串。这种时间表示不包含任何时区信息，如 “2021-07-21 12:00:00.000”。
 - 时区：地球上不同地理位置的标准时间。协调世界时（Universal Time Coordinated，UTC）或格林尼治时间是国际时间标准，其他时区通常表示为相对于 UTC 的偏移量，如 “UTC+8” 代表东八区时间。 UTC 时间戳：表示自 UNIX 纪元（即 UTC 时间 1970 年 1 月 1 日 0 点）起经过的毫秒数。例如，“1700000000000” 对应的日期时间是 “2023-11-14 22:13:20（UTC+0）”。 在 TDengine 中保存时序数据时，实际上保存的是 UTC 时间戳。TDengine 在写入数据时，时间戳的处理分为如下两种情况。
 - RFC-3339 格式：当使用这种格式时，TDengine 能够正确解析带有时区信息的时间字符串为 UTC 时间戳。例如，“2018-10-03T14:38:05.000+08:00” 会被转换为 UTC 时间戳。
@@ -109,10 +109,9 @@ toc_max_heading_level: 4
 
 在查询数据时，TDengine 客户端会根据应用程序当前的时区设置，自动将保存的 UTC 时间戳转换成本地时间进行显示，确保用户在不同时区下都能看到正确的时间信息。
 
-
 ## 数据建模
 
-本节用智能电表做例子，简要的介绍如何在 TDengine 里使用 SQL 创建数据库、超级表、表的基本操作。
+本节以智能电表为例，介绍如何在 TDengine 里使用 SQL 创建数据库、超级表、表的基本操作。
 
 ### 创建数据库
 
@@ -276,7 +275,7 @@ CREATE STABLE phase_stb (
 );
 ```
 
-假设分别有 d1001,d1002,d1003,d1004 四个设备，分别对四个设备的电流、电压、相位采集量创建子表，SQL 如下：
+假设有 d1001、d1002、d1003、d1004 四个设备，为四个设备的电流、电压、相位采集量分别创建子表，SQL 如下：
 
 ```sql
 create table current_d1001 using current_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
@@ -295,7 +294,7 @@ create table phase_d1003 using phase_stb(deviceid, location, group_id) tags("d10
 create table phase_d1004 using phase_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
 ```
 
-此时想要通过一张虚拟超级表来讲这三种采集量聚合到一张表中，创建虚拟超级表 SQL 如下：
+可通过一张虚拟超级表来将这三种采集量聚合到一张表中，创建虚拟超级表 SQL 如下：
 
 ```sql
 CREATE STABLE meters_v (
@@ -309,51 +308,51 @@ CREATE STABLE meters_v (
 ) VIRTUAL 1;
 ```
 
-并且对四个设备 d1001,d1002,d1003,d1004 分别创建虚拟子表，SQL 如下：
+并且对四个设备 d1001、d1002、d1003、d1004 分别创建虚拟子表，SQL 如下：
 
 ```sql
 CREATE VTABLE d1001_v (
-       current from current_d1001.current,
-       voltage from voltage_d1001.voltage, 
-       phase from phase_d1001.phase
+    current from current_d1001.current,
+    voltage from voltage_d1001.voltage, 
+    phase from phase_d1001.phase
 ) 
 USING meters_v 
 TAGS (
-       "California.SanFrancisco", 
-       2
+    "California.SanFrancisco", 
+    2
 );
        
 CREATE VTABLE d1002_v (
-       current from current_d1002.current,
-       voltage from voltage_d1002.voltage, 
-       phase from phase_d1002.phase
+    current from current_d1002.current,
+    voltage from voltage_d1002.voltage, 
+    phase from phase_d1002.phase
 ) 
 USING meters_v 
 TAGS (
-       "California.SanFrancisco", 
-       3
+    "California.SanFrancisco", 
+    3
 );
        
 CREATE VTABLE d1003_v (
-       current from current_d1003.current,
-       voltage from voltage_d1003.voltage, 
-       phase from phase_d1003.phase
+    current from current_d1003.current,
+    voltage from voltage_d1003.voltage, 
+    phase from phase_d1003.phase
 ) 
 USING meters_v 
 TAGS (
-       "California.LosAngeles", 
-       3
+    "California.LosAngeles", 
+    3
 );
        
 CREATE VTABLE d1004_v (
-       current from current_d1004.current,
-       voltage from voltage_d1004.voltage, 
-       phase from phase_d1004.phase
+    current from current_d1004.current,
+    voltage from voltage_d1004.voltage, 
+    phase from phase_d1004.phase
 ) 
 USING meters_v 
 TAGS (
-       "California.LosAngeles", 
-       2
+    "California.LosAngeles", 
+    2
 );
 ```
 
@@ -361,7 +360,7 @@ TAGS (
 
 ![data-model-origin-table.png](data-model-origin-table.png)
 
-虚拟表 d1001_v 中的数据如下 :
+虚拟表 d1001_v 中的数据如下:
 
 |   Timestamp    | Current |  Voltage  |  Phase  |
 |:--------------:|:-------:|:---------:|:-------:|
@@ -378,15 +377,15 @@ TAGS (
 在跨源采集量对比分析中，“跨源”指数据来自**不同数据采集点**。在不同数据采集点中提取具有可比语义的采集量，通过虚拟表将这些采集量按照时间戳进行对齐和合并，并进行对比分析。
 例如，用户可以将来自不同设备的电流数据聚合到一张虚拟表中，以便进行电流数据的对比分析。
 
-以分析 d1001, d1002, d1003, d1004 四个设备的电流数据为例，创建虚拟表的 SQL 如下：
+以分析 d1001、d1002、d1003、d1004 四个设备的电流数据为例，创建虚拟表的 SQL 如下：
 
 ```sql
 CREATE VTABLE current_v (
-       ts timestamp,
-       d1001_current float from current_d1001.current,
-       d1002_current float from current_d1002.current, 
-       d1003_current float from current_d1003.current,
-       d1004_current float from current_d1004.current
+    ts timestamp,
+    d1001_current float from current_d1001.current,
+    d1002_current float from current_d1002.current, 
+    d1003_current float from current_d1003.current,
+    d1004_current float from current_d1004.current
 );
 ```
 
