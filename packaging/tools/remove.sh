@@ -5,7 +5,7 @@
 set -e
 #set -x
 
-verMode=cluster
+verMode=edge
 osType=`uname`
 
 RED='\033[0;31m'
