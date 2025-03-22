@@ -1,4 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/include/os)
@@ -14,10 +13,10 @@ INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/contrib/cJson)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lz4/inc)
 INCLUDE_DIRECTORIES(inc)
 AUX_SOURCE_DIRECTORY(src SRC)
-  
+
 ADD_LIBRARY(admin ${SRC})
 TARGET_LINK_LIBRARIES(admin z)
 
-#AUX_SOURCE_DIRECTORY(src/backup SRC)
-#ADD_EXECUTABLE(httpMain ${SRC})
-#TARGET_LINK_LIBRARIES(httpMain mnode monitor http tsdb twal vnode cJson lz4 taos_static)
+# AUX_SOURCE_DIRECTORY(src/backup SRC)
+# ADD_EXECUTABLE(httpMain ${SRC})
+# TARGET_LINK_LIBRARIES(httpMain mnode monitor http tsdb twal vnode cJson lz4 taos_static)

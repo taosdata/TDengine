@@ -18,6 +18,7 @@
 #include "../../../../../source/dnode/vnode/src/tsdb/tsdbFSetRW.h"
 #include "../../../../../source/dnode/vnode/src/tsdb/tsdbIter.h"
 #include "../../../../../source/dnode/vnode/src/tsdb/tsdbSttFileRW.h"
+#include "meta.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -47,8 +48,7 @@ typedef struct {
   TFileOpArray fopArr[1];
 
   struct {
-    SDiskID did;
-
+    int32_t expLevel;
     // reader
     SDataFileReader    *dataReader;
     TSttFileReaderArray sttReaderArr[1];
@@ -63,6 +63,7 @@ typedef struct {
     SFSetWriter *writer;
 
     TABLEID tbid[1];
+    SHashObj *pKeepHashObj;  // SHashObj<suid, keep>
 
     // skyline
     SArray  *aSkyLine;
@@ -245,7 +246,7 @@ static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
       .cmprAlg = compactor->cmprAlg,
       .fid = compactor->fset->fid,
       .cid = compactor->cid,
-      .did = compactor->ctx->did,
+      .expLevel = compactor->ctx->expLevel,
       .level = 0,
       .lcn = lcn,
   };
@@ -426,13 +427,52 @@ static bool tsdbRowIsDeleted(SCompactor2 *compactor, TSDBROW *row) {
   return false;
 }
 
+static bool tsdbRowIsExpired(SCompactor2 *compactor, TSDBROW *row, int64_t keep, int64_t expireTs) {
+  if (keep <= 0) {
+    return false;
+  }
+  TSDBKEY tKey = TSDBROW_KEY(row);
+
+  tsdbDebug("vgId:%d, tKey.ts:%" PRId64 ", expireTs:%" PRId64, TD_VID(compactor->tsdb->pVnode), tKey.ts, expireTs);
+  return (tKey.ts < expireTs);
+}
+
+static int32_t tsdbCompactFSetGetKeep(SCompactor2 *compactor, int64_t suid, int64_t *keep) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (compactor->ctx->pKeepHashObj == NULL) {
+    compactor->ctx->pKeepHashObj =
+        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  }
+
+  int64_t *pKeep = (int64_t *)taosHashGet(compactor->ctx->pKeepHashObj, &suid, sizeof(suid));
+  if (pKeep == NULL) {
+    *keep = metaGetStbKeep(compactor->tsdb->pVnode->pMeta, suid);
+    taosHashPut(compactor->ctx->pKeepHashObj, &suid, sizeof(suid), &keep, sizeof(keep));
+  } else {
+    *keep = *pKeep;
+  }
+  return code;
+}
+
 static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
   SMetaInfo info;
   int64_t   numOfRow = 0;
+  int64_t   keep = 0;
+  int64_t   now = taosGetTimestamp(compactor->tsdb->keepCfg.precision);
+  int64_t   expireTs = 0;
+
   for (SRowInfo *row; (row = tsdbIterMergerGetData(compactor->ctx->dataIterMerger)) != NULL;) {
+    if (row->suid != compactor->ctx->tbid->suid) {
+      code = tsdbCompactFSetGetKeep(compactor, row->suid, &keep);
+      expireTs = now - (tsTickPerMin[compactor->tsdb->keepCfg.precision] * keep);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
     if (row->uid != compactor->ctx->tbid->uid) {
       code = tsdbCompactFSetTableDataEnd(compactor);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -448,7 +488,8 @@ static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    if (compactor->ctx->pDKey == NULL || !tsdbRowIsDeleted(compactor, &row->row)) {
+    if ((compactor->ctx->pDKey == NULL || !tsdbRowIsDeleted(compactor, &row->row)) &&
+        !tsdbRowIsExpired(compactor, &row->row, keep, expireTs)) {
       code = tsdbFSetWriteRow(compactor->ctx->writer, row);
       TSDB_CHECK_CODE(code, lino, _exit);
       numOfRow++;
@@ -485,18 +526,15 @@ static void tsdbCompactEnd(SCompactor2 *compactor) {
   TARRAY2_DESTROY(compactor->ctx->dataIterArr, NULL);
   TARRAY2_DESTROY(compactor->ctx->sttReaderArr, NULL);
   TARRAY2_DESTROY(compactor->fopArr, NULL);
+  taosHashCleanup(compactor->ctx->pKeepHashObj);
 }
 
 static int32_t tsdbDoCompact(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  STsdb  *tsdb = compactor->tsdb;
-  int32_t expLevel = tsdbFidLevel(compactor->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
-  if (expLevel < 0) return 0;
-
-  code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  STsdb *tsdb = compactor->tsdb;
+  compactor->ctx->expLevel = tsdbFidLevel(compactor->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
 
   tsdbInfo("vgId:%d compact fileset:%d start", TD_VID(tsdb->pVnode), compactor->fset->fid);
 
