@@ -888,6 +888,14 @@ static void decimal64Rand(Decimal64* result, const Decimal64* min, const Decimal
 
 
 static int decimal128Compare(const Decimal128* a, const Decimal128* b) {
+    const uint64_t sign_mask = (uint64_t)1 << 63;
+    int a_sign = (DECIMAL128_HIGH_WORD(a) & sign_mask) >> 63;
+    int b_sign = (DECIMAL128_HIGH_WORD(b) & sign_mask) >> 63;
+
+    if (a_sign != b_sign) {
+        return a_sign < b_sign ? 1 : -1;
+    }
+
     if (DECIMAL128_HIGH_WORD(a) != DECIMAL128_HIGH_WORD(b)) {
         return DECIMAL128_HIGH_WORD(a) < DECIMAL128_HIGH_WORD(b) ? -1 : 1;
     } else {
@@ -899,7 +907,6 @@ static int decimal128Compare(const Decimal128* a, const Decimal128* b) {
 static void decimal128Rand(Decimal128* result, const Decimal128* min, const Decimal128* max) {
     int64_t  high   = 0;
     uint64_t low    = 0;
-    bool sign       = true;
     Decimal128 temp = {0};
 
     int64_t minHigh = DECIMAL128_HIGH_WORD(min);
@@ -910,27 +917,14 @@ static void decimal128Rand(Decimal128* result, const Decimal128* min, const Deci
     do {
         // high byte
         high = randInt64(minHigh, maxHigh);
-        sign = high >= 0;
 
         // low byte
         if (high == minHigh && high == maxHigh) {
-            if (sign) {
-                low = randUint64(minLow, maxLow);
-            } else {
-                low = randUint64(maxLow, minLow);
-            }      
+            low = randUint64(minLow, maxLow);   
         } else if (high == minHigh) {
-            if (sign) {
-                low = randUint64(minLow, UINT64_MAX);
-            } else {
-                low = randUint64(0, minLow);
-            }
+            low = randUint64(minLow, UINT64_MAX);
         } else if (high == maxHigh) {
-            if (sign) {
-                low = randUint64(0, maxLow);
-            } else {
-                low = randUint64(maxLow, UINT64_MAX);
-            }
+            low = randUint64(0, maxLow);
         } else {
             low = randUint64(0, UINT64_MAX);
         }
