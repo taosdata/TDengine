@@ -126,6 +126,7 @@ brew install argp-standalone gflags pkgconfig
 </details>
 
 ## 3.3 Prerequisites on Windows
+
 Not available for community edition.
 
 ## 3.4 Clone the repo
@@ -204,6 +205,7 @@ If you want to compile taosKeeper, you need to add the `-DBUILD_KEEPER=true` opt
 </details>
 
 ## 4.3 Build on Windows
+
 Not available for community edition.
 
 # 5. Packaging
@@ -243,6 +245,7 @@ sudo make install
 </details>
 
 ## 6.3 Install on Windows
+
 Not available for community edition.
 
 # 7. Running
@@ -307,6 +310,7 @@ If TDengine CLI connects the server successfully, welcome messages and version i
 
 
 ## 7.3 Run TDengine on Windows
+
 Not available for community edition.
 
 # 8. Testing

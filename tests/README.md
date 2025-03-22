@@ -20,6 +20,7 @@ This manual is intended to give developers a comprehensive guidance to test TDen
 > - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.7+.
 > - The commands and steps described below are to run the tests on a single host.
 > - The testing framework is currently compatible with Python versions 3.8 through 3.10.
+> - Vitural Environment is advised when setting up the environment, pease refer to [venv](https://docs.python.org/3/library/venv.html) for details.
 
 
 # 2. Prerequisites
