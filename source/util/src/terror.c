@@ -380,6 +380,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since 
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "tdgpt internal error, not processed")
 
+// xnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,      "Xnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,       "Xnode already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_DEPLOYED,           "Xnode not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,          "Xnode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,              "Xnode not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,        "Xnode exec launch failed")
+
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "sma not exist")
