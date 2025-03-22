@@ -1,6 +1,6 @@
 <template>
   <div ref="myDivRef" class="custom-select" @click="divClicked">
-    <template v-if="String(depth) !== 'undefined'">
+    <template v-if="depth !== undefined && depth !== null">
       <div class="custom-input" @click="showOption">
         <el-input
           v-model="expression"

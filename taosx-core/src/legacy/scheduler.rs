@@ -373,10 +373,11 @@ async fn worker(
                             query.time_range = chunk;
                             let table_inner = table.clone();
                             loop {
+                                let from_new = source.get().await?;
                                 match sync_single_table_partial(
                                     source.clone(),
                                     target.clone(),
-                                    &mut from,
+                                    &mut Some(from_new),
                                     &stable,
                                     &table,
                                     &to,
@@ -425,8 +426,11 @@ async fn worker(
                                         break;
                                     }
                                     Err(err) => {
+                                        tracing::error!(
+                                            "sync_single_table_partial failed, err: {:?}",
+                                            err
+                                        );
                                         let err_string = err.to_string();
-                                        // tracing::error!("err_string: {err_string}");
                                         if (err_string.contains("0xE00")
                                             || err_string.contains("channel closed"))
                                             && retries > 0
@@ -522,7 +526,6 @@ async fn worker(
                     }
                 }
             }
-
             Todo::Sparse(table, time_range, sender) => {
                 let query = QueryOpts {
                     time_range,

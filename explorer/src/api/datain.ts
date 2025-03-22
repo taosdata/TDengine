@@ -89,7 +89,7 @@ export function loadTaskDetail(id: string | number) {
 }
 export async function refreshTask(id: string | number) {
   const taskDetail = await loadTaskDetail(id);
-  console.log('taskDetail.from_detail:', taskDetail);
+  taskDetail.from = taskDetail.from_json;
   return taskDetail;
 }
 

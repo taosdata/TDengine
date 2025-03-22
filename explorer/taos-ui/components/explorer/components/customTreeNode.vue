@@ -241,7 +241,7 @@ import {
   addSqlCodeEvent
 } from './utils';
 import { getExplorerProps, getSqlProvider } from '../model/useExplorer';
-import { hasOwnProperty } from 'utils/validate';
+// import { hasOwnProperty } from 'utils/validate';
 import { cloneDeep } from 'lodash-es';
 import { deleteStableReq, deleteTableReq, getStableStructReq } from '../../api';
 import { instance } from 'config';
@@ -383,10 +383,7 @@ async function handleVar() {
   switch (type.value) {
     case 'database':
       //操作数据库时，获取数据库配置
-      if (
-        (!isCloud || props.data?.privileges?.some((item: Recordable) => item.name == 'db:read')) &&
-        !hasOwnProperty(props.data, 'minrows')
-      ) {
+      if (!isCloud || props.data?.privileges?.some((item: Recordable) => item.name == 'db:read')) {
         const name = props.data.name;
         Object.assign(props.data, await database.getStructApi(props.data.name));
         // eslint-disable-next-line vue/no-mutating-props
