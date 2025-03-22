@@ -136,8 +136,6 @@ res_start_time = 1730000000000
 gen_figure = true
 ```
 
-算法对比分析运行完成以后，生成 fc-results.xlsx 文件，其中包含了调用算法的预测分析误差、执行时间、调用参数等信息，如下表：
-
 | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
 | ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
 | holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
@@ -146,3 +144,4 @@ gen_figure = true
 如果设置了 `gen_figure` 为 true，分析结果中还会有绘制的分析预测结果图（如下图所示）。
 
 <img src={fc_result} width="360" alt="预测对比结果" />
+
