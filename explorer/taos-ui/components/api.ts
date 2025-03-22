@@ -390,9 +390,8 @@ export function getSubtbInitStruct(dbName: string, stbName: string) {
 // 修改表结构
 export function changeTableStruct(data: changeStbStructData, tableName: string, dbName: string) {
   // eslint-disable-next-line prefer-const
-  let { operation, first_field = '', second_field = '' } = data;
-  first_field = escapeSpecialChar(first_field);
-  second_field = escapeSpecialChar(second_field);
+  const { operation, first_field = ''} = data;
+  const second_field = escapeSpecialChar(data.second_field || '');
   let sql = '';
   sql = `ALTER TABLE  \`${dbName}\`.\`${tableName}\` ${operation} ${first_field} ${second_field};`;
   return executeSqlFn!(sql).catch(err => {

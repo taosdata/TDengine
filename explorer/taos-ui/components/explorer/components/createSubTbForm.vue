@@ -78,6 +78,8 @@ import {
   changeStbStructData
 } from '../../api';
 
+import { escapeSpecialChar } from '../../../utils/tdengine';
+
 const props = withDefaults(defineProps<CreateSubTbProps>(), {
   isEdit: false
 });
@@ -137,10 +139,10 @@ function handleData() {
 // 当修改表结构的tag时，tag的value发生变化的
 function tagValueChange(tag: SubTbTagStruct) {
   const isString = VariableTableColumnType.some(item => tag.type.startsWith(item));
-  const value = isString ? `'${tag.value}'` : tag.value;
+  const value = isString ? `'${escapeSpecialChar(tag.value)}'` : tag.value;
   const params: changeStbStructData = {
     operation: 'set tag',
-    first_field: `\`${tag.field}\`` + '=' + value
+    first_field: `\`${tag.field}\` = ${value}`
   };
   updateData(params);
 }
