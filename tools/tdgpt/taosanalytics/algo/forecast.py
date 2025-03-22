@@ -41,7 +41,7 @@ def do_forecast(input_list, ts_list, algo_name, params):
 def do_add_fc_params(params, json_obj):
     """ add params into parameters """
     if "forecast_rows" in json_obj:
-        params["fc_rows"] = int(json_obj["forecast_rows"])
+        params["rows"] = int(json_obj["forecast_rows"])
 
     if "start" in json_obj:
         params["start_ts"] = int(json_obj["start"])

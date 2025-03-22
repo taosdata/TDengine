@@ -46,7 +46,7 @@ class _LSTMService(AbstractForecastService):
 
         res = self.model.predict(self.list)
 
-        insert_ts_list(res, self.start_ts, self.time_step, self.fc_rows)
+        insert_ts_list(res, self.start_ts, self.time_step, self.rows)
 
         if self.return_conf:
             res1 = [res.tolist(), res.tolist(), res.tolist()], None

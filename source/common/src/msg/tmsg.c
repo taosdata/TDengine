@@ -2297,7 +2297,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeRetrieveAnalAlgoReq(void *buf, int32_t bufLen, SRetrieveAnalAlgoReq *pReq) {
+int32_t tSerializeRetrieveAnalyticAlgoReq(void *buf, int32_t bufLen, SRetrieveAnalyticsAlgoReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -2319,7 +2319,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeRetrieveAnalAlgoReq(void *buf, int32_t bufLen, SRetrieveAnalAlgoReq *pReq) {
+int32_t tDeserializeRetrieveAnalyticAlgoReq(void *buf, int32_t bufLen, SRetrieveAnalyticsAlgoReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -2336,7 +2336,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAlgoRsp *pRsp) {
+int32_t tSerializeRetrieveAnalyticAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalyticAlgoRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -2387,7 +2387,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalAlgoRsp *pRsp) {
+int32_t tDeserializeRetrieveAnalyticAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalyticAlgoRsp *pRsp) {
   if (pRsp->hash == NULL) {
     pRsp->hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
     if (pRsp->hash == NULL) {
@@ -2425,7 +2425,10 @@ int32_t tDeserializeRetrieveAnalAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnal
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&url.url, NULL) < 0);
     }
 
-    TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, name, nameLen, &url, sizeof(SAnalyticsUrl)));
+    char dstName[TSDB_ANALYTIC_ALGO_NAME_LEN] = {0};
+    strntolower(dstName, name, nameLen);
+
+    TAOS_CHECK_EXIT(taosHashPut(pRsp->hash, dstName, nameLen, &url, sizeof(SAnalyticsUrl)));
   }
 
   tEndDecode(&decoder);
@@ -2435,7 +2438,7 @@ _exit:
   return code;
 }
 
-void tFreeRetrieveAnalAlgoRsp(SRetrieveAnalAlgoRsp *pRsp) {
+void tFreeRetrieveAnalyticAlgoRsp(SRetrieveAnalyticAlgoRsp *pRsp) {
   void *pIter = taosHashIterate(pRsp->hash, NULL);
   while (pIter != NULL) {
     SAnalyticsUrl *pUrl = (SAnalyticsUrl *)pIter;

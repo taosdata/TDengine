@@ -98,15 +98,15 @@ static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   if (oldVer == newVer) return;
   dDebug("analysis on dnode ver:%" PRId64 ", status ver:%" PRId64, oldVer, newVer);
 
-  SRetrieveAnalAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
-  int32_t              contLen = tSerializeRetrieveAnalAlgoReq(NULL, 0, &req);
+  SRetrieveAnalyticsAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
+  int32_t              contLen = tSerializeRetrieveAnalyticAlgoReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
     return;
   }
 
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveAnalAlgoReq(pHead, contLen, &req);
+  contLen = tSerializeRetrieveAnalyticAlgoReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
