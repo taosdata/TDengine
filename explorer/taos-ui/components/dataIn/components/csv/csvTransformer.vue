@@ -212,7 +212,11 @@ import { t } from 'locales';
 
 const dataInProps = getDataInProps();
 
-const initData = {
+const props = defineProps<{
+  modelValue: Recordable;
+}>();
+
+const localData: any = reactive({
   currentTab: 'upload_csv_file',
   path: '',
   monitor_file_directory: {
@@ -226,21 +230,16 @@ const initData = {
     keep_processed_files: false,
     file_url: ''
   }
-};
-const props = defineProps<{
-  data: Recordable;
-}>();
-
-let localData = reactive(props.data);
-const emit = defineEmits(['update:data']);
+});
+const emit = defineEmits(['update:modelValue']);
 watch(localData, newData => {
   const fileUrl =
     newData.currentTab == 'upload_csv_file'
       ? newData.upload_csv_file.file_url
       : newData.monitor_file_directory.file_url;
   newData.path = fileUrl;
-  emit('update:data', newData);
-});
+  emit('update:modelValue', newData);
+}, { deep: true });
 interface stateProps {
   isModifying: boolean;
   showfiletip: boolean;
@@ -296,25 +295,19 @@ watch(isEn, () => {
   });
 });
 
-watch(
-  currentPageType,
-  type => {
-    if (type === 'add') {
-      localData = Object.assign(localData, initData);
-    }
-  },
-  {
-    immediate: true
-  }
-);
+
 onMounted(async () => {
-  if (!isAddable.value) {
+  if (props.modelValue && props.modelValue.currentTab) {
     echoCsvData();
   }
 });
 
 function echoCsvData() {
   state.isModifying = !isCopyable.value && Number(taskId.value) > 0;
+
+  localData.currentTab = props.modelValue.currentTab;
+  localData.path = props.modelValue.path;
+  localData[localData.currentTab] = JSON.parse(JSON.stringify(props.modelValue[localData.currentTab]));
 
   // 回显上传的文件列表
   if (localData.currentTab == 'upload_csv_file') {

@@ -59,14 +59,13 @@ export default {
       description: 'Authentication is the process of verifying the identity before granting access to InfluxDB.',
       field: 'authentication',
       type: 'tabs',
-      valueField: 'a7dcf55a-a4ea-483b-8980-2db60cd2d8d6',
-      defaultValue: '2.x',
+      valueField: 'only-choose-one$',
+      defaultValue: '2~x',
       multiple: false,
       children: [
         {
           label: 'Version 1.x',
-          name: '1.x',
-          field: '1~x',
+          name: '1~x',
           children: [
             {
               label: 'Version',
@@ -113,8 +112,7 @@ export default {
         },
         {
           label: 'Version 2.x',
-          name: '2.x',
-          field: '2~x',
+          name: '2~x',
           children: [
             {
               label: 'Version',
@@ -415,7 +413,6 @@ export default {
           field: 'health_check_window_in_second',
           description:
             'Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.',
-          defaultValue: '',
           placeholder: 'Enter an integer in the range [0, 60000]',
           required: false,
           hint: {
@@ -429,7 +426,7 @@ export default {
             min: 0,
             max: 60000
           },
-          unit_value: 's',
+          defaultValue: '0s',
           type: 'composeAppend',
           options: [
             {
@@ -445,7 +442,7 @@ export default {
           field: 'busy_threshold',
           description:
             'Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.',
-          defaultValue: '100',
+          defaultValue: '100%',
           required: false,
           hint: {
             type: 'duration',
@@ -458,7 +455,6 @@ export default {
             min: 0,
             max: 100
           },
-          unit_value: '%',
           type: 'composeAppend',
           options: [
             {

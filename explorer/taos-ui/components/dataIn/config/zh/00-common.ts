@@ -354,8 +354,7 @@ export default {
           "description": "目标数据库连接超时，默认为 30s。",
           "required": false,
           "placeholder": "输入范围为[1,600]整数",
-          "value": 30,
-          "unit_value": "s"
+          "defaultValue": "30s"
         },
         {
           "field": "cache.max_size",
@@ -377,8 +376,7 @@ export default {
             "启用时，需配置允许占用的磁盘空间，最小为 1G，最大为 65535 G，配置为 0 表示无限制。默认无限制。默认路径是 ： $DATA_DIR/tasks/:id/cache",
           "required": false,
           "placeholder": "输入范围为[1,65535]整数",
-          "value": 0,
-          "unit_value": "GB"
+          "defaultValue": "1GB"
         },
         {
           "field": "cache.location",
@@ -420,8 +418,7 @@ export default {
           "description": "配置以上操作配置为 归档 时，归档文件的最大保留时长。默认 30 天。配置为 0 表示无限制。",
           "required": false,
           "placeholder": "输入非负整数，0 表示无限制",
-          "value": 30,
-          "unit_value": "d"
+          "defaultValue": "30d"
         },
         {
           "field": "archive.max_size",
@@ -443,8 +440,7 @@ export default {
             "归档文件的最大可用磁盘空间，最小为 1G，最大为 65535G，配置为 0 表示无限制。默认无限制。默认路径：$DATA_DIR/tasks/:id/archived",
           "required": false,
           "placeholder": "输入范围为[1,65535]整数",
-          "value": 0,
-          "unit_value": "GB"
+          "defaultValue": "1GB"
         },
         {
           "field": "archive.location",

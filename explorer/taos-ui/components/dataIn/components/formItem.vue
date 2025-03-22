@@ -107,9 +107,9 @@
       <InputNumberWithSelect
         v-if="config.type == 'composeAppend'"
         ref="composeAppend"
+        v-model="localData[field]"
         :options="getOptions()"
         :config="config"
-        :data="data"
       />
       <UploadCsv
         v-if="config.type == 'file'"

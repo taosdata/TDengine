@@ -264,11 +264,10 @@ export default {
               description: '连接丢失或首次启动时自动回填的最长时间：`2d`、`3h`、`4m` 等。',
               field: 'MaxBackfillRangeDays',
               placeholder: '输入范围为[0,600]整数',
-              defaultValue: 0,
+              defaultValue: '0m',
               pattern: null,
               patternMsg: '只能输入正整数或者0',
               grid_two: false,
-              unit_value: 'm',
               type: 'composeAppend',
               options: [
                 {
@@ -399,7 +398,7 @@ export default {
           label: '健康监测时段',
           field: 'health_check_window_in_second',
           description: '表示对最近多长时间的任务状态进行统计。通常为分钟级，此时段对健康状态各种模式统一生效。\n',
-          defaultValue: '',
+          defaultValue: '0s',
           placeholder: '输入范围为[0,60000]整数',
           required: false,
           hint: {
@@ -413,7 +412,6 @@ export default {
             min: 0,
             max: 60000
           },
-          unit_value: 's',
           type: 'composeAppend',
           options: [
             {
@@ -428,7 +426,7 @@ export default {
           label: 'Busy 状态阈值',
           field: 'busy_threshold',
           description: '百分比，表示写入队列中入队元素数量与队列长度之比，默认 100%。\n',
-          defaultValue: 100,
+          defaultValue: '100%',
           required: false,
           hint: {
             type: 'duration',
@@ -441,7 +439,6 @@ export default {
             min: 0,
             max: 100
           },
-          unit_value: '%',
           type: 'composeAppend',
           options: [
             {

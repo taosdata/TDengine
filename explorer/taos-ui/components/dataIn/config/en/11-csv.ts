@@ -9,19 +9,13 @@ export default {
   strict: true,
   config: [
     {
-      label: 'Groups-before',
-      field: 'groups_before',
-      hide: true,
-      children: []
-    },
-    {
       label: 'Groups-after',
       field: 'groups_after',
       hide: true,
       children: [
         {
           label: 'CSV Options',
-          field: 'b8c8db31-00bf-46cd-a46c-80a680cbea67',
+          field: '0d14aa37-292f-4d91-89a5-7f9f90bfe72a',
           description: 'CSV reading options',
           children: [
             {
@@ -44,7 +38,7 @@ export default {
               grid_two: false,
               type: 'number',
               min: 0,
-              max: null
+              // max: null
             },
             {
               label: 'Delimiter Char',
@@ -186,7 +180,6 @@ export default {
           field: 'health_check_window_in_second',
           description:
             'Indicates the time duration for monitoring the task status. Typically in minutes, this duration applies uniformly to all health states.',
-          defaultValue: '',
           placeholder: 'Enter an integer in the range [0, 60000]',
           required: false,
           hint: {
@@ -200,7 +193,7 @@ export default {
             min: 0,
             max: 60000
           },
-          unit_value: 's',
+          defaultValue: '0s',
           type: 'composeAppend',
           options: [
             {
@@ -216,7 +209,7 @@ export default {
           field: 'busy_threshold',
           description:
             'Percentage indicating the ratio of the number of elements enqueued to the total queue length. Default is 100%.',
-          defaultValue: '100',
+          defaultValue: '100%',
           required: false,
           hint: {
             type: 'duration',
@@ -229,7 +222,6 @@ export default {
             min: 0,
             max: 100
           },
-          unit_value: '%',
           type: 'composeAppend',
           options: [
             {

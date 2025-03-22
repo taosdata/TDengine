@@ -68,7 +68,7 @@ import ChartView from './chart.vue';
 import FavoriteView from './favoriteList/cloud/index.vue';
 import EnterpriseFavoriteView from './favoriteList/enterprise/index.vue';
 import LogView from './log.vue';
-import { wsExport } from 'utils/wsexporter';
+import { wsExport, localExport } from 'utils/wsexporter';
 import { sqlExecResult, panelActiveTab, changeLogSortEvent } from './utils';
 import { getSqlProvider } from '../model/useExplorer';
 import { ElMessageBox, ElMessage } from 'element-plus';
@@ -96,15 +96,22 @@ function exportAll() {
     );
     return;
   }
+  
   ElMessageBox.confirm(t('explorer.exportConfirm'), t('common.tips')).then(() => {
     loading.value = true;
-    wsExport(instance.gatewayUrl, instance.token, sqlStr.value, true)
-      .catch(err => {
-        ElMessage.error(err?.message);
-      })
-      .finally(() => {
-        loading.value = false;
-      });
+    if (project.isCloud) {
+      wsExport(instance.gatewayUrl, instance.token, sqlStr.value, true)
+        .catch(err => {
+          ElMessage.error(err?.message);
+        })
+        .finally(() => {
+          loading.value = false;
+        });
+    } else {
+      localExport(sqlExecResult);
+      loading.value = false;
+    }
+    
   });
 }
 function logSortChange() {

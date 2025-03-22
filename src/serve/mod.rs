@@ -170,6 +170,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .app_data(store)
             .service(get_tasks)
             .service(get_tasks_count)
+            .service(export_tasks)
+            .service(import_tasks)
             .service(create_task)
             .service(update_task)
             .service(delete_tasks)
@@ -456,6 +458,8 @@ impl Cli {
             paths(
                 task::get_tasks,
                 task::get_tasks_count,
+                task::export_tasks,
+                task::import_tasks,
                 task::create_task,
                 task::update_task,
                 task::delete_tasks,

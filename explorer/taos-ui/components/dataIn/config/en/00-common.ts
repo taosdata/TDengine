@@ -447,8 +447,7 @@ export default {
         "description": "Target database connection timeout, default is 30 seconds.",
         "required": false,
         "placeholder": "Enter an integer between [1,600]",
-        "value": 30,
-        "unit_value": "s"
+        "defaultValue": "30s"
       },
       {
         "field": "cache.max_size",
@@ -470,8 +469,7 @@ export default {
           "When enabled, configure the allowable disk space to be used. The minimum is 1GB, the maximum is 65535GB, and a value of 0 means no limit. Default is unlimited. Default path: $DATA_DIR/tasks/:id/cache",
         "required": false,
         "placeholder": "Enter an integer in the range [1, 65535]",
-        "value": 0,
-        "unit_value": "GB"
+        "defaultValue": "1GB"
       },
       {
         "field": "cache.location",
@@ -515,8 +513,7 @@ export default {
           "When the above operation is set to Archive, this configures the maximum retention period for archived files. Default is 30 days. Setting it to 0 means no limit.",
         "required": false,
         "placeholder": "Enter a non-negative integer, 0 means unlimited",
-        "value": "30",
-        "unit_value": "d"
+        "defaultValue": "30d"
       },
       {
         "field": "archive.max_size",
@@ -538,8 +535,7 @@ export default {
           "Maximum available disk space for archived files. Minimum is 1GB, maximum is 65535GB. Setting it to 0 means no limit. Default is unlimited. Default path: $DATA_DIR/tasks/:id/archived",
         "required": false,
         "placeholder": "Enter an integer in the range [1, 65535]",
-        "value": "0",
-        "unit_value": "GB"
+        "defaultValue": "1GB"
       },
       {
         "field": "archive.location",

@@ -235,7 +235,7 @@ $height: 32px;
 .column-prepend-btn {
   display: flex;
   flex-shrink: 0;
-  width: var(--group-prepend);
+
 
   .custom-length {
     flex-shrink: 0;

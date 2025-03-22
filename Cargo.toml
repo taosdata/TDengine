@@ -74,7 +74,7 @@ bigdecimal = "0.4"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "d78af99"
+rev = "91baaa5"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]

@@ -191,11 +191,10 @@ export default {
               description: 'Polling interval to query schema.',
               field: 'schema-polling-interval',
               placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '5',
+              defaultValue: '5s',
               pattern: null,
               patternMsg: 'The value can only be a positive integer or 0',
               grid_two: false,
-              unit_value: 's',
               type: 'composeAppend',
               options: [
                 {
@@ -285,7 +284,6 @@ export default {
               pattern: null,
               patternMsg: 'The value can only be a positive integer or 0',
               grid_two: false,
-              unit_value: 'd',
               type: 'composeAppend',
               options: [
                 {
@@ -323,11 +321,10 @@ export default {
                 'Retrospect data from some time ago into target before realtime data migrating.<br>\nSupports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>',
               field: 'retro',
               placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '0',
+              defaultValue: '0s',
               pattern: null,
               patternMsg: 'The value can only be a positive integer or 0',
               grid_two: false,
-              unit_value: 's',
               type: 'composeAppend',
               options: [
                 {
@@ -361,11 +358,10 @@ export default {
                 'Polling interval to query realtime data.<br>\nSupports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>\nOnly numbers default to seconds as unit.<br>',
               field: 'interval',
               placeholder: 'The value is an integer ranging [0,60000]',
-              defaultValue: '1',
+              defaultValue: '1s',
               pattern: null,
               patternMsg: 'The value can only be a positive integer or 0',
               grid_two: false,
-              unit_value: 's',
               type: 'composeAppend',
               options: [
                 {
@@ -395,7 +391,6 @@ export default {
               pattern: null,
               patternMsg: 'The value can only be a positive integer or 0',
               grid_two: false,
-              unit_value: 'ms',
               type: 'composeAppend',
               options: [
                 {
