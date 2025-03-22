@@ -132,7 +132,11 @@ jobs:
         id: cache-ext
         with:
           path: ${{ github.workspace }}/.externals
-          key: ${{ runner.os }}-${{ matrix.os }}-build-ext-${{ hashFiles('CMakeLists.txt', 'cmake/**') }}
+          key: ${{ runner.os }}-${{ matrix.os }}-${{
+                  hashFiles(
+                    'CMakeLists.txt',
+                    'cmake/**'
+                  ) }}-build-ext-v1
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
         name: Build externals on Linux and macOS
