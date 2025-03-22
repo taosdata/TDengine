@@ -196,9 +196,9 @@ class TBase:
         tdSql.checkFirstValue(sql, expect)
 
         # order by desc limit 1 with last
-        sql = f"select first({col}) from {self.db}.{self.db}."
+        sql = f"select first({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.db}.{self.db}. order by _c0 asc limit 1"
+        sql = f"select {col} from {self.db}.{self.stb} order by _c0 asc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
 

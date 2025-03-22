@@ -91,7 +91,7 @@
  }
 
  // set conn mode
-int32_t setConnMode(int8_t connMode, char *dsn) {
+int32_t setConnMode(int8_t connMode, char *dsn, bool show) {
     // check default
     if (connMode == CONN_MODE_INVALID) {
       if (dsn && dsn[0] != 0) {
@@ -109,11 +109,16 @@ int32_t setConnMode(int8_t connMode, char *dsn) {
       fprintf(stderr, "failed to load driver. since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
       return code;
     }
+
+    if (show) {
+        fprintf(stdout, "\nConnect mode is : %s\n\n", strMode);
+    }
+
     return 0;
 }
 
 // default mode
-int8_t defaultMode(int8_t connMode, char *dsn) {
+int8_t workingMode(int8_t connMode, char *dsn) {
     int8_t mode = connMode;
     if (connMode == CONN_MODE_INVALID) {
         // no input from command line or config
@@ -129,10 +134,15 @@ int8_t defaultMode(int8_t connMode, char *dsn) {
 
 // get default port
 uint16_t defaultPort(int8_t connMode, char *dsn) {
+    // port 0 is default
+    return 0;
+    
+    /*
     // consistent with setConnMode
-    int8_t mode = defaultMode(connMode, dsn);
+    int8_t mode = workingMode(connMode, dsn);
 
     // default port
     return mode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+    */
 }
  
