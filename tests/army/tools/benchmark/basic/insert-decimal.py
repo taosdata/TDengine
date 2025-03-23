@@ -50,6 +50,10 @@ class TDTestCase(TBase):
 
 
     def check_decimal_scale(self, db_name, tbl_name, col_config):
+        sql = "select count(*) from %s.%s" % (db_name, tbl_name)
+        tdSql.query(sql)
+        tdLog.info("in func check_decimal_scale, sql: %s, rows: %d, cols: %d" % (sql, tdSql.queryRows, tdSql.queryCols))
+
         sql = "select max(%s) from %s.%s" % (col_config['name'], db_name, tbl_name)
         tdSql.query(sql)
         tdLog.info("in func check_decimal_scale, sql: %s, rows: %d, cols: %d" % (sql, tdSql.queryRows, tdSql.queryCols))
