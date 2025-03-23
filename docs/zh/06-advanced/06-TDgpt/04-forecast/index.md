@@ -149,5 +149,5 @@ gen_figure = true
 
 如果设置了 `gen_figure` 为 true，分析结果中还会有绘制的分析预测结果图（如下图所示）。
 
-<img src={fc_result} alt="预测对比结果" style={{width:360px !important;}}"/>
+<img src={fc_result} alt="预测对比结果"/>
 
