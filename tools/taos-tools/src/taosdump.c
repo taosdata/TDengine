@@ -150,6 +150,7 @@ static struct argp_option options[] = {
     {"inspect",  'I', 0,  0,
         "inspect avro file content and print on screen", 10},
     {"no-escape",  'n', 0,  0,  "No escape char '`'. Default is using it.", 10},
+    {"restful",  'R', 0,  0,  "Use RESTful interface to connect server", 11},
     {"cloud",  'C', "CLOUD_DSN",  0, OLD_DSN_DESC, 11},
     {"timeout", 't', "SECONDS", 0, "The timeout seconds for "
                  "websocket to interact."},
@@ -691,7 +692,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             g_args.thread_num = atoi((const char *)arg);
             break;
-
+        case 'R':
+            warnPrint("%s\n", "'-R' is not supported, ignore this options.");
+            break;
         case 'C':
         case 'X':
             if (arg) {
@@ -1527,7 +1530,7 @@ int processFieldsValueV2(
             break;
         case TSDB_DATA_TYPE_BIGINT:
             snprintf(tableDes->cols[index].value, COL_VALUEBUF_LEN,
-                     "%" PRId64 "", *((int64_t *)value));
+                     "%" PRId64, *((int64_t *)value));
             break;
         case TSDB_DATA_TYPE_UTINYINT:
             snprintf(tableDes->cols[index].value, COL_VALUEBUF_LEN,
@@ -1547,7 +1550,7 @@ int processFieldsValueV2(
             break;
         case TSDB_DATA_TYPE_UBIGINT:
             snprintf(tableDes->cols[index].value, COL_VALUEBUF_LEN,
-                     "%" PRIu64 "", *((uint64_t *)value));
+                     "%" PRIu64, *((uint64_t *)value));
             break;
         case TSDB_DATA_TYPE_FLOAT:
             {
@@ -1713,7 +1716,7 @@ int processFieldsValueV2(
             break;
         case TSDB_DATA_TYPE_TIMESTAMP:
             snprintf(tableDes->cols[index].value, COL_VALUEBUF_LEN,
-                     "%" PRId64 "", *(int64_t *)value);
+                     "%" PRId64, *(int64_t *)value);
             break;
         default:
             errorPrint("%s() LN%d, unknown type: %d\n",
@@ -2354,6 +2357,7 @@ static int dumpStableClasuse(
         FILE *fp) {
     
     TableDes *tableDes = *pStbTableDes;
+
     int32_t colCount = getTableDes(*taos_v, dbInfo->name,
                 stbName, tableDes, true);
 
@@ -3332,7 +3336,7 @@ int64_t queryDbForDumpOutCount(
             ? "SELECT COUNT(*) FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
             "AND _c0 <= %" PRId64 ""
             : "SELECT COUNT(*) FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
-            "AND _c0 <= %" PRId64 "",
+            "AND _c0 <= %" PRId64,
             dbName, g_escapeChar, tbName, g_escapeChar,
             startTime, endTime);
 
@@ -4698,6 +4702,7 @@ static int64_t dumpInAvroTbTagsImpl(
         curr_sqlstr_len += sprintf(sqlstr + curr_sqlstr_len-1, ")");
         debugPrint("%s() LN%d, sqlstr=\n%s\n", __func__, __LINE__, sqlstr);
         freeTbNameIfLooseMode(stbName);
+
         
         //
         // exec sqlstr
@@ -5425,6 +5430,39 @@ static void countFailureAndFree(char *bindArray,
     freeTbNameIfLooseMode(tbName);
 }
 
+// stmt prepare
+static int32_t prepareStmt(TAOS_STMT *stmt, RecordSchema *recordSchema, char *tbName, int32_t *onlyCol) {
+    char *sql = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+    if (NULL == sql) {
+        errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
+        return -1;
+    }
+
+    char *pstr = sql;
+    pstr += snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN, "INSERT INTO %s VALUES(?", tbName);
+
+    for (int col = 1; col < recordSchema->num_fields
+            -(g_dumpInLooseModeFlag?0:1); col++) {
+        pstr += sprintf(pstr, ",?");
+        (*onlyCol)++;
+    }
+    pstr += sprintf(pstr, ")");
+    debugPrint("%s() LN%d, stmt buffer: %s\n",
+            __func__, __LINE__, sql);
+
+    int code;
+    if (0 != (code = taos_stmt_prepare(stmt, sql, 0))) {
+        errorPrint("Failed to execute taos_stmt_prepare(). sql:%s reason: %s\n",
+            sql, taos_stmt_errstr(stmt));
+
+        free(sql);
+        return -1;
+    }
+
+    free(sql);
+    return code;
+}
+
 static int64_t dumpInAvroDataImpl(
         void **taos_v,
         char *namespace,
@@ -5442,6 +5480,7 @@ static int64_t dumpInAvroDataImpl(
                 "reason: %s\n",
                 __func__, __LINE__, *taos_v,
                 taos_errno(NULL), taos_errstr(NULL));
+
         return -1;
     }
 
@@ -5513,6 +5552,7 @@ static int64_t dumpInAvroDataImpl(
     avro_value_t value;
     avro_generic_value_new(value_class, &value);
 
+
     char *bindArray =
             calloc(1, sizeof(TAOS_MULTI_BIND) * onlyCol);
     if (NULL == bindArray) {
@@ -5565,6 +5605,7 @@ static int64_t dumpInAvroDataImpl(
             char *escapedTbName = calloc(1, escapedTbNameLen);
             if (NULL == escapedTbName) {
                 errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
+
                 free(bindArray);
                 free(stmtBuffer);
                 if (mallocDes) {
@@ -5581,6 +5622,7 @@ static int64_t dumpInAvroDataImpl(
             debugPrint("%s() LN%d escaped table: %s\n",
                     __func__, __LINE__, escapedTbName);
 
+
             // call set table name
             if (0 != taos_stmt_set_tbname(stmt, escapedTbName)) {
                 errorPrint("Failed to execute taos_stmt_set_tbname(%s)."
@@ -5592,8 +5634,11 @@ static int64_t dumpInAvroDataImpl(
                 continue;
             }
             free(escapedTbName);
+
+            // get table des
             if ((0 == strlen(tableDes->name))
                     || (0 != strcmp(tableDes->name, tbName))) {
+
                 if (mallocDes) {
                     // only old data format can get des from server
                     if (getTableDes(*taos_v, namespace, tbName, mallocDes, true) < 0) {
@@ -5827,6 +5872,7 @@ static int64_t dumpInAvroDataImpl(
             bind->num = 1;
         } // cols loop end
         debugPrint2("%s", "\n");
+
         // bind batch
         if (0 != (code = taos_stmt_bind_param_batch(stmt,
                 (TAOS_MULTI_BIND *)bindArray))) {
@@ -5883,6 +5929,7 @@ static int64_t dumpInAvroDataImpl(
     avro_value_decref(&value);
     avro_value_iface_decref(value_class);
     tfree(bindArray);
+
     tfree(stmtBuffer);
     if (mallocDes) {
         freeTbDes(mallocDes, true);
@@ -6350,7 +6397,7 @@ int processResultValue(
 
         case TSDB_DATA_TYPE_BIGINT:
             return sprintf(pstr + curr_sqlstr_len,
-                    "%" PRId64 "",
+                    "%" PRId64,
                     *((int64_t *)value));
 
         case TSDB_DATA_TYPE_UTINYINT:
@@ -6367,7 +6414,7 @@ int processResultValue(
 
         case TSDB_DATA_TYPE_UBIGINT:
             return sprintf(pstr + curr_sqlstr_len,
-                    "%" PRIu64 "",
+                    "%" PRIu64,
                     *((uint64_t *)value));
 
         case TSDB_DATA_TYPE_FLOAT:
@@ -6412,7 +6459,7 @@ int processResultValue(
             }
         case TSDB_DATA_TYPE_TIMESTAMP:
             return sprintf(pstr + curr_sqlstr_len,
-                    "%" PRId64 "", *(int64_t *)value);
+                    "%" PRId64, *(int64_t *)value);
             break;
         default:
             break;
@@ -6819,6 +6866,7 @@ int64_t dumpNormalTable(
                         __func__, __LINE__);
                 return -1;
             }
+
             numColsAndTags = getTableDes(*taos_v,
                         dbInfo->name, tbName, tableDes, !belongStb);
 
@@ -6841,6 +6889,7 @@ int64_t dumpNormalTable(
             errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
             return -1;
         }
+
         numColsAndTags = getTableDes(*taos_v,
                     dbInfo->name, tbName, tableDes, !belongStb);
 
@@ -7409,6 +7458,7 @@ static int createMTableAvroHeadSpecified(
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
         return -1;
     }
+
 
     getTableDes(*taos_v, dbName, stable, stbTableDes, false);
 
@@ -9290,6 +9340,7 @@ static int64_t dumpStable(
     }
 
     // obtain stable des data
+
     int32_t colCount = getTableDes(*taos_v, dbInfo->name,
             stbName, stbDes, true);
     if (colCount < 0) {
@@ -9634,6 +9685,7 @@ static int64_t dumpWholeDatabase(void **taos_v, SDbInfo *dbInfo, FILE *fp) {
             dbInfo->name);
     atomic_add_fetch_64(
             &g_resultStatistics.totalDatabasesOfDumpOut, 1);
+
 
     // write stb and child data
     ret = dumpStbAndChildTbOfDb(taos_v, dbInfo, fpDbs);
@@ -10923,19 +10975,6 @@ static int inspectAvroFiles(int argc, char *argv[]) {
     return ret;
 }
 
-int32_t setConnMode(int8_t  connMode) {
-    // set conn mode
-    char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
-    int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
-    if (code != TSDB_CODE_SUCCESS) {
-        engineError(INIT_PHASE, "taos_options", code);
-        return -1;
-    }
-
-    infoPrint("\nConnect mode is : %s\n\n", strMode);
-    return 0;
-}
-
 
 int main(int argc, char *argv[]) {
     g_uniqueID = getUniqueIDFromEpoch();
@@ -10990,7 +11029,7 @@ int main(int argc, char *argv[]) {
     }
 
     // conn mode
-    if (setConnMode(g_args.connMode) != 0) {
+    if (setConnMode(g_args.connMode, g_args.dsn, true) != 0) {
         return -1;
     }
 

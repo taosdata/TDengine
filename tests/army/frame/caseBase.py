@@ -196,9 +196,9 @@ class TBase:
         tdSql.checkFirstValue(sql, expect)
 
         # order by desc limit 1 with last
-        sql = f"select first({col}) from {self.db}.{self.db}."
+        sql = f"select first({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.db}.{self.db}. order by _c0 asc limit 1"
+        sql = f"select {col} from {self.db}.{self.stb} order by _c0 asc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
 
@@ -566,3 +566,17 @@ class TBase:
                 os.remove(filename)
         except Exception as err:
             raise Exception(err)
+
+    # read file to list
+    def readFileToList(self, filePath):
+        try:
+            with open(filePath, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+            # Strip trailing newline characters
+            return [line.rstrip('\n') for line in lines]
+        except FileNotFoundError:
+            tdLog.info(f"Error: File not found {filePath}")
+            return []
+        except Exception as e:
+            tdLog.info(f"Error reading file: {e}")
+            return []

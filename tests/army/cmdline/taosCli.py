@@ -87,7 +87,36 @@ class TDTestCase(TBase):
         # get empty result
         rlist = self.taos(f'{mode} -r -s "select * from {db}.{stb} where ts < 1"')
         self.checkListString(rlist, "Query OK, 0 row(s) in set")
-    
+
+
+    def checkDecimalCommon(self, col, value):
+        rlist = self.taos(f'-s "select {col} from testdec.test"')
+        self.checkListString(rlist, value)
+
+        outfile = "decimal.csv"
+        self.taos(f'-s "select {col} from testdec.test>>{outfile}"')
+        rlist = self.readFileToList(outfile)
+        self.checkListString(rlist, value)
+        self.deleteFile(outfile)
+
+
+    def checkDecimal(self):
+        # prepare data
+        self.taos(f'-s "drop database if exists testdec"')
+        self.taos(f'-s "create database if not exists testdec"')
+        self.taos(f'-s "create table if not exists testdec.test(ts timestamp, dec64 decimal(10,6), dec128 decimal(24,10)) tags (note nchar(20))"')
+        self.taos(f'-s "create table testdec.d0 using testdec.test(note) tags(\'test\')"')
+        self.taos(f'-s "insert into testdec.d0 values(now(), \'9876.123456\', \'123456789012.0987654321\')"')
+        
+        # check decimal64
+        self.checkDecimalCommon("dec64", "9876.123456")
+
+        # check decimal128
+        self.checkDecimalCommon("dec128", "123456789012.0987654321")
+
+        self.taos(f'-s "drop database if exists testdec"')
+
+
     def checkBasic(self):
         tdLog.info(f"check describe show full.")
 
@@ -107,6 +136,8 @@ class TDTestCase(TBase):
         ]
         for arg in args:
             self.checkResultWithMode(db, stb, arg)
+        
+        self.checkDecimal()
 
 
     def checkDumpInOutMode(self, source, arg, db, insertRows):
@@ -183,20 +214,13 @@ class TDTestCase(TBase):
     
     def checkCommand(self):
         # check coredump
-
-        # o logpath
-        char = 'a'
-        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
         queryOK = "Query OK"
 
-        # invalid input check
+        # support Both
         args = [
-            #[lname, "failed to create log at"],
             ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
             ['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK],
-            ['-a ""', "Invalid auth"],
             ['-s "quit;"', "Welcome to the TDengine Command Line Interface"],
-            ['-a "abc"', "[0x80000357]"],
             ['-h "" -s "show dnodes;"', "Invalid host"],
             ['-u "" -s "show dnodes;"', "Invalid user"],
             ['-P "" -s "show dnodes;"', "Invalid port"],
@@ -225,6 +249,23 @@ class TDTestCase(TBase):
                 if arg[1] != None:
                     self.checkListString(rlist, arg[1])
 
+        #
+        # support native only
+        #
+        
+        # o logpath
+        char = 'a'
+        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
+
+        args = [
+            [lname, "failed to create log at"],
+            ['-a ""', "Invalid auth"],
+            ['-a "abc"', "[0x80000357]"],
+        ]
+        for arg in args:
+            rlist = self.taos("-Z 0 " + arg[0])
+            if arg[1] != None:
+                self.checkListString(rlist, arg[1])
 
     # expect cmd > json > evn
     def checkPriority(self):
@@ -299,9 +340,14 @@ class TDTestCase(TBase):
             self.checkExcept(taos + " -s 'show dnodes;' " + option)
     
     def checkModeVersion(self):    
+
+        # check default conn mode        
+        #DEFAULT_CONN = "WebSocket"
+        DEFAULT_CONN = "Native"
+
         # results
         results = [
-            "WebSocket Client Version",
+            f"{DEFAULT_CONN} Client Version",
             "2022-10-01 00:01:39.000", 
             "Query OK, 100 row(s) in set"
         ]
@@ -310,8 +356,10 @@ class TDTestCase(TBase):
         cmd = f"-s 'select ts from test.d0'"
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
+        
         # websocket
         cmd = f"-Z 1 -s 'select ts from test.d0'"
+        results[0] = "WebSocket Client Version"
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)        
 

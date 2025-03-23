@@ -256,13 +256,13 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
                        "INSERT INTO ? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
                        db, stbInfo->stbName, tagQ, ttl, colQ);
     } else {
-        if (g_arguments->connMode == CONN_MODE_NATIVE) {
+        if (workingMode(g_arguments->connMode, g_arguments->dsn) == CONN_MODE_NATIVE) {
             // native
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO ? VALUES(?,%s)", colQ);
         } else {
             // websocket
-            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // nomral table
+            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
             colNames = genColNames(stbInfo->cols, !ntb);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, stbInfo->stbName, colNames,
@@ -2144,7 +2144,7 @@ void generateSmlJsonTags(tools_cJSON *tagsList,
                             uint64_t start_table_from, int tbSeq) {
     tools_cJSON * tags = tools_cJSON_CreateObject();
     char *  tbName = benchCalloc(1, TSDB_TABLE_NAME_LEN, true);
-    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
              stbInfo->childTblPrefix, start_table_from + tbSeq);
     char *tagName = benchCalloc(1, TSDB_MAX_TAGS, true);
     for (int i = 0; i < stbInfo->tags->size; i++) {
@@ -2206,7 +2206,7 @@ void generateSmlTaosJsonTags(tools_cJSON *tagsList, SSuperTable *stbInfo,
                             uint64_t start_table_from, int tbSeq) {
     tools_cJSON * tags = tools_cJSON_CreateObject();
     char *  tbName = benchCalloc(1, TSDB_TABLE_NAME_LEN, true);
-    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
              stbInfo->childTblPrefix, tbSeq + start_table_from);
     tools_cJSON_AddStringToObject(tags, "id", tbName);
     char *tagName = benchCalloc(1, TSDB_MAX_TAGS, true);

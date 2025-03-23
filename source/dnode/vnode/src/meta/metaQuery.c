@@ -1524,7 +1524,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
       memcpy(p->pTagVal, val, len);
       tdbFree(val);
     } else {
-      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
+      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64, TD_VID(pMeta->pVnode), suid,
                 p->uid);
     }
   }

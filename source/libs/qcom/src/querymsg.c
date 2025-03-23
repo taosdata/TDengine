@@ -61,7 +61,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
     pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
-    qDebug("the %dth vgroup, id:%d, epNum:%d, current:%s port:%u", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
+    qDebug("db:%s, vgId:%d, epNum:%d, current ep:%s:%u", usedbRsp->db, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
            pVgInfo->epSet.eps[pVgInfo->epSet.inUse].fqdn, pVgInfo->epSet.eps[pVgInfo->epSet.inUse].port);
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       return terrno;
@@ -81,6 +81,8 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
   STableInfoReq infoReq = {0};
   infoReq.option = pInput->option;
   infoReq.header.vgId = pInput->vgId;
+  infoReq.autoCreateCtb = pInput->autoCreateCtb;
+
   if (pInput->dbFName) {
     tstrncpy(infoReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
   }

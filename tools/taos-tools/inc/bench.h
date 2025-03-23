@@ -16,14 +16,14 @@
 #ifndef INC_BENCH_H_
 #define INC_BENCH_H_
 
-#include "pub.h"
-
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+#include "pub.h"
 
 #ifdef LINUX
 
@@ -1032,5 +1032,8 @@ int killSlowQuery();
 int fetchChildTableName(char *dbName, char *stbName);
 // call engine error
 void engineError(char * module, char * fun, int32_t code);
+
+// trim prefix suffix blank cmp
+int trimCaseCmp(char *str1,char *str2);
 
 #endif   // INC_BENCH_H_

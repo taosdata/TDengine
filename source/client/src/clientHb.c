@@ -121,7 +121,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       pTscObj->authVer = pRsp->version;
 
       if (pTscObj->sysInfo != pRsp->sysInfo) {
-        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", connObj:%" PRIi64, pRsp->user,
+        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", conn:%" PRIi64, pRsp->user,
                  pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
         pTscObj->sysInfo = pRsp->sysInfo;
       }
@@ -134,7 +134,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           if (passInfo->fp) {
             (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
           }
-          tscDebug("update passVer of user %s from %d to %d, connObj:%" PRIi64, pRsp->user, oldVer,
+          tscDebug("update passVer of user %s from %d to %d, conn:%" PRIi64, pRsp->user, oldVer,
                    atomic_load_32(&passInfo->ver), pTscObj->id);
         }
       }
@@ -147,7 +147,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           if (whiteListInfo->fp) {
             (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
           }
-          tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", connObj:%" PRIi64, pRsp->user,
+          tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
                    oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
         }
       } else {
@@ -156,7 +156,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
         int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
         atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
-        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", connObj:%" PRIi64, pRsp->user,
+        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
                  oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
       releaseTscObj(pReq->connKey.tscRid);
@@ -516,7 +516,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
                pTscObj->pAppInfo->totalDnodes);
 
       if (pRsp->query->killRid) {
-        tscDebug("QID:%" PRIx64 ", need to be killed now", pRsp->query->killRid);
+        tscDebug("QID:0x%" PRIx64 ", need to be killed now", pRsp->query->killRid);
         SRequestObj *pRequest = acquireRequest(pRsp->query->killRid);
         if (NULL == pRequest) {
           tscDebug("QID:0x%" PRIx64 ", not exist to kill", pRsp->query->killRid);
@@ -885,7 +885,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 
   for (int32_t i = 0; i < dbNum; ++i) {
     SDbCacheInfo *db = &dbs[i];
-    tscDebug("the %dth expired dbFName:%s, dbId:%" PRId64
+    tscDebug("the %dth expired db:%s, dbId:%" PRId64
              ", vgVersion:%d, cfgVersion:%d, numOfTable:%d, startTs:%" PRId64,
              i, db->dbFName, db->dbId, db->vgVersion, db->cfgVersion, db->numOfTable, db->stateTs);
 

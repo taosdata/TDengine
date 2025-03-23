@@ -238,7 +238,7 @@ int32_t stmtRestoreQueryFields(STscStmt* pStmt) {
 }
 */
 int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, SName* tbName, const char* sTableName,
-                           bool autoCreateTbl) {
+                           bool autoCreateTbl, uint8_t tbNameFlag) {
   STscStmt* pStmt = (STscStmt*)stmt;
   char      tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t   code = tNameExtractFullName(tbName, tbFName);
@@ -256,6 +256,7 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
   pStmt->bInfo.tbType = pTableMeta->tableType;
   pStmt->bInfo.boundTags = tags;
   pStmt->bInfo.tagsCached = false;
+  pStmt->bInfo.tbNameFlag = tbNameFlag;
   tstrncpy(pStmt->bInfo.stbFName, sTableName, sizeof(pStmt->bInfo.stbFName));
 
   return TSDB_CODE_SUCCESS;
@@ -271,10 +272,10 @@ int32_t stmtUpdateExecInfo(TAOS_STMT* stmt, SHashObj* pVgHash, SHashObj* pBlockH
 }
 
 int32_t stmtUpdateInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, SName* tbName, bool autoCreateTbl,
-                       SHashObj* pVgHash, SHashObj* pBlockHash, const char* sTableName, bool preCtbname) {
+                       SHashObj* pVgHash, SHashObj* pBlockHash, const char* sTableName, uint8_t tbNameFlag) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  STMT_ERR_RET(stmtUpdateBindInfo(stmt, pTableMeta, tags, tbName, sTableName, autoCreateTbl));
+  STMT_ERR_RET(stmtUpdateBindInfo(stmt, pTableMeta, tags, tbName, sTableName, autoCreateTbl, tbNameFlag));
   STMT_ERR_RET(stmtUpdateExecInfo(stmt, pVgHash, pBlockHash));
 
   pStmt->sql.autoCreateTbl = autoCreateTbl;
@@ -1631,20 +1632,20 @@ int stmtClose(TAOS_STMT* stmt) {
 
   STMT_DLOG_E("start to free stmt");
 
-  pStmt->queue.stopQueue = true;
-  
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
-  (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
-
   if (pStmt->bindThreadInUse) {
+    pStmt->queue.stopQueue = true;
+
+    (void)taosThreadMutexLock(&pStmt->queue.mutex);
+    (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+    (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
+    (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
+
     (void)taosThreadJoin(pStmt->bindThread, NULL);
     pStmt->bindThreadInUse = false;
-  }
 
-  (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
-  (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
+    (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
+    (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
+  }
 
   STMT_DLOG("stmt %p closed, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
             ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
@@ -1729,7 +1730,10 @@ int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
   STMT_ERRI_JRET(stmtFetchTagFields(stmt, nums, fields));
 
 _return:
-
+  // compatible with previous versions
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & NO_DATA_USING_CLAUSE) == 0x0) {
+    code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+  }
   pStmt->errCode = preCode;
 
   return code;

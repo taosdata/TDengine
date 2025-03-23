@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "pub.h"
 
 char resEncodingChunk[] = "Encoding: chunked";
 char succMessage[] = "succ";
@@ -120,7 +121,7 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         int64_t childTblCountOfSuperTbl) {
     char cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
     snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
-             "select distinct tbname from %s.`%s` limit %" PRId64 "",
+             "select distinct tbname from %s.`%s` limit %" PRId64,
             dbName, stbName, childTblCountOfSuperTbl);
     TAOS_RES *res = taos_query(taos, cmd);
     int32_t   code = taos_errno(res);
@@ -304,7 +305,7 @@ SBenchConn* initBenchConnImpl() {
         if (g_arguments->port_inputted) {
             port = g_arguments->port;
         } else {
-            port = g_arguments->connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+            port = defaultPort(g_arguments->connMode, g_arguments->dsn);
         }
 
         sprintf(show, "host:%s port:%d ", host, port);
@@ -1261,5 +1262,32 @@ int fetchChildTableName(char *dbName, char *stbName) {
     closeBenchConn(conn);
 
     // succ
+    return 0;
+}
+
+// skip prefix suffix blank
+int trimCaseCmp(char *str1, char *str2) {
+    // Skip leading whitespace in str1
+    while (isblank((unsigned char)*str1)) {
+        str1++;
+    }
+
+    // Compare characters case-insensitively
+    while (*str2 != '\0') {
+        if (tolower((unsigned char)*str1) != tolower((unsigned char)*str2)) {
+            return -1;
+        }
+        str1++;
+        str2++;
+    }
+
+    // Check if the remaining characters in str1 are all whitespace
+    while (*str1 != '\0') {    
+        if (!isblank((unsigned char)*str1)) {
+            return -1;
+        }
+        str1++;
+    }
+
     return 0;
 }

@@ -382,7 +382,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      if (pHandle->vnode) {
+      if (pHandle->vnode && (pTaskInfo->pSubplan->pVTables == NULL)) {
         code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
                                        pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
         if (code) {
@@ -515,8 +515,6 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model != OPTR_EXEC_MODEL_STREAM) {
       code = createVirtualTableMergeOperatorInfo(NULL, pHandle, NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
-    } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model == OPTR_EXEC_MODEL_STREAM) {
-      code = createStreamVtableMergeOperatorInfo(pHandle, (SVirtualScanPhysiNode*)pPhyNode, pTagCond, pTaskInfo, &pOperator);
     } else {
       code = TSDB_CODE_INVALID_PARA;
       pTaskInfo->code = code;
@@ -689,6 +687,26 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
 
     code = createVirtualTableMergeOperatorInfo(ops, pHandle, pTableListInfo, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model == OPTR_EXEC_MODEL_STREAM) {
+    SVirtualScanPhysiNode* pVirtualTableScanNode = (SVirtualScanPhysiNode*)pPhyNode;
+    STableListInfo*        pTableListInfo = tableListCreate();
+    if (!pTableListInfo) {
+      pTaskInfo->code = terrno;
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
+    }
+
+    code = createScanTableListInfo(&pVirtualTableScanNode->scan, pVirtualTableScanNode->pGroupTags,
+                                   pVirtualTableScanNode->groupSort, pHandle, pTableListInfo, pTagCond, pTagIndexCond,
+                                   pTaskInfo);
+    if (code) {
+      pTaskInfo->code = code;
+      tableListDestroy(pTableListInfo);
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return code;
+    }
+
+    code = createStreamVtableMergeOperatorInfo(ops[0], pHandle, pVirtualTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;

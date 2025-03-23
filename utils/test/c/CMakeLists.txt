@@ -7,6 +7,7 @@ add_executable(tmq_ts5466 tmq_ts5466.c)
 add_executable(tmq_td32526 tmq_td32526.c)
 add_executable(tmq_td32187 tmq_td32187.c)
 add_executable(tmq_ts5776 tmq_ts5776.c)
+add_executable(tmq_ts6115 tmq_ts6115.c)
 add_executable(tmq_td32471 tmq_td32471.c)
 add_executable(tmq_td33798 tmq_td33798.c)
 add_executable(tmq_poll_test tmq_poll_test.c)
@@ -91,6 +92,14 @@ target_link_libraries(
 
 target_link_libraries(
     tmq_td33798
+    PUBLIC ${TAOS_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    tmq_ts6115
     PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common

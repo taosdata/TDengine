@@ -170,6 +170,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000038B | Index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x80000396 | Database in creating status                                  | Database is being created                                    | Retry                                                        |
 | 0x8000039A | Invalid system table name                                    | Internal error                                               | Report issue                                                 |
+| 0x8000039F | No VGroup's leader need to be balanced                       | Perform balance leader operation on VGroup                   | There is no VGroup's leader needs to be balanced             |
 | 0x800003A0 | Mnode already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003A1 | Mnode not there                                              | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003A2 | Qnode already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
@@ -557,12 +558,30 @@ This document details the server error codes that may be encountered when using 
 | 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
 
+## TDgpt
+
+| Error Code     | Description              | Possible Error Scenarios or Reasons                    | Recommanded Actions for Users             |
+| ---------- | --------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
+| 0x80000440 | Analysis service response is NULL | The response content is empty                     | Check the taosanode.app.log for detailed response information |
+| 0x80000441 | Analysis service can't access     | Service is not work currectly, or network is broken  | Check the status of taosanode and network status       |
+| 0x80000442 | Analysis algorithm is missing     | Algorithm used in analysis is not specified     |   Add the "algo" parameter in forecast function or anomaly_window clause       |
+| 0x80000443 | Analysis algorithm not loaded | The specified algorithm is not available   |   Check for the specified algorithm   |
+| 0x80000444 | Analysis invalid buffer type  | The bufferred data type is invalid  | Check the taosanode.app.log for more details     |
+| 0x80000445 | Analysis failed since anode return error       | The responses from anode with error message | Check the taosanode.app.log for more details     |
+| 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many   | Reduce the rows of input data to below than the threshold   |
+| 0x80000447 | white-noise data not processed                      |  white noise data is not processed   |  Ignore the white noise check or use another input data  |
+| 0x80000448 | Analysis internal error, not processed                 | Internal error occurs   | Check the taosanode.app.log for more details     |
+
 
 ## virtual table
 
-| Error Code  | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                         |
-|-------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
-| 0x80006200  | Virtual table scan internal error                       | virtual table scan operator internal error, generally does not occur                                                                                                 | Check error logs, contact development for handling    |
-| 0x80006201  | Virtual table scan invalid downstream operator type     | The incorrect execution plan generated causes the downstream operator type of the virtual table scan operator to be incorrect.                                       | Check error logs, contact development for handling    |
-| 0x80006202  | Virtual table prim timestamp column should not has ref  | The timestamp primary key column of a virtual table should not have a data source. If it does, this error will occur during subsequent queries on the virtual table. | Check error logs, contact development for handling    |
-| 0x80006203  | Create virtual child table must use virtual super table | Create virtual child table using non-virtual super table                                                                                                             | create virtual child table using virtual super table  |
+| Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
+|------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
+| 0x80006200 | Virtual table scan internal error                       | virtual table scan operator internal error, generally does not occur                                                                                                 | Check error logs, contact development for handling                            |
+| 0x80006201 | Virtual table scan invalid downstream operator type     | The incorrect execution plan generated causes the downstream operator type of the virtual table scan operator to be incorrect.                                       | Check error logs, contact development for handling                            |
+| 0x80006202 | Virtual table prim timestamp column should not has ref  | The timestamp primary key column of a virtual table should not have a data source. If it does, this error will occur during subsequent queries on the virtual table. | Check error logs, contact development for handling                            |
+| 0x80006203 | Create virtual child table must use virtual super table | Create virtual child table using non-virtual super table                                                                                                             | create virtual child table using virtual super table                          |
+| 0x80006204 | Virtual table not support decimal type                  | Create virtual table using decimal type                                                                                                                              | create virtual table without using decimal type                               |
+| 0x80006205 | Virtual table not support in STMT query and STMT insert | Use virtual table in stmt query and stmt insert                                                                                                                      | do not use virtual table in stmt query and insert                             |
+| 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
+| 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table ‘s child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |

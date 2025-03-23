@@ -136,7 +136,7 @@ TAOS *taosConnect(const char *dbName) {
         if (g_args.port_inputted) {
             port = g_args.port;
         } else {
-            port = g_args.connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+            port = defaultPort(g_args.connMode, g_args.dsn);
         }
 
         sprintf(show, "host:%s port:%d ", host, port);

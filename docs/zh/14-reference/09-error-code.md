@@ -176,6 +176,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000038B | Index not exist                                                                              | 不存在                                        | 确认操作是否正确                                                                                |
 | 0x80000396 | Database in creating status                                                                  | 数据库正在被创建                              | 重试                                                                                            |
 | 0x8000039A | Invalid system table name                                                                    | 内部错误                                      | 上报 issue                                                                                       |
+| 0x8000039F | No VGroup's leader need to be balanced                                                       | 执行 balance vgroup leader 操作               | 没有需要进行 balance leader 操作的 VGroup                                                |
 | 0x800003A0 | Mnode already exists                                                                         | 已存在                                        | 确认操作是否正确                                                                                |
 | 0x800003A1 | Mnode not there                                                                              | 已存在                                        | 确认操作是否正确                                                                                |
 | 0x800003A2 | Qnode already exists                                                                         | 已存在                                        | 确认操作是否正确                                                                                |
@@ -579,10 +580,28 @@ description: TDengine 服务端的错误码列表和详细说明
 
 ## virtual table
 
-| 错误码        | 错误描述                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施              |
-|------------|---------------------------------------------------------|------------------------------------------------|------------------------|
-| 0x80006200 | Virtual table scan 算子内部错误                               | virtual table scan 算子内部逻辑错误，一般不会出现             | 具体查看client端的错误日志提示     |
-| 0x80006201 | Virtual table scan invalid downstream operator type     | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确 | 保留 explain 执行计划，联系开发处理 |
-| 0x80006202 | Virtual table prim timestamp column should not has ref  | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误        | 检查错误日志，联系开发处理          |
-| 0x80006203 | Create virtual child table must use virtual super table | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                       | 创建虚拟子表的时候，USING 虚拟超级表  |
+| 错误码        | 错误描述                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施               |
+|------------|---------------------------------------------------------|------------------------------------------------|-------------------------|
+| 0x80006200 | Virtual table scan 算子内部错误                               | virtual table scan 算子内部逻辑错误，一般不会出现             | 具体查看client端的错误日志提示      |
+| 0x80006201 | Virtual table scan invalid downstream operator type     | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确 | 保留 explain 执行计划，联系开发处理  |
+| 0x80006202 | Virtual table prim timestamp column should not has ref  | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误        | 检查错误日志，联系开发处理           |
+| 0x80006203 | Create virtual child table must use virtual super table | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                       | 创建虚拟子表的时候，USING 虚拟超级表   |
+| 0x80006204 | Virtual table not support decimal type                  | 虚拟表不支持 decimal 类型                              | 创建虚拟表时不使用 decimal 类型的列/tag |
+| 0x80006205 | Virtual table not support in STMT query and STMT insert | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表     |
+| 0x80006206 | Virtual table not support in Topic                      | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表              |
+| 0x80006207 | Virtual super table query not support origin table from different databases                      | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库 |
 
+
+## TDgpt
+
+| 错误码     | 错误描述              | 可能的出错场景或者可能的原因                                                     | 建议用户采取的措施             |
+| ---------- | --------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
+| 0x80000440 | Analysis service response is NULL | 分析服务返回错误                                                   | 检查服务端日志确认返回信息是否正确 |
+| 0x80000441 | Analysis service can't access     | 分析服务无法使用 |  检查 anoded 服务是否可用        |
+| 0x80000442 | Analysis algorithm is missing     | 未指定分析算法名称     |   增加算法名称        |
+| 0x80000443 | Analysis algorithm not loaded | 指定算法未加载   |   指定算法未加载   |
+| 0x80000444 | Analysis invalid buffer type  | 缓存数据格式不对  | 具体查看server端的错误日志     |
+| 0x80000445 | Analysis failed since anode return error            | anode 返回错误信息  | 请检查服务端日志确认问题原因     |
+| 0x80000446 | Analysis failed since too many input rows for anode | 输入数据太多   | 减小分析数据输入规模     |
+| 0x80000447 | white-noise data not processed                      | 白噪声数据不分析   |    |
+| 0x80000448 | Analysis internal error, not processed                 | anode 出现内部错误   | 具体查看server端的日志 (taosanode.app.log)   |

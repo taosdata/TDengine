@@ -495,7 +495,7 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
             SDbCfg* cfg = benchArrayGet(database->cfgs, i);
 
             // check vgroups
-            if (strcasecmp(cfg->name, "vgroups") == 0) {
+            if (trimCaseCmp(cfg->name, "vgroups") == 0) {
                 if (vgroups > 0) {
                     // inputted vgroups by commandline
                     infoPrint("ignore config set vgroups %d\n", cfg->valueint);
@@ -1867,7 +1867,7 @@ static void *syncWriteInterlace(void *sarg) {
                             snprintf(
                                 pThreadInfo->lines[generated],
                                 stbInfo->lenOfCols + stbInfo->lenOfTags,
-                                "%s %s %" PRId64 "",
+                                "%s %s %" PRId64,
                                 pThreadInfo
                                     ->sml_tags[(int)tableSeq -
                                                pThreadInfo->start_table_from],
@@ -2268,7 +2268,7 @@ static int32_t prepareProgressDataSmlLineOrTelnet(
             snprintf(
                     pThreadInfo->lines[j],
                     stbInfo->lenOfCols + stbInfo->lenOfTags,
-                    "%s %s %" PRId64 "",
+                    "%s %s %" PRId64,
                     pThreadInfo->sml_tags[ti],
                     sampleDataBuf + pos * stbInfo->lenOfCols,
                     *timestamp);
@@ -3089,7 +3089,7 @@ static int64_t fillChildTblNameByCount(SSuperTable *stbInfo) {
         char childName[TSDB_TABLE_NAME_LEN]={0};
         snprintf(childName,
                  TSDB_TABLE_NAME_LEN,
-                 "%s%" PRIu64 "",
+                 "%s%" PRIu64,
                  stbInfo->childTblPrefix, i);
         stbInfo->childTblArray[i]->name = strdup(childName);
         debugPrint("%s(): %s\n", __func__,
@@ -3105,7 +3105,7 @@ static int64_t fillChildTblNameByFromTo(SDataBase *database,
         char childName[TSDB_TABLE_NAME_LEN]={0};
         snprintf(childName,
                 TSDB_TABLE_NAME_LEN,
-                "%s%" PRIu64 "",
+                "%s%" PRIu64,
                 stbInfo->childTblPrefix, i);
         stbInfo->childTblArray[i]->name = strdup(childName);
     }
@@ -3123,13 +3123,13 @@ static int64_t fillChildTblNameByLimitOffset(SDataBase *database,
     if (g_arguments->taosc_version == 3) {
         snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
                  "SELECT DISTINCT(TBNAME) FROM %s.`%s` LIMIT %" PRId64
-                 " OFFSET %" PRIu64 "",
+                 " OFFSET %" PRIu64,
                  database->dbName, stbInfo->stbName, stbInfo->childTblLimit,
                  stbInfo->childTblOffset);
     } else {
         snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
                  "SELECT TBNAME FROM %s.`%s` LIMIT %" PRId64
-                 " OFFSET %" PRIu64 "",
+                 " OFFSET %" PRIu64,
                  database->dbName, stbInfo->stbName, stbInfo->childTblLimit,
                  stbInfo->childTblOffset);
     }

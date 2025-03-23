@@ -4,6 +4,7 @@
 import os.path
 
 import joblib
+import keras
 import numpy as np
 import pandas as pd
 
@@ -13,8 +14,8 @@ from taosanalytics.util import create_sequences
 
 
 class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
-    name = 'ad_encoder'
-    desc = "anomaly detection based on auto encoder"
+    name = 'sample_ad_model'
+    desc = "sample anomaly detection model based on auto encoder"
 
     def __init__(self):
         super().__init__()
@@ -25,7 +26,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         self.threshold = None
         self.time_interval = None
         self.model = None
-        self.dir = 'ad_autoencoder'
+        self.dir = 'sample-ad-autoencoder'
 
         self.root_path = conf.get_model_directory()
 
@@ -61,11 +62,6 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         # Detect all the samples which are anomalies.
         anomalies = mae > self.threshold
 
-        # syslogger.log_inst(
-        #     "Number of anomaly samples: %f, Indices of anomaly samples:{}".
-        #     format(np.sum(anomalies), np.where(anomalies))
-        # )
-
         # data i is an anomaly if samples [(i - timesteps + 1) to (i)] are anomalies
         ad_indices = []
         for data_idx in range(self.time_interval - 1,
@@ -82,13 +78,13 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
         name = params['model']
 
-        module_file_path = f'{self.root_path}/{name}.dat'
+        module_file_path = f'{self.root_path}/{name}.keras'
         module_info_path = f'{self.root_path}/{name}.info'
 
         app_logger.log_inst.info("try to load module:%s", module_file_path)
 
         if os.path.exists(module_file_path):
-            self.model = joblib.load(module_file_path)
+            self.model = keras.models.load_model(module_file_path)
         else:
             app_logger.log_inst.error("failed to load autoencoder model file: %s", module_file_path)
             raise FileNotFoundError(f"{module_file_path} not found")

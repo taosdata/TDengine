@@ -1,3 +1,5 @@
+# Run unit-test and system-test cases for TDgpt when TDgpt code is changed.
+
 name: TDgpt Test
 
 on:
@@ -10,6 +12,7 @@ on:
       - 'tools/tdgpt/**'
       - 'source/libs/executor/src/forecastoperator.c'
       - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'source/dnode/mnode/impl/src/mndAnode.c'
       - 'include/common/tanalytics.h'
       - 'source/common/src/tanalytics.c'
       - 'tests/parallel/tdgpt_cases.task'

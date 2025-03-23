@@ -64,6 +64,7 @@ TAOS *taosConnect(const char *dbName);
 TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code);
 
 
+
 //
 // ---------------- hash map -----------------
 //
