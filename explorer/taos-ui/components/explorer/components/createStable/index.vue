@@ -222,27 +222,39 @@ function setFormData() {
   });
 }
 
-function typeChange(data: ColumnStruct, type: 'column' | 'tag', index: number) {
+// 类型修改
+async function typeChange(data: ColumnStruct, type: 'column' | 'tag') {
   // 不是修改状态就不处理
   if (!props.isEdit) return;
-  let params: changeStbStructData = {
-    operation: 'modify ' + type,
-    first_field: data.field,
-    second_field: '',
-  };
-  if (type == 'tag') {
-    //这里区分tag修改的是啥
-    params = {
-      operation: 'rename ' + type,
-      first_field: formData.tags[index].origin_field || '',
-      second_field: `\`${data.field}\``
-    };
-  }
 
-  if (data.length > 0 && data.origin_length !== data.length) {
-    params.second_field += composeType(data)
+  try {
+    if (data.length > 0 && data.origin_length !== data.length) {
+      const params: changeStbStructData = {
+        operation: 'modify ' + type,
+        first_field: data.origin_field || data.field,
+        second_field: composeType(data),
+      };
+      loading.value = true;
+      await changeStableStruct(params, formData.name, currentSelectedDb.value)
+    }
+
+    if (type === 'tag' && data.origin_field !== data.field) {
+      const params = {
+        operation: 'rename tag',
+        first_field: data.origin_field || '',
+        second_field: `\`${data.field}\``
+      };
+      loading.value = true;
+      await changeStableStruct(params, formData.name, currentSelectedDb.value)
+    }
+    
+    if (loading.value === true) {
+      ElMessage.success(t('msg.modifySuccess'));
+      setFormData();
+    }
+  } finally {
+    loading.value = false;
   }
-  updateData(params);
 }
 // 当修改时更新数据的接口，与新增无关
 function updateData(params: changeStbStructData) {

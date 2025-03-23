@@ -162,8 +162,11 @@ async function importTasks() {
   tasksToImport.labels = [`cluster-id::${instance.tdClusterId}`, "type::datain", `user::${instance?.user}`];
   requestIng.value = true;
   try {
-    await dataInProps.task.api.importTask(tasksToImport);
+    const res = await dataInProps.task.api.importTask(tasksToImport);
     dlgTaskListShow.value = false;
+    if (res.code > 0 && res.message) {
+      ElMessage.error(res.message);
+    }
     emit('importOK');
   } catch (err) {
     ElMessage.error(err.message);
