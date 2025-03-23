@@ -97,8 +97,7 @@ macro(INIT_EXT name)               # {
         else()
             if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
                 # make homebrew-installed-libs available
-                # NOTE: make /usr/local/include as public, and better approach?
-                target_include_directories(${tgt} PUBLIC "/usr/local/include")
+                target_include_directories(${tgt} PUBLIC "${BREW_PREFIX}/include")
             endif()
         endif()
     endmacro()                               # }
@@ -126,8 +125,7 @@ macro(INIT_EXT name)               # {
             endforeach()
             if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
                 # make homebrew-installed-libs available
-                # NOTE: make /usr/local/lib as public, and better approach?
-                target_link_directories(${tgt} PUBLIC "/usr/local/lib")
+                target_link_directories(${tgt} PUBLIC "${BREW_PREFIX}/lib")
             endif()
         endif()
         add_definitions(-D_${name})

@@ -1,3 +1,11 @@
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+  if(NOT BREW_PREFIX)
+      execute_process(COMMAND brew --prefix OUTPUT_VARIABLE BREW_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+      set(BREW_PREFIX "${BREW_PREFIX}" CACHE STRING "Homebrew installation prefix")
+  endif()
+  message(STATUS "Homebrew prefix: ${BREW_PREFIX}")
+endif()
+
 macro(check_lib)
   set(options)
   set(oneValueArgs NAME HEADER_FILE LIBNAME SYMBOL)
@@ -24,9 +32,7 @@ macro(check_lib)
   set(_symbol   ${arg_check_lib_SYMBOL})
 
   if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    # /usr/local is by default location
-    # where software/libs are installed via homebrew
-    set(CMAKE_REQUIRED_FLAGS "-I/usr/local/include -L/usr/local/lib")
+    set(CMAKE_REQUIRED_FLAGS "-I${BREW_PREFIX}/include -L${BREW_PREFIX}/lib")
   endif()
 
   check_library_exists(${_lib} ${_symbol} "" HAVE_LIB_${_name})
