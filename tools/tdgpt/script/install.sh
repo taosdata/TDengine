@@ -409,6 +409,7 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install torch --index-url https://download.pytorch.org/whl/cpu
   ${csudo}${venvDir}/bin/pip3 install --upgrade keras
   ${csudo}${venvDir}/bin/pip3 install requests
+  ${csudo}${venvDir}/bin/pip3 install taospy
 
   echo -e "Install python library for venv completed!"
 }
