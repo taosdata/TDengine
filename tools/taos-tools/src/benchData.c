@@ -256,13 +256,13 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
                        "INSERT INTO ? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
                        db, stbInfo->stbName, tagQ, ttl, colQ);
     } else {
-        if (g_arguments->connMode == CONN_MODE_NATIVE) {
+        if (workingMode(g_arguments->connMode, g_arguments->dsn) == CONN_MODE_NATIVE) {
             // native
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO ? VALUES(?,%s)", colQ);
         } else {
             // websocket
-            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // nomral table
+            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
             colNames = genColNames(stbInfo->cols, !ntb);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, stbInfo->stbName, colNames,

@@ -1,13 +1,10 @@
-name: TDengine Build
+name: TDengine Release Build
 
 on:
-  pull_request:
+  push:
     branches:
       - 'main'
-      - '3.0'
-      - '3.1'
-      - '3.3.6'
-      - 'enh/cmake-TD-33848'
+      - '3.*'
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
@@ -26,12 +23,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
           - ubuntu-22.04
-          - ubuntu-24.04
-          - macos-13
           - macos-14
-          - macos-15
 
     steps:
       - name: Checkout the repository
@@ -73,11 +66,6 @@ jobs:
             pkg-config \
             snappy \
             zlib
-
-      - name: prepare install path
-        run: |
-          sudo mkdir -p /usr/local/lib
-          sudo mkdir -p /usr/local/include
 
       - name: Build and install TDengine
         run: |
