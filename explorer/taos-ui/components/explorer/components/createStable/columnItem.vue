@@ -35,6 +35,7 @@
             placeholder="ENCODE"
             class="column-width"
             clearable
+            @change="valueChange"
           >
             <el-option
               v-for="item in getStbEncodeAndCompressListByType(currentValue.type)['encodeList']"
@@ -52,6 +53,7 @@
             placeholder="COMPRESS"
             class="column-width"
             clearable
+            @change="valueChange"
           >
             <el-option
               v-for="item in getStbEncodeAndCompressListByType(currentValue.type)['compressList']"
@@ -68,6 +70,7 @@
             placeholder="LEVEL"
             class="column-width"
             clearable
+            @change="valueChange"
           >
             <el-option v-for="item in levelList" :key="item.value" v-bind="item"></el-option>
           </el-select> </el-tooltip
@@ -81,6 +84,7 @@
           <el-checkbox
             v-model="currentValue.primaryKey"
             :disabled="isEdit || parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1"
+            @change="valueChange"
             >PRIMARY KEY</el-checkbox
           >
         </el-tag>
@@ -93,7 +97,7 @@
         :disabled="inputDisabled"
         :placeholder="placeholder"
         @blur="validName"
-        @change="errorText = ''"
+        @change="fieldChange"
       >
         <template #append>
           <template v-if="isAdd">
@@ -156,10 +160,16 @@ const btnDisabled = computed(() =>
     ? !props.modelValue.field
     : !props.modelValue.field || !VariableTableColumnType.includes(props.modelValue.type)
 );
-const currentValue = computed({
-  get: () => props.modelValue,
-  set: val => emits('update:modelValue', val)
+const currentValue: any = reactive({
+  "field":"",
+  "primaryKey" : false,
+  "type": "TIMESTAMP",
+  "length": 8,
+  "compress": "lz4",
+  "encode": "simple8b",
+  "level": "medium",
 });
+
 const emits = defineEmits([
   'update:modelValue',
   'cancel',
@@ -170,49 +180,68 @@ const emits = defineEmits([
   'typeChange'
 ]);
 
+
+const valueChange = () => {
+  const updateValue: any = {};
+    for (const key in props.modelValue) {
+      updateValue[key] = currentValue[key];
+    }
+    emits('update:modelValue', updateValue);
+};
+const fieldChange = () => {
+  errorText.value = ''
+  valueChange();
+};
+
 watch(
   () => props.modelValue,
-  (newval, oldval) => {
-    if (newval !== oldval) {
-      minTypeLength = Math.max(8, newval.length);
+  (newval) => {
+    for (const key in newval) {
+      currentValue[key] = newval[key];
+    }
+    if (props.isEdit && newval.origin_length > 8) {
+      minTypeLength = newval.origin_length;
     }
   },
   { immediate: true }
 );
 
 function processTypeLength(val: number | string) {
-  if (!val) return (currentValue.value.length = minTypeLength);
+  if (!val) return (currentValue.length = minTypeLength);
   val = Number(val);
-  currentValue.value.length = Math.min(
+  currentValue.length = Math.min(
     Math.max(val, minTypeLength),
-    VariableTableColumnTypeMaxLenthMap[currentValue.value.type as ColumnTypeMaxLenMapKey]
+    VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]
   );
+  valueChange();
 }
 
 function typeChange(val: string) {
   if (VariableTableColumnType.includes(val)) {
-    currentValue.value.length = Math.max(currentValue.value.length, minTypeLength);
+    currentValue.length = Math.max(currentValue.length, minTypeLength);
   }
-  if (hasOwnProperty(currentValue.value, 'encode')) {
-    const data = getStbEncodeAndCompressListByType(currentValue.value.type);
+  if (hasOwnProperty(currentValue, 'encode')) {
+    const data = getStbEncodeAndCompressListByType(currentValue.type);
     const { defaultEncode, defaultCompress } = data;
-    currentValue.value.encode = defaultEncode;
-    currentValue.value.compress = defaultCompress;
-    currentValue.value.level = 'medium';
+    currentValue.encode = defaultEncode;
+    currentValue.compress = defaultCompress;
+    currentValue.level = 'medium';
     // 如果不支持 primary key
     if (
-      currentValue.value.primaryKey &&
-      parmaryKeyType.findIndex(item => item.value.includes(currentValue.value.type)) == -1
+      currentValue.primaryKey &&
+      parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1
     ) {
-      currentValue.value.primaryKey = false;
+      currentValue.primaryKey = false;
     }
   }
+  valueChange();
 }
 function validName() {
   if (validTDKeywords(props.modelValue.field)) {
     errorText.value = t('explorer.tdKewordTip', [props.modelValue.field]);
   }
 }
+
 </script>
 
 <style scoped lang="scss">
