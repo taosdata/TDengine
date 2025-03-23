@@ -64,6 +64,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   }
   mndTransSetSerial(pTrans);
   mndTransSetChangeless(pTrans);
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
   mInfo("trans:%d, used to balance vgroup leader", pTrans->id);
   mInfo("trans:%d, the transaction will balance vgroups for vgId:%d, db:%s", pTrans->id, req.vgId, req.db);
 
@@ -90,7 +91,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
 
   if (count == 0) {
     mError("trans:%d, no match found, vgId:%d, db:%s", pTrans->id, req.vgId, req.db);
-    code = TSDB_CODE_TSC_INVALID_OPERATION;
+    code = TSDB_CODE_MND_NO_VGROUP_ON_DB;
     goto _OVER;
   }
 

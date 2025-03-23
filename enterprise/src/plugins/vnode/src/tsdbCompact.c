@@ -18,6 +18,7 @@
 #include "../../../../../source/dnode/vnode/src/tsdb/tsdbFSetRW.h"
 #include "../../../../../source/dnode/vnode/src/tsdb/tsdbIter.h"
 #include "../../../../../source/dnode/vnode/src/tsdb/tsdbSttFileRW.h"
+#include "meta.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -47,8 +48,7 @@ typedef struct {
   TFileOpArray fopArr[1];
 
   struct {
-    SDiskID did;
-
+    int32_t expLevel;
     // reader
     SDataFileReader    *dataReader;
     TSttFileReaderArray sttReaderArr[1];
@@ -63,6 +63,7 @@ typedef struct {
     SFSetWriter *writer;
 
     TABLEID tbid[1];
+    SHashObj *pKeepHashObj;  // SHashObj<suid, keep>
 
     // skyline
     SArray  *aSkyLine;
@@ -76,6 +77,7 @@ typedef struct {
   STsdb    *tsdb;
   int32_t   fid;
   SVATaskID taskid;
+  bool      s3Migrate;
 } SCompactArg;
 
 static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
@@ -244,7 +246,7 @@ static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
       .cmprAlg = compactor->cmprAlg,
       .fid = compactor->fset->fid,
       .cid = compactor->cid,
-      .did = compactor->ctx->did,
+      .expLevel = compactor->ctx->expLevel,
       .level = 0,
       .lcn = lcn,
   };
@@ -425,13 +427,52 @@ static bool tsdbRowIsDeleted(SCompactor2 *compactor, TSDBROW *row) {
   return false;
 }
 
+static bool tsdbRowIsExpired(SCompactor2 *compactor, TSDBROW *row, int64_t keep, int64_t expireTs) {
+  if (keep <= 0) {
+    return false;
+  }
+  TSDBKEY tKey = TSDBROW_KEY(row);
+
+  tsdbDebug("vgId:%d, tKey.ts:%" PRId64 ", expireTs:%" PRId64, TD_VID(compactor->tsdb->pVnode), tKey.ts, expireTs);
+  return (tKey.ts < expireTs);
+}
+
+static int32_t tsdbCompactFSetGetKeep(SCompactor2 *compactor, int64_t suid, int64_t *keep) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (compactor->ctx->pKeepHashObj == NULL) {
+    compactor->ctx->pKeepHashObj =
+        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  }
+
+  int64_t *pKeep = (int64_t *)taosHashGet(compactor->ctx->pKeepHashObj, &suid, sizeof(suid));
+  if (pKeep == NULL) {
+    *keep = metaGetStbKeep(compactor->tsdb->pVnode->pMeta, suid);
+    taosHashPut(compactor->ctx->pKeepHashObj, &suid, sizeof(suid), &keep, sizeof(keep));
+  } else {
+    *keep = *pKeep;
+  }
+  return code;
+}
+
 static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
   SMetaInfo info;
   int64_t   numOfRow = 0;
+  int64_t   keep = 0;
+  int64_t   now = taosGetTimestamp(compactor->tsdb->keepCfg.precision);
+  int64_t   expireTs = 0;
+
   for (SRowInfo *row; (row = tsdbIterMergerGetData(compactor->ctx->dataIterMerger)) != NULL;) {
+    if (row->suid != compactor->ctx->tbid->suid) {
+      code = tsdbCompactFSetGetKeep(compactor, row->suid, &keep);
+      expireTs = now - (tsTickPerMin[compactor->tsdb->keepCfg.precision] * keep);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
     if (row->uid != compactor->ctx->tbid->uid) {
       code = tsdbCompactFSetTableDataEnd(compactor);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -447,7 +488,8 @@ static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    if (compactor->ctx->pDKey == NULL || !tsdbRowIsDeleted(compactor, &row->row)) {
+    if ((compactor->ctx->pDKey == NULL || !tsdbRowIsDeleted(compactor, &row->row)) &&
+        !tsdbRowIsExpired(compactor, &row->row, keep, expireTs)) {
       code = tsdbFSetWriteRow(compactor->ctx->writer, row);
       TSDB_CHECK_CODE(code, lino, _exit);
       numOfRow++;
@@ -484,18 +526,15 @@ static void tsdbCompactEnd(SCompactor2 *compactor) {
   TARRAY2_DESTROY(compactor->ctx->dataIterArr, NULL);
   TARRAY2_DESTROY(compactor->ctx->sttReaderArr, NULL);
   TARRAY2_DESTROY(compactor->fopArr, NULL);
+  taosHashCleanup(compactor->ctx->pKeepHashObj);
 }
 
 static int32_t tsdbDoCompact(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  STsdb  *tsdb = compactor->tsdb;
-  int32_t expLevel = tsdbFidLevel(compactor->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
-  if (expLevel < 0) return 0;
-
-  code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  STsdb *tsdb = compactor->tsdb;
+  compactor->ctx->expLevel = tsdbFidLevel(compactor->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
 
   tsdbInfo("vgId:%d compact fileset:%d start", TD_VID(tsdb->pVnode), compactor->fset->fid);
 
@@ -576,7 +615,9 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&compactor.fset);
   TARRAY2_DESTROY(compactor.fopArr, NULL);
-  tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
+  if (!compactArg->s3Migrate) { 
+    tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
+  }
   taosMemoryFree(arg);
 
   if (code) {
@@ -587,7 +628,7 @@ _exit:
 
 static void tsdbCompactCancel(void *arg) { taosMemoryFree(arg); }
 
-static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
+static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool s3Migrate) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -612,6 +653,14 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
 
     arg->tsdb = tsdb;
     arg->fid = fset->fid;
+    arg->s3Migrate = s3Migrate;
+
+    // if the compact task is already running, skip it
+    // because the compact task may be running by s3 migrate
+    if (vnodeATaskValid(&fset->compactTask)) {
+      taosMemoryFree(arg);
+      continue;
+    }
 
     code = vnodeAsync(COMPACT_TASK_ASYNC, EVA_PRIORITY_NORMAL, tsdbCompact, tsdbCompactCancel, arg, &fset->compactTask);
     if (code) {
@@ -619,18 +668,19 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
       arg->taskid = fset->compactTask;
-      int64_t compactSize = 0;
-      if (fset->farr[TSDB_FTYPE_DATA]) {
-        compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
-      }
+      if (!s3Migrate) {
+        int64_t compactSize = 0;
+        if (fset->farr[TSDB_FTYPE_DATA]) {
+          compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
+        }
 
-      SSttLvl *lvl;
-      TARRAY2_FOREACH(fset->lvlArr, lvl) {
-        STFileObj *fobj;
-        TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
+        SSttLvl *lvl;
+        TARRAY2_FOREACH(fset->lvlArr, lvl) {
+          STFileObj *fobj;
+          TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
+        }
+        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
       }
-
-      TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
     }
   }
 
@@ -641,10 +691,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw) {
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate) {
   int32_t code = 0;
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  code = tsdbAsyncCompactImpl(tsdb, tw);
+  code = tsdbAsyncCompactImpl(tsdb, tw, s3Migrate);
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return code;
 }

@@ -271,7 +271,8 @@ typedef enum {
   GRANT_OPT_DUAL_REPLICA_HA = 11,
   GRANT_OPT_DB_ENCRYPTION = 12,
   GRANT_OPT_DATA_SYNC = 13,
-  GRANT_OPT_DYN_MAX = 14,
+  GRANT_OPT_TD_GPT = 14,  // since 3.3.6.0
+  GRANT_OPT_DYN_MAX = 15,
 } SGrantOpt;
 
 typedef struct {
@@ -399,7 +400,8 @@ typedef struct {
       int64_t objectStorageExpired : 1;
       int64_t dualReplicaHAExpired : 1;
       int64_t dbEncryptionExpired : 1;
-      int64_t reserve2 : 5;
+      int64_t tdGptExpired : 1;  // since 3.3.6.0
+      int64_t reserve2 : 4;
     };
   };
   union {
@@ -476,6 +478,13 @@ typedef struct {
     struct {
       int64_t dataSyncExpireSec : 40;
       int64_t reserve11 : 24;
+    };
+  };
+  union {
+    int64_t p15; // since 3.3.6.0
+    struct {
+      int64_t tdGptExpireSec : 40;
+      int64_t reserve12 : 24;
     };
   };
   int64_t limitTimeSeries;

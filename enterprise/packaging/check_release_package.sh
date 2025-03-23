@@ -167,9 +167,9 @@ t        exit 1
         print "${RED}TDinsight.sh not find in package${RES}"
         exit 1
     fi
-    if [ ! -e udfd ]
+    if [ ! -e taosudf ]
     then
-        print "${RED}udfd not find in package${RES}"
+        print "${RED}taosudf not find in package${RES}"
         exit 1
     fi
     print "${GREEN} check enterprise package's bin folder correct.${RES}"
@@ -251,9 +251,9 @@ CheckCommunityBinFiles(){
         print "${RED}TDinsight.sh not found in this conmmunity package ${RES}"
         exit 1
     fi
-    if [ ! -e udfd ]
+    if [ ! -e taosudf ]
     then
-        print "${RED}udfd not found in this conmmunity package ${RES}"
+        print "${RED}taosudf not found in this conmmunity package ${RES}"
         exit 1
     fi
     print "${GREEN}check community package's bin folder done.${RES}"
