@@ -22,6 +22,7 @@ class TDTestCase:
         res_ts = tdSql.getData(0, 0)
         return res_ts
 
+    
     def force_window_close(
         self,
         interval,
