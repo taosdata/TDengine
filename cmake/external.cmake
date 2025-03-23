@@ -32,28 +32,47 @@ macro(INIT_EXT name)               # {
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
     set(${name}_byproducts "")
+    set(${name}_have_dev          FALSE)
+    set(${name}_build_contrib     FALsE)
 
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs INC_DIR LIB BYPRODUCTS)
+    set(multiValueArgs INC_DIR LIB BYPRODUCTS CHK_NAME)
     cmake_parse_arguments(arg_INIT_EXT
         "${options}" "${oneValueArgs}" "${multiValueArgs}"
         ${ARGN}
     )
 
-    foreach(v ${arg_INIT_EXT_INC_DIR})
-      list(APPEND ${name}_inc_dir      "${_ins}/${v}")
-    endforeach()
-    foreach(v ${arg_INIT_EXT_LIB})
-      list(APPEND ${name}_libs         "${_ins}/${v}")
-    endforeach()
-    foreach(v ${arg_INIT_EXT_BYPRODUCTS})
-      list(APPEND ${name}_byproducts   "${_ins}/${v}")
-    endforeach()
-
-    if(NOT TD_EXTERNALS_USE_ONLY)
-        add_library(${name}_imp STATIC IMPORTED)
+    if(NOT "${HAVE_DEV_${arg_INIT_EXT_CHK_NAME}}")
+      set(${name}_have_dev   FALSE)
+    else()
+      set(${name}_have_dev   TRUE)
     endif()
+
+    if(${BUILD_CONTRIB} OR NOT ${${name}_have_dev})
+      set(${name}_build_contrib     TRUE)
+    else()
+      set(${name}_build_contrib     FALSE)
+    endif()
+
+    if(${${name}_build_contrib})
+      foreach(v ${arg_INIT_EXT_INC_DIR})
+        list(APPEND ${name}_inc_dir      "${_ins}/${v}")
+      endforeach()
+      foreach(v ${arg_INIT_EXT_LIB})
+        list(APPEND ${name}_libs         "${_ins}/${v}")
+      endforeach()
+      foreach(v ${arg_INIT_EXT_BYPRODUCTS})
+        list(APPEND ${name}_byproducts   "${_ins}/${v}")
+      endforeach()
+
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_library(${name}_imp STATIC IMPORTED)
+      endif()
+    else()
+      set(${name}_libs "${${arg_INIT_EXT_CHK_NAME}_LIBNAMES}")
+    endif()
+
     # eg.: DEP_ext_zlib(tgt)
     #      make tgt depend on ext_zlib, and call target_include_directories/target_link_libraries accordingly
     #      NOTE: currently, full path to the target's artifact is used, such as libz.a
@@ -65,51 +84,59 @@ macro(INIT_EXT name)               # {
         endif()
     endmacro()                       # }
     macro(DEP_${name}_INC tgt)               # {
-        foreach(v ${${name}_inc_dir})
-            target_include_directories(${tgt} PUBLIC "${v}")
-        endforeach()
-        if(NOT TD_EXTERNALS_USE_ONLY)     # {
-            foreach(v ${${name}_libs})
-                set_target_properties(${name}_imp PROPERTIES
-                    IMPORTED_LOCATION "${v}"
-                )
+        if(${${name}_build_contrib})
+            foreach(v ${${name}_inc_dir})
+                target_include_directories(${tgt} PUBLIC "${v}")
             endforeach()
-            foreach(v ${${name}_byproducts})
-                set_target_properties(${name}_imp PROPERTIES
-                    IMPORTED_LOCATION "${v}"
-                )
-            endforeach()
-            add_dependencies(${tgt} ${name})
-        endif()                           # }
-        add_definitions(-D_${name})
-        if("z${name}" STREQUAL "zext_gtest")
-            target_compile_features(${tgt} PUBLIC cxx_std_11)
-            find_package(Threads REQUIRED)
-            target_link_libraries(${tgt} PRIVATE Threads::Threads)
+            if(NOT TD_EXTERNALS_USE_ONLY)     # {
+                foreach(v ${${name}_libs})
+                    set_target_properties(${name}_imp PROPERTIES
+                        IMPORTED_LOCATION "${v}"
+                    )
+                endforeach()
+                foreach(v ${${name}_byproducts})
+                    set_target_properties(${name}_imp PROPERTIES
+                        IMPORTED_LOCATION "${v}"
+                    )
+                endforeach()
+                add_dependencies(${tgt} ${name})
+            endif()                           # }
+            add_definitions(-D_${name})
+            if("z${name}" STREQUAL "zext_gtest")
+                target_compile_features(${tgt} PUBLIC cxx_std_11)
+                find_package(Threads REQUIRED)
+                target_link_libraries(${tgt} PRIVATE Threads::Threads)
+            endif()
         endif()
     endmacro()                               # }
     macro(DEP_${name}_LIB tgt)               # {
-        if(NOT TD_EXTERNALS_USE_ONLY)     # {
+        if(${${name}_build_contrib})
+            if(NOT TD_EXTERNALS_USE_ONLY)     # {
+                foreach(v ${${name}_libs})
+                    set_target_properties(${name}_imp PROPERTIES
+                        IMPORTED_LOCATION "${v}"
+                    )
+                endforeach()
+                foreach(v ${${name}_byproducts})
+                    set_target_properties(${name}_imp PROPERTIES
+                        IMPORTED_LOCATION "${v}"
+                    )
+                endforeach()
+                add_dependencies(${tgt} ${name})
+            endif()                           # }
             foreach(v ${${name}_libs})
-                set_target_properties(${name}_imp PROPERTIES
-                    IMPORTED_LOCATION "${v}"
-                )
+                target_link_libraries(${tgt} PRIVATE "${v}")
             endforeach()
-            foreach(v ${${name}_byproducts})
-                set_target_properties(${name}_imp PROPERTIES
-                    IMPORTED_LOCATION "${v}"
-                )
+            if(NOT ${TD_WINDOWS})       # {
+              if("z${name}" STREQUAL "zext_libuv")
+                  target_link_libraries(${tgt} PUBLIC dl)
+              endif()
+            endif()                     # }
+        else()
+            foreach(v ${${name}_libs})
+                target_link_libraries(${tgt} PRIVATE "${v}")
             endforeach()
-            add_dependencies(${tgt} ${name})
-        endif()                           # }
-        foreach(v ${${name}_libs})
-            target_link_libraries(${tgt} PRIVATE "${v}")
-        endforeach()
-        if(NOT ${TD_WINDOWS})       # {
-          if("z${name}" STREQUAL "zext_libuv")
-              target_link_libraries(${tgt} PUBLIC dl)
-          endif()
-        endif()                     # }
+        endif()
         add_definitions(-D_${name})
     endmacro()                               # }
 endmacro()                         # }
@@ -152,6 +179,7 @@ endif()
 INIT_EXT(ext_zlib
     INC_DIR          include
     LIB              lib/${ext_zlib_static}
+    CHK_NAME         ZLIB
 )
 # GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
 # GIT_TAG        v1.2.11
@@ -415,6 +443,7 @@ endif()
 INIT_EXT(ext_lz4
     INC_DIR          include
     LIB              lib/${ext_lz4_static}
+    CHK_NAME         LZ4
 )
 # GIT_REPOSITORY https://github.com/taosdata-contrib/lz4.git
 # GIT_TAG v1.9.3
@@ -609,6 +638,7 @@ if(${BUILD_WITH_UV})        # {
     INIT_EXT(ext_libuv
         INC_DIR          include
         LIB              lib/${ext_libuv_static}
+        CHK_NAME         LIBUV
     )
     # GIT_REPOSITORY https://github.com/libuv/libuv.git
     # GIT_TAG v1.49.2
@@ -728,6 +758,7 @@ if(${BUILD_WITH_SQLITE})    # {
     INIT_EXT(ext_sqlite
         INC_DIR          include
         LIB              lib/${ext_sqlite_static}
+        CHK_NAME         SQLITE3
     )
     # GIT_REPOSITORY https://github.com/sqlite/sqlite.git
     # GIT_TAG version-3.36.0
@@ -801,6 +832,7 @@ if(NOT ${TD_WINDOWS})       # {
         INC_DIR          include
         LIB              ${_lib}/${ext_ssl_static}
                          ${_lib}/${ext_crypto_static}
+        CHK_NAME         SSL
     )
     # URL https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz
     # URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
@@ -836,6 +868,9 @@ if(NOT ${TD_WINDOWS})       # {
     INIT_EXT(ext_curl
         INC_DIR          include
         LIB              lib/${ext_curl_static}
+        # currently: tqStreamNotify.c uses curl_ws_send, but CURL4_OPENSSL exports curl_easy_send
+        #            libcurl4-openssl-dev on ubuntu 22.04 is too old
+        # CHK_NAME         CURL4_OPENSSL
     )
     # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
     # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
@@ -882,6 +917,7 @@ if(${BUILD_GEOS})           # {
         INC_DIR          include
         LIB              lib/${ext_geos_c_static}
                          lib/${ext_geos_static}
+        CHK_NAME         GEOS
     )
     # GIT_REPOSITORY https://github.com/libgeos/geos.git
     # GIT_TAG 3.12.0
@@ -1098,6 +1134,7 @@ if(TD_TAOS_TOOLS)
     INIT_EXT(ext_jansson
         INC_DIR          include
         LIB              lib/${ext_jansson_static}
+        CHK_NAME         JANSSON
     )
     get_from_local_repo_if_exists("https://github.com/akheron/jansson.git")
     ExternalProject_Add(ext_jansson
@@ -1127,6 +1164,7 @@ if(TD_TAOS_TOOLS)
     INIT_EXT(ext_snappy
         INC_DIR          include
         LIB              lib/${ext_snappy_static}
+        CHK_NAME         snappy
     )
     get_from_local_repo_if_exists("https://github.com/google/snappy.git")
     ExternalProject_Add(ext_snappy
@@ -1168,6 +1206,7 @@ if(TD_TAOS_TOOLS)
     INIT_EXT(ext_avro
         INC_DIR          include
         LIB              lib/${ext_avro_static}
+        CHK_NAME         AVRO
     )
     get_from_local_repo_if_exists("https://github.com/apache/avro.git")
     ExternalProject_Add(ext_avro

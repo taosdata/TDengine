@@ -6,7 +6,10 @@ project(
   DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
+include(ExternalProject)
 include(CheckIncludeFile)
+include(CheckLibraryExists)
+include(CheckSymbolExists)
 
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
   cmake_policy(SET CMP0135 NEW)
@@ -26,6 +29,7 @@ include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
 
+include(${TD_SUPPORT_DIR}/check_env.cmake)
 include(${TD_SUPPORT_DIR}/external.cmake)
 
 # contrib
