@@ -8,15 +8,15 @@ IF(NOT TD_DARWIN)
 
         ADD_EXECUTABLE(schedulerTest ${SOURCE_LIST})
 
-        IF (TD_GRANT)
+        IF(TD_GRANT)
                 TARGET_LINK_LIBRARIES(
                         schedulerTest
-                        PUBLIC os util common catalog transport gtest qcom ${TAOS_LIB_STATIC} planner scheduler grant
+                        PUBLIC os util common catalog transport gtest qcom ${TAOS_NATIVE_LIB_STATIC} planner scheduler grant
                 )
-        ELSE ()
+        ELSE()
                 TARGET_LINK_LIBRARIES(
                         schedulerTest
-                        PUBLIC os util common catalog transport gtest qcom ${TAOS_LIB_STATIC} planner scheduler
+                        PUBLIC os util common catalog transport gtest qcom ${TAOS_NATIVE_LIB_STATIC} planner scheduler
                 )
         ENDIF()
 
@@ -28,6 +28,5 @@ IF(NOT TD_DARWIN)
         add_test(
                 NAME schedulerTest
                 COMMAND schedulerTest
-            )
-        
+        )
 ENDIF()
