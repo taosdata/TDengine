@@ -17,7 +17,7 @@ ANOMALY_WINDOW(col_val, "algo=iqr");
 
 如下图所示，Anode 将返回时序数据异常窗口 $[10:51:30, 10:53:40]$ 
 
-<img src={ad} width="760" alt="异常检测" />
+<img src={ad} alt="异常检测"/>
 
 在此基础上，用户可以针对异常窗口内的时序数据进行查询聚合、变换处理等操作。
 
@@ -98,7 +98,8 @@ grubbs={}
 lof={"algorithm":"auto", "n_neighbor": 3}
 ```
 
-对比程序执行完成以后，会自动生成名称为`ad_result.xlsx` 的文件，第一个卡片是算法运行结果（如下图所示），分别包含了算法名称、执行调用参数、查全率、查准率、执行时间 5 个指标。
+对比程序执行完成以后，会自动生成名称为 `ad_result.xlsx` 的文件，第一个卡片是算法运行结果（如下表所示），分别包含了算法名称、执行调用参数、查全率、查准率、执行时间 5 个指标。
+
 
 
 | algorithm | params                                 | precision(%) | recall(%) | elapsed_time(ms.) |
@@ -111,5 +112,6 @@ lof={"algorithm":"auto", "n_neighbor": 3}
 
 如果设置了 `gen_figure` 为 `true`，比较程序会自动将每个参与比较的算法分析结果采用图片方式呈现出来（如下图所示为 ksigma 的异常检测结果标注）。
 
-<img src={ad_result} width="540" alt="异常检测标注图" />
+<img src={ad_result} alt="异常检测标注图"/>
+
 
