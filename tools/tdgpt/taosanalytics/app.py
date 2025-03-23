@@ -147,7 +147,7 @@ def handle_forecast_req():
 
     try:
         res1 = do_forecast(payload[data_index], payload[ts_index], algo, params)
-        res = {"option": options, "rows": params["fc_rows"]}
+        res = {"option": options, "rows": params["rows"]}
         res.update(res1)
 
         app_logger.log_inst.debug("forecast result: %s", res)

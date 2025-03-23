@@ -77,14 +77,14 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.period = 0
         self.start_ts = 0
         self.time_step = 0
-        self.fc_rows = 0
+        self.rows = 0
 
         self.return_conf = 1
         self.conf = 0.05
 
     def set_params(self, params: dict) -> None:
-        if not {'start_ts', 'time_step', 'fc_rows'}.issubset(params.keys()):
-            raise ValueError('params are missing, start_ts, time_step, fc_rows are all required')
+        if not {'start_ts', 'time_step', 'rows'}.issubset(params.keys()):
+            raise ValueError('params are missing, start_ts, time_step, rows are all required')
 
         self.start_ts = int(params['start_ts'])
 
@@ -93,9 +93,9 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         if self.time_step <= 0:
             raise ValueError('time_step should be greater than 0')
 
-        self.fc_rows = int(params['fc_rows'])
+        self.rows = int(params['rows'])
 
-        if self.fc_rows <= 0:
+        if self.rows <= 0:
             raise ValueError('fc rows is not specified yet')
 
         self.period = int(params['period']) if 'period' in params else 0
@@ -113,5 +113,5 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
     def get_params(self):
         return {
             "period": self.period, "start": self.start_ts, "every": self.time_step,
-            "forecast_rows": self.fc_rows, "return_conf": self.return_conf, "conf": self.conf
+            "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf
         }
