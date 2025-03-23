@@ -219,11 +219,14 @@ if(${BUILD_PTHREAD})        # {
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${_ins}/bin/${ext_pthread_dll} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${ext_pthread_dll}
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
     add_dependencies(build_externals ext_pthread)     # this is for github workflow in cache-miss step.
+    add_custom_target(copy_pthreadVC3 ALL
+        DEPENDS ext_pthread
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${_ins}/bin/${ext_pthread_dll} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${ext_pthread_dll}
+    )
 endif()                     # }
 
 # iconv
