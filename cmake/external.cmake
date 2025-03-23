@@ -507,7 +507,8 @@ endif()
 INIT_EXT(ext_xz
     INC_DIR          include
     LIB              lib/${ext_xz_static}
-    CHK_NAME         LZMA
+    # debugging github working flow
+    # CHK_NAME         LZMA
 )
 # GIT_REPOSITORY https://github.com/xz-mirror/xz.git
 # GIT_TAG v5.4.4
@@ -827,7 +828,8 @@ if(NOT ${TD_WINDOWS})       # {
         INC_DIR          include
         LIB              ${_lib}/${ext_ssl_static}
                          ${_lib}/${ext_crypto_static}
-        CHK_NAME         SSL
+        # debugging github working flow
+        # CHK_NAME         SSL
     )
     # URL https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz
     # URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
