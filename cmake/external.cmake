@@ -107,6 +107,12 @@ macro(INIT_EXT name)               # {
                 find_package(Threads REQUIRED)
                 target_link_libraries(${tgt} PRIVATE Threads::Threads)
             endif()
+        else()
+            if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+                # make homebrew-installed-libs available
+                # NOTE: make /usr/local/include as public, and better approach?
+                target_include_directories(${tgt} PUBLIC "/usr/local/include")
+            endif()
         endif()
     endmacro()                               # }
     macro(DEP_${name}_LIB tgt)               # {
@@ -136,6 +142,11 @@ macro(INIT_EXT name)               # {
             foreach(v ${${name}_libs})
                 target_link_libraries(${tgt} PRIVATE "${v}")
             endforeach()
+            if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+                # make homebrew-installed-libs available
+                # NOTE: make /usr/local/lib as public, and better approach?
+                target_link_directories(${tgt} PUBLIC "/usr/local/lib")
+            endif()
         endif()
         add_definitions(-D_${name})
     endmacro()                               # }

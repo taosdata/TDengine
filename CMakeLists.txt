@@ -25,11 +25,21 @@ set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
 include(${TD_SUPPORT_DIR}/cmake.platform)
-include(${TD_SUPPORT_DIR}/cmake.define)
+
+# NOTE: option(...) shall always comes first
+#       thus you have the oppotunity to set variables accordingly later,
+#       especially in cmake.define
 include(${TD_SUPPORT_DIR}/cmake.options)
+
+# NOTE: we move check_env.cmake before cmake.define,
+#       because -Werror would be included in cmake.define to CMAKE_C_FLAGS,
+#       which would ultimately make check_library_exists/check_symbol_exists
+#       fail for no reason
+include(${TD_SUPPORT_DIR}/check_env.cmake)
+
+include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.version)
 
-include(${TD_SUPPORT_DIR}/check_env.cmake)
 include(${TD_SUPPORT_DIR}/external.cmake)
 
 # contrib

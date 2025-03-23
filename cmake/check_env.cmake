@@ -22,6 +22,13 @@ macro(check_lib)
   set(_hdr      ${arg_check_lib_HEADER_FILE})
   set(_lib      ${arg_check_lib_LIBNAME})
   set(_symbol   ${arg_check_lib_SYMBOL})
+
+  if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    # /usr/local is by default location
+    # where software/libs are installed via homebrew
+    set(CMAKE_REQUIRED_FLAGS "-I/usr/local/include -L/usr/local/lib")
+  endif()
+
   check_library_exists(${_lib} ${_symbol} "" HAVE_LIB_${_name})
   set(${_name}_LIBNAMES         "")
   if(${HAVE_LIB_${_name}})
@@ -31,6 +38,11 @@ macro(check_lib)
     if(${HAVE_DEV_${_name}})
       set(${_name}_LIBNAMES         "${_lib}" "${arg_check_lib_ACCOMPANIES}")
     endif()
+  endif()
+
+  if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    # cleanup
+    set(CMAKE_REQUIRED_FLAGS)
   endif()
 endmacro()
 
