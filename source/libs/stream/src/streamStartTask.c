@@ -158,9 +158,17 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     pMeta->startInfo.curStage = START_MARK_REQ_CHKPID;
     SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
 
-    taosArrayPush(pMeta->startInfo.pStagesList, &info);
-    stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId,
-            numOfConsensusChkptIdTasks, info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
+    void*   p = taosArrayPush(pMeta->startInfo.pStagesList, &info);
+    int32_t num = (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList);
+
+    if (p != NULL) {
+      stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId,
+              numOfConsensusChkptIdTasks, info.ts, num);
+    } else {
+      stError("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64
+              " numOfStageHist:%d, FAILED, out of memory",
+              pMeta->vgId, numOfConsensusChkptIdTasks, info.ts, num);
+    }
   }
 
   // prepare the fill-history task before starting all stream tasks, to avoid fill-history tasks are started without
