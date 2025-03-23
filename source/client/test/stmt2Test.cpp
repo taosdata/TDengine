@@ -1213,6 +1213,34 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     taos_stmt2_close(stmt);
   }
 
+  // get fields insert into ? valuse
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    do_query(taos, "create table stmt2_testdb_6.ntb(ts timestamp, b binary(10))");
+    do_query(taos, "use stmt2_testdb_6");
+    const char* sql = "INSERT INTO ? VALUES (?,?)";
+    printf("stmt2 [%s] : %s\n", "get fields", sql);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    char*            tbname = "ntb";
+    TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, NULL};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    ASSERT_EQ(code, 0);
+
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 3);
+    ASSERT_STREQ(pFields[0].name, "tbname");
+    ASSERT_STREQ(pFields[1].name, "ts");
+    ASSERT_STREQ(pFields[2].name, "b");
+
+    taos_stmt2_close(stmt);
+  }
+
   do_query(taos, "drop database if exists stmt2_testdb_6");
   taos_close(taos);
 }
