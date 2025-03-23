@@ -158,7 +158,8 @@ jobs:
             -DBUILD_TOOLS=true                 ^
             -DBUILD_KEEPER=true                ^
             -DBUILD_HTTP=false                 ^
-            -DBUILD_TEST=false                 ^
+            -DBUILD_TEST=true                  ^
+            -DWEBSOCKET=true                   ^
             -DBUILD_DEPENDENCY_TESTS=false
           cmake --build debug --target build_externals -j4
 
@@ -185,7 +186,8 @@ jobs:
             -DBUILD_TOOLS=true                 ^
             -DBUILD_KEEPER=true                ^
             -DBUILD_HTTP=false                 ^
-            -DBUILD_TEST=false                 ^
+            -DBUILD_TEST=true                  ^
+            -DWEBSOCKET=true                   ^
             -DBUILD_DEPENDENCY_TESTS=false     ^
             -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           cmake --build debug -j4 -v
