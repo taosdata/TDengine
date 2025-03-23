@@ -104,7 +104,7 @@ class TDTestCase(TBase):
         stb_name    = stb['name']
         columns     = stb['columns']
 
-        tdLog.info("begin to check json decimal")
+        tdLog.info("begin to check json decimal, columns: %s" % columns)
         self.check_decimal_scale(db_name, stb_name, columns[1])
         self.check_decimal_scale(db_name, stb_name, columns[9])
         tdLog.info("check json decimal scale successfully")
