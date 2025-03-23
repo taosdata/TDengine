@@ -2802,6 +2802,90 @@ static int convertTbDesToJsonImplMore(
     return ret;
 }
 
+// reserve json item space 70 bytes
+#define ITEM_SPACE 50 
+uint32_t getTbDesJsonSize(TableDes *tableDes, bool onlyColumn) {
+
+    //
+    // public
+    //
+    uint32_t size = 
+        ITEM_SPACE +                    // version 1
+        ITEM_SPACE +                    // type: record
+        ITEM_SPACE + TSDB_DB_NAME_LEN + // namespace: dbname
+        ITEM_SPACE +                    // field : {}
+        ITEM_SPACE;                     // stb_schema_for_db: {} 
+
+    //
+    // fields
+    //
+    int fieldCnt = tableDes->columns + tableDes->tags + 2; // +2 is tbname and stbname
+    if(onlyColumn) {
+        fieldCnt -= tableDes->tags;
+    }
+    size += (TSDB_COL_NAME_LEN + ITEM_SPACE) * fieldCnt;
+
+    //
+    // stable schema
+    //
+
+    // stbname
+    size += TSDB_TABLE_NAME_LEN + ITEM_SPACE;
+    // stb fields for db schema
+    if (!onlyColumn) {
+        size += (tableDes->columns + tableDes->tags) * (ITEM_SPACE + TSDB_COL_NAME_LEN);
+    } 
+
+    return size;
+}
+
+uint32_t colDesToJson(char *pstr, ColDes * colDes, uint32_t num, char * label) {
+    uint32_t size = 0;
+    char field[TSDB_COL_NAME_LEN + ITEM_SPACE] = "";
+
+    for(int32_t i = 0; i < num; i++) {
+        // get field
+        sprintf(field, "{\"name\":\"%s\", \"type\":%d}", 
+            colDes[i].field, colDes[i].type);
+        
+        // pstr
+        size += sprintf(pstr + size, 
+            "\"%s%d\": %s",
+            label, i,  field);
+    }
+    return size;
+}
+
+// append stb schema
+uint32_t addStbSchema(char * pstr, TableDes *tableDes, bool onlyColumn) {
+    
+    uint32_t size = 0;
+    // name
+    size += sprintf(pstr + size,
+        "\"stb_schema_for_db:\"{"
+        "\"name\":\"%s\","
+        tableDes->name);
+
+    // cols
+    size += sprintf(pstr + size, 
+        "\"cols\": {");
+    size +=  colDesToJson(pstr + size,
+        tableDes->cols, tableDes->columns, "col");
+    size += sprintf(pstr + size, 
+        "},");
+
+    // tags
+    size += sprintf(pstr + size, 
+        "\"tags\": {");
+    size +=  colDesToJson(pstr + size,
+        tableDes->cols + tableDes->columns, tableDes->tags, "tag");
+    size += sprintf(pstr + size, 
+        "}");
+
+    return size;
+}
+
+
 static int convertTbDesToJsonImpl(
         const char *namespace,
         const char *tbName,
@@ -2816,12 +2900,10 @@ static int convertTbDesToJsonImpl(
     
     char *pstr = *jsonSchema;
     pstr += sprintf(pstr,
-                    "{
-              \"type\":\"record\",
-              \"name\":\"%s.%s\",
-              \"fields\":[", 
-              namespace,
-             (onlyColumn) ? (g_args.loose_mode ? outName : "_record") : (g_args.loose_mode ? outName : "_stb"));
+            "{\"type\":\"record\",\"name\":\"%s.%s\",\"fields\":[",
+            namespace,
+            (onlyColumn)?(g_args.loose_mode?outName:"_record")
+            :(g_args.loose_mode?outName:"_stb"));
 
     int iterate = 0;
     if (g_args.loose_mode) {
@@ -2872,8 +2954,15 @@ static int convertTbDesToJsonImpl(
             break;
         }
     }
+    
+    // fields end
+    pstr += sprintf(pstr, "],");
 
-    pstr += sprintf(pstr, "]}");
+    // append new json stb_schema_for_db
+    pstr += addStbSchema(pstr, tableDes, onlyColumn); 
+
+    // end
+    pstr += sprintf(pstr, "}");
 
     debugPrint("%s() LN%d, jsonSchema:\n %s\n",
             __func__, __LINE__, *jsonSchema);
@@ -2885,55 +2974,8 @@ static int convertTbDesToJsonImpl(
 static int convertTbTagsDesToJsonLoose(
         const char *dbName, const char *stbName, TableDes *tableDes,
         char **jsonSchema) {
-    // {
-    // "type": "record",
-    // "name": "stbName",
-    // "namespace": "dbname",
-    // "fields": [
-    //      {
-    //      "name": "tbname",
-    //      "type": "string"
-    //      },
-    //      {
-    //      "name": "tag0 name",
-    //      "type": "long"
-    //      },
-    //      {
-    //      "name": "tag1 name",
-    //      "type": "int"
-    //      },
-    //      {
-    //      "name": "tag2 name",
-    //      "type": "float"
-    //      },
-    //      {
-    //      "name": "tag3 name",
-    //      "type": "boolean"
-    //      },
-    //      ...
-    //      {
-    //      "name": "tagl name",
-    //      "type": {"type": "array", "items":"int"}
-    //      },
-    //      {
-    //      "name": "tagm name",
-    //      "type": ["null", "string"]
-    //      },
-    //      {
-    //      "name": "tagn name",
-    //      "type": ["null", "bytes"]}
-    //      }
-    // ]
-    // }
-
-    *jsonSchema = (char *)calloc(1,
-            17 + TSDB_DB_NAME_LEN               /* dbname section */
-            + 17                                /* type: record */
-            + 11 + TSDB_TABLE_NAME_LEN          /* stbname section */
-            + 10                                /* fields section */
-            + 11 + TSDB_TABLE_NAME_LEN          /* stbname section */
-            /* fields section */
-            + (TSDB_COL_NAME_LEN + 70) * tableDes->tags + 4);
+    bool onlyColumn = false;
+    *jsonSchema = (char *)calloc(1, getTbDesJsonSize(tableDes, onlyColumn));
 
     if (NULL == *jsonSchema) {
         errorPrint("%s() LN%d, memory allocation failed!\n",
@@ -2941,70 +2983,21 @@ static int convertTbTagsDesToJsonLoose(
         return -1;
     }
 
-    return convertTbDesToJsonImpl(dbName, stbName, tableDes, jsonSchema, false);
+    return convertTbDesToJsonImpl(dbName, stbName, tableDes, jsonSchema, onlyColumn);
 }
 
 static int convertTbTagsDesToJson(
         const char *dbName, const char *stbName, TableDes *tableDes,
         char **jsonSchema) {
-    // {
-    // "type": "record",
-    // "name": "_stb",
-    // "namespace": "dbname",
-    // "fields": [
-    //      {
-    //      "name": "stbname",
-    //      "type": "string"
-    //      },
-    //      {
-    //      "name": "tbname",
-    //      "type": "string"
-    //      },
-    //      {
-    //      "name": "tag0 name",
-    //      "type": "long"
-    //      },
-    //      {
-    //      "name": "tag1 name",
-    //      "type": "int"
-    //      },
-    //      {
-    //      "name": "tag2 name",
-    //      "type": "float"
-    //      },
-    //      {
-    //      "name": "tag3 name",
-    //      "type": "boolean"
-    //      },
-    //      ...
-    //      {
-    //      "name": "tagl name",
-    //      "type": {"type": "array", "items":"int"}
-    //      },
-    //      {
-    //      "name": "tagm name",
-    //      "type": ["null", "string"]
-    //      },
-    //      {
-    //      "name": "tagn name",
-    //      "type": ["null", "bytes"]}
-    //      }
-    // ]
-    // }
-    *jsonSchema = (char *)calloc(1,
-            17 + TSDB_DB_NAME_LEN               /* dbname section */
-            + 17                                /* type: record */
-            + 11 + TSDB_TABLE_NAME_LEN          /* stbname section */
-            + 10                                /* fields section */
-            + 11 + TSDB_TABLE_NAME_LEN          /* stbname section */
-            + 11 + TSDB_TABLE_NAME_LEN          /* tbname section */
-            + (TSDB_COL_NAME_LEN + 70) * tableDes->tags + 4);    /* fields section */
+
+    bool onlyColumn = false;
+    *jsonSchema = (char *)calloc(1, getTbDesJsonSize(tableDes, onlyColumn));
     if (NULL == *jsonSchema) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
         return -1;
     }
 
-    return convertTbDesToJsonImpl(dbName, stbName, tableDes, jsonSchema, false);
+    return convertTbDesToJsonImpl(dbName, stbName, tableDes, jsonSchema, onlyColumn);
 }
 
 static int convertTbTagsDesToJsonWrap(
@@ -3031,110 +3024,34 @@ static int convertTbDesToJsonLoose(
         const char *tbName,
         TableDes *tableDes, int colCount,
         char **jsonSchema) {
-    // {
-    // "type": "record",
-    // "name": "tbname",
-    // "namespace": "dbname",
-    // "fields": [
-    //      {
-    //      "name": "col0 name",
-    //      "type": "long"
-    //      },
-    //      {
-    //      "name": "col1 name",
-    //      "type": "int"
-    //      },
-    //      {
-    //      "name": "col2 name",
-    //      "type": "float"
-    //      },
-    //      {
-    //      "name": "col3 name",
-    //      "type": ["null",boolean"]
-    //      },
-    //      ...
-    //      {
-    //      "name": "coll name",
-    //      "type": {"type": "array", "items":"int"}
-    //      },
-    //      {
-    //      "name": "colm name",
-    //      "type": ["null","string"]
-    //      },
-    //      {
-    //      "name": "coln name",
-    //      "type": ["null","bytes"]}
-    //      }
-    // ]
-    // }
-    *jsonSchema = (char *)calloc(1,
-            17 + TSDB_DB_NAME_LEN               /* dbname section */
-            + 17                                /* type: record */
-            + 11 + TSDB_TABLE_NAME_LEN          /* tbname section */
-            + 10                                /* fields section */
-            + (TSDB_COL_NAME_LEN + 70) * colCount + 4);    /* fields section */
+
+    bool onlyColumn = true;
+    *jsonSchema = (char *)calloc(1, getTbDesJsonSize(tableDes, onlyColumn));
+
     if (NULL == *jsonSchema) {
         errorPrint("%s() LN%d, memory allocation failed!\n",
                 __func__, __LINE__);
         return -1;
     }
 
-    return convertTbDesToJsonImpl(dbName, tbName, tableDes, jsonSchema, true);
+    return convertTbDesToJsonImpl(dbName, tbName, tableDes, jsonSchema, onlyColumn);
 }
 
 static int convertTbDesToJson(
         const char *dbName,
         const char *tbName, TableDes *tableDes, int colCount,
         char **jsonSchema) {
-    // {
-    // "type": "record",
-    // "name": "tbname",
-    // "namespace": "dbname",
-    // "fields": [
-    //      {
-    //      "name": "col0 name",
-    //      "type": "long"
-    //      },
-    //      {
-    //      "name": "col1 name",
-    //      "type": "int"
-    //      },
-    //      {
-    //      "name": "col2 name",
-    //      "type": "float"
-    //      },
-    //      {
-    //      "name": "col3 name",
-    //      "type": ["null",boolean"]
-    //      },
-    //      ...
-    //      {
-    //      "name": "coll name",
-    //      "type": {"type": "array", "items":"int"}
-    //      },
-    //      {
-    //      "name": "colm name",
-    //      "type": ["null","string"]
-    //      },
-    //      {
-    //      "name": "coln name",
-    //      "type": ["null","bytes"]}
-    //      }
-    // ]
-    // }
-    *jsonSchema = (char *)calloc(1,
-            17 + TSDB_DB_NAME_LEN               /* dbname section */
-            + 17                                /* type: record */
-            + 11 + TSDB_TABLE_NAME_LEN          /* tbname section */
-            + 10                                /* fields section */
-            + (TSDB_COL_NAME_LEN + 70) * colCount + 4);    /* fields section */
+
+    bool onlyColumn = true;
+    *jsonSchema = (char *)calloc(1, getTbDesJsonSize(tableDes, onlyColumn));
+
     if (NULL == *jsonSchema) {
         errorPrint("%s() LN%d, memory allocation failed!\n",
                 __func__, __LINE__);
         return -1;
     }
 
-    return convertTbDesToJsonImpl(dbName, tbName, tableDes, jsonSchema, true);
+    return convertTbDesToJsonImpl(dbName, tbName, tableDes, jsonSchema, onlyColumn);
 }
 
 int convertTbDesToJsonWrap(
