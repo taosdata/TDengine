@@ -5,14 +5,41 @@ sidebar_label: "安装部署"
 
 ### 环境准备
 使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 运行在 Linux 平台上，并需要 3.10 或以上版本的 Python 环境支持。
-> 部署 Anode 需要 TDengine Enterprise 3.3.4.3 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
+> 部署 Anode 需要 TDengine 3.3.6.0 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
+
+可以使用以下的命令在 Ubuntu Linux 上安装 Python 3.10 环境
+
+#### 安装 Python
+
+```shell
+sudo apt-get install software-properties-common
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install python3.10
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 2
+sudo update-alternatives --config python3
+sudo apt install python3.10-venv
+sudo apt install python3.10-dev
+```
+
+#### 安装 Pip
+```shell
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+```
+
+####
+将 `~/.local/bin` 路径添加到环境变量中 `~/.bashrc or ~/.bash_profile`
+```shell
+export PATH=$PATH:~/.local/bin
+```
+至此 Python 环境准备完成，可以进项 taosanode 的 安装和部署。
 
 ### 安装及卸载
-使用 Linux 环境下的安装包 TDengine-enterprise-anode-1.x.x.tar.gz 可进行 Anode 的安装部署工作，命令如下：
+使用 Linux 环境下的安装包 TDengine-anode-3.3.x.x-Linux-x64.tar.gz 可进行 Anode 的安装部署工作，命令如下：
 
 ```bash
-tar -xzvf TDengine-enterprise-anode-1.0.0.tar.gz
-cd TDengine-enterprise-anode-1.0.0
+tar -xzvf TDengine-anode-3.3.6.0-Linux-x64.tar.gz
+cd TDengine-anode-3.3.6.0
 sudo ./install.sh
 ```
 
@@ -80,7 +107,7 @@ app-log = /var/log/taos/taosanode/taosanode.app.log
 model-dir = /usr/local/taos/taosanode/model/
 
 # default log level
-log-level = DEBUG
+log-level = INFO
 
 ```
 
