@@ -363,6 +363,7 @@ function typeChang() {
   sourceForm.data = generateFormInitData(currentDefinition.value?.config);
   componentKey.value++;
   configureSupportFlags(sourceForm.type);
+  isShowDatasetTable.value = false;
 }
 function targetDBChange() {
   // 在任何状态下目标数据库改变清空超级表和 mapping table
