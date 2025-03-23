@@ -17,7 +17,7 @@ ANOMALY_WINDOW(col_val, "algo=iqr");
 
 如下图所示，Anode 将返回时序数据异常窗口 $[10:51:30, 10:53:40]$ 
 
-<img src={ad} alt="异常检测" style="width:360px !important;"/>
+<img src={ad} alt="异常检测" style={{width:360px !important;}}/>
 
 在此基础上，用户可以针对异常窗口内的时序数据进行查询聚合、变换处理等操作。
 
@@ -112,6 +112,6 @@ lof={"algorithm":"auto", "n_neighbor": 3}
 
 如果设置了 `gen_figure` 为 `true`，比较程序会自动将每个参与比较的算法分析结果采用图片方式呈现出来（如下图所示为 ksigma 的异常检测结果标注）。
 
-<img src={ad_result} alt="异常检测标注图" style="width:360px !important;"/>
+<img src={ad_result} alt="异常检测标注图" style={{width:360px !important;}}/>
 
 
