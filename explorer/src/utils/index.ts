@@ -431,15 +431,10 @@ export function getBaseUrl(): string {
   return localStorage.getItem('native_url') || localStorage.getItem('base_url') || '';
 }
 
-export function setTDVersion(tdVersion: string): void {
-  localStorage.setItem('td_version', tdVersion);
-  localStorageData.tdengineVersion = tdVersion;
+export function getTDVersion(): string {
+  return localStorage.getItem('td_version') || '';
 }
 
-export const localStorageData = {
-  tdengineVersion: localStorage.getItem('td_version') || '',
-  password: getPassword(),
-  user: getUser(),
-  baseUrl: getBaseUrl(),
-  tdClusterId: localStorage.getItem('local_clusterID') || ''
-};
+export function getClusterID(): string {
+  return localStorage.getItem('local_clusterID') || '';
+}
