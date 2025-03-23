@@ -1983,6 +1983,242 @@ void freeRecordSchema(RecordSchema *recordSchema) {
     }
 }
 
+//
+//   -------------  read schema json -------------
+//
+
+// read fields
+static int32_t readJsonFields( json_t *value, RecordSchema *recordSchema) {
+    if (JSON_ARRAY == json_typeof(value)) {
+        size_t i;
+        size_t size = json_array_size(value);
+
+        verbosePrint("%s() LN%d, JSON Array of %zu element: %s\n",
+                __func__, __LINE__,
+                size, json_plural(size));
+
+        recordSchema->num_fields = size;
+        recordSchema->fields = calloc(1, sizeof(FieldStruct) * size);
+        ASSERT(recordSchema->fields);
+
+        for (i = 0; i < size; i++) {
+            FieldStruct *field = (FieldStruct *)
+                (recordSchema->fields + sizeof(FieldStruct) * i);
+            json_t *arr_element = json_array_get(value, i);
+            const char *ele_key;
+            json_t *ele_value;
+
+            json_object_foreach(arr_element, ele_key, ele_value) {
+                if (0 == strcmp(ele_key, "name")) {
+                    tstrncpy(field->name,
+                            json_string_value(ele_value),
+                            TSDB_COL_NAME_LEN-1);
+                } else if (0 == strcmp(ele_key, "type")) {
+                    int ele_type = json_typeof(ele_value);
+
+                    if (JSON_STRING == ele_type) {
+                        field->type =
+                            typeStrToType(json_string_value(ele_value));
+                    } else if (JSON_ARRAY == ele_type) {
+                        size_t ele_size = json_array_size(ele_value);
+
+                        for (size_t ele_i = 0; ele_i < ele_size;
+                                ele_i++) {
+                            json_t *arr_type_ele =
+                                json_array_get(ele_value, ele_i);
+
+                            if (JSON_STRING == json_typeof(arr_type_ele)) {
+                                const char *arr_type_ele_str =
+                                    json_string_value(arr_type_ele);
+
+                                if (0 == strcmp(arr_type_ele_str,
+                                            "null")) {
+                                    field->nullable = true;
+                                } else {
+                                    field->type = typeStrToType(arr_type_ele_str);
+                                }
+                            } else if (JSON_OBJECT ==
+                                    json_typeof(arr_type_ele)) {
+                                const char *arr_type_ele_key;
+                                json_t *arr_type_ele_value;
+
+                                json_object_foreach(arr_type_ele,
+                                        arr_type_ele_key,
+                                        arr_type_ele_value) {
+                                    if (JSON_STRING ==
+                                            json_typeof(arr_type_ele_value)) {
+                                        const char *arr_type_ele_value_str =
+                                            json_string_value(arr_type_ele_value);
+                                        if (0 == strcmp(arr_type_ele_value_str,
+                                                    "null")) {
+                                            field->nullable = true;
+                                        } else {
+                                            if (0 == strcmp(arr_type_ele_value_str,
+                                                        "array")) {
+                                                field->is_array = true;
+                                            } else {
+                                                field->type =
+                                                    typeStrToType(arr_type_ele_value_str);
+                                            }
+                                        }
+                                    } else if (JSON_OBJECT == json_typeof(arr_type_ele_value)) {
+                                        const char *arr_type_ele_value_key;
+                                        json_t *arr_type_ele_value_value;
+
+                                        json_object_foreach(arr_type_ele_value,
+                                                arr_type_ele_value_key,
+                                                arr_type_ele_value_value) {
+                                            if (JSON_STRING == json_typeof(arr_type_ele_value_value)) {
+                                                const char *arr_type_ele_value_value_str =
+                                                    json_string_value(arr_type_ele_value_value);
+                                                field->array_type = typeStrToType(
+                                                        arr_type_ele_value_value_str);
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                errorPrint("%s", "Error: not supported!\n");
+                            }
+                        }
+                    } else if (JSON_OBJECT == ele_type) {
+                        const char *obj_key;
+                        json_t *obj_value;
+
+                        json_object_foreach(ele_value, obj_key, obj_value) {
+                            if (0 == strcmp(obj_key, "type")) {
+                                int obj_value_type = json_typeof(obj_value);
+                                if (JSON_STRING == obj_value_type) {
+                                    const char *obj_value_str = json_string_value(obj_value);
+                                    if (0 == strcmp(obj_value_str, "array")) {
+                                        field->type = TSDB_DATA_TYPE_NULL;
+                                        field->is_array = true;
+                                    } else {
+                                        field->type =
+                                            typeStrToType(obj_value_str);
+                                    }
+                                } else if (JSON_OBJECT == obj_value_type) {
+                                    const char *field_key;
+                                    json_t *field_value;
+
+                                    json_object_foreach(obj_value, field_key, field_value) {
+                                        if (JSON_STRING == json_typeof(field_value)) {
+                                            const char *field_value_str =
+                                                json_string_value(field_value);
+                                            field->type =
+                                                typeStrToType(field_value_str);
+                                        } else {
+                                            field->nullable = true;
+                                        }
+                                    }
+                                }
+                            } else if (0 == strcmp(obj_key, "items")) {
+                                int obj_value_items = json_typeof(obj_value);
+                                if (JSON_STRING == obj_value_items) {
+                                    field->is_array = true;
+                                    const char *obj_value_str =
+                                        json_string_value(obj_value);
+                                    field->array_type = typeStrToType(obj_value_str);
+                                } else if (JSON_OBJECT == obj_value_items) {
+                                    const char *item_key;
+                                    json_t *item_value;
+
+                                    json_object_foreach(obj_value, item_key, item_value) {
+                                        if (JSON_STRING == json_typeof(item_value)) {
+                                            const char *item_value_str =
+                                                json_string_value(item_value);
+                                            field->array_type =
+                                                typeStrToType(item_value_str);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        errorPrint("%s() LN%d, fields have no array\n",
+                __func__, __LINE__);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int32_t readStbSchemaCols( json_t *element, ColDes *cols) {
+    const char *key   = NULL;
+    json_t     *value = NULL;
+    uint32_t   n      = 0;
+
+    // check valid
+    if (JSON_ARRAY != json_typeof(element)) {
+        warnPrint("%s() LN%d, stbSchema have no array\n",
+            __func__, __LINE__);
+        return  0;
+    }
+
+    // loop read
+    json_object_foreach(element, key, value) {
+        ColDes *col = cols + n;
+        if (0 == strcmp(key, "name")) {
+            strncpy(col->field, json_string_value(value), TSDB_COL_NAME_LEN - 1);
+        } else if (0 == strcmp(key, "type")) {
+            col->type = json_integer_value(value);
+        }
+
+        // move next
+        ++n;
+    }
+
+    return n;
+}
+
+
+// read stb schema
+static int32_t readJsonStbSchema( json_t *element, RecordSchema *recordSchema) {
+
+    const char *key   = NULL;
+    json_t     *value = NULL;
+    uint32_t   n      = 0;
+
+    // maloc tableDes
+    TableDes *tableDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+    if (tableDes == NULL) {
+        errorPrint("%s() LN%d, malloc memory TableDes failed.\n", __func__, __LINE__);
+        return -1;
+    }
+
+    json_object_foreach(element, key, value) {
+        if (0 == strcmp(key, "name")) {
+            tstrncpy(recordSchema->stbName, json_string_value(value), RECORD_NAME_LEN - 1);
+        } else if (0 == strcmp(key, "tags")) {
+            tableDes->tags = readStbSchemaCols(value, tableDes->cols + n);
+            n += tableDes->tags;
+        } else if (0 == strcmp(key, "cols")) {
+            tableDes->columns = readStbSchemaCols(value, tableDes->cols + n);
+            n += tableDes->columns;
+        }
+    }
+
+    // check valid
+    if (tableDes->columns == 0) {
+        errorPrint("%s() LN%d, TableDes->columns is zero. stbName=%s\n", __func__, __LINE__, tableDes->name);
+        //return -1;
+    }
+
+    debugPrint("%s() LN%d, stbName=%s tags=%d columns=%d\n", __func__, __LINE__, tableDes->name, tableDes->tags, tableDes->columns);
+
+    // set
+    recordSchema->tableDes = tableDes;
+    return 0;
+
+}
+
+//
+// read avro json 
+//
 static RecordSchema *parse_json_to_recordschema(json_t *element) {
     RecordSchema *recordSchema = calloc(1, sizeof(RecordSchema));
     if (NULL == recordSchema) {
@@ -2002,169 +2238,22 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
     json_t *value;
 
     json_object_foreach(element, key, value) {
+        // name
         if (0 == strcmp(key, "name")) {
             tstrncpy(recordSchema->name, json_string_value(value), RECORD_NAME_LEN - 1);
+        // fields    
         } else if (0 == strcmp(key, "fields")) {
-            if (JSON_ARRAY == json_typeof(value)) {
-                size_t i;
-                size_t size = json_array_size(value);
-
-                verbosePrint("%s() LN%d, JSON Array of %zu element: %s\n",
-                        __func__, __LINE__,
-                        size, json_plural(size));
-
-                recordSchema->num_fields = size;
-                recordSchema->fields = calloc(1, sizeof(FieldStruct) * size);
-                ASSERT(recordSchema->fields);
-
-                for (i = 0; i < size; i++) {
-                    FieldStruct *field = (FieldStruct *)
-                        (recordSchema->fields + sizeof(FieldStruct) * i);
-                    json_t *arr_element = json_array_get(value, i);
-                    const char *ele_key;
-                    json_t *ele_value;
-
-                    json_object_foreach(arr_element, ele_key, ele_value) {
-                        if (0 == strcmp(ele_key, "name")) {
-                            tstrncpy(field->name,
-                                    json_string_value(ele_value),
-                                    TSDB_COL_NAME_LEN-1);
-                        } else if (0 == strcmp(ele_key, "type")) {
-                            int ele_type = json_typeof(ele_value);
-
-                            if (JSON_STRING == ele_type) {
-                                field->type =
-                                    typeStrToType(json_string_value(ele_value));
-                            } else if (JSON_ARRAY == ele_type) {
-                                size_t ele_size = json_array_size(ele_value);
-
-                                for (size_t ele_i = 0; ele_i < ele_size;
-                                        ele_i++) {
-                                    json_t *arr_type_ele =
-                                        json_array_get(ele_value, ele_i);
-
-                                    if (JSON_STRING == json_typeof(arr_type_ele)) {
-                                        const char *arr_type_ele_str =
-                                            json_string_value(arr_type_ele);
-
-                                        if (0 == strcmp(arr_type_ele_str,
-                                                    "null")) {
-                                            field->nullable = true;
-                                        } else {
-                                            field->type = typeStrToType(arr_type_ele_str);
-                                        }
-                                    } else if (JSON_OBJECT ==
-                                            json_typeof(arr_type_ele)) {
-                                        const char *arr_type_ele_key;
-                                        json_t *arr_type_ele_value;
-
-                                        json_object_foreach(arr_type_ele,
-                                                arr_type_ele_key,
-                                                arr_type_ele_value) {
-                                            if (JSON_STRING ==
-                                                    json_typeof(arr_type_ele_value)) {
-                                                const char *arr_type_ele_value_str =
-                                                    json_string_value(arr_type_ele_value);
-                                                if (0 == strcmp(arr_type_ele_value_str,
-                                                            "null")) {
-                                                    field->nullable = true;
-                                                } else {
-                                                    if (0 == strcmp(arr_type_ele_value_str,
-                                                                "array")) {
-                                                        field->is_array = true;
-                                                    } else {
-                                                        field->type =
-                                                            typeStrToType(arr_type_ele_value_str);
-                                                    }
-                                                }
-                                            } else if (JSON_OBJECT == json_typeof(arr_type_ele_value)) {
-                                                const char *arr_type_ele_value_key;
-                                                json_t *arr_type_ele_value_value;
-
-                                                json_object_foreach(arr_type_ele_value,
-                                                        arr_type_ele_value_key,
-                                                        arr_type_ele_value_value) {
-                                                    if (JSON_STRING == json_typeof(arr_type_ele_value_value)) {
-                                                        const char *arr_type_ele_value_value_str =
-                                                            json_string_value(arr_type_ele_value_value);
-                                                        field->array_type = typeStrToType(
-                                                                arr_type_ele_value_value_str);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        errorPrint("%s", "Error: not supported!\n");
-                                    }
-                                }
-                            } else if (JSON_OBJECT == ele_type) {
-                                const char *obj_key;
-                                json_t *obj_value;
-
-                                json_object_foreach(ele_value, obj_key, obj_value) {
-                                    if (0 == strcmp(obj_key, "type")) {
-                                        int obj_value_type = json_typeof(obj_value);
-                                        if (JSON_STRING == obj_value_type) {
-                                            const char *obj_value_str = json_string_value(obj_value);
-                                            if (0 == strcmp(obj_value_str, "array")) {
-                                                field->type = TSDB_DATA_TYPE_NULL;
-                                                field->is_array = true;
-                                            } else {
-                                                field->type =
-                                                    typeStrToType(obj_value_str);
-                                            }
-                                        } else if (JSON_OBJECT == obj_value_type) {
-                                            const char *field_key;
-                                            json_t *field_value;
-
-                                            json_object_foreach(obj_value, field_key, field_value) {
-                                                if (JSON_STRING == json_typeof(field_value)) {
-                                                    const char *field_value_str =
-                                                        json_string_value(field_value);
-                                                    field->type =
-                                                        typeStrToType(field_value_str);
-                                                } else {
-                                                    field->nullable = true;
-                                                }
-                                            }
-                                        }
-                                    } else if (0 == strcmp(obj_key, "items")) {
-                                        int obj_value_items = json_typeof(obj_value);
-                                        if (JSON_STRING == obj_value_items) {
-                                            field->is_array = true;
-                                            const char *obj_value_str =
-                                                json_string_value(obj_value);
-                                            field->array_type = typeStrToType(obj_value_str);
-                                        } else if (JSON_OBJECT == obj_value_items) {
-                                            const char *item_key;
-                                            json_t *item_value;
-
-                                            json_object_foreach(obj_value, item_key, item_value) {
-                                                if (JSON_STRING == json_typeof(item_value)) {
-                                                    const char *item_value_str =
-                                                        json_string_value(item_value);
-                                                    field->array_type =
-                                                        typeStrToType(item_value_str);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                errorPrint("%s() LN%d, fields have no array\n",
-                        __func__, __LINE__);
-                freeRecordSchema(recordSchema);
+            if (readJsonFields(value, recordSchema)) {
+                free(recordSchema);
                 return NULL;
             }
-
-            break;
-        } else if (0 == strcmp(key, "stbname")) {
+        // stb_schema_for_db
+        } else if (0 == strcmp(key, STB_SCHEMA_KEY)) {
             // read stb name
-            tstrncpy(recordSchema->stbName, json_string_value(value), TSDB_TABLE_NAME_LEN - 1);
+            if (readJsonStbSchema(value, recordSchema)) {
+                free(recordSchema);
+                return NULL;
+            }            
         }
     }
 
@@ -2862,9 +2951,15 @@ uint32_t addStbSchema(char * pstr, TableDes *tableDes, bool onlyColumn) {
     uint32_t size = 0;
     // name
     size += sprintf(pstr + size,
-        "\"stb_schema_for_db:\"{"
+        "\"%s:\"{"
         "\"name\":\"%s\","
+        STB_SCHEMA_KEY,
         tableDes->name);
+    
+    // child data
+    if (onlyColumn) {
+        return size;
+    }
 
     // cols
     size += sprintf(pstr + size, 
@@ -5873,26 +5968,27 @@ static RecordSchema *getSchemaAndReaderFromFile(
         return NULL;
     }
 
-    int buf_len = 0;
+    // base
+    int buf_len = 
+        ITEM_SPACE +                    // version 1
+        ITEM_SPACE +                    // type: record
+        ITEM_SPACE + TSDB_DB_NAME_LEN + // namespace: dbname
+        ITEM_SPACE +                    // field : {}
+        ITEM_SPACE;                     // stb_schema_for_db: {} 
+
     switch (avroType) {
         case AVRO_TBTAGS:
-            buf_len = 17 + TSDB_DB_NAME_LEN               /* dbname section */
-                    + 17                                /* type: record */
-                    + 11 + TSDB_TABLE_NAME_LEN          /* stbname section */
-                    + 10                                /* fields section */
-                    + 11 + TSDB_TABLE_NAME_LEN          /* stbname section */
-                    + (TSDB_COL_NAME_LEN + 40) * TSDB_MAX_TAGS + 4;    /* fields section */
+            buf_len += (TSDB_MAX_COLUMNS + 2) * (TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN);
             break;
 
         case AVRO_DATA:
-            buf_len = TSDB_MAX_COLUMNS * (TSDB_COL_NAME_LEN + 11 + 16) + 4;
+            // add stbname with ITEM_SPACE
+            buf_len = (TSDB_MAX_COLUMNS + 2) * (TSDB_COL_NAME_LEN + ITEM_SPACE) + 2 * ITEM_SPACE;
             break;
 
         case AVRO_NTB:
-            buf_len = 17 + TSDB_DB_NAME_LEN               /* dbname section */
-                + 17                                /* type: record */
-                + 11 + TSDB_TABLE_NAME_LEN          /* stbname section */
-                + 50;                              /* fields section */
+            // no stbname
+            buf_len = (TSDB_MAX_COLUMNS + 2) * (TSDB_COL_NAME_LEN + 1 * ITEM_SPACE);
             break;
 
         default:

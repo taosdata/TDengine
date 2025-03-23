@@ -59,6 +59,9 @@
 #define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
 
 
+// json schema key
+#define STB_SCHEMA_KEY  "stb_schema_for_db"
+
 #define debugPrint(fmt, ...) \
     do { if (g_args.debug_print || g_args.verbose_print) { \
       fprintf(stdout, "DEBG: "fmt, __VA_ARGS__); } } while (0)
@@ -344,10 +347,9 @@ typedef struct RecordSchema_S {
     char *fields;
     int  num_fields;
 
-    // support stbChange
+    // read stb_schema_for_db
     char stbName[TSDB_TABLE_NAME_LEN]; 
-    char* cols;
-    int  num_cols;
+    TableDes *tableDes;    
 } RecordSchema;
 
 /* avro section end */
