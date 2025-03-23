@@ -24,7 +24,8 @@ target_include_directories(
 target_link_libraries(
     ${TAOS_LIB}
     INTERFACE api
-    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
+    PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
+    PUBLIC os
 )
 
 if(TD_WINDOWS)
