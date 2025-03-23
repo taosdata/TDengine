@@ -50,7 +50,7 @@ docker exec -it <container name> bash
 ## 获取安装包
 
 1. 从列表中下载获得 tar.gz 安装包：
-   <PkgListV3 type={0}/>
+   
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
 
