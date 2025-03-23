@@ -7,14 +7,14 @@ def get_time_seconds():
     hh, mm, ss = map(int, current_time.split(':'))
     return (hh * 60 + mm) * 60 + ss
 
-def color_echo(color, message, time1, error_file=None):
+def color_echo(color, message, time1, log_file=None):
     current_time = time.strftime("%H:%M:%S", time.localtime())
     time2 = get_time_seconds()
     inter_time = time2 - time1
     print(f"End at {current_time} , cast {inter_time}s")
     print(message)
-    if error_file:
-        with open(error_file, 'r') as file:
+    if log_file:
+        with open(log_file, 'r') as file:
             print(file.read())
 
 def check_skip_case(line):
@@ -44,12 +44,11 @@ def run_tests(case_file):
                 time1 = get_time_seconds()
                 print(f"Start at {time.strftime('%H:%M:%S', time.localtime())}")
 
-                result_file = f"result_{a}.txt"
-                error_file = f"error_{a}.txt"
-                with open(result_file, 'w') as result, open(error_file, 'w') as error:
-                    process = subprocess.run(line.split(), stdout=result, stderr=error)
+                log_file = f"log_{a}.txt"
+                with open(log_file, 'w') as log:
+                    process = subprocess.run(line.split(), stdout=log, stderr=log)
                     if process.returncode != 0:
-                        color_echo("0c", "failed", time1, error_file)
+                        color_echo("0c", "failed", time1, log_file)
                         exit_num = 8
                         failed_tests.append(line)
                     else:
