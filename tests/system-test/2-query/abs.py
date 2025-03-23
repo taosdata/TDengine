@@ -22,7 +22,7 @@ class TDTestCase:
         self.row_nums = 20
         self.ts = 1434938400000
         self.time_step = 1000
-        self.replicaVar = int(replicaVar)
+        self.replicaVar = int(replicaVar) 
 
     def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ):
         tdLog.info(" prepare datas for auto check abs function ")
