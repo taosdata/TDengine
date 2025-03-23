@@ -506,6 +506,7 @@ endif()
 INIT_EXT(ext_xz
     INC_DIR          include
     LIB              lib/${ext_xz_static}
+    CHK_NAME         LZMA
 )
 # GIT_REPOSITORY https://github.com/xz-mirror/xz.git
 # GIT_TAG v5.4.4
