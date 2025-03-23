@@ -43,3 +43,8 @@ RUN pip install --upgrade pip && \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+docker build --build-arg tdengine_pkgFile=TDengine-cloud-server-3.3.6.0.202503191128-Linux-x64.tar.gz   --build-arg tdengine_dirName=TDengine-cloud-server-3.3.6.0.202503191128   --build-arg tdgpt_pkgFile=TDengine-enterprise-anode-3.3.6.0.0319-Linux-x64.tar.gz   --build-arg tdgpt_dirName=TDengine-enterprise-anode-3.3.6.0.0319   -t "cloud_tdgpt:3.3.6.0"   -f DockerfileCloud   .
+docker build --build-arg tdengine_pkgFile=TDengine-cloud-server-3.3.6.0.202503200747-Linux-x64.tar.gz   --build-arg tdengine_dirName=TDengine-cloud-server-3.3.6.0.202503200747   --build-arg tdgpt_pkgFile=TDengine-enterprise-anode-3.3.6.0.202503201532-Linux-x64.tar.gz --build-arg tdgpt_dirName=TDengine-enterprise-anode-3.3.6.0.202503201532 --build-arg nas_ip=192.168.1.131  -t "cloud_tdgpt:3.3.6.0.202503201539"   -f DockerfileCloud   .
+TDengine-enterprise-anode-3.3.6.0.202503201532-Linux-x64.tar.gz
+TDengine-cloud-server-3.3.6.0.202503200747-Linux-x64.tar.gz
