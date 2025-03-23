@@ -1,7 +1,6 @@
 ---
 title: "快速体验"
 sidebar_label: "快速体验"
----
 
 # 通过 Docker 快速体验
 本节首先介绍如何通过 Docker 快速体验 TDgpt。如果你不熟悉 Docker，请使用安装版本。如果您希望为 TDengine 贡献代码或对内部技术实现感兴趣，请参考 [TDengine GitHub 主页](https://github.com/taosdata/TDengine)下载源码构建和安装。
@@ -77,3 +76,4 @@ TDgpt 可以在云服务上进行快速体验，如果您已经有云服务账�
 
 然后选择创建 TDgp 实例即可。
 之后请参考[anode基本操作](./management) 管理 anode。
+
