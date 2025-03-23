@@ -31,13 +31,12 @@ macro(INIT_EXT name)               # {
     set(${name}_install  "${_ins}")
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
-    set(${name}_byproducts "")
     set(${name}_have_dev          FALSE)
     set(${name}_build_contrib     FALsE)
 
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs INC_DIR LIB BYPRODUCTS CHK_NAME)
+    set(multiValueArgs INC_DIR LIB CHK_NAME)
     cmake_parse_arguments(arg_INIT_EXT
         "${options}" "${oneValueArgs}" "${multiValueArgs}"
         ${ARGN}
@@ -61,9 +60,6 @@ macro(INIT_EXT name)               # {
       endforeach()
       foreach(v ${arg_INIT_EXT_LIB})
         list(APPEND ${name}_libs         "${_ins}/${v}")
-      endforeach()
-      foreach(v ${arg_INIT_EXT_BYPRODUCTS})
-        list(APPEND ${name}_byproducts   "${_ins}/${v}")
       endforeach()
 
       if(NOT TD_EXTERNALS_USE_ONLY)
@@ -94,11 +90,6 @@ macro(INIT_EXT name)               # {
                         IMPORTED_LOCATION "${v}"
                     )
                 endforeach()
-                foreach(v ${${name}_byproducts})
-                    set_target_properties(${name}_imp PROPERTIES
-                        IMPORTED_LOCATION "${v}"
-                    )
-                endforeach()
                 add_dependencies(${tgt} ${name})
             endif()                           # }
             add_definitions(-D_${name})
@@ -119,11 +110,6 @@ macro(INIT_EXT name)               # {
         if(${${name}_build_contrib})
             if(NOT TD_EXTERNALS_USE_ONLY)     # {
                 foreach(v ${${name}_libs})
-                    set_target_properties(${name}_imp PROPERTIES
-                        IMPORTED_LOCATION "${v}"
-                    )
-                endforeach()
-                foreach(v ${${name}_byproducts})
                     set_target_properties(${name}_imp PROPERTIES
                         IMPORTED_LOCATION "${v}"
                     )
