@@ -18,7 +18,7 @@ class TDTestCase:
         while True:
             tdSql.query("select ts from test.d0;;")
             num1 = tdSql.queryRows
-            tdSql.query("select ts from test.d1;")
+            tdSql.query("select ts from test.d1;;")
             num2 = tdSql.queryRows
             if num1 == 1000000 and num2 == 1000000:
                 break
