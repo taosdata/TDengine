@@ -277,7 +277,7 @@ loop_end:
     item->valuedouble = number;
 
     /* use saturation in case of overflow */
-    if (number >= LLONG_MAX)
+    if (number >= (double)LLONG_MAX)
     {
         item->valueint = LLONG_MAX;
     }
@@ -303,7 +303,7 @@ loop_end:
 /* don't ask me, but the original tools_cJSON_SetNumberValue returns an integer or double */
 CJSON_PUBLIC(double) tools_cJSON_SetNumberHelper(tools_cJSON *object, double number)
 {
-    if (number >= LLONG_MAX)
+    if (number >= (double)LLONG_MAX)
     {
         object->valueint = LLONG_MAX;
     }
@@ -2104,7 +2104,7 @@ CJSON_PUBLIC(tools_cJSON *) tools_cJSON_CreateNumber(double num)
         item->valuedouble = num;
 
         /* use saturation in case of overflow */
-        if (num >= LLONG_MAX)
+        if (num >= (double)LLONG_MAX)
         {
             item->valueint = LLONG_MAX;
         }
