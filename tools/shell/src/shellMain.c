@@ -104,7 +104,10 @@ int main(int argc, char *argv[]) {
   if (setConnMode(shell.args.connMode, shell.args.dsn, false)) {
     return -1;
   }
-
+  if (taos_options(TSDB_OPTION_CONFIGDIR,configDir) != 0) {
+    fprintf(stderr, "failed to set config dir since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
+    return -1;
+  }
   if (taos_init() != 0) {
     fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
