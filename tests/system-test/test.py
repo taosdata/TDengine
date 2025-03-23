@@ -40,9 +40,6 @@ import taos
 import taosrest
 import taosws
 
-from taos.cinterface import *
-taos.taos_options(6, "native")
-
 def checkRunTimeError():
     import win32gui
     timeCount = 0
@@ -255,9 +252,8 @@ if __name__ == "__main__":
     #
     # do exeCmd command
     #
-    taosAdapter = True  # default is websocket , so must start taosAdapter
     if not execCmd == "":
-        if taosAdapter or restful or websocket:
+        if restful or websocket:
             tAdapter.init(deployPath)
         else:
             tdDnodes.init(deployPath)
@@ -296,7 +292,7 @@ if __name__ == "__main__":
         if valgrind:
             time.sleep(2)
 
-        if taosAdapter or restful or websocket:
+        if restful or websocket:
             toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
@@ -392,7 +388,7 @@ if __name__ == "__main__":
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
-            if taosAdapter or restful or websocket:
+            if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -432,7 +428,7 @@ if __name__ == "__main__":
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if taosAdapter or restful or websocket:
+            if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -554,7 +550,7 @@ if __name__ == "__main__":
             except:
                 pass
 
-        if taosAdapter or restful or websocket:
+        if restful or websocket:
             tAdapter.init(deployPath, masterIp)
             tAdapter.stop(force_kill=True)
 
@@ -564,7 +560,7 @@ if __name__ == "__main__":
             tdDnodes.start(1)
             tdCases.logSql(logSql)
 
-            if taosAdapter or restful or websocket:
+            if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -619,7 +615,7 @@ if __name__ == "__main__":
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if taosAdapter or restful or websocket:
+            if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
