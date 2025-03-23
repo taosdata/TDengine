@@ -52,7 +52,9 @@ class TDTestCase(TBase):
     def check_decimal_scale(self, db_name, tbl_name, col_config):
         sql = "select max(%s) from %s.%s" % (col_config['name'], db_name, tbl_name)
         tdSql.query(sql)
+        tdLog.info("in func check_decimal_scale, sql: %s, rows: %d, cols: %d" % (sql, tdSql.queryRows, tdSql.queryCols))
         decimal = tdSql.getData(0, 0)
+        tdLog.info("in func check_decimal_scale, type(decimal): %s, decimal: %s" % (type(decimal), decimal))
         scale   = self.get_decimal_scale(decimal)
 
         if scale != col_config['scale']:
