@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - 'test/cover1'
+      - '3.0'
   workflow_dispatch:
     inputs:
       specified_source_branch:
