@@ -31,7 +31,7 @@ jobs:
           - ubuntu-24.04
           - macos-14
           - macos-15
-          # - windows-2022
+          - windows-2022
 
     steps:
       - name: Get CPU Cores
@@ -190,17 +190,17 @@ jobs:
           cmake --build debug -j4 -v
           cmake --install debug
 
-      # - name: Start taosd on Linux and macOS
-      #   if: runner.os != 'Windows'
-      #   run: |
-      #     nohup sudo taosd -c taos.cfg &
-      #     nohup sudo taosadapter &
+      - name: Start taosd on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          nohup sudo taosd -c taos.cfg &
+          nohup sudo taosadapter &
 
-      # - name: Run tests with taosBenchmark
-      #   if: runner.os != 'Windows'
-      #   run: |
-      #     taosBenchmark -t 10 -n 10 -y
-      #     taos -s "select count(*) from test.meters"
+      - name: Run tests with taosBenchmark
+        if: runner.os != 'Windows'
+        run: |
+          taosBenchmark -t 10 -n 10 -y
+          taos -s "select count(*) from test.meters"
 
       - name: Clean up  on Linux and macOS
         if: runner.os != 'Windows'
