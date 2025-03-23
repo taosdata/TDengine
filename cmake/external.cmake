@@ -35,8 +35,8 @@ macro(INIT_EXT name)               # {
     set(${name}_build_contrib     FALsE)
 
     set(options)
-    set(oneValueArgs)
-    set(multiValueArgs INC_DIR LIB CHK_NAME)
+    set(oneValueArgs INC_DIR)
+    set(multiValueArgs LIB CHK_NAME)
     cmake_parse_arguments(arg_INIT_EXT
         "${options}" "${oneValueArgs}" "${multiValueArgs}"
         ${ARGN}
@@ -55,9 +55,7 @@ macro(INIT_EXT name)               # {
     endif()
 
     if(${${name}_build_contrib})
-      foreach(v ${arg_INIT_EXT_INC_DIR})
-        list(APPEND ${name}_inc_dir      "${_ins}/${v}")
-      endforeach()
+      set(${name}_inc_dir      "${_ins}/${arg_INIT_EXT_INC_DIR}")
       foreach(v ${arg_INIT_EXT_LIB})
         list(APPEND ${name}_libs         "${_ins}/${v}")
       endforeach()
@@ -81,9 +79,7 @@ macro(INIT_EXT name)               # {
     endmacro()                       # }
     macro(DEP_${name}_INC tgt)               # {
         if(${${name}_build_contrib})
-            foreach(v ${${name}_inc_dir})
-                target_include_directories(${tgt} PUBLIC "${v}")
-            endforeach()
+            target_include_directories(${tgt} PUBLIC "${${name}_inc_dir}")
             if(NOT TD_EXTERNALS_USE_ONLY)     # {
                 foreach(v ${${name}_libs})
                     set_target_properties(${name}_imp PROPERTIES
