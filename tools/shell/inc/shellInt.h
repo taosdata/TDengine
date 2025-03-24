@@ -145,5 +145,6 @@ void shellTestNetWork();
 
 // shellMain.c
 extern SShellObj shell;
+extern char configDirShell[PATH_MAX];
 
 #endif /*_TD_SHELL_INT_H_*/
