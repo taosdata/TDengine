@@ -195,10 +195,12 @@ jobs:
         run: |
           ./build.sh start
           pgrep -l taos
+          taos -s "show databases"
 
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
+          taos -s "show databases"
           taosBenchmark -t 10 -n 10 -y
           taos -s "select count(*) from test.meters"
 

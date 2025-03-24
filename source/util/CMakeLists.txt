@@ -37,21 +37,12 @@ target_include_directories(
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
 )
 
-if(TD_LINUX)
-    target_link_libraries(
-        util
-        PUBLIC os common
-        PUBLIC api
-        PUBLIC TSZ
-    )
-else()
-    target_link_libraries(
-        util
-        PUBLIC os common
-        PUBLIC api
-        PUBLIC TSZ
-    )
-endif()
+target_link_libraries(
+    util
+    PUBLIC os common
+    PUBLIC api
+    PUBLIC TSZ
+)
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
