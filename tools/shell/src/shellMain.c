@@ -18,6 +18,7 @@
 #include "shellInt.h"
 
 extern SShellObj shell;
+char   configDirShell[PATH_MAX] = {0};
 
 void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGTERM);
@@ -55,6 +56,7 @@ void initArgument(SShellArgs *pArgs) {
 }
 
 int main(int argc, char *argv[]) {
+  int code  = 0;
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
 #endif
@@ -101,13 +103,22 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  // first taos_option(TSDB_OPTION_DRIVER ...) no load driver
   if (setConnMode(shell.args.connMode, shell.args.dsn, false)) {
     return -1;
   }
-  if (taos_options(TSDB_OPTION_CONFIGDIR,configDir) != 0) {
-    fprintf(stderr, "failed to set config dir since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
-    return -1;
-  }
+
+  // second taos_option(TSDB_OPTION_CONFIGDIR ...) set configDir global
+  if (configDirShell[0] != 0) {
+    code = taos_options(TSDB_OPTION_CONFIGDIR, configDirShell);
+    if (code) {
+      fprintf(stderr, "failed to set config dir:%s  code:[0x%08X]\r\n", configDirShell, code);
+      return -1;
+    }
+    printf("Load with input config dir:%s\n", configDirShell);
+  }  
+
+  // taos_init
   if (taos_init() != 0) {
     fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
