@@ -32,7 +32,7 @@ curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
 ```shell
 export PATH=$PATH:~/.local/bin
 ```
-至此 Python 环境准备完成，可以进项 taosanode 的 安装和部署。
+至此 Python 环境准备完成，可以进行 taosanode 的安装和部署。
 
 ### 安装及卸载
 使用 Linux 环境下的安装包 TDengine-anode-3.3.x.x-Linux-x64.tar.gz 可进行 Anode 的安装部署工作，命令如下：
