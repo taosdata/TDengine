@@ -1,6 +1,6 @@
 ---
-sidebar_label: Security Configuration
-title: Security Configuration
+sidebar_label: Security Suggestions
+title: Security Suggestions
 toc_max_heading_level: 4
 ---
 
