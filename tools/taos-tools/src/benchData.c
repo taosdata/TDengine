@@ -871,7 +871,7 @@ static int64_t randInt64(int64_t min, int64_t max) {
         return min;
     }
 
-    uint64_t range = max - min + 1;
+    uint64_t range = (uint64_t)max - (uint64_t)min + 1;
     return (int64_t)(min + generateRandomUint64(range));
 }
 
