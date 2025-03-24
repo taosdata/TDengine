@@ -18,7 +18,6 @@
 #include "shellInt.h"
 
 extern SShellObj shell;
-char   configDirShell[PATH_MAX] = {0};
 
 void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGTERM);
