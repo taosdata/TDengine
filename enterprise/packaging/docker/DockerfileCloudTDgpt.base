@@ -40,6 +40,7 @@ RUN pip install --upgrade pip && \
                     matplotlib \
                     uwsgi \
                     transformers \
+                    accelerate \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple
