@@ -660,7 +660,7 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
   int32_t       code = 0;
   SMsgSendInfo *msgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (NULL == msgSendInfo) {
-    SCH_TASK_ELOG("calloc %d failed", (int32_t)sizeof(SMsgSendInfo));
+    qError("calloc SMsgSendInfo size %d failed", (int32_t)sizeof(SMsgSendInfo));
     SCH_ERR_JRET(terrno);
   }
 
@@ -672,7 +672,11 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
   if (pJob) {
     msgSendInfo->requestId = pJob->conn.requestId;
     msgSendInfo->requestObjRefId = pJob->conn.requestObjRefId;
+  } else {
+    SCH_ERR_JRET(taosGetSystemUUIDU64(&msgSendInfo->requestId));
   }
+
+  qDebug("ahandle %p alloced, QID:0x%" PRIx64, msgSendInfo, msgSendInfo->requestId);
 
   if (TDMT_SCH_LINK_BROKEN != msgType) {
     msgSendInfo->msgInfo.pData = msg;
