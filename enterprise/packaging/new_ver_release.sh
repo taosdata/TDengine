@@ -82,10 +82,10 @@ do
       skip=$(echo $OPTARG)
       ;;
     i)
-      nasIp=$(echo $nasIp)
+      nasIp=$(echo $OPTARG)
       ;;
     g)
-      tdGpt=$(echo $tdGpt)
+      tdGpt=$(echo $OPTARG)
       ;;
     h)
       echo "Usage: `basename $0` -b [main | 3.0] "
