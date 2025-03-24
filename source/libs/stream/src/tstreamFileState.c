@@ -327,8 +327,8 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   pFileState->stateBuffCleanupFn(pFileState->rowStateBuff);
   sessionWinStateCleanup(pFileState->searchBuff);
   tSimpleHashCleanup(pFileState->pGroupIdMap);
-  taosMemoryFree(pFileState);
   memset(pFileState, 0, sizeof(SStreamFileState));
+  taosMemoryFree(pFileState);
 }
 
 int32_t getFileStateRowSize(SStreamFileState* pFileState){

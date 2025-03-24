@@ -2128,6 +2128,7 @@ void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
   blockDataDestroy(pSup->pScanBlock);
   if (pSup->stateStore.streamFileStateDestroy != NULL) {
     pSup->stateStore.streamFileStateDestroy(pSup->pState->pFileState);
+    pSup->pState->pFileState = NULL;
   }
   taosMemoryFreeClear(pSup->pState);
   taosMemoryFreeClear(pSup->pDummyCtx);
