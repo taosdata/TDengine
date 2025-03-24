@@ -6,17 +6,29 @@ export LC_CTYPE=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
 CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
+TS_SERVER_FILE="/apps/taos_ts_server.py"
+TIMER_POE_FILE="/apps/timer-moe/timer-moe_server.py"
+
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "Error: Configuration file $CONFIG_FILE not found!"
   exit 1
 fi
 
-echo "Starting taos_ts_server..."
-python3 /apps/taos_ts_server.py --action server &
+echo "Starting tdtsfm server..."
+python3 $TS_SERVER_FILE --action server &
 TAOS_TS_PID=$!
 
 if ! ps -p $TAOS_TS_PID > /dev/null; then
-  echo "Error: taos_ts_server failed to start!"
+  echo "Error: tdtsfm server failed to start!"
+  exit 1
+fi
+
+echo "Starting timer-moe server..."
+python3 $TIMER_POE_FILE --action server &
+TIMER_MOE_PID=$!
+
+if ! ps -p $TIMER_MOE_PID > /dev/null; then
+  echo "Error: timer-moe server failed to start!"
   exit 1
 fi
 
