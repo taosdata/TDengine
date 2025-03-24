@@ -15,7 +15,7 @@
 
 #include "shellInt.h"
 #include "../../inc/pub.h"
-
+char   configDirShell[PATH_MAX] = {0};
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 
