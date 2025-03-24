@@ -57,23 +57,30 @@ def list_all_models():
 def handle_ad_request():
     """handle the anomaly detection requests"""
     app_logger.log_inst.info('recv ad request from %s', request.remote_addr)
-    app_logger.log_inst.debug('req payload: %s', request.json)
 
-    algo = request.json["algo"].lower() if "algo" in request.json else "ksigma"
+    try:
+        req_json = request.json
+    except Exception as e:
+        app_logger.log_inst.error('invalid json format, %s, %s', e, request.data)
+        raise ValueError(e)
+
+    app_logger.log_inst.debug('req payload: %s', req_json)
+
+    algo = req_json["algo"].lower() if "algo" in req_json else "ksigma"
 
     # 1. validate the input data in json format
     try:
-        validate_pay_load(request.json)
+        validate_pay_load(req_json)
     except ValueError as e:
         return {"msg": str(e), "rows": -1}
 
-    payload = request.json["data"]
+    payload = req_json["data"]
 
     # 2. white noise data check
-    wn_check = request.json["wncheck"] if "wncheck" in request.json else 1
+    wn_check = req_json["wncheck"] if "wncheck" in req_json else 1
 
-    data_index = get_data_index(request.json["schema"])
-    ts_index = get_ts_index(request.json["schema"])
+    data_index = get_data_index(req_json["schema"])
+    ts_index = get_ts_index(req_json["schema"])
 
     if wn_check:
         try:
@@ -86,7 +93,7 @@ def handle_ad_request():
 
     # 3. parse the options for different ad services
     # the default options is like following: "algo=ksigma,k=2,invalid_option=44"
-    options = request.json["option"] if "option" in request.json else None
+    options = req_json["option"] if "option" in req_json else None
     params = parse_options(options)
 
     # 4. do anomaly detection
@@ -108,24 +115,31 @@ def handle_ad_request():
 def handle_forecast_req():
     """handle the fc request """
     app_logger.log_inst.info('recv fc from %s', request.remote_addr)
-    app_logger.log_inst.debug('req payload: %s', request.json)
+
+    try:
+        req_json = request.json
+    except Exception as e:
+        app_logger.log_inst.error('forecast recv invalid json format, %s, %s', e, request.data)
+        raise ValueError(e)
+
+    app_logger.log_inst.debug('req payload: %s', req_json)
 
     # holt-winters by default
-    algo = request.json['algo'].lower() if 'algo' in request.json else 'holtwinters'
+    algo = req_json['algo'].lower() if 'algo' in req_json else 'holtwinters'
 
     # 1. validate the input data in json format
     try:
-        validate_pay_load(request.json)
+        validate_pay_load(req_json)
     except ValueError as e:
         app_logger.log_inst.error('validate req json failed, %s', e)
-        return {"msg": str(e), "rows": -1}
+        raise ValueError(e)
 
-    payload = request.json["data"]
+    payload = req_json["data"]
 
     # 2. white noise data check
-    wn_check = request.json["wncheck"] if "wncheck" in request.json else 1
-    data_index = get_data_index(request.json["schema"])
-    ts_index = get_ts_index(request.json["schema"])
+    wn_check = req_json["wncheck"] if "wncheck" in req_json else 1
+    data_index = get_data_index(req_json["schema"])
+    ts_index = get_ts_index(req_json["schema"])
 
     if wn_check:
         try:
@@ -136,11 +150,11 @@ def handle_forecast_req():
         except Exception as e:
             return {"msg": str(e), "rows": -1}
 
-    options = request.json["option"] if "option" in request.json else None
+    options = req_json["option"] if "option" in req_json else None
     params = parse_options(options)
 
     try:
-        do_add_fc_params(params, request.json)
+        do_add_fc_params(params, req_json)
     except ValueError as e:
         app_logger.log_inst.error("invalid fc params: %s", e)
         return {"msg": f"{e}", "rows": -1}
