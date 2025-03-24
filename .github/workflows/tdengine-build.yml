@@ -208,7 +208,6 @@ jobs:
           taosBenchmark -t 10 -n 10 -y
           taos -s "select count(*) from test.meters"
 
-
       - name: Clean up  on Linux and macOS
         if: runner.os != 'Windows'
         run: |
