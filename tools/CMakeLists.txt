@@ -3,7 +3,6 @@ IF(TD_WEBSOCKET)
 
     IF(TD_ALPINE)
         message(FATAL_ERROR         "freemine: not implemented yet")
-        include(ExternalProject)
         ExternalProject_Add(taosws-rs
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
@@ -22,7 +21,6 @@ IF(TD_WEBSOCKET)
             COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
         )
     ELSE()
-        include(ExternalProject)
         if(${TD_LINUX})
             set(ext_taosws_dll      libtaosws.so)
             set(ext_taosws_lib_from libtaosws.a)
@@ -123,11 +121,8 @@ ELSE()
         STRING(STRIP "${taos_version}" taos_version)
     ENDIF()
 
+    # NOTE: TD_VER_GIT or TD_VER_GIT_INTERNAL in cmake/cmake.version?
     EXECUTE_PROCESS(
-        COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
-    )
-    EXECUTE_PROCESS(
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
         COMMAND git rev-parse HEAD
         RESULT_VARIABLE commit_sha1
         OUTPUT_VARIABLE taosadapter_commit_sha1
@@ -219,6 +214,21 @@ ELSE()
             set(taosadapter_exe        taosadapter.exe)
             set(_rpath                 "")
         endif()
+        set(_cgo_cflags_list
+            "-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client"
+        )
+        set(_cgo_ldflags_list
+            "-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
+        )
+        set(_ldflags_list
+            "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}'"
+            "-X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}'"
+            "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+        )
+        string(JOIN " " _cgo_cflags ${_cgo_cflags_list})
+        string(JOIN " " _cgo_ldflags ${_cgo_ldflags_list})
+        string(JOIN " " _ldflags ${_ldflags_list})
+
         # GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
         # GIT_TAG 3.0
         get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
@@ -239,10 +249,9 @@ ELSE()
                 COMMAND git clean -f -d
             BUILD_COMMAND
                 # freemine: remove -a option
-                COMMAND "${CMAKE_COMMAND}" -E env CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client
-                                                  "CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
-                        go build -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-                # COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+                COMMAND "${CMAKE_COMMAND}" -E env "CGO_CFLAGS=${_cgo_cflags}"
+                                                  "CGO_LDFLAGS=${_cgo_ldflags}"
+                        go build -ldflags "${_ldflags}"
             INSTALL_COMMAND
                 # COMMAND "${CMAKE_COMMAND}" -E echo "Comparessing taosadapter.exe"
                 # COMMAND upx taosadapter || :
@@ -266,7 +275,6 @@ IF(TD_BUILD_KEEPER)
     MESSAGE("${Green} build taoskeeper, current platform is ${PLATFORM_ARCH_STR} ${ColourReset}")
 
     EXECUTE_PROCESS(
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/keeper
         COMMAND git rev-parse HEAD
         OUTPUT_VARIABLE taoskeeper_commit_sha1
     )
@@ -315,7 +323,14 @@ IF(TD_BUILD_KEEPER)
             set(taoskeeper_exe          taoskeeper)
         ENDIF()
 
-        INCLUDE(ExternalProject)
+        set(_ldflags_list
+            "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}'"
+            "-X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}'"
+            "-X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}'"
+            "-X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+        )
+        string(JOIN " " _ldflags ${_ldflags_list})
+
         ExternalProject_Add(taoskeeper
             PREFIX "taoskeeper"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/keeper
@@ -325,7 +340,7 @@ IF(TD_BUILD_KEEPER)
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            COMMAND go build -a -ldflags "${_ldflags}"
             INSTALL_COMMAND
             COMMAND cmake -E echo "Copy taoskeeper"
             COMMAND cmake -E copy_if_different ${taoskeeper_exe} ${CMAKE_BINARY_DIR}/build/bin/${taoskeeper_exe}
