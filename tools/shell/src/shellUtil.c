@@ -80,7 +80,7 @@ void shellGenerateAuth() {
 void shellDumpConfig() {
   (void)osDefaultInit();
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
+  if (taosInitCfg(configDirShell, NULL, NULL, NULL, NULL, 1) != 0) {
     fprintf(stderr, "failed to load cfg since %s [0x%08X]\n", terrstr(), terrno);
     return;
   }

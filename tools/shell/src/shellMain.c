@@ -113,11 +113,13 @@ int main(int argc, char *argv[]) {
     //printf("Load with input config dir:%s\n", configDirShell);
   }  
 
+#ifndef TD_ASTRA
   // dump config
   if (shell.args.is_dump_config) {
     shellDumpConfig();
     return 0;
   }
+#endif
 
   // taos_init
   if (taos_init() != 0) {
@@ -129,12 +131,6 @@ int main(int argc, char *argv[]) {
   taos_set_hb_quit(1);
 
 #ifndef TD_ASTRA
-  if (shell.args.is_dump_config) {
-    shellDumpConfig();
-    taos_cleanup();
-    return 0;
-  }
-
   if (shell.args.is_startup || shell.args.is_check) {
     shellCheckServerStatus();
     taos_cleanup();
