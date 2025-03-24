@@ -54,13 +54,6 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v4
 
-      - name: Peek info after checkout
-        if: runner.os != 'Windows'
-        run: |
-          pwd
-          ls
-          git log -10
-
       - name: Cache Go modules on Linux and macOS
         if: runner.os != 'Windows'
         uses: actions/cache@v3
@@ -177,6 +170,7 @@ jobs:
           which taoskeeper
           taosd --help
           taosadapter --help
+
       - name: Build and install TDengine on Windows
         if: runner.os == 'Windows'
         shell: cmd
@@ -203,12 +197,9 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
-          sudo sh -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
-          sudo sh -c 'echo "forceReadConfig 1" >> /etc/taos/taos.cfg'
-          cat /etc/taos/taos.cfg
           ./build.sh start
           pgrep -l taos
-          sleep 3
+          sleep 3     # NOTE: wait for taosd initialization to complete
           taos -s "show databases"
           taos -s "show dnodes"
 
