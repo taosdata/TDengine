@@ -88,6 +88,7 @@ async function getLicense() {
         );
       });
       const td_version = getVersion(license.value[0]['server_version()']);
+      localStorage.setItem('td_version', td_version);
 
       setInstanceData({
         version: td_version,
