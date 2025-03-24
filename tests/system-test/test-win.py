@@ -69,4 +69,7 @@ if __name__ == "__main__":
             case_file = os.sys.argv[2]
 
     exit_code = run_tests(case_file)
+    print(f"Final exit code: {exit_code}")
+    if exit_code != 0:
+        print("One or more tests failed.")
     os.sys.exit(exit_code)
