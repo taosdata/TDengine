@@ -867,7 +867,7 @@ static uint64_t randUint64(uint64_t min, uint64_t max) {
 
 
 static int64_t randInt64(int64_t min, int64_t max) {
-    if (min >= max || (uint64_t)(max - min) == UINT64_MAX) {
+    if (min >= max || ((uint64_t)max - (uint64_t)min) == UINT64_MAX) {
         return min;
     }
 
