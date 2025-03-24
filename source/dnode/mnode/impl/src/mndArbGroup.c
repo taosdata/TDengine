@@ -266,8 +266,10 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
 _OVER:
   (void)taosThreadMutexUnlock(&pOld->mutex);
 
-  if (taosHashRemove(arbUpdateHash, &pOld->vgId, sizeof(int32_t)) != 0) {
-    mError("arbgroup:%d, failed to remove from arbUpdateHash", pOld->vgId);
+  if (mndIsLeaderState(pSdb->pMnode)) {
+    if (taosHashRemove(arbUpdateHash, &pOld->vgId, sizeof(int32_t)) != 0) {
+      mError("arbgroup:%d, failed to remove from arbUpdateHash", pOld->vgId);
+    }
   }
   return 0;
 }
