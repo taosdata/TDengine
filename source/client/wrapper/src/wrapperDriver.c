@@ -39,7 +39,7 @@ EDriverType tsDriverType = DRIVER_NATIVE;
 
 void *tsDriver = NULL;
 
-static int32_t tossGetDevelopPath(char *driverPath, const char *driverName) {
+static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
   char    appPath[PATH_MAX] = {0};
   int32_t ret = taosAppPath(appPath, PATH_MAX);
   if (ret == 0) {
@@ -67,7 +67,7 @@ int32_t taosDriverInit(EDriverType driverType) {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
 
-  if (tsDriver == NULL && tossGetDevelopPath(driverPath, driverName) == 0) {
+  if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
     tsDriver = taosLoadDll(driverPath);
   }
 

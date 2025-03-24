@@ -312,14 +312,36 @@ function install_avro() {
 
 function install_lib() {
   # Remove links
-  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  ${csudo}rm -f ${lib_link_dir}/libtaosnative.* || :
-  [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so || :
+  remove_links() {
+    local dir=$1
+    find ${dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+    find ${dir} -name "libtaosnative.so" -exec ${csudo}rm -f {} \; || :
+    find ${dir} -name "libtaosws.so" -exec ${csudo}rm -f {} \; || :
+  }
+
+  remove_links ${lib_link_dir}
+
   if [ "$osType" != "Darwin" ]; then
-    ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-    ${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
-    [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
+    remove_links ${lib64_link_dir}
   fi
+
+  # Copy and set permissions for libraries
+  copy_and_set_permissions() {
+    local src=$1
+    local dest=$2
+    if [ "$osType" != "Darwin" ]; then
+      ${csudo}cp ${src} ${dest} && ${csudo}chmod 777 ${dest}
+    else
+      ${csudo}cp -Rf ${src} ${dest} && ${csudo}chmod 777 ${dest}
+    fi
+  }
+
+  # Create symbolic links
+  create_symlink() {
+    local target=$1
+    local link_name=$2
+    ${csudo}ln -sf ${target} ${link_name}
+  }
 
   if [ "$osType" != "Darwin" ]; then
     ${csudo}cp ${binary_dir}/build/lib/libtaos.so.${verNumber} \

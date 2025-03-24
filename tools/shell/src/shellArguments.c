@@ -219,9 +219,6 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
 #if defined(LINUX)
     case 'o':
-      printf(" -o need todo optins.\n");
-      // need todo pass tsLogOutput to engine
-      /*
       if (strlen(arg) >= PATH_MAX) {
         printf("failed to set log output since length overflow, max length is %d\r\n", PATH_MAX);
         return TSDB_CODE_INVALID_CFG;
@@ -235,7 +232,6 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
         printf("failed to expand log output: '%s' since %s\r\n", arg, tstrerror(terrno));
         return terrno;
       }
-      */
       break;
 #endif
     case 'E':

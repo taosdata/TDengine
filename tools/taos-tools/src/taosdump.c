@@ -150,6 +150,7 @@ static struct argp_option options[] = {
     {"inspect",  'I', 0,  0,
         "inspect avro file content and print on screen", 10},
     {"no-escape",  'n', 0,  0,  "No escape char '`'. Default is using it.", 10},
+    {"restful",  'R', 0,  0,  "Use RESTful interface to connect server", 11},
     {"cloud",  'C', "CLOUD_DSN",  0, OLD_DSN_DESC, 11},
     {"timeout", 't', "SECONDS", 0, "The timeout seconds for "
                  "websocket to interact."},
@@ -691,7 +692,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             g_args.thread_num = atoi((const char *)arg);
             break;
-
+        case 'R':
+            warnPrint("%s\n", "'-R' is not supported, ignore this options.");
+            break;
         case 'C':
         case 'X':
             if (arg) {
@@ -10856,19 +10859,6 @@ static int inspectAvroFiles(int argc, char *argv[]) {
     return ret;
 }
 
-int32_t setConnMode(int8_t  connMode) {
-    // set conn mode
-    char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
-    int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
-    if (code != TSDB_CODE_SUCCESS) {
-        engineError(INIT_PHASE, "taos_options", code);
-        return -1;
-    }
-
-    infoPrint("\nConnect mode is : %s\n\n", strMode);
-    return 0;
-}
-
 
 int main(int argc, char *argv[]) {
     g_uniqueID = getUniqueIDFromEpoch();
@@ -10923,7 +10913,7 @@ int main(int argc, char *argv[]) {
     }
 
     // conn mode
-    if (setConnMode(g_args.connMode) != 0) {
+    if (setConnMode(g_args.connMode, g_args.dsn, true) != 0) {
         return -1;
     }
 

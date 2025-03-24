@@ -16,14 +16,14 @@
 #ifndef INC_BENCH_H_
 #define INC_BENCH_H_
 
-#include "pub.h"
-
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+#include "pub.h"
 
 #ifdef LINUX
 

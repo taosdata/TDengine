@@ -54,18 +54,6 @@ void initArgument(SShellArgs *pArgs) {
   pArgs->port_inputted = false;
 }
 
-// set conn mode
-int32_t setConnMode(int8_t connMode) {
-  // set conn mode
-  char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
-  int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
-  if (code != TSDB_CODE_SUCCESS) {
-    fprintf(stderr, "failed to load driver since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
-    return -1;
-  }
-  return 0;
-}
-
 int main(int argc, char *argv[]) {
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
@@ -113,7 +101,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  if (setConnMode(shell.args.connMode)) {
+  if (setConnMode(shell.args.connMode, shell.args.dsn, false)) {
     return -1;
   }
 
