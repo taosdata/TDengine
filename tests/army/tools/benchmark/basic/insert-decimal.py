@@ -35,7 +35,10 @@ class TDTestCase(TBase):
 
     def exec_benchmark(self, benchmark, json_file, options=""):
         cmd = f"{benchmark} {options} -f {json_file}"
-        eos.exe(cmd)
+        output, error, code = eos.run(cmd)
+        tdLog.info("output: %s" % output)
+        tdLog.info("error: %s" % error)
+        tdLog.info("code: %s" % code)
 
 
     def exec_benchmark_and_check(self, benchmark, json_file, expect_info, options=""):
@@ -119,7 +122,19 @@ class TDTestCase(TBase):
         self.check_within_bounds(db_name, stb_name, columns[0], "min", "max")
         self.check_within_bounds(db_name, stb_name, columns[1])
         self.check_within_bounds(db_name, stb_name, columns[2], "min", "max")
-        self.check_within_bounds(db_name, stb_name, columns[3], "dec_min", "dec_max")
+        self.check_within_bounds(db_name, stb_name, columns[3], "min", "max")
+        self.check_within_bounds(db_name, stb_name, columns[4], "min", "max")
+        self.check_within_bounds(db_name, stb_name, columns[5], "dec_min", "dec_max")
+        self.check_within_bounds(db_name, stb_name, columns[6], "dec_min", "dec_max")
+        self.check_within_bounds(db_name, stb_name, columns[7], "dec_min", "dec_max")
+        self.check_within_bounds(db_name, stb_name, columns[8])
+        self.check_within_bounds(db_name, stb_name, columns[9])
+        self.check_within_bounds(db_name, stb_name, columns[10], "min", "max")
+        self.check_within_bounds(db_name, stb_name, columns[11], "min", "max")
+        self.check_within_bounds(db_name, stb_name, columns[12], "min", "max")
+        self.check_within_bounds(db_name, stb_name, columns[13], "dec_min", "dec_max")
+        self.check_within_bounds(db_name, stb_name, columns[14], "dec_min", "dec_max")
+        self.check_within_bounds(db_name, stb_name, columns[15], "dec_min", "dec_max")
         # self.check_within_bounds(db_name, stb_name, columns[16])
 
 
