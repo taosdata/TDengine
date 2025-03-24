@@ -2239,7 +2239,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     SVCreateTbReq *pCreateTbReq = NULL;
     if (bindv->tags && bindv->tags[i]) {
       code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
-    } else if (pStmt->sql.autoCreateTbl || pStmt->bInfo.needParse) {
+    } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
       code = stmtCheckTags2(stmt, &pCreateTbReq);
     } else {
       pStmt->sql.autoCreateTbl = false;
