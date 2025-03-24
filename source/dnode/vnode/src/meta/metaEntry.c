@@ -387,16 +387,12 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(metaDecodeExtSchemas(pCoder, pME));
     }
-    if (!tDecodeIsEnd(pCoder)) {
-      TAOS_CHECK_RETURN(metaDecodeExtSchemas(pCoder, pME));
-    }
   }
   if (pME->type == TSDB_SUPER_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->stbEntry.keep));
     }
   }
-
 
 
   tEndDecode(pCoder);
@@ -567,15 +563,6 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       metaCloneEntryFree(ppEntry);
       return code;
     }
-  }
-  if (pEntry->pExtSchemas && pEntry->colCmpr.nCols > 0) {
-    (*ppEntry)->pExtSchemas = taosMemoryCalloc(pEntry->colCmpr.nCols, sizeof(SExtSchema));
-    if (!(*ppEntry)->pExtSchemas) {
-      code = terrno;
-      metaCloneEntryFree(ppEntry);
-      return code;
-    }
-    memcpy((*ppEntry)->pExtSchemas, pEntry->pExtSchemas, sizeof(SExtSchema) * pEntry->colCmpr.nCols);
   }
   if (pEntry->pExtSchemas && pEntry->colCmpr.nCols > 0) {
     (*ppEntry)->pExtSchemas = taosMemoryCalloc(pEntry->colCmpr.nCols, sizeof(SExtSchema));

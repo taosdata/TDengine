@@ -194,7 +194,6 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     TABLE_SET_COL_COMPRESSED(entry.flags);
     entry.colCmpr = pReq->colCmpr;
   }
-  entry.pExtSchemas = pReq->pExtSchemas;
 
   entry.pExtSchemas = pReq->pExtSchemas;
 
@@ -861,13 +860,6 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(code);
   }
-  code = addTableExtSchema(pEntry, pColumn, pSchema->nCols, &extSchema);
-  if (code) {
-    metaError("vgId:%d, %s failed to add ext schema at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(code), version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(code);
-  }
 
   // do handle entry
   code = metaHandleEntry2(pMeta, pEntry);
@@ -1008,15 +1000,6 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
       metaFetchEntryFree(&pEntry);
       TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
     }
-  }
-
-  // update column extschema
-  code = dropTableExtSchema(pEntry, iColumn, pSchema->nCols);
-  if (code) {
-    metaError("vgId:%d, %s failed to remove extschema at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(code), version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(code);
   }
 
   // update column extschema

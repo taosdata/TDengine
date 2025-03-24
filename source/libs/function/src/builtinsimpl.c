@@ -782,7 +782,6 @@ int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
 }
 #endif
 
-// TODO wjm impl for decimal
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   void*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);

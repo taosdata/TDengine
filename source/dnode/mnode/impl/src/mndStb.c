@@ -347,16 +347,6 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT8(pRaw, dataPos, &pStb->virtualStb, _OVER)
   }
 
-  // type mod
-  if (hasExtSchemas) {
-    pStb->pExtSchemas = taosMemoryCalloc(pStb->numOfColumns, sizeof(SExtSchema));
-    if (!pStb->pExtSchemas) goto _OVER;
-    for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
-      SSchema *pSchema = &pStb->pColumns[i];
-      SDB_GET_INT32(pRaw, dataPos, &pStb->pExtSchemas[i].typeMod, _OVER)
-    }
-  }
-
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
 
   terrno = 0;

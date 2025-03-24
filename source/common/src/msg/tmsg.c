@@ -11029,12 +11029,6 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   // Encode Column Options: encode compress level
   if (pReq->type == TSDB_SUPER_TABLE || pReq->type == TSDB_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
-    if (pReq->pExtSchemas) {
-      TAOS_CHECK_EXIT(tEncodeI8(pCoder, 1));
-      TAOS_CHECK_EXIT(tEncodeSExtSchemas(pCoder, pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
-    } else {
-      TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
-    }
   }
   if (pReq->type == TSDB_VIRTUAL_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColRefWrapper(pCoder, &pReq->colRef));

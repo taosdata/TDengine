@@ -1941,7 +1941,7 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
 //   return taos_connect(ipStr, userStr, passStr, dbStr, port);
 // }
 
-void doSetOneRowPtr(SReqResultInfo* pResultInfo, bool isStmt) {
+void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
@@ -2012,7 +2012,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
   }
 
   if (setupOneRowPtr) {
-    doSetOneRowPtr(pResultInfo, pRequest->isStmtBind);
+    doSetOneRowPtr(pResultInfo);
     pResultInfo->current += 1;
   }
 
@@ -2059,7 +2059,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     return NULL;
   } else {
     if (setupOneRowPtr) {
-      doSetOneRowPtr(pResultInfo, pRequest->isStmtBind);
+      doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
     }
 
