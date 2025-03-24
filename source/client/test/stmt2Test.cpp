@@ -1241,6 +1241,31 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     taos_stmt2_close(stmt);
   }
 
+  // get fields cache error
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    const char* sql = " INSERT INTO ? using stmt2_testdb_6.stb1(int_tag) tags(1)(ts) VALUES(?) ";
+    printf("stmt2 [%s] : %s\n", "get fields", sql);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 2);
+    ASSERT_STREQ(pFields[0].name, "tbname");
+    ASSERT_STREQ(pFields[1].name, "ts");
+
+    char*            tbname = "stmt2_testdb_6.中文表名";
+    TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, NULL};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
+
+    taos_stmt2_close(stmt);
+  }
+
   do_query(taos, "drop database if exists stmt2_testdb_6");
   taos_close(taos);
 }
