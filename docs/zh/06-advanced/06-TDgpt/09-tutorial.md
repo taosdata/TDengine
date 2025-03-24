@@ -4,7 +4,7 @@ sidebar_label: "快速体验"
 ---
 
 # 通过 Docker 快速体验
-本节首先介绍如何通过 Docker 快速体验 TDgpt。如果你不熟悉 Docker，请使用安装版本。如果您希望为 TDengine 贡献代码或对内部技术实现感兴趣，请参考 [TDengine GitHub 主页](https://github.com/taosdata/TDengine)下载源码构建和安装。
+本节首先介绍如何通过 Docker 快速体验 TDgpt。
 
 ## 启动 TDgpt
 
@@ -28,9 +28,6 @@ docker run -d -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6044-6049:6044-6049 -p 6
 
 注意：TDgpt 服务端使用  6090 TCP 端口。TDgpt 是一个无状态时序数据分析智能体，并不会在本地持久化保存数据，仅根据配置可能在本地生成运行日志。
 
-:::note
-  
-:::
 
 确定该容器已经启动并且在正常运行。
 
@@ -51,7 +48,7 @@ docker exec -it <container name> bash
 ## 获取安装包
 
 1. 从列表中下载获得 tar.gz 安装包：
-   <PkgListV3 type={0}/>
+   
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
 
@@ -77,3 +74,4 @@ TDgpt 可以在云服务上进行快速体验，如果您已经有云服务账�
 
 然后选择创建 TDgp 实例即可。
 之后请参考[anode基本操作](./management) 管理 anode。
+
