@@ -4,7 +4,7 @@ title: TDgpt
 ---
 
 import Image from '@theme/IdealImage';
-import TDgpt from './pic/data-analysis.png';
+import tdgptArch from '../../assets/tdgpt-01.png';
 
 ## Introduction
 
@@ -40,7 +40,7 @@ TDgpt consists of four main components:
 - Adapter for locally deployed time-series models: Sends requests directly to models like Time-MoE and TDtsfm that are specifically designed for time-series data. Compared to general-purpose LLMs, these models do not require prompt engineering, are lighter-weight, and are easier to deploy locally with lower hardware requirements. In addition, the adapter can also connect to cloud-based time-series MaaS systems such as TimeGPT, enabling localized analysis powered by cloud-hosted models.
 
 <figure>
-<Image img={TDgpt} alt="TDgpt Architecture"/>
+<Image img={tdgptArch} alt="TDgpt Architecture"/>
 <figcaption>TDgpt architecture</figcaption>
 </figure>
 

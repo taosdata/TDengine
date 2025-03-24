@@ -4,17 +4,18 @@ sidebar_label: Data Preprocessing
 ---
 
 import Image from '@theme/IdealImage';
-import activity from './pic/activity.png';
-import wndata from './pic/white-noise-data.png'
+import preprocFlow from '../../assets/tdgpt-02.png';
+import wnData from '../../assets/tdgpt-03.png'
 
 ## Analysis Workflow
 
 Data must be preprocessed before it can be analyzed by TDgpt. This process is described in the following figure:
 
 <figure>
-<Image img={activity} alt="Preprocessing workflow" />
+<Image img={preprocFlow} alt="Preprocessing workflow" />
 <figcaption>Preprocessing workflow</figcaption>
 </figure>
+
 
 TDgpt first performs a white noise data check on the dataset that you input. Data that passes this check and is intended for use in forecasting is then resampled and its timestamps are aligned. Note that resampling and alignment are not performed for datasets used in anomaly detection.
 
@@ -23,7 +24,7 @@ After the data has been preprocessed, forecasting or anomaly detection is perfor
 ## White Noise Data Check
 
 <figure>
-<Image img={wndata} alt="White noise data"/>
+<Image img={wnData} alt="White noise data"/>
 <figcaption>White noise data</figcaption>
 </figure>
 
@@ -40,13 +41,13 @@ The timestamps of real time-series datasets are not aligned. It is impossible to
 ```text
 ['20:12:21.143', '20:12:22.187', '20:12:23.032', '20:12:24.384', '20:12:25.033']
 ```
-  
+
 The data returned by the forecasting algorithm is strictly aligned by timestamp. For example, the next two data points in the set must be `['20:12:26.000', '20:12:27.000']`. For this reason, data such as the preceding set must be aligned as follows:
 
 ```
 ['20:12:21.000', '20:12:22.000', '20:12:23.000', '20:12:24.000', '20:12:25.000']
 ```
-  
+
 The sampling rate input by the user can exceed the output rate of the results. For example, the following data was sampled at 5 second intervals, but the user could request forecasting in 10 second intervals:
 
 ```
