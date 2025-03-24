@@ -1,4 +1,4 @@
-FROM tdengine/tdengine-cloud-base
+FROM tdengine/tdengine-cloud-tdgpt-base
 
 WORKDIR /root/
 
