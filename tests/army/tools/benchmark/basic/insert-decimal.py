@@ -36,9 +36,9 @@ class TDTestCase(TBase):
     def exec_benchmark(self, benchmark, json_file, options=""):
         cmd = f"{benchmark} {options} -f {json_file}"
         output, error, code = eos.run(cmd)
-        tdLog.info("output: %s" % output)
-        tdLog.info("error: %s" % error)
-        tdLog.info("code: %s" % code)
+        tdLog.info("output: >>>%s<<<" % output)
+        tdLog.info("error: >>>%s<<<" % error)
+        tdLog.info("code: >>>%s<<<" % code)
 
 
     def exec_benchmark_and_check(self, benchmark, json_file, expect_info, options=""):
