@@ -28,6 +28,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir --ignore-installed blinker && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
                     numpy==1.26.4 \
                     pandas==1.5.0 \
@@ -42,5 +43,4 @@ RUN pip install --upgrade pip && \
                     transformers \
                     accelerate \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple
