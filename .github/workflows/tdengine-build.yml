@@ -198,6 +198,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           sudo sh -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
+          cat /etc/taos/taos.cfg
           ./build.sh start
           pgrep -l taos
           taos -s "show databases"
