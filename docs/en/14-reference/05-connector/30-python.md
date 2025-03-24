@@ -56,13 +56,13 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-|2.7.23 | Supports for the DECIMAL data type                                                                         | - |
-|2.7.22 | Supports for Python 3.12 and above                                                                         | - |
+|2.7.23 | Supports DECIMAL data type                                                                                 | - |
+|2.7.22 | Supports Python 3.12 and above                                                                             | - |
 |2.7.21 | Supports native STMT2 writing                                                                              | - |
 |2.7.19 | Supports Apache Superset connection to TDengine Cloud data source                                          | - |
 |2.7.18 | Supports Apache SuperSet BI Tools                                                                          | - |
 |2.7.16 | Adds subscription configuration (session.timeout.ms, Max.roll.interval.ms)                                 | - |
-|2.7.15 | Supports the VARBINARY and GEOMETRY types                                                                  | - |
+|2.7.15 | Supports VARBINARY and GEOMETRY data types                                                                 | - |
 |2.7.14 | Fixes known issues                                                                                         | - |
 |2.7.13 | Adds tmq synchronous submission offset interface                                                           | - |
 |2.7.12 | 1. Adds support for VARBINARY type (STMT currently does not support VARBINARY) <br/> 2 Improves query performance (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209) ) | 3.1.1.2 and higher|
