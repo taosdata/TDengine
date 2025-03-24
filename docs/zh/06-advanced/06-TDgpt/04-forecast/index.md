@@ -116,7 +116,9 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 
 ## 算法有效性评估工具
 
-TDgpt 提供预测分析算法有效性评估工具 `analytics_compare`，调用该工具并设置合适的参数，能够使用 TDengine 中的数据作为回测依据，评估不同预测算法或相同的预测算法在不同的参数或训练模型的下的预测有效性。预测有效性的评估使用 `MSE` 和 `MAE` 指标作为依据，后续还将增加 `MAPE`指标。
+TDgpt 在企业版中提供预测分析算法有效性评估工具 `analytics_compare`，调用该工具并设置合适的参数，能够使用 TDengine 中已经保存的数据作为回测依据，评估不同预测算法或训练模型的预测有效性。预测有效性的评估使用 `MSE` 指标作为依据，后续还将增加 `MAPE` 和 `MAE` 指标。
+
+使用评估工具，需要在配置文件`` 中设置正确的参数，包括选取评估的数据范围，结果输出时间，参与评估的算法、算法相应的参数、是否生成预测结果图等配置信息。
 
 ```ini
 [forecast]
@@ -139,8 +141,48 @@ res_start_time = 1730000000000
 gen_figure = true
 ```
 
+在具备完备的 Python 库的运行环境中，通过 `shell` 调用 TDgpt 安装路径下的 misc 中 `analytics_compare` 的命令即可。可以按照如下方式体验算法有效性评估工具：
+1. 在配置文件 `analytics.ini` 配置文件中设置 `taosd` 服务的连接信息，包括 主机地址、配置文件路径、用户名、登录密码等信息。
+```ini
+[taosd]
+# taosd 服务主机名
+host = 127.0.0.1
 
-对比程序执行完成以后，会自动生成名称为 `fc_result.xlsx` 的文件，第一个卡片是算法运行结果（如下表所示），分别包含了算法名称、执行调用参数、均方误差、执行时间 4 个指标。
+# 登录用户名
+user = root
+
+# 登录密码
+password = taosdata
+
+# 配置文件路径
+conf = /etc/taos/taos.cfg
+
+[input_data]
+# 用于预测评估的数据库名称
+db_name = test
+
+# 读取数据的表名称
+table_name = passengers
+
+# 读取列名称
+column_name = val, _c0   
+```
+
+2. 准备数据。
+
+我们在 TDgpt 安装目录下的 `resource` 文件夹中准备了一个样例数据 `sample-fc.sql`, 执行以下命令即可见示例数据写入到数据库：
+```shell
+taos -f sample-fc.sql
+```
+即可将示例数据写入到数据库中，以便进行后续的评估
+
+3. 执行算法评估工具，首先需要确保激活虚拟环境并调用 taosanode 运行的虚拟环境的 Python，否则启动的时候 Python 会提示找不到所需要的依赖库。
+   
+```shell
+python3.10 ./analytics_compare.py forecast
+```
+
+4. 运行完成后，在当前目录下生成 `fc_result.xlsx` 文件，此文件即为算法评估的结果文件。该文件中第一个卡片是算法运行结果（如下表所示），分别包含了算法名称、执行调用参数、均方误差、执行时间 4 个指标。
 
 | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
 | ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
