@@ -10,6 +10,7 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
     python3.10 -m venv /var/lib/taos/taosanode/venv && \
     pip install --upgrade pip && \
     pip install --no-cache-dir --ignore-installed blinker && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
                     numpy==1.26.4 \
                     pandas==1.5.0 \
@@ -21,9 +22,9 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
                     flask \
                     matplotlib \
                     uwsgi \
-                    transformers \
+                    transformers==4.40.0 \
+                    accelerate \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 FROM python:3.10-slim

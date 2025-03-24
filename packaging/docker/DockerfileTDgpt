@@ -3,9 +3,15 @@ WORKDIR /apps
 ENV DEBIAN_FRONTEND=noninteractive
 ARG pkgFile
 ARG dirName
-ARG nas_ip
-ADD http://${nas_ip}/data/nas/TDengine/anode/taos.pth /apps
-ADD http://${nas_ip}/data/nas/TDengine/anode/taos_ts_server.py /apps
+ARG nasIp
+ADD ${pkgFile} \
+    ${dirName} \
+    http://${nasIp}/data/nas/TDengine/anode/taos.pth \
+    http://${nasIp}/data/nas/TDengine/anode/taos_ts_server.py \
+    http://${nasIp}/data/nas/TDengine/anode/fc_australia.sql \
+    http://${nasIp}/data/nas/TDengine/anode/timer-moe.tar.gz \
+    /apps/
+
 ADD ${pkgFile} /apps/
 RUN cd ${dirName}/ && /bin/bash install.sh -e no && cd .. && rm -rf ${dirName}
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
