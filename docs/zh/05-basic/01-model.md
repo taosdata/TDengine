@@ -3,8 +3,8 @@ sidebar_label: 数据模型
 title: TDengine 数据模型
 toc_max_heading_level: 4
 ---
-import data-model-origin-table from 'data-model-origin-table.png';
-import data-model-origin-table-2 from 'data-model-origin-table-2.png';
+import data-model-origin-table from './data-model-origin-table.png';
+import data-model-origin-table-2 from './data-model-origin-table-2.png';
 
 为了清晰地阐述时序数据的基本概念，并为示例程序的编写提供便利，整个文档都将以智能电表为例，探讨时序数据的典型应用场景。设想有一种型号的智能电表，它能够采集
 电流、电压和相位这 3 个模拟量。此外，每块智能电表还具有位置和分组等静态属性。这些智能电表采集的数据示例如下表所示。

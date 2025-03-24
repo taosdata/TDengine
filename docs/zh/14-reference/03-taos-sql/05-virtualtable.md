@@ -4,9 +4,9 @@ title: 虚拟表
 description: 对虚拟表的各种管理操作
 ---
 
-import origintable from 'pic/virtual-table-origin-table.png';
-import queryres from 'pic/virtual-table-query-res.png';
-import partres from 'pic/virtual-table-query-res-part.png';
+import origintable from './pic/virtual-table-origin-table.png';
+import queryres from './pic/virtual-table-query-res.png';
+import partres from './pic/virtual-table-query-res-part.png';
 
 ## 创建虚拟表
 
