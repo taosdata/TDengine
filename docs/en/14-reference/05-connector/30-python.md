@@ -118,20 +118,21 @@ All database operations in the Python Connector, if an exception occurs, will be
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Python type conversions are as follows:
 
 |TDengine DataType|Python DataType|
-|:---------------|:--------------|
-|TIMESTAMP|datetime|
-|INT|int|
-|BIGINT|int|
-|FLOAT|float|
-|DOUBLE|int|
-|SMALLINT|int|
-|TINYINT|int|
-|BOOL|bool|
-|BINARY|str|
-|NCHAR|str|
-|JSON|str|
-|GEOMETRY|bytearray|
-|VARBINARY|bytearray|
+|:----------------|:--------------|
+|   TIMESTAMP     |  datetime  |
+|      INT        |    int     |
+|    BIGINT       |    int     |
+|     FLOAT       |   float    |
+|    DOUBLE       |    int     |
+|   SMALLINT      |    int     |
+|    TINYINT      |    int     |
+|     BOOL        |    bool    |
+|    BINARY       |    str     |
+|     NCHAR       |    str     |
+|     JSON        |    str     |
+|   GEOMETRY      | bytearray  |
+|   VARBINARY     | bytearray  |
+|    DECIMAL      |  decimal   |
 
 ## Example Programs Summary
 
