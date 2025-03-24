@@ -740,7 +740,7 @@ int32_t mndStreamSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask
   return code;
 }
 
-int32_t mndStreamSetRestartAction(SMnode* pMnode, STrans *pTrans, SStreamObj* pStream) {
+int32_t mndStreamSetStopAction(SMnode* pMnode, STrans *pTrans, SStreamObj* pStream) {
   return 0;
 }
 
