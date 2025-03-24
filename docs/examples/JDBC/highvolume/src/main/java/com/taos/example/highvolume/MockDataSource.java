@@ -4,12 +4,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
+import java.util.Random;
 
 /**
  * Generate test data
  */
 class MockDataSource implements Iterator<Meters> {
-    private final static Logger logger = LoggerFactory.getLogger(WorkTask.class);
+    private final static Logger logger = LoggerFactory.getLogger(MockDataSource.class);
 
     private final int tableStartIndex;
     private final int tableEndIndex;
@@ -17,6 +18,7 @@ class MockDataSource implements Iterator<Meters> {
 
     long currentMs = System.currentTimeMillis();
     private int index = 0;
+    private Random random;
 
     // mock values
 
@@ -45,7 +47,7 @@ class MockDataSource implements Iterator<Meters> {
         meters.setTableName(Util.getTableNamePrefix() + currentTbId);
         meters.setTs(new java.sql.Timestamp(currentMs));
         meters.setCurrent((float) (Math.random() * 100));
-        meters.setVoltage((int) (Math.random() * 100));
+        meters.setVoltage(random.nextInt());
         meters.setPhase((float) (Math.random() * 100));
 
         index ++;

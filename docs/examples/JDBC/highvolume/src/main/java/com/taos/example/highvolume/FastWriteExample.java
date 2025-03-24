@@ -15,11 +15,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class FastWriteExample {
     static final Logger logger = LoggerFactory.getLogger(FastWriteExample.class);
-    static final DataBaseMonitor databaseMonitor = new DataBaseMonitor();
     static ThreadPoolExecutor writerThreads;
     static ThreadPoolExecutor producerThreads;
     static final ThreadPoolExecutor statThread = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
-    static private final List<Stoppable> allTasks = new ArrayList<>();
+    private static final List<Stoppable> allTasks = new ArrayList<>();
 
     private static int readThreadCount = 5;
     private static int writeThreadPerReadThread = 5;
@@ -190,7 +189,7 @@ public class FastWriteExample {
         }
     }
 
-    // 打印帮助信息的方法
+    // print help
     private static void printHelp(Options options) {
         HelpFormatter formatter = new HelpFormatter();
         formatter.printHelp("java -jar highVolume.jar", options);
@@ -198,7 +197,6 @@ public class FastWriteExample {
     }
 
     public static void main(String[] args) throws SQLException, InterruptedException {
-        Thread.sleep(10 * 1000);
         Options options = new Options();
 
         Option readThdcountOption = new Option("r", "readThreadCount", true, "Specify the readThreadCount, default is 5");
@@ -233,6 +231,11 @@ public class FastWriteExample {
         kafkaOption.setRequired(false);
         options.addOption(kafkaOption);
 
+
+        Option helpOption = new Option(null, "help", false, "print help information");
+        helpOption.setRequired(false);
+        options.addOption(helpOption);
+
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd;
 
@@ -245,7 +248,6 @@ public class FastWriteExample {
             return;
         }
 
-        // 检查是否请求了帮助信息
         if (cmd.hasOption("help")) {
             printHelp(options);
             return;
@@ -307,8 +309,7 @@ public class FastWriteExample {
                 readThreadCount, writeThreadPerReadThread, batchSizeByRow, cacheSizeByRow, subTableNum, rowsPerSubTable);
 
         logger.info("create database begin.");
-        databaseMonitor.init(dbName).prepareDatabase();
-        databaseMonitor.close();
+        Util.prepareDatabase(dbName);
 
         logger.info("create database end.");
 

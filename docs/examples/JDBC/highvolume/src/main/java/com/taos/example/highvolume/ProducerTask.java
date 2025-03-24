@@ -28,7 +28,7 @@ class ProducerTask implements Runnable, Stoppable {
 
     @Override
     public void run() {
-        logger.info("started");
+        logger.info("kafak producer {}, started", taskId);
         Iterator<Meters> it = new MockDataSource(subTableStartIndex, subTableEndIndex, rowsPerTable);
 
         Properties props = new Properties();
@@ -58,10 +58,11 @@ class ProducerTask implements Runnable, Stoppable {
         finally {
             producer.close();
         }
+        logger.info("kafka producer {} stopped", taskId);
     }
 
     public void stop() {
-        logger.info("stop");
+        logger.info("kafka producer {} stopping", taskId);
         this.active = false;
     }
 }

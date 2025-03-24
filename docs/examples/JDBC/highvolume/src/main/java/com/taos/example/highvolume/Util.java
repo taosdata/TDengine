@@ -2,9 +2,7 @@ package com.taos.example.highvolume;
 
 import com.taosdata.jdbc.TSDBDriver;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.Properties;
 
 import org.apache.kafka.clients.admin.*;
@@ -42,6 +40,23 @@ public class Util {
         properties.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
         return DriverManager.getConnection(jdbcURL, properties);
     }
+    public static void prepareDatabase(String dbName) throws SQLException {
+        try (Connection conn =Util.getConnection();
+            Statement stmt = conn.createStatement()){
+            stmt.execute("DROP DATABASE IF EXISTS " + dbName);
+            stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName + " vgroups 20");
+            stmt.execute("use " + dbName);
+            stmt.execute("CREATE STABLE " + dbName + ".meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(64))");
+        }
+    }
+
+    public static long count(Statement stmt, String dbName) throws SQLException {
+        try (ResultSet result = stmt.executeQuery("SELECT count(*) from " + dbName +".meters")) {
+            result.next();
+            return result.getLong(1);
+        }
+    }
+
 
     public static String getKafkaBootstrapServers() {
         String kafkaBootstrapServers = System.getenv("KAFKA_BOOTSTRAP_SERVERS");
@@ -84,4 +99,6 @@ public class Util {
     public static int getPartitionCount() {
         return 5;
     }
+
+
 }

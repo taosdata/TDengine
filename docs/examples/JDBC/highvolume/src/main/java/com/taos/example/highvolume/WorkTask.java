@@ -8,7 +8,7 @@ import java.sql.PreparedStatement;
 import java.util.Iterator;
 
 class WorkTask implements Runnable, Stoppable {
-    private final static Logger logger = LoggerFactory.getLogger(WorkTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(WorkTask.class);
     private final int taskId;
     private final int writeThreadCount;
     private final int batchSizeByRow;
@@ -31,14 +31,14 @@ class WorkTask implements Runnable, Stoppable {
         this.batchSizeByRow = batchSizeByRow;
         this.cacheSizeByRow = cacheSizeByRow;
         this.rowsPerTable = rowsPerTable;
-        this.subTableStartIndex = subTableStartIndex;
-        this.subTableEndIndex = subTableEndIndex;
+        this.subTableStartIndex = subTableStartIndex;  // for this task, the start index of sub table
+        this.subTableEndIndex = subTableEndIndex; // for this task, the end index of sub table
         this.dbName = dbName;
     }
 
     @Override
     public void run() {
-        logger.info("started");
+        logger.info("task {} started", taskId);
         Iterator<Meters> it = new MockDataSource(subTableStartIndex, subTableEndIndex, rowsPerTable);
         try (Connection connection = Util.getConnection(batchSizeByRow, cacheSizeByRow, writeThreadCount);
              PreparedStatement pstmt = connection.prepareStatement("INSERT INTO " + dbName +".meters (tbname, ts, current, voltage, phase) VALUES (?,?,?,?,?)")) {
@@ -56,14 +56,19 @@ class WorkTask implements Runnable, Stoppable {
                 if (i % batchSizeByRow == 0) {
                     pstmt.executeBatch();
                 }
+
+                if (i % (10L * batchSizeByRow) == 0){
+                    pstmt.executeUpdate();
+                }
             }
         } catch (Exception e) {
             logger.error("Work Task {} Error", taskId, e);
         }
+        logger.info("task {} stopped", taskId);
     }
 
     public void stop() {
-        logger.info("stop");
+        logger.info("task {} stopping", taskId);
         this.active = false;
     }
 }

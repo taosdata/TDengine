@@ -8,7 +8,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 class CreateSubTableTask implements Runnable {
-    private final static Logger logger = LoggerFactory.getLogger(CreateSubTableTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(CreateSubTableTask.class);
     private final int taskId;
     private final int subTableStartIndex;
     private final int subTableEndIndex;

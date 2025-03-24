@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Properties;
 
 class ConsumerTask implements Runnable, Stoppable {
-    private final static Logger logger = LoggerFactory.getLogger(ConsumerTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConsumerTask.class);
     private final int taskId;
     private final int writeThreadCount;
     private final int batchSizeByRow;
@@ -25,12 +25,12 @@ class ConsumerTask implements Runnable, Stoppable {
     private volatile boolean active = true;
 
     public ConsumerTask(int taskId,
-                        int writeThradCount,
+                        int writeThreadCount,
                         int batchSizeByRow,
                         int cacheSizeByRow,
                         String dbName) {
         this.taskId = taskId;
-        this.writeThreadCount = writeThradCount;
+        this.writeThreadCount = writeThreadCount;
         this.batchSizeByRow = batchSizeByRow;
         this.cacheSizeByRow = cacheSizeByRow;
         this.dbName = dbName;
@@ -38,8 +38,8 @@ class ConsumerTask implements Runnable, Stoppable {
 
     @Override
     public void run() {
+        logger.info("Consumer Task {} started", taskId);
 
-        // 配置 Kafka 消费者的属性
         Properties props = new Properties();
 
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, Util.getKafkaBootstrapServers());
@@ -109,10 +109,12 @@ class ConsumerTask implements Runnable, Stoppable {
         } finally {
             consumer.close();
         }
+
+        logger.info("Consumer Task {} stopped", taskId);
     }
 
     public void stop() {
-        logger.info("stop");
+        logger.info("consumer task {} stopping", taskId);
         this.active = false;
     }
 }
