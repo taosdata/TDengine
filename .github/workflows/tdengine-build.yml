@@ -193,12 +193,18 @@ jobs:
       - name: Start taosd on Linux and macOS
         if: runner.os != 'Windows'
         run: |
+          pwd
+          cd debug
+          ls -l /etc/taos/taos.cfg
+          cp /etc/taos/taos.cfg ./
+          sudo echo "supportVnodes 256" >> taos.cfg
           nohup sudo taosd -c taos.cfg &
           nohup sudo taosadapter &
 
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
+          pwd
           taosBenchmark -t 10 -n 10 -y || echo "taosBenchmark failed"
           taos -s "select count(*) from test.meters"
 
