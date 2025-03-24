@@ -7861,6 +7861,9 @@ static int32_t findDepTableScanNode(SColumnNode* pCol, SVirtualScanLogicNode *pV
     FOREACH(pScanCol, pScanNode->pScanCols) {
       if (QUERY_NODE_COLUMN == nodeType(pScanCol)) {
         SColumnNode *pScanColNode = (SColumnNode *)pScanCol;
+        if (pScanColNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+          continue;
+        }
         if (pScanColNode->hasDep && pCol->hasRef) {
           if (strcmp(pScanColNode->dbName, pCol->refDbName) == 0 &&
               strcmp(pScanColNode->tableAlias, pCol->refTableName) == 0 &&

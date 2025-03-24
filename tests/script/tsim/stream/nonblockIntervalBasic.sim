@@ -13,6 +13,13 @@ sql use test;
 sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
+
+
+sql_error create stream streams_er1 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et1 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname session(ts, 10s);
+sql_error create stream streams_er2 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et2 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname state_window(a) ;
+sql_error create stream streams_er3 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et3 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname count_window(10);
+sql_error create stream streams_er4 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt_et4 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname event_window start with a = 0 end with b = 9;
+
 sql create stream streams1 trigger continuous_window_close ignore update 0 ignore expired 0 into streamt1 as select  _wstart, count(*) c1, sum(b) c2  from st partition by tbname interval(10s) ;
 
 run tsim/stream/checkTaskStatus.sim
@@ -449,7 +456,7 @@ if $rows != 6 then
   goto loop6
 endi
 
-
+$loop_count = 0
 loop7:
 sleep 500
 print sql select * from information_schema.ins_tables where table_name like "streams6-tbn-%";
@@ -472,6 +479,7 @@ if $rows != 2 then
   goto loop7
 endi
 
+$loop_count = 0
 loop8:
 sleep 500
 print sql select * from information_schema.ins_tables where table_name like "streams7-tbn-%";
@@ -494,7 +502,7 @@ if $rows != 2 then
   goto loop8
 endi
 
-
+$loop_count = 0
 loop9:
 sleep 500
 print sql select * from streamt6;
@@ -517,6 +525,7 @@ if $rows != 2 then
   goto loop9
 endi
 
+$loop_count = 0
 loop10:
 sleep 500
 print sql select * from streamt7;
@@ -560,6 +569,7 @@ sql insert into t2 values(1648791211000,2,2,3);
 
 sql insert into t1 values(1648791221000,1,3,3);
 
+$loop_count = 0
 loop11:
 sleep 500
 print sql select * from streamt9;
@@ -589,6 +599,7 @@ endi
 
 sql insert into t2 values(1648791211001,2,4,3);
 
+$loop_count = 0
 loop12:
 sleep 500
 print sql select * from streamt8;
@@ -611,6 +622,7 @@ if $rows != 1 then
   goto loop12
 endi
 
+$loop_count = 0
 loop13:
 sleep 500
 print sql select * from streamt9;

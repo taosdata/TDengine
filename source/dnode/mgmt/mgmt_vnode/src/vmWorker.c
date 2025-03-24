@@ -600,7 +600,7 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 
   SWWorkerPool *pStreamCtrlPool = &pMgmt->streamCtrlPool;
   pStreamCtrlPool->name = "vnode-stream-ctrl";
-  pStreamCtrlPool->max = 1;
+  pStreamCtrlPool->max = 4;
   if ((code = tWWorkerInit(pStreamCtrlPool)) != 0) return code;
 
   SWWorkerPool *pStreamChkPool = &pMgmt->streamChkPool;

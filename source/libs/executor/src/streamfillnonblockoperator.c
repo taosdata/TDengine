@@ -182,6 +182,20 @@ void doBuildNonblockFillResult(SOperatorInfo* pOperator, SStreamFillSupporter* p
     }
   }
 
+  if (pBlock->info.rows > 0) {
+    SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+    void*          tbname = NULL;
+    int32_t        winCode = TSDB_CODE_SUCCESS;
+    code = pInfo->stateStore.streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname,
+                                                   false, &winCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (winCode != TSDB_CODE_SUCCESS) {
+      pBlock->info.parTbName[0] = 0;
+    } else {
+      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+    }
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -402,8 +416,6 @@ int32_t doStreamNonblockFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
       case STREAM_INVALID: {
         code = doApplyStreamScalarCalculation(pOperator, pBlock, pInfo->pSrcBlock);
         QUERY_CHECK_CODE(code, lino, _end);
-
-        memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
         pInfo->srcRowIndex = -1;
       } break;
       case STREAM_CHECKPOINT: {
@@ -476,4 +488,39 @@ void destroyStreamNonblockFillOperatorInfo(void* param) {
   SStreamFillOperatorInfo* pInfo = (SStreamFillOperatorInfo*)param;
   resetTimeSlicePrevAndNextWindow(pInfo->pFillSup);
   destroyStreamFillOperatorInfo(param);
+}
+
+static int32_t doInitStreamColumnMapInfo(SExprSupp* pExprSup, SSHashObj* pColMap) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
+    SExprInfo* pOneExpr = &pExprSup->pExprInfo[i];
+    int32_t    destSlotId = pOneExpr->base.resSchema.slotId;
+    for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
+      SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
+      if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
+        int32_t sourceSlotId = pFuncParam->pCol->slotId;
+        code = tSimpleHashPut(pColMap, &sourceSlotId, sizeof(int32_t), &destSlotId, sizeof(int32_t));
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s.", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t initStreamFillOperatorColumnMapInfo(SExprSupp* pExprSup, SOperatorInfo* pOperator) {
+  if (pOperator != NULL && pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL) {
+    SStreamFillOperatorInfo* pInfo = (SStreamFillOperatorInfo*)pOperator->info;
+    if (pInfo->nbSup.recParam.pColIdMap == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+    return doInitStreamColumnMapInfo(pExprSup, pInfo->nbSup.recParam.pColIdMap);
+  }
+  return TSDB_CODE_SUCCESS;
 }

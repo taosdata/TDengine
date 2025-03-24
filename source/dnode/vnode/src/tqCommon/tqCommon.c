@@ -77,7 +77,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
       .pOtherBackend = NULL,
   };
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__MERGE) {
     handle.vnode = ((STQ*)pMeta->ahandle)->pVnode;
     handle.initTqReader = 1;
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
@@ -86,7 +86,8 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   initStorageAPI(&handle.api);
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG ||
+      pTask->info.taskLevel == TASK_LEVEL__MERGE) {
     if (pTask->info.fillHistory == STREAM_RECALCUL_TASK) {
       handle.pStateBackend = pTask->pRecalState;
       handle.pOtherBackend = pTask->pState;
@@ -113,6 +114,8 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
       tqError("s-task:%s failed to set stream notify info, code:%s", pTask->id.idStr, tstrerror(code));
       return code;
     }
+
+    qSetStreamMergeInfo(pTask->exec.pExecutor, pTask->pVTables);
   }
 
   streamSetupScheduleTrigger(pTask);

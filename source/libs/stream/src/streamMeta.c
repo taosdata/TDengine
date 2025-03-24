@@ -1419,13 +1419,23 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   pMeta->role = (isLeader) ? NODE_ROLE_LEADER : NODE_ROLE_FOLLOWER;
   if (!isLeader) {
     streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
+  } else {  // wait for nodeep update if become leader from follower
+    if (prevStage == NODE_ROLE_FOLLOWER) {
+      pMeta->startInfo.tasksWillRestart = 1;
+    }
   }
 
   streamMetaWUnLock(pMeta);
 
   if (isLeader) {
-    stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64,
-           pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+    if (prevStage == NODE_ROLE_FOLLOWER) {
+      stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64
+             " restart after nodeEp being updated",
+             pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+    } else {
+      stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64,
+             pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+    }
     streamMetaStartHb(pMeta);
   } else {
     stInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d sendMsg beforeClosing:%d", pMeta->vgId,
