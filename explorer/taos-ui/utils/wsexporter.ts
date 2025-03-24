@@ -120,10 +120,10 @@ function handlerData(data: any) {
     .map((item: any) => {
       // 如果字段中包含逗号或双引号，则用双引号包裹，并且内部的双引号需要转义
       let field = item;
-      if (item.field) {
+      if (item?.field) {
         field = item.field;
       }
-      if (field.includes(',') || field.includes('"')) {
+      if (typeof field === 'string' && (field.includes(',') || field.includes('"'))) {
         return `"${field.replace(/"/g, '""')}"`;
       } else {
         return field;
