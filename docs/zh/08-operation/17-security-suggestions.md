@@ -1,6 +1,6 @@
 ---
-sidebar_label: 安全配置
-title: 安全配置
+sidebar_label: 安全部署配置建议
+title: 安全部署配置建议
 toc_max_heading_level: 4
 ---
 
