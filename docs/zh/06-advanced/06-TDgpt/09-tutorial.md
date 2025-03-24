@@ -70,4 +70,4 @@ sudo ./install.sh
 
 # 通过云服务快速体验
 
-TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，请在数据库集市里面找到“时序数据预测分析数据集”数据库，点击启用就可以进入这个数据库，然后按照 TGgpt 的 SQL 操作手册来执行语句，比如“select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;”。
+TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，请在数据库集市里面找到“时序数据预测分析数据集”数据库，点击启用就可以进入这个数据库，然后按照 TDgpt 的 SQL 操作手册来执行语句，比如 `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`。
