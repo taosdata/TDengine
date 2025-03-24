@@ -46,6 +46,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
+,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
@@ -89,18 +90,20 @@
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
 #
 # army/tools
 #
 
-# benchmark 66 cases
+# benchmark 64 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
+
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
@@ -125,6 +128,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/queryMain.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
@@ -160,6 +164,7 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
@@ -342,6 +347,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2
@@ -556,7 +566,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
-,,n,system-test,python3 ./test.py -f 0-others/udfTest.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py

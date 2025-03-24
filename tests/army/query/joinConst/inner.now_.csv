@@ -80,27 +80,7 @@ taos> select b.c from a1 a join (select now() as ts1, ts, f, g, 'a' c from b1) b
 
 taos> select b.ts from a1 a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
 
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1) a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1) a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts1 = a.ts1 and a.ts = b.ts;
-           ts            |
-==========================
- __today__ 00:00:00.000 |
- __today__ 00:00:01.000 |
- __tomorrow__ 00:00:00.000 |
- __tomorrow__ 00:00:02.000 |
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts1 = a.ts1 and a.ts = b.ts;
-           ts            |
-==========================
- __today__ 00:00:00.000 |
- __today__ 00:00:01.000 |
- __tomorrow__ 00:00:00.000 |
- __tomorrow__ 00:00:02.000 |
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
+taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by ts desc) a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
 
 taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1) a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;
 
@@ -267,25 +247,7 @@ taos> select b.ts from a1 a , (select now() as ts1, ts, f, g, 'a' c from b1) b w
 
 taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1) a , (select now() as ts1, ts, f, g, 'a' c from b1) b where b.ts = a.ts and a.ts = b.ts1;
 
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1) a , (select now() as ts1, ts, f, g, 'a' c from b1) b where b.ts1 = a.ts1 and a.ts = b.ts;
-           ts            |
-==========================
- __today__ 00:00:00.000 |
- __today__ 00:00:01.000 |
- __tomorrow__ 00:00:00.000 |
- __tomorrow__ 00:00:02.000 |
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a , (select now() as ts1, ts, f, g, 'a' c from b1) b where b.ts = a.ts and a.ts = b.ts1;
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a , (select now() as ts1, ts, f, g, 'a' c from b1) b where b.ts1 = a.ts1 and a.ts = b.ts;
-           ts            |
-==========================
- __today__ 00:00:00.000 |
- __today__ 00:00:01.000 |
- __tomorrow__ 00:00:00.000 |
- __tomorrow__ 00:00:02.000 |
-
-taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a , (select now() as ts1, ts, f, g, 'a' c from b1) b where b.ts = a.ts and a.ts = b.ts1;
+taos> select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by ts) a , (select now() as ts1, ts, f, g, 'a' c from b1) b where b.ts = a.ts and a.ts = b.ts1;
 
 taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg1 from sta where tg1=1 partition by tg1 order by ts) ta , (select now() ts, last(f) val, tg1 from stb where tg1 >= 0 partition by tg1 order by ts) tb where ta.ts=tb.ts and ta.tg1=tb.tg1;
 

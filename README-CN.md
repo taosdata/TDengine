@@ -80,7 +80,7 @@ TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。
 ### Ubuntu 18.04、20.04、22.04
 
 ```bash
-sudo apt-get udpate
+sudo apt-get update
 sudo apt-get install -y gcc cmake build-essential git libjansson-dev \
   libsnappy-dev liblzma-dev zlib1g-dev pkg-config
 ```
