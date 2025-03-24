@@ -3,6 +3,11 @@ sidebar_label: 虚拟表
 title: 虚拟表
 description: 对虚拟表的各种管理操作
 ---
+
+import origintable from 'pic/virtual-table-origin-table.png';
+import queryres from 'pic/virtual-table-query-res.png';
+import partres from 'pic/virtual-table-query-res-part.png';
+
 ## 创建虚拟表
 
 `CREATE VTABLE` 语句用于创建普通虚拟表和以虚拟超级表为模板创建虚拟子表。
@@ -68,7 +73,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 
 假设有表 t1、t2、t3 结构和数据如下：
 
-![virtual-table-origin-table.png](pic/virtual-table-origin-table.png)
+<img src={origintable} width="100%" alt="origintable" />
 
 并且有虚拟普通表 v1 ，创建方式如下：
 
@@ -89,7 +94,7 @@ select * from v1;
 
 结果如下：
 
-![virtual-table-query-res.png](pic/virtual-table-query-res.png)
+<img src={queryres} width="100%" alt="queryres" />
 
 如果没有选择全部列，只是选择了部分列，查询的结果只会包含选择的列的原始表的时间戳，例如执行如下查询：
 
@@ -99,7 +104,7 @@ select c1, c2 from v1;
 
 得到的结果如下图所示：
 
-![virtual-table-query-res-part.png](pic/virtual-table-query-res-part.png)
+<img src={partres} width="100%" alt="partres" />
 
 因为 c1、c2 列对应的原始表 t1、t2 中没有 0:00:03 这个时间戳，所以最后的结果也不会包含这个时间戳。
 
