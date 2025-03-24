@@ -53,6 +53,9 @@ jobs:
 
       - name: Checkout the repository
         uses: actions/checkout@v4
+
+      - name: Peek info after checkout
+        if: runner.os != 'Windows'
         run: |
           pwd
           ls
@@ -205,6 +208,7 @@ jobs:
           cat /etc/taos/taos.cfg
           ./build.sh start
           pgrep -l taos
+          sleep 3
           taos -s "show databases"
           taos -s "show dnodes"
 
