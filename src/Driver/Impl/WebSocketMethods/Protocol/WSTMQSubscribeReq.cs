@@ -35,5 +35,8 @@ namespace TDengine.Driver.Impl.WebSocketMethods.Protocol
 
         //max_poll_interval_ms
         [JsonProperty("max_poll_interval_ms")] public string MaxPollIntervalMs { get; set; }
+
+        // other config
+        [JsonProperty("config")] public Dictionary<string, string> Config { get; set; }
     }
 }

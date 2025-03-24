@@ -65,8 +65,9 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                     AutoCommitIntervalMs = options.AutoCommitIntervalMs,
                     WithTableName = options.MsgWithTableName,
                     SessionTimeoutMs = options.SessionTimeoutMs,
-                    MaxPollIntervalMs = options.MaxPollIntervalMs
-                },reqId);
+                    MaxPollIntervalMs = options.MaxPollIntervalMs,
+                    Config = options.GetOtherProperties()
+                }, reqId);
         }
 
         public WSTMQPollResp Poll(long blockingTime)
@@ -80,7 +81,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             {
                 ReqId = reqId,
                 BlockingTime = blockingTime
-            },reqId);
+            }, reqId);
         }
 
         public byte[] FetchBlock(ulong reqId, ulong messageId)
@@ -89,7 +90,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             {
                 ReqId = reqId,
                 MessageId = messageId
-            },reqId);
+            }, reqId);
         }
 
         public byte[] FetchRawBlock(ulong messageId)
@@ -103,7 +104,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             {
                 ReqId = reqId,
                 MessageId = messageId
-            },reqId);
+            }, reqId);
         }
 
         public WSTMQCommitResp Commit()
@@ -116,7 +117,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             return SendJsonBackJson<WSTMQCommitReq, WSTMQCommitResp>(WSTMQAction.TMQCommit, new WSTMQCommitReq
             {
                 ReqId = reqId,
-            },reqId);
+            }, reqId);
         }
 
         public WSTMQUnsubscribeResp Unsubscribe()
@@ -130,7 +131,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 new WSTMQUnsubscribeReq
                 {
                     ReqId = reqId
-                },reqId);
+                }, reqId);
         }
 
         public WSTMQGetTopicAssignmentResp Assignment(string topic)
@@ -145,7 +146,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 {
                     ReqId = reqId,
                     Topic = topic
-                },reqId);
+                }, reqId);
         }
 
         public WSTMQOffsetSeekResp Seek(string topic, int vgroupId, long offset)
@@ -162,7 +163,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                     Topic = topic,
                     VGroupId = vgroupId,
                     Offset = offset
-                },reqId);
+                }, reqId);
         }
 
         public WSTMQCommitOffsetResp CommitOffset(string topic, int vgroupId, long offset)
@@ -179,7 +180,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                     Topic = topic,
                     VGroupId = vgroupId,
                     Offset = offset
-                },reqId);
+                }, reqId);
         }
 
         public WSTMQCommittedResp Committed(List<WSTopicVgroupId> tvIds)
@@ -194,7 +195,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 {
                     ReqId = reqId,
                     TopicVgroupIds = tvIds,
-                },reqId);
+                }, reqId);
         }
 
         public WSTMQPositionResp Position(List<WSTopicVgroupId> tvIds)
@@ -209,7 +210,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 {
                     ReqId = reqId,
                     TopicVgroupIds = tvIds,
-                },reqId);
+                }, reqId);
         }
 
         public WSTMQListTopicsResp Subscription()
@@ -223,7 +224,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 new WSTMQListTopicsReq
                 {
                     ReqId = reqId
-                },reqId);
+                }, reqId);
         }
     }
 
@@ -288,6 +289,44 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             }
 
             return string.Empty;
+        }
+
+        private Dictionary<string, bool> knownProperties = new Dictionary<string, bool>()
+        {
+            { "group.id", true },
+            { "client.id", true },
+            { "enable.auto.commit", true },
+            { "auto.commit.interval.ms", true },
+            { "auto.offset.reset", true },
+            { "msg.with.table.name", true },
+            { "td.connect.ip", true },
+            { "useSSL", true },
+            { "token", true },
+            { "ws.message.enableCompression", true },
+            { "td.connect.user", true },
+            { "td.connect.pass", true },
+            { "td.connect.port", true },
+            { "td.connect.db", true },
+            { "td.connect.type", true },
+            { "ws.autoReconnect", true },
+            { "ws.reconnect.retry.count", true },
+            { "ws.reconnect.interval.ms", true },
+            { "session.timeout.ms", true },
+            { "max.poll.interval.ms", true },
+        };
+
+        public Dictionary<string, string> GetOtherProperties()
+        {
+            var otherProperties = new Dictionary<string, string>();
+            foreach (var property in properties)
+            {
+                if (!knownProperties.ContainsKey(property.Key))
+                {
+                    otherProperties[property.Key] = property.Value;
+                }
+            }
+
+            return otherProperties;
         }
     }
 }
