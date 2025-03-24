@@ -72,6 +72,7 @@ void    mndTransDrop(STrans *pTrans);
 
 int32_t mndTransAppendPrepareLog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t mndTransAppendGroupRedolog(STrans *pTrans, SSdbRaw *pRaw, int32_t groupId);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendNullLog(STrans *pTrans);
