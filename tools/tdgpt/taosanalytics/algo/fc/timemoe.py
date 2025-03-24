@@ -9,15 +9,16 @@ from taosanalytics.conf import app_logger, conf
 from taosanalytics.service import AbstractForecastService
 
 
-class _GPTService(AbstractForecastService):
-    name = 'tdtsfm_1'
-    desc = "internal gpt forecast model based on transformer"
+class _TimeMOEService(AbstractForecastService):
+    name = 'timemoe'
+    desc = ("Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts; "
+            "Ref to https://github.com/Time-MoE/Time-MoE")
 
     def __init__(self):
         super().__init__()
 
         self.table_name = None
-        self.service_host = 'http://127.0.0.1:5000/tdtsfm'
+        self.service_host = 'http://127.0.0.1:5001/timemoe'
         self.headers = {'Content-Type': 'application/json'}
 
 
