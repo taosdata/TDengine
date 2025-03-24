@@ -67,6 +67,12 @@ class TDTestCase(TBase):
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 10*10000)
 
+        # add normal table
+        cmd = "-N -I sml -t 2 -n 10000  -y"
+        rlist = self.benchmark(cmd, checkRun = False)
+        # expect failed
+        self.checkListString(rlist, "schemaless cannot work without stable")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

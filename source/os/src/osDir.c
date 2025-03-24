@@ -58,7 +58,7 @@ int32_t wordexp(char *words, wordexp_t *pwordexp, int32_t flags) {
 void wordfree(wordexp_t *pwordexp) {}
 
 #elif defined(DARWIN)
-
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -77,6 +77,7 @@ typedef struct TdDir {
 
 #else
 
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -372,8 +373,9 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
 
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
+
 #ifndef TD_ASTRA
-  char tmp[PATH_MAX] = {0};
+  char tmp[PATH_MAX + 1] = {0};
 #ifdef WINDOWS
   if (_fullpath(tmp, dirname, maxlen) != NULL) {
 #else
@@ -602,6 +604,24 @@ void taosGetCwd(char *buf, int32_t len) {
 #endif
 }
 
+int32_t taosAppPath(char *path, int32_t maxLen) {
+  int32_t ret = 0;
+
+#ifdef WINDOWS
+  ret = GetModuleFileName(NULL, path, maxLen - 1);
+#elif defined(DARWIN)
+  ret = _NSGetExecutablePath(path, &maxLen) ;
+#else
+  ret = readlink("/proc/self/exe", path, maxLen - 1);
+#endif
+
+  if (ret >= 0) {
+    ret = (taosDirName(path) == NULL) ? -1 : 0;
+  }
+
+  return ret;
+}
+
 int32_t taosGetDirSize(const char *path, int64_t *size) {
   int32_t code = 0;
   char    fullPath[PATH_MAX + 100] = {0};
@@ -637,4 +657,55 @@ _OVER:
   *size = totalSize;
   TAOS_UNUSED(taosCloseDir(&pDir));
   return code;
+}
+
+
+void* taosLoadDll(const char* fileName) {
+#if defined(WINDOWS)
+  void* handle = LoadLibraryA(fileName);
+#else
+  void* handle = dlopen(fileName, RTLD_LAZY);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_NOT_LOAD;
+    }
+  }
+
+  return handle;
+}
+
+void taosCloseDll(void* handle) {
+  if (handle == NULL) return;
+
+#if defined(WINDOWS)
+  FreeLibrary((HMODULE)handle);
+#else
+  if (dlclose(handle) != 0 && errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+#endif
+}
+
+void* taosLoadDllFunc(void* handle, const char* funcName) {
+  if (handle == NULL) return NULL;
+
+#if defined(WINDOWS)
+  void *fptr = GetProcAddress((HMODULE)handle, funcName);
+#else
+  void *fptr = dlsym(handle, funcName);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
+    }
+  }
+
+  return fptr;
 }

@@ -22,11 +22,12 @@ app_logger.set_handler(conf.get_log_path())
 app_logger.set_log_level(conf.get_log_level())
 loader.load_all_service()
 
+_ANODE_VER = 'TDgpt - TDengine© Time-Series Data Analytics Platform (ver 3.3.6.0)'
 
 @app.route("/")
 def start():
     """ default rsp """
-    return "TDengine© Time Series Data Analytics Platform (ver 1.0.1)"
+    return _ANODE_VER
 
 
 @app.route("/status")
@@ -90,9 +91,7 @@ def handle_ad_request():
 
     # 4. do anomaly detection
     try:
-        res_list = do_ad_check(payload[data_index], payload[ts_index], algo, params)
-        ano_window = convert_results_to_windows(res_list, payload[ts_index])
-
+        res_list, ano_window = do_ad_check(payload[data_index], payload[ts_index], algo, params)
         result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window)}
         app_logger.log_inst.debug("anomaly-detection result: %s", str(result))
 
@@ -148,7 +147,7 @@ def handle_forecast_req():
 
     try:
         res1 = do_forecast(payload[data_index], payload[ts_index], algo, params)
-        res = {"option": options, "rows": params["fc_rows"]}
+        res = {"option": options, "rows": params["rows"]}
         res.update(res1)
 
         app_logger.log_inst.debug("forecast result: %s", res)

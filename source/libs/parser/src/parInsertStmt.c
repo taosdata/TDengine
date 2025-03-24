@@ -1070,10 +1070,12 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 }
 
 int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_ALL** fields,
-                            STableMeta* pMeta, void* boundTags, bool preCtbname) {
+                            STableMeta* pMeta, void* boundTags, uint8_t tbNameFlag) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
-  bool           hastag = tags != NULL;
-  int32_t        numOfBound = boundColsInfo.numOfBound + (preCtbname ? 1 : 0);
+  bool           hastag = (tags != NULL) && !(tbNameFlag & IS_FIXED_TAG);
+  bool           hasPreBindTbname =
+      (tbNameFlag & IS_FIXED_VALUE) == 0 && ((tbNameFlag & USING_CLAUSE) != 0 || pMeta->tableType == TSDB_NORMAL_TABLE);
+  int32_t numOfBound = boundColsInfo.numOfBound + (hasPreBindTbname ? 1 : 0);
   if (hastag) {
     numOfBound += tags->mixTagsCols ? 0 : tags->numOfBound;
   }
@@ -1084,7 +1086,7 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
       return terrno;
     }
 
-    if (preCtbname && numOfBound != boundColsInfo.numOfBound) {
+    if (hasPreBindTbname) {
       (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
       tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
       (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
@@ -1188,7 +1190,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool preCtbname, int32_t* fieldNum,
+int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, uint8_t tbNameFlag, int32_t* fieldNum,
                                TAOS_FIELD_ALL** fields) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
@@ -1202,7 +1204,7 @@ int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool preCtbname, i
   }
 
   CHECK_CODE(buildStbBoundFields(pDataBlock->boundColsInfo, pSchema, fieldNum, fields, pDataBlock->pMeta, boundTags,
-                                 preCtbname));
+                                 tbNameFlag));
 
   return TSDB_CODE_SUCCESS;
 }
