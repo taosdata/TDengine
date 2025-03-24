@@ -20,6 +20,8 @@ RUN echo ${pkgFile} && \
     echo ${dirName} && \
     echo ${tdgptPkgFile} && \
     echo ${tdgptDirName} && \
+    tar -xzf timer-moe.tar.gz && \
+    rm -rf timer-moe.tar.gz && \
     cd ${tdgptDirName}/ && \
     /bin/bash install.sh -e no && \
     cd .. && \

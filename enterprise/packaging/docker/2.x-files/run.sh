@@ -452,6 +452,7 @@ function run_tdtsfm_server() {
 
 function run_timer_moe_server() {
     logger "INFO" "Starting timer-moe server..."
+    cd $(dirname "$TIMER_POE_FILE")
     python3 $TIMER_POE_FILE --action server &
     TIMER_MOE_PID=$!
     if ! ps -p $TIMER_MOE_PID > /dev/null; then
