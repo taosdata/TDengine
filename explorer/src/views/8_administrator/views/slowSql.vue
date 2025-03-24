@@ -437,7 +437,7 @@ async function getAllSlowSqlData() {
   const dataSql = `SELECT
         ${filterParams.de_duplication ? 'LAST_ROW(start_ts) as start_ts,' : 'start_ts,'}
         db, ip, \`user\`, sql, query_time, rows_num FROM log.taos_slow_sql_detail 
-        ${conditions ? 'WHERE' + conditions : ''}
+        ${conditions.value ? 'WHERE' + conditions.value : ''}
         ${filterParams.de_duplication ? 'PARTITION by sql,db' : ''}
         ORDER BY start_ts DESC
       `;

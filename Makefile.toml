@@ -783,16 +783,17 @@ dependencies = [
   "test-explorer-without-cov",
 ]
 
-[tasks.explorer-ui-nonlinux]
-condition = { platforms = ["windows", "mac"] }
+[tasks.explorer-ui-prod]
 cwd = "explorer"
+script_runner = "@duckscript"
 script = """
-pnpm install && pnpm run build
+exec pnpm install
+exec pnpm run build
+cp ./static ./dist
 """
 
 # linux 环境下使用 docker 构建
-[tasks.explorer-ui-linux]
-condition = { platforms = ["linux"] }
+[tasks.explorer-ui-prod.linux]
 cwd = "explorer"
 script_runner = "bash"
 script = """
@@ -801,18 +802,9 @@ chmod +x ./build.sh
 docker run --rm -v $(pwd):/app node:22.3.0 bash /app/build.sh
 """
 
-[tasks.explorer-ui-static]
-cwd = "explorer"
-script_runner = "@duckscript"
-script = """
-cp ./static ./dist
-"""
-
 [tasks.explorer]
 dependencies = [
-  "explorer-ui-linux",
-  "explorer-ui-nonlinux",
-  "explorer-ui-static",
+  "explorer-ui-prod",
 ]
 command = "cargo"
 args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]

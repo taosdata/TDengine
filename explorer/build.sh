@@ -10,4 +10,5 @@ pnpm install
 
 echo "start build ..."
 pnpm run build
+cp -r static dist/
 echo "build finished ..."

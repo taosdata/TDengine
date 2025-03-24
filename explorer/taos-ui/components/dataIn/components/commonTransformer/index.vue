@@ -838,7 +838,7 @@ async function getMsgBody() {
         } else if (sourceForm.type == 'mongodb') {
           type = 'MongoDB';
         }
-        ElMessage.success(type + t('dataIn.transformer.retrieveSuccTip').replace('{n}', result.input.length));
+        ElMessage.success(type + t('dataIn.transformer.retrieveSuccTip', [result.input.length]));
       }
       result.input.map((item: Recordable) => {
         msgForm.msgbody += item.payload + '\n';
