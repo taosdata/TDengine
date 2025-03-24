@@ -76,9 +76,9 @@ class ConsumerTask implements Runnable, Stoppable {
             long lastTimePolled = System.currentTimeMillis();
             while (active) {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
-                for (ConsumerRecord<String, String> record : records) {
+                for (ConsumerRecord<String, String> metersRecord : records) {
                     i++;
-                    Meters meters = Meters.fromString(record.value());
+                    Meters meters = Meters.fromString(metersRecord.value());
                     pstmt.setString(1, meters.getTableName());
                     pstmt.setTimestamp(2, meters.getTs());
                     pstmt.setFloat(3, meters.getCurrent());
@@ -90,8 +90,8 @@ class ConsumerTask implements Runnable, Stoppable {
                         pstmt.executeBatch();
                     }
                     if (i % (10L * batchSizeByRow) == 0){
-                        //pstmt.executeUpdate();
-                        consumer.commitAsync();
+                        pstmt.executeUpdate();
+                        consumer.commitSync();
                     }
                 }
 
@@ -107,7 +107,6 @@ class ConsumerTask implements Runnable, Stoppable {
         } catch (Exception e) {
             logger.error("Consumer Task {} Error", taskId, e);
         } finally {
-            // 关闭消费者
             consumer.close();
         }
     }

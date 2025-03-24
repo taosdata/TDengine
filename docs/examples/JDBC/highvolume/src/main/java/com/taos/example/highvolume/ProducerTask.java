@@ -49,8 +49,8 @@ class ProducerTask implements Runnable, Stoppable {
                 // to avoid the data of the sub-table out of order. we use the partition key to ensure the data of the same sub-table is sent to the same partition.
                 // Because efficient writing use String hashcode，here we use another hash algorithm to calculate the partition key.
                 long hashCode = Math.abs(ReqId.murmurHash32(key.getBytes(), 0));
-                ProducerRecord<String, String> record = new ProducerRecord<>(Util.getKafkaTopic(), (int)(hashCode % Util.getPartitionCount()), key, value);
-                producer.send(record);
+                ProducerRecord<String, String> metersRecord = new ProducerRecord<>(Util.getKafkaTopic(), (int)(hashCode % Util.getPartitionCount()), key, value);
+                producer.send(metersRecord);
             }
         } catch (Exception e) {
             logger.error("task id {}, send message error: ", taskId, e);

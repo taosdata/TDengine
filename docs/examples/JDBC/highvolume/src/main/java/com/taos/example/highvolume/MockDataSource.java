@@ -33,7 +33,7 @@ class MockDataSource implements Iterator<Meters> {
 
     @Override
     public Meters next() {
-        // use interlace rows one to simulate the data distribution in real world
+        // use interlace rows to simulate the data distribution in real world
         if (index % (tableEndIndex - tableStartIndex + 1) == 0) {
             currentMs += 1000;
         }

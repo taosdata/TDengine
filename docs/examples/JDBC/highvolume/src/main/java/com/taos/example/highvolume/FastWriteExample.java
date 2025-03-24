@@ -14,13 +14,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class FastWriteExample {
-    final static Logger logger = LoggerFactory.getLogger(FastWriteExample.class);
-    final static DataBaseMonitor databaseMonitor = new DataBaseMonitor();
+    static final Logger logger = LoggerFactory.getLogger(FastWriteExample.class);
+    static final DataBaseMonitor databaseMonitor = new DataBaseMonitor();
     static ThreadPoolExecutor writerThreads;
     static ThreadPoolExecutor producerThreads;
-    final static ThreadPoolExecutor statThread = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
-
-    private final static List<Stoppable> allTasks = new ArrayList<>();
+    static final ThreadPoolExecutor statThread = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
+    static private final List<Stoppable> allTasks = new ArrayList<>();
 
     private static int readThreadCount = 5;
     private static int writeThreadPerReadThread = 5;

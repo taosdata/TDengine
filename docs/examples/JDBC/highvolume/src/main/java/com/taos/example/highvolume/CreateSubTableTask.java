@@ -14,8 +14,6 @@ class CreateSubTableTask implements Runnable {
     private final int subTableEndIndex;
     private final String dbName;
 
-
-
     public CreateSubTableTask(int taskId,
                               int subTableStartIndex,
                               int subTableEndIndex,
