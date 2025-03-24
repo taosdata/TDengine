@@ -357,7 +357,7 @@ TAGS (
 
 以设备 d1001 为例，假设 d1001 设备的电流、电压、相位数据如下：
 
-<img src={origintable} width="70%" alt="data-model-origin-table" />
+<img src={origintable} width="500" alt="data-model-origin-table" />
 
 虚拟表 d1001_v 中的数据如下:
 
@@ -390,7 +390,7 @@ CREATE VTABLE current_v (
 
 假设 d1001, d1002, d1003, d1004 四个设备的电流数据如下：
 
-<img src={origintable2} width="70%" alt="data-model-origin-table-2" />
+<img src={origintable2} width="500" alt="data-model-origin-table-2" />
 
 虚拟表 current_v 中的数据如下：
 
