@@ -94,11 +94,6 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (shell.args.is_dump_config) {
-    shellDumpConfig();
-    return 0;
-  }
-
   if (getDsnEnv() != 0) {
     return -1;
   }
@@ -117,6 +112,12 @@ int main(int argc, char *argv[]) {
     }
     //printf("Load with input config dir:%s\n", configDirShell);
   }  
+
+  // dump config
+  if (shell.args.is_dump_config) {
+    shellDumpConfig();
+    return 0;
+  }
 
   // taos_init
   if (taos_init() != 0) {
