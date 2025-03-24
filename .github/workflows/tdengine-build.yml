@@ -197,7 +197,7 @@ jobs:
       - name: Start taosd on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          sudo echo "supportVnodes 256" >> /etc/taos/taos.cfg
+          sudo sh -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
           ./build.sh start
           pgrep -l taos
           taos -s "show databases"
