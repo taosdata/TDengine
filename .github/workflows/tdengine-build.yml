@@ -170,10 +170,10 @@ jobs:
           which taoskeeper
           taosd --help
           taosadapter --help
-          taosd --version
-          taosadapter --version
-          taosBenchmark --version
-          taos --version
+          taosd -V
+          taosadapter -V
+          taosBenchmark -V
+          taos -V
 
       - name: Build and install TDengine on Windows
         if: runner.os == 'Windows'
