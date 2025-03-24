@@ -1,4 +1,4 @@
-name: TDengine Test coverage
+name: TDengine Taosd & Taosc Coverage
 
 on:
   pull_request:
