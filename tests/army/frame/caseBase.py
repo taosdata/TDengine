@@ -38,6 +38,12 @@ class TBase:
 
     # init
     def init(self, conn, logSql, replicaVar=1, db="db", stb="stb", checkColName="ic"):
+        
+        # init
+        self.childtable_count = 0
+        self.insert_rows      = 0
+        self.timestamp_step   = 0
+
         # save param
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), True)
@@ -54,12 +60,12 @@ class TBase:
         self.stb    = stb
 
         # sql 
-        self.sqlSum = f"select sum({checkColName}) from {self.stb}"
-        self.sqlMax = f"select max({checkColName}) from {self.stb}"
-        self.sqlMin = f"select min({checkColName}) from {self.stb}"
-        self.sqlAvg = f"select avg({checkColName}) from {self.stb}"
-        self.sqlFirst = f"select first(ts) from {self.stb}"
-        self.sqlLast  = f"select last(ts) from {self.stb}"
+        self.sqlSum = f"select sum({checkColName}) from {db}.{self.stb}"
+        self.sqlMax = f"select max({checkColName}) from {db}.{self.stb}"
+        self.sqlMin = f"select min({checkColName}) from {db}.{self.stb}"
+        self.sqlAvg = f"select avg({checkColName}) from {db}.{self.stb}"
+        self.sqlFirst = f"select first(ts) from {db}.{self.stb}"
+        self.sqlLast  = f"select last(ts) from {db}.{self.stb}"
 
     # stop
     def stop(self):
@@ -140,15 +146,15 @@ class TBase:
     # basic
     def checkInsertCorrect(self, difCnt = 0):
         # check count
-        sql = f"select count(*) from {self.stb}"
+        sql = f"select count(*) from {self.db}.{self.stb}"
         tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
 
         # check child table count
-        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.stb} group by tbname) where cnt = {self.insert_rows} "
+        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.db}.{self.stb} group by tbname) where cnt = {self.insert_rows} "
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
+        sql = f"select count(*) from (select diff(ts) as dif from {self.db}.{self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
         tdSql.checkAgg(sql, difCnt)
 
     # save agg result
@@ -172,27 +178,27 @@ class TBase:
     # self check 
     def checkConsistency(self, col):
         # top with max
-        sql = f"select max({col}) from {self.stb}"
+        sql = f"select max({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select top({col}, 5) from {self.stb}"
+        sql = f"select top({col}, 5) from {self.db}.{self.stb}"
         tdSql.checkFirstValue(sql, expect)
 
         #bottom with min
-        sql = f"select min({col}) from {self.stb}"
+        sql = f"select min({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select bottom({col}, 5) from {self.stb}"
+        sql = f"select bottom({col}, 5) from {self.db}.{self.stb}"
         tdSql.checkFirstValue(sql, expect)
 
         # order by asc limit 1 with first
-        sql = f"select last({col}) from {self.stb}"
+        sql = f"select last({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.stb} order by _c0 desc limit 1"
+        sql = f"select {col} from {self.db}.{self.stb} order by _c0 desc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
         # order by desc limit 1 with last
-        sql = f"select first({col}) from {self.stb}"
+        sql = f"select first({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.stb} order by _c0 asc limit 1"
+        sql = f"select {col} from {self.db}.{self.stb} order by _c0 asc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
 
@@ -243,6 +249,17 @@ class TBase:
         else:
             tdLog.exit(f"check same failed. real={real} expect={expect}.")
 
+    # check except
+    def checkExcept(self, command):
+        try:
+            code = frame.eos.exe(command, show = True)
+            if code == 0:
+                tdLog.exit(f"Failed, not report error cmd:{command}")
+            else:
+                tdLog.info(f"Passed, report error code={code} is expect, cmd:{command}")
+        except:
+            tdLog.info(f"Passed, catch expect report error for command {command}")
+
 #
 #   get db information
 #
@@ -292,7 +309,8 @@ class TBase:
     def taosdump(self, command, show = True, checkRun = True, retFail = True):
         return frame.etool.runBinFile("taosdump", command, show, checkRun, retFail)
 
-
+    def benchmark(self, command, show = True, checkRun = True, retFail = True):
+        return frame.etool.runBinFile("taosBenchmark", command, show, checkRun, retFail)
 #
 #   util 
 #
@@ -335,15 +353,22 @@ class TBase:
 
 
     # check list have str
-    def checkListString(self, vlist, s):
-        for i in range(len(vlist)):
-            if vlist[i].find(s) != -1:
+    def checkListString(self, rlist, s):
+        if s is None:
+            return 
+        for i in range(len(rlist)):
+            if rlist[i].find(s) != -1:
                 # found
-                tdLog.info(f'found "{s}" on index {i} , line={vlist[i]}')
+                tdLog.info(f'found "{s}" on index {i} , line={rlist[i]}')
                 return 
 
         # not found
-        tdLog.exit(f'faild, not found "{s}" on list:{vlist}')
+        tdLog.exit(f'faild, not found "{s}" on list:{rlist}')
+    
+    # check many string
+    def checkManyString(self, rlist, manys):
+        for s in manys:
+            self.checkListString(rlist, s)
 
 #
 #  str util
@@ -479,6 +504,23 @@ class TBase:
         print(rlist)
 
         return rlist
+
+    # cmd
+    def benchmarkCmd(self, options, childCnt, insertRows, timeStep, results):
+        # set
+        self.childtable_count = childCnt
+        self.insert_rows      = insertRows
+        self.timestamp_step   = timeStep
+
+        # run
+        cmd = f"{options} -t {childCnt} -n {insertRows} -S {timeStep} -y"
+        rlist = self.benchmark(cmd)
+        for result in results:
+            self.checkListString(rlist, result)
+
+        # check correct
+        self.checkInsertCorrect()    
+
 
     # generate new json file
     def genNewJson(self, jsonFile, modifyFunc=None):

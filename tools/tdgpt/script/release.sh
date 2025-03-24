@@ -51,6 +51,7 @@ install_files="${script_dir}/install.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
+mkdir -p ${install_dir}/resource &&  cp ${top_dir}/resource/*  ${install_dir}/resource/
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :

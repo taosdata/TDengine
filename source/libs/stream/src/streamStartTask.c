@@ -158,9 +158,17 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     pMeta->startInfo.curStage = START_MARK_REQ_CHKPID;
     SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
 
-    taosArrayPush(pMeta->startInfo.pStagesList, &info);
-    stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId, numOfConsensusChkptIdTasks,
-            info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
+    void*   p = taosArrayPush(pMeta->startInfo.pStagesList, &info);
+    int32_t num = (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList);
+
+    if (p != NULL) {
+      stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId,
+              numOfConsensusChkptIdTasks, info.ts, num);
+    } else {
+      stError("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64
+              " numOfStageHist:%d, FAILED, out of memory",
+              pMeta->vgId, numOfConsensusChkptIdTasks, info.ts, num);
+    }
   }
 
   // prepare the fill-history task before starting all stream tasks, to avoid fill-history tasks are started without
@@ -230,8 +238,8 @@ static void streamMetaLogLaunchTasksInfo(SStreamMeta* pMeta, int32_t numOfTotal,
   displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
 }
 
-int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId,
-                                                   int64_t startTs, int64_t endTs, bool ready) {
+int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
+                                            int64_t endTs, bool ready) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
   STaskId         id = {.streamId = streamId, .taskId = taskId};
   int32_t         vgId = pMeta->vgId;
@@ -312,7 +320,7 @@ bool allCheckDownstreamRsp(SStreamMeta* pMeta, STaskStartInfo* pStartInfo, int32
     if (px == NULL) {
       px = taosHashGet(pStartInfo->pFailedTaskSet, &idx, sizeof(idx));
       if (px == NULL) {
-        stDebug("vgId:%d s-task:0x%x start result not rsp yet", pMeta->vgId, (int32_t) idx.taskId);
+        stDebug("vgId:%d s-task:0x%x start result not rsp yet", pMeta->vgId, (int32_t)idx.taskId);
         return false;
       }
     }

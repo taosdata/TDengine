@@ -1096,14 +1096,14 @@ charset 的有效值是 UTF-8。
 - 支持版本：v3.3.6.0 引入
 
 #### adapterFqdn
-- 说明：taosadapter服务的地址 `内部参数`
+- 说明：taosAdapter 服务的地址 `内部参数`
 - 类型：fqdn
 - 默认值：localhost
 - 动态修改：不支持
 - 支持版本：v3.3.6.0 引入
 
 #### adapterPort
-- 说明：taosadapter服务的端口号 `内部参数`
+- 说明：taosAdapter 服务的端口号 `内部参数`
 - 类型：整数
 - 默认值：6041
 - 最小值：1
