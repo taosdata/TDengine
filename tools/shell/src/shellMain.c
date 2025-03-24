@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "failed to set config dir:%s  code:[0x%08X]\r\n", configDirShell, code);
       return -1;
     }
-    printf("Load with input config dir:%s\n", configDirShell);
+    //printf("Load with input config dir:%s\n", configDirShell);
   }  
 
   // taos_init
