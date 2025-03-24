@@ -11,7 +11,8 @@ from taosanalytics.service import AbstractForecastService
 
 class _TimeMOEService(AbstractForecastService):
     name = 'timemoe'
-    desc = "Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts "
+    desc = ("Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts; "
+            "Ref to https://github.com/Time-MoE/Time-MoE")
 
     def __init__(self):
         super().__init__()
@@ -19,10 +20,6 @@ class _TimeMOEService(AbstractForecastService):
         self.table_name = None
         self.service_host = 'http://127.0.0.1:5001/timemoe'
         self.headers = {'Content-Type': 'application/json'}
-
-        self.std = None
-        self.threshold = None
-        self.time_interval = None
 
 
     def execute(self):

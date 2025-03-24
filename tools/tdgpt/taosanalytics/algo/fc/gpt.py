@@ -20,10 +20,6 @@ class _GPTService(AbstractForecastService):
         self.service_host = 'http://127.0.0.1:5000/tdtsfm'
         self.headers = {'Content-Type': 'application/json'}
 
-        self.std = None
-        self.threshold = None
-        self.time_interval = None
-
 
     def execute(self):
         if self.list is None or len(self.list) < self.period:
