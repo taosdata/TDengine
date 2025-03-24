@@ -23,14 +23,15 @@ if ! ps -p $TAOS_TS_PID > /dev/null; then
   exit 1
 fi
 
-echo "Starting timer-moe server..."
-python3 $TIMER_POE_FILE --action server &
-TIMER_MOE_PID=$!
+# echo "Starting timer-moe server..."
+# cd /apps/timer-moe
+# python3 $TIMER_POE_FILE --action server &
+# TIMER_MOE_PID=$!
 
-if ! ps -p $TIMER_MOE_PID > /dev/null; then
-  echo "Error: timer-moe server failed to start!"
-  exit 1
-fi
+# if ! ps -p $TIMER_MOE_PID > /dev/null; then
+#   echo "Error: timer-moe server failed to start!"
+#   exit 1
+# fi
 
 echo "Starting uWSGI with config: $CONFIG_FILE"
 exec /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE"

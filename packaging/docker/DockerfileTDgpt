@@ -9,10 +9,15 @@ ADD ${pkgFile} \
     http://${nasIp}/data/nas/TDengine/anode/taos.pth \
     http://${nasIp}/data/nas/TDengine/anode/taos_ts_server.py \
     http://${nasIp}/data/nas/TDengine/anode/fc_australia.sql \
-    http://${nasIp}/data/nas/TDengine/anode/timer-moe.tar.gz \
+    # http://${nasIp}/data/nas/TDengine/anode/timer-moe.tar.gz \
     /apps/
 
-RUN cd ${dirName}/ && /bin/bash install.sh -e no && cd .. && rm -rf ${dirName}
+# RUN tar -xzf timer-moe.tar.gz && \
+#     rm -rf timer-moe.tar.gz && \
+RUN cd ${dirName}/ && \
+    /bin/bash install.sh -e no && \
+    cd .. && \
+    rm -rf ${dirName}
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh /apps/taos_ts_server.py
 EXPOSE 6090 8387 5000
