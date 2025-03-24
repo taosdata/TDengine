@@ -53,6 +53,10 @@ jobs:
 
       - name: Checkout the repository
         uses: actions/checkout@v4
+        run: |
+          pwd
+          ls
+          git log -10
 
       - name: Cache Go modules on Linux and macOS
         if: runner.os != 'Windows'
