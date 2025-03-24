@@ -108,8 +108,13 @@ function exportAll() {
           loading.value = false;
         });
     } else {
-      localExport(sqlExecResult);
-      loading.value = false;
+      try {
+        localExport(sqlExecResult);
+      } catch (err) {
+        ElMessage.error(err?.message);
+      } finally {
+        loading.value = false;
+      }
     }
     
   });
