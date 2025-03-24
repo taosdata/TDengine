@@ -17,7 +17,9 @@
 #include "function.h"
 #include "functionMgt.h"
 #include "operator.h"
+#include "query.h"
 #include "querytask.h"
+#include "taoserror.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -57,8 +59,7 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
   }
 
   // set time window for current result
-  pResultRow->win = (*win);
-
+  TAOS_SET_POBJ_ALIGNED(&pResultRow->win, win);
   *pResult = pResultRow;
   return setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
 }
@@ -966,6 +967,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   }
   int64_t          gid = pBlock->info.id.groupId;
 
+  bool    hasResult = false;
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
   int32_t bytes = pStateColInfoData->info.bytes;
@@ -986,6 +988,12 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       continue;
+    }
+    hasResult = true;
+    if (pStateColInfoData->pData == NULL) {
+      qError("%s:%d state column data is null", __FILE__, __LINE__);
+      pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
 
     char* val = colDataGetData(pStateColInfoData, j);
@@ -1037,6 +1045,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     }
   }
 
+  if (!hasResult) {
+    return;
+  }
   SResultRow* pResult = NULL;
   pRowSup->win.ekey = tsList[pBlock->info.rows - 1];
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,

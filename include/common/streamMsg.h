@@ -40,6 +40,7 @@ typedef struct SStreamUpstreamEpInfo {
   SEpSet  epSet;
   bool    dataAllowed;  // denote if the data from this upstream task is allowed to put into inputQ, not serialize it
   int64_t stage;  // upstream task stage value, to denote if the upstream node has restart/replica changed/transfer
+  int64_t lastMsgId;
 } SStreamUpstreamEpInfo;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo);
@@ -240,6 +241,7 @@ typedef struct SRestoreCheckpointInfo {
   int32_t  transId;        // transaction id of the update the consensus-checkpointId transaction
   int32_t  taskId;
   int32_t  nodeId;
+  int32_t  term;
 } SRestoreCheckpointInfo;
 
 int32_t tEncodeRestoreCheckpointInfo(SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);

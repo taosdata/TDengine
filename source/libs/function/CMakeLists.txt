@@ -34,6 +34,7 @@ target_link_libraries(
     PUBLIC uv_a
 )
 
+if(${BUILD_WITH_UDF})
 add_executable(taosudf src/udfd.c)
 
 if(${TD_DARWIN})
@@ -61,3 +62,5 @@ target_link_libraries(
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif()
+
+endif(${BUILD_WITH_UDF})

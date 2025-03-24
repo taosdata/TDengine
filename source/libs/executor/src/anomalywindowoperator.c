@@ -327,7 +327,7 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, const char* pId)
       qError("%s failed to exec forecast, msg:%s", pId, pMsg);
     }
 
-    return TSDB_CODE_ANA_WN_DATA;
+    return TSDB_CODE_ANA_INTERNAL_ERROR;
   } else if (rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -382,7 +382,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnalyticBuf                analyBuf = {.bufType = ANALYTICS_BUF_TYPE_JSON};
   char                        dataBuf[64] = {0};
   int32_t                     code = 0;
-  int64_t                     ts = 0;
+  int64_t                     ts = taosGetTimestampMs();
   int32_t                     lino = 0;
   const char*                 pId = GET_TASKID(pOperator->pTaskInfo);
 

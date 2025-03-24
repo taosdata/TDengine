@@ -1375,7 +1375,7 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
     case TSDB_DATA_TYPE_NCHAR: {
-      int32_t ret = tasoUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
+      int32_t ret = taosUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
                                     tv1->nData < tv2->nData ? tv1->nData : tv2->nData);
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
@@ -3295,6 +3295,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
       if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
         if (infos[iInfo].bind->is_null[iRow] == 1) {
+          if(iInfo == 0) {
+            code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+            goto _exit;
+          }
           colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
         } else {
           colVal = COL_VAL_NONE(infos[iInfo].columnId, infos[iInfo].type);
@@ -4224,12 +4228,12 @@ static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, SColumnDataA
 
 #define CALC_DECIMAL_SUM_MAX_MIN(TYPE, pSumOp, pCompOp, pColData, pSum, pMax, pMin)           \
   do {                                                                                        \
-    if (decimal128AddCheckOverflow((Decimal *)pSum, pVal, WORD_NUM(TYPE))) *pOverflow = true; \
-    pSumOp->add(pSum, pVal, WORD_NUM(TYPE));                                                  \
-    if (pCompOp->gt(pVal, pMax, WORD_NUM(TYPE))) {                                            \
+    if (decimal128AddCheckOverflow((Decimal *)pSum, pVal, DECIMAL_WORD_NUM(TYPE))) *pOverflow = true; \
+    pSumOp->add(pSum, pVal, DECIMAL_WORD_NUM(TYPE));                                                  \
+    if (pCompOp->gt(pVal, pMax, DECIMAL_WORD_NUM(TYPE))) {                                            \
       *(pMax) = *pVal;                                                                        \
     }                                                                                         \
-    if (pCompOp->lt(pVal, pMin, WORD_NUM(TYPE))) {                                            \
+    if (pCompOp->lt(pVal, pMin, DECIMAL_WORD_NUM(TYPE))) {                                            \
       *(pMin) = *pVal;                                                                        \
     }                                                                                         \
   } while (0)

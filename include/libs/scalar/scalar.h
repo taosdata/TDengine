@@ -33,6 +33,7 @@ pNode will be freed in API;
 */
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
+int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 
 /*
 pDst need to freed in caller
@@ -122,6 +123,7 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 

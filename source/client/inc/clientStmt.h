@@ -64,7 +64,7 @@ typedef struct SStmtBindInfo {
   int32_t  sBindLastIdx;
   int8_t   tbType;
   bool     tagsCached;
-  bool     preCtbname;
+  uint8_t  tbNameFlag;
   void    *boundTags;
   char     tbName[TSDB_TABLE_FNAME_LEN];
   char     tbFName[TSDB_TABLE_FNAME_LEN];
@@ -123,6 +123,7 @@ typedef struct SStmtStatInfo {
 typedef struct SStmtQNode {
   bool                 restoreTbCols;
   STableColsData       tblData;
+  SVCreateTbReq       *pCreateTbReq;
   struct SStmtQNode*   next;
 } SStmtQNode;
 

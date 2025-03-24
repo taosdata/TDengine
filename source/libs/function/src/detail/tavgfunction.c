@@ -444,6 +444,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
     }
   } else {
     int32_t code = doAddNumericVector(pCol, type, pInput, pAvgRes, &numOfElem);
+    if (code) return code;
   }
 
 _over:
@@ -578,20 +579,27 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
 
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  SAvgRes*             pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  void*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t              type = AVG_RES_GET_TYPE(pDBuf, pDestCtx->inputType);
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  SAvgRes*             pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
+  void*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  type = (type == TSDB_DATA_TYPE_NULL) ? AVG_RES_GET_TYPE(pSBuf, pDestCtx->inputType) : type;
 
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    CHECK_OVERFLOW_SUM_SIGNED(pDBuf, pSBuf->sum.isum);
+    CHECK_OVERFLOW_SUM_SIGNED(pDBuf, SUM_RES_GET_ISUM(&AVG_RES_GET_SUM(pSBuf)));
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    CHECK_OVERFLOW_SUM_UNSIGNED(pDBuf, pSBuf->sum.usum);
+    CHECK_OVERFLOW_SUM_UNSIGNED(pDBuf, SUM_RES_GET_USUM(&AVG_RES_GET_SUM(pSBuf)));
+  } else if (IS_DECIMAL_TYPE(type)) {
+    bool overflow = false;
+    SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pDBuf), &SUM_RES_GET_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pSBuf)), type);
+    if (overflow) {
+
+    }
   } else {
-    pDBuf->sum.dsum += pSBuf->sum.dsum;
+    SUM_RES_INC_DSUM(&AVG_RES_GET_SUM(pDBuf), SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pSBuf)));
   }
-  pDBuf->count += pSBuf->count;
+  AVG_RES_INC_COUNT(pDBuf, pDestCtx->inputType, AVG_RES_GET_COUNT(pSBuf, true, pDestCtx->inputType));
 
   return TSDB_CODE_SUCCESS;
 }

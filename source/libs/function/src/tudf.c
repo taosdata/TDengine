@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef USE_UDF
 #include "uv.h"
 
 #include "os.h"
@@ -2102,6 +2103,16 @@ _exit:
   return code;
 }
 
+static void freeTaskSession(SClientUdfTask *task) {
+  uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
+  if (task->session->udfUvPipe != NULL && task->session->udfUvPipe->data != NULL) {
+    SClientUvConn *conn = task->session->udfUvPipe->data;
+    conn->session = NULL;
+  }
+  uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
+  taosMemoryFreeClear(task->session);
+}
+
 int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t         code = TSDB_CODE_SUCCESS, lino = 0;
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
@@ -2142,7 +2153,7 @@ _exit:
   if (code != 0) {
     fnError("failed to setup udf. udfname: %s, err: %d line:%d", udfName, code, lino);
   }
-  taosMemoryFree(task->session);
+  freeTaskSession(task);
   taosMemoryFree(task);
   return code;
 }
@@ -2307,19 +2318,31 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
 
   fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
   // TODO: synchronization refactor between libuv event loop and request thread
-  uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
-  if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
-    SClientUvConn *conn = session->udfUvPipe->data;
-    conn->session = NULL;
-  }
-  uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
+  // uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
+  // if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
+  //   SClientUvConn *conn = session->udfUvPipe->data;
+  //   conn->session = NULL;
+  // }
+  // uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
 
 _exit:
   if (code != 0) {
     fnError("failed to teardown udf. udf name: %s, err: %d, line: %d", session->udfName, code, lino);
   }
-  taosMemoryFree(session);
+  freeTaskSession(task);
   taosMemoryFree(task);
 
   return code;
 }
+#else
+#include "tudf.h"
+
+int32_t cleanUpUdfs() { return 0; }
+int32_t udfcOpen() { return 0; }
+int32_t udfcClose() { return 0; }
+int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
+void    udfStopUdfd() { return; }
+int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+#endif

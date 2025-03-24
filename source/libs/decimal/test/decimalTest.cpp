@@ -74,7 +74,7 @@ void checkDecimal(const DecimalType* pDec, uint8_t t, uint8_t prec, uint8_t scal
 class Numeric128;
 class Numeric64 {
   Decimal64                dec_;
-  static constexpr uint8_t WORD_NUM = WORD_NUM(Decimal64);
+  static constexpr uint8_t DECIMAL_WORD_NUM = DECIMAL_WORD_NUM(Decimal64);
 
  public:
   friend class Numeric128;
@@ -83,12 +83,12 @@ class Numeric64 {
     return decimal64FromStr(str.c_str(), str.size(), prec, scale, &dec_);
   }
   Numeric64& operator+=(const Numeric64& r) {
-    getOps()->add(&dec_, &r.dec_, WORD_NUM);
+    getOps()->add(&dec_, &r.dec_, DECIMAL_WORD_NUM);
     return *this;
   }
   // Numeric64& operator+=(const Numeric128& r);
 
-  bool       operator==(const Numeric64& r) const { return getOps()->eq(&dec_, &r.dec_, WORD_NUM); }
+  bool       operator==(const Numeric64& r) const { return getOps()->eq(&dec_, &r.dec_, DECIMAL_WORD_NUM); }
   Numeric64& operator=(const Numeric64& r);
   Numeric64& operator=(const Numeric128& r);
 
@@ -97,7 +97,7 @@ class Numeric64 {
 
 class Numeric128 {
   Decimal128               dec_;
-  static constexpr uint8_t WORD_NUM = WORD_NUM(Decimal128);
+  static constexpr uint8_t DECIMAL_WORD_NUM = DECIMAL_WORD_NUM(Decimal128);
 
  public:
   friend Numeric64;
@@ -108,7 +108,7 @@ class Numeric128 {
   }
   Numeric128& operator+=(const Numeric128& r) { return *this; }
   Numeric128& operator+=(const Numeric64& r) {
-    getOps()->add(&dec_, &r.dec_, Numeric64::WORD_NUM);
+    getOps()->add(&dec_, &r.dec_, Numeric64::DECIMAL_WORD_NUM);
     return *this;
   }
 
@@ -567,17 +567,7 @@ TEST(decimal, typeFromDecimal) {
   ASSERT_FALSE(boolv);
 }
 
-// TODO wjm TEST where decimal column in (...)
-//  TEST same decimal type with different scale doing comparing or operations
-//  TEST case when select common type
-
 #if 0
-TEST(decimal, a) {
-  __int128 a = generate_big_int128(37);
-  extractWideInteger<9>(a);
-  ASSERT_TRUE(1);
-}
-
 TEST(decimal128, to_string) {
   __int128   i = generate_big_int128(37);
   int64_t    hi = i >> 64;
@@ -697,6 +687,18 @@ TEST(decimal, toStr) {
   code = decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 10, buf, 64);
   ASSERT_EQ(code, 0);
   ASSERT_STREQ(buf, "0");
+
+  char buf2[1];
+  code = decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 10, buf2, 1);
+  ASSERT_TRUE(buf2[0] == '0');
+
+  code = decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 10, NULL, 100);
+  ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
+
+  makeDecimal128(&dec128, 999999999999, 999999999999);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 10, buf, 64));
+  code = decimalToStr(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 10, buf2, 1);
+  ASSERT_EQ(buf2[0], buf[0]);
 }
 
 SDataType getDecimalType(uint8_t prec, uint8_t scale) {
@@ -897,6 +899,21 @@ TEST(decimal, randomGenerator) {
     FAIL();                             \
   } while (0)
 
+#define ASSERT_RUNTIME_ERROR(op)        \
+  do {                                  \
+    try {                               \
+      auto res = op;                    \
+    } catch (std::overflow_error & e) { \
+      FAIL();                           \
+    } catch (std::runtime_error & e) {  \
+      cout << " runtime error" << endl; \
+      break;                            \
+    } catch (std::exception & e) {      \
+      FAIL();                           \
+    }                                   \
+    FAIL();                             \
+  } while (0)
+
 template <int32_t BitNum>
 struct DecimalFromStrTestUnit {
   uint8_t     precision;
@@ -1044,7 +1061,7 @@ TEST(decimal, decimalFromStr_all) {
 TEST(decimal, op_overflow) {
   // divide 0 error
   Numeric<128> dec{38, 2, string(36, '9') + ".99"};
-  ASSERT_OVERFLOW(dec / 0);
+  ASSERT_RUNTIME_ERROR(dec / 0);
 
   // test decimal128Max
   Numeric<128> max{38, 10, "0"};
@@ -1366,8 +1383,6 @@ class DecimalTest : public ::testing::Test {
   std::string generate_decimal_str() { return generator_.generate(generator_config_); }
 };
 
-TEST_F(DecimalTest, insert) {}
-
 TEST(decimal, fillDecimalInfoInBytes) {
   auto    d = getDecimalType(10, 2);
   int32_t bytes = 0;
@@ -1380,7 +1395,9 @@ TEST(decimal, fillDecimalInfoInBytes) {
   ASSERT_EQ(scale, d.scale);
 }
 
+#if 0
 TEST_F(DecimalTest, api_taos_fetch_rows) {
+  GTEST_SKIP_("");
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
@@ -1477,7 +1494,9 @@ TEST_F(DecimalTest, api_taos_fetch_rows) {
 
   taos_close(pTaos);
 }
+#endif
 
+#if 0
 TEST_F(DecimalTest, decimalFromStr) {
   Numeric<64> numeric64 = {10, 2, "0"};
 
@@ -1488,23 +1507,36 @@ TEST_F(DecimalTest, decimalFromStr) {
   numeric64 = {18, 2, "0"};
   Numeric<128> numeric128 = {38, 10, "0"};
 }
+#endif
 
 TEST(decimal, test_add_check_overflow) {
   Numeric<128> dec128 = {38, 10, "9999999999999999999999999999.9999999999"};
   Numeric<64>  dec64 = {18, 2, "123.12"};
-  bool         overflow = decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64));
+  bool         overflow = decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), DECIMAL_WORD_NUM(Decimal64));
   ASSERT_TRUE(overflow);
   auto ret = dec128 + dec64;
   dec128 = {38, 10, "-9999999999999999999999999999.9999999999"};
-  ASSERT_FALSE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64)));
+  ASSERT_FALSE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), DECIMAL_WORD_NUM(Decimal64)));
   dec64 = {18, 2, "-123.1"};
-  ASSERT_TRUE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64)));
+  ASSERT_TRUE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), DECIMAL_WORD_NUM(Decimal64)));
 
   dec128 = {38, 0, "99999999999999999999999999999999999999"};
   dec64= {18, 0, "123"};
   Numeric<128> dec128_2 = {38, 2, "999999999999999999999999999999999999.99"};
   ASSERT_OVERFLOW(dec128 + dec128_2);
   ASSERT_OVERFLOW(dec128 + dec64);
+  ASSERT_RUNTIME_ERROR(dec128 / 0);
+
+  dec64 = {10, 2, "99999999.99"};
+  Decimal64 tmp = {0};
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, TEST_decimal64FromDecimal64((Decimal64*)&dec64.dec(), 10, 2, &tmp, 9, 1));
+  dec128 = {20, 12, "99999999.999999999999"};
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, TEST_decimal64FromDecimal128((Decimal128*)&dec128.dec(), 20, 12, &tmp, 9, 1));
+
+  dec64 = {18, 10, "99999999.9999999999"};
+  Decimal128 tmp2 = {0};
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, TEST_decimal128FromDecimal64((Decimal64*)&dec64.dec(), 18, 10, &tmp2, 20, 20));
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, TEST_decimal128FromDecimal128((Decimal128*)&dec128.dec(), 20, 12, &tmp2, 19, 11));
 }
 
 int main(int argc, char** argv) {

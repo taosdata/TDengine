@@ -66,9 +66,9 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
 }
 
 int32_t qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                               SStbInterlaceInfo* pBuildInfo) {
+                               SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
   // merge according to vgId
-  return insAppendStmtTableDataCxt(pAllVgHash, pTbData, pTbCtx, pBuildInfo);
+  return insAppendStmtTableDataCxt(pAllVgHash, pTbData, pTbCtx, pBuildInfo, ctbReq);
 }
 
 int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks) {
@@ -487,7 +487,8 @@ _return:
 }
 
 int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt) {
+                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt,
+                            SVCreateTbReq* pCreateTbReq) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SMsgBuf        pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -604,6 +605,13 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   }
 
   if (!isJson && (code = tTagNew(pTagArray, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  if (pCreateTbReq){
+    code = insBuildCreateTbReq(pCreateTbReq, tName, pTag, suid, sTableName, tagName,
+                               pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
+    pTag = NULL;
     goto end;
   }
 
@@ -1062,10 +1070,11 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 }
 
 int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_ALL** fields,
-                            STableMeta* pMeta, void* boundTags, bool preCtbname) {
+                            STableMeta* pMeta, void* boundTags, uint8_t tbNameFlag) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
-  bool           hastag = tags != NULL;
-  int32_t        numOfBound = boundColsInfo.numOfBound + (preCtbname ? 1 : 0);
+  bool           hastag = (tags != NULL) && !(tbNameFlag & IS_FIXED_TAG);
+  int32_t        numOfBound =
+      boundColsInfo.numOfBound + ((tbNameFlag & IS_FIXED_VALUE) == 0 && (tbNameFlag & USING_CLAUSE) != 0 ? 1 : 0);
   if (hastag) {
     numOfBound += tags->mixTagsCols ? 0 : tags->numOfBound;
   }
@@ -1076,7 +1085,7 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
       return terrno;
     }
 
-    if (preCtbname && numOfBound != boundColsInfo.numOfBound) {
+    if ((tbNameFlag & IS_FIXED_VALUE) == 0 && (tbNameFlag & USING_CLAUSE) != 0) {
       (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
       tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
       (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
@@ -1180,7 +1189,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool preCtbname, int32_t* fieldNum,
+int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, uint8_t tbNameFlag, int32_t* fieldNum,
                                TAOS_FIELD_ALL** fields) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
@@ -1194,7 +1203,7 @@ int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool preCtbname, i
   }
 
   CHECK_CODE(buildStbBoundFields(pDataBlock->boundColsInfo, pSchema, fieldNum, fields, pDataBlock->pMeta, boundTags,
-                                 preCtbname));
+                                 tbNameFlag));
 
   return TSDB_CODE_SUCCESS;
 }

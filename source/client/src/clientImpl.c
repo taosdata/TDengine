@@ -247,7 +247,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   int32_t  err = taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
                              sizeof((*pRequest)->self));
   if (err) {
-    tscError("req:0x%" PRId64 ", failed to add to request container, QID:0x%" PRIx64 ", connObj:%" PRId64 ", %s",
+    tscError("req:0x%" PRId64 ", failed to add to request container, QID:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
     destroyRequest(*pRequest);
     *pRequest = NULL;
@@ -258,7 +258,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
     if (TSDB_CODE_SUCCESS !=
         nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
-      tscError("req:0x%" PRId64 ", failed to create node allocator, QID:0x%" PRIx64 ", connObj:%" PRId64 ", %s", (*pRequest)->self,
+      tscError("req:0x%" PRId64 ", failed to create node allocator, QID:0x%" PRIx64 ", conn:%" PRId64 ", %s", (*pRequest)->self,
                (*pRequest)->requestId, pTscObj->id, sql);
       destroyRequest(*pRequest);
       *pRequest = NULL;
@@ -266,7 +266,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     }
   }
 
-  tscDebugL("req:0x%" PRIx64 ", QID:0x%" PRIx64 ", build request", (*pRequest)->self, (*pRequest)->requestId);
+  tscDebugL("req:0x%" PRIx64 ", build request, QID:0x%" PRIx64, (*pRequest)->self, (*pRequest)->requestId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1125,13 +1125,13 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
       }
     }
 
-    tscDebug("lastKey:%" PRId64 " vgId:%d, vgVer:%" PRId64, ts, *(int32_t*)pRow[1], *(int64_t*)pRow[2]);
+    tscInfo("[create stream with histroy] lastKey:%" PRId64 " vgId:%d, vgVer:%" PRId64, ts, *(int32_t*)pRow[1], *(int64_t*)pRow[2]);
   }
 
   (*pBlock)->info.window.ekey = lastTs;
   (*pBlock)->info.rows = numOfRows;
 
-  tscDebug("lastKey:%" PRId64 " numOfRows:%d from all vgroups", lastTs, numOfRows);
+  tscInfo("[create stream with histroy] lastKey:%" PRId64 " numOfRows:%d from all vgroups", lastTs, numOfRows);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1658,7 +1658,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     *pTscObj = NULL;
     return terrno;
   } else {
-    tscInfo("connObj:0x%" PRIx64 ", connection is opening, connId:%u, dnodeConn:%p, QID:0x%" PRIx64, (*pTscObj)->id,
+    tscInfo("conn:0x%" PRIx64 ", connection is opening, connId:%u, dnodeConn:%p, QID:0x%" PRIx64, (*pTscObj)->id,
              (*pTscObj)->connId, (*pTscObj)->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
@@ -1946,7 +1946,7 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo, bool isStmt) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
     int32_t type = pResultInfo->fields[i].type;
-    int32_t schemaBytes = calcSchemaBytesFromTypeBytes(type, pResultInfo->fields[i].bytes, isStmt);
+    int32_t schemaBytes = calcSchemaBytesFromTypeBytes(type, pResultInfo->userFields[i].bytes, false);
 
     if (IS_VAR_DATA_TYPE(type)) {
       if (!IS_VAR_NULL_TYPE(type, schemaBytes) && pCol->offset[pResultInfo->current] != -1) {
@@ -2135,8 +2135,9 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength, bo
 
 static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
-    TAOS_FIELD_E* pField = pResultInfo->fields + i;
-    int32_t type = pField->type;
+    TAOS_FIELD_E* pFieldE = pResultInfo->fields + i;
+    TAOS_FIELD* pField = pResultInfo->userFields + i;
+    int32_t type = pFieldE->type;
     int32_t bufLen = 0;
     char* p = NULL;
     if (!IS_DECIMAL_TYPE(type) || !pResultInfo->pCol[i].pData) {
@@ -2144,6 +2145,7 @@ static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
     } else {
       bufLen = 64;
       p = taosMemoryRealloc(pResultInfo->convertBuf[i], bufLen * pResultInfo->numOfRows);
+      pFieldE->bytes = bufLen;
       pField->bytes = bufLen;
     }
     if (!p) return terrno;
@@ -2151,7 +2153,7 @@ static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
 
     for (int32_t j = 0; j < pResultInfo->numOfRows; ++j) {
       int32_t code = decimalToStr((DecimalWord*)(pResultInfo->pCol[i].pData + j * tDataTypes[type].bytes), type,
-                                  pField->precision, pField->scale, p, bufLen);
+                                  pFieldE->precision, pFieldE->scale, p, bufLen);
       p += bufLen;
       if (TSDB_CODE_SUCCESS != code) {
         return code;
@@ -2395,6 +2397,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
 }
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isStmt) {
+  bool convertForDecimal = convertUcs4;
   if (pResultInfo == NULL || pResultInfo->numOfCols <= 0 || pResultInfo->fields == NULL) {
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -2442,7 +2445,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
   int32_t hasColumnSeg = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  uint64_t groupId = *(uint64_t*)p;
+  uint64_t groupId = taosGetUInt64Aligned((uint64_t*)p);
   p += sizeof(uint64_t);
 
   // check fields
@@ -2502,10 +2505,12 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (convertUcs4) {
     code = doConvertUCS4(pResultInfo, colLength, isStmt);
   }
-  if (TSDB_CODE_SUCCESS == code && convertUcs4) {
+#endif
+  if (TSDB_CODE_SUCCESS == code && convertForDecimal) {
     code = convertDecimalType(pResultInfo);
   }
   return code;
@@ -2988,7 +2993,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
     return NULL;
   }
 
-  tscDebug("connObj:0x%" PRIx64 ", taos_query start with sql:%s", *(int64_t*)taos, sql);
+  tscDebug("conn:0x%" PRIx64 ", taos_query execute sql:%s", *(int64_t*)taos, sql);
 
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (NULL == param) {
@@ -3019,7 +3024,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   }
   taosMemoryFree(param);
 
-  tscDebug("connObj:0x%" PRIx64 ", res:%p created, taos_query end", *(int64_t*)taos, pRequest);
+  tscDebug("QID:0x%" PRIx64 ", taos_query end, conn:0x%" PRIx64 " res:%p", pRequest ? pRequest->requestId : 0,
+           *(int64_t*)taos, pRequest);
 
   return pRequest;
 }
@@ -3150,7 +3156,9 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
     code = TSDB_CODE_SUCCESS;
     pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
   }
-  pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  }
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {
     pReq->inCallback = false;

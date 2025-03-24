@@ -610,7 +610,7 @@ int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDa
 }
 
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                                  SStbInterlaceInfo* pBuildInfo) {
+                                  SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
@@ -618,13 +618,26 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   pTbCtx->pData->aRowP = pTbData->aCol;
 
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  if (ctbReq !=NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+    vgId = (int32_t)ctbReq->uid;
+    uid = 0;
+    pTbCtx->pMeta->vgId=(int32_t)ctbReq->uid;
+    ctbReq->uid=0;
+    pTbCtx->pData->pCreateTbReq = ctbReq;
+    code = TSDB_CODE_SUCCESS;
+  } else {
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    pTbCtx->pMeta->vgId = vgId;
+    pTbCtx->pMeta->uid = uid;
+    pTbCtx->pData->uid = uid;
+    pTbCtx->pData->pCreateTbReq = NULL;
+    if (ctbReq != NULL) {
+      tdDestroySVCreateTbReq(ctbReq);
+    }
   }
-
-  pTbCtx->pMeta->vgId = vgId;
-  pTbCtx->pMeta->uid = uid;
-  pTbCtx->pData->uid = uid;
 
   if (!pTbCtx->ordered) {
     code = tRowSort(pTbCtx->pData->aRowP);

@@ -65,7 +65,8 @@ int32_t setChkInDecimalHash(const void* pLeft, const void* pRight) {
 }
 
 int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight) {
-  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 16) ? 1 : 0;
+  const SDecimalCompareCtx *pCtxL = pLeft, *pCtxR = pRight;
+  return NULL == taosHashGet((SHashObj *)(pCtxR->pData), pCtxL->pData, tDataTypes[pCtxL->type].bytes) ? 1 : 0;
 }
 
 int32_t compareChkInString(const void *pLeft, const void *pRight) {
@@ -187,7 +188,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
     return 1;
   }
 
-  if (FLT_EQUAL(p1, p2)) {
+  if (DBL_EQUAL(p1, p2)) {
     return 0;
   }
   return FLT_GREATER(p1, p2) ? 1 : -1;
@@ -220,7 +221,7 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  int32_t ret = tasoUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1>len2 ? len2:len1);
+  int32_t ret = taosUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1>len2 ? len2:len1);
   if (ret == 0) {
     if (len1 > len2)
       return 1;
@@ -1058,29 +1059,29 @@ int32_t compareDecimal128(const void* pleft, const void* pright) {
 
 int32_t compareDecimal64SameScale(const void* pleft, const void* pright) {
   const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
-  if (pOps->gt(pleft, pright, WORD_NUM(Decimal64))) return 1;
-  if (pOps->lt(pleft, pright, WORD_NUM(Decimal64))) return -1;
+  if (pOps->gt(pleft, pright, DECIMAL_WORD_NUM(Decimal64))) return 1;
+  if (pOps->lt(pleft, pright, DECIMAL_WORD_NUM(Decimal64))) return -1;
   return 0;
 }
 
 int32_t compareDecimal64SameScaleDesc(const void* pLeft, const void* pRight) {
   const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
-  if (pOps->lt(pLeft, pRight, WORD_NUM(Decimal64))) return 1;
-  if (pOps->gt(pLeft, pRight, WORD_NUM(Decimal64))) return -1;
+  if (pOps->lt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal64))) return 1;
+  if (pOps->gt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal64))) return -1;
   return 0;
 }
 
 int32_t compareDecimal128SameScale(const void* pleft, const void* pright) {
   const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
-  if (pOps->gt(pleft, pright, WORD_NUM(Decimal))) return 1;
-  if (pOps->lt(pleft, pright, WORD_NUM(Decimal))) return -1;
+  if (pOps->gt(pleft, pright, DECIMAL_WORD_NUM(Decimal))) return 1;
+  if (pOps->lt(pleft, pright, DECIMAL_WORD_NUM(Decimal))) return -1;
   return 0;
 }
 
 int32_t compareDecimal128SameScaleDesc(const void* pLeft, const void* pRight) {
   const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
-  if (pOps->lt(pLeft, pRight, WORD_NUM(Decimal))) return 1;
-  if (pOps->gt(pLeft, pRight, WORD_NUM(Decimal))) return -1;
+  if (pOps->lt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal))) return 1;
+  if (pOps->gt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal))) return -1;
   return 0;
 }
 
@@ -1274,11 +1275,12 @@ typedef struct UsingRegex {
 typedef UsingRegex* HashRegexPtr;
 
 typedef struct RegexCache {
-  SHashObj      *regexHash;
-  void          *regexCacheTmr;
-  void          *timer;
-  SRWLatch      mutex;
-  bool          exit;
+  SHashObj *regexHash;
+  void     *regexCacheTmr;
+  void     *timer;
+  SRWLatch  mutex;
+  bool      exit;
+  int8_t    inited;
 } RegexCache;
 static RegexCache sRegexCache;
 #define MAX_REGEX_CACHE_SIZE   20
@@ -1326,6 +1328,7 @@ int32_t InitRegexCache() {
   #ifdef WINDOWS
     return 0;
   #endif
+  if (atomic_val_compare_exchange_8(&sRegexCache.inited, 0, 1) != 0) return TSDB_CODE_SUCCESS;
   sRegexCache.regexHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (sRegexCache.regexHash == NULL) {
     uError("failed to create RegexCache");
@@ -1362,7 +1365,9 @@ void DestroyRegexCache(){
   taosWLockLatch(&sRegexCache.mutex);
   sRegexCache.exit = true;
   taosHashCleanup(sRegexCache.regexHash);
+  sRegexCache.regexHash = NULL;
   taosTmrCleanUp(sRegexCache.regexCacheTmr);
+  sRegexCache.regexCacheTmr = NULL;
   taosWUnLockLatch(&sRegexCache.mutex);
 }
 

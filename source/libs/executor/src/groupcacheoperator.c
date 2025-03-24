@@ -641,7 +641,7 @@ static FORCE_INLINE void initGcVgroupCtx(SOperatorInfo* pOperator, SGcVgroupCtx*
   pVgCtx->pTbList = pTbList;
   pVgCtx->id = vgId;
   (void)snprintf(pVgCtx->fileCtx.baseFilename, sizeof(pVgCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d_%d", 
-     tsTempDir, getpid(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, downstreamId, vgId);
+     tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, downstreamId, vgId);
   pVgCtx->fileCtx.baseFilename[sizeof(pVgCtx->fileCtx.baseFilename) - 1] = 0;
 
   pVgCtx->fileCtx.baseNameLen = strlen(pVgCtx->fileCtx.baseFilename);
@@ -962,6 +962,7 @@ static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSD
       fakeGcParam.needCache = true;
       fakeParam.downstreamIdx = pSession->downstreamIdx;
       fakeParam.value = &fakeGcParam;
+      fakeParam.reUse = false;
       code = addNewGroupData(pOperator, &fakeParam, &pGroup, GROUP_CACHE_DEFAULT_VGID, pBlock->info.id.groupId);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
@@ -1453,7 +1454,7 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     }
 
     (void)snprintf(pCtx->fileCtx.baseFilename, sizeof(pCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%d", 
-      tsTempDir, getpid(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pCtx->id);
+      tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pCtx->id);
     pCtx->fileCtx.baseFilename[sizeof(pCtx->fileCtx.baseFilename) - 1] = 0;
     pCtx->fileCtx.baseNameLen = strlen(pCtx->fileCtx.baseFilename);
   }

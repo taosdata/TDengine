@@ -25,6 +25,20 @@ extern "C" {
 
 #define TSDB__packed
 
+#if defined(TD_ASTRA_32)
+#define PACK_PUSH_MIN _Pragma("pack(push, 4)")
+#elif defined(WINDOWS)
+#define PACK_PUSH_MIN __pragma(pack(push, 1))
+#else
+#define PACK_PUSH_MIN _Pragma("pack(push, 1)")
+#endif
+
+#if defined(WINDOWS)
+#define PACK_POP __pragma(pack(pop))
+#else
+#define PACK_POP _Pragma("pack(pop)")
+#endif
+
 #define TSKEY             int64_t
 #define TSKEY_MIN         INT64_MIN
 #define TSKEY_MAX         INT64_MAX
@@ -271,6 +285,7 @@ typedef enum ELogicConditionType {
 #define TSDB_COL_NAME_LEN        65
 #define TSDB_COL_NAME_EXLEN      8
 #define TSDB_COL_FNAME_LEN       (TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_COL_FNAME_EX_LEN    (TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_NAME_LEN)
 #define TSDB_MAX_SAVED_SQL_LEN   TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN    1024
@@ -341,6 +356,8 @@ typedef enum ELogicConditionType {
 #define TSDB_ERROR_MSG_LEN    1024
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
+
+#define TSDB_RESERVE_VALUE_LEN  256
 
 #define TSDB_CLUSTER_VALUE_LEN 1000
 #define TSDB_GRANT_LOG_COL_LEN 15600
@@ -589,7 +606,8 @@ typedef enum ELogicConditionType {
 #define TFS_MAX_LEVEL          (TFS_MAX_TIERS - 1)
 #define TFS_PRIMARY_LEVEL      0
 #define TFS_PRIMARY_ID         0
-#define TFS_MIN_DISK_FREE_SIZE 50 * 1024 * 1024
+#define TFS_MIN_DISK_FREE_SIZE     50 * 1024 * 1024                    // 50MB
+#define TFS_MIN_DISK_FREE_SIZE_MAX (2ULL * 1024 * 1024 * 1024 * 1024)  // 2TB
 
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };
@@ -695,7 +713,9 @@ typedef enum {
 #define GET_DEICMAL_MAX_PRECISION(type) (type) == TSDB_DATA_TYPE_DECIMAL64 ? TSDB_DECIMAL64_MAX_PRECISION : TSDB_DECIMAL_MAX_SCALE
 
 typedef uint64_t DecimalWord;
-#define WORD_NUM(TYPE) (sizeof(TYPE) / sizeof(DecimalWord))
+#define DECIMAL_WORD_NUM(TYPE) (sizeof(TYPE) / sizeof(DecimalWord))
+
+#define COMPILE_TIME_ASSERT(pred) switch(0) {case 0: case pred:;}
 
 #ifdef __cplusplus
 }

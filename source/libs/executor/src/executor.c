@@ -183,12 +183,13 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
-    } else if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    } else if (type == STREAM_INPUT__CHECKPOINT_TRIGGER || type == STREAM_INPUT__RECALCULATE) {
       SPackedData tmp = {.pDataBlock = input};
       void*       tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
       QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
 
-      pInfo->blockType = STREAM_INPUT__CHECKPOINT;
+      pInfo->blockType =
+          (type == STREAM_INPUT__CHECKPOINT_TRIGGER) ? STREAM_INPUT__CHECKPOINT : STREAM_INPUT__RECALCULATE;
     } else {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _end);
@@ -271,6 +272,15 @@ int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchem
 
 _end:
   return code;
+}
+
+void qSetStreamMergeInfo(qTaskInfo_t tinfo, SArray* pVTables) {
+  if (tinfo == 0 || pVTables == NULL) {
+    return;
+  }
+
+  SStreamTaskInfo* pStreamInfo = &((SExecTaskInfo*)tinfo)->streamInfo;
+  pStreamInfo->pVTables = pVTables;
 }
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
@@ -624,6 +634,13 @@ void destroyOperatorParam(SOperatorParam* pParam) {
   // TODO
 }
 
+void qDestroyOperatorParam(SOperatorParam* pParam) {
+  if (NULL == pParam) {
+    return;
+  }
+  freeOperatorParam(pParam, OP_GET_PARAM);
+}
+
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
   destroyOperatorParam(((SExecTaskInfo*)tinfo)->pOpParam);
   ((SExecTaskInfo*)tinfo)->pOpParam = pParam;
@@ -677,7 +694,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     }
 
     // pSinkParam has been freed during create sinker.
-    code = dsCreateDataSinker(pSinkManager, readHandle->localExec ? &pSink : &pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
+    code = dsCreateDataSinker(pSinkManager, readHandle->localExec ? &pSink : &pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str, pSubplan->processOneBlock);
     if (code) {
       qError("s-task:%s failed to create data sinker, code:%s", (*pTask)->id.str, tstrerror(code));
     }
@@ -696,7 +713,7 @@ static void freeBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal) {
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal, bool processOneBlock) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
@@ -791,7 +808,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     void* tmp = taosArrayPush(pResList, &p);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
-    if (current >= rowsThreshold) {
+    if (current >= rowsThreshold || processOneBlock) {
       break;
     }
 
@@ -1003,7 +1020,7 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitDuration) {
   }
 
   if (waitDuration > 0) {
-    qDebug("%s sync killed execTask, and waiting for %.2fs", GET_TASKID(pTaskInfo), waitDuration/1000.0);
+    qDebug("%s sync killed execTask, and waiting for at most %.2fs", GET_TASKID(pTaskInfo), waitDuration/1000.0);
   } else {
     qDebug("%s async killed execTask", GET_TASKID(pTaskInfo));
   }
@@ -1031,6 +1048,11 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitDuration) {
     }
   }
 
+  int64_t et = taosGetTimestampMs() - st;
+  if (et < waitDuration) {
+    qInfo("%s  waiting %.2fs for executor stopping", GET_TASKID(pTaskInfo), et / 1000.0);
+    return TSDB_CODE_SUCCESS;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1161,21 +1183,22 @@ _end:
   return code;
 }
 
-static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow) {
+static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow);
+    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow, pRecInteral);
   }
   SStreamScanInfo* pScanOp = (SStreamScanInfo*) pOperator->info;
   *pWaterMark = pScanOp->twAggSup.waterMark;
   *pInterval = pScanOp->interval;
   *pLastWindow = pScanOp->lastScanRange;
+  *pRecInteral = pScanOp->recalculateInterval;
   return TSDB_CODE_SUCCESS; 
 }
 
-int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow) {
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  return getOpratorIntervalInfo(pOperator, pWaterMark, pInterval, pLastWindow);
+  return getOpratorIntervalInfo(pOperator, pWaterMark, pInterval, pLastWindow, pRecInteral);
 }
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
@@ -1339,7 +1362,7 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
     return terrno;
   }
 
-  pCond->twindows = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&pCond->twindows, TSWINDOW_INITIALIZER);
   pCond->suid = pMtInfo->suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;

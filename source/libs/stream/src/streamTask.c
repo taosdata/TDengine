@@ -17,17 +17,17 @@
 #include "osDir.h"
 #include "osMemory.h"
 #include "streamInt.h"
+#include "streamMsg.h"
 #include "streamsm.h"
 #include "tmisce.h"
 #include "tstream.h"
 #include "ttimer.h"
 #include "wal.h"
-#include "streamMsg.h"
 
-static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
+static void    streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
 static int32_t streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated);
 static int32_t streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdate);
-static void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo);
+static void    streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo);
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -43,7 +43,7 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
   if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
     bool isEqual = isEpsetEqual(&pTask->info.epSet, pEpSet);
     code = epsetToStr(pEpSet, buf, tListLen(buf));
-    if (code) { // print error and continue
+    if (code) {  // print error and continue
       stError("%s failed to convert epset to str, code:%s", pTask->id.idStr, tstrerror(code));
       return code;
     }
@@ -52,7 +52,7 @@ static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEp
       (*pUpdated) = true;
       char tmp[512] = {0};
       code = epsetToStr(&pTask->info.epSet, tmp, tListLen(tmp));  // only for log file, ignore errors
-      if (code) { // print error and continue
+      if (code) {                                                 // print error and continue
         stError("%s failed to convert epset to str, code:%s", pTask->id.idStr, tstrerror(code));
         return code;
       }
@@ -100,13 +100,14 @@ static SStreamUpstreamEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
   pEpInfo->nodeId = pTask->info.nodeId;
   pEpInfo->taskId = pTask->id.taskId;
   pEpInfo->stage = -1;
+  pEpInfo->lastMsgId = -1;
 
   return pEpInfo;
 }
 
-int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int32_t trigger,
+int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, EStreamTaskType type, int32_t trigger,
                        int64_t triggerParam, SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5,
-                       SStreamTask** p) {
+                       int8_t hasAggTasks, SStreamTask** p) {
   *p = NULL;
 
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
@@ -121,8 +122,9 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   pTask->id.streamId = streamId;
 
   pTask->info.taskLevel = taskLevel;
-  pTask->info.fillHistory = fillHistory;
+  pTask->info.fillHistory = type;
   pTask->info.trigger = trigger;
+  pTask->info.hasAggTasks = hasAggTasks;
   pTask->info.delaySchedParam = triggerParam;
   pTask->subtableWithoutMd5 = subtableWithoutMd5;
 
@@ -146,17 +148,14 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   }
 
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->status.taskStatus = fillHistory ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
+  pTask->status.taskStatus =
+      (pTask->info.fillHistory == STREAM_HISTORY_TASK) ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
   pTask->taskCheckInfo.pList = taosArrayInit(4, sizeof(SDownstreamStatusInfo));
-  code = taosThreadMutexInit(&pTask->taskCheckInfo.checkInfoLock, NULL);
-  if (code) {
-    return code;
-  }
 
-  if (fillHistory && !hasFillhistory) {
+  if ((pTask->info.fillHistory == STREAM_HISTORY_TASK) && !hasFillhistory) {
     stError("s-task:0x%x create task failed, due to inconsistent fill-history flag", pTask->id.taskId);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -226,13 +225,13 @@ void tFreeStreamTask(void* pParam) {
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
-  streamMutexLock(&pTask->lock);
   if (pTask->status.pSM != NULL) {
+    streamMutexLock(&pTask->lock);
     SStreamTaskState status = streamTaskGetStatus(pTask);
     p = status.name;
     status1 = status.state;
+    streamMutexUnlock(&pTask->lock);
   }
-  streamMutexUnlock(&pTask->lock);
 
   stDebug("start to free s-task:0x%x %p, state:%s, refId:%" PRId64, taskId, pTask, p, pTask->id.refId);
 
@@ -295,6 +294,9 @@ void tFreeStreamTask(void* pParam) {
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pTagSchema);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    taosArrayDestroy(pTask->outputInfo.vtableMapDispatcher.taskInfos);
+    tSimpleHashCleanup(pTask->outputInfo.vtableMapDispatcher.vtableMap);
   }
 
   streamTaskCleanupCheckInfo(&pTask->taskCheckInfo);
@@ -304,17 +306,24 @@ void tFreeStreamTask(void* pParam) {
     tSimpleHashCleanup(pTask->pNameMap);
   }
 
+  if (pTask->status.pSM != NULL) {
+    streamMutexDestroy(&pTask->lock);
+    streamMutexDestroy(&pTask->msgInfo.lock);
+    streamMutexDestroy(&pTask->taskCheckInfo.checkInfoLock);
+  }
+
+  taosArrayDestroy(pTask->pVTables);
+  pTask->pVTables = NULL;
+
   streamDestroyStateMachine(pTask->status.pSM);
   pTask->status.pSM = NULL;
 
   streamTaskDestroyUpstreamInfo(&pTask->upstreamInfo);
 
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
-  streamMutexDestroy(&pTask->lock);
 
   taosArrayDestroy(pTask->msgInfo.pSendInfo);
   pTask->msgInfo.pSendInfo = NULL;
-  streamMutexDestroy(&pTask->msgInfo.lock);
 
   taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
   pTask->outputInfo.pNodeEpsetUpdateList = NULL;
@@ -347,6 +356,7 @@ void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
     taskDbRemoveRef(pTask->pBackend);
     pTask->pBackend = NULL;
     pTask->pState = NULL;
+
   } else {
     stDebug("s-task:0x%x task state is NULL, may del backend:%s", pTask->id.taskId,
             pTask->backendPath ? pTask->backendPath : "NULL");
@@ -362,6 +372,31 @@ void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
     taosMemoryFree(pTask->backendPath);
     pTask->backendPath = NULL;
   }
+  // clear recal backend
+
+  if (pTask->pRecalState != NULL) {
+    stDebug("s-task:0x%x start to free recal task state", pTask->id.taskId);
+    streamStateClose(pTask->pRecalState, remove);
+
+    if (remove) taskDbSetClearFileFlag(pTask->pRecalBackend);
+    taskDbRemoveRef(pTask->pRecalBackend);
+    pTask->pRecalBackend = NULL;
+    pTask->pRecalState = NULL;
+
+  }  // else {
+     //  stDebug("s-task:0x%x task state is NULL, may del backend:%s", pTask->id.taskId,
+     //          pTask->backendPath ? pTask->backendPath : "NULL");
+     //  if (remove) {
+     //    if (pTask->backendPath != NULL) {
+     //      stDebug("s-task:0x%x task state is NULL, do del backend:%s", pTask->id.taskId, pTask->backendPath);
+     //      taosRemoveDir(pTask->backendPath);
+     //    }
+     //  }
+  //}
+  // if (pTask->backendPath != NULL) {
+  //   taosMemoryFree(pTask->backendPath);
+  //   pTask->backendPath = NULL;
+  // }
 }
 
 static void setInitialVersionInfo(SStreamTask* pTask, int64_t ver) {
@@ -529,6 +564,11 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return terrno;
   }
 
+  code = taosThreadMutexInit(&pTask->taskCheckInfo.checkInfoLock, NULL);
+  if (code) {
+    return code;
+  }
+
   if (pTask->chkInfo.pActiveInfo == NULL) {
     code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
     if (code) {
@@ -550,6 +590,9 @@ int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
     return 0;
   } else if (type == TASK_OUTPUT__FIXED_DISPATCH) {
     return 1;
+  } else if (type == TASK_OUTPUT__VTABLE_MAP) {
+    SArray* pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+    return taosArrayGetSize(pTaskInfos);
   } else {
     SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
     return taosArrayGetSize(vgInfo);
@@ -576,7 +619,7 @@ int32_t streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const S
   int32_t code = 0;
   char    buf[512] = {0};
   code = epsetToStr(pEpSet, buf, tListLen(buf));  // ignore error since it is only for log file.
-  if (code != 0) {  // print error and continue
+  if (code != 0) {                                // print error and continue
     stError("%s failed to convert epset to str, code:%s", pTask->id.idStr, tstrerror(code));
     return code;
   }
@@ -691,6 +734,37 @@ int32_t streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const
       } else {
         stDebug("s-task:0x%x not update dispatch info, since identical, task:0x%x(nodeId:%d) epset:%s", id,
                 pDispatcher->taskId, nodeId, buf);
+      }
+    }
+  } else if (type == TASK_OUTPUT__VTABLE_MAP) {
+    SArray* pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+
+    for (int32_t i = 0; i < taosArrayGetSize(pTaskInfos); ++i) {
+      STaskDispatcherFixed* pAddr = taosArrayGet(pTaskInfos, i);
+      if (pAddr == NULL) {
+        continue;
+      }
+
+      if (pAddr->nodeId == nodeId) {
+        bool isEqual = isEpsetEqual(&pAddr->epSet, pEpSet);
+        if (!isEqual) {
+          *pUpdated = true;
+
+          char tmp[512] = {0};
+          code = epsetToStr(&pAddr->epSet, tmp, tListLen(tmp));
+          if (code != 0) {  // print error and continue
+            stError("%s failed to convert epset to str, code:%s", pTask->id.idStr, tstrerror(code));
+            return code;
+          }
+
+          epsetAssign(&pAddr->epSet, pEpSet);
+          stDebug("s-task:0x%x update dispatch info, task:0x%x(nodeId:%d) newEpset:%s old:%s", id, pAddr->taskId,
+                  nodeId, buf, tmp);
+        } else {
+          stDebug("s-task:0x%x not update dispatch info, since identical, task:0x%x(nodeId:%d) epset:%s", id,
+                  pAddr->taskId, nodeId, buf);
+        }
+        break;
       }
     }
   }
@@ -1139,14 +1213,26 @@ SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
         return &pVgInfo->epSet;
       }
     }
+  } else if (pTask->info.taskLevel == TASK_OUTPUT__VTABLE_MAP) {
+    SArray* pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+    for (int32_t i = 0; i < taosArrayGetSize(pTaskInfos); ++i) {
+      STaskDispatcherFixed* pAddr = taosArrayGet(pTaskInfos, i);
+      if (pAddr == NULL) {
+        continue;
+      }
+
+      if (pAddr->taskId == taskId) {
+        return &pAddr->epSet;
+      }
+    }
   }
 
   return NULL;
 }
 
 int32_t createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId) {
-  char buf[128] = {0};
-  int32_t code = snprintf(buf, tListLen(buf),"0x%" PRIx64 "-0x%x", streamId, taskId);
+  char    buf[128] = {0};
+  int32_t code = snprintf(buf, tListLen(buf), "0x%" PRIx64 "-0x%x", streamId, taskId);
   if (code < 0 || code >= tListLen(buf)) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
@@ -1218,7 +1304,7 @@ void streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t c
   pTask->chkInfo.pActiveInfo->transId = transId;
   pTask->chkInfo.pActiveInfo->activeId = checkpointId;
   pTask->chkInfo.pActiveInfo->failedId = checkpointId;
-  stDebug("s-task:%s set failed checkpointId:%"PRId64, pTask->id.idStr, checkpointId);
+  stDebug("s-task:%s set failed checkpointId:%" PRId64, pTask->id.idStr, checkpointId);
 }
 
 int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes) {
@@ -1369,7 +1455,7 @@ static int32_t tDecodeStreamNotifyInfo(SDecoder* pDecoder, SNotifyInfo* info) {
   info->pNotifyAddrUrls = taosArrayInit(addrSize, POINTER_BYTES);
   QUERY_CHECK_NULL(info->pNotifyAddrUrls, code, lino, _exit, terrno);
   for (int32_t i = 0; i < addrSize; ++i) {
-    char *url = NULL;
+    char* url = NULL;
     TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &url));
     url = taosStrndup(url, TSDB_STREAM_NOTIFY_URL_LEN);
     QUERY_CHECK_NULL(url, code, lino, _exit, terrno);
@@ -1396,6 +1482,149 @@ static int32_t tDecodeStreamNotifyInfo(SDecoder* pDecoder, SNotifyInfo* info) {
   }
 
 _exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tEncodeVTablesInfo(SEncoder* pEncoder, SArray* pVTables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SVCTableMergeInfo* pMergeInfo = NULL;
+  int32_t mergeNum = taosArrayGetSize(pVTables);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, mergeNum));
+  for (int32_t i = 0; i < mergeNum; ++i) {
+    pMergeInfo = (SVCTableMergeInfo*)taosArrayGet(pVTables, i);
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMergeInfo->uid));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMergeInfo->numOfSrcTbls));
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tDecodeVTablesInfo(SDecoder* pDecoder, SArray** pTables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  int32_t mergeNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &mergeNum));
+  if (mergeNum > 0) {
+    *pTables = taosArrayInit(mergeNum, sizeof(SVCTableMergeInfo));
+    QUERY_CHECK_NULL(*pTables, code, lino, _exit, terrno);
+  }
+
+  SVCTableMergeInfo mergeInfo;
+  for (int32_t i = 0; i < mergeNum; ++i) {
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &mergeInfo.uid));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &mergeInfo.numOfSrcTbls));
+    if (taosArrayPush(*pTables, &mergeInfo) == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tSerializeDispatcherTaskInfo(SEncoder* pEncoder, const SArray* pTaskInfos) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t nTasks = taosArrayGetSize(pTaskInfos);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nTasks));
+  for (int32_t i = 0; i < nTasks; ++i) {
+    STaskDispatcherFixed* pAddr = taosArrayGet(pTaskInfos, i);
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pAddr->taskId));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pAddr->nodeId));
+    TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pAddr->epSet));
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tSerializeDispatcherVtableMap(SEncoder* pEncoder, const SSHashObj* pVtables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tbNum = tSimpleHashGetSize(pVtables);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, tbNum));
+  int32_t iter = 0;
+  void*   p = tSimpleHashIterate(pVtables, NULL, &iter);
+  while (p != NULL) {
+    int64_t* pUid = tSimpleHashGetKey(p, NULL);
+    int32_t* pIdx = p;
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, *pUid));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *pIdx));
+    p = tSimpleHashIterate(pVtables, p, &iter);
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tDeserializeDispatcherTaskInfo(SDecoder* pDecoder, SArray** ppTaskInfos) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t nTasks = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nTasks));
+  if (nTasks <= 0) {
+    return code;
+  }
+
+  *ppTaskInfos = taosArrayInit(nTasks, sizeof(STaskDispatcherFixed));
+  QUERY_CHECK_NULL(*ppTaskInfos, code, lino, _exit, terrno);
+
+  STaskDispatcherFixed addr;
+  for (int32_t i = 0; i < nTasks; ++i) {
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addr.taskId));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addr.nodeId));
+    TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &addr.epSet));
+    void* px = taosArrayPush(*ppTaskInfos, &addr);
+    QUERY_CHECK_NULL(px, code, lino, _exit, terrno);
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tDeserializeDispatcherVtableMap(SDecoder* pDecoder, SSHashObj** ppVtables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tbNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tbNum));
+  if (tbNum <= 0) {
+    return code;
+  }
+
+  *ppVtables = tSimpleHashInit(tbNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(*ppVtables, code, lino, _exit, terrno);
+
+  uint64_t uid = 0;
+  int32_t  idx = 0;
+  for (int32_t i = 0; i < tbNum; ++i) {
+    TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &idx));
+    TAOS_CHECK_EXIT(tSimpleHashPut(*ppVtables, &uid, sizeof(uid), &idx, sizeof(idx)));
+  }
+
+_exit:
+
   if (code != TSDB_CODE_SUCCESS) {
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1466,13 +1695,18 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     TAOS_CHECK_EXIT(tSerializeSUseDbRspImp(pEncoder, &pTask->outputInfo.shuffleDispatcher.dbInfo));
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTask->outputInfo.shuffleDispatcher.stbFullName));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    TAOS_CHECK_EXIT(tSerializeDispatcherTaskInfo(pEncoder, pTask->outputInfo.vtableMapDispatcher.taskInfos));
+    TAOS_CHECK_EXIT(tSerializeDispatcherVtableMap(pEncoder, pTask->outputInfo.vtableMapDispatcher.vtableMap));
   }
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->info.delaySchedParam));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->subtableWithoutMd5));
   TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1));
 
   if (pTask->ver >= SSTREAM_TASK_ADD_NOTIFY_VER) {
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->info.hasAggTasks));
     TAOS_CHECK_EXIT(tEncodeStreamNotifyInfo(pEncoder, &pTask->notifyInfo));
+    TAOS_CHECK_EXIT(tEncodeVTablesInfo(pEncoder, pTask->pVTables));
   }
 
   tEndEncode(pEncoder);
@@ -1566,6 +1800,9 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     TAOS_CHECK_EXIT(tDeserializeSUseDbRspImp(pDecoder, &pTask->outputInfo.shuffleDispatcher.dbInfo));
     TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    TAOS_CHECK_EXIT(tDeserializeDispatcherTaskInfo(pDecoder, &pTask->outputInfo.vtableMapDispatcher.taskInfos));
+    TAOS_CHECK_EXIT(tDeserializeDispatcherVtableMap(pDecoder, &pTask->outputInfo.vtableMapDispatcher.vtableMap));
   }
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->info.delaySchedParam));
   if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
@@ -1574,7 +1811,9 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->reserve));
 
   if (pTask->ver >= SSTREAM_TASK_ADD_NOTIFY_VER) {
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->info.hasAggTasks));
     TAOS_CHECK_EXIT(tDecodeStreamNotifyInfo(pDecoder, &pTask->notifyInfo));
+    TAOS_CHECK_EXIT(tDecodeVTablesInfo(pDecoder, &pTask->pVTables));
   }
 
   tEndDecode(pDecoder);

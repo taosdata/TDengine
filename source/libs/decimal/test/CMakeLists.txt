@@ -16,3 +16,8 @@ TARGET_LINK_LIBRARIES(
         decimalTest
         PUBLIC gtest taos os common
 )
+
+add_test(
+  NAME decimalTest
+  COMMAND decimalTest
+)

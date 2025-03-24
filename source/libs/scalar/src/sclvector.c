@@ -449,6 +449,7 @@ _return:
 }
 
 static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+#ifdef USE_GEOS
   //[ToDo] support to parse WKB as well as WKT
   int32_t        code = TSDB_CODE_SUCCESS;
   size_t         len = 0;
@@ -485,6 +486,9 @@ _return:
   VarDataLenT dummyHeader = 0;
   SCL_ERR_RET(colDataSetVal(pOut->columnData, rowIndex, (const char *)&dummyHeader, false));
   SCL_RET(code);
+#else
+  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
+#endif
 }
 
 // TODO opt performance, tmp is not needed.
@@ -1316,7 +1320,9 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         *output = leftRes + rightRes;
       }
     }
-  } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DOUBLE){
+  } else if (IS_DECIMAL_TYPE(pOutputCol->info.type)) {
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_ADD));
+  } else {
     SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
     SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
     double              *output = (double *)pOutputCol->pData;
@@ -1448,7 +1454,9 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         *output = leftRes - rightRes;
       }
     }
-  } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DOUBLE) {
+  } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_SUB));
+  } else {
     SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
     SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
     double              *output = (double *)pOutputCol->pData;

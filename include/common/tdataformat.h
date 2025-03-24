@@ -97,13 +97,13 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
-#define tRowGetKey(_pRow, _pKey)           \
-  do {                                     \
-    (_pKey)->ts = (_pRow)->ts;             \
-    (_pKey)->numOfPKs = 0;                 \
-    if ((_pRow)->numOfPKs > 0) {           \
-      tRowGetPrimaryKey((_pRow), (_pKey)); \
-    }                                      \
+#define tRowGetKey(_pRow, _pKey)                       \
+  do {                                                 \
+    (_pKey)->ts = taosGetInt64Aligned(&((_pRow)->ts)); \
+    (_pKey)->numOfPKs = 0;                             \
+    if ((_pRow)->numOfPKs > 0) {                       \
+      tRowGetPrimaryKey((_pRow), (_pKey));             \
+    }                                                  \
   } while (0)
 
 // SValueColumn ================================

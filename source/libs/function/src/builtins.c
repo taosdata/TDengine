@@ -276,8 +276,6 @@ static SDataType* getSDataTypeFromNode(SNode* pNode) {
   if (pNode == NULL) return NULL;
   if (nodesIsExprNode(pNode)) {
     return &((SExprNode*)pNode)->resType;
-  } else if (QUERY_NODE_COLUMN_REF == pNode->type) {
-    return &((SColumnRefNode*)pNode)->resType;
   } else {
     return NULL;
   }
@@ -744,7 +742,7 @@ static int32_t checkFixedValue(SNode* pNode, const SParamInfo* paramPattern, int
       }
     } else {
       for (int32_t k = 0; k < paramPattern->fixedValueSize; k++) {
-        if (strcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
+        if (taosStrcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
           code = TSDB_CODE_SUCCESS;
           *isMatch = true;
           break;
@@ -986,8 +984,8 @@ static int32_t translateAvg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   bool       isMergeFunc = pFunc->funcType == FUNCTION_TYPE_AVG_MERGE || pFunc->funcType == FUNCTION_TYPE_AVG_STATE_MERGE;
   SDataType* pInputDt = getSDataTypeFromNode(
       nodesListGetNode(isMergeFunc ? pFunc->pSrcFuncRef->pParameterList : pFunc->pParameterList, 0));
+  pFunc->srcFuncInputType = *pInputDt;
   if (IS_DECIMAL_TYPE(pInputDt->type)) {
-    pFunc->srcFuncInputType = *pInputDt;
     SDataType sumDt = {.type = TSDB_DATA_TYPE_DECIMAL,
                        .bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes,
                        .precision = TSDB_DECIMAL_MAX_PRECISION,
@@ -1936,7 +1934,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = minCombine,
     .pPartialFunc = "min",
     .pStateFunc = "min",
-    .pMergeFunc   = "min"
+    .pMergeFunc   = "min",
   },
   {
     .name = "max",
@@ -1963,7 +1961,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = maxCombine,
     .pPartialFunc = "max",
     .pStateFunc = "max",
-    .pMergeFunc   = "max"
+    .pMergeFunc   = "max",
   },
   {
     .name = "stddev",
@@ -4462,6 +4460,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
+  #ifdef USE_GEOS
   {
     .name = "st_geomfromtext",
     .type = FUNCTION_TYPE_GEOM_FROM_TEXT,
@@ -4651,6 +4650,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = containsProperlyFunction,
     .finalizeFunc = NULL
   },
+#endif
   {
     .name = "_tbuid",
     .type = FUNCTION_TYPE_TBUID,
@@ -5801,6 +5801,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = leastFunction,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_group_id",
+    .type = FUNCTION_TYPE_GROUP_ID,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL,
+  },
+    {
+    .name = "_iswindowfilled",
+    .type = FUNCTION_TYPE_IS_WINDOW_FILLED,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BOOL_TYPE}},
+    .translateFunc = translateIsFilledPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = isWinFilledFunction,
+    .finalizeFunc = NULL,
   },
 };
 // clang-format on

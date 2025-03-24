@@ -106,19 +106,19 @@ typedef enum {
     }                                                                    \
   } while (0)
 
-#define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)                          \
-  do {                                                                                        \
-    _t*                d = (_t*)(_col->pData);                                                \
-    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                          \
-    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                                 \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {                      \
-        continue;                                                                             \
-      };                                                                                      \
-      overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, WORD_NUM(_t)); \
-      if (overflow) break;                                                                    \
-      pOps->add(_res, d + i, WORD_NUM(_t));                                                   \
-      (numOfElem)++;                                                                          \
-    }                                                                                         \
+#define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)                                  \
+  do {                                                                                                \
+    _t*                d = (_t*)(_col->pData);                                                        \
+    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                                  \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                                         \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {                              \
+        continue;                                                                                     \
+      };                                                                                              \
+      overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, DECIMAL_WORD_NUM(_t)); \
+      if (overflow) break;                                                                            \
+      pOps->add(_res, d + i, DECIMAL_WORD_NUM(_t));                                                   \
+      (numOfElem)++;                                                                                  \
+    }                                                                                                 \
   } while (0)
 
 #define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)             \
@@ -582,20 +582,22 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
 
   int32_t type = pInput->pData[0]->info.type;
 
-  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+  char*   buf = GET_ROWCELL_INTERBUF(pResInfo);
+  int64_t val = *((int64_t*)buf);
   if (IS_NULL_TYPE(type)) {
     // select count(NULL) returns 0
     numOfElem = 1;
-    *((int64_t*)buf) += 0;
+    val += 0;
   } else {
     numOfElem = getNumOfElems(pCtx);
-    *((int64_t*)buf) += numOfElem;
+    val += numOfElem;
   }
+  taosSetInt64Aligned((int64_t*)buf, val);
 
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;
   } else {
-    SET_VAL(pResInfo, *((int64_t*)buf), 1);
+    SET_VAL(pResInfo, val, 1);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -656,10 +658,10 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
       SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
       const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
       if (pAgg->overflow || decimal128AddCheckOverflow((Decimal*)&SUM_RES_GET_DECIMAL_SUM(pSumRes),
-                                                       &pAgg->decimal128Sum, WORD_NUM(Decimal))) {
+                                                       &pAgg->decimal128Sum, DECIMAL_WORD_NUM(Decimal))) {
         return TSDB_CODE_DECIMAL_OVERFLOW;
       }
-      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->decimal128Sum, WORD_NUM(Decimal));
+      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->decimal128Sum, DECIMAL_WORD_NUM(Decimal));
     }
   } else {  // computing based on the true data block
     SColumnInfoData* pCol = pInput->pData[0];
@@ -783,18 +785,22 @@ int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
 // TODO wjm impl for decimal
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
-  SSumRes*             pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  void*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int16_t              type = SUM_RES_GET_TYPE(pDBuf, pDestCtx->inputType);
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
-  SSumRes*             pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
+  void*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  type = (type == TSDB_DATA_TYPE_NULL) ? SUM_RES_GET_TYPE(pSBuf, pDestCtx->inputType) : type;
 
   if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
-    pDBuf->isum += pSBuf->isum;
+    SUM_RES_INC_ISUM(pDBuf, SUM_RES_GET_ISUM(pSBuf));
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    pDBuf->usum += pSBuf->usum;
+    SUM_RES_INC_USUM(pDBuf, SUM_RES_GET_USUM(pSBuf));
+  } else if (IS_DECIMAL_TYPE(type)) {
+    bool overflow = false;
+    SUM_RES_INC_DECIMAL_SUM(pDBuf, &SUM_RES_GET_DECIMAL_SUM(pSBuf), type);
   } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
-    pDBuf->dsum += pSBuf->dsum;
+    SUM_RES_INC_DSUM(pDBuf, SUM_RES_GET_DSUM(pSBuf));
   }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
@@ -857,6 +863,7 @@ int32_t minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
 }
 
 bool getMinmaxFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  COMPILE_TIME_ASSERT(sizeof(SMinmaxResInfo) == sizeof(SOldMinMaxResInfo));
   pEnv->calcMemSize = sizeof(SMinmaxResInfo);
   return true;
 }
@@ -941,14 +948,14 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         code = colDataSetVal(pCol, currentRow, (const char*)&pRes->v, false);
         break;
       case TSDB_DATA_TYPE_DECIMAL:
-        code = colDataSetVal(pCol, currentRow, pRes->str, false);
+        code = colDataSetVal(pCol, currentRow, (void*)pRes->dec, false);
         break;
     }
   } else {
     colDataSetNULL(pCol, currentRow);
   }
 
-  taosMemoryFreeClear(pRes->str);
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) taosMemoryFreeClear(pRes->str);
   if (pCtx->subsidiaries.num > 0) {
     if (pEntryInfo->numOfRes > 0) {
       code = setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
@@ -1076,7 +1083,6 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
   int16_t              type = pDBuf->type == TSDB_DATA_TYPE_NULL ? pSBuf->type : pDBuf->type;
 
   switch (type) {
-    case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT:
       if (pSBuf->assign && (COMPARE_MINMAX_DATA(int64_t) || !pDBuf->assign)) {
@@ -1110,6 +1116,7 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
         pDBuf->assign = true;
       }
       break;
+    case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_FLOAT: {
       if (pSBuf->assign && (COMPARE_MINMAX_DATA(double) || !pDBuf->assign)) {
         pDBuf->v = pSBuf->v;
@@ -1118,9 +1125,25 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
       }
       break;
     }
-    default:
-      if (pSBuf->assign && (strcmp((char*)&pDBuf->v, (char*)&pSBuf->v) || !pDBuf->assign)) {
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      const SDecimalOps* pOps = getDecimalOps(type);
+      if (pSBuf->assign && ((pOps->lt(&pDBuf->v, &pSBuf->v, DECIMAL_WORD_NUM(Decimal64)) ^ isMinFunc) || !pDBuf->assign)) {
         pDBuf->v = pSBuf->v;
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+    } break;
+    case TSDB_DATA_TYPE_DECIMAL: {
+      const SDecimalOps* pOps = getDecimalOps(type);
+      if (pSBuf->assign && (pOps->lt(pDBuf->dec, pSBuf->dec, DECIMAL_WORD_NUM(Decimal)) ^ isMinFunc) || !pDBuf->assign) {
+        memcpy(pDBuf->dec, pSBuf->dec, DECIMAL128_BYTES);
+        replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+        pDBuf->assign = true;
+      }
+    } break;
+    default:
+      if (pSBuf->assign && (strcmp(pDBuf->str, pSBuf->str) || !pDBuf->assign)) {
+        memcpy(pDBuf->str, pSBuf->str, varDataLen(pSBuf->str));
         replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
         pDBuf->assign = true;
       }
@@ -6651,12 +6674,12 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   uint64_t totalDiskSize = pData->dataInDiskSize;
   uint64_t rawDataSize = pData->rawDataSize;
-  double   compressRadio = 0;
+  double   compressRatio = 0;
   if (rawDataSize != 0) {
-    compressRadio = totalDiskSize * 100 / (double)rawDataSize;
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[%.2f%]", compressRadio);
+    compressRatio = totalDiskSize * 100 / (double)rawDataSize;
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[%.2f%]", compressRatio);
   } else {
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[NULL]");
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_ratio=[NULL]");
   }
 
   varDataSetLen(st, len);

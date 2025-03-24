@@ -335,7 +335,7 @@ void sclDowngradeValueType(SValueNode *valueNode) {
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       float f = valueNode->datum.d;
-      if (FLT_EQUAL(f, valueNode->datum.d)) {
+      if (DBL_EQUAL(f, valueNode->datum.d)) {
         valueNode->node.resType.type = TSDB_DATA_TYPE_FLOAT;
         *(float *)&valueNode->typeData = f;
         break;
@@ -1149,29 +1149,7 @@ static uint8_t sclGetOpValueNodeTsPrecision(SNode *pLeft, SNode *pRight) {
   return 0;
 }
 
-int32_t sclConvertOpValueNodeTs(SOperatorNode *node) {
-  if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
-    if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
-      SCL_ERR_RET(
-          sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight), (SValueNode *)node->pLeft));
-    }
-  } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
-    if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
-      if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
-        SCL_ERR_RET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight),
-                                            (SValueNode *)node->pRight));
-      } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
-        SNode *pNode;
-        FOREACH(pNode, ((SNodeListNode *)node->pRight)->pNodeList) {
-          if (SCL_IS_VAR_VALUE_NODE(pNode)) {
-            SCL_ERR_RET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, pNode), (SValueNode *)pNode));
-          }
-        }
-      }
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
+
 
 int32_t sclConvertCaseWhenValueNodeTs(SCaseWhenNode *node) {
   if (NULL == node->pCase) {
@@ -1231,6 +1209,40 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
   return DEAL_RES_CONTINUE;
 }
 
+void sclGetValueNodeSrcTable(SNode* pNode, char** ppSrcTable, bool* multiTable) {
+  if (*multiTable) {
+    return;
+  }
+
+  if (QUERY_NODE_NODE_LIST == nodeType(pNode)) {
+    SNodeListNode* pList = (SNodeListNode*)pNode;
+    SNode* pTmp = NULL;
+    FOREACH(pTmp, pList->pNodeList) {
+      sclGetValueNodeSrcTable(pTmp, ppSrcTable, multiTable);
+    }
+    
+    return;
+  }
+  
+  if (QUERY_NODE_VALUE != nodeType(pNode)) {
+    return;
+  }
+  
+  SValueNode* pValue = (SValueNode*)pNode;
+  if (pValue->node.srcTable[0]) {
+    if (*ppSrcTable) {
+      if (strcmp(*ppSrcTable, pValue->node.srcTable)) {
+        *multiTable = true;
+        *ppSrcTable = NULL;
+      }
+
+      return;
+    }
+
+    *ppSrcTable = pValue->node.srcTable;
+  }
+}
+
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
@@ -1239,9 +1251,15 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_CONTINUE;
   }
 
+  char* srcTable = NULL;
+  bool  multiTable = false;
   FOREACH(tnode, node->pParameterList) {
     if (!SCL_IS_CONST_NODE(tnode)) {
       return DEAL_RES_CONTINUE;
+    }
+
+    if (SCL_NEED_SRC_TABLE_FUNC(node->funcType)) {
+      sclGetValueNodeSrcTable(tnode, &srcTable, &multiTable);
     }
   }
 
@@ -1263,6 +1281,9 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
+  if (srcTable) {
+    tstrncpy(res->node.srcTable, srcTable, TSDB_TABLE_NAME_LEN);
+  }
   tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType.type = output.columnData->info.type;
   res->node.resType.bytes = output.columnData->info.bytes;
@@ -1370,7 +1391,7 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
-  ctx->code = sclConvertOpValueNodeTs(node);
+  ctx->code = scalarConvertOpValueNodeTs(node);
   if (ctx->code) {
     return DEAL_RES_ERROR;
   }
@@ -1415,8 +1436,18 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
+  char* srcTable = NULL;
+  bool  multiTable = false;
+  if (SCL_NEED_SRC_TABLE_OP(node->opType)) {
+    sclGetValueNodeSrcTable(node->pLeft, &srcTable, &multiTable);
+    sclGetValueNodeSrcTable(node->pRight, &srcTable, &multiTable);
+  }
+
   res->translate = true;
 
+  if (srcTable) {
+    tstrncpy(res->node.srcTable, srcTable, TSDB_TABLE_NAME_LEN);
+  }
   tstrncpy(res->node.aliasName, node->node.aliasName, TSDB_COL_NAME_LEN);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
@@ -1844,6 +1875,31 @@ static int32_t sclGetBitwiseOperatorResType(SOperatorNode *pOp) {
   pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t scalarConvertOpValueNodeTs(SOperatorNode *node) {
+  if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
+    if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
+      SCL_ERR_RET(
+          sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight), (SValueNode *)node->pLeft));
+    }
+  } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
+    if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
+      if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
+        SCL_ERR_RET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight),
+                                            (SValueNode *)node->pRight));
+      } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
+        SNode *pNode;
+        FOREACH(pNode, ((SNodeListNode *)node->pRight)->pNodeList) {
+          if (SCL_IS_VAR_VALUE_NODE(pNode)) {
+            SCL_ERR_RET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, pNode), (SValueNode *)pNode));
+          }
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, false, pRes); }
 

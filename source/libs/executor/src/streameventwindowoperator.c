@@ -21,6 +21,8 @@
 #include "operator.h"
 #include "querytask.h"
 #include "streamexecutorInt.h"
+#include "streaminterval.h"
+#include "streamsession.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -32,16 +34,6 @@
 
 #define STREAM_EVENT_OP_STATE_NAME      "StreamEventHistoryState"
 #define STREAM_EVENT_OP_CHECKPOINT_NAME "StreamEventOperator_Checkpoint"
-
-typedef struct SEventWinfowFlag {
-  bool startFlag;
-  bool endFlag;
-} SEventWinfowFlag;
-
-typedef struct SEventWindowInfo {
-  SResultWindowInfo winInfo;
-  SEventWinfowFlag* pWinFlag;
-} SEventWindowInfo;
 
 void destroyStreamEventOperatorInfo(void* param) {
   if (param == NULL) {
@@ -57,8 +49,8 @@ void destroyStreamEventOperatorInfo(void* param) {
 
   destroyStreamBasicInfo(&pInfo->basic);
 
-  clearGroupResInfo(&pInfo->groupResInfo);
-  taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
+  clearSessionGroupResInfo(&pInfo->groupResInfo);
+  taosArrayDestroyEx(pInfo->pUpdated, destroyResultWinInfo);
   pInfo->pUpdated = NULL;
   destroyStreamAggSupporter(&pInfo->streamAggSup);
 
@@ -102,6 +94,7 @@ void destroyStreamEventOperatorInfo(void* param) {
     nodesDestroyList(pInfo->pEndCondCols);
     pInfo->pEndCondCols = NULL;
   }
+  destroyNonBlockAggSupptor(&pInfo->nbSup);
 
   taosMemoryFreeClear(param);
 }
@@ -127,7 +120,7 @@ int32_t getEndCondIndex(bool* pEnd, int32_t start, int32_t rows) {
   return -1;
 }
 
-static bool isWindowIncomplete(SEventWindowInfo* pWinInfo) {
+bool isWindowIncomplete(SEventWindowInfo* pWinInfo) {
   return !(pWinInfo->pWinFlag->startFlag && pWinInfo->pWinFlag->endFlag);
 }
 void reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) {
@@ -284,8 +277,8 @@ _end:
   return code;
 }
 
-static int32_t compactEventWindow(SOperatorInfo* pOperator, SEventWindowInfo* pCurWin, SSHashObj* pStUpdated,
-                                  SSHashObj* pStDeleted, bool addGap) {
+int32_t compactEventWindow(SOperatorInfo* pOperator, SEventWindowInfo* pCurWin, SSHashObj* pStUpdated,
+                           SSHashObj* pStDeleted, bool* pIsEnd) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   SExprSupp*                   pSup = &pOperator->exprSupp;
@@ -295,6 +288,10 @@ static int32_t compactEventWindow(SOperatorInfo* pOperator, SEventWindowInfo* pC
   SResultRow*                  pCurResult = NULL;
   int32_t                      numOfOutput = pOperator->exprSupp.numOfExprs;
   SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
+
+  if (pIsEnd != NULL) {
+    (*pIsEnd) = false;
+  }
   while (1) {
     if (!pCurWin->pWinFlag->startFlag || pCurWin->pWinFlag->endFlag) {
       break;
@@ -303,6 +300,9 @@ static int32_t compactEventWindow(SOperatorInfo* pOperator, SEventWindowInfo* pC
     getNextSessionWinInfo(pAggSup, pStUpdated, &pCurWin->winInfo, &nextWinInfo.winInfo);
     if (!IS_VALID_SESSION_WIN(nextWinInfo.winInfo) ||
         !inWinRange(&pAggSup->winRange, &nextWinInfo.winInfo.sessionWin.win)) {
+      if (pIsEnd != NULL && !IS_VALID_SESSION_WIN(nextWinInfo.winInfo)) {
+        (*pIsEnd) = true;
+      }
       releaseOutputBuf(pAggSup->pState, nextWinInfo.winInfo.pStatePos, &pAggSup->pSessionAPI->stateStore);
       break;
     }
@@ -444,7 +444,7 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
                               pOperator, 0);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = compactEventWindow(pOperator, &curWin, pInfo->pSeUpdated, pInfo->pSeDeleted, false);
+    code = compactEventWindow(pOperator, &curWin, pInfo->pSeUpdated, pInfo->pSeDeleted, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = saveSessionOutputBuf(pAggSup, &curWin.winInfo);
@@ -901,7 +901,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
       continue;
     }
 
-    code = compactEventWindow(pOperator, &curInfo, pInfo->pSeUpdated, pInfo->pSeDeleted, false);
+    code = compactEventWindow(pOperator, &curInfo, pInfo->pSeUpdated, pInfo->pSeDeleted, NULL);
     qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, curInfo.winInfo.sessionWin.win.skey,
            curInfo.winInfo.sessionWin.groupId);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1021,7 +1021,7 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     goto _error;
   }
   if (pHandle) {
-    pInfo->isHistoryOp = pHandle->fillHistory;
+    pInfo->isHistoryOp = (pHandle->fillHistory == STREAM_HISTORY_OPERATOR);
   }
 
   if (pInfo->isHistoryOp) {
@@ -1041,7 +1041,7 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   pInfo->destHasPrimaryKey = pEventNode->window.destHasPrimaryKey;
 
   pInfo->pOperator = pOperator;
-  setOperatorInfo(pOperator, "StreamEventAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, true, OP_NOT_OPENED,
+  setOperatorInfo(pOperator, "StreamEventAggOperator", nodeType(pPhyNode), true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   // for stream
   void*   buff = NULL;
@@ -1055,15 +1055,28 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamEventAggNext, NULL, destroyStreamEventOperatorInfo,
-                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  setOperatorStreamStateFn(pOperator, streamEventReleaseState, streamEventReloadState);
-
+  initNonBlockAggSupptor(&pInfo->nbSup, NULL, NULL);
   code = initStreamBasicInfo(&pInfo->basic, pOperator);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  if (pEventNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    if (pHandle->fillHistory == STREAM_HISTORY_OPERATOR) {
+      setFillHistoryOperatorFlag(&pInfo->basic);
+    } else if (pHandle->fillHistory == STREAM_RECALCUL_OPERATOR) {
+      setRecalculateOperatorFlag(&pInfo->basic);
+    }
+    pOperator->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, doStreamEventNonblockAggNext, NULL, destroyStreamEventOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamEventNonblockReleaseState, streamEventNonblockReloadState);
+  } else {
+    pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamEventAggNext, NULL, destroyStreamEventOperatorInfo,
+                                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamEventReleaseState, streamEventReloadState);
+  }
+
   code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
-                        &pInfo->twAggSup, &pInfo->basic);
+                        &pInfo->twAggSup, &pInfo->basic, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = appendDownstream(pOperator, &downstream, 1);

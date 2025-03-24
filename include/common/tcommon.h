@@ -124,7 +124,7 @@ enum {
   TMQ_MSG_TYPE__POLL_RAW_DATA_RSP,
 };
 
-static const char* tmqMsgTypeStr[] = {
+static const char* const tmqMsgTypeStr[] = {
     "data", "meta", "ask ep", "meta data", "wal info", "batch meta", "raw data"
 };
 
@@ -132,7 +132,7 @@ enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
   STREAM_INPUT__MERGED_SUBMIT,
-  STREAM_INPUT__TQ_SCAN,
+  STREAM_INPUT__RECALCULATE,
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__GET_RES,
   STREAM_INPUT__CHECKPOINT,
@@ -162,6 +162,10 @@ typedef enum EStreamType {
   STREAM_GET_RESULT,
   STREAM_DROP_CHILD_TABLE,
   STREAM_NOTIFY_EVENT,
+  STREAM_RECALCULATE_DATA,
+  STREAM_RECALCULATE_DELETE,
+  STREAM_RECALCULATE_START,
+  STREAM_RECALCULATE_END,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -225,8 +229,8 @@ typedef struct SPkInfo {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
-  int64_t     rows;  // todo hide this attribute
   uint32_t    capacity;
+  int64_t     rows;  // todo hide this attribute
   SBlockID    id;
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not

@@ -19,7 +19,9 @@
 #include "executor.h"
 #include "filter.h"
 #include "qworker.h"
+#ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
+#endif
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
@@ -274,7 +276,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessPollPush(STQ* pTq);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 
@@ -467,12 +469,12 @@ typedef struct {
 } SVATaskID;
 
 struct SVnode {
-  char*     path;
-  SVnodeCfg config;
   SVState   state;
   SVStatis  statis;
+  char*     path;
   STfs*     pTfs;
   int32_t   diskPrimary;
+  SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
 

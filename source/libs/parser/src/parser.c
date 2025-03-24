@@ -292,7 +292,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
 }
 
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                            const struct SMetaData* pMetaData, SQuery* pQuery) {
+                            struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
@@ -371,6 +371,7 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableIndex);
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
+  taosArrayDestroy(pCatalogReq->pVSubTable);
 }
 
 void tfreeSParseQueryRes(void* p) {
