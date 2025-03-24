@@ -958,6 +958,11 @@ TEST(stmt2Case, stmt2_stb_insert) {
             "insert into stmt2_testdb_1.? using stmt2_testdb_1.stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true,
             true);
   }
+  // TD-34123 : interlace=0 with fixed tags
+  {
+    do_stmt("no-interlcace", taos, &option, "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)",
+            3, 3, 3, false, true);
+  }
 
   // interlace = 0 & use db]
   do_query(taos, "use stmt2_testdb_1");
