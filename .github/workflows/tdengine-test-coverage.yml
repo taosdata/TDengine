@@ -1,0 +1,26 @@
+name: TDengine Taosd & Taosc Coverage
+
+on:
+  workflow_dispatch:
+    inputs:
+      specified_test_branch:
+        description: 'Enter the test branch name of TDengine'
+        required: true
+        type: string
+  schedule:
+    - cron: '30 00 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.specified_test_branch || '3.0' }}-TDengine
+  cancel-in-progress: true
+
+env:
+  WKC: '/var/lib/jenkins/workspace/TDinternal/community'
+
+jobs:
+  run-tests-on-linux:
+    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@3.0
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
+    with:
+      tdinternal: false
+      specified_test_branch: ${{ github.event_name == 'schedule' && 'unavailable' || github.event.inputs.specified_test_branch  || '3.0' }}
