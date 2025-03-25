@@ -3,7 +3,7 @@ title: taosX-Agent 参考手册
 sidebar_label: taosX-Agent
 ---
 
-本节讲述如何部署 `Agent` (for `taosX`)。使用之前需要安装 TDengine Enterprise 安装包之后，taosX-Agent 用于在部分数据接入场景，如 Pi, OPC UA, OPC DA 等对访问数据源有一定限制或者网络环境特殊的场景下，可以将 taosX-Agent 部署在靠近数据源的环境中甚至与数据源在相同的服务器上，由 taosX-Agent 负责从数据源读取数据并发送给 taosX。
+本节讲述如何部署 `Agent` (for `taosX`)。使用之前需要安装 TDengine Enterprise 安装包之后，taosX-Agent 用于在部分数据接入场景，如 Pi、OPC UA、OPC DA 等对访问数据源有一定限制或者网络环境特殊的场景下，可以将 taosX-Agent 部署在靠近数据源的环境中甚至与数据源在相同的服务器上，由 taosX-Agent 负责从数据源读取数据并发送给 taosX。
 
 ## 配置
 
@@ -12,12 +12,14 @@ sidebar_label: taosX-Agent
 - `endpoint`：必填，`taosX` 的 GRPC 服务地址。
 - `token`：必填，在 `Explorer` 上创建 `Agent` 时，产生的 Token。
 - `instanceId`：当前 taosx-agent 服务的实例 ID，如果同一台机器上启动了多个 taosx-agent 实例，必须保证各个实例的实例 ID 互不相同。
-- `compression`：非必填，可配置为 `true` 或 `false`, 默认为 `false`。配置为`true`, 则开启 `Agent` 和 `taosX` 通信数据压缩。
+- `compression`：非必填，可配置为 `true` 或 `false`，默认为 `false`。配置为`true`，则开启 `Agent` 和 `taosX` 通信数据压缩。
 - `in_memory_cache_capacity`：非必填，表示可在内存中缓存的最大消息批次数，可配置为大于 0 的整数。默认为 `64`。
-- `log_level`：非必填，日志级别，默认为 `info`, 同 `taosX` 一样，支持 `error`，`warn`，`info`，`debug`，`trace` 五级。已弃用，请使用 `log.level` 代替。
+- `client_port_range.min`：非必填，取值范围 `[49152-65535]`，默认为 `49152`，当 agent 向 taosx 创建 socket 连接时，socket 客户端会随机监听一个端口，此配置限制了端口范围的最小值。
+- `client_port_range.max`：非必填，取值范围 `[49152-65535]`，默认为 `65535`，此配置限制了端口范围的最大值。
+- `log_level`：非必填，日志级别，默认为 `info`，同 `taosX` 一样，支持 `error`、`warn`、`info`、`debug`、`trace` 五级。已弃用，请使用 `log.level` 代替。
 - `log_keep_days`：非必填，日志保存天数，默认为 `30` 天。已弃用，请使用 `log.keepDays` 代替。
 - `log.path`：日志文件存放的目录。
-- `log.level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
+- `log.level`：日志级别，可选值为 "error"、"warn"、"info"、"debug"、"trace"。
 - `log.compress`：日志文件滚动后的文件是否进行压缩。
 - `log.rotationCount`：日志文件目录下最多保留的文件数，超出数量的旧文件被删除。
 - `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件。
@@ -48,6 +50,15 @@ sidebar_label: taosX-Agent
 # In-memory cache capacity
 #
 #in_memory_cache_capacity = 64
+
+[client_port_range]
+# Minimum boundary of listening port of agent, can not less than 49152
+#
+# min = 49152
+
+# Maximum boundary of listening port of agent, can not greater than 65535
+#
+# max = 65535
 
 # log configuration
 [log]

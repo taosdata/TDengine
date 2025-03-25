@@ -205,18 +205,24 @@ function install_lib() {
     log_print "start install lib from ${lib_dir} to ${lib_link_dir}"
     ${csudo}rm -f ${lib_link_dir}/libtaos* || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos* || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosnative* || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosnative* || :
 
     [ -f ${lib_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
     [ -f ${lib64_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
 
     ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_link_dir}/libtaos.${lib_file_ext_1} ${lib_link_dir}/libtaos.${lib_file_ext} 2>>${install_log_path} || return 1
+    ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
+    ${csudo}ln -s ${lib_link_dir}/libtaosnative.${lib_file_ext_1} ${lib_link_dir}/libtaosnative.${lib_file_ext} 2>>${install_log_path} || return 1
 
     [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
 
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.${lib_file_ext} ]]; then
       ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
       ${csudo}ln -s ${lib64_link_dir}/libtaos.${lib_file_ext_1} ${lib64_link_dir}/libtaos.${lib_file_ext}  2>>${install_log_path} || return 1
+      ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
+      ${csudo}ln -s ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} ${lib64_link_dir}/libtaosnative.${lib_file_ext}  2>>${install_log_path} || return 1
 
       [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
     fi
@@ -233,7 +239,7 @@ function install_bin() {
     log_print "start install bin from ${bin_dir} to ${bin_link_dir}"
     ${csudo}rm -f ${bin_link_dir}/taos     || :
     ${csudo}rm -f ${bin_link_dir}/taosd    || :
-    ${csudo}rm -f ${bin_link_dir}/udfd     || :
+    ${csudo}rm -f ${bin_link_dir}/taosudf  || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
     ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
@@ -255,8 +261,8 @@ function install_bin() {
     if [ -x ${bin_dir}/taosd ]; then
       ${csudo}ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd                   2>>${install_log_path} || return 1
     fi
-    if [ -x ${bin_dir}/udfd ]; then
-      ${csudo}ln -s ${bin_dir}/udfd ${bin_link_dir}/udfd                     2>>${install_log_path} || return 1
+    if [ -x ${bin_dir}/taosudf ]; then
+      ${csudo}ln -s ${bin_dir}/taosudf ${bin_link_dir}/taosudf                     2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/taosadapter ]; then
       ${csudo}ln -s ${bin_dir}/taosadapter ${bin_link_dir}/taosadapter       2>>${install_log_path} || return 1

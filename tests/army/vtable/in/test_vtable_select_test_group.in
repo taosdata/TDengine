@@ -1,0 +1,20 @@
+select count(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col slimit 10 limit 10;
+select u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col slimit 10 limit 10;
+select u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col slimit 10 limit 10;
+select avg(u_int_col) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col slimit 10 limit 10;
+select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col slimit 10 limit 10;
+select last(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col slimit 10 limit 10;
+
+select count(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col + 1 slimit 10 limit 10;
+select u_tinyint_col + 1 from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col + 1 slimit 10 limit 10;
+select u_tinyint_col + 1, count(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col + 1 slimit 10 limit 10;
+select avg(u_int_col) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col + 1 slimit 10 limit 10;
+select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col + 1 slimit 10 limit 10;
+select last(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col + 1 slimit 10 limit 10;
+
+select count(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select u_tinyint_col, tinyint_col from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select u_tinyint_col, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select avg(u_int_col), avg(tinyint_col) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select last(*) from test_vtable_select.vtb_virtual_ntb_full group by u_tinyint_col, tinyint_col slimit 10 limit 10;

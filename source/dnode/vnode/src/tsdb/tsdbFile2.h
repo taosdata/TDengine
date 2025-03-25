@@ -82,6 +82,8 @@ struct STFileObj {
   char          fname[TSDB_FILENAME_LEN];
 };
 
+const char *tsdbFTypeLabel(tsdb_ftype_t ftype);
+
 #ifdef __cplusplus
 }
 #endif

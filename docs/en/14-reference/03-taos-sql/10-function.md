@@ -124,7 +124,39 @@ FLOOR(expr)
 ```
 
 **Function Description**: Gets the floor of the specified field.
- Other usage notes see CEIL function description.
+ Other usage notes see [CEIL](#ceil) function description.
+
+#### GREATEST
+```sql
+GREATEST(expr1, expr2[, expr]...)
+```
+
+**Function Description**: Get the maximum value of all input parameters. The minimum number of parameters for this function is 2.
+
+**Version**：ver-3.3.6.0
+
+**Return Type**：Refer to the comparison rules. The comparison type is the final return type.
+
+**Applicable Data Types**:
+- Numeric types: timestamp, bool, integer and floating point types
+- Strings types: nchar and varchar types.
+
+**Comparison rules**: The following rules describe the conversion method of the comparison operation:
+- If any parameter is NULL, the comparison result is NULL.
+- If all parameters in the comparison operation are string types, compare them as string types
+- If all parameters are numeric types, compare them as numeric types.
+- If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
+- In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
+
+**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+
+
+#### LEAST
+```sql
+LEAST(expr1, expr2[, expr]...)
+```
+
+**Function Description**：Get the minimum value of all input parameters. The rest of the description is the same as the [GREATEST](#greatest) function.
 
 #### LOG
 
@@ -1154,6 +1186,7 @@ CAST(expr AS type_name)
         1) Invalid character situations when converting string types to numeric types, e.g., "a" might convert to 0, but will not throw an error.
         2) When converting to numeric types, if the value exceeds the range that `type_name` can represent, it will overflow, but will not throw an error.
         3) When converting to string types, if the converted length exceeds the length specified in `type_name`, it will be truncated, but will not throw an error.
+- The DECIMAL type does not support conversion to or from JSON, VARBINARY, or GEOMETRY types.
 
 #### TO_ISO8601
 
@@ -1659,11 +1692,13 @@ AVG(expr)
 
 **Function Description**: Calculates the average value of the specified field.
 
-**Return Data Type**: DOUBLE.
+**Return Data Type**: DOUBLE, DECIMAL.
 
 **Applicable Data Types**: Numeric types.
 
 **Applicable to**: Tables and supertables.
+
+**Description**: When the input type is DECIMAL, the output type is also DECIMAL. The precision and scale of the output conform to the rules described in the data type section. The result type is obtained by dividing the SUM type by UINT64. If the SUM result causes a DECIMAL type overflow, a DECIMAL OVERFLOW error is reported.
 
 ### COUNT
 
@@ -1815,11 +1850,13 @@ SUM(expr)
 
 **Function Description**: Calculates the sum of a column in a table/supertable.
 
-**Return Data Type**: DOUBLE, BIGINT.
+**Return Data Type**: DOUBLE, BIGINT,DECIMAL.
 
 **Applicable Data Types**: Numeric types.
 
 **Applicable to**: Tables and supertables.
+
+**Description**: When the input type is DECIMAL, the output type is DECIMAL(38, scale), where precision is the maximum value currently supported, and scale is the scale of the input type. If the SUM result overflows, a DECIMAL OVERFLOW error is reported.
 
 ### HYPERLOGLOG
 
@@ -1932,6 +1969,7 @@ FIRST(expr)
 - If all values in a column in the result set are NULL, the return for that column is also NULL;
 - If all columns in the result set are NULL, no results are returned.
 - For tables with composite primary keys, if there are multiple entries with the smallest timestamp, only the data with the smallest composite primary key is returned.
+
 ### LAST
 
 ```sql
@@ -2088,6 +2126,28 @@ UNIQUE(expr)
 
 **Applicable to**: Tables and supertables.
 
+### COLS​
+
+```sql​
+COLS​(func(expr), output_expr1, [, output_expr2] ... )​
+```
+
+**Function Description**: On the data row where the execution result of function func(expr) is located, execute the expression output_expr1, [, output_expr2], return its result, and the result of func (expr) is not output.​
+
+**Return Data Type**: Returns multiple columns of data, and the data type of each column is the type of the result returned by the corresponding expression.​
+
+**Applicable Data Types**: All type fields.​
+
+**Applicable to**: Tables and Super Tables.​
+
+**Usage Instructions**:
+- Func function type: must be a single-line selection function (output result is a single-line selection function, for example, last is a single-line selection function, but top is a multi-line selection function).​
+- Mainly used to obtain the associated columns of multiple selection function results in a single SQL query. For example: select cols(max(c0), ts), cols(max(c1), ts) from ... can be used to get the different ts values of the maximum values of columns c0 and c1.
+- The result of the parameter func is not returned. If you need to output the result of func, you can add additional output columns, such as: select first(ts), cols(first(ts), c1) from ..
+- When there is only one column in the output, you can set an alias for the function. For example, you can do it like this: "select cols(first (ts), c1) as c11 from ...".
+- Output one or more columns, and you can set an alias for each output column of the function. For example, you can do it like this: "select (first (ts), c1 as c11, c2 as c22) from ...".
+
+
 ## Time-Series Specific Functions
 
 Time-Series specific functions are tailor-made by TDengine to meet the query scenarios of time-series data. In general databases, implementing similar functionalities usually requires complex query syntax and is inefficient. TDengine has built these functionalities into functions, greatly reducing the user's cost of use.
@@ -2199,6 +2259,7 @@ ignore_null_values: {
 - INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](../query-data/#interp).
 - When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL](../time-series-extensions/#fill-clause) parameter.
 - When INTERP is applied to a supertable, it will sort all the subtable data under that supertable by primary key column and perform interpolation calculations, and can also be used with PARTITION BY tbname to force the results to a single timeline.
+- When using INTERP with FILL PREV/NEXT/NEAR modes, its behavior differs from window queries. If data exists at the slice, no FILL operation will be performed, even if the current value is NULL.
 - INTERP can be used with the pseudocolumn _irowts to return the timestamp corresponding to the interpolation point (supported from version 3.0.2.0).
 - INTERP can be used with the pseudocolumn _isfilled to display whether the return result is from the original record or generated by the interpolation algorithm (supported from version 3.0.3.0).
 - INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.

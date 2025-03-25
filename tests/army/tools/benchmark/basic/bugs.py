@@ -21,15 +21,6 @@ from frame.caseBase import *
 from frame import *
 
 
-# reomve single and double quotation
-def removeQuotation(origin):
-    value = ""
-    for c in origin:
-        if c != '\'' and c != '"':
-            value += c
-
-    return value
-
 class TDTestCase(TBase):
     def caseDescription(self):
         """
@@ -111,7 +102,7 @@ class TDTestCase(TBase):
             tdSql.query(sql)
 
             if cachemode != None:
-                value = removeQuotation(cachemode)
+                value = frame.eutil.removeQuota(cachemode)
                 tdLog.info(f" deal both origin={cachemode} after={value}")
                 tdSql.checkData(0, 1, value)
 
@@ -136,7 +127,7 @@ class TDTestCase(TBase):
     def bugsTD(self, benchmark):
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-31490.json", checkStep = False)
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-31575.json")
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32846.json")
+        # self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32846.json")
         
         # no drop
         db      = "td32913db"

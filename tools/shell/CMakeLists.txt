@@ -1,6 +1,6 @@
 aux_source_directory(src SHELL_SRC)
 
-add_executable(shell ${SHELL_SRC})
+add_executable(shell ${SHELL_SRC} ../src/pub.c)
 
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
@@ -10,22 +10,6 @@ ELSE()
     SET(LINK_JEMALLOC "")
 ENDIF()
 
-IF(TD_LINUX AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include -ltaosws)
-    SET(LINK_WEBSOCKET "-L${CMAKE_BINARY_DIR}/build/lib -ltaosws")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSEIF(TD_DARWIN AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
-    SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/libtaosws.dylib")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSEIF(TD_WINDOWS AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
-    SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.lib")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSE()
-    SET(LINK_WEBSOCKET "")
-ENDIF()
-
 IF(TD_LINUX AND TD_ALPINE)
     SET(LINK_ARGP "/usr/lib/libargp.a")
 ELSE()
@@ -33,13 +17,14 @@ ELSE()
 ENDIF()
 
 if(TD_WINDOWS)
-    target_link_libraries(shell PUBLIC ${TAOS_LIB_STATIC} ${LINK_WEBSOCKET})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB})
 else()
-    target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif()
 
 target_link_libraries(
     shell
+    PUBLIC ${LINK_WEBSOCKET}
     PRIVATE os common transport geometry util
 )
 
@@ -53,17 +38,15 @@ SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
 #
 # generator library shell_ut for uint test
 #
-
 IF(TD_LINUX)
     # include
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inc)
-    # shell_ut library
-    add_library(shell_ut STATIC ${SHELL_SRC})
 
-    IF(TD_WEBSOCKET)
-        ADD_DEPENDENCIES(shell_ut taosws-rs)
-    ENDIF()
-    target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+
+    # shell_ut library
+    add_library(shell_ut STATIC ${SHELL_SRC} ../src/pub.c)
+
+    target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_JEMALLOC} ${LINK_ARGP})
     target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
     # util depends
@@ -76,5 +59,18 @@ IF(TD_LINUX)
     # unit test
     IF(${BUILD_TEST})
         ADD_SUBDIRECTORY(test)
-    ENDIF(${BUILD_TEST})    
+    ENDIF(${BUILD_TEST})
 ENDIF()
+
+#
+# collect --version information
+#
+MESSAGE("collect --version show info:")
+# version
+IF (DEFINED TD_VER_NUMBER)
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
+    MESSAGE(STATUS "taos version:${TD_VER_NUMBER}")
+ELSE ()    
+    # abort build
+    MESSAGE(FATAL_ERROR "build taos not found TD_VER_NUMBER define.")
+ENDIF ()

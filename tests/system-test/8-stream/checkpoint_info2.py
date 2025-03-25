@@ -23,6 +23,8 @@ from util.cluster import *
 # should be used by -N  option
 class TDTestCase:
     updatecfgDict = {'checkpointInterval': 60 ,
+                     'vdebugflag':143,
+                     'ddebugflag':143
                      }
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)

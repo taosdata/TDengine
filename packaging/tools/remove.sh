@@ -59,9 +59,9 @@ config_dir="/etc/${PREFIX}"
 
 if [ "${verMode}" == "cluster" ]; then
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
-  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" udfd set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" taosudf set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 else
-  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo"  udfd set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo"  taosudf set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
 fi
@@ -179,11 +179,13 @@ remove_bin() {
 
 function clean_lib() {
   # Remove link
-  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+  ${csudo}find ${lib_link_dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib_link_dir} -name "libtaosnative.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib_link_dir} -name "libtaosws.*" -exec ${csudo}rm -f {} \; || :
 
-  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
+  ${csudo}find ${lib64_link_dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib64_link_dir} -name "libtaosnative.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib64_link_dir} -name "libtaosws.*" -exec ${csudo}rm -f {} \; || :
   #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
 
@@ -295,7 +297,6 @@ if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
   fi
 fi
 
-
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
   ${csudo}rm -rf /Applications/TDengine.app
@@ -333,7 +334,6 @@ elif echo $osinfo | grep -qwi "centos"; then
   #  echo "this is centos system"
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
-
 
 command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 
 echo 

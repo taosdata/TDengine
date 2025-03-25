@@ -36,10 +36,6 @@ target_include_directories(
 )
 
 find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-find_library(XML2_LIBRARY xml2 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-
-# find_library(CURL_LIBRARY curl)
-# find_library(XML2_LIBRARY xml2)
 find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
 find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
 
@@ -50,9 +46,8 @@ target_link_libraries(
     PRIVATE ${CURL_LIBRARY}
     PRIVATE ${SSL_LIBRARY}
     PRIVATE ${CRYPTO_LIBRARY}
-    PRIVATE ${XML2_LIBRARY}
 
-    # PRIVATE xml2
+    PRIVATE _libxml2
     PRIVATE zlib
 
     # PRIVATE ${CoreFoundation_Library}

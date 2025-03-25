@@ -127,7 +127,7 @@ static int32_t doStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, cons
 
     if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
       if ((strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) && (strcmp(pTransName, MND_STREAM_TASK_RESET_NAME) != 0) &&
-          (strcmp(pTransName, MND_STREAM_RESTART_NAME) != 0)) {
+          (strcmp(pTransName, MND_STREAM_STOP_NAME) != 0)) {
         mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamId,
               tInfo.name);
         return TSDB_CODE_MND_TRANS_CONFLICT;
@@ -138,7 +138,7 @@ static int32_t doStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, cons
                (strcmp(tInfo.name, MND_STREAM_TASK_RESET_NAME) == 0) ||
                (strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) ||
                (strcmp(tInfo.name, MND_STREAM_CHKPT_CONSEN_NAME) == 0) ||
-               strcmp(tInfo.name, MND_STREAM_RESTART_NAME) == 0) {
+               strcmp(tInfo.name, MND_STREAM_STOP_NAME) == 0) {
       mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamId,
             tInfo.name);
       return TSDB_CODE_MND_TRANS_CONFLICT;
@@ -267,7 +267,7 @@ _over:
   }
 
   terrno = 0;
-  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64 "", pStream->name, pRaw, pStream,
+  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64, pStream->name, pRaw, pStream,
          pStream->checkpointId);
   return pRaw;
 }

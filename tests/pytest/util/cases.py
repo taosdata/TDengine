@@ -22,6 +22,7 @@ from util.log import *
 import platform
 import ast
 
+
 class TDCase:
     def __init__(self, name, case):
         self.name = name
@@ -54,8 +55,9 @@ class TDCases:
     def get_local_classes_in_order(self, file_path):
         with open(file_path, "r", encoding="utf-8") as file:
             tree = ast.parse(file.read(), filename=file_path)
-        
-        classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+
+        classes = [node.name for node in ast.walk(
+            tree) if isinstance(node, ast.ClassDef)]
         return classes
 
     def runAllLinux(self, conn):
@@ -123,7 +125,7 @@ class TDCases:
                 class_names = self.get_local_classes_in_order(fileName)
                 case_class = getattr(testModule, class_names[-1])
                 case = case_class()
-                case.init(conn, self._logSql,replicaVar)
+                case.init(conn, self._logSql, replicaVar)
                 try:
                     case.run()
                 except Exception as e:
@@ -196,19 +198,20 @@ class TDCases:
         else:
             tdLog.info("taosBenchmark found in %s" % paths[0])
             return paths[0]
-        
+
     def taosBenchmarkExec(self, param):
         buildPath = tdCases.getTaosBenchmarkPath()
 
         if (platform.system().lower() == 'windows'):
-            cmdStr1 = ' mintty -h never %s %s '%(buildPath, param)
+            cmdStr1 = ' mintty -h never %s %s ' % (buildPath, param)
             tdLog.info(cmdStr1)
             os.system(cmdStr1)
         else:
-            cmdStr1 = '%s %s &'%(buildPath, param)
+            cmdStr1 = '%s %s &' % (buildPath, param)
             tdLog.info(cmdStr1)
             os.system(cmdStr1)
-            
+
         time.sleep(5)
-       
+
+
 tdCases = TDCases()
