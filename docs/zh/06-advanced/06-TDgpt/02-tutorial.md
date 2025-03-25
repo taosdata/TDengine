@@ -6,7 +6,9 @@ sidebar_label: "安装部署"
 import PkgListV3 from "/components/PkgListV3";
 
 
-本节首先介绍如何通过 Docker 快速使用 TDgpt。
+本节介绍如何通过 Docker，云服务或安装包来部署 TDgpt
+
+## 通过 Docker 部署
 
 ### 镜像版本说明
 
@@ -80,7 +82,7 @@ docker exec -it <container name> bash
 
 ## 注册云服务使用 TDgpt
 
-TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，请在数据库集市里面找到 **时序数据预测分析数据集** 数据库，点击启用就可以进入这个数据库。然后按照 TDgpt 的 SQL 操作手册来执行语句，比如 `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`。
+TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，登录云服务后，点击屏幕左下侧的“数据库集市”，请在数据库集市里面找到 **时序数据预测分析数据集** 数据库，点击启用就可以进入这个数据库。然后按照 TDgpt 的 SQL 操作手册来执行语句，比如 `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`。
 
 ## 通过安装包部署 TDgpt
 
