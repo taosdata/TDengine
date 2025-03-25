@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
+#include "mndSync.h"
 
 #define ARBGROUP_VER_NUMBER   1
 #define ARBGROUP_RESERVE_SIZE 51
