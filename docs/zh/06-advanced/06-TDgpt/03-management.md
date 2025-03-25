@@ -1,6 +1,6 @@
 ---
-title: "安装部署"
-sidebar_label: "安装部署"
+title: "运维管理指南"
+sidebar_label: "运维管理指南"
 ---
 
 ### 环境准备

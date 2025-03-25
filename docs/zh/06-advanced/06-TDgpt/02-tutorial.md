@@ -1,6 +1,6 @@
 ---
-title: "快速体验"
-sidebar_label: "快速体验"
+title: "安装部署"
+sidebar_label: "安装部署"
 ---
 
 # 通过 Docker 快速体验
