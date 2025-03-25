@@ -32,7 +32,9 @@ TDgpt 的主要包含四个部分的内容。
 - 第三部分是通用大语言模型的请求适配模块。将时序数据预测请求转换后，基于 Prompt 向 DeepSeek、LlaMa 等通用大语言模型 MaaS 请求服务（这部分功能暂未开源）；
 - 第四部分是通过 Adapter 直接向本地部署的 Time-MoE、TDtsfm 等时序数据模型请求服务。时序数据专用模型相对于通用语言大模型，无需 Prompt，更加便捷轻量，本地应用部署对硬件资源要求也较低；除此之外，Adapter 还可以直接请求 TimeGPT 这种类型的时序数据分析 MaaS 服务，调用云端的时序模型服务提供本地化时序数据分析能力。
 
+<figure style={{textAlign: "center"}}>
 <img src={TDgpt} alt="TDgpt架构图" />
+</figure>
 
 查询过程中，TDengine 中的Vnode 会将涉及时序数据高级分析的部分直接转发到 Anode，并等待分析完成后将结果组装完成，嵌入查询执行流程。
 
