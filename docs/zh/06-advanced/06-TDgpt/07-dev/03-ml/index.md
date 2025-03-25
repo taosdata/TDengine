@@ -7,6 +7,8 @@ sidebar_label: "添加机器学习模型"
 
 本章介绍将预训练完成的机器/深度学习分析模型添加到 TDgpt 中的方法。
 
+## 准备模型
+
 推荐将模型保存在默认的保存目录（`/usr/local/taos/taosanode/model/`）中，也可以在目录中建立下一级目录，用以保存模型。下面使用 Keras 开发的基于自编码器(auto encoder) 的异常检测模型添加到 TDgpt 为例讲解整个流程。
 
 该模型在 TDgpt 系统中名称为 'sample_ad_model'。
@@ -19,6 +21,8 @@ sample-ad-autoencoder.keras  模型文件，默认 keras 模型文件格式
 sample-ad-autoencoder.info   模型附加参数文件，采用了 joblib 格式保存
 ```
 
+## 保存在合适位置
+
 然后在 `/usr/local/taos/taosanode/model` 文件目录下建立子目录 `sample-ad-autoencoder`, 用以保存下载两个模型文件。此时 `model` 文件夹结构如下：
 
 ```bash
@@ -28,6 +32,8 @@ sample-ad-autoencoder.info   模型附加参数文件，采用了 joblib 格式�
         ├── sample-ad-autoencoder.keras
         └── sample-ad-autoencoder.info
 ```
+
+## 添加模型适配代码
 
 下面需要在 taosanalytics 目录下添加加载该模型并进行适配的 Python 代码，即可运行该模型。适配并行运行的代码见[https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/ad/autoencoder.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/ad/autoencoder.py)。
 为了便于方便，我们已经将该文件保存在该目录，所以您在执行 `show anodes full` 命令时候，能够看见该算法模型。
@@ -144,12 +150,13 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
             raise RuntimeError(f"failed to load model {name}")
 ```
 
-接下来说明如何使用 SQL 调用该模型。
-通过设置参数 `algo=ad_encoder` 告诉分析平台要调用自编码器算法训练的模型（自编码器算法在可用算法列表中），因此直接指定即可。此外还需要指定自编码器针对某数据集训练的确定的模型，此时我们需要使用已经保存的模型 `ad_autoencoder_foo` ，因此需要添加参数 `model=ad_autoencoder_foo` 以便能够调用该模型。
+## 使用 SQL 调用模型
+该模型由于已经预置在系统中，所以您通过 `show anodes full` 能够直接看到。一个新的算法适配完成以后，需要重新启动 taosanode， 并执行命令 `update all anodes` 更新 mnode 的。
+
+通过设置参数 `algo=sample_ad_model` 告诉 TDgpt 要调用自编码器算法训练的模型（该算法模型在可用算法列表中），因此直接指定即可。此外还需要指定自编码器针对某数据集训练的确定的模型，此时我们需要使用已经保存的模型 `sample-ad-autoencoder` ，因此需要添加参数 `model=sample-ad-autoencoder` 以便能够调用该模型。
 
 ```SQL
 --- 在 options 中增加 model 的名称，ad_autoencoder_foo， 针对 foo 数据集（表）训练的采用自编码器的异常检测模型进行异常检测
-SELECT COUNT(*), _WSTART
-FROM foo
-ANOMALY_WINDOW(col1, 'algo=ad_encoder, model=ad_autoencoder_foo');
+SELECT _wstart, count(*) 
+FROM ad_sample anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
 ```
