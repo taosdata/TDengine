@@ -190,7 +190,7 @@ class TDTestCase:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
         else:
             #dataDbName = ["information_schema", "performance_schema", "db", newDbName]
-            tdSql.query("select * from information_schema.ins_databases")
+            tdSql.query("select * from information_schema.ins_databases1")
             #tdSql.getResult("select * from information_schema.ins_databases")
             for i in range(tdSql.queryRows):
                 if tdSql.getData(i, 0) == newDbName:
