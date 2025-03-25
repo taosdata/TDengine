@@ -87,26 +87,18 @@ if [ -d "${model_dir}" ]; then
   td_model_name="tdtsfm"
   echo "copy ${td_model_name} model files"
   cp -r ${model_dir}/${td_model_name}.tar.gz ${model_install_dir} || :
-  echo "copy ${td_model_name}  model files done"
+  echo "copy ${td_model_name} model files done"
   xhs_model_name="timer-moe"
   echo "copy ${xhs_model_name} model files "
   cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
-  echo "copy  ${xhs_model_name} model files done"
+  echo "copy ${xhs_model_name} model files done"
 fi
 
 # tar lib and model files
-cd ${install_dir}
-if [ -d "${model_install_dir}" ]; then
-  tar -zcv -f ${tarName} ./lib/* ./model/* || :
-else
-  tar -zcv -f ${tarName} ./lib/* || :
-fi
+cd ${install_dir} && tar -zcv -f ${tarName} ./lib/* || :
 
-if [ ! -z "${install_dir}" ]; then
-  # shellcheck disable=SC2115
-  [ -d "${lib_install_dir}" ] && rm -rf ${lib_install_dir} || :
-  [ -d "${model_install_dir}" ] &&  rm -rf ${model_install_dir} || :
-fi
+# shellcheck disable=SC2115
+[ -d "${lib_install_dir}" ] && rm -rf ${lib_install_dir} || :
 
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
