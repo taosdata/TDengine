@@ -288,6 +288,53 @@ class BeforeTest:
             adapter["taos_firstEP"] = "localhost:6030"
             adapter["taos_logDir"] = taos_log_dir
             request.session.adapter = adapter
+
+            # TODO:增加taoskeeper配置
+            taoskeeper_config_dir = os.path.join(ci_path, "dnode1", "cfg")
+            taoskeeper_config_file = os.path.join(taoskeeper_config_dir, "taoskeeper.toml")
+            taos_config_file = os.path.join(ci_path, "dnode1", "cfg", "taos.cfg")
+            taoskeeper_log_dir = os.path.join(ci_path, "dnode1", "log")
+            taoskeeper_dict = {
+                "name": "taoskeeper",
+                "fqdn": ["localhost"],
+                "spec": {
+                    "version": "2.4.0.0",
+                    "config_file": taoskeeper_config_file,
+                    "taoskeeper_config": {
+                        "logLevel": "info",
+                        "host": "localhost",
+                        "port": 6043,
+                        "username": "root",
+                        "password": "taosdata",
+                        "RotationInterval": "15s",
+                        "level": "info",
+                        "rotationSize": "1GB",
+                        "rotationCount": 30,
+                        "taosConfigDir": "/etc/taos",
+                        "log":{"path": "/var/log/taos"},
+                        "keepDays": 30
+                },
+                    "taos_config": {
+                        "firstEP": "localhost:6030",
+                        "logDir": taos_log_dir
+                    },
+            }
+                
+            }
+            yaml_data["settings"].append(taoskeeper_dict)
+            taoskeeper = {}
+            taoskeeper["host"] = "localhost"
+            taoskeeper["port"] = 6043
+            taoskeeper["username"] = "root"
+            taoskeeper["password"] = "taosdata"
+            taoskeeper["path"] = taoskeeper_config_dir
+            taoskeeper["RotationInterval"] = "15s"
+            taoskeeper["level"] = "info"
+            taoskeeper["rotationSize"] = "1GB"
+            taoskeeper["rotationCount"] = 30
+            taoskeeper["keepDays"] = 30
+            taoskeeper["reservedDiskSize"] = "0"
+            request.session.taoskeeper = taoskeeper
         request.session.yaml_data = yaml_data
         request.session.yaml_file = 'ci_default.yaml'
         if not os.path.exists(os.path.join(self.root_dir, 'env')):
@@ -451,7 +498,10 @@ class BeforeTest:
             tAdapter_army.taosadapter_cfg_dict["log"]["path"] = request.session.adapter["log_path"]
             tAdapter_army.deployed = 1
             tAdapter_army.running = 1
-
+    # TODO: 增加taoskeeper实例化
+        if request.session.taoskeeper:
+            taoskeeper_pytest.init("", master_ip)
+            taoskeeper_pytest.log_dir = request.session.taoskeeper["log_dir"]
     
 
     def update_cfg(self, updatecfgDict):
