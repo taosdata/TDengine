@@ -3,7 +3,6 @@ from flask import Flask, request, jsonify
 from transformers import AutoModelForCausalLM
 
 app = Flask(__name__)
-
 device = 'cpu'
 
 model = AutoModelForCausalLM.from_pretrained(
@@ -47,8 +46,6 @@ def time_moe():
         return jsonify({
             'error': f'Prediction failed: {str(e)}'
         }), 500
-
-
 
 def main():
     app.run(
