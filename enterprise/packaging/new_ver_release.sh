@@ -138,7 +138,7 @@ elif [ "$verMode" == "cloud" ];then
   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
   if [ "$tdGpt" == "true" ];then
     bash $communityDir/tools/tdgpt/script/release.sh -e enterprise -v $version
-    cp $communityDir/tools/tdgpt/release/TDengine-enterprise-anode-$version-Linux-${cpuType}.tar.gz $communityDir/packaging/docker
+    cp $communityDir/tools/tdgpt/release/TDengine-enterprise-TDgpt-$version-Linux-${cpuType}.tar.gz $communityDir/packaging/docker
   fi
 else
   echo "please input right Specified para "
