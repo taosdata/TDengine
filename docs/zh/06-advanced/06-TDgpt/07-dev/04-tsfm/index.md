@@ -1,9 +1,9 @@
 ---
-sidebar_label: TDgpt
-title: TDgpt
+sidebar_label: 时序基础模型安装及应用
+title: 时序基础模型安装及应用
 ---
 
-本章主要介绍如何安装部署、使用时序数据分析智能体 TDgpt 以及向 TDgpt 添加算法模型，协同 taosd 提供分析服务。
+本章主要介绍如何通过 TDgpt 使用时序基础模型的功能。
 
 
 ```mdx-code-block
