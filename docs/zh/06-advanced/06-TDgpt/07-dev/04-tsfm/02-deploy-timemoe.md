@@ -3,6 +3,8 @@ title: "部署 Time-MoE 模型"
 sidebar_label: "部署 Time-MoE 模型"
 ---
 
+本章介绍如何本地部署 [Time-MoE] (https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配完成后，提供时序数据预测服务。
+
 # 准备环境
 
 为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备 Python 环境。使用 PiPy 安装必要的依赖包：
@@ -77,3 +79,7 @@ curl 127.0.0.1:5001/ds_predict
 <h1>Method Not Allowed</h1>
 <p>The method is not allowed for the requested URL.</p>
 ```
+
+# 参考文献
+
+- Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts. [[paper](https://arxiv.org/abs/2409.16040)] [[GitHub Repo](https://github.com/Time-MoE/Time-MoE)]
