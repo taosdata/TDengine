@@ -1,30 +1,23 @@
 ---
-title: "LSTM"
-sidebar_label: "LSTM"
+title: "时序基础模型"
+sidebar_label: "时序基础模型"
 ---
 
-本节说明 LSTM 模型的使用方法。
+TDgpt 内置了涛思数据时序基础模型和 Time-MoE 两个时序基础模型。
 
 ## 功能概述
 
-LSTM 模型即长短期记忆网络(Long Short Term Memory)，是一种特殊的循环神经网络，适用于处理时间序列数据、自然语言处理等任务，通过其独特的门控机制，能够有效捕捉长期依赖关系，解决传统 RNN 的梯度消失问题，从而对序列数据进行准确预测，不过它不直接提供计算的置信区间范围结果。
+时序数据基础模型是专门训练，用以处理时间序列数据预测和异常检测、数据补齐等功能的基础模型，时序基础模型继承了大模型的优良泛化能力，无需要设置复杂的输入参数，即可根据输入数据进行预测分析。
 
+|序号|参数|说明
+|---|---|---|
+|1| tdtsfm_1 | 涛思时序数据基础模型 v1.0|
+|2| time-moe | 亿级别参数 MoE时序基础模型|
 
-完整的调用 SQL 语句如下：
+调用时序基础模型，无需设置模型相关参数，使用如下的 SQL 语句即可调用涛思时序基础模型（tdtsfm）的预测能力：
+
 ```SQL
-SELECT _frowts, FORECAST(i32, "algo=lstm,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5") from foo
+SELECT _frowts, FORECAST(i32, "algo=tdtsfm_1,rows=10") from foo
 ```
 
-```json5
-{
-"rows": fc_rows,  // 返回结果的行数
-"period": period, // 返回结果的周期性，同输入
-"alpha": alpha,   // 返回结果的置信区间，同输入
-"algo": "lstm",   // 返回结果使用的算法
-"mse": mse,       // 拟合输入时间序列时候生成模型的最小均方误差(MSE)
-"res": res        // 列模式的结果
-}
-```
-
-### 参考文献
-- [1] Hochreiter S. Long Short-term Memory[J]. Neural Computation MIT-Press, 1997.
+如果希望调用Time-MoE的预测分析能力，将参数 `algo=tdtsfm_1` 修改为 `algo=timemoe-fc` 即可。

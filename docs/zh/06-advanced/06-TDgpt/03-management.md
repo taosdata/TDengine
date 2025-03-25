@@ -1,6 +1,6 @@
 ---
-title: "运维管理指南"
-sidebar_label: "运维管理指南"
+title: "Anode 管理"
+sidebar_label: "Anode 管理"
 ---
 
 import PkgListV3 from "/components/PkgListV3";
