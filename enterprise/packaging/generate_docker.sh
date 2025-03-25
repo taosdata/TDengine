@@ -68,7 +68,7 @@ else
 fi
 
 if [ "$tdGpt" == "true" ];then
-  tdgptPkgFile=TDengine-enterprise-anode-${version}-Linux-x64.tar.gz
+  tdgptPkgFile=TDengine-enterprise-TDgpt-${version}-Linux-x64.tar.gz
 fi
 
 ####################### build docker image and push
