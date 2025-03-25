@@ -543,7 +543,11 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   char    cfgFile[PATH_MAX + 100] = {0};
 
   TAOS_CHECK_RETURN(taosExpandDir(inputCfgDir, cfgDir, PATH_MAX));
-  char  lastC = cfgDir[strlen(cfgDir) - 1];
+  int32_t pos = strlen(cfgDir);
+  if(pos > 0) {
+    pos -= 1;
+  }
+  char  lastC = cfgDir[pos];  
   char *tdDirsep = TD_DIRSEP;
   if (lastC == '\\' || lastC == '/') {
     tdDirsep = "";

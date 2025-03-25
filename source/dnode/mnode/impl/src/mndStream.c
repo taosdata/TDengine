@@ -107,6 +107,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_PAUSE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_RESUME_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_STOP_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_START_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_UPDATE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_TASK_RESET_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_UPDATE_CHKPT_RSP, mndTransProcessRsp);
@@ -133,6 +134,8 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CONSEN_TIMER, mndProcessConsensusInTmr);
 
   mndSetMsgHandle(pMnode, TDMT_MND_PAUSE_STREAM, mndProcessPauseStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessPauseStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessPauseStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESUME_STREAM, mndProcessResumeStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESET_STREAM, mndProcessResetStreamReq);
 
@@ -1092,7 +1095,7 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessRestartStreamReq(SRpcMsg *pReq) {
+static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   SMnode          *pMnode = pReq->info.node;
   SStreamObj      *pStream = NULL;
   int32_t          code = 0;
@@ -1120,7 +1123,7 @@ static int32_t mndProcessRestartStreamReq(SRpcMsg *pReq) {
   }
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
-  code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_RESTART_NAME, true);
+  code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_STOP_NAME, true);
   if (code) {
     sdbRelease(pMnode->pSdb, pStream);
     return code;
@@ -1134,15 +1137,15 @@ static int32_t mndProcessRestartStreamReq(SRpcMsg *pReq) {
   }
 
   STrans *pTrans = NULL;
-  code = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_RESTART_NAME, "restart the stream",
+  code = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_STOP_NAME, "stop the stream",
                        &pTrans);
   if (pTrans == NULL || code) {
-    mError("stream:%s failed to pause stream since %s", pauseReq.name, tstrerror(code));
+    mError("stream:%s failed to stop stream since %s", pauseReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
-  code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESTART_NAME, pStream->uid);
+  code = mndStreamRegisterTrans(pTrans, MND_STREAM_STOP_NAME, pStream->uid);
   if (code) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -1150,7 +1153,7 @@ static int32_t mndProcessRestartStreamReq(SRpcMsg *pReq) {
   }
 
   // if nodeUpdate happened, not send pause trans
-  code = mndStreamSetRestartAction(pMnode, pTrans, pStream);
+  code = mndStreamSetStopAction(pMnode, pTrans, pStream);
   if (code) {
     mError("stream:%s, failed to restart task since %s", pauseReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);

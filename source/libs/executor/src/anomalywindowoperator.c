@@ -327,7 +327,7 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, const char* pId)
       qError("%s failed to exec forecast, msg:%s", pId, pMsg);
     }
 
-    return TSDB_CODE_ANA_INTERNAL_ERROR;
+    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
   } else if (rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -593,7 +593,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
 
     for (int32_t r = 0; r < pBlock->info.rows; ++r) {
       TSKEY key = tsList[r];
-      bool  keyInWin = (key >= pSupp->curWin.skey && key < pSupp->curWin.ekey);
+      bool  keyInWin = (key >= pSupp->curWin.skey && key <= pSupp->curWin.ekey);
       bool  lastRow = (r == pBlock->info.rows - 1);
 
       if (keyInWin) {

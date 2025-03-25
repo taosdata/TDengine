@@ -1073,8 +1073,9 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
                             STableMeta* pMeta, void* boundTags, uint8_t tbNameFlag) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   bool           hastag = (tags != NULL) && !(tbNameFlag & IS_FIXED_TAG);
-  int32_t        numOfBound =
-      boundColsInfo.numOfBound + ((tbNameFlag & IS_FIXED_VALUE) == 0 && (tbNameFlag & USING_CLAUSE) != 0 ? 1 : 0);
+  bool           hasPreBindTbname =
+      (tbNameFlag & IS_FIXED_VALUE) == 0 && ((tbNameFlag & USING_CLAUSE) != 0 || pMeta->tableType == TSDB_NORMAL_TABLE);
+  int32_t numOfBound = boundColsInfo.numOfBound + (hasPreBindTbname ? 1 : 0);
   if (hastag) {
     numOfBound += tags->mixTagsCols ? 0 : tags->numOfBound;
   }
@@ -1085,7 +1086,7 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
       return terrno;
     }
 
-    if ((tbNameFlag & IS_FIXED_VALUE) == 0 && (tbNameFlag & USING_CLAUSE) != 0) {
+    if (hasPreBindTbname) {
       (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
       tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
       (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
