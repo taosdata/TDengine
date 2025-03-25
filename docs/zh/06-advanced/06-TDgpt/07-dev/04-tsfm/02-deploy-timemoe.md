@@ -17,16 +17,16 @@ pip install accelerate
 ```
 您可以使用安装过程中创建的虚拟环境，也可以创建一个独立虚拟环境，使用该虚拟环境之前，确保安装了上述的依赖包。
 
-# 设置服务端口和 URL 地址
+# 设置服务端口和地址
 
-TDgpt 安装根目录下的 `./lib/taosanalytics/time-moe.py` 文件负责 Time-MoE 模型的部署和服务，修改该问题设置合适的服务 URL 和服务端口即可。
+TDgpt 安装根目录下的 `./lib/taosanalytics/time-moe.py` 文件负责 Time-MoE 模型的部署和服务，修改文件设置合适的服务 URL。
 
 ```Python
 @app.route('/ds_predict', methods=['POST'])
 def time_moe():
 ...
 ```
-修改 `ds_predict` 为需要开启的 URL 服务地址，或者使用默认路径即可。
+修改 `ds_predict` 为需要开启的 URL 服务地址，或者使用默认值即可。
 
 ```Python
     app.run(
@@ -45,7 +45,7 @@ def time_moe():
 nohup python time-moe.py > service_output.out 2>&1 &
 ```
 
-第一次启动脚本会从 huggingface 自动加载[2亿参数时序数据基础模型](https://huggingface.co/Maple728/TimeMoE-200M)。该模型是 Time-MoE 200M参数版本，如果您需要部署参数规模更小的版本请将 `time-moe.py` 文件中 `'Maple728/TimeMoE-200M'` 修改为 `Maple728/TimeMoE-50M`，此时将加载 [0.5亿参数版本模型](https://huggingface.co/Maple728/TimeMoE-50M)。
+第一次启动脚本会从 huggingface 自动加载[2亿参数模型](https://huggingface.co/Maple728/TimeMoE-200M)。该模型是 Time-MoE 200M参数版本，如果您需要部署参数规模更小的版本请将 `time-moe.py` 文件中 `'Maple728/TimeMoE-200M'` 修改为 `Maple728/TimeMoE-50M`，此时将加载 [0.5亿参数模型](https://huggingface.co/Maple728/TimeMoE-50M)。
 
 如果加载失败，请尝试执行如下命令切换为国内镜像下载模型。
 
