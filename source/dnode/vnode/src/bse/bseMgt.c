@@ -1237,7 +1237,7 @@ int32_t bseBatchDestroy(SBseBatch *pBatch) {
 int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen) {
   int32_t lino = 0;
   int32_t code = 0;
-  if (alen > pBatch->cap) {
+  if (alen >= pBatch->cap) {
     int32_t cap = (pBatch->cap == 0) ? 1 : pBatch->cap;
     if (cap > (INT32_MAX >> 1)) {
       return TSDB_CODE_OUT_OF_MEMORY;
