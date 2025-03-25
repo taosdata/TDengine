@@ -9,11 +9,12 @@ ARG tdgptDirName
 ARG modelDlUrl
 
 # for timer-moe
-# ADD ${modelDlUrl}/timer-moe.tar.gz /root/
-# RUN tar -xzf timer-moe.tar.gz && rm -rf timer-moe.tar.gz
+ADD ${modelDlUrl}/timer-moe.tar.gz /root/
+RUN tar -xzf timer-moe.tar.gz && rm -rf timer-moe.tar.gz
 
-ADD ${tdgptPkgFile} \
-    ${pkgFile} \
+# for tdtsfm
+ADD ${pkgFile} \
+    ${tdgptPkgFile} \
     ${modelDlUrl}/taos.pth \
     ${modelDlUrl}/taos_ts_server.py \
     ${modelDlUrl}/fc_australia.sql \
