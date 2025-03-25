@@ -1,6 +1,6 @@
 ---
-title: "部署时序基础模型"
-sidebar_label: "部署时序基础模型"
+title: "部署 Time-MoE 模型"
+sidebar_label: "部署 Time-MoE 模型"
 ---
 
 # 准备环境
