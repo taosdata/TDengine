@@ -170,28 +170,28 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
 
 // this is to process request from transaction, always return true.
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored, bool isLeader) {
-  int32_t      vgId = pMeta->vgId;
-  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
-  SRpcMsg      rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
-  int64_t      st = taosGetTimestampMs();
-  bool         updated = false;
-  int32_t      code = 0;
-  SStreamTask* pTask = NULL;
-  SStreamTask* pHTask = NULL;
-
+  int32_t                  vgId = pMeta->vgId;
+  char*                    msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t                  len = pMsg->contLen - sizeof(SMsgHead);
+  SRpcMsg                  rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
+  int64_t                  st = taosGetTimestampMs();
+  bool                     updated = false;
+  int32_t                  code = 0;
+  SStreamTask*             pTask = NULL;
+  SStreamTask*             pHTask = NULL;
   SStreamTaskNodeUpdateMsg req = {0};
+  SDecoder                 decoder;
 
-  SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
-  if (tDecodeStreamTaskUpdateMsg(&decoder, &req) < 0) {
+  code = tDecodeStreamTaskUpdateMsg(&decoder, &req);
+  tDecoderClear(&decoder);
+
+  if (code < 0) {
     rsp.code = TSDB_CODE_MSG_DECODE_ERROR;
     tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(rsp.code));
-    tDecoderClear(&decoder);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
-
-  tDecoderClear(&decoder);
 
   int32_t gError = streamGetFatalError(pMeta);
   if (gError != 0) {

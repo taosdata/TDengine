@@ -1,4 +1,6 @@
-name: TDengine Taosd & Taosc Coverage
+# Coverage test for taosd & taosc
+
+name: TDengine Coverage
 
 on:
   workflow_dispatch:
@@ -19,7 +21,7 @@ env:
 
 jobs:
   run-tests-on-linux:
-    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@3.0
+    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@main
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
     with:
       tdinternal: false

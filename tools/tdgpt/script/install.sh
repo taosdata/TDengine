@@ -22,6 +22,7 @@ emailName="taosdata.com"
 tarName="package.tar.gz"
 logDir="/var/log/${PREFIX}/${PRODUCTPREFIX}"
 moduleDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/model"
+resourceDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/resource"
 venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
 installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
@@ -376,6 +377,13 @@ function install_module() {
   ${csudo}ln -sf ${moduleDir} ${install_main_dir}/model
 }
 
+function install_resource() {
+  ${csudo}mkdir -p ${resourceDir} && ${csudo}chmod 777 ${resourceDir}
+  ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
+
+  ${csudo}cp ${script_dir}/resource/*.sql ${install_main_dir}/resource/
+}
+
 function install_anode_venv() {
   ${csudo}mkdir -p ${venvDir} && ${csudo}chmod 777 ${venvDir}
   ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
@@ -401,6 +409,8 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install torch --index-url https://download.pytorch.org/whl/cpu
   ${csudo}${venvDir}/bin/pip3 install --upgrade keras
   ${csudo}${venvDir}/bin/pip3 install requests
+  ${csudo}${venvDir}/bin/pip3 install taospy
+  ${csudo}${venvDir}/bin/pip3 install transformers
 
   echo -e "Install python library for venv completed!"
 }
@@ -620,6 +630,7 @@ function updateProduct() {
   install_main_path
   install_log
   install_module
+  install_resource
   install_config
 
   if [ -z $1 ]; then
@@ -668,6 +679,7 @@ function installProduct() {
   install_log
   install_anode_config
   install_module
+  install_resource
 
   install_bin_and_lib
   if ! is_container; then

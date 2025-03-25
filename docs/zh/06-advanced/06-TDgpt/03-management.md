@@ -1,50 +1,9 @@
 ---
-title: "安装部署"
-sidebar_label: "安装部署"
+title: "运维管理指南"
+sidebar_label: "运维管理指南"
 ---
 
-### 环境准备
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 运行在 Linux 平台上，并需要 3.10 或以上版本的 Python 环境支持。
-> 部署 Anode 需要 TDengine 3.3.6.0 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
-
-可以使用以下的命令在 Ubuntu Linux 上安装 Python 3.10 环境
-
-#### 安装 Python
-
-```shell
-sudo apt-get install software-properties-common
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt update
-sudo apt install python3.10
-sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 2
-sudo update-alternatives --config python3
-sudo apt install python3.10-venv
-sudo apt install python3.10-dev
-```
-
-#### 安装 Pip
-```shell
-curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
-```
-
-####
-将 `~/.local/bin` 路径添加到环境变量中 `~/.bashrc or ~/.bash_profile`
-```shell
-export PATH=$PATH:~/.local/bin
-```
-至此 Python 环境准备完成，可以进行 taosanode 的安装和部署。
-
-### 安装及卸载
-使用 Linux 环境下的安装包 TDengine-anode-3.3.x.x-Linux-x64.tar.gz 可进行 Anode 的安装部署工作，命令如下：
-
-```bash
-tar -xzvf TDengine-anode-3.3.6.0-Linux-x64.tar.gz
-cd TDengine-anode-3.3.6.0
-sudo ./install.sh
-```
-
-对于已经安装的 Anode，执行命令 `rmtaosanode` 即可完成卸载。
-为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要 Python 的虚拟环境，手动删除该目录即可。
+import PkgListV3 from "/components/PkgListV3";
 
 ### 启停服务
 在 Linux 系统中，安装 Anode 以后会自动创建 `taosanoded` 服务。可以使用 `systemd` 来管理 Anode 服务，使用如下命令启动/停止/检查 Anode。

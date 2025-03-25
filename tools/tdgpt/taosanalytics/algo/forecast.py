@@ -34,14 +34,14 @@ def do_forecast(input_list, ts_list, algo_name, params):
     check_fc_results(res)
 
     fc = res["res"]
-    draw_fc_results(input_list, len(fc) > 2, fc, len(fc[0]), algo_name)
+    # draw_fc_results(input_list, len(fc) > 2, fc, len(fc[0]), algo_name)
     return res
 
 
 def do_add_fc_params(params, json_obj):
     """ add params into parameters """
     if "forecast_rows" in json_obj:
-        params["fc_rows"] = int(json_obj["forecast_rows"])
+        params["rows"] = int(json_obj["forecast_rows"])
 
     if "start" in json_obj:
         params["start_ts"] = int(json_obj["start"])

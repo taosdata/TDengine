@@ -1853,6 +1853,9 @@ int32_t doProcessMsgFromServer(void* param) {
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   int32_t code = 0;
   SEpSet* tEpSet = NULL;
+
+  tscDebug("msg callback, ahandle %p", pMsg->info.ahandle);
+
   if (pEpSet != NULL) {
     tEpSet = taosMemoryCalloc(1, sizeof(SEpSet));
     if (NULL == tEpSet) {
@@ -1894,6 +1897,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     goto _exit;
   }
   return;
+  
 _exit:
   tscError("failed to sched msg to tsc since %s", tstrerror(code));
   code = doProcessMsgFromServerImpl(pMsg, tEpSet);

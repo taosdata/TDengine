@@ -86,11 +86,11 @@ class _ArimaService(AbstractForecastService):
         if len(self.list) > 3000:
             raise ValueError("number of input data is too large")
 
-        if self.fc_rows <= 0:
+        if self.rows <= 0:
             raise ValueError("fc rows is not specified yet")
 
-        res, mse, model_info = self.__do_forecast_helper(self.fc_rows)
-        insert_ts_list(res, self.start_ts, self.time_step, self.fc_rows)
+        res, mse, model_info = self.__do_forecast_helper(self.rows)
+        insert_ts_list(res, self.start_ts, self.time_step, self.rows)
 
         return {
             "mse": mse,
