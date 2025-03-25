@@ -7,7 +7,6 @@ title: 添加时序基础模型
 
 本章节将详细介绍如何部署使用 Time-MoE 等的时序基础模型，并通过 SQL 语句直接调用其时序数据分析能力。
 
-
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
