@@ -38,16 +38,6 @@ typedef struct STimeRange {
   uint64_t groupId;
 } STimeRange;
 
-typedef struct SFillProgress {
-  int32_t rowIdx;
-} SFillProgress;
-
-typedef struct SFillBlock {
-  SSDataBlock* pBlock;
-  SArray*      pFillProgress;
-  bool         allColFinished;
-} SFillBlock;
-
 typedef struct SFillOperatorInfo {
   struct SFillInfo* pFillInfo;
   SSDataBlock*      pRes;
@@ -66,28 +56,6 @@ typedef struct SFillOperatorInfo {
   SExprSupp         fillNullExprSupp;
   SList*            pFillSavedBlockList;
 } SFillOperatorInfo;
-
-static SFillBlock* tFillSaveBlock(SFillOperatorInfo* pOper, SSDataBlock* pBlock, SArray* pProgress) {
-  SFillBlock block = {.pFillProgress = pProgress, .pBlock = pBlock, .allColFinished = false};
-  SListNode* pNode = tdListAdd(pOper->pFillSavedBlockList, &block);
-  if (!pNode) {
-    return NULL;
-  }
-  return (SFillBlock*)pNode->data;
-}
-
-static SFillBlock* tFillGetSavedBlock(SFillOperatorInfo* pOper) {
-  return (SFillBlock*)tdListGetHead(pOper->pFillSavedBlockList)->data;
-}
-
-static SSDataBlock* tFillPopSavedBlock(SFillOperatorInfo* pOper) {
-  SListNode* pNode = tdListPopHead(pOper->pFillSavedBlockList);
-  if (!pNode) return NULL;
-  SFillBlock* pFillBlock = (SFillBlock*)pNode->data;
-  taosArrayDestroy(pFillBlock->pFillProgress);
-  taosMemFreeClear(pNode);
-  return pFillBlock->pBlock;
-}
 
 static void destroyFillOperatorInfo(void* param);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
@@ -244,6 +212,10 @@ static SSDataBlock* doFillImpl2(SOperatorInfo* pOperator) {
 并且当前block并没有fill结束.).
           b. 如果返回了block, 那么就发送, 如果没有返回, 继续获取src block.
       返回block.
+
+   外部filloperator有一个finalResblock, 为了只用这一个block, tfill内需要封装一些逻辑, 在不能输出block时, 将till内部结果保存下来, 在可以输出时, 将行结果移到finalresblock中.
+   所以, tfill内部需要保存所有block, 以及每个block的处理进度. 而不是在filloperator中. 这样filloperator就不需要修改.
+  
   */
 
   int32_t            code = TSDB_CODE_SUCCESS;

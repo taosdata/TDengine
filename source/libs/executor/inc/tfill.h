@@ -55,7 +55,19 @@ typedef struct {
 typedef struct {
   int64_t key;
   SArray* pRowVal;
+  SArray* pNullValueFlag;
 } SRowVal;
+
+
+typedef struct SFillProgress {
+  int32_t rowIdx;
+} SFillProgress;
+
+typedef struct SFillBlock {
+  SSDataBlock* pBlock;
+  SArray*      pFillProgress;
+  bool         allColFinished;
+} SFillBlock;
 
 typedef struct SFillInfo {
   TSKEY        start;         // start timestamp
@@ -81,6 +93,7 @@ typedef struct SFillInfo {
   const char*      id;
   SExecTaskInfo*   pTaskInfo;
   int8_t           isFilled;
+  SList*           pFillSavedBlockList;
 } SFillInfo;
 
 typedef struct SResultCellData {
@@ -143,11 +156,35 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFi
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
-int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity, int32_t* pRowIdx);
+int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity);
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
 bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
                               int32_t rowIndex);
+
+inline static SFillBlock* tFillSaveBlock(SFillInfo* pFill, SSDataBlock* pBlock, SArray* pProgress) {
+  SFillBlock block = {.pFillProgress = pProgress, .pBlock = pBlock, .allColFinished = false};
+  SListNode* pNode = tdListAdd(pFill->pFillSavedBlockList, &block);
+  if (!pNode) {
+    return NULL;
+  }
+  return (SFillBlock*)pNode->data;
+}
+
+inline static SFillBlock* tFillGetSavedBlock(SFillInfo* pFill) {
+  return (SFillBlock*)tdListGetHead(pFill->pFillSavedBlockList)->data;
+}
+
+inline static SSDataBlock* tFillPopSavedBlock(SFillInfo* pFill) {
+  SListNode* pNode = tdListPopHead(pFill->pFillSavedBlockList);
+  if (!pNode) return NULL;
+  SFillBlock* pFillBlock = (SFillBlock*)pNode->data;
+  taosArrayDestroy(pFillBlock->pFillProgress);
+  taosMemFreeClear(pNode);
+  return pFillBlock->pBlock;
+}
+
+
 #ifdef __cplusplus
 }
 #endif

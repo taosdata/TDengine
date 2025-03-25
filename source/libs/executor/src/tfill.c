@@ -50,6 +50,10 @@ static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo,
       p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
     }
 
+    // do we need to check if p.pNullValueFlag
+    const bool* pNullValueFlag = taosArrayGet(p->pNullValueFlag, colIdx);
+    if(*pNullValueFlag) return;
+
     SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
     if (!pKey) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
@@ -258,7 +262,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
 
       if (pCol->notFillCol) {
         bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDst, index);
-        if (!filled) {
+        if (!filled) { // TODO wjm check no fill cols, if valueNullFlag is set???
           setNotFillColumn(pFillInfo, pDst, index, i);
         }
       } else {
@@ -362,6 +366,10 @@ static int32_t copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRo
 
       bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
       char* p = colDataGetData(pSrcCol, rowIndex);
+      if (pRowVal->pNullValueFlag) {
+        bool* pNullValueFlag = taosArrayGet(pRowVal->pNullValueFlag, i);
+        *pNullValueFlag = isNull;
+      }
 
       saveColData(pRowVal->pRowVal, i, p, reset ? true : isNull);
     } else {
@@ -596,8 +604,14 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFi
   pFillInfo->next.pRowVal = taosArrayInit(pFillInfo->numOfCols, sizeof(SGroupKeys));
   QUERY_CHECK_NULL(pFillInfo->next.pRowVal, code, lino, _end, terrno);
 
+  pFillInfo->next.pNullValueFlag = taosArrayInit(pFillInfo->numOfCols, sizeof(bool));
+  QUERY_CHECK_NULL(pFillInfo->next.pNullValueFlag, code, lino, _end, terrno);
+
   pFillInfo->prev.pRowVal = taosArrayInit(pFillInfo->numOfCols, sizeof(SGroupKeys));
   QUERY_CHECK_NULL(pFillInfo->prev.pRowVal, code, lino, _end, terrno);
+
+  pFillInfo->prev.pNullValueFlag = taosArrayInit(pFillInfo->numOfCols, sizeof(bool));
+  QUERY_CHECK_NULL(pFillInfo->prev.pNullValueFlag, code, lino, _end, terrno);
 
   code = initBeforeAfterDataBuf(pFillInfo);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -607,7 +621,7 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFi
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    pFillInfo = taosDestroyFillInfo(pFillInfo);
+    pFillInfo = taosDestroyFillInfo(pFillInfo); // TODO wjm destroy the nullflag arry
   }
   (*ppFillInfo) = pFillInfo;
   return code;
@@ -848,6 +862,7 @@ _end:
 
 // check in fill operator not tfill
 static bool fillShouldPause(SFillInfo* pFillInfo) {
+    if (pFillInfo->index >= pFillInfo->pSrcBlock->info.rows) return true;
   return false;
 }
 
@@ -887,53 +902,88 @@ static int32_t fillSaveRow(struct SFillInfo* pFillInfo, const SSDataBlock* pBloc
     assert(blockCurKey <= pFillInfo->currentKey);
   }
   if (ascNext || descPrev || blockCurKey == pFillInfo->currentKey) {
-    // if current col in block is NULL, set VALUE_NULL flag.
+    // TODO wjm take care of the reset flag
     code = copyCurrentRowIntoBuf(pFillInfo, rowIdx, pFillRow, false);
   }
   return code;
 }
 
-int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity, int32_t* pRowIdx) {
+static int32_t tFillFromHeadForCol(struct SFillInfo* pFillInfo, int32_t colIdx) {
+  int32_t code = 0;
+  // Check the progress of this col, start fill from the start block
+  // Here we will always fill till the last row of last block in list. Cause this is always the first time we meet non-null value
+  return code;
+}
+
+int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    ascFill = FILL_IS_ASC_FILL(pFillInfo);
+  SFillBlock* pFillBlock = NULL;
+  SListNode* pFillBlockListNode = NULL;
 
-  if (*pRowIdx >= pFillInfo->pSrcBlock->info.rows) return code;
-
-  if (fillShouldPause(pFillInfo)) {
-    return code;
+  if (!pFillInfo->pFillSavedBlockList) {
+    // TODO wjm do we need to check that src block have rows?
+    pFillInfo->pFillSavedBlockList = tdListNew(sizeof(SFillBlock));
+    if (!pFillInfo->pFillSavedBlockList) return terrno;
+    SSDataBlock* pBlock = NULL;
+    code = createOneDataBlock(pDstBlock, false, &pBlock);
+    if (code != 0) return code;
+    // TODO wjm return list node maybe
+    pFillBlock = tFillSaveBlock(pFillInfo, pBlock, NULL);
+    if (!pFillBlock) {
+      blockDataDestroy(pBlock);
+      return terrno;
+    }
+    pFillBlockListNode = listNode(pFillBlock);
+  } else {
+    // TODO wjm check empty???
+    pFillBlockListNode = tdListGetTail(pFillInfo->pFillSavedBlockList);
+    pFillBlock = (SFillBlock*)pFillBlockListNode->data;
   }
 
-  code = fillSaveRow(pFillInfo, pFillInfo->pSrcBlock, *pRowIdx);
+  // check from list head if we have already filled all rows in blocks, if any block is full, send it out
 
   TSKEY fillCurTs = pFillInfo->currentKey;
-  TSKEY blockCurTs = getBlockCurTs(pFillInfo, pFillInfo->pSrcBlock, *pRowIdx);
+  TSKEY blockCurTs = getBlockCurTs(pFillInfo, pFillInfo->pSrcBlock, pFillInfo->index);
 
-  if (blockCurTs != fillCurTs) {
-    // when filling using prev/next values, if VALUE_NULL is set, leave this col empty.
-    // And when VALUE_NULL is not set for current fill col, and check current col fill position, if lag behind, fill till currentKey
-    doFillOneRow(pFillInfo, pDstBlock, pFillInfo->pSrcBlock, blockCurTs, false);
-  } else {
-    // if col value in block is NULL, skip setting value for this col, save current position, wait till we got not null data
-    for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-      SFillColInfo*    pCol = &pFillInfo->pFillCol[i];
-      int32_t          index = pDstBlock->info.rows;
-      int32_t          dstSlotId = GET_DEST_SLOT_ID(pCol);
-      SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, dstSlotId);
-      SColumnInfoData* pSrc = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, dstSlotId);
+  while (!fillShouldPause(pFillInfo)) {
+    code = fillSaveRow(pFillInfo, pFillInfo->pSrcBlock, pFillInfo->index);
 
-      char* src = colDataGetData(pSrc, pFillInfo->index);
-      if (!colDataIsNull_s(pSrc, pFillInfo->index)) {
-        code = colDataSetVal(pDst, index, src, false);
-        QUERY_CHECK_CODE(code, lino, _end);
-      } else {
+    if (blockCurTs != fillCurTs) {
+      // when filling using prev/next values, if VALUE_NULL is set, leave this col empty.
+      // And when VALUE_NULL is not set for current fill col, and check current col fill position, if lag behind, fill
+      // till currentKey
+      doFillOneRow(pFillInfo, pFillBlock->pBlock, pFillInfo->pSrcBlock, blockCurTs, false);
+    } else {
+      for (int32_t colIdx = 0; colIdx < pFillInfo->numOfCols; ++colIdx) {
+        SFillColInfo*    pCol = &pFillInfo->pFillCol[colIdx];
+        int32_t          index = pFillBlock->pBlock->info.rows;
+        int32_t          dstSlotId = GET_DEST_SLOT_ID(pCol);
+        SColumnInfoData* pDst = taosArrayGet(pFillBlock->pBlock->pDataBlock, dstSlotId);
+        SColumnInfoData* pSrc = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, dstSlotId);
 
-        continue;
+        char* src = colDataGetData(pSrc, pFillInfo->index);
+        if (!colDataIsNull_s(pSrc, pFillInfo->index)) {
+          // check if this col is fall behind
+          // if fall behind, fill from list head.
+          code = tFillFromHeadForCol(pFillInfo, colIdx);
+          code = colDataSetVal(pDst, index, src, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          // if col value in block is NULL, skip setting value for this col, save current position, wait till we got not null data
+          // if there is no lag for this col, then we should fill from (pFillBlock, index) when we got non-null value.
+          // if this col is already fall behind, do nothing.
+          // Cause when we meet non-null value for this col, we will fill till the last of last block in list.
+          continue;
+        }
       }
+      // check from list head if we have already filled all rows in blocks, if any block is full, send it out
+      pFillInfo->index++;
     }
-    (*pRowIdx)++;
-  }
 
+    
+  }
   // if all blocks are consumed, we have to fill NULL for not filled cols
 
   return code;
