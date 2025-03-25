@@ -26,6 +26,8 @@ resourceDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/resource"
 venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
 installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
+tar_td_model_name="tdtsfm.tar.gz"
+tar_xhs_model_name="timer-moe.tar.gz"
 
 python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
@@ -173,9 +175,31 @@ function install_bin_and_lib() {
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
   ${csudo}cp -r ${script_dir}/lib/* ${install_main_dir}/lib/
 
-  if [[ ! -e "${bin_link_dir}/rmtaosanode" ]]; then
+  if [[ -L "${bin_link_dir}/rmtaosanode" ]]; then
+    rm -rf ${bin_link_dir}/rmtaosanode
     ${csudo}ln -s ${install_main_dir}/bin/uninstall.sh ${bin_link_dir}/rmtaosanode
   fi
+  
+  if [[  -L "${bin_link_dir}/start-tdtsfm " ]]; then
+    rm -rf ${bin_link_dir}/start-tdtsfm
+    ${csudo}ln -s ${install_main_dir}/bin/start-tdtsfm.sh ${bin_link_dir}/start-tdtsfm
+  fi
+
+  if [[ -L "${bin_link_dir}/stop-tdtsfm" ]]; then
+    rm -rf ${bin_link_dir}/stop-tdtsfm
+    ${csudo}ln -s ${install_main_dir}/bin/stop-tdtsfm.sh ${bin_link_dir}/stop-tdtsfm
+  fi
+
+  if [[ -L "${bin_link_dir}/start-timer-moe" ]]; then
+    rm -rf ${bin_link_dir}/start-timer-moe
+    ${csudo}ln -s ${install_main_dir}/bin/start-timer-moe.sh ${bin_link_dir}/start-timer-moe
+  fi
+
+  if [[ -L "${bin_link_dir}/stop-timer-moe" ]]; then
+    rm -rf ${bin_link_dir}/stop-timer-moe
+    ${csudo}ln -s ${install_main_dir}/bin/stop-timer-moe.sh ${bin_link_dir}/stop-timer-moe
+  fi
+
 }
 
 function add_newHostname_to_hosts() {
@@ -375,6 +399,7 @@ function install_log() {
 function install_module() {
   ${csudo}mkdir -p ${moduleDir} && ${csudo}chmod 777 ${moduleDir}
   ${csudo}ln -sf ${moduleDir} ${install_main_dir}/model
+  cp -r ${script_dir}/model/* ${moduleDir}/
 }
 
 function install_resource() {
@@ -672,6 +697,8 @@ function installProduct() {
   fi
 
   tar -zxf ${tarName}
+  tar -zxf ${script_dir}/model/${tar_td_model_name} -C ${script_dir}/model
+  tar -zxf ${script_dir}/model/${tar_xhs_model_name} -C ${script_dir}/model
 
   echo "Start to install ${productName}..."
 

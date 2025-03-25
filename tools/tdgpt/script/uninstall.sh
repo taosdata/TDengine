@@ -71,6 +71,11 @@ kill_service_of() {
   fi
 }
 
+kill_model_service() {
+  [ -f "/usr/local/taos/taosanode/bin/stop-tdtsfm.sh "] &&  sudo bash /usr/local/taos/taosanode/bin/stop-tdtsfm.sh || :
+  [ -f "/usr/local/taos/taosanode/bin/stop-timer-moe.sh "] &&  sudo bash /usr/local/taos/taosanode/bin/stop-timer-moe.sh || :
+}
+
 clean_service_on_systemd_of() {
   _service=$1
   _service_config="${service_config_dir}/${_service}.service"
@@ -191,6 +196,7 @@ function remove_deploy_binary() {
   fi
 }
 
+kill_model_service
 remove_service
 clean_log  # Remove link log directory
 clean_config  # Remove link configuration file
