@@ -15,7 +15,7 @@ psby() {
   fi
 }
 
-PID=`ps -ef|grep /usr/bin/taosd | grep -v grep | awk '{print $2}'`
+PID=`ps -efww | grep /usr/bin/taosd | grep -v grep | awk '{print $2}'`
 if [ -n "$PID" ]; then
   echo systemctl stop taosd
   systemctl stop taosd

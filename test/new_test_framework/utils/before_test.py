@@ -381,7 +381,8 @@ class BeforeTest:
             clusterDnodes_army.setTestCluster(False)
             clusterDnodes_army.setValgrind(0)
             clusterDnodes_army.setAsan(request.session.asan)
-            tdDnodes_army = clusterDnodes_army
+            tdDnodes_army.dnodes = clusterDnodes_army.dnodes
+            tdDnodes_army.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
             #tdDnodes_army.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
             #tdDnodes_army.setTestCluster(False)
             #tdDnodes_army.setValgrind(0)
