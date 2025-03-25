@@ -1,6 +1,6 @@
 ---
-title: 异常检测算法
-description: 异常检测算法
+title: 异常检测
+description: 异常检测
 ---
 
 import ad from '../pic/anomaly-detection.png';
