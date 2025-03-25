@@ -1,13 +1,19 @@
-use std::{collections::HashMap, time::Duration};
+use std::{borrow::Borrow, collections::HashMap, time::Duration};
 
 use super::{
     flat::Records,
     transform::{modeler::Modeler, Parser},
 };
 use crate::{
-    plugins::runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
+    plugins::{
+        runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
+        transform::{
+            archive_records, handling_strategy::HandlingResult, MessageTableMeta, TableOptions,
+        },
+    },
     runners::pi::transform::PiModelType,
     utils::{breakpoints::BreakpointDb, sql::values_to_sqls, trace::Qid},
+    ArchiveType,
 };
 use anyhow::{anyhow, Context};
 use arrow::array::{ArrayRef, StringArray, UInt16Builder};
@@ -15,8 +21,9 @@ use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_compute_ext::*;
 use arrow_schema::Field;
 use arrow_schema::{DataType, Schema};
-use chrono::DateTime;
+use chrono::{DateTime, TimeDelta, Utc};
 use faststr::FastStr;
+use flume::Sender;
 use itertools::Itertools as _;
 use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
@@ -424,9 +431,63 @@ pub async fn write(
     skip_null: bool,
     table_id_column: &str,
     breakpoints: BreakpointDb,
+    parser: &Parser,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let table_break_points = get_break_point(&messages, table_id_column);
-    let mut taos = Some(pool.get().await.context("Target connection error")?);
+    let timeout = parser
+        .global()
+        .process_on_abnormal
+        .connection_timeout_in_second_value as u32;
+    let retry_start = Utc::now();
+    // connect to the target database
+    let taos = loop {
+        match pool.get().await {
+            Ok(taos) => break taos,
+            Err(err) => {
+                if Utc::now() - retry_start > TimeDelta::seconds(timeout as i64) {
+                    match parser
+                        .global()
+                        .process_on_abnormal
+                        .database_connection_error
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            messages.iter().for_each(|m| {
+                                if let Err(e) =
+                                    process_archive(err.clone(), &m.records, archive_tx.clone())
+                                {
+                                    tracing::error!("archive error: {e:#}");
+                                }
+                            });
+                            return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                        }
+                        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                        Ok((HandlingResult::Retry, _)) => {
+                            messages.iter().for_each(|m| {
+                                if let Err(e) = process_cache(&m.records, archive_tx.clone()) {
+                                    tracing::error!("cache error: {e:#}");
+                                }
+                            });
+                            return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                        }
+                        Err(e) => {
+                            return Err(e)?;
+                        }
+                    }
+                } else {
+                    let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
+                    tokio::time::sleep(Duration::from_millis(sleep)).await;
+                    continue;
+                }
+            }
+        }
+    };
+    let mut taos = Some(taos);
     let cols = messages[0].records.num_columns();
     let stable = messages[0]
         .stable_name()
@@ -438,7 +499,7 @@ pub async fn write(
         let (sqls_flat, _) =
             super::flat::message_to_sql(&messages, target_precision, true, false, None);
         sqls_flat
-    }; //
+    };
     let gen_sql_time = timer.elapsed();
     let timer = std::time::Instant::now();
     // 写入成功返回的总行数
@@ -459,7 +520,47 @@ pub async fn write(
                     break;
                 }
                 Err(err) => match err {
+                    WriteError::ConnectionPoolError(_) => {
+                        let timeout = parser
+                            .global()
+                            .process_on_abnormal
+                            .connection_timeout_in_second_value
+                            as u32;
+                        let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
+                        tokio::time::sleep(Duration::from_millis(sleep)).await;
+                        taos.replace(pool.get().await?);
+                        continue;
+                    }
                     WriteError::TableNotExits(_) => {
+                        match parser
+                            .global()
+                            .process_on_abnormal
+                            .table_not_exist
+                            .handle(format!("{err:#}"))
+                        {
+                            Ok((HandlingResult::Skip, _)) => {
+                                break;
+                            }
+                            Ok((HandlingResult::Archive, err)) => {
+                                records.batches.iter().for_each(|batch| {
+                                    if let Err(e) =
+                                        process_archive(err.clone(), batch, archive_tx.clone())
+                                    {
+                                        tracing::error!("archive error: {e:#}");
+                                    }
+                                });
+                                break;
+                            }
+                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                            Ok((HandlingResult::Retry, _)) => {
+                                // do nothing, continue the below codes
+                            }
+                            Err(e) => {
+                                return Err(e)?;
+                            }
+                        }
+
                         if let Some(stable_sql) = messages[0].stable_sql() {
                             tracing::info!("{stable_sql}");
                             assert_create_table(pool, taos, &stable_sql, true, metrics)
@@ -509,56 +610,267 @@ pub async fn write(
                             }
                         }
                     }
-                    WriteError::ContainerLengthTooShort(field) => {
-                        if let Err(alter) = alter_stable(pool, taos, stable, &field, &messages)
-                            .in_current_span()
-                            .await
-                        {
-                            tracing::error!(stable, field, "Alter table error: {alter:#}");
-                            let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
-                            if error.is_err() {
-                                error = error.context(context);
+                    WriteError::ContainerLengthTooShort(ref field) => {
+                        // 是否自动扩展长度
+                        if parser.global().process_on_abnormal.field_length_extend {
+                            if let Err(alter) = alter_stable(pool, taos, stable, field, &messages)
+                                .in_current_span()
+                                .await
+                            {
+                                tracing::error!(stable, field, "Alter table error: {alter:#}");
+                                let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                                if error.is_err() {
+                                    error = error.context(context);
+                                } else {
+                                    error = Err(WriteError::ContainerLengthTooShort(field.clone()))
+                                        .context(context);
+                                }
                             } else {
-                                error = Err(WriteError::ContainerLengthTooShort(field))
-                                    .context(context);
-                            }
-                        } else {
-                            retry -= 1;
-                            let context = format!(
-                                "Try alter table {stable} field `{field}` round {retry} success"
-                            );
-                            if error.is_err() {
-                                error = error.context(context);
-                            } else {
-                                error = Err(WriteError::ContainerLengthTooShort(field))
-                                    .context(context);
+                                retry -= 1;
+                                let context = format!("Try alter table {stable} field `{field}` round {retry} success");
+                                if error.is_err() {
+                                    error = error.context(context);
+                                } else {
+                                    error = Err(WriteError::ContainerLengthTooShort(field.clone()))
+                                        .context(context);
+                                }
+                                continue;
                             }
                         }
+                        // handling abnormal
+                        handle_field_length_overflow_and_rewrite(
+                            pool,
+                            taos,
+                            metrics,
+                            parser,
+                            target_precision,
+                            super_table_name,
+                            &messages[0].table,
+                            &messages[0].opts,
+                            stable,
+                            field,
+                            &records.batches,
+                            &err,
+                            archive_tx.clone(),
+                        )
+                        .await?;
                     }
                     _ => {
                         return Err(err)?;
                     }
                 },
             }
-            if retry > 5 {
-                if let Err(err) = error {
-                    tracing::error!(
-                        stable,
-                        error = format!("{err:#}"),
-                        backtrace = ?err,
-                        "Retry insert exceeded {retry}"
-                    );
-                    return Err(err)
-                        .with_context(|| format!("Insert retries exceeded with {retry} times"))?;
+            if retry > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                match parser
+                    .global()
+                    .process_on_abnormal
+                    .database_connection_error
+                    .handle(format!("retry insert exceeded {retry}"))
+                {
+                    Ok((HandlingResult::Skip, _)) => {
+                        break;
+                    }
+                    Ok((HandlingResult::Archive, err)) => {
+                        records.batches.iter().for_each(|batch| {
+                            if let Err(e) = process_archive(err.clone(), batch, archive_tx.clone())
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                        });
+                        break;
+                    }
+                    Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                    Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                    Ok((HandlingResult::Retry, _)) => {
+                        records.batches.iter().for_each(|batch| {
+                            if let Err(e) = process_cache(batch, archive_tx.clone()) {
+                                tracing::error!("cache error: {e:#}");
+                            }
+                        });
+                        break;
+                    }
+                    Err(e) => {
+                        return Err(e)?;
+                    }
                 }
-                tracing::error!(stable, "Retry insert exceeded {retry}");
-                return Err(anyhow!("Retry insert exceeded {retry}"));
             }
         }
     }
     let write_time = timer.elapsed();
     breakpoints.batch_set(table_break_points).await?;
     Ok((written_rows, gen_sql_time, write_time))
+}
+
+async fn handle_field_length_overflow_and_rewrite(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    metrics: &IpcMetrics,
+    parser: &Parser,
+    target_precision: taos::Precision,
+    super_table_name: &str,
+    table: &MessageTableMeta,
+    opts: &Arc<TableOptions>,
+    stable: &str,
+    field: &str,
+    batches: &Vec<RecordBatch>,
+    err: &WriteError,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    // get the length of the field
+    let desc = taos.as_ref().unwrap().describe(stable).await;
+    if let Err(e) = desc {
+        return Err(e)?;
+    }
+    let desc = desc.unwrap();
+    let length = desc.iter().find(|f| f.field() == field).unwrap().length();
+
+    // loop the batches
+    for batch in batches {
+        let field_values = batch
+            .column_by_name(field)
+            .unwrap()
+            .as_any()
+            .downcast_ref::<StringArray>();
+        // if the field is not found, skip the batch
+        if field_values.is_none() {
+            return Ok(());
+        }
+        let field_values = field_values.unwrap();
+        let values = field_values
+            .iter()
+            .map(|v| v.unwrap_or_default().to_string())
+            .collect_vec();
+
+        // handling the abnormal
+        // handling length overflow
+        match parser
+            .global()
+            .process_on_abnormal
+            .field_length_overflow
+            .handle(values, length, format!("{err:?}"))
+        {
+            Ok((HandlingResult::Skip, _)) => {
+                // do nothing
+            }
+            Ok((HandlingResult::Archive, err)) => {
+                let res = process_archive(err, batch, archive_tx.clone());
+                if let Err(e) = res {
+                    tracing::error!("archive error: {e:#}");
+                }
+            }
+            Ok((HandlingResult::Modify(values), _)) => {
+                // modify and rewrite
+                let res = modify_batch_and_rewrite(
+                    pool,
+                    taos,
+                    metrics,
+                    target_precision,
+                    super_table_name,
+                    table,
+                    opts,
+                    field,
+                    batch,
+                    values,
+                )
+                .await;
+                if let Err(e) = res {
+                    tracing::error!("rewrite error: {e:#}");
+                }
+            }
+            Ok((HandlingResult::ModifyAndArchive(values), err)) => {
+                // modify and rewrite
+                if let Err(e) = modify_batch_and_rewrite(
+                    pool,
+                    taos,
+                    metrics,
+                    target_precision,
+                    super_table_name,
+                    table,
+                    opts,
+                    field,
+                    batch,
+                    values,
+                )
+                .await
+                {
+                    tracing::error!("rewrite error: {e:#}");
+                }
+                // archive
+                if let Err(e) = process_archive(err, batch, archive_tx.clone()) {
+                    tracing::error!("archive error: {e:#}");
+                }
+            }
+            Ok((HandlingResult::Retry, _)) => unreachable!(),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+    }
+    Ok(())
+}
+
+async fn modify_batch_and_rewrite(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    metrics: &IpcMetrics,
+    target_precision: taos::Precision,
+    super_table_name: &str,
+    table: &MessageTableMeta,
+    opts: &Arc<TableOptions>,
+    field: &str,
+    batch: &RecordBatch,
+    values: Vec<String>,
+) -> anyhow::Result<()> {
+    // modify the recordbatch
+    let new_batch = RecordBatch::try_new(
+        batch.schema(),
+        batch
+            .columns()
+            .iter()
+            .enumerate()
+            .map(|(i, col)| {
+                if batch.schema().field(i).name() == field {
+                    Arc::new(StringArray::from(values.clone()))
+                } else {
+                    col.clone()
+                }
+            })
+            .collect::<Vec<_>>(),
+    )?;
+    let records = recordbatch_to_sql(super_table_name, &new_batch, target_precision, table, opts);
+    // only rewrite once
+    for record in records {
+        let _ = write_lush_stable_with_sql(pool, taos, &record, metrics)
+            .in_current_span()
+            .await?;
+    }
+    Ok(())
+}
+
+fn process_cache(
+    batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    if batch.num_rows() > 0 {
+        archive_tx.send((ArchiveType::Cache, batch.clone()))?;
+    }
+    Ok(())
+}
+
+fn process_archive(
+    err: String,
+    batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    // possible difference in schema, so archive them separately
+    let err_vec = vec![err.clone(); batch.num_rows()];
+    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
+    archive_records(
+        batch,
+        err_vec.clone(),
+        err_timestamp_vec.clone(),
+        archive_tx.clone(),
+    )
 }
 
 // 获取每个子表的最后时间戳，作为断点信息
@@ -665,7 +977,13 @@ async fn alter_stable(
             let code = err.code();
             let errno: i32 = code.into();
             match errno {
-                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    // 0xE000: dns error
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
                     tokio::time::sleep(std::time::Duration::from_millis(50 * retry)).await;
                     if retry > alter_table_max_retry {
                         tracing::error!("Alter table retry exceeded {retry}, {err:#}");
@@ -727,14 +1045,23 @@ async fn alter_stable(
                     let errno: i32 = code.into();
                     match errno {
                         0x264B | 0x036F => {
+                            // 0x264B: invalid modify column
+                            // 0x036F: invalid row bytes
                             tracing::warn!(sql, "Ignore alter table error: {err:#}");
                             return Ok(());
                         }
                         0x03D3 => {
+                            // 0x03D3: Conflict transaction not completed
                             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                             return Ok(());
                         }
-                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                        0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                            // 0xE000: dns error
+                            // 0xE001: internal error
+                            // 0xE002: connection closed
+                            // 0xE003: send timeout
+                            // 0xE004: receive timeout
+                            // 0x000B: unable to establish connection
                             tokio::time::sleep(std::time::Duration::from_millis(50 * retry)).await;
                             taos.replace(pool.get().await?);
                             if retry > alter_table_max_retry {
@@ -795,10 +1122,18 @@ async fn alter_stable(
                     let errno: i32 = code.into();
                     match errno {
                         0x264B | 0x036F => {
+                            // 0x264B: invalid modify column
+                            // 0x036F: invalid row bytes
                             tracing::warn!(sql, "Ignore alter table error: {err:#}");
                             return Ok(());
                         }
-                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                        0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                            // 0xE000: dns error
+                            // 0xE001: internal error
+                            // 0xE002: connection closed
+                            // 0xE003: send timeout
+                            // 0xE004: receive timeout
+                            // 0x000B: unable to establish connection
                             taos.replace(pool.get().await?);
                             if retry > alter_table_max_retry {
                                 tracing::error!("Alter table retry exceeded {retry}, {err:#}");
@@ -838,7 +1173,10 @@ fn message_to_sql(
         .flat_map(|m| {
             m.sql_insert_part_skip_null(target_precision)
                 .into_iter()
-                .map(|sql| (sql, 0))
+                .map(|(sql, records, start, end)| {
+                    let batch = m.records.slice(start, end - start + 1);
+                    (sql, records, batch)
+                })
         })
         .collect_vec();
 
@@ -846,11 +1184,52 @@ fn message_to_sql(
     values_to_sqls(&values)
         .into_iter()
         .zip(stable_name_iter)
-        .map(|((sql, tables, records), stable)| Records {
+        .map(|((sql, tables, records, batches), stable)| Records {
             stable: Some(stable.to_string()),
             sql,
             tables,
             records,
+            batches,
+        })
+        .collect_vec()
+}
+
+fn recordbatch_to_sql(
+    super_table_name: &str,
+    batch: &RecordBatch,
+    target_precision: taos::Precision,
+    table: &MessageTableMeta,
+    opts: &Arc<TableOptions>,
+) -> Vec<Records> {
+    if batch.num_rows() == 0 || batch.num_rows() == batch.column(0).null_count() {
+        return vec![];
+    }
+
+    let tbname = opts.canonical_table_name(table.name.as_str());
+    // panic on ArrowError
+    let values = crate::utils::sql::sql_values_from_record_batch_skip_null(
+        tbname.borrow(),
+        batch,
+        target_precision,
+    )
+    .expect("Sql values should be recognizable")
+    .into_iter()
+    .map(|(sql, records, start, end)| {
+        let batch = batch.slice(start, end - start + 1);
+        (sql, records, batch)
+    })
+    .collect_vec();
+
+    let stable_name_iter = std::iter::repeat(super_table_name);
+    values_to_sqls(&values)
+        .into_iter()
+        .zip(stable_name_iter)
+        .map(|((sql, tables, records, batches), stable)| Records {
+            stable: Some(stable.to_string()),
+            sql,
+            tables,
+            records,
+            batches,
         })
         .collect_vec()
 }
@@ -905,13 +1284,24 @@ pub async fn assert_create_table(
             }
             match errno {
                 0x032C | 0x0603 | 0x03C7 | 0x03D3 | 0x0360 => {
+                    // 0x032C: object is creating
+                    // 0x0603: table already exists
+                    // 0x03C7: stable uid not match
+                    // 0x03D3: conflict transaction not completed
+                    // 0x0360: stable already exists
                     break Ok(());
                 }
-                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    // 0xE000: dsn error
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
                     taos.replace(pool.get().await?);
                 }
                 0x2653 => {
-                    // Value too long for column/tag
+                    // 0x2653: value too long for column/tag
                     let message = err.message();
                     if let Some(caps) = RE_0X2653.captures(&message) {
                         let field = caps.get(1).unwrap().as_str();
@@ -920,9 +1310,9 @@ pub async fn assert_create_table(
                     }
                     break Err(err)?;
                 }
-                // [0x2603] Internal error: `Table does not exist`
                 0x2603 => {
                     // retry
+                    // 0x2603: the table does not exist
                     tokio::time::sleep(std::time::Duration::from_millis(1)).await;
                     tracing::warn!(retry = write_retries, "{:#}", err);
                 }
@@ -961,7 +1351,7 @@ lazy_static! {
 
 #[instrument(skip_all)]
 async fn write_lush_stable_with_sql(
-    pool: &TaosPool,
+    _pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     records: &Records,
     metrics: &IpcMetrics,
@@ -969,65 +1359,62 @@ async fn write_lush_stable_with_sql(
     let mut write_retries = 0;
     let sql = records.sql();
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
-    loop {
-        qid.add_sub_batch_id();
-        match taos
-            .as_ref()
-            .unwrap()
-            .exec_with_req_id(sql, qid.get())
-            .in_current_span()
-            .await
-        {
-            Ok(n) => {
-                tracing::trace!("exec sql successfully");
-                metrics.add_inserted_sqls(1_u64);
-                metrics.add_written_rows(n as u64);
-                break Ok(n);
+    qid.add_sub_batch_id();
+    match taos
+        .as_ref()
+        .unwrap()
+        .exec_with_req_id(sql, qid.get())
+        .in_current_span()
+        .await
+    {
+        Ok(n) => {
+            tracing::trace!("exec sql successfully");
+            metrics.add_inserted_sqls(1_u64);
+            metrics.add_written_rows(n as u64);
+            Ok(n)
+        }
+        Err(err) => {
+            let code = err.code();
+            let errno: i32 = code.into();
+            write_retries += 1;
+            if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                return Err(err)
+                    .context("Write with SQL error: Retries exceeded")
+                    .map_err(Into::into);
             }
-            Err(err) => {
-                let code = err.code();
-                let errno: i32 = code.into();
-                write_retries += 1;
-                if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                    break Err(err)
-                        .context("Write with SQL error: Retries exceeded")
-                        .map_err(Into::into);
+            match errno {
+                0x2603 | 0x0618 => {
+                    // 0x2603: the table does not exist
+                    // 0x0618: the table does not exist
+                    Err(WriteError::TableNotExits(
+                        records.stable().unwrap_or("unknown").to_string(),
+                    ))
                 }
-                match errno {
-                    0x2603 | 0x0618 => {
-                        // stable/table not exists
-                        break Err(WriteError::TableNotExits(
-                            records.stable().unwrap_or("unknown").to_string(),
-                        ));
+                0x2653 => {
+                    // 0x2653: Value too long for column/tag
+                    let message = err.message();
+                    tracing::debug!("Write stable error: {}", message);
+                    if let Some(caps) = RE_0X2653.captures(&message) {
+                        let field = caps.get(1).unwrap().as_str();
+                        return Err(WriteError::ContainerLengthTooShort(field.to_string()));
                     }
-                    0x2653 => {
-                        // Value too long for column/tag
-                        let message = err.message();
-                        tracing::debug!("Write stable error: {}", message);
-                        if let Some(caps) = RE_0X2653.captures(&message) {
-                            let field = caps.get(1).unwrap().as_str();
-                            break Err(WriteError::ContainerLengthTooShort(field.to_string()));
-                        }
-                        break Err(Into::into(err));
-                    }
-                    0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
-                        let period = match write_retries {
-                            errors if errors < 8 => 8,
-                            errors if errors < 16 => 16,
-                            errors if errors < 32 => 32,
-                            errors if errors < 64 => 64,
-                            _ => 128,
-                        };
-                        tokio::time::sleep(std::time::Duration::from_millis(period * 80)).await;
-                        taos.replace(pool.get().await?);
-                    }
-                    _ => {
-                        tracing::error!(
-                            sql = truncate_sql_in_log_message(sql),
-                            "Write SQL error: {err:#}"
-                        );
-                        break Err(err).context("Write sql error").map_err(Into::into);
-                    }
+                    Err(Into::into(err))
+                }
+                0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    // 0xE000: dsn error
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
+                    Err(WriteError::ConnectionPoolError(Into::into(err)))
+                }
+                _ => {
+                    tracing::error!(
+                        sql = truncate_sql_in_log_message(sql),
+                        "Write SQL error: {err:#}"
+                    );
+                    Err(err).context("Write sql error").map_err(Into::into)
                 }
             }
         }
@@ -1165,10 +1552,20 @@ pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str) -> anyhow::Result<()> {
                         .map_err(Into::into);
                 }
                 match errno {
-                    0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                    0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                        // NOTICE 此方法不涉及数据迁移，所以不进行“写入异常处理”
+                        // 0xE000: dsn error
+                        // 0xE001: internal error
+                        // 0xE002: connection closed
+                        // 0xE003: send timeout
+                        // 0xE004: receive timeout
+                        // 0x000B: unable to establish connection
                         taos.replace(pool.get().await?);
                     }
                     0x2603 | 0x0618 => {
+                        // NOTICE 此方法不涉及数据迁移，所以不进行“写入异常处理”
+                        // 0x2603: the table does not exist
+                        // 0x0618: the table does not exist
                         tracing::warn!("Table not exists, sql={}", sql);
                         return Ok(());
                     }
@@ -1179,5 +1576,71 @@ pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str) -> anyhow::Result<()> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::sink::flat::tests::STableMessagesBuilder;
+
+    #[test]
+    fn test_process_archive() {
+        let builder = STableMessagesBuilder::new()
+            .stable("meters")
+            .table_num(2)
+            .table_prefix("tb_")
+            .table_suffix("_suffix")
+            .column_names(vec!["v"])
+            .column_num(2)
+            .string_repeats(2);
+        let messages = builder.build();
+        let (tx, _rx) = flume::bounded(10);
+
+        if let Err(e) = process_archive("error".to_string(), &messages[0].records, tx) {
+            dbg!(e);
+        }
+    }
+
+    #[test]
+    fn test_message_to_sql() {
+        let builder = STableMessagesBuilder::new()
+            .stable("meters")
+            .table_num(2)
+            .table_prefix("tb_")
+            .table_suffix("_suffix")
+            .column_names(vec!["v"])
+            .column_num(2)
+            .string_repeats(2);
+        let messages = builder.build();
+        let records = message_to_sql("meters", &messages, taos::Precision::Millisecond);
+        dbg!(&records);
+        // assert_eq!(records[0].sql, "INSERT INTO  `tb_0_suffix` (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values (1739330555987,true,0,0,0,0,0,0,0,0,0,0,'varchar_0varchar_0','nchar_0nchar_0') `tb_0_suffix` (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values (1739330556987,false,1,1,1,1,1,1,1,1,1,1,'varchar_1varchar_1','nchar_1nchar_1') `tb_1_suffix` (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values (1739330555989,true,0,0,0,0,0,0,0,0,0,0,'varchar_0varchar_0','nchar_0nchar_0') `tb_1_suffix` (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values (1739330556989,false,1,1,1,1,1,1,1,1,1,1,'varchar_1varchar_1','nchar_1nchar_1')");
+        assert_eq!(records[0].tables, 2);
+        assert_eq!(records[0].records, 4);
+        assert_eq!(records[0].batches[0].num_rows(), 2);
+    }
+
+    #[test]
+    fn test_recordbatch_to_sql() {
+        let builder = STableMessagesBuilder::new()
+            .stable("meters")
+            .table_num(2)
+            .table_prefix("tb_")
+            .table_suffix("_suffix")
+            .column_names(vec!["v"])
+            .column_num(2)
+            .string_repeats(2);
+        let messages = builder.build();
+        let records = recordbatch_to_sql(
+            "meters",
+            &messages[0].records,
+            taos::Precision::Millisecond,
+            &messages[0].table,
+            &Arc::new(TableOptions::default()),
+        );
+        dbg!(&records[0].sql);
+        // assert_eq!(records[0].sql, "INSERT INTO  `tb_0_suffix` (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values (1739437204548,true,0,0,0,0,0,0,0,0,0,0,'varchar_0varchar_0','nchar_0nchar_0') `tb_0_suffix` (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values (1739437205548,false,1,1,1,1,1,1,1,1,1,1,'varchar_1varchar_1','nchar_1nchar_1')");
     }
 }

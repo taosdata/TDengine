@@ -12,7 +12,8 @@ pub mod dsv;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DataSetsReq {
-    pub from: String,
+    pub from: Option<String>,
+    pub from_json: Option<serde_json::Value>,
     pub via: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,
@@ -107,7 +108,7 @@ pub struct PutFileResp {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct QueryDataSourceReq {
     /// from DSN
-    pub from: String,
+    pub from: serde_json::Value,
     /// 启动参数
     pub args: Vec<String>,
 }

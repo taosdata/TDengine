@@ -1,17 +1,20 @@
 <template>
-	<svg :style="{fill:color?color:''}">
-		<use :xlink:href="'#icon-' + name"/>
-	</svg>
+  <svg :style="{ fill: color ? color : '' }">
+    <use :xlink:href="'#icon-' + name" />
+  </svg>
 </template>
 
 <script>
 export default {
-	props: {
-		name: String,
-		color: {
-			type: String,
-			deafult: null
-		}
-	}
-}
+  props: {
+    name: {
+      type: String,
+      default: ''
+    },
+    color: {
+      type: String,
+      default: ''
+    }
+  }
+};
 </script>

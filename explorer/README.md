@@ -1,65 +1,32 @@
-# Explorer
+# Vue 3 + TypeScript + Vite
 
-## Online Demo
+This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
 
-[Preview.](http://192.168.0.201:6060)
+Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
 
-## Project setup
+## Prerequisites
 
-```shell
-# clone the project
-git clone https://github.com/taosdata/explorer.git
-cd explorer
-yarn
+Explorer depends on the following projects:
 
-# develop
-yarn dev
+- [taos-ui](https://github.com/taosdata/taos-ui/tree/datain)
+- [@tdengine/websocket](https://github.com/taosdata.com/taos-connector-node/tree/cloud)
 
-# develop community
-COMMUNITY=community yarn dev
+They are injected as subtree in the explorer project, so you don't need to clone them separately.
+
+For contributing to these projects, you can clone them separately and link them to the explorer project.
+
+You can also use the following command to pull the latest code of these projects:
+
+```bash
+git subtree pull --prefix explorer/taos-ui
+git subtree pull --prefix explorer/taos-connector-node
 ```
 
-### Build
+## Build
 
-Build frontend distribution.
+The project is built with Vite, and managed by PNPM.
 
-```shell
-yarn build
-```
-
-Build explorer binary.
-
-```shell
-cargo build --release
-```
-
-### Usage
-
-```text
-Usage: taos-explorer [OPTIONS]
-
-Options:
-  -p, --port <PORT>
-          Port
-
-          [env: EXPLORER_PORT=]
-          [default: 6060]
-
-  -v, --verbose...
-          More output per occurrence
-
-  -q, --quiet...
-          Less output per occurrence
-
-  -x, --x-api <X_API>
-          API end point for data streaming task management
-
-          [env: EXPLORER_X_API=]
-  -C, --cluster <CLUSTER>
-  
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
+```bash
+pnpm install
+pnpm build
 ```

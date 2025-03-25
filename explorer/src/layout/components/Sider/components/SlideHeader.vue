@@ -1,58 +1,53 @@
 <template>
   <section class="slide-header" :class="sider_style">
     <Logo></Logo>
-    <MenuTrigger :class="['menuTrigger', isOem ? 'oem' : '']"></MenuTrigger>
+    <MenuTrigger :class="['menu-trigger', $IS_OEM ? 'oem' : '']"></MenuTrigger>
   </section>
 </template>
 
-<script>
-import { Logo, MenuTrigger } from "./index.js";
-export default {
-  data() {
-    return {
-      isOem: process.env.VUE_APP_CUS_NAME && process.env.VUE_APP_CUS_NAME !== "TDengine",
-    };
-  },
-  components: { MenuTrigger, Logo },
-  computed: {
-    sider_style() {
-      return this.$store.state.sidebar.opened ? "sider_unfold" : "sider_fold";
-    },
-  },
-};
+<script setup lang="ts">
+import { useStore } from 'vuex';
+import { Logo, MenuTrigger } from './index';
+
+const { $IS_OEM } = inject('globalCustomProperties') as GlobalCustomProperties;
+const store = useStore();
+const sider_style = computed(() => {
+  return store.state.sidebar.opened ? 'sider-unfold' : 'sider-fold';
+});
 </script>
 
 <style scoped lang="scss">
 .slide-header {
   position: relative;
   z-index: 2;
+  flex-shrink: 0;
   background-color: #fff;
   transition: width 0.4s ease 0s;
-  flex-shrink: 0;
 }
-.menuTrigger {
+
+.menu-trigger {
   position: absolute;
-  right: -10px;
   top: 18px;
+  right: -10px;
 }
-.menuTrigger.oem {
+
+.menu-trigger.oem {
   top: 60px;
 }
-.sider_fold {
+
+.sider-fold {
   width: 60px;
-  ::v-deep {
-    .oem {
-      max-width: 60px;
-    }
+
+  :deep(.oem) {
+    max-width: 60px;
   }
 }
 
-.sider_unfold {
+.sider-unfold {
   width: 240px;
-  ::v-deep {
-    .oem {
-      max-width: 200px;
-    }
+
+  :deep(.oem) {
+    max-width: 200px;
   }
 }
 </style>

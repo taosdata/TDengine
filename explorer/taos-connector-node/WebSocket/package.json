@@ -1,0 +1,55 @@
+{
+  "name": "@tdengine/websocket",
+  "version": "3.0.0",
+  "description": "TDengine Connector for nodejs and browser using WebSocket.",
+  "source": "index.ts",
+  "main": "dist/main/index.js",
+  "module": "dist/module/index.mjs",
+  "types": "dist/types.d.ts",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "jest --coverage",
+    "example": "tsc && node tsc/example/basicUsage.js",
+    "build": "parcel build --no-source-maps",
+    "watch": "parcel watch",
+    "prepare": "parcel build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taosdata/taos-connector-node.git"
+  },
+  "keywords": [
+    "WebSocket",
+    "taosdata",
+    "taos",
+    "IOT",
+    "TypeScript",
+    "TDengine",
+    "database"
+  ],
+  "author": "TaosData Inc.",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/taosdata/taos-connector-node/issues"
+  },
+  "homepage": "https://github.com/taosdata/taos-connector-node#readme",
+  "dependencies": {
+    "json-bigint": "^1.0.0",
+    "websocket": "^1.0.34"
+  },
+  "devDependencies": {
+    "@parcel/packager-ts": "^2.7.0",
+    "@parcel/transformer-typescript-types": "^2.7.0",
+    "@types/jest": "^29.2.1",
+    "@types/json-bigint": "^1.0.1",
+    "@types/node": "^18.0.0",
+    "@types/websocket": "^1.0.5",
+    "jest": "^29.2.2",
+    "parcel": "^2.7.0",
+    "ts-jest": "^29.0.3",
+    "typescript": "^4.6.3"
+  }
+}

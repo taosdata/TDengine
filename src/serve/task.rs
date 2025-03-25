@@ -1,18 +1,21 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
 use actix_files::NamedFile;
 use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 use actix_web::body::BoxBody;
-use actix_web::web::Json;
+use actix_web::rt;
+use actix_web::web::{Json, Payload};
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query},
-    HttpRequest, HttpResponse, Responder, ResponseError,
+    Error, HttpRequest, HttpResponse, Responder, ResponseError,
 };
+use actix_ws::{CloseCode, CloseReason, Session};
 use anyhow::anyhow;
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
@@ -23,6 +26,7 @@ use taosx_core::core_metrics::CoreMetrics;
 use taosx_core::{get_csv_files_from_task, get_data_dir, get_file_upload_home_dir};
 
 use super::controller::agent::AgentActivityFilter;
+use super::metrics::ws::echo_heartbeat_ws;
 use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
 use crate::serve::{
     controller::{Status, TaskControllerRef},
@@ -145,6 +149,117 @@ pub(super) async fn get_tasks_count(
     }
 }
 
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct ExportTasksParams {
+    ids: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ExportTasksResult {
+    pub server_version: String,
+    pub version: String,
+    pub commit: String,
+    pub build: String,
+    pub cluster_id: String,
+    pub export_user: String,
+    pub export_time: String,
+    pub tasks_num: usize,
+    pub tasks: Vec<ExportTaskDetail>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ExportTaskDetail {
+    pub id: i64,
+    pub name: Option<String>,
+    pub from: serde_json::Value,
+    pub to: String,
+    pub parser: Option<serde_json::Value>,
+    pub via: Option<i64>,
+    pub jobs: u16,
+    pub compression_level: Option<u8>,
+    pub oneshot_topic: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Export tasks selected.
+///
+/// One could call the api endpoint with following curl.
+///
+/// ```shell
+/// curl localhost:6040/tasks/export
+/// ```
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "export tasks error", body = Failed)
+    ),
+    params(
+        ExportTasksParams
+    )
+)]
+#[get("/tasks/export")]
+pub(super) async fn export_tasks(
+    ids: Query<ExportTasksParams>,
+    task_store: Data<TaskControllerRef>,
+    req: HttpRequest,
+) -> impl Responder {
+    match task_store.tasks_export(ids.into_inner().ids).await {
+        Ok(named_file) => Ok(named_file.into_response(&req)),
+        Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct ImportTasksParams {
+    #[allow(dead_code)]
+    pub server_version: Option<String>,
+    #[allow(dead_code)]
+    pub version: Option<String>,
+    #[allow(dead_code)]
+    pub commit: Option<String>,
+    #[allow(dead_code)]
+    pub build: Option<String>,
+    #[allow(dead_code)]
+    pub cluster_id: Option<String>,
+    #[allow(dead_code)]
+    pub export_user: Option<String>,
+    #[allow(dead_code)]
+    pub export_time: Option<String>,
+    #[allow(dead_code)]
+    pub tasks_num: Option<usize>,
+    pub tasks: Vec<ExportTaskDetail>,
+    pub labels: Option<Vec<String>>,
+}
+
+/// Import tasks.
+///
+/// One could call the api endpoint with following curl.
+///
+/// ```shell
+/// curl -X POST "localhost:6040/tasks/import" -d '{"file": "..", "ids": "..", "agents": "..", "targets": ".."}'
+/// ```
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "import tasks error", body = Failed)
+    ),
+    params(
+        ImportTasksParams
+    )
+)]
+#[post("/tasks/import")]
+pub(super) async fn import_tasks(
+    params: Json<ImportTasksParams>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    match task_store.tasks_import(params.into_inner()).await {
+        Ok(count) => Ok(HttpResponse::Ok().json(serde_json::json!({"count": count}))),
+        Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
 /// Create new streaming task.
 ///
 /// Post a new `Task` in request body as json to store it. Api will return
@@ -193,7 +308,10 @@ pub(super) async fn create_task(
     let controller = task_store.into_inner();
     match controller.create(task).await {
         Ok(task) => Ok(HttpResponse::Created().json(task.decorate(&decorator))),
-        Err(err) => Err(Failed::from_error(err)),
+        Err(err) => {
+            tracing::error!("create task error: {:?}", err);
+            Err(Failed::from_error(err))
+        }
     }
 }
 
@@ -669,6 +787,92 @@ pub(super) async fn get_task_activities_by_id(
     match task_store.task_activities(id, &filter.into_inner()).await {
         Ok(acts) => Ok(HttpResponse::Ok().json(acts)),
         Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
+#[instrument(skip_all)]
+pub(crate) async fn send_all_tasks_activities(
+    req: HttpRequest,
+    stream: Payload,
+) -> Result<HttpResponse, Error> {
+    let (res, session, msg_stream) = actix_ws::handle(&req, stream)?;
+    // spawn websocket handler (and don't await it) so that the response is returned immediately
+    rt::spawn(send_all_tasks_activities_ws(req, session.clone()));
+    rt::spawn(echo_heartbeat_ws(session.clone(), msg_stream));
+    Ok(res)
+}
+
+async fn send_all_tasks_activities_ws(req: HttpRequest, mut session: Session) {
+    let task_store = match req.app_data::<Data<TaskControllerRef>>() {
+        Some(store) => store,
+        None => {
+            let reason = Some(CloseReason {
+                code: CloseCode::Abnormal,
+                description: Some("Failed to get task store".to_string()),
+            });
+            let _ = session.close(reason).await;
+            return;
+        }
+    };
+
+    let match_info = req.match_info();
+    let cluster_id = match_info.get("cluster_id").unwrap();
+    let mut filter = TaskFilter::default();
+    filter.labels = Some(format!("type::datain,cluster-id::{cluster_id}"));
+    let tasks = match task_store.tasks(filter).await {
+        Ok(tasks) => tasks,
+        Err(err) => {
+            tracing::error!("task-ws failed to get tasks: {:#}", err);
+            return;
+        }
+    };
+    let task_ids: HashSet<_> = tasks.into_iter().map(|t| t.id).collect();
+    // send the latest 5 activities for each task
+    match task_store.all_tasks_activities().await {
+        Ok(activities) => {
+            for activity in activities.into_iter() {
+                // only send activities for tasks in the current cluster
+                if task_ids.contains(&activity.id) {
+                    if let Err(err) = session
+                        .text(serde_json::to_string(&activity).unwrap())
+                        .await
+                    {
+                        tracing::info!("task-ws session closed: {:#}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Err(err) => {
+            tracing::error!("task-ws failed to send latest task activities: {:#}", err);
+        }
+    }
+
+    let scheduler = task_store.scheduler.clone();
+    // get notify channel
+    let notify_channel = scheduler.notify_channel();
+    let mut rx = notify_channel;
+    'loop_send: loop {
+        match rx.recv().await {
+            Ok(notify) => match notify {
+                crate::serve::scheduler::SchedulerNotify::TaskActivity(activity) => {
+                    if let Err(err) = session
+                        .text(serde_json::to_string(&activity).unwrap())
+                        .await
+                    {
+                        tracing::info!("task-ws session closed: {:#}", err);
+                        break 'loop_send;
+                    }
+                }
+                crate::serve::scheduler::SchedulerNotify::AgentActivity(_) => {}
+            },
+            Err(err) => match err {
+                tokio::sync::broadcast::error::RecvError::Closed => break,
+                tokio::sync::broadcast::error::RecvError::Lagged(_) => {
+                    continue;
+                }
+            },
+        }
     }
 }
 

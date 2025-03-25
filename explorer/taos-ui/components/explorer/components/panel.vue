@@ -1,0 +1,196 @@
+<template>
+  <div class="panel">
+    <el-tabs v-model="panelActiveTab" type="border-card" size="small">
+      <el-tab-pane name="grid">
+        <template #label>
+          <div class="flex-center">
+            <Icon name="table" class="tab-icon"></Icon>
+            <span>{{ t('explorer.grid') }}</span>
+            <el-tooltip effect="light" :content="t('explorer.cellCopyTip')" placement="bottom">
+              <el-icon :size="12">
+                <InfoFilled />
+              </el-icon>
+            </el-tooltip>
+          </div>
+        </template>
+        <GridView></GridView>
+      </el-tab-pane>
+      <el-tab-pane name="chart">
+        <template #label>
+          <div class="flex-center">
+            <Icon name="chart" class="tab-icon"></Icon>
+            <span>{{ t('common.chart') }}</span>
+          </div>
+        </template>
+        <ChartView></ChartView>
+      </el-tab-pane>
+      <el-tab-pane name="favorites">
+        <template #label>
+          <div class="flex-center">
+            <Icon name="favorite_fill" class="tab-icon"></Icon>
+            <span>{{ t('explorer.favorites') }}</span>
+          </div>
+        </template>
+        <component :is="currentFavoriteComponent" v-if="currentFavoriteComponent"></component>
+      </el-tab-pane>
+      <el-tab-pane name="log">
+        <template #label>
+          <div class="flex-center">
+            <Icon name="console_dblist" class="tab-icon"></Icon>
+            <span>{{ t('common.logs') }}</span>
+          </div>
+        </template>
+        <LogView></LogView>
+      </el-tab-pane>
+    </el-tabs>
+    <div class="panel-right">
+      <p class="data-nums">{{ dataSource.length }} rows</p>
+      <el-tooltip
+        v-if="panelActiveTab == 'log'"
+        effect="light"
+        :content="t('common.' + (isDesc ? 'orderByAscending' : 'orderByDescending'))"
+      >
+        <el-button class="log-sort-btn" icon="sort" plain size="small" @click="logSortChange"></el-button>
+      </el-tooltip>
+      <el-tooltip effect="light" :content="t('explorer.exportCurrentData')">
+        <el-button :disabled="dataSource.length == 0 || loading" plain size="small" @click="exportAll">{{
+          t('common.export')
+        }}</el-button>
+      </el-tooltip>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { t } from 'locales';
+import GridView from './grid.vue';
+import ChartView from './chart.vue';
+import FavoriteView from './favoriteList/cloud/index.vue';
+import EnterpriseFavoriteView from './favoriteList/enterprise/index.vue';
+import LogView from './log.vue';
+import { wsExport, localExport } from 'utils/wsexporter';
+import { sqlExecResult, panelActiveTab, changeLogSortEvent } from './utils';
+import { getSqlProvider } from '../model/useExplorer';
+import { ElMessageBox, ElMessage } from 'element-plus';
+import { instance, project } from 'config';
+
+const { sqlStr } = getSqlProvider();
+const ExplorerLogSortKey = 'explorer_log_sort_' + instance.id;
+const logSort = ref(localStorage.getItem(ExplorerLogSortKey) ?? 'desc');
+const isDesc = computed(() => logSort.value === 'desc');
+const loading = ref(false);
+const dataSource = computed(() => sqlExecResult.data);
+const currentFavoriteComponent = computed(() =>
+  project.isCloud ? (FavoriteView as typeof FavoriteView) : (EnterpriseFavoriteView as typeof EnterpriseFavoriteView)
+);
+
+function exportAll() {
+  if (!sqlStr.value.toLowerCase().trim().startsWith('select')) {
+    ElMessage.warning(
+      t(
+        'explorer.exportError',
+        t('status.error', {
+          type: 'warning'
+        })
+      )
+    );
+    return;
+  }
+  
+  ElMessageBox.confirm(t('explorer.exportConfirm'), t('common.tips')).then(() => {
+    loading.value = true;
+    if (project.isCloud) {
+      wsExport(instance.gatewayUrl, instance.token, sqlStr.value, true)
+        .catch(err => {
+          ElMessage.error(err?.message);
+        })
+        .finally(() => {
+          loading.value = false;
+        });
+    } else {
+      try {
+        localExport(sqlExecResult);
+      } catch (err) {
+        ElMessage.error(err?.message);
+      } finally {
+        loading.value = false;
+      }
+    }
+    
+  });
+}
+function logSortChange() {
+  logSort.value = logSort.value == 'desc' ? 'asc' : 'desc';
+  changeLogSortEvent.emit();
+}
+</script>
+
+<style lang="scss" scoped>
+.flex-center {
+  height: 100%;
+}
+
+.el-tabs--border-card {
+  box-shadow: none;
+}
+
+.panel {
+  position: relative;
+  height: 100%;
+  min-height: 300px;
+
+  /* overflow: hidden; */
+  &:deep(.el-tabs__content) {
+    flex: 1;
+    padding: 15px 15px 0 !important;
+    overflow: auto;
+
+    & > .el-tab-pane {
+      right: 15px;
+      left: 15px;
+    }
+  }
+
+  &:deep(.el-tabs) {
+    border-bottom: none;
+    border-left: none;
+  }
+
+  &:deep(.el-tabs--border-card > .el-tabs__header) {
+    padding-right: 230px;
+  }
+
+  &:deep(.el-tabs--border-card > .el-tabs__header .el-tabs__item) {
+    font-size: 16px;
+  }
+}
+
+.tab-icon {
+  width: 19px;
+  height: 19px;
+  margin-right: 5px;
+  cursor: pointer;
+}
+
+.panel-right {
+  position: absolute;
+  top: 8px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  color: #333;
+
+  .log-sort-btn {
+    padding: 7px;
+  }
+}
+
+.info-icon {
+  margin-left: 5px;
+}
+
+.data-nums {
+  margin-right: 10px;
+  font-size: 17px;
+}
+</style>

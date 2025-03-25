@@ -428,6 +428,9 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                 .await
                 .context("Get source connection error")?;
             if code == 0x2603 || code == 0x0618 {
+                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                // 0x2603: the table does not exist
+                // 0x0618: the table does not exist
                 if let Some(stable) = stable {
                     sync_super_table_schema(from, stable, to, remap.as_ref(), target_opts, actions)
                         .in_current_span()
@@ -452,6 +455,9 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                 }
                 continue;
             } else if code == 0x263F || code == 0x061B {
+                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                // 0x263F: invalid columns number
+                // 0x061B: invalid table schema version
                 tracing::info!("sync table {table} error with: {err:#}");
                 if let Some(stable) = stable {
                     scheduler::sync_add_column(from, to, stable, remap.as_ref()).await?;
@@ -460,10 +466,13 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                 }
                 continue;
             } else if matches!(code, 0x0900..=0x09FF) {
-                // Sync error codes.
+                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                // 0x0900..=0x09FF: sync error
                 tokio::time::sleep(target_opts.retry_sleep).await;
                 continue;
             } else if err_str.contains("0x0118") {
+                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                // 0x0118: invalid parameter
                 let desc = to
                     .describe(table)
                     .await
@@ -792,6 +801,8 @@ async fn sync_single_table_partial(
                 tracing::warn!("Write block error: {err}");
                 let err_str = err.to_string();
                 if err_str.contains("0x1002") {
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0x1002: wal size limit
                     let mut chunks = 4;
                     let views = block.column_views();
                     let mut success = true;
@@ -848,6 +859,8 @@ async fn sync_single_table_partial(
                         Err(err).with_context(|| format!("[{table}] execute error and unable to auto choose a batch size limit"))?;
                     }
                 } else if err_str.contains("0x0020") {
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0x0020: vgroup could not be connected
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     stmt.execute()
                         .await
@@ -934,13 +947,16 @@ pub async fn sync_super_table_schema(
 
             match code {
                 0x000B => {
+                    // 0x000B: Unable to establish connection
                     break;
                 }
                 0x032C => {
+                    // 0x032C: object is creating
                     from.exec(format!("desc `{target_name}`")).await?;
                     continue;
                 }
                 0x03D3 => {
+                    // 0x03D3: conflict transaction not completed
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     continue;
                 }
@@ -1104,9 +1120,11 @@ pub async fn sync_super_table_schema_only_fallback(
 
             match code {
                 0x000B => {
+                    // 0x000B: Unable to establish connection
                     break;
                 }
                 0x032C => {
+                    // 0x032C: object is creating
                     from.exec(format!("desc `{target_name}`")).await?;
                     continue;
                 }
@@ -1436,6 +1454,8 @@ pub async fn sync_normal_table_schema(
 
     if let Err(err) = from.exec(&sql).await {
         if err.code() == 0x2600 || err.code() == 0x2601 {
+            // 0x2600: Syntax error
+            // 0x2601: Incomplete SQL statement
             let desc = from.describe(name).await?;
             sql = desc.to_create_table_sql(name);
         }
@@ -1449,9 +1469,12 @@ pub async fn sync_normal_table_schema(
 
         match code {
             0x000B => {
+                // 0x000B: Unable to establish connection
                 warn!("Cannot create table: {name} since {:#}", err);
             }
             0x2600 | 0x2601 => {
+                // 0x2600: Syntax error
+                // 0x2601: Incomplete SQL statement
                 sync_normal_table_schema_fallback(from, name, actions, remap, to).await?;
             }
             _ => {
@@ -1476,6 +1499,7 @@ async fn sync_normal_table_schema_fallback(
     sql = transform_sql_with_actions(sql, name, actions, false, remap)?;
     if let Err(err) = to.exec(&sql).await {
         if !err.to_string().contains("[0x000B]") {
+            // 0x000B: Unable to establish connection
             Err(err).with_context(|| format!("normal table create error, sql: [{sql}]"))?;
         }
     }

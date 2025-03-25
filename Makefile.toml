@@ -116,14 +116,12 @@ dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc"]
 
 [tasks.taos-explorer]
 script = """
-cd ../explorer && git checkout main && git pull
-rsync -u root@192.168.0.30:/root/enterprise-docs/docs-zh.zip .
-rsync -u root@192.168.0.30:/root/enterprise-docs/docs-en.zip .
-rm -rf public/docs && unzip docs-zh.zip -d public/docs
-rm -rf public/docs-en && unzip docs-en.zip -d public/docs-en
-cargo update
-yarn install && yarn build:bin
-mkdir -p ../taosx/target/release/ && cp target/release/taos-explorer ../taosx/target/release/taos-explorer
+remote_path=/root/enterprise_build_zip_work/enterprise-docs
+rsync -u root@192.168.0.30:${remote_path}/docs-zh.zip .
+rsync -u root@192.168.0.30:${remote_path}/docs-en.zip .
+rm -rf public/docs && unzip docs-zh.zip -d explorer/public/docs
+rm -rf public/docs-en && unzip docs-en.zip -d explorer/public/docs-en
+cargo build --release -p taos-explorer
 """
 
 [tasks.clean-plugins]
@@ -251,6 +249,12 @@ if [ "$1" == "--all" ]; then
 fi
 """
 
+[tasks.explorer-ui]
+cwd = "explorer"
+script = """
+pnpm install && pnpm run build
+"""
+
 [tasks.build-all]
 dependencies = ["explorer-ui"]
 script = """
@@ -326,8 +330,9 @@ run_task = [
 ]
 
 [tasks.build-docker-serve-source]
+description = "Build docker image for Cloud"
 script = """
-set -e
+set -ex
 commit=$(git rev-parse HEAD | cut -c 1-8)
 echo TDengine version in cloud image is "${VER_NUMBER}"
 mkdir -p ./docker/serve/release/plugins/
@@ -335,6 +340,7 @@ rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-ent
 tar vxf TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz
 cp -r ./TDengine-enterprise-client-${VER_NUMBER} ./docker/serve/release/TDengine-enterprise-client
 cp ./target/release/taosx ./docker/serve/release/taosx
+cp ./target/release/taos-explorer ./docker/serve/release/taos-explorer
 cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
 cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
 cp ./plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
@@ -342,7 +348,11 @@ docker build -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER}-$commit ./doc
 rm -rf ./docker/serve/release
 rm -rf ./TDengine-enterprise-client-${VER_NUMBER}
 """
-dependencies = ["taosx", "plugins"]
+dependencies = [
+  "taosx",
+  #"taos-explorer",
+  "plugins",
+]
 
 [tasks.build-docker-serve-bin]
 script = """
@@ -397,11 +407,12 @@ rm -rf ./TDengine-enterprise-${VER_NUMBER}
 
 [tasks.build-docker-integrated-source]
 script = """
-set -e
+set -ex
 commit=$(git rev-parse HEAD | cut -c 1-8)
 echo TDengine version in cloud image is "${VER_NUMBER}"
 mkdir -p ./docker/integrated/release/plugins/
-rsync -u root@192.168.1.213:/nas/TDengine/${echo "${VER_NUMBER}" | cut -d'.' -f1,2}/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
+echo $(echo "${VER_NUMBER}" | cut -d'.' -f1,2)
+rsync -u root@192.168.1.213:/nas/TDengine/$(echo "${VER_NUMBER}" | cut -d'.' -f1,2)/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
 tar vxf TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
 cp -r ./TDengine-enterprise-${VER_NUMBER} ./docker/integrated/release/TDengine-enterprise
 rm -rf ./docker/integrated/release/TDengine-enterprise/taosx/
@@ -414,7 +425,40 @@ docker build -t image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER}-$commit 
 rm -rf ./docker/integrated/release
 rm -rf ./TDengine-enterprise-${VER_NUMBER}
 """
-dependencies = ["taosx", "plugins", "taos-explorer"]
+dependencies = [
+  #"taosx",
+  #"plugins",
+  #"taos-explorer"
+]
+
+[tasks.verify-integrated-image]
+description = "[WIP] Verify integrated docker image"
+script = """
+set -ex
+commit=$(git rev-parse HEAD | cut -c 1-8)
+export container=taosx-integrated-${VER_NUMBER}-$commit
+stop_container() {
+  docker stop $container
+  if [ $? -ne 0 ]; then
+    echo "Failed to stop container $container"
+  else
+    echo "Waiting for container $container to stop..."
+    while [ "$(docker inspect -f '{{.State.Running}}' $container)" = "true" ]; do
+      sleep 1
+    docker rm $containter
+  done
+  fi
+}
+stop_container || true
+docker run --rm --name $container -d image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER}-$commit
+sleep 5
+docker logs $container 2>&1 |grep "enable taosx" || (echo "taosx should be enabled"; stop_container; exit 1)
+stop_container || true
+docker run --rm --name $container -e ENABLE_TAOSX=0 -d image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER}-$commit
+sleep 5
+docker logs $container  2>&1|grep "enable taosx" && (echo "taosx should not be enabled"; stop_container; exit 1)
+stop_container || true
+"""
 
 [tasks.build-docker-integrated-bin]
 script = """
@@ -702,7 +746,7 @@ args = [
   "-Dwarnings",
 ]
 
-[tasks.test-without-cov]
+[tasks.test-taosx-without-cov]
 command = "cargo"
 args = [
   "nextest",
@@ -712,30 +756,56 @@ args = [
   "--retries",
   "0",
   "--filterset",
-  "not test(/_with_taos$/)",
+  "not test(/(_with_taos|_with_datasource)$/)",
+  "--exclude",
+  "taos-explorer",
+]
+
+[tasks.test-explorer-without-cov]
+command = "cargo"
+args = [
+  "nextest",
+  "run",
+  "-p",
+  "taos-explorer",
+  "--no-fail-fast",
+  "--retries",
+  "0",
+  "--filterset",
+  "not test(/(_with_taos|_with_datasource)$/)",
 ]
 
 [tasks.pre-commit]
-dependencies = ["fmt", "clippy", "test-without-cov"]
+dependencies = [
+  "fmt",
+  "clippy",
+  "test-taosx-without-cov",
+  "test-explorer-without-cov",
+]
 
-[tasks.explorer-ui]
+[tasks.explorer-ui-prod]
 cwd = "explorer"
+script_runner = "@duckscript"
 script = """
-yarn install && yarn build
+exec pnpm install
+exec pnpm run build
+cp ./static ./dist
 """
-[tasks.explorer-ui.linux]
+
+# linux 环境下使用 docker 构建
+[tasks.explorer-ui-prod.linux]
+cwd = "explorer"
 script_runner = "bash"
 script = """
-# Load nvm
-if [ -d "$NVM_DIR" ]; then
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-  nvm --version && [ -e .nvmrc ] && nvm use || true
-fi
-yarn install && yarn build
+# docker pull node:22.3.0
+chmod +x ./build.sh
+docker run --rm -v $(pwd):/app node:22.3.0 bash /app/build.sh
 """
 
 [tasks.explorer]
-dependencies = ["explorer-ui"]
+dependencies = [
+  "explorer-ui-prod",
+]
 command = "cargo"
 args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
 
@@ -780,6 +850,21 @@ install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rust
 install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
 [tasks.install-toml-cli]
 install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
+[tasks.install-nvm]
+windows_alias = "empty"
+install_script = """
+echo "Install NVM"
+set -ex
+nvm_exec=$(command -v nvm || true)
+echo $nvm_exec
+nvm_version=$(nvm --version || true)
+if [ "$NVM_DIR" = "" ] && [ "$NVM_BIN" = "" ] && [ "$nvm_exec" = "" ] && [ "$nvm_version" = "" ]; then
+  echo "NVM not installed"
+  #curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+else
+  echo "NVM already installed"
+fi
+"""
 [tasks.assert-explorer-dist]
 private = true
 script_runner = "@duckscript"
@@ -789,10 +874,33 @@ if not is_dir explorer/dist/
 end
 """
 
-[tasks.test]
+[tasks.test-without-explorer]
 dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
-args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]
+args = [
+  "llvm-cov",
+  "nextest",
+  "--workspace",
+  "--no-fail-fast",
+  "--html",
+  "--exclude",
+  "taos-explorer",
+]
+
+[tasks.test-explorer]
+dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taos-explorer",
+  "--no-fail-fast",
+  "--html",
+]
+
+[tasks.test]
+dependencies = ["test-without-explorer", "test-explorer"]
 
 [tasks.install-locally]
 dependencies = ["install-plugins", "install-agent"]

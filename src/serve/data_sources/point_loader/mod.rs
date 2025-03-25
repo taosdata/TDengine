@@ -1,8 +1,8 @@
 use actix_files::NamedFile;
+use actix_web::web::Json;
 use actix_web::web::{Data, Query};
 use anyhow::anyhow;
 use csv::Reader;
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use serde::Serialize;
@@ -10,10 +10,13 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use taos::IntoDsn;
+use taosx_core::utils::dsn::json_to_dsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
 use utoipa::*;
 
+use taosx_core::runners::opc::csv::header::{get_template, DA_ROW, UA_ROW};
+use taosx_core::runners::opc::OpcType;
 use taosx_core::{list_datasets_from, DataSetsReq};
 use taosx_ipc::types::DataSet;
 
@@ -22,7 +25,8 @@ use crate::serve::TaskController;
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct DownloadAllPointsParams {
-    from: String,
+    from: Option<String>,
+    from_json: Option<serde_json::Value>,
     via: Option<i64>,
     categories: String,
     lang: Option<String>,
@@ -127,8 +131,17 @@ pub async fn download_all_point_csv_file(
     params: Query<DownloadAllPointsParams>,
 ) -> anyhow::Result<NamedFile> {
     let params = params.into_inner();
+    let from = if let Some(from_json) = params.from_json {
+        let from = json_to_dsn(&from_json)?;
+        from.to_string()
+    } else if let Some(from) = params.from {
+        from
+    } else {
+        return Err(anyhow!("from is required"));
+    };
+
     let (data, _) = get_all_points(
-        params.from,
+        from,
         params.via,
         params.categories,
         controller.into_inner().as_ref(),
@@ -163,7 +176,7 @@ lazy_static! {
 pub async fn arrange_point_file_download_task(
     controller: Data<TaskControllerRef>,
     // data: Query<DataSetsReq>,
-    params: Query<DownloadAllPointsParams>,
+    params: Json<DownloadAllPointsParams>,
 ) -> anyhow::Result<String> {
     let params = params.into_inner();
     let task_id = uuid::Uuid::new_v4().to_string();
@@ -175,9 +188,17 @@ pub async fn arrange_point_file_download_task(
 
     tokio::spawn(async move {
         tracing::debug!("start async download task: {}", &task_id);
+        let from = if let Some(from_json) = params.from_json {
+            match json_to_dsn(&from_json) {
+                Ok(dsn) => dsn.to_string(),
+                Err(_) => String::new(),
+            }
+        } else {
+            params.from.unwrap_or_default()
+        };
 
         match get_all_points(
-            params.from,
+            from,
             params.via,
             params.categories,
             controller.into_inner().as_ref(),
@@ -293,19 +314,16 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
         .unwrap_or(Err(anyhow!("task not found")))
 }
 
-pub async fn get_point_file_template(driver: &str, lang: &str) -> anyhow::Result<NamedFile> {
-    let template_file_data = match driver {
-        "opcua" => get_opcua_csv_header(lang, true),
-        "opcda" => get_opcda_csv_header(lang, true),
-        _ => String::new(),
-    };
+pub async fn get_point_file_template(opc_type: &str, _lang: &str) -> anyhow::Result<NamedFile> {
+    let opc_type = OpcType::try_from(opc_type)?;
+    let template = get_template(opc_type, true);
 
     let mut config_file = tempfile::NamedTempFile::new()?;
     tracing::debug!(
         "template file path: {}",
         &config_file.path().to_str().unwrap_or("")
     );
-    write!(config_file, "{}", &template_file_data)?;
+    write!(config_file, "{}", &template)?;
     Ok(NamedFile::open(config_file.path())?)
 }
 
@@ -322,7 +340,7 @@ async fn get_all_points(
     via: Option<i64>,
     categories: String,
     controller: &TaskController,
-    lang: Option<String>,
+    _lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
     let mut from = from.into_dsn()?;
 
@@ -331,7 +349,6 @@ async fn get_all_points(
         _ => Some(String::from(".*")),
     };
     let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
-    let lang = lang.unwrap_or("zh".to_string());
 
     match if let Some(agent) = via {
         controller
@@ -339,7 +356,8 @@ async fn get_all_points(
             .await
     } else {
         let data = DataSetsReq {
-            from: from.to_string(),
+            from: Some(from.to_string()),
+            from_json: None,
             categories: vec![categories],
             via,
             offset: 0,
@@ -353,42 +371,24 @@ async fn get_all_points(
             let point_count = data.len();
             let data = match from.driver.as_str() {
                 "opcda" => {
-                    let mut result = get_opcda_csv_header(&lang, false);
-
-                    let mut i = 1;
-                    data.iter().for_each(|item| {
-                        let enabled = get_enabled(item.clone());
-                        let point_item = format!(
-                            "{},{},{},opc_{{type}},t_{{tag_name}},val,,,quality,ts,rts,,,{}\n",
-                            i,
-                            item.id,
-                            enabled,
-                            item.name.clone().unwrap_or("".to_string())
-                        );
-                        result.push_str(point_item.as_str());
-                        i += 1;
+                    // header
+                    let mut result = get_template(OpcType::OPCDA, false);
+                    // rows
+                    data.iter().enumerate().for_each(|(i, item)| {
+                        let row = da_template_row(i + 1, item);
+                        result.push_str(row.as_str());
                     });
 
                     result
                 }
                 "opcua" => {
-                    let mut result = get_opcua_csv_header(&lang, false);
-                    let mut i = 1;
-
-                    data.iter().for_each(|item| {
-                        // 转义id 和 name, 使其可以安全的包含在csv文件中
-                        let safe_id = get_safe_string_for_csv(&item.id);
-                        let safe_name =
-                            get_safe_string_for_csv(&(item.name.clone().unwrap_or("".to_string())));
-                        let enabled = get_enabled(item.clone());
-                        let point_item = format!(
-                            "{},{},{},opc_{{type}},t_{{ns}}_{{id}},val,,,quality,ts,rts,,,{}\n",
-                            i, safe_id, enabled, safe_name
-                        );
-                        result.push_str(point_item.as_str());
-                        i += 1;
+                    // header
+                    let mut result = get_template(OpcType::OPCUA, false);
+                    // rows
+                    data.iter().enumerate().for_each(|(i, item)| {
+                        let row = ua_template_row(i + 1, item);
+                        result.push_str(row.as_str());
                     });
-
                     result
                 }
                 _ => unimplemented!(),
@@ -418,70 +418,93 @@ fn get_enabled(item: DataSet) -> i8 {
         .unwrap_or(1)
 }
 
-fn get_opcua_csv_header(_lang: &str, demo: bool) -> String {
-    // let header = match lang {
-    //     "zh" => "\u{FEFF}序号,数据点位id(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
-    //     _ => "\u{FEFF}S/N,OPC Point Id (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
-    // };
-
-    let columns = vec![
-        "No.",
-        "point_id",
-        "enabled",
-        "stable",
-        "tbname",
-        "value_col",
-        "value_transform",
-        "type",
-        "quality_col",
-        "ts_col",
-        "received_ts_col",
-        "ts_transform",
-        "received_ts_transform",
-        "tag::VARCHAR(200)::name",
-    ];
-    let mut header = columns.iter().join(",");
-    header.push('\n');
-
-    if demo {
-        header.push_str("1,ns=3;i=1010,1,opc_{type},t_{ns}_{id},val,val * 1.8 + 32,double,quality,ts,rts,,,temperature\n");
-        header.push_str("2,ns=3;i=1011,1,opc_{type},t_{ns}_{id},val,val + 10,int,quality,ts,rts,ts + 8 * 3600 * 1000,rts + 8 * 3600 * 1000,pressure\n");
-        header.push_str("3,ns=5;s=hw202401250013,1,opc_{type},t_{ns}_{id},val,,,quality,ts,rts,ts - 6 * 1000,rts - 6 * 1000,current\n");
+// 替换 UA_ROW 的前三个字段和最后一个字段
+fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
+    let mut cols = vec![];
+    for (idx, col) in UA_ROW.iter().enumerate() {
+        if idx == 0 {
+            // No.
+            cols.push(row_idx.to_string());
+        } else if idx == 1 {
+            // point_id
+            let point_id = get_safe_string_for_csv(&item.id);
+            cols.push(point_id.clone());
+        } else if idx == 2 {
+            // enabled
+            let enabled = get_enabled(item.clone());
+            cols.push(enabled.to_string());
+        } else if idx == (UA_ROW.len() - 1) {
+            // tag::VARCHAR(255)::name
+            let safe_name = get_safe_string_for_csv(&(item.name.clone().unwrap_or("".to_string())));
+            cols.push(safe_name.clone());
+        } else {
+            cols.push(col.to_string());
+        }
     }
-
-    header
+    format!("{}\n", cols.join(","))
 }
 
-fn get_opcda_csv_header(_lang: &str, demo: bool) -> String {
-    // let header = match lang {
-    //     "zh" => "\u{FEFF}序号,数据点位 TagName(必填),\"是否启用(1 - 启动, 0 - 停用。配置为0, 将删除数据点位对应的子表)\",超级表名,子表名(必填),采集值列名,采集值转换规则(可留空),\"采集值类型(可留空,默认根据实际类型自动填充,可选值有int, double, float, varchar)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(使用本列作为时间戳主键,请剪切到 ts_col 之前)\", ts_col 的时间戳转换规则(可留空), received_ts_col 的时间戳转换规则(可留空),\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
-    //     _ => "\u{FEFF}S/N,OPC Point TagName (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name(Required),value column name,value transform rule(Can be empty),\"value data type(Can be empty, candidate values:int, float, double, varchar)\",Quality Column Name,OPC original time column name(default to be the primary key),\"TDengine received time column name (if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule(Can be empty),receive_ts_col transform rule(Can be empty),\"Tag column(if need more, add new column to the right)\"\n",
-    // };
+fn da_template_row(row_idx: usize, item: &DataSet) -> String {
+    // 替换 DA_ROW 的前三个字段和最后一个字段
+    let mut cols = vec![];
+    for (idx, col) in DA_ROW.iter().enumerate() {
+        if idx == 0 {
+            // No.
+            cols.push(row_idx.to_string());
+        } else if idx == 1 {
+            // tag_name
+            cols.push(item.id.clone());
+        } else if idx == 2 {
+            // enabled
+            let enabled = get_enabled(item.clone());
+            cols.push(enabled.to_string());
+        } else if idx == (DA_ROW.len() - 1) {
+            // tag::VARCHAR(255)::name
+            cols.push(item.name.clone().unwrap_or("".to_string()));
+        } else {
+            cols.push(col.to_string());
+        }
+    }
+    format!("{}\n", cols.join(","))
+}
 
-    let columns = vec![
-        "No.",
-        "tag_name",
-        "enabled",
-        "stable",
-        "tbname",
-        "value_col",
-        "value_transform",
-        "type",
-        "quality_col",
-        "ts_col",
-        "received_ts_col",
-        "ts_transform",
-        "received_ts_transform",
-        "tag::VARCHAR(200)::name",
-    ];
-    let mut header = columns.iter().join(",");
-    header.push('\n');
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use taosx_ipc::types::DataSet;
 
-    if demo {
-        header.push_str("1,root.parent.tempeture,1,opc_{type},t_{tag_name},val,val * 1.8 + 32,float,quality,ts,rts,,,temperature\n");
-        header.push_str("2,root.parent.pressure,1,opc_{type},t_{tag_name},val,val + 10,,quality,ts,rts,ts + 8*3600*1000,rts + 8*3600*1000,pressure\n");
-        header.push_str("3,root.parent.current,1,opc_{type},t_{tag_name},val,,,quality,ts,rts,ts - 6*1000,rts - 6*1000,current\n");
+    #[test]
+    fn test_ua_template_row() {
+        let item = DataSet {
+            id: "ns=3;i=1001".to_string(),
+            name: Some("tag1".to_string()),
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        };
+        let row = ua_template_row(1, &item);
+        assert_eq!(
+            row,
+            "1,ns=3;i=1001,1,opc_{type},t_{ns}_{id},val,,,quality,ts,,qts,,rts,,tag1\n".to_string()
+        );
     }
 
-    header
+    #[test]
+    fn test_da_template_row() {
+        let item = DataSet {
+            id: "/ASSETS/AB/EDCGQ".to_string(),
+            name: Some("tag1".to_string()),
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        };
+        let row = da_template_row(1, &item);
+        assert_eq!(
+            row,
+            "1,/ASSETS/AB/EDCGQ,1,opc_{type},t_{tag_name},val,,,quality,ts,,qts,,rts,,tag1\n"
+                .to_string()
+        );
+    }
 }

@@ -190,6 +190,11 @@ pub async fn mongodb_to_taos(
         .ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
     let socket = format!("127.0.0.1:{}", port.get());
     config.ipc_port = Some(port.get());
+    tracing::info!(
+        "{MONGODB_NAME} task ipc port: {}, id: {:?}",
+        port.get(),
+        task_id
+    );
 
     // create ipc handler
     let (mut ipc, _) = build_ipc(
@@ -204,6 +209,7 @@ pub async fn mongodb_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
 

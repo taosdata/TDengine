@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1"
+anyhow.workspace = true
 cfg-if = "1"
 clap = { workspace = true, features = ["derive", "env"] }
 clap-verbosity-flag = { workspace = true }
@@ -23,18 +23,18 @@ twelf = { version = "0.15.0", default-features = false, features = [
 ] }
 
 dashmap = "5.4.0"
-flume = "0.11.0"
-serde = { version = "1", features = ["derive"] }
+flume.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json = "1"
 
 arrow = { workspace = true, features = ["chrono-tz"] }
 arrow-flight = { workspace = true }
 chrono = { workspace = true }
-tonic = { workspace = true, features = ["gzip"] }
+tonic = { workspace = true, features = ["gzip", "tls", "tls-native-roots"] }
 shadow-rs = { workspace = true }
 metrics = { workspace = true }
-futures = "0.3"
-tokio = { version = "1", features = [
+futures.workspace = true
+tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
   "io-util",
@@ -47,8 +47,8 @@ tokio = { version = "1", features = [
   "signal",
   "fs",
 ] }
-tokio-util = { version = "0.7" }
-tracing = { version = "0.1", features = ["log"] }
+tokio-util.workspace = true
+tracing = { workspace = true, features = ["log"] }
 
 taosx-core = { path = "../taosx-core" }
 taosx-metrics = { path = "../taosx-metrics" }

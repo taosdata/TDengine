@@ -1,6 +1,7 @@
+use crate::s3::{S3Config, S3_ENABLE};
 use crate::tmq::generate_hash;
-use crate::utils;
 use crate::utils::sql::connect_taos_root;
+use crate::{get_data_dir, utils};
 use anyhow::{anyhow, bail, Context};
 use chrono::{DateTime, Utc};
 use futures_util::TryStreamExt;
@@ -47,9 +48,15 @@ pub struct BackupConfig {
     pub backup_max_size: u64,
     /// 备份文件的压缩等级，默认为 fastest。
     pub backup_comp_level: async_compression::Level,
+    /// 是否开启 S3 转储，默认为 false
+    pub s3_enable: bool,
+    /// S3 配置
+    pub s3_config: Option<S3Config>,
+    /// 本地备份的保留时间，所有早于now - backup_retention_period的文件都需要上传，默认为 0
+    pub backup_retention_period: Option<Duration>,
+    /// 本地备份文件的保留个数，本地只保留最新的backup_retention_size个备份文件，默认为 0
+    pub backup_retention_size: Option<u64>,
 }
-
-impl BackupConfig {}
 
 impl BackupConfig {
     pub fn group_id(task_id: &Option<String>, from: &Dsn, to: &Dsn) -> String {
@@ -218,10 +225,31 @@ impl BackupConfig {
 
     /// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
     pub fn parse_backup_dir(dsn: &Dsn, task_id: Option<&str>) -> anyhow::Result<PathBuf> {
-        let dir = utils::parse_dir_in_dsn(dsn, None)?;
-        // TODO: 如果 dir 为空，使用 $TAOSX_DATA_DIR/backup
-
-        let mut dir = dir.ok_or(anyhow!("backup dir is None in dsn"))?;
+        let mut dir = match utils::parse_dir_in_dsn(dsn, None)? {
+            // dir 为空，使用默认路径: $TAOSX_DATA_DIR/backup
+            None => {
+                let default_dir = get_data_dir().join("backup");
+                // 如果 $TAOSX_DATA_DIR/backup 不存在，则创建
+                if !default_dir.exists() {
+                    std::fs::create_dir_all(&default_dir).map_err(|err| {
+                        anyhow::Error::new(err).context(format!(
+                            "failed to create backup dir: {}",
+                            default_dir.display()
+                        ))
+                    })?;
+                    tracing::info!("create backup dir: {}", default_dir.display());
+                }
+                default_dir
+            }
+            // 用户指定的 dir
+            Some(dir) => {
+                // 如果 dir 不存在，则报错
+                if !dir.exists() {
+                    bail!("backup dir not exists: {}", dir.display());
+                }
+                dir
+            }
+        };
 
         if let Some(task_id) = task_id {
             dir = dir.join(task_id);
@@ -329,6 +357,8 @@ impl BackupConfigBuilder {
                 bail!("stable `{}` not exists", stable);
             }
         }
+
+        // self.repeat
         let self_repeat = utils::parse_key_in_dsn(&self.from, "self.repeat")?.unwrap_or(false);
 
         // upcoming
@@ -385,6 +415,33 @@ impl BackupConfigBuilder {
         // backup_comp_level
         let backup_comp_level =
             Self::parse_compression_level(&self.to)?.unwrap_or(async_compression::Level::Fastest);
+        // s3_enable
+        let s3_enable = utils::parse_key_in_dsn::<bool>(&self.to, S3_ENABLE)?.unwrap_or(false);
+
+        let (s3_config, backup_retention_period, backup_retention_size) =
+            if s3_enable {
+                // s3 config
+                let s3_config = S3Config::from_dsn(&self.to)?;
+                // 检查 s3 连通性
+                s3_config
+                    .connect()
+                    .await
+                    .context(format!("failed to connect s3: {:?}", &s3_config))?;
+                // backup_retention_period
+                let backup_retention_period =
+                    utils::parse_duration_in_dsn(&self.to, "backup_retention_period")?;
+                // backup_retention_size
+                let backup_retention_size =
+                    utils::parse_key_in_dsn::<u64>(&self.to, "backup_retention_size")?
+                        .and_then(|s| if s == 0 { None } else { Some(s) });
+                (
+                    Some(s3_config),
+                    backup_retention_period,
+                    backup_retention_size,
+                )
+            } else {
+                (None, None, None)
+            };
 
         Ok(BackupConfig {
             task_id: self.task_id.clone(),
@@ -404,6 +461,10 @@ impl BackupConfigBuilder {
             move_to,
             backup_max_size,
             backup_comp_level,
+            s3_enable,
+            s3_config,
+            backup_retention_period,
+            backup_retention_size,
         })
     }
 
@@ -463,6 +524,30 @@ impl BackupConfigBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+
+    /// 创建一个备份任务所需要的最少的配置参数：
+    /// from: 数据库名称，且通过连接信息可以连接到 taosd
+    /// to: 备份文件的存储路径，且路径存在
+    #[tokio::test]
+    async fn test_backup_config_builder_with_taos() {
+        let from = format!(
+            "{}/log",
+            env::var("TAOS_ADDR").unwrap_or("taos://".to_string())
+        )
+        .into_dsn()
+        .unwrap();
+        let to = "local:/tmp".into_dsn().unwrap();
+
+        let config = BackupConfigBuilder::new(None, &from, &to)
+            .build()
+            .await
+            .unwrap();
+
+        assert_eq!(config.task_id, None);
+        assert_eq!(config.database, "log");
+        assert_eq!(config.backup_dir, Path::new("/tmp").canonicalize().unwrap());
+    }
 
     #[test]
     fn test_backup_config_to_tmq_dsn() {
@@ -485,6 +570,10 @@ mod tests {
             move_to: None,
             backup_max_size: 0,
             backup_comp_level: async_compression::Level::Fastest,
+            s3_enable: false,
+            s3_config: None,
+            backup_retention_period: None,
+            backup_retention_size: None,
         };
         // when
         let dsn = config.to_tmq_dsn();
@@ -513,6 +602,10 @@ mod tests {
             move_to: None,
             backup_max_size: 0,
             backup_comp_level: async_compression::Level::Fastest,
+            s3_enable: false,
+            s3_config: None,
+            backup_retention_period: None,
+            backup_retention_size: None,
         };
         // when
         let dsn = config.to_tmq_dsn();
@@ -541,6 +634,10 @@ mod tests {
             move_to: None,
             backup_max_size: 0,
             backup_comp_level: async_compression::Level::Fastest,
+            s3_enable: false,
+            s3_config: None,
+            backup_retention_period: None,
+            backup_retention_size: None,
         };
         // when
         let dsn = config.to_tmq_dsn();
@@ -569,6 +666,10 @@ mod tests {
             move_to: None,
             backup_max_size: 0,
             backup_comp_level: async_compression::Level::Fastest,
+            s3_enable: false,
+            s3_config: None,
+            backup_retention_period: None,
+            backup_retention_size: None,
         };
         // when
         let dsn = config.to_tmq_dsn();
@@ -597,6 +698,10 @@ mod tests {
             move_to: None,
             backup_max_size: 0,
             backup_comp_level: async_compression::Level::Fastest,
+            s3_enable: false,
+            s3_config: None,
+            backup_retention_period: None,
+            backup_retention_size: None,
         };
         // when
         let dsn = config.to_tmq_dsn();
@@ -627,6 +732,10 @@ mod tests {
             move_to: None,
             backup_max_size: 0,
             backup_comp_level: async_compression::Level::Fastest,
+            s3_enable: false,
+            s3_config: None,
+            backup_retention_period: None,
+            backup_retention_size: None,
         };
         // when
         let dsn = config.to_tmq_dsn();

@@ -1,0 +1,814 @@
+use crate::get_data_dir;
+use crate::plugins::runners::opc::csv::header::CsvHeader;
+use crate::plugins::runners::opc::model::{
+    ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
+};
+use crate::runners::opc::config::OPCConfig;
+use crate::runners::opc::{generate_tbname_from_pattern, OpcType};
+use crate::utils::files::{get_encode, get_encode_from_buffer};
+use crate::utils::validate_table_column_name;
+use anyhow::bail;
+use base64::engine::general_purpose;
+use base64::Engine;
+use csv_async::{AsyncReader, StringRecord};
+use itertools::Itertools;
+use linked_hash_map::LinkedHashMap;
+use std::collections::HashMap;
+use std::io::Write;
+use std::path::Path;
+use taos::Dsn;
+use tokio::fs::File;
+use tokio_stream::StreamExt;
+
+pub mod column;
+pub mod header;
+
+/// CsvParser is used to parse csv files and generate model config
+#[derive(Debug)]
+pub struct CsvParser {
+    opc_type: OpcType,
+    /// csv files could be file path or utf8 encoded string
+    csv_files: Vec<String>,
+    /// csv_origin stores the original content of the csv file
+    csv_origin: Option<String>,
+}
+
+impl CsvParser {
+    pub fn try_new(opc_type: OpcType, csv_files: Vec<String>) -> anyhow::Result<Self> {
+        if csv_files.is_empty() {
+            bail!("csv_files is empty");
+        }
+
+        Ok(Self {
+            opc_type,
+            csv_files,
+            csv_origin: None,
+        })
+    }
+
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let opc_type = OpcType::from_dsn(dsn)?;
+
+        let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+            "csv_config_file not found in the dsn: {}",
+            dsn.to_string()
+        ))?;
+
+        let csv_files = csv_files
+            .iter()
+            .filter(|f| !f.is_empty())
+            .map(|f| f.to_string())
+            .collect_vec();
+
+        if csv_files.is_empty() {
+            bail!("opc csv config files is empty");
+        }
+
+        Ok(Self {
+            opc_type,
+            csv_files,
+            csv_origin: None,
+        })
+    }
+
+    pub fn set_csv_origin(&mut self, csv_origin: Option<String>) {
+        self.csv_origin = csv_origin;
+    }
+
+    pub fn decoded_csv(csv: &str) -> anyhow::Result<String> {
+        if csv.starts_with("@") {
+            Ok(csv.to_string())
+        } else {
+            let decoded = general_purpose::STANDARD
+                .decode(csv.as_bytes())
+                .map_err(|err| {
+                    anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
+                })?;
+            Ok(String::from_utf8(decoded)?)
+        }
+    }
+
+    fn decode_csv_content(content: &str, encoded: bool) -> anyhow::Result<Vec<u8>> {
+        let decoded = if encoded {
+            general_purpose::STANDARD.decode(content).map_err(|err| {
+                anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
+            })?
+        } else {
+            content.as_bytes().to_vec()
+        };
+
+        // check the file encoding
+        let encoding = get_encode_from_buffer(decoded.as_slice())?;
+        if encoding.name() != "UTF-8" {
+            bail!(
+                "invalid CSV file encoding: {}, only UTF-8 or UTF-8 BOM supported",
+                encoding.name()
+            );
+        };
+
+        Ok(decoded)
+    }
+
+    /// 直接解析 csv 文件内容，生成 opc model config
+    pub async fn parse_csv(opc_type: OpcType, content: String) -> anyhow::Result<OpcModelConfig> {
+        let rdr = Self::load_csv_with_string(content.as_str(), false).await?;
+
+        let (point_config_map, table_config_map) = Self::parse_point_mapping(opc_type, rdr).await?;
+
+        Ok(OpcModelConfig {
+            opc_type,
+            generate_rule: None,
+            point_config_map,
+            table_config_map,
+        })
+    }
+
+    async fn parse_point_mapping(
+        opc_type: OpcType,
+        mut rdr: AsyncReader<File>,
+    ) -> anyhow::Result<(
+        LinkedHashMap<String, PointConfig>,
+        LinkedHashMap<String, TableConfig>,
+    )> {
+        let mut point_config_map = LinkedHashMap::new();
+        let mut table_config_map = LinkedHashMap::new();
+
+        // parse header
+        let header = rdr
+            .headers()
+            .await
+            .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string()))?;
+        let csv_header = CsvHeader::try_new(opc_type, header)?;
+        csv_header.check_required_columns()?;
+
+        // parse lines
+        let mut records = rdr.records();
+        let mut row_index = 1;
+        while let Some(record) = records.next().await {
+            let row = record.map_err(|e| {
+                anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
+            })?;
+
+            let point_id = Self::parse_point_id(&csv_header, &row)?;
+            // parse point config and table config
+            let p = PointConfig::from_csv(&csv_header, &row, row_index)?;
+            let t = TableConfig::from_csv(&csv_header, &row)?;
+
+            OpcModelConfig::is_conflict(&point_id, &p, &t, &point_config_map, &table_config_map)?;
+
+            point_config_map.insert(point_id.clone(), p);
+            table_config_map.insert(point_id.clone(), t);
+
+            row_index += 1;
+        }
+        if row_index == 1 {
+            bail!("empty csv file");
+        }
+
+        Ok((point_config_map, table_config_map))
+    }
+
+    /// 读取 self.csv_files 的内容，生成 opc model config
+    pub async fn parse(&self) -> anyhow::Result<OpcModelConfig> {
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
+
+        let mut point_config_map = LinkedHashMap::new();
+        let mut table_config_map = LinkedHashMap::new();
+
+        for (_file, rdr) in files {
+            let (point_config, table_config) =
+                Self::parse_point_mapping(self.opc_type, rdr).await?;
+            point_config_map.extend(point_config);
+            table_config_map.extend(table_config);
+        }
+
+        Ok(OpcModelConfig {
+            opc_type: self.opc_type,
+            generate_rule: Some(GeneratePointMappingBy::Csv((
+                self.csv_files.clone(),
+                self.csv_origin.clone(),
+            ))),
+            point_config_map,
+            table_config_map,
+        })
+    }
+
+    /// get csv headers from csv files
+    pub async fn get_all_headers(
+        opc_type: OpcType,
+        csv_files: Vec<String>,
+    ) -> anyhow::Result<HashMap<String, CsvHeader>> {
+        if csv_files.is_empty() {
+            bail!("csv_files is empty");
+        }
+
+        let files = Self::open_csv_many(csv_files).await?;
+
+        let mut headers = HashMap::new();
+
+        for (filename, mut rdr) in files {
+            let header = rdr.headers().await.map_err(|e| {
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
+            })?;
+            let csv_header = CsvHeader::try_new(opc_type, header)?;
+
+            // check required columns
+            csv_header.check_required_columns()?;
+
+            headers.insert(filename, csv_header);
+        }
+
+        Ok(headers)
+    }
+
+    /// get headers of the csv file by index
+    pub async fn get_headers(&self, csv_index: usize) -> anyhow::Result<CsvHeader> {
+        if self.csv_files.is_empty() {
+            bail!("csv_files is empty");
+        }
+        if csv_index >= self.csv_files.len() {
+            bail!("csv_file index out of range");
+        }
+        let csv = self
+            .csv_files
+            .get(csv_index)
+            .ok_or(anyhow::anyhow!("csv_file not found"))?;
+
+        let mut rdr = Self::open_csv(csv.clone()).await?;
+
+        // parse header
+        let header = rdr
+            .headers()
+            .await
+            .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string()))?;
+        let csv_header = CsvHeader::try_new(self.opc_type, header)?;
+        csv_header.check_required_columns()?;
+
+        Ok(csv_header)
+    }
+
+    /// 如果 csv 以 @ 开头， 从文件中读， 否则从字符串中读
+    pub async fn open_csv(csv: String) -> anyhow::Result<AsyncReader<File>> {
+        let rdr = if let Some(file_path) = csv.strip_prefix("@") {
+            Self::load_csv_with_path(file_path).await?
+        } else {
+            Self::load_csv_with_string(&csv, true).await?
+        };
+
+        Ok(rdr)
+    }
+
+    /// 如果 csv_path 不为空， 从 csv_path 中读， 否则从 csv 中读
+    pub async fn open_csv_with_path(
+        csv: String,
+        csv_path: Option<String>,
+    ) -> anyhow::Result<AsyncReader<File>> {
+        if let Some(csv_path) = csv_path {
+            let path = Path::new(&csv_path);
+            if path.exists() {
+                return Self::load_csv_with_path(&csv_path).await;
+            }
+        };
+        Self::open_csv(csv).await
+    }
+
+    async fn load_csv_with_path(file_path: &str) -> anyhow::Result<AsyncReader<File>> {
+        let file_path = Path::new(file_path);
+        let file_path = if file_path.exists() {
+            file_path.to_path_buf()
+        } else {
+            let path = get_data_dir().join(file_path);
+            if path.exists() && path.is_file() {
+                path
+            } else {
+                bail!("csv file not found: {}", file_path.display());
+            }
+        };
+        // check the file encoding
+        let encoding = get_encode(&file_path)?;
+        if encoding.name() != "UTF-8" {
+            bail!(
+                "invalid CSV file encoding: {}, only UTF-8 or UTF-8 BOM supported",
+                encoding.name()
+            );
+        }
+
+        Ok(AsyncReader::from_reader(File::open(&file_path).await?))
+    }
+
+    /// 将 string 解码，写入临时文件后打开
+    async fn load_csv_with_string(
+        content: &str,
+        encoded: bool,
+    ) -> anyhow::Result<AsyncReader<File>> {
+        let decoded = Self::decode_csv_content(content, encoded)?;
+
+        let mut temp_file = tempfile::NamedTempFile::new()?;
+        let res = String::from_utf8(decoded)?;
+        write!(temp_file, "{}", res)?;
+        let path = format!("@{}", temp_file.path().to_str().unwrap());
+        let rdr = AsyncReader::from_reader(tokio::fs::File::open(&path[1..]).await?);
+        temp_file.into_temp_path();
+
+        Ok(rdr)
+    }
+
+    /// 打开多个 csv
+    pub async fn open_csv_many(
+        csv_files: Vec<String>,
+    ) -> anyhow::Result<Vec<(String, AsyncReader<File>)>> {
+        let mut readers = Vec::new();
+        for file in csv_files.iter() {
+            let rdr = Self::open_csv(file.clone()).await.map_err(|err| {
+                anyhow::anyhow!("failed to open csv: {}, cause: {}", file, err.to_string())
+            })?;
+            readers.push((file.clone(), rdr));
+        }
+        Ok(readers)
+    }
+
+    pub async fn parse_point_id_and_tbname(&self) -> anyhow::Result<LinkedHashMap<String, String>> {
+        let mut point_ids = LinkedHashMap::new();
+
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
+        for (_file, mut rdr) in files {
+            // parse header
+            let header = rdr.headers().await.map_err(|e| {
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
+            })?;
+            let csv_header = CsvHeader::try_new(self.opc_type, header)?;
+            csv_header.check_required_columns()?;
+
+            // parse lines
+            let mut records = rdr.records();
+            while let Some(record) = records.next().await {
+                let row = record.map_err(|e| {
+                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
+                })?;
+
+                // filter out disabled points
+                let enabled = Self::parse_enabled(&csv_header, &row)?.unwrap_or(1i8);
+                if enabled == 0 {
+                    continue;
+                }
+
+                let point_id = Self::parse_point_id(&csv_header, &row)?;
+                let tbname = Self::parse_tbname(&csv_header, &row)?;
+
+                point_ids.insert(point_id, tbname);
+            }
+        }
+
+        Ok(point_ids)
+    }
+
+    pub async fn parse_all_point_id(&self) -> anyhow::Result<Vec<String>> {
+        let mut point_ids = vec![];
+
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
+
+        for (_file, mut rdr) in files {
+            // parse header
+            let header = rdr.headers().await.map_err(|e| {
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
+            })?;
+            let csv_header = CsvHeader::try_new(self.opc_type, header)?;
+            csv_header.check_required_columns()?;
+
+            // parse lines
+            let mut records = rdr.records();
+            while let Some(record) = records.next().await {
+                let row = record.map_err(|e| {
+                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
+                })?;
+                let point_id = Self::parse_point_id(&csv_header, &row)?;
+                point_ids.push(point_id);
+            }
+        }
+
+        Ok(point_ids)
+    }
+
+    pub async fn parse_transform_map(
+        opc_type: OpcType,
+        files: Vec<(String, AsyncReader<File>)>,
+        columns: &[&str],
+    ) -> anyhow::Result<HashMap<String, HashMap<String, ColumnConfig>>> {
+        let mut transform_map = HashMap::new();
+        for col in columns {
+            transform_map.insert(col.to_string(), HashMap::new());
+        }
+
+        for (_file, mut rdr) in files {
+            // parse header
+            let header = rdr.headers().await.map_err(|e| {
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
+            })?;
+            let csv_header = CsvHeader::try_new(opc_type, header)?;
+            // parse lines
+            let mut records = rdr.records();
+            while let Some(record) = records.next().await {
+                let row = record.map_err(|e| {
+                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
+                })?;
+
+                let point_id = row
+                    .get(csv_header.id_index())
+                    .ok_or(anyhow::anyhow!("point id column not found in csv header"))?;
+                let t = TableConfig::from_csv(&csv_header, &row)?;
+                for c in t.column_configs {
+                    // 如果 column name 在 columns 中，则加入 transform_map
+                    if columns.contains(&c.name.as_str()) {
+                        transform_map
+                            .entry(c.name.clone())
+                            .or_insert(HashMap::new())
+                            .insert(point_id.to_string(), c);
+                    }
+                }
+            }
+        }
+
+        // 遍历 transform_map, 如果 col 对应的 Hashmap 为空，则删除
+        for col in columns {
+            if let Some(map) = transform_map.get(*col) {
+                if map.is_empty() {
+                    transform_map.remove(*col);
+                }
+            }
+        }
+
+        Ok(transform_map)
+    }
+
+    pub async fn parse_one(
+        &self,
+        point_id: &str,
+    ) -> anyhow::Result<Option<(PointConfig, TableConfig)>> {
+        let files = Self::open_csv_many(self.csv_files.clone()).await?;
+
+        for (_file, mut rdr) in files {
+            // parse header
+            let header = rdr.headers().await.map_err(|e| {
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
+            })?;
+            let csv_header = CsvHeader::try_new(self.opc_type, header)?;
+            csv_header.check_required_columns()?;
+
+            // parse lines
+            let mut records = rdr.records();
+            let mut row_index = 1;
+            while let Some(record) = records.next().await {
+                let row = record.map_err(|e| {
+                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
+                })?;
+
+                let point_id_index = csv_header.id_index();
+                let id = row
+                    .get(point_id_index)
+                    .ok_or(anyhow::anyhow!("point id column not found in csv header"))?;
+                if id == point_id {
+                    // parse point config and table config
+                    let p = PointConfig::from_csv(&csv_header, &row, row_index)?;
+                    let t = TableConfig::from_csv(&csv_header, &row)?;
+                    return Ok(Some((p, t)));
+                }
+
+                row_index += 1;
+            }
+        }
+
+        Ok(None)
+    }
+
+    pub fn parse_point_id(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<String> {
+        let point_id_index = header.id_index();
+        let point_id = row
+            .get(point_id_index)
+            .and_then(|v| {
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(v.to_string())
+                }
+            })
+            .ok_or(anyhow::anyhow!("point id cannot be None in csv row"))?;
+        Ok(point_id)
+    }
+
+    pub fn parse_enabled(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<Option<i8>> {
+        let enabled = header
+            .get_column("enabled")
+            .and_then(|col| row.get(col.index))
+            .and_then(|val| if val.is_empty() { None } else { Some(val) })
+            .map(|v| {
+                if v != "0" && v != "1" {
+                    return Err(anyhow::anyhow!(
+                        "invalid enabled: {} in csv row, must be 0 or 1",
+                        v
+                    ));
+                }
+                v.parse::<i8>().map_err(|_| {
+                    anyhow::anyhow!("invalid enabled: {} in csv row, must be 0 or 1", v)
+                })
+            })
+            .transpose()?;
+        Ok(enabled)
+    }
+
+    pub fn parse_tbname(header: &CsvHeader, row: &StringRecord) -> anyhow::Result<String> {
+        let point_id = Self::parse_point_id(header, row)?;
+
+        let column = header
+            .get_column("tbname")
+            .ok_or(anyhow::anyhow!("tbname not exist in csv header"))?;
+
+        let value = row
+            .get(column.index)
+            .ok_or(anyhow::anyhow!("tbname not exist in csv row"))?;
+
+        if value.is_empty() {
+            bail!("tbname cannot be empty");
+        }
+
+        let tbname = if value.contains("{") {
+            // replace {tag_name} or {TagName} in tbname
+            let opc_type = header.get_opc_type();
+            generate_tbname_from_pattern(opc_type.to_string().as_str(), value, &point_id)
+        } else {
+            value.to_string()
+        };
+        validate_table_column_name("table name", &tbname)?;
+
+        match tbname.is_empty() {
+            true => bail!("tbname cannot be empty"),
+            false => Ok(tbname),
+        }
+    }
+
+    /// 从 csv 文件中读取内容
+    /// 如果 csv 在文件中，则返回：(文件路径， 文件内容)
+    /// 如果 csv 在 dsn 中，则返回：(None, 文件内容)
+    pub async fn read_to_string(&self) -> anyhow::Result<(Option<String>, String)> {
+        if self.csv_files.is_empty() {
+            bail!("csv_files is empty");
+        }
+
+        let csv = self
+            .csv_files
+            .first()
+            .ok_or(anyhow::anyhow!("csv_file not found"))?;
+
+        if let Some(file_path) = csv.strip_prefix("@") {
+            let content = tokio::fs::read_to_string(file_path)
+                .await
+                .map_err(|err| anyhow::anyhow!("failed to read csv file: {}", err))?;
+
+            Ok((Some(file_path.to_string()), content))
+        } else {
+            let decoded = general_purpose::STANDARD.decode(csv).map_err(|err| {
+                anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
+            })?;
+
+            // check the file encoding
+            let encoding = get_encode_from_buffer(decoded.as_slice())?;
+            if encoding.name() != "UTF-8" {
+                bail!(
+                    "invalid CSV file encoding: {}, only UTF-8 or UTF-8 BOM supported",
+                    encoding.name()
+                );
+            }
+            let res = String::from_utf8(decoded)?;
+            Ok((None, res))
+        }
+    }
+}
+
+/// 从 csv_config_files 中获取 csv 文件的 headers
+pub async fn get_csv_headers(dsn: &Dsn) -> anyhow::Result<HashMap<String, CsvHeader>> {
+    let opc_type = OpcType::from_dsn(dsn)?;
+    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in dsn: {}",
+        dsn.to_string()
+    ))?;
+    tracing::debug!("get headers from csv files: {:?}", csv_files);
+
+    let headers = CsvParser::get_all_headers(opc_type, csv_files).await?;
+
+    Ok(headers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::stream::StreamExt;
+    use std::str::FromStr;
+
+    #[tokio::test]
+    async fn test_get_csv_headers() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
+
+        let headers = get_csv_headers(&dsn).await.unwrap();
+        assert_eq!(headers.len(), 1);
+
+        let header = headers.values().next().unwrap();
+        let cols = header.get_columns();
+        assert_eq!(cols.len(), 14);
+    }
+
+    #[test]
+    fn test_decode_csv_content() {
+        // TODO
+    }
+
+    #[tokio::test]
+    async fn test_read_to_string() {
+        // TODO
+    }
+
+    #[tokio::test]
+    async fn test_open_csv_file() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        // file path
+        let file = "@./tests/opc/opcua-utf8bom.csv".to_string();
+        let mut rdr = CsvParser::open_csv(file).await.unwrap();
+        let headers = rdr.headers().await.unwrap();
+        assert_eq!(headers.len(), 14);
+        assert_eq!(headers.get(0).unwrap(), "0");
+        assert_eq!(headers.get(1).unwrap(), "point_id");
+        let mut records = rdr.records();
+        let mut count = 0;
+        while let Some(record) = records.next().await {
+            count += 1;
+            let record = record.unwrap();
+            assert_eq!(count, record.get(0).unwrap().parse::<i32>().unwrap());
+        }
+        assert_eq!(count, 3);
+
+        // content
+        let content = "a,b,c\n1,2,3".to_string();
+        let file = general_purpose::STANDARD.encode(content.as_bytes());
+        let mut rdr = CsvParser::open_csv(file).await.unwrap();
+        let headers = rdr.headers().await.unwrap();
+        assert_eq!(headers.len(), 3);
+        assert_eq!(headers.get(0).unwrap(), "a");
+        assert_eq!(headers.get(1).unwrap(), "b");
+        assert_eq!(headers.get(2).unwrap(), "c");
+        let mut records = rdr.records();
+        assert_eq!(records.next().await.unwrap().unwrap(), vec!["1", "2", "3"]);
+    }
+
+    #[tokio::test]
+    async fn test_open_csv_files() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let files = vec!["@./tests/opc/opcua-utf8bom.csv".to_string()];
+        let res = CsvParser::open_csv_many(files).await.unwrap();
+        assert_eq!(res.len(), 1);
+        assert_eq!(res.first().unwrap().0, "@./tests/opc/opcua-utf8bom.csv");
+
+        let files = vec!["@./tests/opc/opcua-utf8.csv".to_string()];
+        let res = CsvParser::open_csv_many(files).await.unwrap();
+        assert_eq!(res.len(), 1);
+        assert_eq!(res.first().unwrap().0, "@./tests/opc/opcua-utf8.csv");
+
+        let files = vec!["@./tests/opc/opcua-gbk.csv".to_string()];
+        let res = CsvParser::open_csv_many(files).await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.err().unwrap().to_string(),
+            "failed to open csv: @./tests/opc/opcua-gbk.csv, cause: invalid CSV file encoding: GBK, only UTF-8 or UTF-8 BOM supported"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_from_dsn() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
+        let ua_config = CsvParser::from_dsn(&dsn).unwrap();
+        assert_eq!(ua_config.opc_type, OpcType::OPCUA);
+        let csv_files = ua_config.csv_files;
+        assert_eq!(csv_files.len(), 1);
+        let path = csv_files.first().unwrap();
+        assert_eq!(path, "@./tests/opc/opcua-utf8bom.csv");
+
+        let dsn = Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-utf8bom.csv").unwrap();
+        let da_config = CsvParser::from_dsn(&dsn).unwrap();
+        assert_eq!(da_config.opc_type, OpcType::OPCDA);
+        let csv_files = da_config.csv_files;
+        assert_eq!(csv_files.len(), 1);
+        let path = csv_files.first().unwrap();
+        assert_eq!(path, "@./tests/opc/opcda-utf8bom.csv");
+    }
+
+    #[tokio::test]
+    async fn test_parse() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+        let ua_config = csv_parser.parse().await.unwrap();
+        assert_eq!(ua_config.point_config_map.len(), 3);
+
+        let dsn = Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-utf8bom.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+        let da_config = csv_parser.parse().await.unwrap();
+        assert_eq!(da_config.point_config_map.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_parse_point_id_and_tbname() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+        let ua_config = csv_parser.parse_point_id_and_tbname().await.unwrap();
+        assert_eq!(ua_config.len(), 2);
+        let tbname = ua_config.get("ns=3;i=1005").unwrap();
+        assert_eq!(tbname, "t_3_1005");
+        let tbname = ua_config.get("ns=3;i=1006").unwrap();
+        assert_eq!(tbname, "t_3_1006");
+
+        let dsn = Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-utf8bom.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+        let da_config = csv_parser.parse_point_id_and_tbname().await.unwrap();
+        assert_eq!(da_config.len(), 2);
+        let tbname = da_config.get("root.parent.temperature").unwrap();
+        assert_eq!(tbname, "t_temperature");
+        let tbname = da_config.get("root.parent.current").unwrap();
+        assert_eq!(tbname, "t_custom_current");
+    }
+
+    #[tokio::test]
+    async fn test_invalid_csv_file() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        // zero rows
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-empty.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+        let res = csv_parser.parse().await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "empty csv file");
+
+        // invalid transform expression
+        let dsn = Dsn::from_str(
+            "opcua://?csv_config_file=@./tests/opc/opcua-utf8bom-transform-error.csv",
+        )
+        .unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+        let res = csv_parser.parse().await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "invalid ts_transform: ts - 6h, cause: Syntax error: Unexpected 'h'"
+        );
+
+        // tbname is empty
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-tbname-empty.csv").unwrap();
+        let parser = CsvParser::from_dsn(&dsn).unwrap();
+        let res = parser.parse().await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "tbname cannot be empty");
+
+        // type error
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-type-error.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+        let res = csv_parser.parse().await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "invalid column data type: vacs"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_error_name() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn =
+            Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-name-error.csv").unwrap();
+        let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
+
+        let model_config = csv_parser.parse().await.unwrap();
+        let point_config_map = model_config.point_config_map;
+
+        assert_eq!(3, point_config_map.len());
+
+        let point_id = "root.parent.temperature";
+        let point_config = point_config_map.get(point_id).unwrap();
+        assert_eq!(point_config.code, "t_temperature");
+
+        let point_id = "root.parent.pressure";
+        let point_config = point_config_map.get(point_id).unwrap();
+        assert_eq!(point_config.code, "t_pressure");
+
+        let point_id = "root.parent.current";
+        let point_config = point_config_map.get(point_id).unwrap();
+        assert_eq!(point_config.code, "t_custom_current");
+    }
+}

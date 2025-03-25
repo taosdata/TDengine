@@ -2,7 +2,7 @@
   <div class="copy-wrapper">
     {{ text }}
     <button circle class="copy-btn" :title="$t('copy')" @click="copy">
-      <el-icon class="el-icon-copy-document"></el-icon>
+      <el-icon class="CopyDocument"></el-icon>
       {{ btnText }}
     </button>
   </div>
@@ -21,13 +21,13 @@
         default: false,
       },
     },
+    data() {
+      return {};
+    },
     computed: {
       btnText() {
         return this.isShowBtnText ? this.$t("copy") : "";
       },
-    },
-    data() {
-      return {};
     },
     watch: {},
     created() {},

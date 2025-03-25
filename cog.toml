@@ -1,0 +1,5 @@
+ignore_merge_commits = true
+
+[commit_types]
+fix = { changelog_title = "Hotfixes" }
+enh = { changelog_title = "Enhancements" }

@@ -38,20 +38,38 @@ impl super::MessagePoller for MessagePoller {
     where
         I: IntoIterator<Item = (String, u8)>,
     {
-        let (client, mut event_loop) = AsyncClient::new(build_options(config)?, 100);
+        let filters = build_subscribe_filters(subscriptions)?;
+        snafu::ensure!(!filters.is_empty(), SubscriptionEmptySnafu);
 
-        // conn ack
-        match event_loop.poll().await.context(ConnectionErrorV5Snafu)? {
-            Event::Incoming(Incoming::ConnAck(ConnAck {
-                code: ConnectReturnCode::Success,
-                session_present,
-                ..
-            })) => {
-                let filters = build_subscribe_filters(subscriptions)?;
-                snafu::ensure!(!filters.is_empty(), SubscriptionEmptySnafu);
+        let (client, mut event_loop, session_present) = try_connect(config).await?;
 
-                if session_present {
-                    tracing::info!("MQTT client reconnect with old session");
+        if session_present {
+            tracing::info!("MQTT client connected with present session");
+            return Ok(Self {
+                client,
+                event_loop,
+                filters,
+                pending_filters: None,
+            });
+        }
+
+        client
+            .subscribe_many(filters.clone())
+            .await
+            .map_err(|_| TaskExitedSnafu.build())?;
+        // sub ack
+        loop {
+            match event_loop.poll().await.context(ConnectionErrorV5Snafu)? {
+                Event::Incoming(Incoming::SubAck(SubAck { return_codes, .. })) => {
+                    for (idx, code) in return_codes.into_iter().enumerate() {
+                        let topic = filters.get(idx).map(|f| f.path.clone());
+                        match code {
+                            SubscribeReasonCode::Success(qos) => {
+                                tracing::info!(?topic, ?qos, "subscribe success");
+                            }
+                            code => return SubFailedWithCodeV5Snafu { topic, code }.fail(),
+                        }
+                    }
                     return Ok(Self {
                         client,
                         event_loop,
@@ -59,56 +77,15 @@ impl super::MessagePoller for MessagePoller {
                         pending_filters: None,
                     });
                 }
-
-                client
-                    .subscribe_many(filters.clone())
-                    .await
-                    .map_err(|_| TaskExitedSnafu.build())?;
-                // sub ack
-                loop {
-                    match event_loop.poll().await.context(ConnectionErrorV5Snafu)? {
-                        Event::Incoming(Incoming::SubAck(SubAck { return_codes, .. })) => {
-                            for (idx, code) in return_codes.into_iter().enumerate() {
-                                let topic = filters.get(idx).map(|f| f.path.clone());
-                                match code {
-                                    SubscribeReasonCode::Success(qos) => {
-                                        tracing::info!(?topic, ?qos, "subscribe success");
-                                    }
-                                    code => return SubFailedWithCodeV5Snafu { topic, code }.fail(),
-                                }
-                            }
-                            return Ok(Self {
-                                client,
-                                event_loop,
-                                filters,
-                                pending_filters: None,
-                            });
-                        }
-                        Event::Incoming(_) => return ExpectedSubAckSnafu.fail(),
-                        Event::Outgoing(_) => {}
-                    }
-                }
+                Event::Incoming(_) => return ExpectedSubAckSnafu.fail(),
+                Event::Outgoing(_) => {}
             }
-            Event::Incoming(Incoming::ConnAck(ConnAck { code, .. })) => {
-                ConnFailedWithCodeV5Snafu { code }.fail()
-            }
-            _ => ExpectedConnAckSnafu.fail(),
         }
     }
 
     async fn try_connect(config: &MqttConnectConfig) -> Result<(), super::Error> {
-        let (_, mut event_loop) = AsyncClient::new(build_options(config)?, 10);
-
-        match event_loop.poll().await.context(ConnectionErrorV5Snafu)? {
-            Event::Incoming(Incoming::ConnAck(ConnAck {
-                code: ConnectReturnCode::Success,
-                ..
-            })) => Ok(()),
-            Event::Incoming(Incoming::ConnAck(ConnAck { code, .. })) => {
-                ConnFailedWithCodeV5Snafu { code }.fail()
-            }
-            _ => ExpectedConnAckSnafu.fail(),
-        }
+        let _ = try_connect(config).await?;
+        Ok(())
     }
 
     async fn poll(&mut self) -> Result<super::Message, super::Error> {
@@ -237,23 +214,56 @@ impl super::MessagePoller for MessagePoller {
     }
 }
 
+/// 尝试 tcp -> tls without ca / tls with ca 方法
+async fn try_connect(
+    config: &MqttConnectConfig,
+) -> Result<(AsyncClient, EventLoop, bool), super::Error> {
+    if config.certificates.is_none() {
+        // tcp
+        let mut opts = build_options(config)?;
+        opts.set_transport(Transport::tcp());
+        match try_connect_inner(opts).await {
+            Ok(res) => return Ok(res),
+            Err(e) => {
+                tracing::error!(
+                    "MQTT tcp connect error: {:#}, try with tls",
+                    anyhow::Error::new(e)
+                );
+            }
+        }
+    }
+
+    // tls
+    let mut opts = build_options(config)?;
+    let tls_config = build_tls_config(config.certificates.as_ref()).context(InvalidTlsSnafu)?;
+    opts.set_transport(Transport::Tls(tls_config));
+    try_connect_inner(opts).await
+}
+
+async fn try_connect_inner(
+    config: MqttOptions,
+) -> Result<(AsyncClient, EventLoop, bool), super::Error> {
+    let (client, mut event_loop) = AsyncClient::new(config, 10);
+
+    match event_loop.poll().await.context(ConnectionErrorV5Snafu)? {
+        Event::Incoming(Incoming::ConnAck(ConnAck {
+            session_present,
+            code: ConnectReturnCode::Success,
+            ..
+        })) => Ok((client, event_loop, session_present)),
+        Event::Incoming(Incoming::ConnAck(ConnAck { code, .. })) => {
+            ConnFailedWithCodeV5Snafu { code }.fail()
+        }
+        _ => ExpectedConnAckSnafu.fail(),
+    }
+}
+
 fn build_options(config: &MqttConnectConfig) -> Result<MqttOptions, super::Error> {
     let mut options = MqttOptions::new(&config.client_id, &config.host, config.port);
 
     // username, password
     if let (Some(username), Some(password)) = (&config.username, &config.password) {
         options.set_credentials(username, password);
-    }
-
-    // ssl
-    if let Some(((ca, cert), cert_key)) = config
-        .ca
-        .clone()
-        .zip(config.cert.clone())
-        .zip(config.cert_key.clone())
-    {
-        let tls_config = build_tls_config(ca, cert, cert_key).context(InvalidTlsSnafu)?;
-        options.set_transport(Transport::tls_with_config(tls_config));
     }
 
     // keepalive

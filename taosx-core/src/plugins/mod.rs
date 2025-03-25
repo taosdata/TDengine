@@ -4,8 +4,8 @@ use std::time::Duration;
 use anyhow::Context;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use taos::Dsn;
-use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
+use sink::persist::PersistConfig;
+use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing::Instrument;
@@ -14,10 +14,11 @@ use tracing::Span;
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::influxdb::influxdb_datasets;
-use crate::runners::opc::config::model::OpcModelConfig;
+use crate::utils::dsn::json_to_dsn;
 use crate::utils::mask_dsn;
 use crate::Transferred;
 pub use runners::mqtt::mqtt_to_taos;
+use runners::opc::model::OpcModelConfig;
 use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
 pub use runners::opentsdb::opentsdb_datasets;
@@ -111,16 +112,26 @@ pub async fn build_ipc(
     lush_model_config: Option<LushModelConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
+    _transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
+    persist_config: Option<PersistConfig>,
 ) -> anyhow::Result<(IpcHandler, std::net::SocketAddr)> {
     tracing::info!(ipc.target = % mask_dsn(to), "build ipc listener");
     if with_agent.is_none() {
         let pool = {
             let builder = taos::TaosBuilder::from_dsn(to)?;
             let mut pool_config = builder.default_pool_config();
-            pool_config.timeouts.wait = Some(Duration::from_secs(30));
+            let timeout = match parser.clone() {
+                Some(parser) => {
+                    parser
+                        .global()
+                        .process_on_abnormal
+                        .connection_timeout_in_second_value
+                }
+                None => 30,
+            };
+            pool_config.timeouts.wait = Some(Duration::from_secs(timeout as u64));
             builder.with_pool_config(pool_config)?
         };
         let _ = pool.get().await.context("Target connection error")?;
@@ -133,9 +144,9 @@ pub async fn build_ipc(
             with_agent,
             parser,
             connector,
-            transferred,
             task_id,
             notify,
+            persist_config,
         )
         .in_current_span()
         .await
@@ -145,6 +156,7 @@ pub async fn build_ipc(
             cancel.clone(),
             with_agent.unwrap(),
             opc_model_config,
+            persist_config,
         )
         .in_current_span()
         .await
@@ -152,7 +164,14 @@ pub async fn build_ipc(
 }
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let from = data.from.clone().into_dsn()?;
+    let data_clone = data.clone();
+    let from = if let Some(from_json) = data_clone.from_json {
+        json_to_dsn(&from_json)?
+    } else if let Some(from) = data_clone.from {
+        from.into_dsn()?
+    } else {
+        anyhow::bail!("from is required");
+    };
     match from.driver.as_str() {
         "tmq" | "sync" => {
             let mut from = from.clone();
@@ -243,7 +262,6 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
     let dsn = dsn
         .into_dsn()
         .map_err(|err| anyhow::format_err!("invalid dsn, cause: {err}"))?;
-
     match dsn.driver.as_str() {
         runners::historian::AVEVA_HISTORIAN_ID => runners::historian::get_sample(&dsn).await,
         runners::kafka::KAFKA_ID => {
@@ -285,7 +303,7 @@ fn parse_sample_timeout(dsn: &Dsn) -> Duration {
 
 pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<String> {
     async fn query_data_source_inner(request: QueryDataSourceReq) -> anyhow::Result<String> {
-        let dsn = request.from.clone().into_dsn()?;
+        let dsn = json_to_dsn(&request.from)?;
         match dsn.driver.as_str() {
             "pi" | "pibackfill" => runners::pi::query_data_source(dsn, request.args).await,
             _ => unimplemented!(),

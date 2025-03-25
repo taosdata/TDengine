@@ -1,7 +1,6 @@
 <template>
-  <div class="login" v-loading="pageLoading">
-
-    <section :class="['content', {'content-reginster': !registered}]">
+  <div v-loading="pageLoading" class="login">
+    <section :class="['content', { 'content-reginster': !registered }]">
       <div class="article">
         <h1 style="font-size: 40px">{{ dataJson.welcome.title }}</h1>
         <h3 style="font-size: 18px">{{ dataJson.welcome.subTitle }}</h3>
@@ -18,664 +17,709 @@
         </article>
       </div>
 
-      <div class="login-content" v-if="registered">
+      <div v-if="registered" class="login-content">
         <div class="login-title">
-          <span class="dynamic-title" v-if="$INDUSTRY">{{ $t("header.power")}}</span>
-          <span class="dynamic-title" v-else>{{ $t("systemTitle") }}</span>
+          <span v-if="$INDUSTRY" class="dynamic-title">{{ $t('header.power') }}</span>
+          <span v-else class="dynamic-title">{{ $t('login.systemTitle') }}</span>
         </div>
-        <el-form :model="dynamicValidateForm" ref="dynamicValidateForm" :rules="formRules" label-width="0px"
-          class="demo-dynamic">
+        <el-form
+          ref="dynamicValidateFormRef"
+          :model="dynamicValidateForm"
+          :rules="formRules"
+          label-width="0px"
+          class="demo-dynamic"
+          size="large"
+        >
           <div style="margin-bottom: 20px">
             <p class="lable-form">
-              <span>{{ $t("login.username") }}</span>
+              <span>{{ $t('login.username') }}</span>
             </p>
-            <el-form-item prop="username" label>
-              <el-input ref="username" :placeholder="$t('login.usernamePlaceholder')" v-model="dynamicValidateForm.username"></el-input>
-            </el-form-item>
+            <el-form-item prop="username">
+              <el-input
+                ref="usernameRef"
+                v-model="dynamicValidateForm.username"
+                :placeholder="$t('login.usernamePlaceholder')"
+              ></el-input>
+              </el-form-item>
           </div>
           <div>
             <p class="lable-form">
-              <span>{{ $t("login.password") }}</span>
+              <span>{{ $t('login.password') }}</span>
             </p>
-            <el-form-item label prop="password">
-              <el-input v-model="dynamicValidateForm.password" type="password" show-password @keyup.enter.native="submitForm('dynamicValidateForm')" ></el-input>
+            <el-form-item prop="password">
+              <el-input
+                v-model="dynamicValidateForm.password"
+                type="password"
+                show-password
+                @keyup.enter="submitForm(dynamicValidateFormRef)"
+              ></el-input>
             </el-form-item>
           </div>
 
           <el-form-item style="margin-bottom: 30px">
-            <el-button type="primary" @click="submitForm('dynamicValidateForm')" class="signin" v-loading="loading">{{
-              $t("login.signin") }}</el-button>
+            <el-button v-loading="loading" type="primary" class="signin" @click="submitForm(dynamicValidateFormRef)">{{
+              $t('login.signin')
+            }}</el-button>
           </el-form-item>
         </el-form>
         <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
-      <div class="login-content reginster-box" v-else>
+      <div v-else class="login-content reginster-box">
         <div class="login-title">
-          <span class="dynamic-title">{{ $t("register.title") }}</span>
-          <span class="activate-tip">{{ $t("register.titleTip") }}</span>
+          <span class="dynamic-title">{{ $t('register.title') }}</span>
+          <span class="activate-tip">{{ $t('register.titleTip') }}</span>
         </div>
-        <el-form :model="registerValidateForm" ref="registerValidateForm" :rules="registerFormRules" label-width="0px"
-          class="demo-dynamic">
-          
-          <div style="">
+        <el-form
+          ref="registerValidateFormRef"
+          :model="registerValidateForm"
+          :rules="registerFormRules"
+          label-width="0px"
+          class="demo-dynamic"
+          size="large"
+        >
+          <div style="margin-bottom: 20px">
             <p class="lable-form">
-              <span>{{ $t("register.name") }}</span>
+              <span>{{ $t('register.name') }}</span>
             </p>
-            <el-form-item prop="name" label v-if="!isLocaleLanguageEn">
-              <el-input ref="name" :placeholder="$t('register.nameTips')" v-model="registerValidateForm.name"></el-input>
+            <el-form-item v-if="!isLocaleLanguageEn" prop="username">
+              <el-input
+                ref="name"
+                v-model="registerValidateForm.name"
+                :placeholder="$t('register.nameTips')"
+              ></el-input>
             </el-form-item>
             <div v-else style="display: flex; justify-content: space-between;">
               <el-form-item prop="firstname" style="width: 49%;">
-                <el-input ref="firstname" :placeholder="$t('register.firstnameTips')" v-model="registerValidateForm.firstname"></el-input>
+                <el-input ref="firstname" v-model="registerValidateForm.firstname" :placeholder="$t('register.firstnameTips')"></el-input>
               </el-form-item>
               <el-form-item prop="lastname" style="width: 49%;">
-                <el-input ref="lastname" :placeholder="$t('register.lastnameTips')" v-model="registerValidateForm.lastname"></el-input>
+                <el-input ref="lastname" v-model="registerValidateForm.lastname" :placeholder="$t('register.lastnameTips')"></el-input>
               </el-form-item>
             </div>
           </div>
           <div style="margin-bottom: 20px">
             <p class="lable-form">
-              <span>{{ isLocaleLanguageEn ? $t("register.email") : $t("register.phone") }}</span>
+              <span>{{ isLocaleLanguageEn ? $t('register.email') : $t('register.phone') }}</span>
             </p>
-            <el-form-item prop="phone_email" label>
-              <el-input ref="phone_email" :placeholder="$t('register.phoneTips')" v-model="registerValidateForm.phone_email"></el-input>
+            <el-form-item prop="phoneEmailRef" label>
+              <el-input
+                ref="phone_email"
+                v-model="registerValidateForm.phone_email"
+                :placeholder="$t('register.phoneTips')"
+              ></el-input>
             </el-form-item>
           </div>
           <div>
             <p class="lable-form">
-              <span>{{ $t("register.verificationCode") }}</span>
+              <span>{{ $t('register.verificationCode') }}</span>
             </p>
             <el-form-item label prop="verification_code">
-              <el-input v-model="registerValidateForm.verification_code" @keyup.enter.native="submitRegisterForm('registerValidateForm')" >
-                <el-button type="primary" slot="append"
-                  :disabled="disableGetVerificationCode"
-                  style="min-width: 180px;" 
-                  @click="handlerCaptcha">
-                  {{ buttonTextOfGetVerificationCode }}
-                </el-button>
+              <el-input
+                v-model="registerValidateForm.verification_code"
+                @keyup.enter="submitRegisterForm(registerValidateFormRef)"
+              >
+                <template #append>
+                  <el-button
+                    type="primary"
+                    :disabled="disableGetVerificationCode"
+                    style="min-width: 180px"
+                    @click="handlerCaptcha"
+                  >
+                    {{ buttonTextOfGetVerificationCode }}
+                  </el-button>
+                </template>
               </el-input>
             </el-form-item>
           </div>
 
           <el-form-item style="margin-bottom: 30px">
-            <el-button type="primary" @click="submitRegisterForm('registerValidateForm')" class="signin" v-loading="loading">{{
-              $t("register.signin") }}</el-button>
+            <el-button
+              v-loading="loading"
+              type="primary"
+              class="signin"
+              @click="submitRegisterForm(registerValidateFormRef)"
+              >{{ $t('register.signin') }}</el-button
+            >
           </el-form-item>
         </el-form>
-        
-        <el-alert
-          :title="$t('register.requirement')"
-          type="warning">
-        </el-alert>
-        <!-- <div class="language" @click="switchLanguage">{{ locallanguage }}</div> -->
+
+        <el-alert :title="$t('register.requirement')" type="warning"> </el-alert>
+        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
-      
     </section>
 
-    <div class="copyright" v-if="!oemName">
-      <span>{{ $t("copyright") }}</span>
+    <div v-if="!$IS_OEM" class="copyright">
+      <span>{{ $t('login.copyright') }}</span>
     </div>
-    <el-dialog :title="$t('register.imageVerificationCode')" :visible.sync="visible" width="400px" center :close-on-click-modal="false">
-      <el-form ref="captchaForm" :model="captchaForm" :rules="captchaRulus" @submit.native.prevent>
+    <el-dialog
+      v-model="visible"
+      :title="$t('register.imageVerificationCode')"
+      width="400px"
+      center
+      :close-on-click-modal="false"
+    >
+      <el-form ref="captchaFormRef" :model="captchaForm" :rules="captchaRulus" @submit.prevent>
         <el-form-item label="">
-          <el-input v-model="captchaForm.captchaCode" ref="captcha" class="captcha-input" @keyup.enter.native="handlerVerificationCode" autocomplete="off">
-            <div slot="append" class="captcha-img-box">
-              <img height="40px" @click="handlerCaptcha" :src="imageUrl" />
-            </div>
+          <el-input
+            ref="captchaRef"
+            v-model="captchaForm.captchaCode"
+            class="captcha-input"
+            autocomplete="off"
+            @keyup.enter="handlerVerificationCode(captchaFormRef)"
+          >
+            <template #append>
+              <div class="captcha-img-box">
+                <img height="40px" :src="imageUrl" @click="handlerCaptcha" />
+              </div>
+            </template>
           </el-input>
         </el-form-item>
       </el-form>
-    <div slot="footer" class="dialog-footer" style="text-align: right">
-      <el-button type="primary" size="small" @click="handlerVerificationCode">{{ $t('confirm') }}</el-button>
-    </div>
-  </el-dialog>
+      <template #footer>
+        <div class="dialog-footer" style="text-align: right">
+          <el-button type="primary" size="default" @click="handlerVerificationCode(captchaFormRef)">{{
+            $t('confirm')
+          }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
-<script>
-import { DbBase64 } from "../../utils/dbBase64";
-import { deleteCookieItem } from "@/utils/index";
-import { sendSQLReq } from "@/api/gateway/console";
-import { Message } from "element-ui";
-import dataJson from "./data.json";
-import SearchPop from "@/components/Header/components/pop";
-import { getUrls, fetchApiByCluster, fetchIsbinding, fetchVerificationCode, getVerificationResult, fetchCaptcha, reportTaosdInfo } from "@/api/explorer/login";
-import { encrypt } from "@/utils/index";
-import Vue from 'vue';
-import LicenseMixin from "@/mixins/license";
+<script setup lang="ts">
+import { DbBase64 } from '../../utils/dbBase64';
+import { deleteCookieItem, getLocalLang } from '@/utils/index';
+import { sendSQLReq } from '@/api/explorer';
+import { FormInstance } from 'element-plus';
+import dataJson from './data.json';
+import {
+  getUrls,
+  fetchApiByCluster,
+  fetchIsbinding,
+  fetchVerificationCode,
+  getVerificationResult,
+  fetchCaptcha,
+  reportTaosdInfo
+} from '@/api/login';
+import { encrypt } from '@/utils/index';
+import useLicense from '@/hooks/useLicense';
+import { useRouter } from 'vue-router';
+import { useStore } from 'vuex';
+import i18n from '@/lang';
+import { setLocale } from 'taos-ui/config';
+const { t } = useI18n();
+const store = useStore();
+const router = useRouter();
+const { getGrantsFull } = useLicense();
+const { $IS_COMMUNITY, $IS_OEM, $INDUSTRY, $error } = inject('globalCustomProperties') as GlobalCustomProperties;
+const usernameRef = ref<HTMLElement | null>();
+const phoneEmailRef = ref<HTMLElement | null>();
+const captchaRef = ref<HTMLElement | null>();
+const dynamicValidateFormRef = ref<FormInstance>();
+const captchaFormRef = ref<FormInstance>();
+const registerValidateFormRef = ref<FormInstance>();
 
-export default {
-  name: "Login",
-  components: {
-    SearchPop,
-  },
-  data() {
-    var validatePass = (rule, value, callback) => {
-      if (value === "") {
-        callback(new Error(this.$t("login.passwordTips")));
-      } else {
-        callback();
-      }
-    };
-    var validatePhoneEmail = (rule, value, callback) => {
-      if (value === "") {
-        if (this.isLocaleLanguageEn) {
-          callback(new Error(this.$t("register.emailTips")));
-        } else {
-          callback(new Error(this.$t("register.phoneTips")));
-        }
-      } else if (!this.isLocaleLanguageEn) {
-        // 校验手机号
-        if (!this.checkPhone(value)) {
-          callback(new Error(this.$t("register.phoneTips")));
-          return;
-        }
-      } else {
-        if (!this.checkEmail(value)) {
-          callback(new Error(this.$t("register.emailTips")));
-          return;
-        }
-      }
-
-      callback();
-    };
-    return {
-      taosxStatus: true,
-      oemName:
-        process.env.VUE_APP_CUS_NAME &&
-        process.env.VUE_APP_CUS_NAME !== "TDengine",
-      loading: false,
-      earch: require("@/assets/earth.webp"),
-      dynamicValidateForm: {
-        cluster: "",
-        password: "",
-        username: "",
-      },
-      pageLoading: false,
-      formRules: {
-        cluster: [
-          {
-            required: true,
-            message: "Please enter the Cluster",
-            trigger: "blur",
-          },
-        ],
-        password: [
-          {
-            required: true,
-            validator: validatePass,
-            trigger: "blur",
-          },
-        ],
-        username: [
-          {
-            required: true,
-            message: this.$t("login.usernameTips"),
-            trigger: "blur",
-          },
-        ],
-      },
-      dataJson,
-      encryptedPwd: "",
-      buttonTextOfGetVerificationCode: this.$t("register.getVerificationCode"),
-      registerValidateForm: {
-        name: "",
-        firstname: "",
-        lastname: "",
-        phone_email: "",
-        verification_code: "",
-      },
-      captchaForm: {
-        captchaCode: '',
-      },
-      registered: true,
-      visible: false,
-      imageUrl: "",
-      disableGetVerificationCode: false,
-      captchaRulus: {
-        captchaCode: [
-          {
-            required: true,
-            message: this.$t("required")
-          }
-        ]
-      },
-      registerFormRules: {
-        name: [
-          {
-            required: true,
-            min: 2,
-            max: 80,
-            message: this.$t("register.nameTips"),
-            trigger: "change",
-          },
-        ],
-        firstname: [
-          {
-            required: true,
-            max: 80,
-            message: this.$t("register.firstnameTips"),
-            trigger: "change",
-          },
-        ],
-        lastname: [
-          {
-            required: true,
-            max: 80,
-            message: this.$t("register.lastnameTips"),
-            trigger: "change",
-          },
-        ],
-        verification_code: [
-          {
-            required: true,
-            message: this.$t("register.verificationCodeTips"),
-            trigger: "change",
-          },
-        ],
-        phone_email: [
-          {
-            required: true,
-            validator: validatePhoneEmail,
-            trigger: "change",
-          },
-        ],
-      },
-    };
-  },
-  mixins: [LicenseMixin],
-  computed: {
-    isLocaleLanguageEn() {
-      return this.$i18n.locale.includes('en')
-    },
-    locallanguage(){
-      if(this.$i18n.locale=='zh'){
-        return 'EN'
-      }else{
-        return '中'
-      }
-    }
-  },
-  methods: {
-    submitForm(formName) {
-      this.$refs[formName].validate((valid) => {
-        if (valid) {
-          this.loading = true;
-          this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
-          setTimeout(() => {
-           
-            this.login();
-          }, 1000);
-        } else {
-          return false;
-        }
-      });
-    },
-    async getTaosdInfo() {
-      try {
-        let res=await sendSQLReq(`select id, CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster`)
-        if (res?.code === 0) {
-          let id = res.data[0][0].toString();
-          localStorage.setItem("local_clusterID", id);
-          return [id, res.data[0][1]];
-        }
-      } catch (error) {
-        localStorage.removeItem("TDengine-Token");
-        console.log(error);
-      }
-    },
-    async login() {
-      let token =
-        "Basic " +
-        DbBase64.encode(
-          this.dynamicValidateForm.username +
-          ":" +
-          this.dynamicValidateForm.password
-        );
-      this.$store.commit("app/SET_TOKEN", token);
-      localStorage.setItem("username", this.dynamicValidateForm.username);
-      localStorage.setItem("pwd", this.encryptedPwd);
-
-      this.$store.commit("app/SAVE_LOGIN_INFO", {
-        username: this.dynamicValidateForm.username,
-        pwd: this.dynamicValidateForm.password,
-      });
-      try {
-        let sql = "select server_version()";
-        let res = await fetchApiByCluster(
-          this.dynamicValidateForm.cluster,
-          token,
-          sql
-        );
-
-        if (res && res.code == 0 && !res.desc) {
-          localStorage.setItem("TDengine-Token", token);
-          await this.getUserAuthority();
-          await this.getGrantsFull();
-
-          const [cluster_id, taosd_version] = await this.getTaosdInfo();
-          const phone_email = sessionStorage.getItem("registerKey");
-          const lang = localStorage.getItem('local_language') || '';
-          if (phone_email) {
-            reportTaosdInfo({
-              phone_email,
-              lang,
-              cluster_id,
-              taosd_version,
-            }).finally(() => {
-              sessionStorage.removeItem("registerKey");
-            });
-          }
-
-        } else {
-          this.loading = false;
-          if (res && res.code == 11) {
-            this.$error(this.$t("login.servTaosdTip"));
-          } else {
-            this.$error(res.desc || this.$t("login.errorTip"));
-          }
-        }
-      } catch (error) {
-        console.log('error',error);
-        this.$error(this.$t("login.servExceptionTip"));
-        this.loading = false;
-        deleteCookieItem();
-      }
-    },
-    async getClusterAndDashboardUrl() {
-      try {
-        let res = await getUrls();
-        if (res && res.cluster) {
-          this.dynamicValidateForm.cluster = res.cluster;
-          localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
-          this.$store.commit(
-            "app/SET_CLUSTER_URL",
-            this.dynamicValidateForm.cluster
-          );
-        }
-
-        if (res.cluster_native) {
-          localStorage.setItem("native_url", res.cluster_native);
-        } else {
-          localStorage.removeItem("native_url");
-        }
-        
-        if (res && res.grafana && res.grafana.dashboards) {
-          const grafana_dashboards = [];
-          for (let key in res.grafana.dashboards) {
-            grafana_dashboards.push({
-              key,
-              url: res.grafana.dashboards[key].replace(/^https?:\/\/[^\/]+/, "")
-            });
-          }
-          if (grafana_dashboards.length > 0) {
-            localStorage.setItem("local_grafana", JSON.stringify(grafana_dashboards));
-          } else {
-            localStorage.removeItem("local_grafana");
-          }
-        }
-        if (res && res.grpc) {
-          localStorage.setItem("local_endpoint", res.grpc);
-        }
-        if (res && res.x_api) {
-          this.taosxStatus = true;
-        } else {
-          this.taosxStatus = false;
-        }
-      } catch (error) {
-        this.$error(error);
-      }
-    },
-    //获取登录用户权限
-    async getUserAuthority() {
-      try {
-        let res=await sendSQLReq(
-          `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
-        )
-        if(res?.desc){
-          this.$error(res.desc)
-          return
-        }
-        if(res&&res.data){
-          let result = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
-            if (
-              result.length > 0 &&
-              ["official", "trial", "community"].includes(result[0].version)
-            ) {
-              this.$router.push({
-                path: "/explorer",
-              });
-            } else {
-              this.$error(this.$t("login.versiontip"));
-            }
-        }
-        
-      } catch (err) {
-        this.loading = false;
-
-        if (err && err.code == 11) {
-          this.$error(this.$t("login.servTaosdTip"));
-          return;
-        }
-        this.$error(err?.desc);
-      }
-    },
-    async getIsbinding() {
-      try {
-        const result = await fetchIsbinding();
-        if (result && result.code == 0) {
-          this.registered = result.data;
-        }
-        if (this.registered) {
-          this.$refs.phone_email.focus();
-        }
-      } catch (error) {
-        console.log('error',error);
-      }
-    },
-    checkPhone(val) {
-      return /^1[3456789]\d{9}$/.test(val)
-    },
-    checkEmail(val) {
-      return /^[a-zA-Z0-9_.-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val)
-    },
-
-    async handlerCaptcha() {
-
-      if (!this.isLocaleLanguageEn) {
-        // 校验手机号
-        if (!this.checkPhone(this.registerValidateForm.phone_email)) {
-          this.$error(this.$t('register.phoneTips'));
-          return;
-        }
-      } else {
-        // 校验邮箱
-        if (!this.checkEmail(this.registerValidateForm.phone_email)) {
-          this.$error(this.$t('register.emailTips'));
-          return;
-        }
-      }
-
-      // 弹出获取图形验证码的弹框
-      this.captchaForm.captchaCode = '';
-      this.visible = true;
-      this.ts = new Date().getTime()
-      const result = await fetchCaptcha(this.registerValidateForm.phone_email, this.ts)
-     
-      // 有正确的结果才弹框     
-      if (result) {
-        this.visible = true;
-        let imageUrl = URL.createObjectURL(result);
-        this.imageUrl = imageUrl;
-      }
-      this.$nextTick(() => {
-        this.$refs.captcha.focus();
-      })
-    },
-    
-    async handlerVerificationCode() {
-      // 调用获取手机验证码的接口
-      // 图形验证码必须填才能调用
-      this.$refs.captchaForm.validate(async (valid) => {
-        if (!valid) return;
-        const result = await fetchVerificationCode(this.registerValidateForm.phone_email,this.captchaForm.captchaCode,this.ts, this.$i18n.locale)
-        if (result && result.code == 0) {
-          this.$message.success(this.$t('register.success.verificationCodeSend'));
-          this.visible = false;
-
-          // 开启验证码倒计时
-          let count = 120;
-          this.disableGetVerificationCode = true;
-          this.timer = setInterval(() => {
-            this.buttonTextOfGetVerificationCode = `${count}s`;
-            count--;
-            if (count <= 0) {
-              clearInterval(this.timer);
-              this.timer = null;
-              this.disableGetVerificationCode = false;
-              this.buttonTextOfGetVerificationCode = this.$t('register.regetVerificationCode');
-            }
-          }, 1000)
-        } else if (result) {
-          if (result.code == 400) {
-            this.$error(this.$t("register.errors." + result.msg));
-          } else if (result.code == 501) {
-            this.$error(this.$t("register.errors.network"))
-          } else {
-            this.$error(result.msg)
-          }
-        }
-      })
-    },
-    submitRegisterForm(formName) {
-      this.$refs[formName].validate(async (valid) => {
-        if (valid) {
-          this.pageLoading = true;
-          // 提交注册接口
-          this.registerValidateForm.ts = this.ts;
-          this.registerValidateForm.lang = localStorage.getItem('local_language') || '';
-          const validatePostData = {
-            ts: this.ts,
-            lang: localStorage.getItem('local_language') || '',
-            phone_email: this.registerValidateForm.phone_email,
-            verification_code: this.registerValidateForm.verification_code,
-          }
-          if (this.isLocaleLanguageEn) {
-            validatePostData.firstname = this.registerValidateForm.firstname;
-            validatePostData.lastname = this.registerValidateForm.lastname;
-          } else {
-            validatePostData.name = this.registerValidateForm.name;
-          }
-
-          const result = await getVerificationResult(validatePostData)
-          if (result && result.code == 0) {
-            switch (result.data) {
-              case 'pass':
-                // 如果校验通过，则注册成功 切换到登陆框
-                this.registered = true;
-                sessionStorage.setItem('registerKey', this.registerValidateForm.phone_email);
-
-                setTimeout(() => {
-                  this.pageLoading = false;
-                  this.$message.success(this.$t('register.success.registerSuccess'));
-                }, 1000)
-                
-                break;
-              case 'none':
-                this.$error(this.$t('register.errors.verificationCodeNone'));
-                this.pageLoading = false;
-                break;
-              case 'error':
-                this.$error(this.$t('register.errors.verificationCodeError'));
-                this.pageLoading = false;
-                break;
-            } 
-          }
-        } else {
-          return false;
-        }
-      });
-    },
-    switchLanguage() {
-      if(this.$i18n.locale=='zh'){
-        this.$i18n.locale='en'
-        localStorage.setItem("local_language", "en");
-      }else{
-        this.$i18n.locale='zh'
-        localStorage.setItem("local_language", "zh");
-      }
-    },
-  },
-  async created() {
-    await this.getClusterAndDashboardUrl();
-    localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
-    localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
-    if (this.$COMMUNITY) {
-      await this.getIsbinding();
-    }
-
-  },
-  mounted() {
-    this.$refs.username.focus();
-    this.$nextTick(() => {
-      if (
-        process.env.VUE_APP_CUS_NAME &&
-        process.env.VUE_APP_CUS_NAME !== "TDengine"
-      ) {
-        let dynamic = document.querySelector(".dynamic-title");
-        dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
-      }
-    })
-    const timer = setTimeout(() => {
-      Vue.prototype.$message = Message;
-    }, 1500)
-  },
+const validatePass = (rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
+  if (value === '') {
+    callback(new Error(t('login.passwordTips')));
+  } else {
+    callback();
+  }
 };
+const validatePhoneEmail = (rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
+  if (value === '') {
+    if (isLocaleLanguageEn.value) {
+      callback(new Error(t('register.emailTips')));
+    } else {
+      callback(new Error(t('register.phoneTips')));
+    }
+  } else if (!isLocaleLanguageEn.value) {
+    // 校验手机号
+    if (!checkPhone(value)) {
+      callback(new Error(t('register.phoneTips')));
+      return;
+    }
+  } else {
+    if (!(checkPhone(value) || checkEmail(value))) {
+      callback(new Error(t('register.emailTips')));
+      return;
+    }
+  }
+
+  callback();
+};
+
+const taosxStatus = ref<boolean>(false);
+const loading = ref<boolean>(false);
+const ts = ref();
+const timer = ref();
+const dynamicValidateForm = reactive({
+  cluster: '',
+  password: '',
+  username: ''
+});
+const pageLoading = ref(false);
+const formRules = reactive({
+  cluster: [
+    {
+      required: true,
+      message: 'Please enter the Cluster',
+      trigger: 'blur'
+    }
+  ],
+  password: [
+    {
+      required: true,
+      validator: validatePass,
+      trigger: 'blur'
+    }
+  ],
+  username: [
+    {
+      required: true,
+      message: t('login.usernameTips'),
+      trigger: 'blur'
+    }
+  ]
+});
+// dataJson,
+const encryptedPwd = ref('');
+const buttonTextOfGetVerificationCode = ref(t('register.getVerificationCode'));
+const registerValidateForm = reactive({
+  ts: '',
+  lang: '',
+  name: '',
+  firstname: '',
+  lastname: '',
+  phone_email: '',
+  verification_code: ''
+});
+const captchaForm = reactive({
+  captchaCode: ''
+});
+const registered = ref<boolean>(true); // for test
+const visible = ref<boolean>(false);
+const imageUrl = ref<string>('');
+const disableGetVerificationCode = ref(false);
+const captchaRulus = reactive({
+  captchaCode: [
+    {
+      required: true,
+      message: t('required')
+    }
+  ]
+});
+const registerFormRules = reactive({
+  name: [
+    {
+      required: true,
+      min: 2,
+      max: 80,
+      message: t('register.nameTips'),
+      trigger: 'change'
+    }
+  ],
+  firstname: [
+    {
+      required: true,
+      max: 80,
+      message: t("register.firstnameTips"),
+      trigger: "change",
+    },
+  ],
+  lastname: [
+    {
+      required: true,
+      max: 80,
+      message: t("register.lastnameTips"),
+      trigger: "change",
+    },
+  ],
+  verification_code: [
+    {
+      required: true,
+      message: t('register.verificationCodeTips'),
+      trigger: 'change'
+    }
+  ],
+  phone_email: [
+    {
+      required: true,
+      validator: validatePhoneEmail,
+      trigger: 'change'
+    }
+  ]
+});
+
+const isLocaleLanguageEn = computed(() => {
+  return getLocalLang().includes('en');
+});
+const locallanguage = computed(() => {
+  if (getLocalLang() == 'zh') {
+    return 'EN';
+  } else {
+    return '中';
+  }
+});
+
+async function init() {
+  await getClusterAndDashboardUrl();
+  localStorage.setItem('supportWebsite', dataJson.supportWebsite);
+  localStorage.setItem('documentWebsite', dataJson.documentWebsite);
+  if ($IS_COMMUNITY) {
+    await getIsbinding();
+  }
+}
+init();
+onMounted(() => {
+  usernameRef.value?.focus();
+  nextTick(() => {
+    if (import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== 'TDengine') {
+      const dynamic: HTMLElement = document.querySelector('.dynamic-title') as HTMLElement;
+      dynamic.innerText = import.meta.env.VITE_APP_CUS_NAME + ' Management System';
+    }
+  });
+});
+
+function submitForm(formEl: FormInstance | undefined) {
+  if (!formEl) return;
+  formEl.validate(valid => {
+    if (valid) {
+      loading.value = true;
+      encryptedPwd.value = encrypt(dynamicValidateForm.password);
+      setTimeout(() => {
+        login();
+      }, 1000);
+    } else {
+      return false;
+    }
+  });
+}
+async function getTaosdInfo() {
+  try {
+    const res = await sendSQLReq(
+      `select id, CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster`
+    );
+    if (res?.code === 0) {
+      const id = res.data[0][0].toString();
+      localStorage.setItem('local_clusterID', id);
+      return [id, res.data[0][1]];
+    }
+  } catch (error) {
+    localStorage.removeItem('TDengine-Token');
+    console.log(error);
+  }
+}
+async function login() {
+  const token = 'Basic ' + DbBase64.encode(dynamicValidateForm.username + ':' + dynamicValidateForm.password);
+  store.commit('app/SET_TOKEN', token);
+  localStorage.setItem('username', dynamicValidateForm.username);
+  localStorage.setItem('pwd', encryptedPwd.value);
+
+  store.commit('app/SAVE_LOGIN_INFO', {
+    username: dynamicValidateForm.username,
+    pwd: dynamicValidateForm.password
+  });
+  try {
+    const sql = 'select server_version()';
+    const res = await fetchApiByCluster(token, sql);
+
+    if (res && res.code == 0 && !res.desc) {
+      localStorage.setItem('TDengine-Token', token);
+      await getUserAuthority();
+      await getGrantsFull();
+
+      const [cluster_id, taosd_version] = await getTaosdInfo();
+      const phone_email = sessionStorage.getItem('registerKey');
+      const lang = localStorage.getItem('local_language') || '';
+      if (phone_email) {
+        reportTaosdInfo({
+          phone_email,
+          lang,
+          cluster_id,
+          taosd_version
+        }).finally(() => {
+          sessionStorage.removeItem('registerKey');
+        });
+      }
+    } else {
+      loading.value = false;
+      if (res && res.code == 11) {
+        $error(t('login.servTaosdTip'));
+      } else {
+        $error(res.desc || t('login.errorTip'));
+      }
+    }
+  } catch (error) {
+    console.log('error', error);
+    $error(t('login.servExceptionTip'));
+    loading.value = false;
+    deleteCookieItem();
+  }
+}
+async function getClusterAndDashboardUrl() {
+  try {
+    const res: Recordable<ProfileResult> = await getUrls();
+    if (res && res.cluster) {
+      dynamicValidateForm.cluster = res.cluster;
+      localStorage.setItem('base_url', dynamicValidateForm.cluster);
+      store.commit('app/SET_CLUSTER_URL', dynamicValidateForm.cluster);
+    }
+
+    if (res && res.cluster_native) {
+      localStorage.setItem('native_url', res.cluster_native);
+    }
+
+    if (res && res.dashboard) {
+      localStorage.setItem('local_grafana', res.dashboard);
+    }
+    if (res && res.grpc) {
+      localStorage.setItem('local_endpoint', res.grpc);
+    }
+    if (res && res.x_api) {
+      taosxStatus.value = true;
+    } else {
+      taosxStatus.value = false;
+    }
+  } catch (error) {
+    $error(error);
+  }
+}
+//获取登录用户权限
+async function getUserAuthority() {
+  try {
+    const res = await sendSQLReq(
+      `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
+    );
+    if (res?.desc) {
+      $error(res.desc);
+      return;
+    }
+    if (res && res.data) {
+      const result = res.data.map(data => {
+        return Object.fromEntries(
+          res.column_meta.map((item, index) => {
+            return [item[0], data[index]];
+          })
+        );
+      });
+      if (result.length > 0 && ['official', 'trial', 'community'].includes(result[0].version)) {
+        router.push({
+          path: '/explorer'
+        });
+      } else {
+        $error(t('login.versiontip'));
+      }
+    }
+  } catch (err) {
+    loading.value = false;
+
+    if (err && err.code == 11) {
+      $error(t('login.servTaosdTip'));
+      return;
+    }
+    $error(err?.desc);
+  }
+}
+async function getIsbinding() {
+  try {
+    const result = await fetchIsbinding();
+    if (result && result.code == 0) {
+      registered.value = result.data;
+    }
+    if (registered.value) {
+      nextTick(() => {
+        phoneEmailRef.value?.focus();
+      });
+    }
+  } catch (error) {
+    console.log('error', error);
+  }
+}
+function checkPhone(val) {
+  return /^1[3456789]\d{9}$/.test(val);
+}
+function checkEmail(val) {
+  return /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val);
+}
+
+async function handlerCaptcha() {
+  if (!isLocaleLanguageEn.value) {
+    // 校验手机号
+    if (!checkPhone(registerValidateForm.phone_email)) {
+      $error(t('register.phoneTips'));
+      return;
+    }
+  } else {
+    // 校验邮箱
+    if (!checkEmail(registerValidateForm.phone_email)) {
+      $error(t('register.emailTips'));
+      return;
+    }
+  }
+
+  // 弹出获取图形验证码的弹框
+  captchaForm.captchaCode = '';
+  visible.value = true;
+  ts.value = new Date().getTime();
+  const result = await fetchCaptcha(registerValidateForm.phone_email, ts);
+
+  // 有正确的结果才弹框
+  if (result) {
+    visible.value = true;
+    imageUrl.value = URL.createObjectURL(result);
+  }
+  nextTick(() => {
+    captchaRef.value?.focus();
+  });
+}
+
+async function handlerVerificationCode(formEl: FormInstance | undefined) {
+  // 调用获取手机验证码的接口
+  // 图形验证码必须填才能调用
+  if (!formEl) return;
+  formEl.validate(async valid => {
+    if (!valid) return;
+    const result = await fetchVerificationCode(
+      registerValidateForm.phone_email,
+      captchaForm.captchaCode,
+      ts.value,
+      getLocalLang()
+    );
+    if (result && result.code == 0) {
+      ElMessage.success(t('register.success.verificationCodeSend'));
+      visible.value = false;
+
+      // 开启验证码倒计时
+      let count = 120;
+      disableGetVerificationCode.value = true;
+      timer.value = setInterval(() => {
+        buttonTextOfGetVerificationCode.value = `${count}s`;
+        count--;
+        if (count <= 0) {
+          clearInterval(timer.value);
+          timer.value = null;
+          disableGetVerificationCode.value = false;
+          buttonTextOfGetVerificationCode.value = t('register.regetVerificationCode');
+        }
+      }, 1000);
+    } else if (result) {
+      if (result.code == 400) {
+        $error(t('register.errors.' + result.msg));
+      } else if (result.code == 501) {
+        $error(t('register.errors.network'));
+      } else {
+        $error(result.msg);
+      }
+    }
+  });
+}
+function submitRegisterForm(formEl: FormInstance | undefined) {
+  if (!formEl) return;
+  formEl.validate(async valid => {
+    if (valid) {
+      pageLoading.value = true;
+
+      const formData: any = {
+        ts: ts.value,
+        lang: getLocalLang(),
+        phone_email: registerValidateForm.phone_email,
+        verification_code: registerValidateForm.verification_code
+      }
+      if (!isLocaleLanguageEn.value) {
+        formData['name'] = registerValidateForm.name;
+      } else {
+        formData['firstname'] = registerValidateForm.firstname;
+        formData['lastname'] = registerValidateForm.lastname;
+      }
+
+      // 提交注册接口
+      const result = await getVerificationResult(formData);
+      if (result && result.code == 0) {
+        switch (result.data) {
+          case 'pass':
+            // 如果校验通过，则注册成功 切换到登陆框
+            registered.value = true;
+            sessionStorage.setItem('registerKey', formData.phone_email);
+
+            setTimeout(() => {
+              pageLoading.value = false;
+              ElMessage.success(t('register.success.registerSuccess'));
+            }, 1000);
+
+            break;
+          case 'none':
+            $error(t('register.errors.verificationCodeNone'));
+            pageLoading.value = false;
+            break;
+          case 'error':
+            $error(t('register.errors.verificationCodeError'));
+            pageLoading.value = false;
+            break;
+        }
+      }
+    } else {
+      return false;
+    }
+  });
+}
+function switchLanguage() {
+  if (getLocalLang() == 'zh') {
+    i18n.global.locale.value = 'en';
+    localStorage.setItem('local_language', 'en');
+    setLocale('en');
+  } else {
+    i18n.global.locale.value = 'zh';
+    localStorage.setItem('local_language', 'zh');
+    setLocale('zh');
+  }
+  buttonTextOfGetVerificationCode.value = t('register.getVerificationCode');
+  
+  dynamicValidateFormRef.value?.resetFields();
+  registerValidateFormRef.value?.resetFields();
+  formRules.username[0].message = t('login.usernameTips')
+
+}
 </script>
 <style lang="scss" scoped>
-
 .captcha-input {
-  ::v-deep .el-input-group__append {
-    padding:0;
+  :deep(.el-input-group__append) {
+    padding: 0;
   }
+
   .captcha-img-box {
-    height:38px;overflow: hidden;
+    height: 38px;
+    overflow: hidden;
+
     img {
       margin-top: -1px;
       cursor: pointer;
     }
   }
-} 
+}
 
 .login {
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   height: 100%;
+  overflow-y: auto;
 
   .lable-form {
-    font-size: 16px;
-    color: #4d6992;
-    font-weight: 600;
     margin-bottom: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #4d6992;
   }
 
   .header {
-    display: none !important;
-    width: 100%;
     position: relative;
-    height: 123px;
+    display: none !important;
     display: flex;
-    justify-content: center;
-    align-content: center;
-    background-position: 50%;
-    background-image: url("https://cloud.tdengine.com/static/img/banner-bg.aedcb8e7.webp");
+    place-content: center center;
+    width: 100%;
+    height: 123px;
+    background-image: url('https://cloud.tdengine.com/static/img/banner-bg.aedcb8e7.webp');
     background-repeat: no-repeat;
+    background-position: 50%;
     background-size: cover;
 
     .dynamic-title {
@@ -685,24 +729,25 @@ export default {
 
     .inside-header {
       display: none;
-      justify-content: center;
-      height: 123px;
-      max-width: 1240px;
-      padding: 20px;
-      // justify-content: space-between;
-      align-items: center;
-      margin-left: auto;
-      margin-right: auto;
       flex: 1;
 
+      // justify-content: space-between;
+      align-items: center;
+      justify-content: center;
+      max-width: 1240px;
+      height: 123px;
+      padding: 20px;
+      margin-right: auto;
+      margin-left: auto;
+
       .site-logo {
-        width: 200px;
         display: none;
+        width: 200px;
       }
 
       .site-navigation {
-        flex: auto;
         display: none;
+        flex: auto;
         justify-content: end;
       }
 
@@ -714,12 +759,12 @@ export default {
           display: flex;
 
           .link a {
+            padding-right: 10px;
+            padding-left: 10px;
             font-size: 17.6px;
             font-weight: 300;
-            padding-left: 10px;
-            padding-right: 10px;
-            letter-spacing: 0;
             color: #fff;
+            letter-spacing: 0;
           }
         }
       }
@@ -729,19 +774,20 @@ export default {
   .content {
     display: flex;
     flex-direction: row;
-    padding: 90px calc(50vw - 600px);
     justify-content: center;
+    padding: 90px calc(50vw - 600px);
     border: none;
 
     .article {
-      padding: 15px;
-      flex: 1.5;
       display: none !important;
-      // border: 1px solid rgb(54, 42, 185);
-      margin-right: 20px;
       display: flex;
+      flex: 1.5;
       flex-direction: column;
       align-items: center;
+      padding: 15px;
+
+      // border: 1px solid rgb(54, 42, 185);
+      margin-right: 20px;
 
       article {
         margin-top: 20px;
@@ -752,217 +798,81 @@ export default {
         word-spacing: 4px;
       }
     }
-    
+
     .login-content {
+      position: relative;
       width: 600px;
       height: 500px;
-      padding: 70px 55px 55px 55px;
-      box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
-      position: relative;
+      padding: 70px 55px 55px;
+      box-shadow: 0 2px 12px 0 rgb(0 0 0 / 5%);
 
       .dynamic-title {
+        display: block;
         width: 100%;
         overflow: hidden;
-        display: block;
         text-overflow: ellipsis;
       }
 
       .activate-tip {
-        color: #909399;
         font-size: 14px !important;
+        color: #909399;
       }
 
       .login-title {
+        margin-bottom: 40px;
         font-size: 28px;
         font-weight: 500;
         text-align: center;
-        margin-bottom: 40px;
 
         span {
           font-size: 28px;
         }
       }
     }
+
     .reginster-box {
-      height: 700px;
       width: 680px;
+      height: 700px;
     }
   }
-  .content-register {
+
+  .content-reginster {
     padding: 60px calc(50vw - 600px);
-  }
-  // .plans {
-  //   height: 500px;
-  // }
-  .footer {
-    height: 250px;
-    background: rgb(65, 138, 217);
-    display: none;
-    flex-direction: column;
-
-    .footer-contract {
-      display: flex;
-      flex-direction: row;
-
-      .inside {
-        display: none !important;
-        flex-direction: column;
-        display: flex;
-        padding: 30px 20px 0;
-        max-width: 1240px;
-        margin-left: auto;
-        margin-right: auto;
-        z-index: 1;
-        position: relative;
-        margin-top: 10px;
-
-        .foot-top {
-          display: flex;
-
-          .left {
-            width: 50%;
-
-            .profile {
-              color: #fff;
-              margin-top: 10px;
-            }
-          }
-
-          .right {
-            width: 50%;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-
-            .sales {
-              display: flex;
-              justify-content: flex-end;
-
-              .button {
-                white-space: nowrap;
-                background-color: #fff;
-                color: #578cf5;
-                font-size: 15px;
-                font-weight: 600;
-                padding: 3px 8px;
-                border-radius: 10px;
-                margin-bottom: 10px;
-                cursor: pointer;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-                text-decoration: none;
-                transition: background-color 0.2s ease-in-out,
-                  color 0.2s ease-in-out, border-color 0.2s ease-in-out,
-                  opacity 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-              }
-            }
-
-            .social {
-              text-align: right;
-              margin-bottom: 1.5em;
-              margin-top: 10px;
-              padding: 5px 0;
-              line-height: 1.5;
-              font-size: 18px;
-              display: flex;
-              justify-content: flex-end;
-              align-items: flex-start;
-              clear: both;
-
-              .social-btn {
-                display: inline-flex;
-                align-items: center;
-                text-align: center;
-                padding: 6px;
-                border-radius: 50px;
-                margin-left: 20px;
-                border-style: solid;
-                border-width: 1px;
-                color: #fff;
-                justify-content: center;
-                transition: background-color 0.2s ease-in-out,
-                  color 0.2s ease-in-out, border-color 0.2s ease-in-out,
-                  opacity 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-              }
-            }
-          }
-        }
-
-        .foot-bottom {
-          display: flex;
-          position: relative;
-          margin-top: 10px;
-          margin-bottom: 2.25em;
-          justify-content: space-between;
-          box-sizing: 30px;
-          box-sizing: border-box;
-
-          &::after {
-            content: "";
-            position: absolute;
-            top: 0px;
-            left: 0px;
-            right: 0px;
-            bottom: 0px;
-            height: 2px;
-            background: #fff;
-          }
-
-          .cp-left {
-            color: #fff;
-          }
-
-          .cp-right {
-            a {
-              color: #fff;
-              padding-right: 10px;
-            }
-          }
-        }
-      }
-    }
   }
 
   .el-button.signin {
+    width: 100%;
+    padding: 8px 20px;
+    margin-top: 25px;
+    font-size: 16px;
+    font-weight: 700;
     color: #fff;
     background-color: #4259ce;
     border-color: #4259ce;
-    width: 100%;
-    font-weight: 700;
-    padding: 8px 20px;
-    font-size: 16px;
-    margin-top: 25px;
   }
 
   .copyright {
     display: flex;
     justify-content: center;
     margin-bottom: 40px;
-
-    span {
-      color: #909399;
-    }
+    color: #909399;
   }
 
   .language {
-    margin-top: 4px;
-    margin-right:20px;
-    cursor: pointer;
+    position: absolute;
+    top: 20px;
+    right: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 26px;
     height: 26px;
+    margin-top: 4px;
+    margin-right: 20px;
+    color: #4d6992;
+    cursor: pointer;
     border: 1px solid #4d6992;
     border-radius: 50%;
-    color: #4d6992;
-    display: flex;
-    justify-content: center;
-    position: absolute;
-    top: 20px;
-    right: 10px;
   }
 }
 </style>

@@ -262,7 +262,16 @@ pub(crate) async fn check_tmq_dsn(
         // }
 
         // todo: should check the topic creation as we need.
-        source.create_topic_as_database(&topic, &database).await?;
+        let res = source.create_topic_as_database(&topic, &database).await;
+        if let Err(err) = res {
+            match err.code().into() {
+                // WAL retention period is zero
+                0x038C => {
+                    anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                }
+                _ => return Err(err.into()),
+            }
+        }
 
         let vgroups = source
             .query_one(format!(
@@ -354,7 +363,16 @@ pub(crate) async fn check_tmq_dsn(
         {
             // treat it as database if the topic not exists.
             let database = topic;
-            source.create_topic_as_database(topic, database).await?;
+            let res = source.create_topic_as_database(topic, database).await;
+            if let Err(err) = res {
+                match err.code().into() {
+                    // WAL retention period is zero
+                    0x038C => {
+                        anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                    }
+                    _ => return Err(err.into()),
+                }
+            }
 
             let vgroups = source
                 .query_one(format!(
@@ -716,7 +734,16 @@ pub(crate) async fn check_tmq_dsn(
                 {
                     anyhow::bail!("{} is not either a topic or a database name", topic);
                 } else {
-                    source.create_topic_as_database(&topic, &topic).await?;
+                    let res = source.create_topic_as_database(&topic, &topic).await;
+                    if let Err(err) = res {
+                        match err.code().into() {
+                            // WAL retention period is zero
+                            0x038C => {
+                                anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                            }
+                            _ => return Err(err.into()),
+                        }
+                    }
                     let vgroups = source
                         .query_one(format!(
                             "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{topic}'"
@@ -784,7 +811,15 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
             dsn.driver.clone(),
             format!("failed to check dsn: {}, cause: {}", dsn, err),
         ),
-        Ok((_dsn, builder, _topics, _, _)) => {
+        Ok((_dsn, builder, topics, _, _)) => {
+            // check if the source database has enabled wal
+            if let Err(err) = check_wal_enabled(&builder, &topics).await {
+                tracing::error!("check wal failed: {:#}", err);
+                return DataSourceValidation::invalid(
+                    dsn.driver.clone(),
+                    format!("check wal failed: {}", err),
+                );
+            }
             let version = builder.server_version().await;
             match version {
                 Err(err) => DataSourceValidation::invalid(
@@ -802,6 +837,31 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
             }
         }
     }
+}
+
+pub(crate) async fn check_wal_enabled(
+    taos_builder: &TaosBuilder,
+    topics: &[Topic],
+) -> anyhow::Result<()> {
+    let taos = taos_builder.build().await?;
+    for topic in topics {
+        // get all subscriptions by topic and consumer group
+        let wal_retention_period = taos
+            .query_one::<_, usize>(format!(
+                "SELECT `wal_retention_period` FROM information_schema.ins_databases WHERE `name` = '{}'",
+                topic.database
+            ))
+            .await?;
+        // check if wal is enabled
+        if let Some(wal_retention_period) = wal_retention_period {
+            if wal_retention_period == 0 {
+                bail!("wal is not enabled for topic `{}`", topic.name);
+            }
+        } else {
+            bail!("database not found for topic `{}`", topic.name);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1039,5 +1099,114 @@ mod tests {
         assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
         assert_eq!("failed to check dsn: tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid, cause: unknown topic name: non_exist_topic", dsv.message.unwrap());
+    }
+
+    async fn drop_topic_and_database(taos: &Taos, topic: &str, database: &str) {
+        let _ = taos.exec(format!("drop topic if exists {}", topic)).await;
+        let _ = taos
+            .exec(format!("drop database if exists {}", database))
+            .await;
+
+        // wait for the drop operation to take effect
+        loop {
+            if !taos.database_exists(database).await.unwrap() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_create_topic_no_wal_with_taos() {
+        let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
+        let taos = taos_builder.build().await.unwrap();
+
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+
+        // create database without wal, then create a topic
+        let res = taos
+            .exec_many(vec![
+                "create database if not exists test_no_wal WAL_RETENTION_PERIOD 0",
+                "create topic if not exists test_no_wal with meta as database test_no_wal",
+            ])
+            .await;
+
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains("WAL retention period is zero"));
+
+        // clean
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+    }
+
+    #[tokio::test]
+    async fn test_alter_database_no_wal_with_taos() {
+        let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
+        let taos = taos_builder.build().await.unwrap();
+
+        // create a database, drop it first if exists
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+        let _ = taos.exec("create database if not exists test_no_wal").await;
+
+        // create a topic
+        let _ = taos
+            .exec("create topic if not exists test_no_wal with meta as database test_no_wal")
+            .await;
+
+        // alter database to disable wal, there should be an error
+        let alter_database_res = taos
+            .exec("alter database test_no_wal wal_retention_period 0")
+            .await;
+
+        // clear the test data
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+
+        // assert the result
+        assert!(alter_database_res.is_err());
+        assert_eq!(
+            alter_database_res.unwrap_err().to_string(),
+            "[0x038C] Error while querying with sql \"alter database test_no_wal wal_retention_period 0\": Internal error: `WAL retention period is zero`"
+        );
+    }
+
+    /// Test `check_wal_enabled` function
+    ///
+    /// only test the normal case, the error case is tested in `test_create_topic_no_wal` and `test_alter_database_no_wal`
+    ///
+    #[tokio::test]
+    async fn test_check_wal_enabled_with_taos() {
+        let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
+        let taos = taos_builder.build().await.unwrap();
+
+        // create a database, drop it first if exists
+        drop_topic_and_database(&taos, "test_with_wal", "test_with_wal").await;
+        let _ = taos
+            .exec("create database if not exists test_with_wal")
+            .await;
+
+        // create a topic
+        let _ = taos
+            .exec("create topic if not exists test_with_wal with meta as database test_with_wal")
+            .await;
+
+        // check if wal is enabled
+        let topics = vec![Topic {
+            name: "test_with_wal".to_string(),
+            database: "test_with_wal".to_string(),
+            database_sql: None,
+            vgroups: 2,
+            table: None,
+            use_table_name: None,
+            topic_type: TopicType::DatabaseWithMeta,
+        }];
+        let res = check_wal_enabled(&taos_builder, &topics).await;
+
+        // clear the test data
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+
+        // assert the result
+        assert!(res.is_ok());
     }
 }

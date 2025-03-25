@@ -200,6 +200,9 @@ struct Global {
     #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN", global = true, hide = true)]
     dry_run: Option<bool>,
 
+    #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN_DATASOURCE", global = true, hide = true)]
+    dry_run_datasource: Option<bool>,
+
     #[clap(long, env = "SQL_TAG_CACHE_CAPACITY", global = true, hide = true)]
     sql_tag_cache_capacity: Option<usize>,
 }
@@ -452,21 +455,18 @@ impl Args {
 
             if let Some(matches) = matches.subcommand_matches("serve") {
                 macro_rules! take_or_not {
-                    ($f:ident) => {
-                        match matches.value_source(stringify!($f)) {
+                    ($($f:ident),+) => {
+                        $(match matches.value_source(stringify!($f)) {
                             Some(ValueSource::DefaultValue) | None => {}
                             _ => {
                                 serve.$f.take();
                             }
-                        }
+                        })+
                     };
                 }
-                take_or_not!(listen);
-                take_or_not!(grpc);
-                take_or_not!(database_url);
-                take_or_not!(secret_prefix);
-                take_or_not!(request_timeout);
-                take_or_not!(do_not_resume);
+                take_or_not!(database_url, secret_prefix, request_timeout, do_not_resume);
+                take_or_not!(listen, ssl_cert, ssl_key, ssl_ca);
+                take_or_not!(grpc, grpc_ssl_cert, grpc_ssl_key, grpc_ssl_ca);
             }
             cli.merge_from(serve);
         }
@@ -605,12 +605,23 @@ fn init_tracing_layers(
         args.global.instance_id.unwrap_or(16),
     )
     .compress(compress.unwrap())
-    .reserved_disk_size(&reserved_disk_size.unwrap())
+    .reserved_disk_size(reserved_disk_size.as_deref().unwrap())
     .rotation_count(rotation_count.unwrap())
     .keep_days(keep_days.unwrap())
-    .rotation_size(&rotation_size.unwrap())
+    .rotation_size(rotation_size.as_deref().unwrap())
     .build()
     .unwrap();
+
+    taosx_core::global::GLOBAL_LOG_OPTS
+        .set(taosx_core::global::LogOpts {
+            instance_id: args.global.instance_id.unwrap_or(16),
+            compress,
+            rotation_count,
+            keep_days,
+            rotation_size: rotation_size.clone(),
+            reserved_disk_size: reserved_disk_size.clone(),
+        })
+        .expect("set global log opts");
 
     layers.push(TaosLayer::<Qid>::new(appender).boxed());
 
@@ -791,9 +802,19 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     }
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
     if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
-        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
-        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.grpc", cli.get_grpc_address()).as_str();
-        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
+        let value = serde_json::to_value(cli).unwrap_or_default();
+        if let Some(obj) = value.as_object() {
+            for (k, v) in obj {
+                if v.is_null() {
+                    continue;
+                }
+                if let Some(v) = v.as_str() {
+                    s += format!("{:<w$}{:<w2$}{}\n", ' ', format!("serve.{k}"), v).as_str();
+                } else {
+                    s += format!("{:<w$}{:<w2$}{}\n", ' ', format!("serve.{k}"), v).as_str();
+                }
+            }
+        }
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.fqdn", args.monitor.fqdn.as_ref().unwrap_or(&"".to_string())).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.port", args.monitor.port).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.interval", args.monitor.interval).as_str();
@@ -814,6 +835,7 @@ fn is_root_directory<P: AsRef<Path>>(path: P) -> bool {
 }
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
@@ -872,7 +894,7 @@ fn main() -> Result<()> {
     let mut _notify_watcher = None;
     if let Some(handle) = handle {
         let parent = config_file.parent().context("get config dir error")?;
-        if config_file.exists() && is_root_directory(parent) {
+        if config_file.exists() && !is_root_directory(parent) {
             let mut watcher = notify::recommended_watcher({
                 let config_file = config_file.clone();
                 move |event: notify::Result<notify::Event>| {
@@ -914,6 +936,11 @@ fn main() -> Result<()> {
     if args.global.dry_run.unwrap_or(false) {
         tracing::info!("dry run mode enabled");
         unsafe { taosx_core::global::DRY_RUN = true };
+    }
+
+    if args.global.dry_run_datasource.unwrap_or(false) {
+        tracing::info!("datasource dry run mode enabled");
+        unsafe { taosx_core::global::DRY_RUN_DATASOURCE = true };
     }
 
     let sql_tag_cache_capacity = args.global.sql_tag_cache_capacity.unwrap_or(0);

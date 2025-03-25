@@ -68,6 +68,9 @@ pub async fn get_user_passwords(conn: &taos::Taos) -> Result<Vec<User>, taos::Er
         tracing::error!(error = format!("{err:#}"), "Failed to get user passwords");
         let code = *err.code().deref();
         if matches!(code, 0x2662 | 0x2603 | 0x039A) {
+            // 0x2662: the table does not exist
+            // 0x2603: the table does not exist
+            // 0x039A: invalid system table name
             err.context("Current version is not supported, please upgrade to a later one.")
         } else {
             err.context("Failed to get user passwords")

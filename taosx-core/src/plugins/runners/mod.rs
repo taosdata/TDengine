@@ -3,6 +3,7 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use crate::global::GLOBAL_LOG_OPTS;
 use file_rotate::compression::Compression;
 use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
 use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
@@ -12,6 +13,7 @@ use rumqttc::tokio_rustls::rustls;
 use rumqttc::tokio_rustls::rustls::client::danger::ServerCertVerifier;
 use rumqttc::tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use taos::Dsn;
+use taoslog::writer::RollingFileAppender;
 
 mod config;
 pub mod historian;
@@ -238,6 +240,35 @@ pub fn log_rotation(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<Append
     )
 }
 
+pub fn new_rolling_file_appender(
+    log_dir: impl AsRef<Path>,
+    component: &str,
+) -> anyhow::Result<RollingFileAppender> {
+    let log_opts = GLOBAL_LOG_OPTS
+        .get()
+        .ok_or(anyhow::anyhow!("log opts not set"))?;
+
+    let mut builder = RollingFileAppender::builder(log_dir, component, log_opts.instance_id);
+
+    if let Some(compression) = log_opts.compress {
+        builder = builder.compress(compression);
+    }
+    if let Some(reserved_disk_size) = &log_opts.reserved_disk_size {
+        builder = builder.reserved_disk_size(reserved_disk_size);
+    }
+    if let Some(rotation_count) = log_opts.rotation_count {
+        builder = builder.rotation_count(rotation_count);
+    }
+    if let Some(rotation_size) = &log_opts.rotation_size {
+        builder = builder.rotation_size(rotation_size);
+    }
+    if let Some(keep_days) = log_opts.keep_days {
+        builder = builder.keep_days(keep_days);
+    }
+    let appender = builder.build()?;
+    Ok(appender)
+}
+
 /// get string value from dsn's key
 /// line_break: push \n between lines if is true
 /// append_line: push append_line between lines if is not None
@@ -302,7 +333,7 @@ pub fn get_string_from_param_or_file(
 }
 
 #[derive(Debug)]
-pub struct NoCertificateVerification();
+pub struct NoCertificateVerification;
 
 impl ServerCertVerifier for NoCertificateVerification {
     fn verify_server_cert(

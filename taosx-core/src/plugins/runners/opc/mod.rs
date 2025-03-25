@@ -1,13 +1,23 @@
-use anyhow::Context;
+use super::get_data_dir;
+use crate::dsv::DataSourceValidation;
+use crate::runners::opc::config::{OPCConfig, PointsMode};
+use crate::runners::opc::model::{ModelType, OpcModelConfig};
+use crate::runners::opc::point_updater::PointsUpdater;
+use crate::runners::{get_logs_home_dir, log_rotation, new_rolling_file_appender};
+use crate::utils::dsn::json_to_dsn;
+use crate::utils::monitor::send_sub_process_info;
+use crate::{build_ipc, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
+use anyhow::{bail, Context};
+use csv::header::CsvHeader;
+use csv::CsvParser;
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs::File;
-use std::str::FromStr;
 use std::{io::prelude::*, path::PathBuf, sync::Arc};
-use taos::{Dsn, DsnError};
+use taos::{Dsn, IntoDsn};
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
@@ -16,27 +26,15 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
-
-use crate::dsv::DataSourceValidation;
-use crate::runners::log_rotation;
-use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{ModelType, OpcModelConfig};
-use crate::runners::opc::config::{OPCConfig, PointsMode};
-use crate::runners::opc::point_updater::PointsUpdater;
-use crate::utils::monitor::send_sub_process_info;
-use crate::{
-    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
-    Transferred,
-};
-
-use super::get_data_dir;
+use tracing_subscriber::fmt::MakeWriter;
 
 pub mod config;
+pub mod csv;
+pub mod model;
 mod point_updater;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum OpcType {
     OPCUA,
@@ -56,32 +54,31 @@ impl OpcType {
         if fake {
             return Ok(Self::FAKE);
         }
-
-        let opc_type = dsn.driver.as_str();
+        let opc_type = dsn.driver.to_lowercase();
         let protocol = dsn.protocol.clone();
-        match opc_type {
+        match opc_type.as_str() {
             "opcua" => Ok(Self::OPCUA),
             "opcda" => Ok(Self::OPCDA),
             "fake" => Ok(Self::FAKE),
             "opc" => match protocol.as_deref() {
                 Some("ua") => Ok(Self::OPCUA),
                 Some("da") => Ok(Self::OPCDA),
-                _ => anyhow::bail!("unknown opc protocol"),
+                _ => bail!("unknown opc protocol"),
             },
-            _ => anyhow::bail!("invalid opc type"),
+            _ => bail!("invalid opc type"),
         }
     }
 }
 
-impl FromStr for OpcType {
-    type Err = String;
+impl TryFrom<&str> for OpcType {
+    type Error = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
             "opcua" => Ok(Self::OPCUA),
             "opcda" => Ok(Self::OPCDA),
             "fake" => Ok(Self::FAKE),
-            _ => Err(s.to_string()),
+            _ => bail!("invalid opc type: {}", value),
         }
     }
 }
@@ -185,16 +182,9 @@ pub async fn opc_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
-
-    // create log file: opc.log
-    let mut log_path = super::get_log_dir("");
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push(format!("opc-{}.log", task_id.unwrap_or(0)));
-    let log_keep_days = get_log_keep_days();
-    let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     // OPCConfig -> collect.toml
     let config_dir = get_data_dir()
@@ -246,10 +236,18 @@ pub async fn opc_to_taos(
         updater.run().await;
     });
 
+    // create log file: opc.log
+    let log_path = get_logs_home_dir();
+    let log_file_name = format!("opc-{}", task_id.unwrap_or(0));
+    let appender = new_rolling_file_appender(log_path.as_path(), &log_file_name)
+        .context("failed to create opc log")?;
+
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
     let stderr = child.stderr.take().expect("Failed to capture stderr");
+
+    // let log_rotation_clone = Arc::clone(&log_rotation);
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
@@ -265,10 +263,15 @@ pub async fn opc_to_taos(
                 let mut guard = error_buf_producer.lock().await;
                 let _ = guard.push_overwrite(line.clone());
             }
+
             // Write the line to log_rotation
-            write!(log_rotation, "{}", line)?;
+            let mut log_rotation = appender.make_writer();
+            let _ = log_rotation.write(line.as_bytes())?;
+            log_rotation.flush()?;
+
             line.clear();
         }
+
         Ok::<(), std::io::Error>(())
     });
 
@@ -345,42 +348,62 @@ where
 /// OPC UA: <table_prefix>_{ns}_{id}_<table_suffix>
 /// OPC DA: <table_prefix>_{tag_name/TagName}_<table_suffix>
 fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
-    let tbname = if ty == "opcua" {
-        // ns=13;i=1003
-        // ns=6;s=Scalar_Instructions
-        // ns=6;g=00000000-0000-0000-0000-000000009204
-        // ns=6;b=CQIABQ==
-
-        if let Some((ns, id)) = point_id.split_once(";") {
-            let ns = if ns.contains("ns=") {
-                let (_, ns) = ns.split_once("=").unwrap();
-                ns
+    let tbname = match ty {
+        "opcua" => {
+            // ns=13;i=1003
+            // ns=6;s=Scalar_Instructions
+            // ns=6;g=00000000-0000-0000-0000-000000009204
+            // ns=6;b=CQIABQ==
+            if let Some((ns, id)) = point_id.split_once(";") {
+                let ns = if ns.contains("ns=") {
+                    let (_, ns) = ns.split_once("=").unwrap();
+                    ns
+                } else {
+                    ns
+                };
+                let id = if let Some((_, id)) = id.split_once('=') {
+                    id
+                } else {
+                    id
+                };
+                assert!(!id.is_empty(), "id should not be empty: {}", point_id);
+                tb_name.replace("{ns}", ns).replace("{id}", id)
             } else {
-                ns
-            };
-            let id = if let Some((_, id)) = id.split_once('=') {
-                id
-            } else {
-                id
-            };
-            assert!(!id.is_empty(), "id should not be empty: {}", point_id);
-            tb_name.replace("{ns}", ns).replace("{id}", id)
-        } else {
-            assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
-            tb_name.replace("{ns}", "0").replace("{id}", point_id)
+                assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
+                tb_name.replace("{ns}", "0").replace("{id}", point_id)
+            }
         }
-    } else {
-        let tag_index = point_id.rfind(".");
-        let tag_name = if let Some(index) = tag_index {
-            // should be Device.DeviceType.TagName pattern
-            &point_id[index + 1..]
-        } else {
-            point_id
-        };
-        let tb_name = tb_name.replace("{TagName}", tag_name);
-
-        tb_name.replace("{tag_name}", tag_name)
+        "opcda" => {
+            if tb_name.contains("{TagName}") || tb_name.contains("{tag_name}") {
+                let tag_index = point_id.rfind(".");
+                let tag_name = if let Some(index) = tag_index {
+                    // should be Device.DeviceType.TagName pattern
+                    &point_id[index + 1..]
+                } else {
+                    point_id
+                };
+                let tb_name = tb_name.replace("{TagName}", tag_name);
+                tb_name.replace("{tag_name}", tag_name)
+            } else if tb_name.contains("{/tag_name}") {
+                let tag_index = point_id.rfind("/");
+                let tag_name = if let Some(index) = tag_index {
+                    // should be Device/DeviceType/TagName pattern
+                    &point_id[index + 1..]
+                } else {
+                    point_id
+                };
+                tb_name.replace("{/tag_name}", tag_name)
+            } else if tb_name.contains("{id}") {
+                tb_name.replace("{id}", point_id)
+            } else if tb_name.contains("{_id}") {
+                tb_name.replace("{_id}", &point_id.replace("/", "_"))
+            } else {
+                tb_name.to_string()
+            }
+        }
+        _ => tb_name.to_string(),
     };
+
     tbname.replace(".", "_").replace("`", "_")
 }
 
@@ -417,13 +440,14 @@ fn get_temp_file(dsn: &Dsn, key: &str) -> Option<NamedTempFile> {
 
 /// 获取 opc 点位
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let from: Dsn = req.from.parse().map_err(|err: DsnError| {
-        anyhow::anyhow!(
-            "failed to parse dsn: {}, cause: {}",
-            req.from,
-            err.to_string()
-        )
-    })?;
+    let req_clone = req.clone();
+    let from = if let Some(from_json) = req_clone.from_json {
+        json_to_dsn(&from_json)?
+    } else if let Some(from) = req_clone.from {
+        from.into_dsn()?
+    } else {
+        anyhow::bail!("from is required");
+    };
 
     if req.categories.is_empty() {
         anyhow::bail!("categories is empty");
@@ -448,7 +472,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 from.to_string()
             ))?;
 
-            let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
+            let parser = CsvParser::try_new(opc_type, csv_files)?;
             let model_config = parser.parse().await?;
             to_opc_dataset_vec(&model_config).await?
         }
@@ -526,7 +550,7 @@ async fn opc_datasets_by_csv(
 
     let header = rdr.headers().await?;
 
-    let header = CsvHeader::try_new(opc_type.clone(), header)?;
+    let header = CsvHeader::try_new(opc_type, header)?;
     let point_id_idx = header.id_index();
     let enabled_idx = header.enabled_index();
 
@@ -772,7 +796,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
     let mut rdr = AsyncReader::from_reader(csv_line.as_bytes());
     // new point header
     let headers = rdr.headers().await?;
-    let csv_header = CsvHeader::try_new(opc_type.clone(), headers)?;
+    let csv_header = CsvHeader::try_new(opc_type, headers)?;
     // new point line
     let mut records = rdr.records();
     let record = records.next().await.unwrap()?;
@@ -783,7 +807,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
         "csv_config_file not found in dsn: {}",
         dsn.to_string()
     ))?;
-    let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
+    let parser = CsvParser::try_new(opc_type, csv_files)?;
     let point_ids = parser.parse_all_point_id().await?;
 
     // check if point_id already exists
@@ -799,7 +823,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use taos::IntoDsn;
+    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_check_point_id_duplicated() {
@@ -853,25 +877,74 @@ mod tests {
     }
 
     #[test]
-    fn test_tbname_pattern() {
-        let cases = [
-            ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
-            ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
-            (
-                "{ns}_{id}",
-                "ns=13;g=00000000-0000-0000-0000-000000009204",
-                "13_00000000-0000-0000-0000-000000009204",
+    fn test_generate_tbname_from_pattern() {
+        // OPC UA
+        assert_eq!(
+            generate_tbname_from_pattern("opcua", "t_{ns}_{id}", "ns=13;i=10003"),
+            "t_13_10003"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcua", "t_{ns}_{id}", "ns=13;b=GCC"),
+            "t_13_GCC"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern(
+                "opcua",
+                "t_{ns}_{id}",
+                "ns=13;g=00000000-0000-0000-0000-000000009204"
             ),
-            (
-                "{ns}_{id}",
-                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
-                r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
+            "t_13_00000000-0000-0000-0000-000000009204"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern(
+                "opcua",
+                "t_{ns}_{id}",
+                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#
             ),
-        ];
-        for (pattern, point_id, expected) in cases.iter() {
-            let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
-            assert_eq!(tbname, *expected);
-        }
+            r#"t_3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#
+        );
+
+        // OPC DA
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{TagName}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{tag_name}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{/tag_name}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_EDCGQ_MP706AT_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_/ASSETS/AB/EDCGQ_MP706AT_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t{_id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_ASSETS_AB_EDCGQ_MP706AT_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{TagName}", "02_LI7059.DACA.PV"),
+            "t_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{tag_name}", "02_LI7059.DACA.PV"),
+            "t_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{/tag_name}", "02_LI7059.DACA.PV"),
+            "t_02_LI7059_DACA_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{id}", "02_LI7059.DACA.PV"),
+            "t_02_LI7059_DACA_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{_id}", "02_LI7059.DACA.PV"),
+            "t_02_LI7059_DACA_PV"
+        );
     }
 
     #[test]
@@ -918,81 +991,5 @@ panic: (*logrus.Entry) 0xc00034aaf0
 panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
         let res = filter_opc_log(log).await;
         assert_eq!(res, expect);
-    }
-
-    /// 测试从 dsn 解析参数，生成一个 taosx-opc 的配置文件
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_check_mode() {
-        // given
-        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
-        // when
-        let config = OPCConfig::from_dsn_check_mode(&dsn).await.unwrap();
-        let toml = toml::to_string(&config).unwrap();
-        // then
-        assert_eq!(
-            toml,
-            r#"opc_type = "opcua"
-debug = false
-
-[connect.ua]
-endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
-connect_timeout = 10
-request_timeout = 10
-security_policy = "None"
-security_mode = "None"
-auth_method = "Anonymous"
-
-[report]
-remote = "127.0.0.1:0"
-batch_size = 1000
-batch_timeout = 1
-"#
-        );
-    }
-
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_point_mode() {
-        // given
-        let dsn = format!(
-            "opcua://{}?node_id_pattern={}&browse_name_pattern={}",
-            "192.168.2.16:53530/OPCUA/SimulationServer", "^(?!.*_Error).+$", "^(?!.*_Error).+$"
-        )
-        .into_dsn()
-        .unwrap();
-        // when
-        let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
-        let toml = toml::to_string(&config).unwrap();
-        // then
-        assert_eq!(
-            toml,
-            r#"opc_type = "opcua"
-debug = false
-
-[connect.ua]
-endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
-connect_timeout = 10
-request_timeout = 10
-security_policy = "None"
-security_mode = "None"
-auth_method = "Anonymous"
-
-[report]
-remote = "127.0.0.1:0"
-batch_size = 1000
-batch_timeout = 1
-
-[points]
-regex_id = "^(?!.*_Error).+$"
-regex_name = "^(?!.*_Error).+$"
-limit = 0
-
-[points.ua]
-"#
-        );
-    }
-
-    #[tokio::test]
-    async fn test_dsn_to_toml_in_collect_mode() {
-        // TODO
     }
 }

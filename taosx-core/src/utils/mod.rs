@@ -1,5 +1,6 @@
 use anyhow::bail;
 use chrono::{DateTime, FixedOffset, Utc};
+use dsn::json_to_dsn;
 use serde::ser::StdError;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -7,6 +8,7 @@ use std::{io::BufRead, path::Path, thread::JoinHandle};
 use taos::*;
 
 pub mod breakpoints;
+pub mod cert;
 pub mod codec;
 pub mod constants;
 pub mod defer;
@@ -45,7 +47,9 @@ pub fn value_equals(value: &Value, other: &Value) -> bool {
         (Value::UBigInt(l0), Value::UBigInt(r0)) => l0 == r0,
         (Value::Json(l0), Value::Json(r0)) => l0 == r0,
         (Value::VarBinary(l0), Value::VarBinary(r0)) => l0 == r0,
-        (Value::Decimal(l0), Value::Decimal(r0)) => l0 == r0,
+        (Value::Decimal(l0), Value::Decimal(r0)) | (Value::Decimal64(l0), Value::Decimal64(r0)) => {
+            l0 == r0
+        }
         (Value::Blob(l0), Value::Blob(r0)) => l0 == r0,
         (Value::MediumBlob(l0), Value::MediumBlob(r0)) => l0 == r0,
         _ => false,
@@ -60,8 +64,9 @@ pub fn mask_dsn(dsn: &Dsn) -> Dsn {
     dsn
 }
 
-pub fn try_mask_dsn(dsn: &str) -> Option<String> {
-    dsn.parse()
+pub fn try_mask_dsn(dsn: &serde_json::Value) -> Option<String> {
+    // dsn.parse()
+    json_to_dsn(dsn)
         .ok()
         .map(|dsn| mask_dsn(&dsn))
         .map(|dsn| dsn.to_string())
@@ -378,6 +383,7 @@ pub fn parse_datetime_in_dsn(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Date
         .transpose()
 }
 
+/// 从 DSN 的参数中解析目录路径，返回绝对路径，但不保证路径存在
 pub fn parse_dir_in_dsn(dsn: &Dsn, key: Option<&str>) -> anyhow::Result<Option<PathBuf>> {
     let p = match key {
         None => dsn.path.as_ref().filter(|p| !p.is_empty()),
@@ -408,6 +414,15 @@ pub fn parse_bytes(size_str: &str) -> anyhow::Result<u64> {
         _ => bail!("invalid unit: {}", size_str),
     };
     Ok(bytes as u64)
+}
+
+pub fn contains_uppercase(s: &str) -> bool {
+    for c in s.chars() {
+        if c.is_uppercase() {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -603,5 +618,15 @@ mod tests {
             get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_contains_uppercase() {
+        assert!(contains_uppercase("sasl.isEnable"));
+        assert!(contains_uppercase("aBc"));
+        assert!(contains_uppercase("ABC"));
+        assert!(!contains_uppercase("123"));
+        assert!(!contains_uppercase("abc"));
+        assert!(contains_uppercase("123A"));
     }
 }

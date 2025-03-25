@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_consumer() {
+    async fn test_consumer_with_datasource() {
         // prepare data
         let _ = test_create_table("test_consumer").await;
         let _ = test_insert_data("test_consumer", 7).await;

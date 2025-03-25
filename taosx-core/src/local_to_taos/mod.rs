@@ -17,11 +17,12 @@ use tracing::{instrument, Instrument};
 use crate::core_metrics::{get_metrics_arc, CoreMetrics};
 use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
 use crate::local_to_taos::file_watcher::FileWatcher;
+use crate::s3::{S3Config, S3Loader};
 use crate::taoz::{ZCodec, ZFile, ZMessage};
 use crate::tmq::BackupObject;
 use crate::tmq_to_local::LocalConfig;
-use crate::utils;
 use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
+use crate::{s3, utils};
 
 mod conf;
 mod file_watcher;
@@ -65,6 +66,11 @@ pub async fn local_to_taos(
         .await
         .context("parse local_to_taos config error")?;
     tracing::debug!("local_to_taos config: {:#?}", config);
+
+    if let Some(s3_config) = &config.s3_config {
+        let s3_loader = S3Loader::try_from(s3_config).await?;
+        s3_loader.load_to(config.backup_dir.as_path()).await?;
+    }
 
     // 处理 backup object
     if config.is_obj_existed().await? {
@@ -151,9 +157,8 @@ pub async fn local_to_taos(
             }
         } else {
             tracing::debug!("local_to_taos send files: {:?} to worker", files_to_send);
-            tx.send(files_to_send).map_err(|err| {
+            tx.send(files_to_send).inspect_err(|err| {
                 tracing::error!("failed to send files to worker: {:#}", err);
-                err
             })?;
         }
 
@@ -484,10 +489,15 @@ async fn restore(
                             let code: i32 = err.code().into();
                             match code {
                                 0x0603 => {
+                                    // 0x0603: table already exists
                                     tracing::debug!("Table already exists");
                                     // do nothing and continue
                                 }
                                 0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
+                                    // 0x032C: object is creating
+                                    // 0x0115: invalid msg
+                                    // 0x03C7: stable uid not match
+                                    // 0x03D3: conflict transaction not completed
                                     tracing::debug!("Found recoverable error: {err:#}, retry once");
                                     tokio::time::sleep(Duration::from_millis(100)).await;
                                     let res = taos.write_raw_meta(&meta).await;
@@ -502,6 +512,7 @@ async fn restore(
                                     }
                                 }
                                 0x2603 => {
+                                    // 0x2603: the table does not exist
                                     tracing::debug!("Found 0x2603 error: {err:#}, retry once");
                                     taos.write_raw_meta(&meta)
                                         .await
@@ -526,7 +537,7 @@ async fn restore(
                                 let code: i32 = err.code().into();
                                 match code {
                                     0x2603 => {
-                                        // table not exists
+                                        // 0x2603: the table does not exist
                                         if let Some(meta) = raw.to_create() {
                                             if let Err(err) = taos.exec(format!("{}", meta)).await {
                                                 if err.to_string().contains("0x032C") {
@@ -554,14 +565,19 @@ async fn restore(
                     }
                     ZMessage::Raw(raw_type, raw) => {
                         tracing::debug!("restore raw, len: {}", raw.raw_len());
-                        let raw_meta = raw.into();
-                        if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                        if let Err(err) = taos.write_raw_meta(&raw).await {
                             let code: i32 = err.code().into();
                             match code {
                                 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 | 0x2603 => {
+                                    // 0x032C: object is creating
+                                    // 0x0115: invalid msg
+                                    // 0x0603: table already exists
+                                    // 0x03C7: stable uid not match
+                                    // 0x03D3: conflict transaction not completed
+                                    // 0x2603: the table does not exist
                                     tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {:#}, retry once", err);
                                     tokio::time::sleep(Duration::from_millis(100)).await;
-                                    match taos.write_raw_meta(&raw_meta).await {
+                                    match taos.write_raw_meta(&raw).await {
                                         Ok(_) => {
                                             tracing::debug!("retry success");
                                         }
@@ -577,7 +593,7 @@ async fn restore(
                                 }
                             }
                         };
-                        metrics.add_extra_metric(&PROCESSED_BYTES, raw_meta.raw_len() as u64);
+                        metrics.add_extra_metric(&PROCESSED_BYTES, raw.raw_len() as u64);
                     }
                 }
             }
@@ -604,6 +620,7 @@ async fn restore(
     Ok(())
 }
 
+/// 检查 local 数据源是否有效
 pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
     match is_local_valid_impl(dsn).await {
         Ok(_) => DataSourceValidation {
@@ -626,6 +643,11 @@ pub async fn is_local_valid_impl(dsn: &Dsn) -> Result<()> {
         bail!("no backup directory specified");
     }
     utils::parse_dir_in_dsn(dsn, None)?;
+
+    if let Some(true) = utils::parse_key_in_dsn(dsn, s3::S3_ENABLE)? {
+        let config = S3Config::from_dsn(dsn)?;
+        config.connect().await?;
+    }
 
     Ok(())
 }

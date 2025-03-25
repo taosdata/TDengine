@@ -2,7 +2,6 @@ use crate::serve::controller::Status;
 use crate::serve::data_sources::LangQuery;
 use actix_web::{get, web::Query, HttpResponse, Responder};
 use std::{collections::BTreeMap, sync::Arc};
-use taos::Dsn;
 use taosx_core::{
     core_metrics::{
         compute_avg_speed, compute_total_avg_speed, split_to_total_and_current, try_get_metrics,
@@ -12,6 +11,7 @@ use taosx_core::{
     runners,
     sink::ipc_metric::IpcMetrics,
     tmq::tmq_metric::TmqMetrics,
+    utils::dsn::json_to_dsn,
 };
 use taosx_metrics::TaosXRecorderHandle;
 
@@ -61,7 +61,8 @@ lazy_static::lazy_static! {
 }
 
 pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
-    let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
+    // let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
+    let parse_dsn_result = json_to_dsn(&serde_json::Value::String(task.task.from.clone()));
     if parse_dsn_result.is_err() {
         tracing::error!(
             "parse dsn error: {}, from={}",
@@ -151,5 +152,6 @@ fn get_profile() -> serde_json::Value {
         "build_time": crate::build::BUILD_TIME_3339,
         "build_target": crate::build::BUILD_TARGET,
         "build_os": crate::build::BUILD_OS,
+        "grpc_tls_enabled": crate::serve::controller::agent::get_grpc_ssl_ca_certificate().is_some(),
     })
 }

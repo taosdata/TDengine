@@ -1,9 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context;
-use arrow::array::{
-    ArrayRef, BinaryBuilder, RecordBatch, StringBuilder, TimestampNanosecondBuilder, UInt8Builder,
-};
+use arrow::array::{ArrayRef, RecordBatch, StringBuilder, TimestampNanosecondBuilder};
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
 
 use crate::utils::codec;
@@ -16,9 +14,7 @@ use super::{
 pub fn build_schema(topic_pattern: Option<&TopicPattern>) -> Schema {
     let mut fields = vec![
         Field::new("ts", DataType::Timestamp(TimeUnit::Nanosecond, None), false),
-        Field::new("topic", DataType::Utf8, false),
-        Field::new("qos", DataType::UInt8, false),
-        Field::new("payload", DataType::Binary, false),
+        Field::new("payload", DataType::Utf8, false),
     ];
 
     if let Some(keys) = topic_pattern.map(|p| {
@@ -41,9 +37,9 @@ pub fn build_schema(topic_pattern: Option<&TopicPattern>) -> Schema {
 pub struct RecordBatchBuilder<P> {
     schema: Arc<Schema>,
     ts: TimestampNanosecondBuilder,
-    topic: StringBuilder,
-    qos: UInt8Builder,
-    payload: BinaryBuilder,
+    // topic: StringBuilder,
+    // qos: UInt8Builder,
+    payload: StringBuilder,
 
     codec_err_count: usize,
     codec_processor: P,
@@ -58,13 +54,14 @@ where
         schema: Arc<Schema>,
         codec_processor: P,
         topic_pattern: Option<TopicPattern>,
+        capacity: usize,
     ) -> Self {
         Self {
             schema,
-            ts: TimestampNanosecondBuilder::new(),
-            topic: StringBuilder::new(),
-            qos: UInt8Builder::new(),
-            payload: BinaryBuilder::new(),
+            ts: TimestampNanosecondBuilder::with_capacity(capacity),
+            // topic: StringBuilder::with_capacity(capacity, capacity * 20),
+            // qos: UInt8Builder::with_capacity(capacity),
+            payload: StringBuilder::with_capacity(capacity, capacity * 100),
             codec_err_count: 0,
             codec_processor,
             topic_parser: topic_pattern.map(TopicParser::new),
@@ -91,9 +88,11 @@ where
                 }
             };
             self.ts.append_value(message.ts);
-            self.qos.append_value(message.qos);
-            self.topic.append_value(&message.topic);
-            self.payload.append_value(payload);
+            // self.qos.append_value(message.qos);
+            // self.topic.append_value(&message.topic);
+            self.payload.append_value(
+                String::from_utf8(payload).context("parse mqtt payload to string error")?,
+            );
             if let Some(topic_parser) = self.topic_parser.as_mut() {
                 topic_parser.append_value(&message.topic)?;
             }
@@ -101,8 +100,8 @@ where
 
         let mut columns: Vec<ArrayRef> = vec![
             Arc::new(self.ts.finish()),
-            Arc::new(self.topic.finish()),
-            Arc::new(self.qos.finish()),
+            // Arc::new(self.topic.finish()),
+            // Arc::new(self.qos.finish()),
             Arc::new(self.payload.finish()),
         ];
         if let Some(topic_parser) = self.topic_parser.as_mut() {
@@ -117,7 +116,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{BinaryArray, StringArray, TimestampNanosecondArray, UInt8Array};
+    use arrow::array::{StringArray, TimestampNanosecondArray};
     use bytes::Bytes;
 
     use super::*;
@@ -131,9 +130,7 @@ mod tests {
             Schema::new_with_metadata(
                 vec![
                     Field::new("ts", DataType::Timestamp(TimeUnit::Nanosecond, None), false),
-                    Field::new("topic", DataType::Utf8, false),
-                    Field::new("qos", DataType::UInt8, false),
-                    Field::new("payload", DataType::Binary, false),
+                    Field::new("payload", DataType::Utf8, false),
                     Field::new("a", DataType::Utf8, false),
                     Field::new("c", DataType::Utf8, false),
                 ],
@@ -146,7 +143,7 @@ mod tests {
         );
 
         let schema = Arc::new(schema);
-        let mut builder = RecordBatchBuilder::new(schema.clone(), (), Some(pattern));
+        let mut builder = RecordBatchBuilder::new(schema.clone(), (), Some(pattern), 1024);
         assert_eq!(
             builder.build([
                 Message {
@@ -166,9 +163,7 @@ mod tests {
                 schema,
                 vec![
                     Arc::new(TimestampNanosecondArray::from(vec![0, 1])),
-                    Arc::new(StringArray::from(vec!["a1/b1/c1", "a2/b2/c2"])),
-                    Arc::new(UInt8Array::from(vec![0, 1])),
-                    Arc::new(BinaryArray::from_vec(vec![b"{}", b"{}"])),
+                    Arc::new(StringArray::from(vec!["{}", "{}"])),
                     Arc::new(StringArray::from(vec!["a1", "a2"])),
                     Arc::new(StringArray::from(vec!["c1", "c2"]))
                 ]

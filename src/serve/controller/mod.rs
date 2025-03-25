@@ -1,30 +1,40 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::vec;
 use std::{collections::HashMap, time::Duration};
 
+use actix_files::NamedFile;
+use agent::ActivityOrder;
 use anyhow::{anyhow, bail, Context};
+use async_backtrace::framed;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use flume::Sender;
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
+use replica::{Replica, ReplicaOpts, ReplicaTask};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
-use sqlx::ConnectOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
+use sqlx::{ConnectOptions, Sqlite};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taosx_core::runners::kafka::KAFKA_ID;
 use taosx_core::runners::mqtt::MQTT_ID;
 use taosx_core::task_set::prelude::{HealthNotify, HealthState};
+use taosx_core::utils::dsn::{dsn_to_json, json_to_dsn};
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 use utoipa::*;
@@ -39,14 +49,15 @@ use self::trigger::Strategy;
 use super::data_sources::DataSourceDefinition;
 use super::scheduler::agent::{AgentId, TaskId};
 use super::scheduler::TaskScheduler;
+use super::task::ImportTasksParams;
 use crate::build;
 pub use crate::serve::controller::agent::Activity;
 use crate::serve::rpc::encode_csv_config_file;
-use crate::serve::task::DeleteTaskParam;
+use crate::serve::task::{DeleteTaskParam, ExportTaskDetail, ExportTasksResult};
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
+use taosx_core::plugins::runners::opc::csv::CsvParser;
 use taosx_core::plugins::transform::sample::DsSampleIn;
-use taosx_core::runners::opc::config::csv::CsvParser;
 use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
@@ -58,6 +69,7 @@ use taosx_core::{
 
 pub(crate) mod agent;
 pub mod license;
+pub(crate) mod replica;
 pub(crate) mod transferred;
 
 mod datetime_format {
@@ -324,6 +336,9 @@ impl TaskControllerRef {
                 task.status = task.status.as_str(),
                 "wake up task"
             );
+            if task.from.starts_with('"') {
+                task.from = task.from.trim_matches('"').replace(r#"\""#, r#"""#)
+            }
             let id = task.id;
             task.load_breakpoints().await?;
             push_task_activity(
@@ -874,13 +889,24 @@ impl TaskController {
     pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<TaskDetail>> {
         tracing::info!("list tasks");
         let condition = filter.gen_sql_conditions()?;
-        let mut tasks = sqlx::query_as::<_, Task>(&format!(
+        let tasks = sqlx::query_as::<_, Task>(&format!(
             "select * from task_with_labels where {condition} order by created_at desc"
         ))
         .fetch_all(&self.pool)
         .in_current_span()
         .await
         .context("Database error")?;
+
+        let mut tasks = tasks
+            .iter()
+            .map(|task| {
+                let mut task = task.clone();
+                if task.from.starts_with('"') {
+                    task.from = task.from.trim_matches('"').replace(r#"\""#, r#"""#)
+                }
+                task
+            })
+            .collect_vec();
 
         if filter.has_labels_filter() {
             filter.filter_task_labels(&mut tasks);
@@ -911,15 +937,130 @@ impl TaskController {
         Ok(tasks.len())
     }
 
+    pub async fn tasks_export(&self, ids: Option<String>) -> anyhow::Result<NamedFile> {
+        tracing::info!("export tasks: {:?}", ids);
+        let sql = if let Some(ids) = ids {
+            format!("select * from task_with_labels where id in ({ids}) order by created_at desc")
+        } else {
+            "select * from task_with_labels order by created_at desc".to_string()
+        };
+        let tasks = sqlx::query_as::<_, Task>(&sql)
+            .fetch_all(&self.pool)
+            .in_current_span()
+            .await
+            .context("Database error")?;
+
+        // get cluster id and user from the first task
+        let (cluster_id, user) = if let Some(task) = tasks.first() {
+            let cluster_id = task.labels.find("cluster-id").unwrap_or_default();
+            let user = task.labels.find("user").unwrap_or_default();
+            (cluster_id, user)
+        } else {
+            ("", "")
+        };
+        let now = Utc::now();
+
+        let tasks = tasks
+            .iter()
+            .map(|task| {
+                let from_json = if let Ok(dsn) = task.from.clone().into_dsn() {
+                    dsn_to_json(&dsn)
+                } else {
+                    serde_json::Value::Null
+                };
+                ExportTaskDetail {
+                    id: task.id,
+                    name: task.name.clone(),
+                    from: from_json,
+                    to: task.to.clone(),
+                    parser: task.parser.clone(),
+                    via: task.via,
+                    jobs: task.jobs,
+                    compression_level: task.compression_level,
+                    oneshot_topic: task.oneshot_topic.clone(),
+                    created_at: task.created_at,
+                }
+            })
+            .collect_vec();
+        let result = ExportTasksResult {
+            server_version: build::TD_VERSION.to_string(),
+            version: build::PKG_VERSION.to_string(),
+            commit: build::COMMIT_HASH.to_string(),
+            build: format!("{} {}", build::BUILD_OS, build::BUILD_TIME),
+            cluster_id: cluster_id.to_string(),
+            export_user: user.to_string(),
+            export_time: now.to_rfc3339(),
+            tasks_num: tasks.len(),
+            tasks,
+        };
+        let result =
+            serde_json::to_string_pretty(&result).context("failed to serialize result to JSON")?;
+
+        let file_name_json = format!(
+            "/tmp/taos-explorer-tasks-{}.json",
+            now.format("%Y%m%d%H%M%S")
+        );
+        let mut file_json = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&file_name_json)
+            .context(format!("failed to create file {file_name_json}"))?;
+        file_json.write_all(result.as_bytes())?;
+        file_json.flush().context("failed to flush JSON file")?;
+
+        NamedFile::open(file_name_json).context("failed to open json file")
+    }
+
+    pub async fn tasks_import(&self, params: ImportTasksParams) -> anyhow::Result<usize> {
+        tracing::info!("import tasks: {:?}", params);
+        let tasks = params.tasks;
+
+        let mut count = 0;
+        for task in tasks {
+            let task = NewTask {
+                stream_type: None,
+                name: task.name,
+                trigger: None,
+                from: None,
+                from_json: Some(task.from),
+                from_cluster: None,
+                oneshot_topic: task.oneshot_topic,
+                to: task.to,
+                parser: task.parser,
+                to_cluster: None,
+                via: task.via,
+                clear: false,
+                jobs: task.jobs,
+                compression_level: task.compression_level,
+                force: false,
+                after_delete: None,
+                labels: params.labels.clone(),
+                not_start: true,
+            };
+            self.create(task).await?;
+            count += 1;
+        }
+        Ok(count)
+    }
+
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
         tracing::info!(task.name, task.via, "create new task");
 
         let not_start = task.not_start;
-        let mut from: Dsn = task
-            .from
-            .parse()
-            .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+        // let mut from: Dsn = task
+        //     .from
+        //     .parse()
+        //     .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+        let mut from = if let Some(from_json) = task.from_json.clone() {
+            json_to_dsn(&from_json)?
+        } else if let Some(from) = task.from.clone() {
+            from.parse()
+                .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", from))?
+        } else {
+            anyhow::bail!("from is required");
+        };
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -959,7 +1100,7 @@ impl TaskController {
             BackupConfigBuilder::new(None, &from, &to).build().await?;
         }
 
-        if task.via.is_none() {
+        if task.via.is_none() && !task.not_start {
             validate_dsn(&from).await.ok()?;
         }
 
@@ -997,7 +1138,7 @@ impl TaskController {
                  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&task.name)
-        .bind(&task.from)
+        .bind(from.to_string())
         .bind(&task.oneshot_topic)
         .bind(&task.to)
         .bind(task.jobs)
@@ -1068,17 +1209,24 @@ impl TaskController {
 
         match backup_topic {
             None => {
-                sqlx::query("update tasks set `from` = ? where id = ?")
-                    .bind(from.to_string())
-                    .bind(id)
-                    .execute(txn.as_mut())
-                    .in_current_span()
-                    .await
-                    .context("update task error")?;
+                // sqlx::query("update tasks set `from` = ? where id = ?")
+                //     .bind(from.to_string())
+                //     .bind(id)
+                //     .execute(txn.as_mut())
+                //     .in_current_span()
+                //     .await
+                //     .context("update task error")?;
             }
             Some(oneshot_topic) => {
-                sqlx::query("update tasks set `from` = ?,`oneshot_topic` = ? where id = ?")
-                    .bind(from.to_string())
+                // sqlx::query("update tasks set `from` = ?,`oneshot_topic` = ? where id = ?")
+                //     .bind(from.to_string())
+                //     .bind(oneshot_topic)
+                //     .bind(id)
+                //     .execute(txn.as_mut())
+                //     .in_current_span()
+                //     .await
+                //     .context("update task error")?;
+                sqlx::query("update tasks set `oneshot_topic` = ? where id = ?")
                     .bind(oneshot_topic)
                     .bind(id)
                     .execute(txn.as_mut())
@@ -1190,6 +1338,14 @@ impl TaskController {
             }
         }
 
+        let from = if let Some(from_json) = task.from_json.clone() {
+            let dsn = json_to_dsn(&from_json)?;
+            task.from = Some(dsn.to_string());
+            &dsn.to_string()
+        } else {
+            task.from.as_deref().unwrap_or(old.from.as_str())
+        };
+
         // 云服务的UpdateTask没有name，需要从labels中解析
         if task.name.is_none() {
             task.name = task.labels.as_ref().and_then(|labels| {
@@ -1226,9 +1382,7 @@ impl TaskController {
         query = query.bind(task.via);
 
         if task.via.is_none() {
-            validate_dsn(task.from.as_deref().unwrap_or(old.from.as_str()))
-                .await
-                .ok()?;
+            validate_dsn(from).await.ok()?;
         }
 
         let res = query.execute(&self.pool).await?;
@@ -1258,7 +1412,6 @@ impl TaskController {
                 .from
                 .parse()
                 .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
-
             if let Some(via) = task.via {
                 if !self.agent_alive(via).await {
                     bail!("Agent {} is not alive", via);
@@ -1313,6 +1466,9 @@ impl TaskController {
                 t
             });
         if let Some(mut task) = task {
+            if task.from.starts_with('"') {
+                task.from = task.from.trim_matches('"').replace(r#"\""#, r#"""#)
+            };
             task.load_breakpoints().await?;
             return Ok(Some(task.into()));
         }
@@ -1351,6 +1507,9 @@ impl TaskController {
         }
 
         let mut task = task.unwrap();
+        if task.from.starts_with('"') {
+            task.from = task.from.trim_matches('"').replace(r#"\""#, r#"""#)
+        }
         task.backport_labels();
         if let Some(params) = params {
             task.after_delete = params.after_delete;
@@ -1507,6 +1666,22 @@ impl TaskController {
     ) -> anyhow::Result<Vec<Activity>> {
         let cond = filter.condition();
         let sql = format!("select * from task_activities where `id` = {id} {cond}");
+        let items = sqlx::query_as(&sql)
+            .fetch_all(&self.pool)
+            .in_current_span()
+            .await?;
+        Ok(items)
+    }
+
+    pub async fn all_tasks_activities(&self) -> anyhow::Result<Vec<Activity>> {
+        let cond = AgentActivityFilter {
+            since: None,
+            level: None,
+            limit: Some(10000),
+            order: Some(ActivityOrder::Asc),
+        }
+        .condition();
+        let sql = format!("select * from (select *, row_number() over (partition by id order by at desc) as rn from task_activities) r where r.rn<=5 {cond}");
         let items = sqlx::query_as(&sql)
             .fetch_all(&self.pool)
             .in_current_span()
@@ -1853,7 +2028,8 @@ impl TaskController {
         set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
-            from: dsn.to_string(),
+            from: Some(dsn.to_string()),
+            from_json: None,
             categories: vec![categories],
             via,
             offset: 0,
@@ -1996,7 +2172,6 @@ impl TaskController {
                 let _ = self.put_file_to_agent(agent, path.clone()).await;
             }
         }
-
         scheduler.get_sample_via_agent(agent, dsn).await
     }
 
@@ -2072,8 +2247,282 @@ impl TaskController {
 
         Ok(())
     }
+
+    async fn search_replicas_by_source_sink(
+        &self,
+        replica: &Replica,
+    ) -> anyhow::Result<Option<Vec<ReplicaTask>>> {
+        let labels = replica.labels_with_source_sink();
+        let tasks = self
+            .tasks(TaskFilter::default().with_joined_labels(labels))
+            .await?;
+
+        if tasks.is_empty() {
+            return Ok(None);
+        }
+
+        let replicas = tasks
+            .into_iter()
+            .map(ReplicaTask::from_task)
+            .try_collect::<_, Vec<_>, _>()?;
+
+        Ok(Some(replicas))
+    }
+
+    async fn list_replicas(&self) -> anyhow::Result<Vec<(Replica, Vec<ReplicaTask>)>> {
+        let labels = "type::replica".to_string();
+        let tasks = self
+            .tasks(TaskFilter::default().with_joined_labels(labels))
+            .await?;
+
+        if tasks.is_empty() {
+            return Ok(Vec::new());
+        }
+        let replicas: Vec<_> = tasks
+            .into_iter()
+            .map(ReplicaTask::from_task)
+            .try_collect::<_, Vec<_>, _>()?
+            .into_iter()
+            .flat_map(|task| task.replica().ok().map(|r| (r, task)))
+            .into_group_map()
+            .into_iter()
+            .collect();
+
+        Ok(replicas)
+    }
+
+    /// Start replica monitor.
+    pub async fn start_replica_monitor(
+        self: &Arc<Self>,
+        mut opts: ReplicaOpts,
+    ) -> anyhow::Result<ReplicaOpts> {
+        let mut trans = self.pool.begin().await?;
+        let lock = trans.lock_handle().await?;
+        // Step 1: check if the replica exists
+        let replica = sqlx::query_as::<_, ReplicaOpts>(
+            "select * from replicas where source = ? and sink = ?",
+        )
+        .bind(&opts.source)
+        .bind(&opts.sink)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let mut should_update = true;
+        if let Some(mut exist) = replica {
+            let request_rid = opts.id.take();
+            let id = exist.id.take().expect("id should not be None");
+            if let Some(request_rid) = request_rid.as_deref() {
+                if request_rid != id {
+                    bail!(
+                        "Replica with source: {}, sink: {} already exists as id: {}",
+                        exist.source,
+                        exist.sink,
+                        id,
+                    );
+                }
+            }
+            if exist == opts {
+                if MONITOR_TASK
+                    .read()
+                    .await
+                    .get(&id)
+                    .map_or(false, |h| !h.is_finished())
+                {
+                    tracing::info!("No changes, an exist monitor task has been running");
+                    return Ok(exist);
+                }
+                should_update = false;
+            }
+            opts = exist;
+            opts.id = Some(id);
+        }
+
+        // Step 2: make sure the replica is not running
+        let mut replica = opts.build_replica()?;
+        let tasks = self.search_replicas_by_source_sink(&replica).await?;
+
+        if let Some(id) = tasks
+            .as_deref()
+            .and_then(|tasks| tasks.first().map(|task| task.replica_id()))
+        {
+            // If source/sink replica exists, check if the id is the same.
+            if id != replica.id() {
+                bail!(
+                    "Replica with source: {}, sink: {} already exists as id: {}",
+                    replica.canonical_source(),
+                    replica.canonical_sink(),
+                    id,
+                );
+            }
+            if opts.id.is_none() {
+                opts.id = Some(id.to_string());
+            }
+        } else if opts.id.is_none() {
+            // If id is not set, update the id with the existing replicas to avoid id conflict.
+            let replicas = self
+                .list_replicas()
+                .await?
+                .into_iter()
+                .map(|(r, _)| r)
+                .collect::<Vec<_>>();
+            replica.update_id_with(&replicas);
+            opts.id.replace(replica.id().to_string());
+        }
+        // Step 3: abort if the monitor task is running.
+        {
+            if let Some(task) = MONITOR_TASK.write().await.remove(replica.id()) {
+                task.abort()
+            }
+        }
+
+        let id = replica.id();
+        let now = chrono::Local::now();
+        if should_update {
+            // Step 3: insert or update the replica
+            sqlx::query::<Sqlite>(
+            "INSERT INTO replicas (`id`, `source`, `sink`, `topic_prefix`, `group`, \
+                `keep_topic_after_remove`, `new_databases_checking_interval`, `created_at`, `updated_at`) \
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET \
+                `topic_prefix` = ?, `group` = ?, `keep_topic_after_remove` = ?, \
+                `new_databases_checking_interval` = ?, `updated_at` = ?",
+            )
+            .bind(id)
+            .bind(&opts.source)
+            .bind(&opts.sink)
+            .bind(now)
+            .bind(now)
+            .bind(&opts.topic_prefix)
+            .bind(&opts.group)
+            .bind(opts.keep_topic_after_remove)
+            .bind(opts.new_databases_checking_interval)
+            .bind(&opts.topic_prefix)
+            .bind(&opts.group)
+            .bind(opts.keep_topic_after_remove)
+            .bind(opts.new_databases_checking_interval)
+            .bind(now)
+            .execute(&self.pool).await.context("Update replicas failed")?;
+        }
+        drop(lock);
+        drop(trans);
+
+        let inner_opts = opts.clone();
+        let controller = TaskControllerRef(self.clone());
+        tokio::spawn(start_replica_monitor_with(
+            controller, replica, inner_opts, tasks,
+        ));
+        Ok(opts)
+    }
+
+    /// Stop replica monitor by id.
+    pub async fn stop_replica_monitor(&self, id: &str) -> anyhow::Result<()> {
+        if let Some(task) = MONITOR_TASK.write().await.remove(id) {
+            task.abort()
+        };
+        Ok(())
+    }
+
+    /// Remove replica monitor by id.
+    pub async fn remove_replica_monitor(&self, id: &str) -> anyhow::Result<Option<ReplicaOpts>> {
+        self.stop_replica_monitor(id).await?;
+        let opts = sqlx::query_as::<_, ReplicaOpts>("select * from replicas where id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        if opts.is_none() {
+            return Ok(None);
+        }
+        sqlx::query("delete from replicas where id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(opts)
+    }
+
+    /// Start replica monitor by id.
+    pub async fn start_replica_monitor_by_id(
+        self: &Arc<Self>,
+        id: &str,
+        new_databases_checking_interval: Option<u32>,
+    ) -> anyhow::Result<Option<ReplicaOpts>> {
+        let opts = sqlx::query_as::<_, ReplicaOpts>("select * from replicas where id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        if opts.is_none() {
+            return Ok(None);
+        }
+        let mut opts = opts.unwrap();
+        if let Some(v) = new_databases_checking_interval {
+            opts.new_databases_checking_interval.replace(v);
+        }
+        self.start_replica_monitor(opts).await.map(Some)
+    }
+
+    pub async fn start_all_replicas_monitor(self: &Arc<Self>) -> anyhow::Result<()> {
+        let ids: Vec<String> = sqlx::query_scalar("select id from replicas where id = ?")
+            .fetch_all(&self.pool)
+            .await?;
+        let mut errors = anyhow::anyhow!("Start replicas monitor error");
+        let mut has_errors = false;
+        for id in ids {
+            if let Err(err) = self.start_replica_monitor_by_id(&id, None).await {
+                errors = errors.context(format!("Start replica {id} error: {err:#}"));
+                has_errors = true;
+            }
+        }
+        if has_errors {
+            Err(errors)
+        } else {
+            Ok(())
+        }
+    }
 }
 
+lazy_static! {
+    static ref MONITOR_TASK: RwLock<HashMap<String, JoinHandle<()>>> = RwLock::new(HashMap::new());
+}
+#[framed]
+async fn start_replica_monitor_with(
+    ctl: TaskControllerRef,
+    replica: Replica,
+    opts: ReplicaOpts,
+    tasks: Option<Vec<ReplicaTask>>,
+) {
+    let id = replica.id().to_string();
+    let handle = tokio::spawn(async_backtrace::frame!(async move {
+        let replica = replica;
+        let mut interval = tokio::time::interval(Duration::from_secs(
+            opts.new_databases_checking_interval() as _,
+        ));
+        let mut set = HashSet::new();
+        if let Some(tasks) = tasks {
+            for task in tasks {
+                if set.contains(&task.database) {
+                    continue;
+                }
+                set.insert(task.database.clone());
+            }
+        }
+
+        loop {
+            let databases = replica.databases(Duration::from_secs(30)).await;
+            if let Ok(databases) = databases {
+                for database in databases {
+                    if set.contains(&database) {
+                        continue;
+                    }
+                    let task = replica.build_task(&opts, &database, &database);
+                    tracing::info!("Create replica task: {:?}", task);
+                    if ctl.create(task).await.is_ok() {
+                        set.insert(database);
+                    }
+                }
+            }
+            interval.tick().await;
+        }
+    }));
+    MONITOR_TASK.write().await.insert(id, handle);
+}
 #[derive(Debug, Default, Serialize, ToSchema, FromRow)]
 pub struct ConnectorTransferred {
     pub connector: String,
@@ -2084,7 +2533,7 @@ pub struct ConnectorTransferred {
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct AgentFilter {
-    cluster_id: Option<String>,
+    pub cluster_id: Option<String>,
     user_id: Option<String>,
 }
 
@@ -2204,6 +2653,19 @@ impl PartialEq<Status> for &Status {
 impl Status {
     fn as_str(&self) -> &'static str {
         self.into()
+    }
+
+    #[allow(dead_code)]
+    fn in_final_state(&self) -> bool {
+        matches!(
+            self,
+            Self::Stopped
+                | Self::Interrupted
+                | Self::Cancelled
+                | Self::Failed
+                | Self::Created
+                | Self::Suspended
+        )
     }
 }
 
@@ -2792,28 +3254,18 @@ pub struct TaskDetail {
     #[serde(flatten)]
     pub task: Task,
 
+    /// Serialized to json from `from` field.
+    from_json: Option<serde_json::Value>,
+
     /// Expanded DSN for source.
     from_expand: Option<ExpandedDsn>,
-    /// Expanded DSN definition with values.
-    #[serde(default)]
-    #[serde(skip_deserializing)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    from_detail: Option<DataSourceDefinition>,
 
     /// Expanded DSN for sink.
     to_expand: Option<ExpandedDsn>,
-    /// Expanded DSN definition with values.
-    #[serde(default)]
-    #[serde(skip_deserializing)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    to_detail: Option<DataSourceDefinition>,
 
     /// Agent
     #[serde(skip_serializing_if = "Option::is_none")]
     agent: Option<Agent>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parser: Option<serde_json::Value>,
 }
 
 impl From<Task> for TaskDetail {
@@ -2839,12 +3291,10 @@ impl std::ops::DerefMut for TaskDetail {
 impl TaskDetail {
     pub fn new(task: Task) -> Self {
         TaskDetail {
-            parser: task.parser.clone(),
             task,
+            from_json: None,
             from_expand: None,
-            from_detail: None,
             to_expand: None,
-            to_detail: None,
             agent: None,
         }
     }
@@ -2853,76 +3303,54 @@ impl TaskDetail {
         &self.task.status
     }
 
-    pub fn expand_detail(self, lang: Option<String>) -> Self {
+    pub fn expand_detail(self, _lang: Option<String>) -> Self {
         let value = self.task;
-        let parser = value.parser.clone();
+        tracing::warn!("expand_detail: {}", value.from);
         let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        let from_json = dsn_to_json(&from_dsn);
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
-        if let Some(lang) = lang {
-            match lang.as_str() {
-                "zh" => TaskDetail {
-                    from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                    from_detail: DATA_SOURCE_DEFINITIONS_CN
-                        .get(&from_dsn.driver)
-                        .map(|d| d.clone().values_from(from_dsn)),
-                    to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                    to_detail: DATA_SOURCE_DEFINITIONS_CN
-                        .get(&to_dsn.driver)
-                        .map(|d| d.clone().values_from(to_dsn)),
-                    task: value,
-                    agent: None,
-                    parser,
-                },
-                _ => TaskDetail {
-                    from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                    from_detail: DATA_SOURCE_DEFINITIONS
-                        .get(&from_dsn.driver)
-                        .map(|d| d.clone().values_from(from_dsn)),
-                    to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                    to_detail: DATA_SOURCE_DEFINITIONS
-                        .get(&to_dsn.driver)
-                        .map(|d| d.clone().values_from(to_dsn)),
-                    task: value,
-                    agent: None,
-                    parser,
-                },
-            }
-        } else {
-            TaskDetail {
-                from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                from_detail: DATA_SOURCE_DEFINITIONS
-                    .get(&from_dsn.driver)
-                    .map(|d| d.clone().values_from(from_dsn)),
-                to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                to_detail: DATA_SOURCE_DEFINITIONS
-                    .get(&to_dsn.driver)
-                    .map(|d| d.clone().values_from(to_dsn)),
-                task: value,
-                agent: None,
-                parser,
-            }
+        TaskDetail {
+            from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+            from_json: Some(from_json),
+            to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+            task: value,
+            agent: None,
         }
+        // if let Some(lang) = lang {
+        //     match lang.as_str() {
+        //         "zh" => TaskDetail {
+        //             from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+        //             from_json: Some(from_json),
+        //             to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+        //             task: value,
+        //             agent: None,
+        //         },
+        //         _ => TaskDetail {
+        //             from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+        //             from_json: Some(from_json),
+        //             to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+        //             task: value,
+        //             agent: None,
+        //         },
+        //     }
+        // } else {
+        //     TaskDetail {
+        //         from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+        //         from_json: Some(from_json),
+        //         to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+        //         task: value,
+        //         agent: None,
+        //     }
+        // }
     }
 
     pub fn expand(mut self) -> Self {
         let value = &self.task;
-        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        // let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        let from_dsn = json_to_dsn(&serde_json::Value::String(value.from.clone())).unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
         self.from_expand = Some(from_dsn.into());
         self.to_expand = Some(to_dsn.into());
-        self
-    }
-
-    pub fn _detail(mut self) -> Self {
-        let value = &self.task;
-        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
-        let to_dsn: Dsn = value.to.as_str().parse().unwrap();
-        self.from_detail = DATA_SOURCE_DEFINITIONS
-            .get(&from_dsn.driver)
-            .map(|d| d.clone().values_from(from_dsn));
-        self.to_detail = DATA_SOURCE_DEFINITIONS
-            .get(&to_dsn.driver)
-            .map(|d| d.clone().values_from(to_dsn));
         self
     }
 
@@ -2993,6 +3421,13 @@ impl Labels {
     /// Check if labels is empty.
     fn is_empty(&self) -> bool {
         self.0.as_ref().map(|v| v.is_empty()).unwrap_or(true)
+    }
+
+    pub fn to_hash_map(&self) -> HashMap<&str, &str> {
+        self.0
+            .as_deref()
+            .map(|v| v.iter().flat_map(|v| v.split_once("::")).collect())
+            .unwrap_or_default()
     }
 
     /// Find the label value by key
@@ -3110,7 +3545,8 @@ pub(crate) struct NewTask {
     pub trigger: Option<Strategy>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: String,
+    from: Option<String>,
+    from_json: Option<serde_json::Value>,
     /// The stream data source cluster id.
     from_cluster: Option<String>,
 
@@ -3192,7 +3628,8 @@ impl NewTask {
 struct NewTaskV1 {
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: String,
+    from: Option<String>,
+    from_json: Option<serde_json::Value>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
     // #[serde(default)]
@@ -3239,6 +3676,7 @@ impl From<NewTask> for NewTaskV1 {
         }
         Self {
             from: value.from,
+            from_json: value.from_json,
             oneshot_topic: value.oneshot_topic,
             to: value.to,
             clear: value.clear,
@@ -3261,6 +3699,7 @@ pub struct UpdateTask {
     stream_type: Option<String>,
     /// The stream data source.
     from: Option<String>,
+    from_json: Option<serde_json::Value>,
     /// *Deprecated*. The stream data source cluster id.
     from_cluster: Option<String>,
     /// Use oneshot topic for a task, delete the topic after task deleted.
@@ -3297,7 +3736,7 @@ pub struct TaskFilter {
     start_create_time: Option<String>,
     end_create_time: Option<String>,
     with_deleted: Option<bool>,
-    labels: Option<String>,
+    pub labels: Option<String>,
     any_labels: Option<String>,
     without_labels: Option<String>,
     via: Option<i64>,
@@ -3389,6 +3828,11 @@ impl TaskFilter {
     #[allow(dead_code)]
     fn via(mut self, agent_id: i64) -> Self {
         self.via.replace(agent_id);
+        self
+    }
+
+    fn with_joined_labels(mut self, labels: String) -> Self {
+        self.labels.replace(labels);
         self
     }
 }
@@ -3698,5 +4142,86 @@ mod tests {
         let dsn = Dsn::from_str("csv:./ab.csv,./cd.csv?param=1").unwrap();
         dbg!(&dsn);
         assert_eq!(dsn.path.unwrap(), "./ab.csv,./cd.csv");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn test_replica_docker() -> anyhow::Result<()> {
+        std::thread::spawn(move || {
+            std::env::set_current_dir("tests/active-active").unwrap();
+            let _ = std::process::Command::new("docker")
+                .args(["compose", "up", "-d", "--remove-orphans"])
+                .output();
+        })
+        .join()
+        .unwrap();
+        let source = TaosBuilder::from_dsn("http://localhost:7041")?
+            .build()
+            .await?;
+        let sink = TaosBuilder::from_dsn("http://localhost:8041")?
+            .build()
+            .await?;
+        {
+            // prepare data
+            source
+                .exec_many([
+                    "drop topic if exists __replica__rep1",
+                    "drop database if exists rep1",
+                    "create database if not exists rep1",
+                    "create table if not exists rep1.t1 (ts timestamp, c1 int)",
+                    "insert into rep1.t1 values(now, 1)",
+                    "drop topic if exists __replica__rep2",
+                    "drop database if exists rep2",
+                    "create database if not exists rep2",
+                    "create table if not exists rep2.st1 (ts timestamp, c1 int) tags(t1 int)",
+                    "insert into rep2.t1 using rep2.st1 tags(1) values(now, 2)",
+                ])
+                .await?;
+            sink.exec_many([
+                "drop database if exists rep1",
+                "drop database if exists rep2",
+            ])
+            .await?;
+        }
+        let _ = tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_file(true)
+            .pretty()
+            .try_init();
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        let opts = ReplicaOpts {
+            source: "http://localhost:7041".to_string(),
+            sink: "http://localhost:8041".to_string(),
+            new_databases_checking_interval: Some(1),
+            ..Default::default()
+        };
+        let arc = Arc::new(controller);
+        let replica = arc.start_replica_monitor(opts).await?;
+        assert!(replica.id.is_some(), "replica id is none: {replica:?}");
+        let reps = arc.list_replicas().await?;
+        assert!(
+            reps.is_empty() || reps[0].1.is_empty(),
+            "replicas is not empty: {reps:?}"
+        );
+
+        {
+            sink.exec("create database if not exists rep1").await?;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        let reps = arc.list_replicas().await?;
+        assert_eq!(reps[0].1.len(), 1, "replicas should have 1 task: {reps:?}");
+
+        {
+            sink.exec("create database if not exists rep2").await?;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        let reps = arc.list_replicas().await?;
+        assert_eq!(reps[0].1.len(), 2, "replicas should have 2 task: {reps:?}");
+
+        let del = arc
+            .remove_replica_monitor(replica.id.as_deref().unwrap())
+            .await?;
+        assert!(del.is_some());
+        Ok(())
     }
 }

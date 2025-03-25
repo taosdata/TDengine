@@ -1,246 +1,194 @@
 <template>
   <el-form
+    ref="ruleFormRef"
     :model="changeForm"
     :rules="rules"
     :status-icon="true"
     label-position="top"
     label-width="auto"
-    size="small"
-    ref="changeForm"
+    size="default"
   >
-    <!-- <el-form-item label="Usernmae" prop="Usernmae">
-        <el-input v-model.trim="changeForm.Usernmae"></el-input>
-      </el-form-item> -->
-    <el-form-item v-if="needEmail" :label="$t('email')" prop="email">
-      <el-input
-        v-model.trim="changeForm.email"
-        @keyup.enter.native="change"
-        :placeholder="$t('email')"
-      ></el-input>
-    </el-form-item>
-    <el-form-item :label="$t('oldPass')" prop="old_password">
+    <el-form-item :label="t('login.oldPass')" prop="old_password">
       <el-input
         v-model.trim="changeForm.old_password"
         maxlength="16"
         :show-password="true"
-        @keyup.enter.native="change"
         minlength="8"
-        :placeholder="$t('oldPass')"
+        :placeholder="t('login.oldPass')"
+        @keyup.enter="change"
       ></el-input>
     </el-form-item>
-    <el-form-item :label="$t('newPass')" prop="new_password">
+    <el-form-item :label="t('login.newPass')" prop="new_password">
       <el-popover trigger="click" placement="right-end">
-        <ol
-          style="list-style: unset; padding-left: 10px"
-          v-html="$t('passwordTip')"
-        ></ol>
-        <el-input
-          slot="reference"
-          v-model.trim="changeForm.new_password"
-          maxlength="16"
-          :show-password="true"
-          @keyup.enter.native="change"
-          minlength="8"
-          :placeholder="$t('newPass')"
-        ></el-input>
+        <ol v-dompurify-html="t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')" style="padding-left: 10px; list-style: unset"></ol>
+        <template #reference>
+          <el-input
+            v-model.trim="changeForm.new_password"
+            maxlength="16"
+            :show-password="true"
+            minlength="8"
+            :placeholder="t('login.newPass')"
+            @keyup.enter="change"
+          ></el-input>
+        </template>
       </el-popover>
     </el-form-item>
-    <el-form-item :label="$t('confirmPass')" prop="confirm_password">
+    <el-form-item :label="t('confirmPass')" prop="confirm_password">
       <el-input
         v-model.trim="changeForm.confirm_password"
         maxlength="16"
-        @keyup.enter.native="change"
         minlength="8"
         :show-password="true"
-        :placeholder="$t('confirmPass')"
+        :placeholder="t('confirmPass')"
+        @keyup.enter="change"
       ></el-input>
     </el-form-item>
-    <p v-show="err_msg" class="errorText">{{ err_msg }}</p>
-    <el-form-item label=" ">
-      <el-button
-        type="primary"
-        :disabled="requestIng"
-        :loading="requestIng"
-        @click="change"
-        >{{ $t("setting.saveChange") }}</el-button
-      >
-      <!-- <el-button plain @click="$emit('close')">{{ $t("cancel") }}</el-button> -->
+    <p v-show="err_msg" class="error-text">{{ err_msg }}</p>
+    <el-form-item label=" " class="my-btn">
+      <el-button type="primary" :disabled="requestIng" :loading="requestIng" @click="change">{{
+        t('login.saveChange')
+      }}</el-button>
     </el-form-item>
   </el-form>
 </template>
 
-<script>
-import { validEmail, validPassword } from "@/utils/validate.js";
-import { modifyUserPassword } from "@/api/gateway/console";
-import { deleteCookieItem } from "@/utils/index";
-import { decrypt } from "@/utils/index";
-export default {
-  props: {
-    needEmail: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  data() {
-    return {
-      changeForm: {
-        // old_password: process.env.VUE_APP_PASSWORD,
-        // new_password: process.env.VUE_APP_PASSWORD,
-        // confirm_password: process.env.VUE_APP_PASSWORD,
-        old_password: "",
-        new_password: "",
-        confirm_password: "",
-      },
-      err_msg: "",
-      requestIng: false,
-    };
-  },
-  computed: {
-    rules() {
-      const checkEmail = async (_, value, callback) => {
-        if (!value || !validEmail(value)) {
-          return callback(new Error(this.$t("emailError")));
-        }
-      };
-      const validateOldPwd = async (_, value, callback) => {
-        if (!value) {
-          return callback(new Error(this.$t("oldPass") + this.$t("requiredMessage")));
-        } else {
-          if (value != decrypt(localStorage.getItem("pwd"))) {
-            return callback(new Error(this.$t('oldPassError')));
-          } else {
-            return callback();
-          }
-        }
-      };
-      const checkPassword = async (_, value, callback) => {
-        this.err_msg = "";
-        callback(
-          validPassword(value) ? undefined : new Error(this.$t("passwordError"))
-        );
-      };
-      const cheakConfirmPassword = async (_, value, callback) => {
-        this.err_msg = "";
-        callback(
-          value == this.changeForm.new_password
-            ? undefined
-            : new Error(this.$t("twoPassError"))
-        );
-      };
-      return {
-        email: [{ validator: checkEmail, trigger: "blur" }],
-        old_password: [
-          {
-            required: true,
-            trigger: "blur",
-            message: this.$t("oldPass") + this.$t("requiredMessage"),
-          },
-          { validator: validateOldPwd, trigger: "blur" },
-        ],
-        new_password: [
-          {
-            required: true,
-            trigger: "blur",
-            message: this.$t("newPass") + this.$t("requiredMessage"),
-          },
-          { validator: checkPassword, trigger: "blur" },
-        ],
-        confirm_password: [
-          {
-            required: true,
-            trigger: "blur",
-            message: this.$t("confirmPass") + this.$t("requiredMessage"),
-          },
-          { validator: cheakConfirmPassword, trigger: "blur" },
-        ],
-      }
-    },
-  },
-  methods: {
-    change() {
-      if (this.requestIng) return;
-      this.$refs["changeForm"].validate(async (valid) => {
-        if (valid) {
-          this.requestIng = true;
-          let username = localStorage.getItem("username");
-          await modifyUserPassword(
-            username,
-            `ALTER USER \`${username}\` PASS '${this.changeForm.new_password}'`
-          )
-            .then((res) => {
-              if (res) {
-                this.changeForm = {
-                  old_password: "",
-                  new_password: "",
-                  confirm_password: "",
-                };
-                // this.$message.success(this.$t("login.changeSucc"));
-                this.requestIng = false;
-                localStorage.removeItem("username");
-                localStorage.removeItem("pwd");
-                deleteCookieItem();
-                this.$alert(this.$t("changepwdtip"), this.$t("tips"), {
-                  showCancelButton: false,
-                  showConfirmButton: true,
-                  confirmButtonText: this.$t("ok"),
-                  closeOnClickModal: false,
-                  showClose: false,
-                  type: "success",
-                }).then(() => {
-                  this.$router.push({
-                    path: "/login",
-                  });
-                });
-              }
-            })
-            .catch((err) => {
-              this.err_msg = err;
-            })
-            .finally(() => {
-              this.requestIng = false;
-            });
-          // this.$store
-          //   .dispatch("auth/change", this.changeForm)
-          //   .then(() => {
-          //     this.changeForm = {
-          //       old_password: "",
-          //       new_password: "",
-          //       confirm_password: "",
-          //     };
-          //     if (this.needEmail) {
-          //       this.changeForm.email = "";
-          //     }
-          //     this.$message.success(this.$t("login.changeSucc"));
-          //     this.$emit("close");
-          //   })
-          //   .catch(err_msg => {
-          //     this.err_msg = err_msg;
-          //   })
-          //   .finally(() => {
-          //     this.requestIng = false;
-          //   });
-        }
-      });
-    },
-  },
-  mounted() {
-    if (this.needEmail) {
-      this.changeForm.email = "";
+<script setup lang="ts">
+import { validPassword, validPasswordNotStrict } from '@/utils/validate';
+import { getDatabaseVariables } from '@/api/database';
+import { sendSQLReq } from '@/api/explorer';
+import { deleteCookieItem } from '@/utils/index';
+import { decrypt } from '@/utils/index';
+import type { FormInstance } from 'element-plus';
+
+const enableStrongPassword = ref(false);
+
+const { t } = useI18n();
+const router = useRouter();
+const ruleFormRef = ref<FormInstance>();
+
+let changeForm = reactive({
+  old_password: '',
+  new_password: '',
+  confirm_password: ''
+});
+const err_msg = ref('');
+const requestIng = ref(false);
+
+const validateOldPwd = (_: any, value: any, callback: (arg0?: Error | undefined) => void) => {
+  if (!value) {
+    return callback(new Error(t('login.oldPass') + t('requiredMessage')));
+  } else {
+    if (value != decrypt(localStorage.getItem('pwd') || '')) {
+      return callback(new Error(t('login.oldPassError')));
+    } else {
+      return callback();
     }
-  },
+  }
 };
+const checkPassword = (_: any, value: string, callback: (arg0: Error | undefined) => void) => {
+  err_msg.value = '';
+  callback(validatePasswordLocal(value) ? undefined : new Error(t('login.passwordError')));
+};
+const cheakConfirmPassword = (_: any, value: string, callback: (arg0: Error | undefined) => void) => {
+  err_msg.value = '';
+  callback(value == changeForm.new_password ? undefined : new Error(t('login.twoPassError')));
+};
+
+const validatePasswordLocal = (value: string) => {
+  if (enableStrongPassword.value) {
+    return validPassword(value);
+  } else {
+    return validPasswordNotStrict(value);
+  }
+};
+
+const rules = computed(() => {
+  return {
+    old_password: [
+      {
+        required: true,
+        trigger: 'blur',
+        message: t('login.oldPass') + t('requiredMessage')
+      },
+      { validator: validateOldPwd, trigger: 'blur' }
+    ],
+    new_password: [
+      {
+        required: true,
+        trigger: 'blur',
+        message: t('login.newPass') + t('requiredMessage')
+      },
+      { validator: checkPassword, trigger: 'blur' }
+    ],
+    confirm_password: [
+      {
+        required: true,
+        trigger: 'blur',
+        message: t('confirmPass') + t('requiredMessage')
+      },
+      { validator: cheakConfirmPassword, trigger: 'blur' }
+    ]
+  };
+});
+
+function change() {
+  if (requestIng.value) return;
+  ruleFormRef.value?.validate(async valid => {
+    if (valid) {
+      requestIng.value = true;
+      const username = localStorage.getItem('username');
+      await sendSQLReq(`ALTER USER \`${username}\` PASS '${changeForm.new_password}'`)
+        .then(res => {
+          if (res) {
+            changeForm = {
+              old_password: '',
+              new_password: '',
+              confirm_password: ''
+            };
+            // this.$message.success(t("login.changeSucc"));
+            requestIng.value = false;
+            localStorage.removeItem('username');
+            localStorage.removeItem('pwd');
+            deleteCookieItem();
+            ElMessageBox.alert(t('login.changepwdtip'), t('tips'), {
+              showCancelButton: false,
+              showConfirmButton: true,
+              confirmButtonText: t('ok'),
+              closeOnClickModal: false,
+              showClose: false,
+              type: 'success'
+            }).then(() => {
+              router.push({
+                path: '/login'
+              });
+            });
+          }
+        })
+        .catch(err => {
+          err_msg.value = err.desc || err;
+        })
+        .finally(() => {
+          requestIng.value = false;
+        });
+    }
+  });
+}
+
+onMounted(async () => {
+  const result = await getDatabaseVariables('EnableStrongPassword');
+  enableStrongPassword.value = (result === true || result === 'true');
+});
+
 </script>
 
 <style lang="scss" scoped>
-.errorText {
-  color: #ff4949;
-  font-size: 12px;
+.error-text {
   padding: 10px 0;
+  font-size: 14px;
+  color: #ff4949;
 }
 
-.loginBtn {
-  width: 100%;
+.my-btn {
   margin-top: 20px;
-  text-align: center;
 }
 </style>

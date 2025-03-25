@@ -188,6 +188,7 @@ mod tests {
         assert_eq!(get_value(extras, &SENT_BATCHES).await, Some(0));
         assert_eq!(get_value(extras, &DISCARDED_MESSAGES).await, Some(0));
         assert_eq!(get_value(extras, &DISCARDED_DUMP_MESSAGES).await, Some(0));
+
         Ok(())
     }
 

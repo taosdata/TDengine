@@ -274,6 +274,7 @@ pub async fn historian_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
 
@@ -516,7 +517,6 @@ mod tests {
     #[tokio::test]
     async fn test_historian_to_taos() {
         let (tx, _rx) = flume::bounded(1);
-
         // when
         let res = historian_to_taos(
             "historian://".into_dsn().unwrap(),

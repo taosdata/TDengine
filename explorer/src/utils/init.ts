@@ -1,0 +1,64 @@
+import { setLang } from "@/lang/index.ts";
+import { clearLoginStateWhenReopen } from '@/utils/token';
+import { setLocale, setExecuteSqlFn, setGetDbListFn } from 'taos-ui/config';
+import { sendSQLReq } from '@/api/explorer';
+import { getDBListReq } from '@/api/database';
+export const $IS_COMMUNITY = (import.meta.env.VITE_APP_COMMUNITY && import.meta.env.VITE_APP_COMMUNITY === "community") ? true : false;
+export const $INDUSTRY = import.meta.env.VITE_APP_INDUSTRY
+export const $IS_OEM = import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== "TDengine"
+export const OEM_NAME =
+  import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== "TDengine"
+    ? import.meta.env.VITE_APP_CUS_NAME
+    : "TDengine";
+export const GRAFANA_GDS =
+  import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== "TDengine"
+    ? ""
+    : "TDengine";
+
+/**
+ * 是否火狐浏览器
+ * @returns {boolean}
+ */
+export function isFirefox(): boolean {
+  return navigator.userAgent.includes("Firefox");
+}
+/**
+ * 火狐浏览器添加类名firefox
+ */
+export function setFirefoxClass(): void {
+  if (isFirefox()) {
+    document.documentElement.classList.add('firefox')
+  }
+}
+/**
+ * 获取浏览器语言
+ * @returns {string}
+ */
+export function getBrowserLang(): string {
+  const nav = window.navigator;
+  const browserLang = localStorage.getItem('local_language') || (nav.language || '').toLowerCase();
+  if (browserLang.includes('zh')) return 'zh';
+  if (browserLang.includes('en')) return 'en';
+  return 'en';
+}
+/**
+ * 根据打包版本修改网页标题
+ */
+export function setTitle(): void {
+  const lang = getBrowserLang()
+  const title = lang === 'en'
+    ? $IS_COMMUNITY ? 'TDengine OSS' : $INDUSTRY ? 'TDengine Power Edition' : 'TDengine Enterprise'
+    : $IS_COMMUNITY ? 'TDengine OSS' : $INDUSTRY ? 'TDengine 电力版' : 'TDengine 企业版'
+  document.title = title
+}
+
+export function setInit() {
+  setFirefoxClass()
+  setTitle()
+  setLang(getBrowserLang())
+  clearLoginStateWhenReopen()
+  // taos-ui
+  setExecuteSqlFn(sendSQLReq);
+  setGetDbListFn(getDBListReq);
+  setLocale(getBrowserLang())
+}

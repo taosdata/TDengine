@@ -5,7 +5,7 @@ version.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-anyhow = "1"
+anyhow.workspace = true
 async-trait = { version = "0.1.83" }
 flume.workspace = true
 

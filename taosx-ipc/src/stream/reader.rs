@@ -9,10 +9,11 @@ use std::{
 
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
-        Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
-        ListArray, StringArray, StructArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-        TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Array, ArrayRef, BinaryArray, BooleanArray, Decimal128Array, Float16Array, Float32Array,
+        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
+        LargeStringArray, ListArray, StringArray, StructArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
+        UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -312,7 +313,17 @@ impl IpcParser {
                             DataType::Struct(_) => todo!(),
                             DataType::Union(_, _) => todo!(),
                             DataType::Dictionary(_, _) => todo!(),
-                            DataType::Decimal128(_, _) => todo!(),
+                            DataType::Decimal128(_, scale) => {
+                                let v = col.as_any().downcast_ref::<Decimal128Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::Decimal)
+                                } else {
+                                    Value::Decimal(bigdecimal::BigDecimal::from_bigint(
+                                        v.value(i).into(),
+                                        *scale as _,
+                                    ))
+                                }
+                            }
                             DataType::Decimal256(_, _) => todo!(),
                             DataType::Map(_, _) => todo!(),
                             DataType::RunEndEncoded(_, _) => todo!(),
@@ -446,7 +457,17 @@ impl IpcParser {
                             DataType::Struct(_) => todo!(),
                             DataType::Union(_, _) => todo!(),
                             DataType::Dictionary(_, _) => todo!(),
-                            DataType::Decimal128(_, _) => todo!(),
+                            DataType::Decimal128(_, scale) => {
+                                let v = col.as_any().downcast_ref::<Decimal128Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::Decimal)
+                                } else {
+                                    Value::Decimal(bigdecimal::BigDecimal::from_bigint(
+                                        v.value(i).into(),
+                                        *scale as _,
+                                    ))
+                                }
+                            }
                             DataType::Decimal256(_, _) => todo!(),
                             DataType::Map(_, _) => todo!(),
                             DataType::RunEndEncoded(_, _) => todo!(),
@@ -556,6 +577,24 @@ impl<R: Read> IpcReader<R> {
         R: Send + 'static,
     {
         let (tx, rx) = flume::bounded(64);
+        std::thread::spawn(move || {
+            for item in self.reader {
+                tx.send(item)?; // send under blocking thread
+            }
+            tracing::info!("Raw ipc reader stream closed");
+            Ok::<_, flume::SendError<_>>(())
+        });
+        rx.into_stream()
+    }
+
+    pub fn into_raw_stream_with_capycity(
+        self,
+        cap: usize,
+    ) -> flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>
+    where
+        R: Send + 'static,
+    {
+        let (tx, rx) = flume::bounded(cap);
         std::thread::spawn(move || {
             for item in self.reader {
                 tx.send(item)?; // send under blocking thread
@@ -683,6 +722,8 @@ pub struct LushMessageInsert {
 }
 
 mod arrow_to_taos {
+    use std::str::FromStr;
+
     use crate::prelude::IpcDataType;
     use arrow::datatypes::TimeUnit;
     use taos::ColumnView;
@@ -851,6 +892,44 @@ mod arrow_to_taos {
                     })
                     .collect::<Vec<_>>();
                 ColumnView::from_big_ints(v)
+            }
+            crate::prelude::IpcDataType::Decimal(precision, scale) => {
+                use bigdecimal::ToPrimitive;
+                let values = data.into_iter().map(|v| {
+                    v.and_then(|v| {
+                        bigdecimal::BigDecimal::from_str(v)
+                                .inspect_err(|e| {
+                                    tracing::trace!(
+                                        "parse i64 from `{v}` error: {e}, fallback to null",
+                                    )
+                                })
+                                .ok()
+                    })
+                });
+
+                if *precision <= 18 {
+                    ColumnView::from_decimal64(
+                        values.map(|v| {
+                            v.and_then(|v| {
+                                let (num, _) = v.as_bigint_and_scale();
+                                num.to_i64()
+                            })
+                        }),
+                        *precision,
+                        *scale as _,
+                    )
+                } else {
+                    ColumnView::from_decimal(
+                        values.map(|v| {
+                            v.and_then(|v| {
+                                let (num, _) = v.as_bigint_and_scale();
+                                num.to_i128()
+                            })
+                        }),
+                        *precision,
+                        *scale as _,
+                    )
+                }
             }
             crate::prelude::IpcDataType::Float32 => {
                 let v = data

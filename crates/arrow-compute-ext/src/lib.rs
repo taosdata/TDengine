@@ -8,7 +8,6 @@ use arrow::{
 };
 use arrow_schema::Field;
 use arrow_schema::Schema;
-use serde_json::{Map as JsonMap, Value as JsonValue};
 
 pub trait RecordBatchExt {
     fn take(&self, indices: &dyn Array) -> Result<RecordBatch, ArrowError>;
@@ -16,7 +15,9 @@ pub trait RecordBatchExt {
     /// 左右拼接行数相同的 RecordBatch, 如果 right 包含 left 已存在的列，则会忽略。
     fn concat_by_columns(&self, right: &RecordBatch) -> Result<RecordBatch, ArrowError>;
 
-    fn to_json_rows(&self) -> Result<Vec<JsonMap<String, JsonValue>>, ArrowError>;
+    fn to_json_rows<T>(&self) -> Result<Vec<T>, ArrowError>
+    where
+        T: for<'de> serde::Deserialize<'de>;
 }
 
 impl RecordBatchExt for RecordBatch {
@@ -58,16 +59,20 @@ impl RecordBatchExt for RecordBatch {
         RecordBatch::try_new(Arc::new(schema), columns)
     }
 
-    fn to_json_rows(&self) -> Result<Vec<JsonMap<String, JsonValue>>, ArrowError> {
-        let buf = Vec::new();
-        let mut writer = arrow::json::ArrayWriter::new(buf);
-        writer.write(self)?;
-        writer.finish()?;
-        let json_data = writer.into_inner();
-        if json_data.is_empty() {
+    fn to_json_rows<T>(&self) -> Result<Vec<T>, ArrowError>
+    where
+        T: for<'de> serde::Deserialize<'de>,
+    {
+        let mut buf = Vec::new();
+        {
+            let mut writer = arrow::json::ArrayWriter::new(&mut buf);
+            writer.write(self)?;
+            writer.finish()?;
+        }
+        if buf.is_empty() {
             return Ok(vec![]);
         }
-        serde_json::from_slice(json_data.as_slice()).map_err(|err| {
+        serde_json::from_slice(&buf).map_err(|err| {
             ArrowError::JsonError(format!("Can't cast batch to json rows: {:?}", err))
         })
     }
@@ -76,6 +81,8 @@ impl RecordBatchExt for RecordBatch {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+
+    use serde_json::{Map as JsonMap, Value as JsonValue};
 
     use super::*;
 
@@ -128,7 +135,9 @@ mod tests {
             vec![Arc::new(a), Arc::new(b)],
         )
         .unwrap();
-        let json_rows = record_batch.to_json_rows().unwrap();
+        let json_rows = record_batch
+            .to_json_rows::<JsonMap<String, JsonValue>>()
+            .unwrap();
         dbg!(&json_rows);
 
         let json_rows_str = serde_json::to_string(&json_rows).unwrap();

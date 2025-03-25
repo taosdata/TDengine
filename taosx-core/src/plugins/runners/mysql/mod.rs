@@ -198,6 +198,7 @@ pub async fn mysql_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
 
@@ -502,7 +503,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_is_valid() {
+    async fn test_is_valid_with_datasource() {
         // prepare data
         let _ = test_create_database().await;
 
@@ -552,7 +553,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_sample() {
+    async fn test_get_sample_with_datasource() {
         // prepare data
         let _ = test_create_table("test_get_sample").await;
         let _ = test_insert_data("test_get_sample", 4).await;

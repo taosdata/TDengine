@@ -55,8 +55,16 @@ impl RecordMessage {
         self.record.schema()
     }
 
+    pub fn schema_ref(&self) -> &SchemaRef {
+        self.record.schema_ref()
+    }
+
     pub fn record(&self) -> &RecordBatch {
         &self.record
+    }
+
+    pub fn record_owned(self) -> RecordBatch {
+        self.record
     }
 
     /// get column_type by name

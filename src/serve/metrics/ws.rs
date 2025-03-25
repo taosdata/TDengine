@@ -46,7 +46,7 @@ pub async fn echo_heartbeat_ws(
         match future::select(msg_stream.next(), tick).await {
             // received message from WebSocket client
             Either::Left((Some(Ok(msg)), _)) => {
-                tracing::info!("msg: {msg:?}");
+                tracing::trace!("msg: {msg:?}");
 
                 match msg {
                     Message::Text(text) => {

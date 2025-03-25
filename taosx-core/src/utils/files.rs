@@ -1,16 +1,19 @@
-use std::fs::File;
 use std::fs::{self, OpenOptions};
+use std::fs::{DirEntry, File};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use arrow::array::RecordBatch;
+use arrow_schema::ArrowError;
 use chardetng::EncodingDetector;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use encoding_rs::Encoding;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::properties::WriterProperties;
+use taos::Itertools;
 
 use crate::get_data_dir;
 
@@ -102,9 +105,15 @@ pub fn write_to_file(task_id: i64, filename: &String, record: &String) -> anyhow
     Ok(())
 }
 
+/// Write to parquet file
+///
+/// Write the record batch to the parquet file, and archive the file by date and size
 pub fn write_to_parquet_file(
     task_id: i64,
     filename: &String,
+    keep_days: usize,
+    max_size: usize,
+    max_size_unit: &str,
     record: &RecordBatch,
 ) -> anyhow::Result<()> {
     let data_dir = get_data_dir();
@@ -114,16 +123,235 @@ pub fn write_to_parquet_file(
             tracing::error!("failed to create dir {:?}: {}", path, err);
         }
     }
+    // delete old files
+    if keep_days > 0 {
+        delete_old_parquet_files_by_date(task_id, filename, keep_days)?;
+    }
+    if max_size > 0 {
+        delete_old_parquet_files_by_size(task_id, filename, max_size, max_size_unit)?;
+    }
+
     let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
     let file = OpenOptions::new().create(true).append(true).open(path)?;
     let schema = record.schema();
     let props = WriterProperties::builder()
         .set_compression(Compression::ZSTD(ZstdLevel::default()))
         .build();
-    let mut writer = ArrowWriter::try_new(file, schema, Some(props)).unwrap();
+    let mut writer =
+        ArrowWriter::try_new(file, schema, Some(props)).context("init arrow writer error")?;
     writer.write(record)?;
     writer.close()?;
     Ok(())
+}
+
+/// Delete old parquet files by date
+///
+/// Delete the old parquet files in the directory until the oldest file is less than the keep days
+pub fn delete_old_parquet_files_by_date(
+    task_id: i64,
+    filename: &String,
+    keep_days: usize,
+) -> anyhow::Result<()> {
+    let data_dir = get_data_dir();
+    let path = data_dir.join("tasks").join(format!("{task_id}"));
+    let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
+    let path = path.parent().context("get parent path error")?;
+    if !path.exists() {
+        if let Err(err) = std::fs::create_dir_all(path) {
+            tracing::error!("failed to create dir {:?}: {}", path, err);
+        }
+    }
+
+    let cutoff_date = Utc::now() - Duration::days(keep_days as i64);
+    let files = read_parquet_dir_files(task_id, filename)?;
+
+    for file in files {
+        if let Some(file_name) = file.file_name().and_then(|s| s.to_str()) {
+            let file_date = file_name.split('.').last().context("get file date error")?;
+            if let Ok(file_date) = chrono::NaiveDate::parse_from_str(file_date, "%Y%m%d") {
+                if file_date <= cutoff_date.naive_utc().date() {
+                    tracing::info!("delete archived file: {:?}, since out of date", file);
+                    fs::remove_file(file)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Delete old parquet files by size
+///
+/// Delete the oldest parquet files in the directory until the total size of the files is less than the max size
+pub fn delete_old_parquet_files_by_size(
+    task_id: i64,
+    filename: &String,
+    max_size: usize,
+    max_size_unit: &str,
+) -> anyhow::Result<()> {
+    let max_size = if max_size_unit.to_lowercase() == "gb" {
+        max_size * 1024 * 1024 * 1024
+    } else if max_size_unit.to_lowercase() == "mb" {
+        max_size * 1024 * 1024
+    } else if max_size_unit.to_lowercase() == "kb" {
+        max_size * 1024
+    } else {
+        max_size
+    };
+    let mut total_file_size = 0;
+
+    let entries = read_parquet_dir_entries(task_id, filename)?;
+    let mut entries: Vec<(&DirEntry, u64)> = entries
+        .iter()
+        .map(|entry| -> anyhow::Result<_> {
+            let file_size = entry.metadata().context("get entry metadata error")?.len();
+            total_file_size += file_size;
+            Ok((entry, file_size))
+        })
+        .try_collect()?;
+    entries.sort_by_key(|(entry, _)| entry.file_name());
+
+    for (entry, file_size) in entries {
+        if total_file_size <= max_size as u64 {
+            break;
+        }
+        let file_path = entry.path();
+        tracing::info!("delete archived file: {:?}, since out of date", file_path);
+        fs::remove_file(file_path)?;
+        total_file_size -= file_size;
+    }
+    Ok(())
+}
+
+/// Delete oldest parquet file
+///
+/// Delete the oldest parquet file in the directory
+pub fn delete_oldest_parquet_file(task_id: i64, filename: &String) -> anyhow::Result<()> {
+    match read_parquet_dir_files(task_id, filename) {
+        Ok(files) => {
+            if files.is_empty() {
+                return Ok(());
+            }
+            if let Some(file) = files.first() {
+                tracing::info!("delete archived file: {:?}, since out of date", file);
+                fs::remove_file(file)?;
+            }
+        }
+        Err(err) => {
+            return Err(err);
+        }
+    }
+    Ok(())
+}
+
+/// Read parquet dir files
+///
+/// For archive files and cache files. If the path is not exists, create the paths recursively.
+/// Only return the files in the level one of the path.
+/// Sort the files by the file name, and filter the files by the filename.
+pub fn read_parquet_dir_files(task_id: i64, filename: &String) -> anyhow::Result<Vec<PathBuf>> {
+    if filename.is_empty() {
+        return Ok(vec![]);
+    }
+    let mut entries = read_parquet_dir_entries(task_id, filename)?;
+    entries.sort_by_key(|entry| entry.file_name());
+
+    let files = entries
+        .iter()
+        .map(|entry| entry.path())
+        .filter(|path| path.to_str().map_or(false, |s| s.contains(filename)))
+        .collect_vec();
+    Ok(files)
+}
+
+/// Read parquet dir entries
+///
+/// For archive files and cache files. If the path is not exists, create the paths recursively.
+/// Only return the files in the level one of the path.
+fn read_parquet_dir_entries(task_id: i64, filename: &String) -> anyhow::Result<Vec<DirEntry>> {
+    let data_dir = get_data_dir();
+    let path = data_dir.join("tasks").join(format!("{task_id}"));
+    let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
+    let path = path.parent().context("get parent path error")?;
+    if !path.exists() {
+        if let Err(err) = std::fs::create_dir_all(path) {
+            tracing::error!("failed to create dir {:?}: {}", path, err);
+        }
+    }
+
+    let entries = fs::read_dir(path)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_file())
+        .collect_vec();
+    Ok(entries)
+}
+
+/// Read parquet file
+///
+/// Read the parquet file and return the record batches
+pub fn read_parquet_file(path: PathBuf) -> anyhow::Result<Vec<RecordBatch>> {
+    let mut batches = Vec::new();
+    // open the file
+    let file =
+        File::open(path.clone()).with_context(|| format!("Unable to open file '{:?}'", path))?;
+    let buffer = std::io::BufReader::new(file);
+    // the flag to identify the split point
+    let flag = b"PAR1PAR1";
+    // look for the flag and read the file in chunks
+    let mut content = Vec::new();
+    let mut windows = Vec::new();
+    for byte in buffer.bytes() {
+        match byte {
+            Ok(byte) => {
+                content.push(byte);
+                windows.push(byte);
+                if windows.len() > flag.len() {
+                    windows.remove(0);
+                }
+                if windows == flag {
+                    // remove the extra bytes
+                    content.truncate(content.len() - 4);
+                    // transform to batches
+                    match transform_bytes_to_record(content.clone()) {
+                        Ok(mut vec) => batches.append(&mut vec),
+                        Err(err) => {
+                            anyhow::bail!("Error reading file: {err:#}");
+                        }
+                    }
+                    // begin new record
+                    content.clear();
+                    b"PAR1".iter().for_each(|x| content.push(*x));
+                }
+            }
+            Err(err) => {
+                anyhow::bail!("Error reading file: {err:#}");
+            }
+        }
+    }
+    // last record
+    match transform_bytes_to_record(content.clone()) {
+        Ok(mut vec) => batches.append(&mut vec),
+        Err(err) => {
+            anyhow::bail!("Error reading file: {err:#}");
+        }
+    }
+
+    Ok(batches)
+}
+
+/// Transform bytes to record
+///
+/// the bytes are read from the parquet file, and transformed to record batches
+fn transform_bytes_to_record(bytes: Vec<u8>) -> Result<Vec<RecordBatch>, ArrowError> {
+    // build the parquet reader
+    let mut reader = ParquetRecordBatchReaderBuilder::try_new(bytes::Bytes::from(bytes))
+        .expect("Unable to create Parquet reader builder")
+        .build()
+        .expect("Unable to build Parquet reader");
+    // read all batches
+    reader
+        .next()
+        .into_iter()
+        .collect::<Result<Vec<RecordBatch>, ArrowError>>()
 }
 
 #[cfg(test)]
@@ -166,6 +394,67 @@ mod tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        write_to_parquet_file(task_id, &filename, &record).unwrap();
+        write_to_parquet_file(task_id, &filename, 5, 2, "GB", &record).unwrap();
+    }
+
+    #[test]
+    fn test_delete_old_parquet_files_by_date() {
+        let task_id = 1;
+        let filename = "archive/p1/p2/p3/p4/file".to_string();
+        let keep_days = 5;
+        let res = delete_old_parquet_files_by_date(task_id, &filename, keep_days);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_delete_old_parquet_files_by_size() {
+        let task_id = 1;
+        let filename = "archive/p1/p2/p3/p4/file".to_string();
+        let max_size = 8;
+        let max_size_unit = "GB";
+        let res = delete_old_parquet_files_by_size(task_id, &filename, max_size, max_size_unit);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_delete_oldest_parquet_file() {
+        let task_id = 1;
+        let filename = "archive/p1/p2/p3/p4/file".to_string();
+        let res = delete_oldest_parquet_file(task_id, &filename);
+        assert!(res.is_ok());
+    }
+
+    #[ignore]
+    #[test]
+    fn test_read_parquet_dir_files() {
+        let task_id = 1;
+        let filename = "archive".to_string();
+        let res = read_parquet_dir_files(task_id, &filename);
+        dbg!(&res);
+    }
+
+    #[ignore]
+    #[test]
+    fn test_read_parquet_dir_entries() {
+        let task_id = 1;
+        let filename = "archive".to_string();
+        let res = read_parquet_dir_entries(task_id, &filename);
+        dbg!(&res);
+    }
+
+    #[ignore]
+    #[test]
+    fn test_read_parquet_file() {
+        let task_id = 7;
+        let filename = "archived.20250226".to_string();
+
+        let data_dir = get_data_dir();
+        let path = data_dir
+            .join("tasks")
+            .join(format!("{task_id}"))
+            .join(filename);
+
+        let res = read_parquet_file(path);
+        dbg!(&res);
     }
 }

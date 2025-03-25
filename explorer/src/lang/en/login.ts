@@ -1,0 +1,33 @@
+export default {
+  login: {
+    versiontip: "Only enterprise edition is supported.The current user does not have permission to view system information, login failed!",
+    signin: "Sign In",
+    username: "User Name",
+    usernamePlaceholder: "Please enter the User Name, default is root",
+    password: "Password",
+    login: "Log in",
+    changeSucc: "Change Success!",
+    usernameTips: "Please enter the Username",
+    passwordTips: "Please enter the Password",
+    errorTip: "The user name or password is incorrect",
+    servExceptionTip: "Your taosd or taosadapter service is abnormal. Restart the taosd or taosadapter service and ensure that the service is available.",
+    servTaosdTip: "Your taosd service is abnormal. Restart the taosd service and ensure that the service is available.",
+    profile: "Change Password",
+    saveChange: "Save Changes",
+    taosx404: "The TaosX API is not configured. Please check the explorer configuration",
+    taosx500: "The TaosX API cannot be accessed. Please check the taosx service status",
+    changepwdtip: "Password is successfully changed, please log in again",
+    copyright: "Copyright (c) 2025 by TDengine, All Rights Reserved.",
+    systemTitle: "TDengine Management System",
+    emailError: "Please enter a valid email address.",
+    phoneError: "Malformed phone number!",
+    oldPass: "Old Password",
+    newPass: "New Password",
+    oldPassError: "Old password is wrong",
+    passwordError: "Wrong password format",
+    passwordTip: `<div>Password must be 8 to 255 characters long and contain at least 3 of the following characters:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> Uppercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Lowercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Numbers</li><li><el-icon class='el-icon-circle-check'></el-icon> Special characters</li></ul>`,
+    passwordNotStrictTip: `<div>Password must be 8 to 255 characters long and contain the following characters:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> Uppercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Lowercase letters</li><li><el-icon class='el-icon-circle-check'></el-icon> Numbers</li><li><el-icon class='el-icon-circle-check'></el-icon> Special characters</li></ul>`,
+    twoPassError: "The two passwords do not match!",
+  
+  }
+}

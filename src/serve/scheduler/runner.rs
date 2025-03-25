@@ -28,7 +28,10 @@ use taosx_core::{
     plugins,
     sink::ipc_metric::IpcMetrics,
     task_set::prelude::EventLevel,
-    utils::{get_main_version_from_server_version, get_server_version, sql::get_timestamp_range},
+    utils::{
+        dsn::json_to_dsn, get_main_version_from_server_version, get_server_version,
+        sql::get_timestamp_range,
+    },
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
@@ -58,12 +61,14 @@ async fn task_opts_init(
 ) -> anyhow::Result<(TaskOpts, TaskNotifyReceiver)> {
     let id = task.id;
     let from = if let Some(topic) = task.oneshot_topic.as_deref() {
-        let mut from: Dsn = task.from.parse()?;
+        // let mut from: Dsn = task.from.parse()?;
+        let mut from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
         from.set("use.topic.name", topic);
         tracing::info!("Set task from: {from}");
         from
     } else {
-        task.from.parse()?
+        // task.from.parse()?
+        json_to_dsn(&serde_json::Value::String(task.from.clone()))?
     };
     let to_dsn: Dsn = task.to.parse()?;
     match from.driver.as_str() {
@@ -119,7 +124,11 @@ async fn task_opts_init(
         let pool = {
             let builder = taos::TaosBuilder::from_dsn(&to_dsn)?;
             let mut pool_config = builder.default_pool_config();
-            pool_config.timeouts.wait = Some(Duration::from_secs(30));
+            let timeout = parser
+                .global()
+                .process_on_abnormal
+                .connection_timeout_in_second_value;
+            pool_config.timeouts.wait = Some(Duration::from_secs(timeout as u64));
             builder.with_pool_config(pool_config)?
         };
         let (_, minimum_timestamp, maximum_timestamp) =
@@ -686,8 +695,21 @@ impl TaskState {
         let strategy = if let Some(v) = task.trigger.as_ref() {
             v
         } else {
-            if task.from.starts_with("csv") {
-                local_strategy = local_strategy.never_resume();
+            let dsn = json_to_dsn(&serde_json::Value::String(task.from.clone())).unwrap();
+            if dsn.driver.starts_with("csv") {
+                let new_file_notify = dsn
+                    .get("new_file_notify")
+                    .and_then(|v| {
+                        if v.trim().is_empty() {
+                            Some(false)
+                        } else {
+                            v.parse().ok()
+                        }
+                    })
+                    .unwrap_or(false);
+                if !new_file_notify {
+                    local_strategy = local_strategy.never_resume();
+                }
             }
             &local_strategy
         };
@@ -962,7 +984,11 @@ impl TaskJob {
                 tokio::time::interval(Duration::from_secs(license_tracker_interval_seconds));
 
             let (from, to) = (
-                license_tracker_state.task.from.parse().unwrap(),
+                // license_tracker_state.task.from.parse().unwrap(),
+                json_to_dsn(&serde_json::Value::String(
+                    license_tracker_state.task.from.clone(),
+                ))
+                .unwrap(),
                 license_tracker_state.task.to.parse().unwrap(),
             );
             let validator = LicenseValidator::new(&from, &to);
@@ -1686,7 +1712,8 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     task.stop_condition.tick();
     let opts = TaskJob::new(jid, task.clone(), global_state.as_ref().clone());
 
-    let from_dsn: Dsn = task.task.from.parse().unwrap();
+    // let from_dsn: Dsn = task.task.from.parse().unwrap();
+    let from_dsn = json_to_dsn(&serde_json::Value::String(task.task.from.clone())).unwrap();
     let to_dsn = task.task.to.parse().unwrap();
     let task_id = task.task.id;
     let task_name = task.task.name.clone();

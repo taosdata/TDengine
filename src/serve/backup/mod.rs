@@ -5,11 +5,14 @@ use actix_web::{get, HttpResponse, Responder};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
+use opendal::EntryMode;
 use serde::Serialize;
 use taos::IntoDsn;
+use taosx_core::s3::{S3Config, S3Loader, S3_ENABLE};
 use taosx_core::taoz::ZFile;
 use taosx_core::tmq::BackupObject;
 use taosx_core::tmq_to_local::conf::BackupConfig;
+use taosx_core::utils;
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -68,13 +71,14 @@ async fn get_backup_points_impl(
         .get(id)
         .await?
         .ok_or(anyhow::anyhow!("task not found, id: {}", id))?;
-
     let from = task.from.as_str().into_dsn().map_err(|err| {
         anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.from))
     })?;
-    let to = task.to.as_str().into_dsn().map_err(|err| {
-        anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.to))
-    })?;
+    let to = task
+        .to
+        .as_str()
+        .into_dsn()
+        .context(format!("failed to convert dsn: {}", &task.to))?;
     let task_id = id.to_string();
     let topic = task
         .oneshot_topic
@@ -88,8 +92,33 @@ async fn get_backup_points_impl(
         return Ok(vec![]);
     }
 
-    // 列出目录下的所有文件名
     let mut backup_files = vec![];
+    if let Ok(Some(true)) = utils::parse_key_in_dsn::<bool>(&to, S3_ENABLE) {
+        let s3_config = S3Config::from_dsn(&to)?;
+        let loader = S3Loader::try_from(&s3_config).await?;
+        let files = loader.list().await?;
+        for f in files {
+            let meta = f.metadata();
+            match meta.mode() {
+                EntryMode::FILE => {
+                    let file_size = meta.content_length();
+                    let file_name = f.name();
+                    // 解析文件名: $TOPIC-$TIMESTAMP-$VG_ID-$INDEX.z
+                    if !file_name.starts_with(topic) {
+                        continue;
+                    }
+                    if let Ok((_, ts, _, _)) = ZFile::parse_file_name(file_name) {
+                        backup_files.push((ts, file_size, 1));
+                    }
+                }
+                EntryMode::DIR | EntryMode::Unknown => {
+                    continue;
+                }
+            }
+        }
+    }
+
+    // 列出目录下的所有文件名
     let mut entries = tokio::fs::read_dir(backup_dir).await?;
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
@@ -106,6 +135,9 @@ async fn get_backup_points_impl(
             }
         }
     }
+
+    // backup_files 中去重
+    backup_files = backup_files.into_iter().unique().collect();
 
     let mut backup_obj = BackupObject::try_from_taos(&from)
         .await

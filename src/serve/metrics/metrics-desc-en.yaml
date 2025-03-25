@@ -66,6 +66,9 @@ drained_rows: Number of row filtered out to write in case of timestamp out of ra
 failed_points: Number of points failed to write in this task run
 written_raw_blocks: Number of raw blocks successfully written in this task run
 failed_raw_blocks: Number of raw blocks failed to write in this task run
+persist_read_offset: The offset of the persisted data being read in the current task
+persist_write_offset: The offset of the persisted data being written in the current task
+persist_inflight_acks: The number of acks not received for the persisted batches read by the current task
 kafka_consumers: Number of Kafka consumers created
 kafka_total_partitions: Total number of partitions of Kafka topic
 kafka_consuming_partitions: Number of partitions being consumed
@@ -89,3 +92,5 @@ received_messages: Total number of messages received in this task run
 processed_messages: Total number of messages processed in this task run
 out_of_range_rows: Number of rows out of time range in this task run
 total_out_of_range_rows: Total number of rows out of time range
+archived_rows: Number of rows archived
+total_archived_rows: Total number of rows archived

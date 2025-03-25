@@ -62,8 +62,8 @@ fn fields_to_arrow(fields: &[Field], precision: Precision) -> Schema {
     )
 }
 
-fn column_to_arrow(column: &ColumnView) -> ArrayRef {
-    match column {
+fn column_to_arrow(column: &ColumnView) -> Result<ArrayRef> {
+    let array: ArrayRef = match column {
         ColumnView::Bool(v) => Arc::new(arrow::array::BooleanArray::from_iter(v.iter())),
         ColumnView::TinyInt(v) => Arc::new(arrow::array::Int8Array::from_iter(v.iter())),
         ColumnView::SmallInt(v) => Arc::new(arrow::array::Int16Array::from_iter(v.iter())),
@@ -97,7 +97,24 @@ fn column_to_arrow(column: &ColumnView) -> ArrayRef {
         ColumnView::Json(v) => Arc::new(arrow::array::StringArray::from_iter(v.to_vec().iter())),
         ColumnView::VarBinary(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter())),
         ColumnView::Geometry(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter())),
-    }
+        ColumnView::Decimal(v) => {
+            let (precision, scale) = v.precision_and_scale();
+            Arc::new(
+                arrow::array::Decimal128Array::from_iter(v.iter().map(|v| v.map(|v| v.data())))
+                    .with_precision_and_scale(precision as _, scale as _)?,
+            )
+        }
+        ColumnView::Decimal64(v) => {
+            let (precision, scale) = v.precision_and_scale();
+            Arc::new(
+                arrow::array::Decimal128Array::from_iter(
+                    v.iter().map(|v| v.map(|v| v.data() as i128)),
+                )
+                .with_precision_and_scale(precision as _, scale as _)?,
+            )
+        }
+    };
+    Ok(array)
 }
 
 pub async fn query_to_parquet(mut from: Dsn, to: Dsn) -> Result<()> {
@@ -132,7 +149,9 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn) -> Result<()> {
         let columns = row.columns();
         let batch = RecordBatch::try_new(
             schema_ref.clone(),
-            columns.map(column_to_arrow).collect_vec(),
+            columns
+                .map(column_to_arrow)
+                .collect::<Result<Vec<_>, _>>()?,
         )?;
         writer.write(&batch)?;
         // rows += row.nrows();

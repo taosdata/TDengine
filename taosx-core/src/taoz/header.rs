@@ -27,6 +27,7 @@ pub enum RawType {
     Meta = 1,
     Data = 2,
     Both = 3,
+    Raw = 4,
 }
 
 impl From<u8> for RawType {
@@ -35,6 +36,7 @@ impl From<u8> for RawType {
             1 => RawType::Meta,
             2 => RawType::Data,
             3 => RawType::Both,
+            4 => RawType::Raw,
             _ => panic!("Invalid RawType: {}", v),
         }
     }

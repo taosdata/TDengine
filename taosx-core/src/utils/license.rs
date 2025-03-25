@@ -310,6 +310,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 let mut conn = sink_builder.build().await.with_context(sink_dsn_context)?;
                 if let Err(err) = sink_builder.ping(&mut conn).await {
                     if *err.code() == 0x0388 {
+                        // 0x0388: database not exists
                         let subject = to.subject.as_deref().unwrap_or("unknown");
                         Err(err.context(format!("sink database {subject}")))?
                     } else {
@@ -358,6 +359,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 .context("source connection failed")?;
             if let Err(err) = source_builder.ping(&mut conn).await {
                 if *err.code() == 0x0388 {
+                    // 0x0388: database not exists
                     let subject = from.subject.as_deref().unwrap_or("unknown");
                     Err(err.context(format!("source database {subject}")))?
                 } else {
@@ -403,6 +405,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 .context("target connection failed")?;
             if let Err(err) = sink_builder.ping(&mut conn).await {
                 if *err.code() == 0x0388 {
+                    // 0x0388: database not exists
                     let subject = to.subject.as_deref().unwrap_or("unknown");
                     Err(err.context(format!("target database {subject}")))?
                 } else {
@@ -447,6 +450,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 .context("sink connection failed")?;
             if let Err(err) = sink_builder.ping(&mut conn).await {
                 if *err.code() == 0x0388 {
+                    // 0x0388: database not exists
                     let subject = to.subject.as_deref().unwrap_or("unknown");
                     Err(err.context(format!("sink database {subject}")))?
                 } else {
@@ -535,6 +539,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 .context("sink connection error")?;
             if let Err(err) = sink_builder.ping(&mut conn).await {
                 if *err.code() == 0x0388 {
+                    // 0x0388: database not exists
                     let subject = to.subject.as_deref().unwrap_or("unknown");
                     Err(err.context(format!("sink database {subject}")))?
                 } else {

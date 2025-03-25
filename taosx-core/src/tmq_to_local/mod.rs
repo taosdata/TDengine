@@ -1,3 +1,4 @@
+use crate::s3::S3Dumper;
 use crate::tmq_to_local::conf::{BackupConfig, BackupConfigBuilder, BackupPointGenMode};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
@@ -69,13 +70,12 @@ pub async fn tmq_to_local(
 async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) -> Result<()> {
     tracing::debug!("backup config: {:#?}", config);
 
-    // 如果是初始备份
+    // 如果是初始备份, 则创建备份计划使用的 topic，创建备份目录
     if config.is_initial_backup().await? {
-        // 在 TDengine 创建备份的 topic
         config.create_topic().await?;
-        // 在本地创建备份目录
         config.create_backup_dir().await?;
     }
+
     // 等待并更新 upcoming
     wait_for_upcoming_impl(config.upcoming).await?;
     if config.upcoming.is_some() {
@@ -97,10 +97,10 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
         sync: tokio::sync::Mutex::new(()),
         writers: Default::default(),
     };
-
     // load metrics
     let metrics = get_metrics_arc(config.task_id.clone()).await;
-    // 创建 BackupWorker
+
+    // 创建并启动 BackupWorker
     let man = Arc::new(man);
     let mut join_set = JoinSet::new();
     for (idx, consumer) in consumers.into_iter().enumerate() {
@@ -119,11 +119,30 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
         let metrics = metrics.tmq();
         metrics.consumers.fetch_add(1, SeqCst);
 
-        // 启动 worker
+        // 启动 BackupWorker
         join_set.spawn(async move { task.run().await }.in_current_span());
     }
 
-    // 等待所有 worker 完成
+    // 如果启用 S3，创建 S3 dumper
+    let dumper_handler = match (&config.s3_enable, &config.s3_config) {
+        (true, Some(s3_config)) => {
+            // 创建 S3 dumper
+            let dumper = S3Dumper::new(
+                config.backup_dir.clone(),
+                s3_config.clone(),
+                config.backup_retention_period,
+                config.backup_retention_size,
+                cancel.clone(),
+            )
+            .await?;
+            // 启动 S3 dumper
+            let handler = tokio::spawn(async move { dumper.run().await });
+            Some(handler)
+        }
+        _ => None,
+    };
+
+    // 等待所有 BackupWorker 完成
     while let Some(res) = join_set.join_next().await {
         if let Err(err) = res.map_err(anyhow::Error::from).and_then(|r| r) {
             tracing::error!("abort all tmq_to_local workers since error: {:#}", err);
@@ -133,8 +152,14 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
         }
     }
 
-    // 关闭 writer
+    // 关闭 ZFileMan
     man.shutdown().await?;
+
+    // 如果启用了S3Dumper，停止 S3Dumper，并等待 S3Dumper 完成
+    if let Some(dumper_handler) = dumper_handler {
+        cancel.cancel();
+        let _ = dumper_handler.await?;
+    }
 
     tracing::info!("tmq_to_local finish");
     Ok(())
@@ -295,6 +320,7 @@ impl BackupWorker {
             match message {
                 MessageSet::Meta(meta) => {
                     let raw = meta.as_raw_meta().await?;
+                    tracing::debug!("backup meta, len: {}", raw.raw_len());
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Meta)
                         .await
@@ -307,6 +333,7 @@ impl BackupWorker {
                 }
                 MessageSet::Data(data) => {
                     let raw = data.as_raw_data().await?;
+                    tracing::debug!("backup data, len: {}", raw.raw_len());
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Data)
                         .await
@@ -319,6 +346,7 @@ impl BackupWorker {
                 }
                 MessageSet::MetaData(_meta, data) => {
                     let raw = data.as_raw_data().await?;
+                    tracing::debug!("backup raw data, len: {}", raw.raw_len());
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Both)
                         .await
@@ -800,10 +828,7 @@ pub async fn tmq_to_local_previous(
 fn parse_stop_at(dsn: &Dsn) -> Result<Option<StopAt>> {
     dsn.params
         .get("stopAt")
-        .map(|s| {
-            StopAt::from_str(s)
-                .map_err(|err| anyhow::anyhow!("failed to parse stopAt: {}, cause: {:?}", s, err))
-        })
+        .map(|s| StopAt::from_str(s).context(format!("failed to parse stopAt: {}", s)))
         .transpose()
 }
 

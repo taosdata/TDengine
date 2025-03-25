@@ -7,6 +7,16 @@
 #
 #token = ""
 
+# CA certificate file path or content
+# Option 1. file
+#ca = "/path/to/ca.pem"
+# Option 2. content
+#ca = """
+#-----BEGIN CERTIFICATE-----
+#...
+#-----END CERTIFICATE-----
+#""""
+
 # Server instance id
 #
 # The instanceId of each instance is unique on the host

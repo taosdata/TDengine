@@ -1,4 +1,9 @@
+use lazy_static::lazy_static;
 use rhai::{Engine, Scope};
+
+lazy_static! {
+    pub static ref ENGINE: Engine = Engine::new();
+}
 
 /**
  * 数学表达式.
@@ -7,7 +12,7 @@ use rhai::{Engine, Scope};
 pub fn check_math_expression(field_name: &str, expression: &str) -> Result<(), String> {
     let mut scope = Scope::new();
     scope.push(field_name, 100.0_f64);
-    let engine = Engine::new();
+    let engine = &*ENGINE;
     match engine.eval_expression_with_scope::<f64>(&mut scope, expression) {
         Ok(_) => Ok(()),
         Err(mut e) => {
@@ -16,16 +21,6 @@ pub fn check_math_expression(field_name: &str, expression: &str) -> Result<(), S
         }
     }
 }
-
-// async fn check_bool_expression(params: HashMap<String, String>, expression: &str) -> Result<(), String> {
-//     let mut scope = Scope::new();
-//     scope.push(field_name, true);
-//     let engine = Engine::new();
-//     match engine.eval_expression_with_scope::<f64>(&mut scope, expression) {
-//         Ok(_) => Ok(()),
-//         Err(e) => Err(e.to_string()),
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
@@ -50,12 +45,4 @@ mod tests {
         let result = check_math_expression(field_name, expression);
         assert!(result.is_err());
     }
-
-    // #[tokio::test]
-    // async fn test_check_bool_expression() {
-    //     let params = HashMap::new();
-    //     let expression = "true";
-    //     let result = check_bool_expression(params, expression).await;
-    //     assert_eq!(result, Ok(()));
-    // }
 }

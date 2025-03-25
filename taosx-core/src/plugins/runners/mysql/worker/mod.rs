@@ -623,7 +623,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_migrate_history() {
+    async fn test_migrate_history_with_datasource() {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from t_metric&start=2024-03-01T00:00:00Z&interval=5d&delay=0")
             .unwrap();
         let mut config = MySqlConfig::from_dsn(&dsn).unwrap();
@@ -636,7 +636,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_all_distinct_values() {
+    async fn test_get_all_distinct_values_with_datasource() {
         // prepare data
         let _ = test_create_table("test_get_all_distinct_values").await;
         let _ = test_insert_data("test_get_all_distinct_values", 4).await;

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use async_backtrace::framed;
-use taos::Dsn;
+use taos::{Dsn, Itertools};
 
 use taosx_core::utils::{license::LicenseKind, mask_dsn};
 use tracing::{instrument, Instrument};
@@ -61,9 +61,20 @@ impl<'a> LicenseValidator<'a> {
                             return Ok(LicenseKind::good());
                         }
                     };
-                    let mut used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}%';", cluster_id, self.from.driver))
+                    let used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}%';", cluster_id, self.from.driver))
                                     .fetch_all(pool)
                                     .await?;
+                    let mut used = used
+                        .iter()
+                        .map(|s| {
+                            if s.starts_with('"') {
+                                s.trim_matches('"').replace(r#"\""#, r#"""#)
+                            } else {
+                                s.to_string()
+                            }
+                        })
+                        .collect_vec();
+
                     used.push(self.from.to_string());
                     let used = used
                         .into_iter()
@@ -73,7 +84,7 @@ impl<'a> LicenseValidator<'a> {
                                 .addresses
                                 .first()
                                 .map(|addr| addr.to_string())
-                                .unwrap_or_else(|| "".to_string())
+                                .unwrap_or_default()
                         })
                         .collect::<std::collections::HashSet<_>>()
                         .len();

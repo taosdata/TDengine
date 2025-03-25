@@ -19,12 +19,14 @@ pub struct MqttConfig {
     pub topics: HashMap<String, u8>,
     pub topic_pattern: Option<TopicPattern>,
     pub dump: Option<DumpConfig>,
+    pub persist_data: Option<PersistDataConfig>,
     pub codec_processor: (Option<Decompressor>, Option<StringDecoder>),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct TaskConfig {
     pub batch_size: usize,
+    /// timeout unit: ms
     pub batch_timeout: usize,
     pub unprocessed_messages_buffer_size: usize,
     pub maximum_processing_batch: usize,
@@ -68,6 +70,23 @@ impl DumpConfig {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct PersistDataConfig {
+    pub dir: Option<PathBuf>,
+}
+
+impl PersistDataConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Self>> {
+        let enable = parse_simple_params(dsn, "persist_data_enable")?.is_some_and(|v| v);
+        if !enable {
+            return Ok(None);
+        }
+
+        let dir = parse_simple_params(dsn, "persist_data_dir")?;
+        Ok(Some(Self { dir }))
+    }
+}
+
 impl TryFrom<&Dsn> for MqttConfig {
     type Error = anyhow::Error;
 
@@ -77,9 +96,18 @@ impl TryFrom<&Dsn> for MqttConfig {
             mqtt: dsn.try_into()?,
             topics: parse_topics(dsn)?,
             dump: DumpConfig::from_dsn(dsn)?,
+            persist_data: PersistDataConfig::from_dsn(dsn)?,
             codec_processor: parse_codec_processor(dsn)?,
             topic_pattern: parse_simple_params(dsn, "topic_pattern")?,
         })
+    }
+}
+
+impl TryFrom<Dsn> for MqttConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(dsn: Dsn) -> anyhow::Result<Self> {
+        (&dsn).try_into()
     }
 }
 
@@ -93,9 +121,7 @@ pub struct MqttConnectConfig {
     pub(crate) password: Option<String>,
     pub(crate) keep_alive: Duration,
     pub(crate) clean_session: bool,
-    pub(crate) ca: Option<Vec<u8>>,
-    pub(crate) cert: Option<Vec<u8>>,
-    pub(crate) cert_key: Option<Vec<u8>>,
+    pub(crate) certificates: Option<Certificates>,
 }
 
 impl TryFrom<Dsn> for MqttConnectConfig {
@@ -110,7 +136,6 @@ impl TryFrom<&Dsn> for MqttConnectConfig {
     type Error = anyhow::Error;
 
     fn try_from(dsn: &Dsn) -> Result<Self, Self::Error> {
-        let (ca, cert, cert_key) = parse_tls(dsn)?;
         let (host, port) = parse_host_port(dsn)?;
 
         Ok(MqttConnectConfig {
@@ -122,42 +147,100 @@ impl TryFrom<&Dsn> for MqttConnectConfig {
             password: dsn.password.clone(),
             keep_alive: parse_keep_alive(dsn)?,
             clean_session: parse_clean_session(dsn)?,
-            ca,
-            cert,
-            cert_key,
+            certificates: parse_tls_certificates(dsn)?,
         })
     }
 }
 
-#[allow(clippy::type_complexity)]
-fn parse_tls(dsn: &Dsn) -> anyhow::Result<(Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>)> {
+#[derive(Debug, PartialEq, Clone)]
+pub(crate) struct Certificates {
+    ca: Vec<u8>,
+    cert: Option<Vec<u8>>,
+    cert_key: Option<Vec<u8>>,
+}
+
+fn parse_tls_certificates(dsn: &Dsn) -> anyhow::Result<Option<Certificates>> {
     let ca = parse_from_param_or_file(dsn, "ca")?;
     let cert = parse_from_param_or_file(dsn, "cert")?;
     let cert_key = parse_from_param_or_file(dsn, "cert_key")?;
-    Ok((ca, cert, cert_key))
+
+    Ok(ca.map(|ca| Certificates { ca, cert, cert_key }))
 }
 
-pub fn build_tls_config(
-    ca: Vec<u8>,
-    _client_pem: Vec<u8>,
-    _client_key: Vec<u8>,
-) -> anyhow::Result<TlsConfiguration> {
-    let mut ca = std::io::Cursor::new(ca);
-
-    use itertools::Itertools;
-    let certs: Vec<_> = rustls_pemfile::certs(&mut ca).try_collect().unwrap();
+pub fn build_tls_config(certificates: Option<&Certificates>) -> anyhow::Result<TlsConfiguration> {
     let mut root_cert_store = rustls::RootCertStore::empty();
+    // 添加机器上的 ca
     root_cert_store.add_parsable_certificates(
-        rustls_native_certs::load_native_certs().expect("could not load platform certs"),
+        rustls_native_certs::load_native_certs().context("MQTT load platform certs error")?,
     );
-    root_cert_store.add_parsable_certificates(certs);
-    let mut rustls_config = rustls::ClientConfig::builder()
-        .with_root_certificates(root_cert_store)
-        .with_no_client_auth();
-    rustls_config
-        .dangerous()
-        .set_certificate_verifier(Arc::new(NoCertificateVerification()));
-    let tls_config = TlsConfiguration::Rustls(Arc::new(rustls_config));
+
+    let tls_config = match certificates {
+        Some(certificates) => {
+            // 添加用户 ca
+            let mut ca = std::io::Cursor::new(certificates.ca.clone());
+            let root_certs = rustls_pemfile::certs(&mut ca)
+                .collect::<Result<Vec<_>, _>>()
+                .context("Parse CA file error")?;
+            if root_certs.is_empty() {
+                anyhow::bail!("No valid CA cert in chain");
+            }
+            root_cert_store.add_parsable_certificates(root_certs);
+            let rustls_config =
+                rustls::ClientConfig::builder().with_root_certificates(root_cert_store);
+            // 添加用户 cert 和 key
+            match certificates
+                .cert
+                .as_ref()
+                .and_then(|cert| certificates.cert_key.as_ref().map(|key| (cert, key)))
+            {
+                Some((cert, key)) => {
+                    let client_certs = rustls_pemfile::certs(&mut std::io::Cursor::new(cert))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    if client_certs.is_empty() {
+                        anyhow::bail!("No valid client cert in chain");
+                    }
+                    let mut keys_reader = std::io::Cursor::new(key);
+
+                    let key = loop {
+                        let item = rustls_pemfile::read_one(&mut keys_reader)
+                            .context("Read one ca key error")?;
+                        match item {
+                            Some(rustls_pemfile::Item::Sec1Key(key)) => {
+                                break key.into();
+                            }
+                            Some(rustls_pemfile::Item::Pkcs1Key(key)) => {
+                                break key.into();
+                            }
+                            Some(rustls_pemfile::Item::Pkcs8Key(key)) => {
+                                break key.into();
+                            }
+                            None => anyhow::bail!("No valid key in chain"),
+                            _ => {}
+                        }
+                    };
+                    rustls_config
+                        .with_client_auth_cert(client_certs, key)
+                        .context("Build with client auth error")?
+                }
+                None => {
+                    // 没有客户端 cert，设置单向认证
+                    rustls_config.with_no_client_auth()
+                }
+            }
+        }
+        None => {
+            // 没有ca，设置为不认证
+            let mut rustls_config = rustls::ClientConfig::builder()
+                .with_root_certificates(root_cert_store)
+                .with_no_client_auth();
+            rustls_config
+                .dangerous()
+                .set_certificate_verifier(Arc::new(NoCertificateVerification));
+            rustls_config
+        }
+    };
+
+    let tls_config = TlsConfiguration::Rustls(Arc::new(tls_config));
 
     Ok(tls_config)
 }
@@ -360,23 +443,31 @@ mod tests {
 
     #[test]
     fn parse_tls_test() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://?")?;
+        let certs = parse_tls_certificates(&dsn)?;
+        assert!(certs.is_none());
+
+        let dsn = Dsn::from_str("mqtt://?ca=")?;
+        let certs = parse_tls_certificates(&dsn)?;
+        assert!(certs.is_none());
+
         let dsn = Dsn::from_str("mqtt://?ca=abc&cert=def&cert_key=ghi")?;
-        let (ca, cert, cert_key) = parse_tls(&dsn)?;
-        assert_eq!(ca, Some(b"abc".into()));
-        assert_eq!(cert, Some(b"def".into()));
-        assert_eq!(cert_key, Some(b"ghi".into()));
+        let certs = parse_tls_certificates(&dsn)?.context("certs not found")?;
+        assert_eq!(certs.ca, b"abc");
+        assert_eq!(certs.cert, Some(b"def".into()));
+        assert_eq!(certs.cert_key, Some(b"ghi".into()));
 
         let dsn = Dsn::from_str("mqtt://?ca=abc&cert=&cert_key=ghi")?;
-        let (ca, cert, cert_key) = parse_tls(&dsn)?;
-        assert_eq!(ca, Some(b"abc".into()));
-        assert_eq!(cert, None);
-        assert_eq!(cert_key, Some(b"ghi".into()));
+        let certs = parse_tls_certificates(&dsn)?.context("certs not found")?;
+        assert_eq!(certs.ca, b"abc");
+        assert_eq!(certs.cert, None);
+        assert_eq!(certs.cert_key, Some(b"ghi".into()));
 
         let dsn = Dsn::from_str("mqtt://?ca=abc&cert_key=ghi")?;
-        let (ca, cert, cert_key) = parse_tls(&dsn)?;
-        assert_eq!(ca, Some(b"abc".into()));
-        assert_eq!(cert, None);
-        assert_eq!(cert_key, Some(b"ghi".into()));
+        let certs = parse_tls_certificates(&dsn)?.context("certs not found")?;
+        assert_eq!(certs.ca, b"abc");
+        assert_eq!(certs.cert, None);
+        assert_eq!(certs.cert_key, Some(b"ghi".into()));
         Ok(())
     }
 
@@ -489,8 +580,8 @@ mod tests {
 
     #[test]
     fn build_tls_config_test() -> anyhow::Result<()> {
-        let res = build_tls_config(
-            b"
+        let res = build_tls_config(Some(&Certificates {
+            ca: b"
 -----BEGIN CERTIFICATE-----
 MIIFDzCCA3egAwIBAgIQSL1JEpBqVfNDYePUWb6m3DANBgkqhkiG9w0BAQsFADCB
 nzEeMBwGA1UEChMVbWtjZXJ0IGRldmVsb3BtZW50IENBMTowOAYDVQQLDDF5YW55
@@ -523,9 +614,9 @@ JGMv
 -----END CERTIFICATE-----
         "
             .to_vec(),
-            vec![],
-            vec![],
-        );
+            cert: None,
+            cert_key: None,
+        }));
         assert!(res.is_ok());
         Ok(())
     }
@@ -581,9 +672,11 @@ JGMv
                 password: Some("taosdata".to_string()),
                 keep_alive: Duration::from_secs(5),
                 clean_session: false,
-                ca: Some(b"abc".to_vec()),
-                cert: Some(b"def".to_vec()),
-                cert_key: Some(b"ghi".to_vec())
+                certificates: Some(Certificates {
+                    ca: b"abc".to_vec(),
+                    cert: Some(b"def".to_vec()),
+                    cert_key: Some(b"ghi".to_vec())
+                })
             }
         );
 

@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anyhow::{bail, Context};
 use arrow::ipc::writer::StreamWriter;
+use arrow_schema::Schema;
 use batch::{build_schema, RecordBatchBuilder};
 use client::{GenericMessagePoller, MessagePoller};
 use config::MqttConnectConfig;
@@ -22,6 +23,7 @@ use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::mqtt::config::MqttConfig;
+use crate::sink::persist::PersistConfig;
 use crate::utils::codec::Processor;
 use crate::utils::defer::defer;
 use crate::{build_ipc, Parser, Transferred};
@@ -65,6 +67,17 @@ pub async fn mqtt_to_taos(
     let _metrics_guard = defer(|| metrics.reset_metrics());
     metrics.reset_metrics();
 
+    let config: MqttConfig = from.try_into()?;
+    let schema = Arc::new(build_schema(config.topic_pattern.as_ref()));
+
+    let persist_config = config.persist_data.as_ref().map(|c| PersistConfig {
+        dir: c.dir.clone(),
+        schema: schema.clone(),
+        batch_size: Some(config.task.batch_size),
+        batch_timeout: Some(Duration::from_millis(config.task.batch_timeout as u64)),
+        batch_chunk_size: None,
+    });
+
     let (mut ipc_server_handle, socket) = build_ipc(
         None,
         parser,
@@ -77,6 +90,7 @@ pub async fn mqtt_to_taos(
         transferred,
         task_id,
         notify.clone(),
+        persist_config,
     )
     .await
     .context("build ipc error")?;
@@ -84,7 +98,8 @@ pub async fn mqtt_to_taos(
     let mut tasks = match execute(
         socket,
         task_id,
-        &from,
+        config,
+        schema.clone(),
         metrics.clone(),
         cancel_token.clone(),
     )
@@ -139,8 +154,8 @@ pub async fn mqtt_to_taos(
             },
 
             err = ipc_server_handle.recv_error() => {
-                tracing::info!("have received worker thread panicked message, terminate child process");
                 if let Some(e) = err {
+                    tracing::info!("have received worker thread panicked message, terminate child process: {e:#}");
                     safe_exit!();
                     bail!("MQTT ipc write error: {e}");
                 }
@@ -163,13 +178,12 @@ pub async fn mqtt_to_taos(
 async fn execute(
     socket: std::net::SocketAddr,
     task_id: Option<i64>,
-    from: &Dsn,
+    config: MqttConfig,
+    schema: Arc<Schema>,
     mqtt_metrics: Arc<MqttMetrics>,
     cancel_token: CancellationToken,
 ) -> anyhow::Result<JoinSet<Result<(), anyhow::Error>>> {
-    let config: MqttConfig = from.try_into()?;
     let mut tasks = JoinSet::new();
-    let schema = build_schema(config.topic_pattern.as_ref());
 
     tasks.spawn(
         {
@@ -252,15 +266,11 @@ async fn execute(
                 if permit_rx.recv().is_err() {
                     break;
                 }
-                match batch_rx.recv() {
-                    Ok(batch) => {
-                        ipc_writer
-                            .write(&batch)
-                            .context("Write batch to ipc writer error")?;
-                        metrics.add_sent_batches();
-                    }
-                    Err(_) => break,
-                }
+                let Ok(batch) = batch_rx.recv() else { break };
+                ipc_writer
+                    .write(&batch)
+                    .context("Write batch to ipc writer error")?;
+                metrics.add_sent_batches();
             }
             ipc_writer.finish().context("Flush ipc writer error")?;
             Ok(())
@@ -281,6 +291,7 @@ async fn execute(
         .then(|| flume::bounded(10000))
         .unzip();
 
+    let persist_enable = config.persist_data.is_some();
     tasks.spawn({
         let mqtt_metrics = mqtt_metrics.clone();
         async move {
@@ -288,28 +299,50 @@ async fn execute(
                 match poller.poll().await {
                     Ok(message) => {
                         mqtt_metrics.clone().add_fetched_messages();
-                        match message_tx.try_send(message.clone()) {
-                            Ok(_) => {
-                                mqtt_metrics.clone().add_unprocessed_messages();
+                        if persist_enable {
+                            match message_tx.send_async(message.clone()).await {
+                                Ok(_) => {
+                                    mqtt_metrics.clone().add_unprocessed_messages();
+                                }
+                                Err(_) => {
+                                    tracing::warn!("MQTT task exit, stop polling...");
+                                    bail!("MQTT task exit")
+                                }
                             }
-                            Err(TrySendError::Full(_)) => {
-                                mqtt_metrics.clone().add_discarded_messages();
-                            }
-                            Err(TrySendError::Disconnected(_)) => {
-                                tracing::warn!("MQTT task exit, stop polling...");
-                                bail!("MQTT task exit")
-                            }
-                        };
-
-                        if let Some(dump_tx) = &dump_tx {
-                            match dump_tx.try_send(message) {
-                                Ok(_) => {}
+                        } else {
+                            match message_tx.try_send(message.clone()) {
+                                Ok(_) => {
+                                    mqtt_metrics.clone().add_unprocessed_messages();
+                                }
                                 Err(TrySendError::Full(_)) => {
-                                    mqtt_metrics.clone().add_discarded_dump_messages();
+                                    mqtt_metrics.clone().add_discarded_messages();
                                 }
                                 Err(TrySendError::Disconnected(_)) => {
                                     tracing::warn!("MQTT task exit, stop polling...");
                                     bail!("MQTT task exit")
+                                }
+                            };
+                        }
+
+                        if let Some(dump_tx) = &dump_tx {
+                            if persist_enable {
+                                match dump_tx.send_async(message).await {
+                                    Ok(_) => {}
+                                    Err(_) => {
+                                        tracing::warn!("MQTT task exit, stop polling...");
+                                        bail!("MQTT task exit")
+                                    }
+                                }
+                            } else {
+                                match dump_tx.try_send(message) {
+                                    Ok(_) => {}
+                                    Err(TrySendError::Full(_)) => {
+                                        mqtt_metrics.clone().add_discarded_dump_messages();
+                                    }
+                                    Err(TrySendError::Disconnected(_)) => {
+                                        tracing::warn!("MQTT task exit, stop polling...");
+                                        bail!("MQTT task exit")
+                                    }
                                 }
                             }
                         }
@@ -375,33 +408,89 @@ async fn execute(
     }
 
     // build batch
+    let get_parallel = || {
+        std::thread::available_parallelism()
+            .ok()
+            .map(std::num::NonZero::<usize>::get)
+    };
+    let parallel = std::env::var("TAOSX_MQTT_BUILD_BATCH_PARRALLEL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .or_else(get_parallel)
+        .unwrap_or(10);
+    let (tx, rx) = flume::bounded(parallel);
+
+    for _ in 0..parallel {
+        let rx = rx.clone();
+        let schema = schema.clone();
+        let codec_processor = config.codec_processor;
+        let topic_pattern = config.topic_pattern.clone();
+        let cancel_token = cancel_token.clone();
+        let batch_tx = batch_tx.clone();
+        tasks.spawn({
+            async move {
+                let _guard = cancel_token.clone().drop_guard();
+                loop {
+                    tokio::select! {
+                        res = rx.recv_async() => {
+                            let Ok(chunk) = res else {
+                                break;
+                            };
+                            let mut builder = RecordBatchBuilder::new(
+                                schema.clone(),
+                                codec_processor,
+                                topic_pattern.clone(),
+                                config.task.batch_size.max(1024),
+                            );
+                            let batch = tokio::task::spawn_blocking(move || {
+                                builder.build(chunk)
+                            }).await??;
+                            tokio::select! {
+                                res = batch_tx.send_async(batch) => match res {
+                                    Ok(_) => continue,
+                                    Err(_) => {
+                                        tracing::warn!("ipc writer loop exited");
+                                        break
+                                    }
+                                },
+                                _ = cancel_token.cancelled() => break,
+                            }
+                        },
+                        _ = cancel_token.cancelled() => break,
+                    }
+                }
+                Ok(())
+            }
+        });
+    }
     tasks.spawn(
         async move {
-            let mut builder = RecordBatchBuilder::new(
-                Arc::new(schema),
-                config.codec_processor,
-                config.topic_pattern,
-            );
+            let _guard = cancel_token.clone().drop_guard();
             let chunk_stream = message_rx.into_stream().chunks_timeout(
                 config.task.batch_size,
                 Duration::from_millis(config.task.batch_timeout as u64),
             );
+
             pin_mut!(chunk_stream);
             loop {
                 tokio::select! {
-                    Some(chunk) = chunk_stream.next() => {
+                    res = chunk_stream.next() => {
+                        let Some(chunk) = res else {
+                            break
+                        };
                         mqtt_metrics.sub_unprocessed_messages(chunk.len() as u64);
-                        let batch = builder
-                            .build(chunk)
-                            .context("Build MQTT RecordBatch error")?;
-                        batch_tx
-                            .send_async(batch).await
-                            .context("ipc write loop exit unexpectedlly")?;
+                        tokio::select! {
+                            res = tx.send_async(chunk) => match res {
+                                Ok(_) => continue,
+                                Err(_) => {
+                                    tracing::warn!("build batch loop exited");
+                                    break
+                                }
+                            },
+                            _ = cancel_token.cancelled() => break,
+                        }
                     }
-                    _ = cancel_token.cancelled() => {
-                        break
-                    }
-                    else => break,
+                    _ = cancel_token.cancelled() => break,
                 }
             }
 

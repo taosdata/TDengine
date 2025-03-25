@@ -4,66 +4,40 @@
       <div class="avatar_block">
         <span>?</span>
       </div>
-      <!-- <a class="drop-block" target="_blank" :href="docsUrl"> -->
-      <!-- <el-tooltip
-          class="item"
-          effect="light"
-          :content="$t('document')"
-          placement="bottom"
-        >
-          <div class="avatar_block">
-            <span>?</span>
-          </div>
-          <Icon
-            name="document"
-            class="dropdown_icon"
-            style="width: 26px; height: 26px; margin-left: 2px"
-          ></Icon>
-        </el-tooltip> -->
-      <!-- </a> -->
-      <el-dropdown-menu slot="dropdown">
-        <el-dropdown-item style="display: flex; align-items: center">
-          <!-- <router-link class="drop-block" to="/docsUrl"> -->
-          <a class="drop-block" target="_blank" :href="docsUrl">
-            <div style="display:flex;align-items:center;">
-              <Icon
-                name="document"
-                class="dropdown_icon"
-                style="width: 20px; height: 20px; margin-left: 2px"
-              ></Icon>
-              <span style="color: #4259ce; margin-left: 6px">{{
-                $t("document")
-              }}</span>
-            </div>
-          </a>
-          <!-- </router-link> -->
-        </el-dropdown-item>
-      </el-dropdown-menu>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item style="display: flex; align-items: center">
+            <a class="drop-block" target="_blank" :href="docsUrl">
+              <div style="display: flex; align-items: center">
+                <Icon
+                  name="document"
+                  class="dropdown_icon"
+                  style="width: 20px; height: 20px; margin-left: 2px"
+                ></Icon>
+                <span style="color: #4259ce; margin-left: 6px">{{
+                  $t("document")
+                }}</span>
+              </div>
+            </a>
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
     </el-dropdown>
   </div>
 </template>
 
-<script>
-export default {
-  name: "Dcoument",
-  computed: {
-    docsUrl() {
-      let oem = process.env.VUE_APP_CUS_NAME &&
-        process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_NAME : 'TDengine';
-      if (oem == 'TDengine') {
-        return  this.$i18n.locale.includes('zh')
-          ?"/docs/":"/docs-en/";
-      } else {
-        return "/docs/"
-      }
-    },
-    discordUrl() {
-      return this.$i18n.locale.includes("en")
-        ? "https://discord.com/invite/VZdSuUg4pS?utm_id=discord"
-        : "https://discord.com/invite/VZdSuUg4pS?utm_id=discord";
-    },
-  },
-};
+<script setup lang="ts">
+import { getLocalLang } from '@/utils'
+const { OEM_NAME } = inject("globalCustomProperties") as GlobalCustomProperties;
+
+const docsUrl = computed(() => {
+  if (OEM_NAME == "TDengine") {
+    return getLocalLang().includes("zh") ? "/docs/" : "/docs-en/";
+  } else {
+    return "/docs/";
+  }
+})
+
 </script>
 
 <style lang="scss" scoped>

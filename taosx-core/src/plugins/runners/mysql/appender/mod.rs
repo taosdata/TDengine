@@ -644,7 +644,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_to_schema() {
+    async fn test_to_schema_with_datasource() {
         // prepare data
         let _ = test_clear_data("test_to_schema").await;
         let _ = test_insert_data("test_to_schema", 1).await;

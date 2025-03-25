@@ -9,122 +9,113 @@
           <h1 class="title">
             {{ currentLanding.title }}
           </h1>
-          <article v-html="currentLanding.desc"></article>
+          <article v-dompurify-html="currentLanding.desc"></article>
         </section>
       </section>
       <section class="operate-btn">
         <div class="left">
-          <a :href="$t('docsUrl')" target="_blank">{{ $t("document") }}</a>
+          <a :href="$t('docsUrl')" target="_blank">{{ $t('document') }}</a>
         </div>
         <div class="right">
-          <el-button size="small" v-show="step > 0" @click="step--" plan>{{ $t("prev") }}</el-button>
-          <el-button @click="step++" v-show="step < landing.length - 1" type="primary" size="small">{{ $t("next") }}</el-button>
+          <el-button v-show="step > 0" size="default" plan @click="step--">{{ $t('prev') }}</el-button>
+          <el-button v-show="step < landing.length - 1" type="primary" size="default" @click="step++">{{
+            $t('next')
+          }}</el-button>
         </div>
       </section>
     </el-card>
   </div>
 </template>
 
-<script>
-  import { loadImage } from "@/utils/load";
-  import i18n from "@/lang";
-  function createLanding() {
+<script setup lang="ts">
+import { loadImage } from '@/utils/load';
+import { t } from '@/lang';
+const landing = computed(() => {
   return [
     {
-      title: i18n.t("landing.metricTitle"),
-      desc: i18n.t("landing.metricDesc"),
-      img: "/static/landing/metric.jpg",
+      title: t('landing.metricTitle'),
+      desc: t('landing.metricDesc'),
+      img: '/static/landing/metric.jpg'
     },
     {
-      title: i18n.t("landing.labelTitle"),
-      desc: i18n.t("landing.labelDesc"),
-      img: "/static/landing/label.jpg",
+      title: t('landing.labelTitle'),
+      desc: t('landing.labelDesc'),
+      img: '/static/landing/label.jpg'
     },
     {
-      title: i18n.t("landing.dataCollectionTitle"),
-      desc: i18n.t("landing.dataCollectionDesc"),
-      img: "/static/landing/dcp.jpg",
+      title: t('landing.dataCollectionTitle'),
+      desc: t('landing.dataCollectionDesc'),
+      img: '/static/landing/dcp.jpg'
     },
     {
-      title: i18n.t("landing.tableTitle"),
-      desc: i18n.t("landing.tableDesc"),
-      img: "/static/landing/sample.png",
+      title: t('landing.tableTitle'),
+      desc: t('landing.tableDesc'),
+      img: '/static/landing/sample.png'
     },
     {
-      title: i18n.t("landing.superTableTitle"),
-      desc: i18n.t("landing.superTableDesc"),
-      img: "/static/landing/stable.jpg",
+      title: t('landing.superTableTitle'),
+      desc: t('landing.superTableDesc'),
+      img: '/static/landing/stable.jpg'
     },
     {
-      title: i18n.t("landing.subtableTitle"),
-      desc: i18n.t("landing.subtableDesc"),
-      img: "/static/landing/subtable.jpg",
+      title: t('landing.subtableTitle'),
+      desc: t('landing.subtableDesc'),
+      img: '/static/landing/subtable.jpg'
     },
     {
-      title: i18n.t("landing.databaseTitle"),
-      desc: i18n.t("landing.databaseDesc"),
-      img: "/static/landing/database.png",
-    },
-  ];
-}
-  export default {
-    data() {
-      return {
-        step: 0,
-        loading: false,
-        landing: createLanding()
-      };
-    },
-    computed: {
-      currentLanding() {
-        return this.landing[this.step];
-      },
-    },
-    created() {
-      this.loadImage();
-    },
-    methods: {
-      loadImage() {
-        this.loading = true;
-        Promise.all(this.landing.map(item => loadImage(item.img))).then(() => {
-          this.loading = false;
-        });
-      },
-    },
-    watch:{
-      "$i18n.locale":{
-        handler(val){
-          this.landing = createLanding()
-        }
-      }
+      title: t('landing.databaseTitle'),
+      desc: t('landing.databaseDesc'),
+      img: '/static/landing/database.png'
     }
-  };
+  ];
+});
+
+const step = ref(0);
+const loading = ref<boolean>(false);
+
+const currentLanding = computed(() => {
+  return landing.value[step.value];
+});
+
+function loadImageData() {
+  loading.value = true;
+  Promise.all(landing.value.map(item => loadImage(item.img))).then(() => {
+    loading.value = false;
+  });
+}
+loadImageData();
 </script>
 
 <style lang="scss" scoped>
-  .tutorial-content {
-    display: flex;
-    justify-content: space-between;
-    .left {
-      width: 53%;
+.tutorial-content {
+  display: flex;
+  justify-content: space-between;
+
+  .left {
+    width: 53%;
+  }
+
+  .right {
+    width: 45%;
+
+    .title {
+      font-size: 30px;
     }
-    .right {
-      width: 45%;
-      .title {
-        font-size: 30px;
-      }
-      article {
-        margin-top: 20px;
-        font-size: 16px;
-      }
+
+    article {
+      margin-top: 20px;
+      font-size: 16px;
     }
   }
-  .operate-btn {
-    margin-top: 20px;
-    display: flex;
-    justify-content: space-between;
-    &:deep(.el-button) {
-      min-width: 60px;
-    }
+}
+
+.operate-btn {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+
+  &:deep(.el-button) {
+    min-width: 60px;
   }
+}
 </style>

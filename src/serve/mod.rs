@@ -10,9 +10,15 @@ use actix_web::{
     web::{resource, Data, PayloadConfig, ServiceConfig},
     App, HttpResponse, HttpServer, Responder,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use controller::replica::ReplicaOpts;
+use routes::replica::{delete_replica_monitor, start_replica_monitor, stop_replica_monitor};
+use rustls::{
+    pki_types::{pem::PemObject as _, CertificateDer, PrivateKeyDer},
+    ServerConfig,
+};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use tracing::{info, instrument, Instrument};
@@ -58,12 +64,14 @@ mod rpc;
 #[allow(unused)]
 mod scheduler;
 pub(crate) mod task;
+
 #[cfg(test)]
 pub mod tests;
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
 pub struct DataSetsReq {
-    from: String,
+    from: Option<String>,
+    from_json: Option<serde_json::Value>,
     pub via: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pattern: Option<String>,
@@ -85,10 +93,33 @@ pub(super) struct Cli {
     #[clap(short = 'l', long, env = "LISTEN")]
     pub listen: Option<String>,
 
+    /// SSL server certificate path for rest api.
+    #[clap(long, requires("ssl_key"))]
+    pub ssl_cert: Option<String>,
+    /// SSL key path for rest api.
+    #[clap(long, requires("ssl_ca"))]
+    pub ssl_key: Option<String>,
+    /// SSL CA certificate path for rest api.
+    #[clap(long, requires("ssl_cert"))]
+    pub ssl_ca: Option<String>,
+
     /// Grpc listen to ip:port address.
     ///
     #[clap(short = 'g', long, env = "TAOSX_GRPC")]
     pub grpc: Option<String>,
+
+    /// Grpc SSL certificate path. If none, fallback to rest api SSL cert.
+    #[clap(long, env = "GRPC_SSL_CERT", requires("grpc_ssl_key"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grpc_ssl_cert: Option<String>,
+    /// Grpc SSL key path. If none, fallback to rest api SSL key.
+    #[clap(long, env = "GRPC_SSL_KEY", requires("grpc_ssl_ca"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grpc_ssl_key: Option<String>,
+
+    /// Grpc CA certificate path.
+    #[clap(long, env = "GRPC_SSL_CA", requires("grpc_ssl_cert"))]
+    pub grpc_ssl_ca: Option<String>,
 
     /// Database URL.
     #[clap(short = 'D', long, env = "DATABASE_URL")]
@@ -117,18 +148,18 @@ pub(super) struct Cli {
 impl Cli {
     pub fn merge_from(&mut self, rhs: Self) -> &mut Self {
         macro_rules! update_if_none {
-            ($f:ident) => {
-                if self.$f.is_none() {
-                    self.$f = rhs.$f;
-                }
+            // 处理多个字段
+            ($($f:ident),+) => {
+                $(
+                    if self.$f.is_none() {
+                        self.$f = rhs.$f.clone();
+                    }
+                )+
             };
         }
-        update_if_none!(listen);
-        update_if_none!(database_url);
-        update_if_none!(secret_prefix);
-        update_if_none!(do_not_resume);
-        update_if_none!(request_timeout);
-        update_if_none!(grpc);
+        update_if_none!(listen, ssl_cert, ssl_key, ssl_ca);
+        update_if_none!(database_url, secret_prefix, do_not_resume, request_timeout);
+        update_if_none!(grpc, grpc_ssl_cert, grpc_ssl_key, grpc_ssl_ca);
         self
     }
 }
@@ -139,6 +170,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .app_data(store)
             .service(get_tasks)
             .service(get_tasks_count)
+            .service(export_tasks)
+            .service(import_tasks)
             .service(create_task)
             .service(update_task)
             .service(delete_tasks)
@@ -164,7 +197,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(download_pi_default_config)
             .service(download_point_template_file)
             .service(data_sources::is_opc_csv_valid)
-            .service(init_download_file_task)
+            .service(init_download_file_task_get)
+            .service(init_download_file_task_post)
             .service(check_point_file_ready)
             .service(download_point_file)
             .service(page_point_data)
@@ -191,6 +225,9 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(metrics::profile)
             .service(filemeta)
             .service(health)
+            .service(start_replica_monitor)
+            .service(stop_replica_monitor)
+            .service(delete_replica_monitor)
             .service(backup::get_backup_points);
     }
 }
@@ -237,13 +274,6 @@ impl Cli {
             None => "0.0.0.0:6050".to_string(),
         }
     }
-    #[inline]
-    pub fn get_grpc_address(&self) -> String {
-        match self.grpc.as_ref() {
-            Some(addr) => addr.clone(),
-            None => "0.0.0.0:6055".to_string(),
-        }
-    }
 
     #[instrument(skip_all)]
     pub(super) async fn controller(
@@ -266,11 +296,16 @@ impl Cli {
 
         if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");
-            let controller = controller.clone();
+            let ctl = controller.clone();
             tokio::spawn(
                 async move {
-                    if let Err(err) = controller.start_all_with_schedule().await {
-                        tracing::error!("resume all tasks error: {}", err);
+                    if let Err(err) = ctl.start_all_with_schedule().await {
+                        tracing::error!("resume all tasks error: {err:#}");
+                    }
+
+                    info!("resume all replica monitors if have any");
+                    if let Err(err) = ctl.start_all_replicas_monitor().await {
+                        tracing::error!("resume replica monitor error: {err:#}");
                     }
                 }
                 .in_current_span(),
@@ -323,7 +358,31 @@ impl Cli {
         Ok(scheduler)
     }
 
-    // pub fn
+    fn load_certs(&self) -> anyhow::Result<Option<ServerConfig>> {
+        if let Some((cert, key)) = self.ssl_cert.as_deref().zip(self.ssl_key.as_deref()) {
+            tracing::info!("Enable TLS on REST API");
+            // init server config builder with safe defaults
+            let config = ServerConfig::builder().with_no_client_auth();
+
+            let cert = taosx_core::utils::cert::parse_certificate_to_string(cert)?;
+            let key = taosx_core::utils::cert::parse_certificate_to_string(key)?;
+
+            let mut cert = std::io::BufReader::new(cert.as_bytes());
+            let mut key = std::io::BufReader::new(key.as_bytes());
+            // convert files to key/cert objects
+            let cert_chain = CertificateDer::pem_reader_iter(&mut cert)
+                .collect::<Result<Vec<_>, _>>()
+                .context("Invalid ssl cert")?;
+            let key = PrivateKeyDer::from_pem_reader(&mut key).context("Invalid ssl key")?;
+
+            let mut tls_config = config
+                .with_single_cert(cert_chain, key)
+                .context("Invalid cert chain")?;
+            tls_config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            return Ok(Some(tls_config));
+        }
+        Ok(None)
+    }
 
     pub(super) async fn api(
         self,
@@ -389,6 +448,7 @@ impl Cli {
                     PointDetail,
                     GetPointsHeaderReq,
                     AddPointReq,
+                    ReplicaOpts,
                     crate::serve::trigger::Strategy,
                     crate::serve::backup::BackupPoint,
                 ),
@@ -398,6 +458,8 @@ impl Cli {
             paths(
                 task::get_tasks,
                 task::get_tasks_count,
+                task::export_tasks,
+                task::import_tasks,
                 task::create_task,
                 task::update_task,
                 task::delete_tasks,
@@ -423,7 +485,8 @@ impl Cli {
                 data_source_sample,
                 list_all_parser_plugins,
                 download_all_data_set_file,
-                init_download_file_task,
+                init_download_file_task_get,
+                init_download_file_task_post,
                 check_point_file_ready,
                 download_point_file,
                 download_point_template_file,
@@ -440,6 +503,9 @@ impl Cli {
                 privileges::privileges_export,
                 privileges::privileges_import,
                 routes::cluster::get_cluster_connector_transferred,
+                routes::replica::start_replica_monitor,
+                routes::replica::stop_replica_monitor,
+                routes::replica::delete_replica_monitor,
                 crate::serve::backup::get_backup_points,
             ),
             tags(
@@ -450,6 +516,7 @@ impl Cli {
                 (name = "cluster", description = "Cluster Information"),
                 (name = "privileges", description = "Migrate Passwords and Privileges"),
                 (name = "backup", description = "Backup"),
+                (name = "replica", description = "Replica Monitor"),
             ),
         )]
         struct ApiDoc;
@@ -460,6 +527,8 @@ impl Cli {
         let recorder = Data::new(handle);
         let addr = self.get_listen_address();
         let addr = addr.as_str();
+        let tls = self.load_certs()?;
+
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
@@ -485,8 +554,20 @@ impl Cli {
                     resource("/metrics/task/{task_id}")
                         .route(web::get().to(metrics::ws::send_task_metrics)),
                 )
-        })
-        .bind(addr)
+                .service(
+                    resource("/activities/tasks/{cluster_id}")
+                        .route(web::get().to(task::send_all_tasks_activities)),
+                )
+                .service(
+                    resource("/activities/agents/{cluster_id}")
+                        .route(web::get().to(agent::send_all_agents_activities)),
+                )
+        });
+        let server = if let Some(tls) = tls {
+            server.bind_rustls_0_23(addr, tls)
+        } else {
+            server.bind(addr)
+        }
         .map_err(|err| {
             tracing::error!("Start HTTP server error: {:?} (addr: {})", err, addr);
             anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})")
@@ -523,6 +604,15 @@ impl Cli {
         if let Some(grpc) = self.grpc.as_ref() {
             let addr = grpc.parse()?;
             flight.tcp.replace(addr);
+        }
+        if let Some(ssl_cert) = self.grpc_ssl_cert.as_ref().or(self.ssl_cert.as_ref()) {
+            flight.ssl_cert = Some(ssl_cert.into());
+        }
+        if let Some(ssl_key) = self.grpc_ssl_key.as_ref().or(self.ssl_key.as_ref()) {
+            flight.ssl_key = Some(ssl_key.into());
+        }
+        if let Some(ssl_ca) = self.grpc_ssl_ca.as_ref().or(self.ssl_ca.as_ref()) {
+            flight.ssl_ca = Some(ssl_ca.into());
         }
 
         let addr = flight.tcp.expect("grpc address is required");

@@ -123,7 +123,7 @@ impl From<&RecordBatch> for ModeledJsonOutput {
         Self {
             fields,
             columns: value
-                .to_json_rows()
+                .to_json_rows::<serde_json::Map<String, serde_json::Value>>()
                 .unwrap()
                 .into_iter()
                 .map(|mut value| {

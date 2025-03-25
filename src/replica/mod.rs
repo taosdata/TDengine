@@ -122,6 +122,10 @@ pub enum ReplicaCommands {
         /// If set, the consumer group will be used as the consumer group name.
         #[clap(long, alias = "group.id")]
         group: Option<String>,
+
+        /// Interval duration in seconds when checking new databases.
+        #[clap(long)]
+        new_databases_checking_interval: Option<u32>,
     },
     /// Stop replication with the specified databases or not
     Stop {
@@ -136,6 +140,17 @@ pub enum ReplicaCommands {
         id: ReplicaId,
         /// The databases to replicate.
         databases: Vec<String>,
+        /// Interval duration in seconds when checking new databases.
+        #[clap(long)]
+        new_databases_checking_interval: Option<u32>,
+    },
+
+    Update {
+        /// The replica id.
+        id: ReplicaId,
+        /// Interval duration in seconds when checking new databases.
+        #[clap(long, required = true)]
+        new_databases_checking_interval: u32,
     },
 
     /// Remove replication with the specified databases
@@ -249,6 +264,7 @@ impl Replica {
         tmq.subject.replace(database.to_string());
         tmq.set("replica", "");
         tmq.set("timeout", "never");
+        tmq.set("prefer", "raw");
         if topic != database {
             tmq.set("use.topic.name", topic);
         }
@@ -274,6 +290,10 @@ struct ReplicaConfig {
     /// Connection timeout in seconds.
     #[clap(long, default_value = "30", global = true)]
     timeouts: u64,
+
+    /// Action will not be applied to new databases.
+    #[clap(long, global = true)]
+    no_new_databases: bool,
 }
 
 #[derive(Debug)]
@@ -807,6 +827,81 @@ impl ReplicaConfig {
         }
         Ok(diffs)
     }
+
+    async fn start_replica_monitor(
+        &self,
+        replica: &Replica,
+        topic_prefix: Option<&str>,
+        group: Option<&str>,
+        keep_topic_after_remove: bool,
+        new_databases_checking_interval: Option<u32>,
+    ) -> anyhow::Result<()> {
+        let body = serde_json::json!({
+            "id": replica.id,
+            "from": replica.canonical_source(),
+            "to": replica.canonical_sink(),
+            "topic_prefix": topic_prefix,
+            "group": group,
+            "keep_topic_after_remove": keep_topic_after_remove,
+            "new_databases_checking_interval": new_databases_checking_interval,
+        });
+
+        let url = format!("{}/replicas", self.server);
+        let response = reqwest::Client::new()
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .context("Creating replica task error")?;
+        tracing::info!(json = ?response.json::<serde_json::Value>().await?);
+        Ok(())
+    }
+
+    async fn stop_replica_monitor(&self, replica: &Replica) -> anyhow::Result<()> {
+        let body = serde_json::json!({
+            "action": "stop",
+        });
+        let url = format!("{}/replicas/{}", self.server, replica.id);
+        let response = reqwest::Client::new()
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .context("Creating replica task error")?;
+        tracing::info!(json = ?response.json::<serde_json::Value>().await?);
+        Ok(())
+    }
+    async fn restart_replica_monitor(
+        &self,
+        id: &str,
+        new_databases_checking_interval: Option<u32>,
+    ) -> anyhow::Result<()> {
+        let body = serde_json::json!({
+            "action": "restart",
+            "options": {
+                "new_databases_checking_interval": new_databases_checking_interval
+            }
+        });
+        let url = format!("{}/replicas/{id}", self.server);
+        let response = reqwest::Client::new()
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .context("Creating replica task error")?;
+        tracing::info!(json = ?response.json::<serde_json::Value>().await?);
+        Ok(())
+    }
+    async fn delete_replica_monitor(&self, replica: &Replica) -> anyhow::Result<()> {
+        let url = format!("{}/replicas/{}", self.server, replica.id);
+        let response = reqwest::Client::new()
+            .delete(&url)
+            .send()
+            .await
+            .context("Creating replica task error")?;
+        tracing::info!(json = ?response.json::<serde_json::Value>().await?);
+        Ok(())
+    }
 }
 
 fn endpoint_to_dsn(endpoint: &str) -> anyhow::Result<Dsn> {
@@ -940,6 +1035,7 @@ impl Cli {
                 topic_prefix,
                 group,
                 keep_topic_after_remove,
+                new_databases_checking_interval,
             } => {
                 let (replica, tasks) = match (source.zip(sink), id) {
                     (Some((source, sink)), Some(id)) => {
@@ -1013,6 +1109,21 @@ impl Cli {
                     .inspect_err(|err| {
                         tracing::error!("start replication failed: {:#}", err);
                     })?;
+
+                if !config.no_new_databases && databases.is_empty() {
+                    config
+                        .start_replica_monitor(
+                            &replica,
+                            topic_prefix.as_deref(),
+                            group.as_deref(),
+                            keep_topic_after_remove,
+                            new_databases_checking_interval,
+                        )
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!("start replication monitor failed: {:#}", err);
+                        })?;
+                }
             }
             ReplicaCommands::Status { ids: replica_ids } => {
                 let mut replicas = Vec::new();
@@ -1066,6 +1177,10 @@ impl Cli {
                     for task in tasks {
                         config.stop_once(&task).await?;
                     }
+
+                    if !config.no_new_databases {
+                        config.stop_replica_monitor(&replica).await?;
+                    }
                 } else {
                     let (replica, tasks) =
                         config.list_replicas_of(&id).await?.ok_or_else(|| {
@@ -1099,6 +1214,10 @@ impl Cli {
                         }
                         config.remove_once(&task).await?;
                     }
+
+                    if !config.no_new_databases {
+                        config.delete_replica_monitor(&replica).await?;
+                    }
                 } else {
                     let (replica, tasks) =
                         config.list_replicas_of(&id).await?.ok_or_else(|| {
@@ -1120,7 +1239,11 @@ impl Cli {
                     }
                 }
             }
-            ReplicaCommands::Restart { id, databases } => {
+            ReplicaCommands::Restart {
+                id,
+                databases,
+                new_databases_checking_interval,
+            } => {
                 if databases.is_empty() {
                     let (replica, tasks) =
                         config.list_replicas_of(&id).await?.ok_or_else(|| {
@@ -1135,6 +1258,12 @@ impl Cli {
                         // }
                         // config.start_once(&task).await?;
                     }
+
+                    if !config.no_new_databases {
+                        config
+                            .restart_replica_monitor(&replica.id, new_databases_checking_interval)
+                            .await?;
+                    }
                 } else {
                     let (replica, tasks) =
                         config.list_replicas_of(&id).await?.ok_or_else(|| {
@@ -1146,6 +1275,21 @@ impl Cli {
                             config.restart_once(&task).await?;
                         }
                     }
+                }
+            }
+            ReplicaCommands::Update {
+                id,
+                new_databases_checking_interval,
+            } => {
+                println!(
+                    "update replication monitor interval {}",
+                    new_databases_checking_interval
+                );
+
+                if !config.no_new_databases {
+                    config
+                        .restart_replica_monitor(&id, Some(new_databases_checking_interval))
+                        .await?;
                 }
             }
             ReplicaCommands::Diff { id, databases } => {
@@ -1195,8 +1339,6 @@ impl Cli {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::transmute;
-
     use rand::distributions::DistString;
     use taos::{AsAsyncConsumer, IsAsyncData, IsAsyncMeta, IsOffset, MessageSet};
 
@@ -1253,10 +1395,7 @@ mod tests {
                 match message {
                     MessageSet::Data(data) => {
                         let raw = data.as_raw_data().await?;
-                        taos.write_raw_meta(unsafe {
-                            &transmute::<taos::taos_query::common::RawData, taos::RawMeta>(raw)
-                        })
-                        .await?;
+                        taos.write_raw_meta(&raw).await?;
                     }
                     MessageSet::Meta(data) => {
                         tracing::info!("{target}: {:?}", data.as_json_meta().await?);

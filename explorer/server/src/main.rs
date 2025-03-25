@@ -93,6 +93,7 @@ async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, Strin
     if user_pool.is_some() {
         return user_pool.unwrap().get().await.map_err(|err| match err {
             PoolError::Backend(inner_err) => format!("{inner_err:#}"),
+            PoolError::Timeout(timeout_type) => format!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
             err => format!("Failed to get connection: {err:#}"),
         });
     }
@@ -111,6 +112,7 @@ async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, Strin
     let pool = pool.unwrap();
     let conn = pool.get().await.map_err(|err| match err {
         PoolError::Backend(inner_err) => format!("{inner_err:#}"),
+        PoolError::Timeout(timeout_type) => format!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
         err => format!("Failed to get connection: {err:#}"),
     });
 
@@ -304,7 +306,13 @@ async fn main() -> anyhow::Result<()> {
             .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
             .wrap(cors)
             .wrap(Compress::default())
-            .app_data(web::Data::new(reqwest::Client::new()))
+            .app_data(web::Data::new(
+                reqwest::Client::builder()
+                    .danger_accept_invalid_certs(true)
+                    .http1_only()
+                    .build()
+                    .expect("Failed to create reqwest client"),
+            ))
             .app_data(app_args.clone())
             .app_data(web::Data::new(favorites.clone()))
             // .route("/", web::get().to(index))
@@ -376,6 +384,9 @@ async fn main() -> anyhow::Result<()> {
                     .index_file("index.html")
                     .default_handler(fn_service(move |req: ServiceRequest| async {
                         let args = req.app_data::<web::Data<Args>>();
+                        if args.map_or(true, |args| args.assets.is_none()) {
+                            return Ok(req.error_response(error::ErrorNotFound("File not found")));
+                        }
                         let assets = args.unwrap().assets.as_ref().unwrap().clone();
                         let (req, _) = req.into_parts();
                         let file = NamedFile::open_async(assets.join("index.html")).await?;
@@ -389,10 +400,15 @@ async fn main() -> anyhow::Result<()> {
                 Embed::new("/", &StaticAssets)
                     .index_file("index.html")
                     .fallback_handler(|_: &_| {
-                        let embed = StaticAssets::get("index.html").unwrap();
-                        HttpResponse::Ok()
-                            .content_type(ContentType::html())
-                            .body(embed.data)
+                        if let Some(embed) = StaticAssets::get("index.html") {
+                            HttpResponse::Ok()
+                                .content_type(ContentType::html())
+                                .body(embed.data)
+                        } else {
+                            HttpResponse::NotFound()
+                                .content_type(ContentType::html())
+                                .body("404 Not Found")
+                        }
                     }),
             )
         }
@@ -2033,6 +2049,35 @@ certificate_key = "tests/assets/cert-key.pem"
             .timeout(std::time::Duration::from_secs(3))
             .assert();
         assert.interrupted();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_connect_timeout_with_taos() -> anyhow::Result<(), anyhow::Error> {
+        let profile = Profile {
+            cluster: Some("http://no.exist:6041".to_string()),
+            ..Default::default()
+        };
+
+        let args = Args {
+            profile,
+            ..Default::default()
+        };
+
+        // 默认用户名密码：root:taosdata
+        let dsn = args.build_dsn("Basic cm9vdDp0YW9zZGF0YQ==").unwrap();
+
+        // 清除旧数据
+        let sql = "select * from `test_explorer`";
+        let result = args.query_inner(&dsn, sql, None, 0).await;
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        let error_message = err.desc;
+        assert!(
+            error_message.contains("please check configuration item 'cluster' in explorer.toml")
+        );
+
         Ok(())
     }
 

@@ -1,77 +1,271 @@
-@import url(./font.css);
-@import url(./transtation.scss);
+// @use 'taos-ui/styles/reset';
+@use 'taos-ui/styles/transition';
+@use 'taos-ui/styles/index' as *;
+@use 'taos-ui/styles/tip' as *;
+@use './variables.scss' as *;
+
+html {
+  font-size: 16px;
+}
+
+@media screen and (width <= 1000px) {
+  html {
+    font-size: calc(100vmin / 600);
+  }
+}
 
 body {
-  height: 100%;
-  margin: 0;
   padding: 0;
-  color: #16191f;
-  color: var(--color-text-body-default, #16191f);
-  font-weight: 400;
-  font-family: Amazon Ember, Helvetica Neue, Roboto, Arial, sans-serif;
-  // 字体抗锯齿
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  // color: #464c4f;
+  margin: 0;
+  font-family: 'Amazon Ember', 'Helvetica Neue', Roboto, Arial, sans-serif !important;
   font-size: 14px;
-  line-height: 1.42857143;
+  color: #16191f;
 }
-// 去掉input的number类型的后缀
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
+
+pre,
+code {
+  font-family: 'IBM Plex Mono', 'IBM Plex Sans', Menlo, Monaco, Consolas, monospace;
 }
-input[type="number"] {
-  -moz-appearance: textfield;
-}
-html {
+
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-size: 10px;
-  min-width: 1200px;
-  --color-background-home-header: #232f3e;
-  --color-background-layout-main: #f2f3f3;
-  --color-background-layout-panel-content: #fff;
-  --color-background-layout-panel-hover: #eaeded;
-  --color-background-item-selected: #f1faff;
-  --color-background-modal-overlay: rgba(242, 243, 243, 0.9);
-  --color-background-status-error: #fdf3f1;
-  --color-background-status-warning: #fff;
-  --color-background-status-success: #f2f8f0;
-  --color-background-status-info: #f1faff;
+}
+
+.el-table thead th {
+  font-weight: 500;
 }
 
 #app {
-  height: 100%;
-  margin: 0;
-  padding: 0;
+  width: 100%;
+  height: 100vh;
+}
+
+.primary-color {
+  color: $color-primary;
+}
+
+.success-color {
+  color: $color-success;
+}
+
+.danger-color {
+  color: $color-danger;
+}
+
+.warning-color {
+  color: $color-warning;
+}
+
+.info-color {
+  color: $color-info;
 }
 
 a {
-  text-decoration: none;
+  color: $color-primary;
 }
 
-.icon {
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.15em;
-  fill: currentColor;
+/* stylelint-disable-next-line selector-class-pattern */
+.error-text {
+  padding-bottom: 5px;
+  margin: 0;
+  font-size: 14px;
+  color: #ff4949;
+  text-align: left;
+}
+
+.custom-divider {
+  display: block;
+  width: 100%;
+  height: 1px;
+  margin: 10px 0;
+  background-color: #d9dde4;
+}
+
+.big-btn {
+  padding: 6px 10px;
+  font-size: 18px;
+}
+
+.medium-btn {
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.mini-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.box-table {
+  margin-top: 10px;
+}
+
+.image-contain {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.td-form-item {
+  display: flex;
+  align-items: center;
+  padding: 5px 0;
+  margin-right: 10px;
+  line-height: 20px;
+
+  &__label {
+    flex-shrink: 0;
+    padding-right: 10px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #4d6992;
+  }
+
+  &__value {
+    flex: 1;
+    font-size: 14px;
+  }
+}
+
+@mixin content-padding {
+  padding: 20px 30px;
+}
+
+.flex1 {
+  flex: 1;
+}
+
+.nowrap {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-* {
-  box-sizing: border-box;
+.router-link-exact-active,
+.router-link-active {
+  color: $color-primary;
 }
 
-/* 重置滚动条样式 */
-*::-webkit-scrollbar {
-  width: 8px !important;
-  height: 8px !important;
-  background: rgba(255, 255, 255, 0.2);
+.w100 {
+  width: 100%;
 }
-*::-webkit-scrollbar-thumb {
+
+// 仅展示的pre
+.pre-show {
+  padding: 16px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 85%;
+  line-height: 1.45;
+  word-wrap: normal;
+  background-color: #f6f8fa;
+  border-radius: 6px;
+
+  & > code {
+    display: inline;
+    max-width: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    line-height: inherit;
+    word-break: normal;
+    word-wrap: normal;
+    white-space: pre;
+    background-color: transparent;
+    border: 0;
+  }
+}
+
+.big-button {
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.btn-disabled {
+  color: #c0c4cc;
+  cursor: not-allowed;
+}
+
+.tip-common {
+  padding: 12px 16px;
+  margin: 10px 0;
+  font-size: 16px;
+  line-height: 20px;
+  border-left-style: solid;
+  border-left-width: 5px;
   border-radius: 4px;
-  background-color: rgba(220, 220, 220, 0.8);
+}
+
+.primary-tip {
+  @extend .tip-common;
+
+  color: #333;
+  background-color: #ecf8ff;
+  border-left-color: #50bfff;
+}
+
+.warning-tip {
+  @extend .tip-common;
+
+  color: $color-danger;
+  background-color: #fff6f7;
+  border-left-color: #fe6c6f;
+}
+
+.success-tip {
+  @extend .tip-common;
+
+  color: #333;
+  background-color: rgb(254 236 196);
+  border-left-color: $color-success;
+}
+
+.default-tip {
+  margin: 10px 0;
+  font-size: 16px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.mt10 {
+  margin-top: 20px;
+}
+
+.mt20 {
+  margin-top: 20px;
+}
+
+.mr20 {
+  margin-right: 20px;
+}
+
+.mb20 {
+  margin-bottom: 20px;
+}
+
+.ml20 {
+  margin-left: 20px;
+}
+
+.ml15 {
+  margin-left: 15px;
+}
+
+.hidden-required {
+  .el-form-item__label {
+    display: flex;
+
+    &::before {
+      margin-right: 4px;
+      color: red;
+      visibility: hidden;
+      content: '*';
+    }
+  }
+}
+
+.docker-tip {
+  color: #e6a23c;
 }

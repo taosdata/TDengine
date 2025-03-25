@@ -19,9 +19,9 @@ use std::{
 use anyhow::Context;
 use arrow::{
     array::{
-        Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Float16Array, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
-        LargeStringArray, NullArray, StringArray, TimestampMicrosecondArray,
+        Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Decimal128Array, Float16Array,
+        Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+        LargeBinaryArray, LargeStringArray, NullArray, StringArray, TimestampMicrosecondArray,
         TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt64Array,
     },
     compute::concat_batches,
@@ -39,6 +39,7 @@ use datafusion::{
 };
 use either::Either;
 use faststr::FastStr;
+use flume::Sender;
 use handling_strategy::{HandlingResult, ProcessOnAbnormal};
 use itertools::Itertools;
 use modeler::stable::STableModel;
@@ -58,9 +59,9 @@ pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
-use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::global::TABLE_TAG_CACHE;
-use crate::{plugins::transform::parse::ArrayForTaos, utils::files::write_to_parquet_file};
+use crate::plugins::transform::parse::ArrayForTaos;
+use crate::{global::SQL_TAG_CACHE_CAPACITY, ArchiveType};
 
 use super::expr;
 
@@ -1123,9 +1124,9 @@ impl Parser {
     #[instrument(skip_all)]
     pub fn parse_message_from_records(
         &self,
-        task_id: i64,
         records: &RecordBatch,
         filter_ts: bool,
+        archive_tx: Sender<(ArchiveType, RecordBatch)>,
     ) -> Result<Message, Error> {
         // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self.transform_records(records)?;
@@ -1149,11 +1150,7 @@ impl Parser {
 
         let json: Vec<_> = json_batches
             .iter()
-            .map(|batch| {
-                batch
-                    .to_json_rows()
-                    .map(|v| v.into_iter().map(serde_json::Value::from))
-            })
+            .map(|batch| batch.to_json_rows::<serde_json::Value>())
             .flatten_ok()
             .try_collect()?;
 
@@ -1233,7 +1230,7 @@ impl Parser {
                         .process_on_abnormal
                         .field_name_length_overflow
                         .handle(
-                            field_name,
+                            vec![field_name.clone()],
                             64,
                             format!("the length of field name '{field_name}' should not exceed 64"),
                         ) {
@@ -1250,16 +1247,16 @@ impl Parser {
                                 err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
                             }
                             archive_records(
-                                task_id,
-                                &self.global.process_on_abnormal.archive.location,
                                 transformed_batch,
                                 err_vec,
                                 err_timestamp_vec,
+                                archive_tx.clone(),
                             )?;
                             break 'table;
                         }
-                        Ok((HandlingResult::Modify(_), _)) => todo!(),
-                        Ok((HandlingResult::ModifyAndArchive(_), _)) => todo!(),
+                        Ok((HandlingResult::Modify(_), _)) => todo!(), // TODO1
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => todo!(), // TODO1
+                        Ok((HandlingResult::Retry, _)) => unreachable!(),
                         Err(e) => {
                             Err(Error::FieldNameLengthOverflowError(
                                 field_name.to_string(),
@@ -1274,64 +1271,7 @@ impl Parser {
             if filter_ts {
                 for row in 0..columns.num_rows() {
                     let col = columns.column(0);
-                    let ts = if let DataType::Timestamp(unit, _) = col.data_type() {
-                        match unit {
-                            arrow_schema::TimeUnit::Second => {
-                                let array =
-                                    col.as_any().downcast_ref::<TimestampSecondArray>().unwrap();
-                                if array.is_null(row) {
-                                    Ok(None)
-                                } else {
-                                    let ts = array.value(row);
-                                    let ts = ts * 1_000;
-                                    Ok(Some(ts))
-                                }
-                            }
-                            arrow_schema::TimeUnit::Millisecond => {
-                                let array = col
-                                    .as_any()
-                                    .downcast_ref::<TimestampMillisecondArray>()
-                                    .unwrap();
-                                if array.is_null(row) {
-                                    Ok(None)
-                                } else {
-                                    let ts = array.value(row);
-                                    Ok(Some(ts))
-                                }
-                            }
-                            arrow_schema::TimeUnit::Microsecond => {
-                                let array = col
-                                    .as_any()
-                                    .downcast_ref::<TimestampMicrosecondArray>()
-                                    .unwrap();
-                                if array.is_null(row) {
-                                    Ok(None)
-                                } else {
-                                    let ts = array.value(row);
-                                    let ts = ts / 1_000;
-                                    Ok(Some(ts))
-                                }
-                            }
-                            arrow_schema::TimeUnit::Nanosecond => {
-                                let array = col
-                                    .as_any()
-                                    .downcast_ref::<TimestampNanosecondArray>()
-                                    .unwrap();
-                                if array.is_null(row) {
-                                    Ok(None)
-                                } else {
-                                    let ts = array.value(row);
-                                    let ts = ts / 1_000_000;
-                                    Ok(Some(ts))
-                                }
-                            }
-                        }
-                    } else {
-                        Err(Error::PrimaryKeyCastError(
-                            all_fields[0].name().clone(),
-                            arrow_schema::ArrowError::CastError(col.data_type().to_string()),
-                        ))
-                    }?;
+                    let ts = get_primary_timestamp_ns(all_fields[0].name(), col, row)?;
                     // primary timestamp null
                     if ts.is_none() {
                         match self
@@ -1354,6 +1294,7 @@ impl Parser {
                                 let _ = use_current_time_indices.upsert(row, err.clone());
                                 let _ = archive_indices.upsert(row, err);
                             }
+                            Ok((HandlingResult::Retry, _)) => unreachable!(),
                             Err(_) => {
                                 Err(Error::NullPrimaryKey(all_fields[0].name().clone()))?;
                             }
@@ -1362,6 +1303,7 @@ impl Parser {
                     }
                     // primary timestamp overflow
                     let ts = ts.unwrap();
+                    let ts = ts / 1_000_000;
                     let mut primary_timestamp_overflow_flag = false;
                     if let Some(max_ts) = self.global.maximum_timestamp {
                         if ts > max_ts.timestamp_millis() {
@@ -1389,6 +1331,7 @@ impl Parser {
                             }
                             Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                             Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                            Ok((HandlingResult::Retry, _)) => unreachable!(),
                             Err(e) => {
                                 Err(Error::PrimaryTimestampOverflow(format!("{e:#}")))?;
                             }
@@ -1423,11 +1366,14 @@ impl Parser {
                             let _ = archive_indices.upsert(row, err);
                             Ok((String::default(), row))
                         }
-                        Ok((HandlingResult::Modify(name), _)) => Ok((name, row)),
-                        Ok((HandlingResult::ModifyAndArchive(name), err)) => {
-                            let _ = archive_indices.upsert(row, err);
-                            Ok((name, row))
+                        Ok((HandlingResult::Modify(mut name), _)) => {
+                            Ok((name.pop().unwrap_or_default(), row))
                         }
+                        Ok((HandlingResult::ModifyAndArchive(mut name), err)) => {
+                            let _ = archive_indices.upsert(row, err);
+                            Ok((name.pop().unwrap_or_default(), row))
+                        }
+                        Ok((HandlingResult::Retry, _)) => unreachable!(),
                         Err(e) => {
                             anyhow::bail!("{:#}", e);
                         }
@@ -1453,11 +1399,10 @@ impl Parser {
                     .collect_vec();
                 let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)?;
                 archive_records(
-                    task_id,
-                    &self.global.process_on_abnormal.archive.location,
                     &archive_batch,
                     err_vec,
                     err_timestamp_vec,
+                    archive_tx.clone(),
                 )?;
             }
 
@@ -1506,14 +1451,14 @@ impl Parser {
                             if use_current_time_indices.contains(&row) {
                                 Utc::now().timestamp_nanos_opt()
                             } else {
-                                columns.column(0).is_null(row).then(|| {
-                                    transformed_batch
-                                        .column(0)
-                                        .as_any()
-                                        .downcast_ref::<TimestampMillisecondArray>()
-                                        .unwrap()
-                                        .value(row)
-                                })
+                                match get_primary_timestamp_ns(
+                                    all_fields[0].name(),
+                                    columns.column(0),
+                                    row,
+                                ) {
+                                    Ok(Some(ts)) => Some(ts),
+                                    _ => None,
+                                }
                             }
                         })
                         .collect();
@@ -1674,10 +1619,81 @@ fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
         })
         .collect()
 }
+
+/// get primary timestamp from record
+///
+/// - name: the name of column
+/// - col: the record column
+/// - row: the record row
+pub fn get_primary_timestamp_ns(
+    name: &str,
+    col: &ArrayRef,
+    row: usize,
+) -> Result<Option<i64>, Error> {
+    if let DataType::Timestamp(unit, _) = col.data_type() {
+        match unit {
+            arrow_schema::TimeUnit::Second => {
+                let array = col.as_any().downcast_ref::<TimestampSecondArray>().unwrap();
+                if array.is_null(row) {
+                    Ok(None)
+                } else {
+                    let ts = array.value(row);
+                    let ts = ts * 1_000_000_000;
+                    Ok(Some(ts))
+                }
+            }
+            arrow_schema::TimeUnit::Millisecond => {
+                let array = col
+                    .as_any()
+                    .downcast_ref::<TimestampMillisecondArray>()
+                    .unwrap();
+                if array.is_null(row) {
+                    Ok(None)
+                } else {
+                    let ts = array.value(row);
+                    let ts = ts * 1_000_000;
+                    Ok(Some(ts))
+                }
+            }
+            arrow_schema::TimeUnit::Microsecond => {
+                let array = col
+                    .as_any()
+                    .downcast_ref::<TimestampMicrosecondArray>()
+                    .unwrap();
+                if array.is_null(row) {
+                    Ok(None)
+                } else {
+                    let ts = array.value(row);
+                    let ts = ts * 1_000;
+                    Ok(Some(ts))
+                }
+            }
+            arrow_schema::TimeUnit::Nanosecond => {
+                let array = col
+                    .as_any()
+                    .downcast_ref::<TimestampNanosecondArray>()
+                    .unwrap();
+                if array.is_null(row) {
+                    Ok(None)
+                } else {
+                    let ts = array.value(row);
+                    Ok(Some(ts))
+                }
+            }
+        }
+    } else {
+        Err(Error::PrimaryKeyCastError(
+            name.to_string(),
+            arrow_schema::ArrowError::CastError(col.data_type().to_string()),
+        ))
+    }
+}
+
 /// generate subtable name by template and record value
 ///
 /// - process_on_abnormal: the configuration of abnormal handling method
 /// - template: such as 'table_{tag1}'
+/// - table_name_org: the original table name
 /// - data: the record processed by mutate
 fn generate_table_name(
     process_on_abnormal: ProcessOnAbnormal,
@@ -1691,7 +1707,7 @@ fn generate_table_name(
             // the length of table name should not exceed 192
             if name.len() > 192 {
                 return process_on_abnormal.table_name_length_overflow.handle(
-                    &name,
+                    vec![name.clone()],
                     192,
                     format!("the length of table name '{name}' should not exceed 192"),
                 );
@@ -1703,7 +1719,7 @@ fn generate_table_name(
                     format!("the table name '{name}' should not contain illegal characters"),
                 );
             }
-            Ok((HandlingResult::Modify(name), String::new()))
+            Ok((HandlingResult::Modify(vec![name]), String::new()))
         }
         Err(e) => {
             // render table name failed
@@ -1723,12 +1739,13 @@ fn generate_table_name(
 /// - task_id: the id of task
 /// - location: the location of parquet file
 /// - batch: the record batch
-fn archive_records(
-    task_id: i64,
-    location: &String,
+/// - err_vec: the error message vector
+/// - err_timestamp_vec: the error timestamp vector
+pub fn archive_records(
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     if batch.num_rows() > 0 {
         // get fields and columns
@@ -1754,17 +1771,7 @@ fn archive_records(
         let new_schema = Arc::new(Schema::new(fields_vec));
         let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
 
-        match write_to_parquet_file(task_id, location, &new_batch) {
-            Ok(_) => {
-                tracing::debug!("archive records success: {} rows", batch.num_rows());
-            }
-            Err(e) => {
-                tracing::error!(
-                    "archive records failed: {} rows, err: {e:#}",
-                    batch.num_rows()
-                );
-            }
-        }
+        archive_tx.send((ArchiveType::Archive, new_batch))?;
     }
     Ok(())
 }
@@ -1920,6 +1927,35 @@ pub fn pivot(
                         }
                         DataType::UInt32 => {
                             value_array!(name, Int32Array, row)
+                        }
+                        DataType::Decimal128(precision, scale) => {
+                            let value_column = value_column
+                                .as_any()
+                                .downcast_ref::<Decimal128Array>()
+                                .unwrap();
+                            if value_column.is_null(row) {
+                                (
+                                    Arc::new(Field::new(
+                                        name,
+                                        value_column.data_type().clone(),
+                                        true,
+                                    )),
+                                    Arc::new(<Decimal128Array>::new_null(1)),
+                                )
+                            } else {
+                                (
+                                    Arc::new(Field::new(
+                                        name,
+                                        value_column.data_type().clone(),
+                                        true,
+                                    )),
+                                    Arc::new(
+                                        <Decimal128Array>::from(vec![value_column.value(row)])
+                                            .with_precision_and_scale(*precision, *scale)
+                                            .context("pivot build decimal array error")?,
+                                    ),
+                                )
+                            }
                         }
                         DataType::UInt64 => {
                             value_array!(name, Int32Array, row)
@@ -2266,7 +2302,7 @@ pub struct TableOptions {
     /// How to process on abnormal.
     #[serde(default)]
     #[serde(flatten)]
-    process_on_abnormal: ProcessOnAbnormal,
+    pub process_on_abnormal: ProcessOnAbnormal,
 }
 
 impl Default for TableOptions {
@@ -2375,6 +2411,13 @@ impl ArrowFieldExt for Field {
             arrow::datatypes::DataType::LargeBinary => taos::Ty::VarChar,
             arrow::datatypes::DataType::Utf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::LargeUtf8 => taos::Ty::VarChar,
+            arrow::datatypes::DataType::Decimal128(p, _) => {
+                if *p <= 18 {
+                    taos::Ty::Decimal64
+                } else {
+                    taos::Ty::Decimal
+                }
+            }
             _ => todo!(),
         }
     }
@@ -2447,6 +2490,11 @@ impl MessageArrowRecords {
                             ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                         }
                     }
+                    DataType::Decimal128(precision, scale) => ColumnMeta::Column(
+                        Described::new(field.name(), field.ty(), None).with_origin_ty_name(
+                            &format!("{}({},{})", field.ty(), precision, scale),
+                        ),
+                    ),
                     _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
                 }
             })
@@ -2585,7 +2633,7 @@ impl MessageArrowRecords {
         with_meta: bool,
         with_field_names: bool,
         database_name: Option<&str>,
-    ) -> Vec<(String, usize, Option<String>)> {
+    ) -> Vec<(String, usize, Option<String>, usize, usize)> {
         let primary_key_null_count = self.records.column(0).null_count();
         if primary_key_null_count == self.records.num_rows() {
             return vec![];
@@ -2608,9 +2656,15 @@ impl MessageArrowRecords {
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
         col_values
             .into_iter()
-            .map(|(col_values, rows)| {
+            .map(|(col_values, rows, start, end)| {
                 if !with_meta || self.table.using.is_none() {
-                    return (format!("`{}` {}", tbname, col_values), rows, None);
+                    return (
+                        format!("`{}` {}", tbname, col_values),
+                        rows,
+                        None,
+                        start,
+                        end,
+                    );
                 }
                 let using = self.table.using.as_ref().unwrap();
 
@@ -2638,6 +2692,7 @@ impl MessageArrowRecords {
                         .map(|c| c.taos_value(0).to_sql_value())
                         .join(",");
 
+                    let mut full_name_to_cache = None;
                     if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } && database_name.is_some() {
                         // 根据 database.tablename 来判断缓存，如果缓存在则不需要带 using
                         let table_existed = TABLE_TAG_CACHE.get_or_init(|| {
@@ -2648,14 +2703,16 @@ impl MessageArrowRecords {
                         });
                         let tag_key = format!("{}.{}", database_name.unwrap(), tbname);
                         if table_existed.contains(&tag_key) {
-                            return (format!("`{}` {}", tbname, col_values), rows, None);
+                            return (
+                                format!("`{}` {}", tbname, col_values),
+                                rows,
+                                None,
+                                start,
+                                end,
+                            );
                         }
+                        full_name_to_cache = Some(tag_key);
                     }
-                    let full_name_to_cache = if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } {
-                        Some(format!("{}.{}", database_name.unwrap(), tbname))
-                    } else {
-                        None
-                    };
 
                     (
                         format!(
@@ -2668,6 +2725,8 @@ impl MessageArrowRecords {
                         ),
                         rows,
                         full_name_to_cache,
+                        start,
+                        end,
                     )
                 } else {
                     let tag_values = self
@@ -2689,13 +2748,18 @@ impl MessageArrowRecords {
                         ),
                         rows,
                         None,
+                        start,
+                        end,
                     )
                 }
             })
             .collect()
     }
 
-    pub fn sql_insert_part_skip_null(&self, target_precision: taos::Precision) -> Vec<String> {
+    pub fn sql_insert_part_skip_null(
+        &self,
+        target_precision: taos::Precision,
+    ) -> Vec<(String, usize, usize, usize)> {
         if self.records.num_rows() == 0 {
             return vec![];
         }
@@ -2947,29 +3011,41 @@ mod parser_tests {
             "written_concurrent": 4,
             "workers_per_vgroup": 4,
             "null_values": "null",
-            "primary_timestamp_overflow": "break",
-            "primary_timestamp_null": "use_current_time",
-            "primary_key_null": "break",
-            "table_name_length_overflow": "truncate",
-            "table_name_contains_illegal_char": {"replace_to": "_"},
-            "variable_not_exist_in_table_name_template": "leave_blank",
-            "field_name_not_found": "break",
-            "field_name_length_overflow": "truncate",
-            "field_length_extend": true,
-            "field_length_overflow": "truncate_and_archive",
-            "ingesting_error": "archive",
-            "connection_timeout": 10,
             "cache": {
-                "max_size": 1024,
+                "max_size": "0GB",
+                "max_size_unit": "GB",
+                "max_size_value": 0,
                 "location": "cache",
                 "on_fail": "skip"
             },
             "archive": {
-                "keep_days": 10,
-                "max_size": 1024,
-                "location": "archive",
+                "keep_days": "0d",
+                "keep_days_unit": "d",
+                "keep_days_value": 0,
+                "max_size": "0GB",
+                "max_size_unit": "GB",
+                "max_size_value": 0,
+                "location": "",
                 "on_fail": "rotate"
-            }
+            },
+            "primary_timestamp_overflow": "archive",
+            "primary_timestamp_null": "archive",
+            "primary_key_null": "archive",
+            "table_name_length_overflow": "archive",
+            "table_name_contains_illegal_char": {
+                "replace_to": ""
+            },
+            "variable_not_exist_in_table_name_template": {
+                "replace_to": ""
+            },
+            "field_name_not_found": "add_field",
+            "field_name_length_overflow": "archive",
+            "field_length_extend": true,
+            "field_length_overflow": "archive",
+            "ingesting_error": "archive",
+            "connection_timeout_in_second": "1s",
+            "connection_timeout_in_second_unit": "s",
+            "connection_timeout_in_second_value": 1
         }"#;
         let global: TableOptions = serde_json::from_str(global).unwrap();
         dbg!(global);
@@ -3025,8 +3101,8 @@ mod parser_tests {
         println!("{}", json);
     }
 
-    #[test]
-    fn parse_message_from_records_test() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn parse_message_from_records_test() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3107,7 +3183,9 @@ mod parser_tests {
             ("ts", timestamps),
             ("value", values),
         ])?;
-        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let (tx, _rx) = flume::bounded(10);
+
+        let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3171,8 +3249,8 @@ mod parser_tests {
         Ok(())
     }
 
-    #[test]
-    fn parse_multi_columns_message_from_records_test() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn parse_multi_columns_message_from_records_test() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3270,7 +3348,9 @@ mod parser_tests {
             ("ts", timestamps),
             ("value", values),
         ])?;
-        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let (tx, _rx) = flume::bounded(10);
+
+        let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3384,8 +3464,8 @@ mod parser_tests {
         Ok(())
     }
 
-    #[test]
-    fn parse_multi_pivot_columns_message_from_records_test() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn parse_multi_pivot_columns_message_from_records_test() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3521,7 +3601,9 @@ mod parser_tests {
             ("value1", values_1, true),
             ("value2", values_2, true),
         ])?;
-        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let (tx, _rx) = flume::bounded(10);
+
+        let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3669,36 +3751,48 @@ mod parser_tests {
         println!("{}", json);
 
         let process = r#"{
-            "primary_timestamp_overflow": "break",
-            "primary_timestamp_null": "use_current_time",
-            "primary_key_null": "break",
-            "table_name_length_overflow": "truncate",
-            "table_name_contains_illegal_char": {"replace_to": "_"},
-            "variable_not_exist_in_table_name_template": "leave_blank",
-            "field_name_not_found": "break",
-            "field_name_length_overflow": "truncate",
-            "field_length_extend": true,
-            "field_length_overflow": "truncate_and_archive",
-            "ingesting_error": "archive",
-            "connection_timeout": 10,
             "cache": {
-                "max_size": 1024,
+                "max_size": "0GB",
+                "max_size_unit": "GB",
+                "max_size_value": 0,
                 "location": "cache",
                 "on_fail": "skip"
             },
             "archive": {
-                "keep_days": 10,
-                "max_size": 1024,
-                "location": "archive",
+                "keep_days": "0d",
+                "keep_days_unit": "d",
+                "keep_days_value": 0,
+                "max_size": "0GB",
+                "max_size_unit": "GB",
+                "max_size_value": 0,
+                "location": "",
                 "on_fail": "rotate"
-            }
+            },
+            "primary_timestamp_overflow": "archive",
+            "primary_timestamp_null": "archive",
+            "primary_key_null": "archive",
+            "table_name_length_overflow": "archive",
+            "table_name_contains_illegal_char": {
+                "replace_to": ""
+            },
+            "variable_not_exist_in_table_name_template": {
+                "replace_to": ""
+            },
+            "field_name_not_found": "add_field",
+            "field_name_length_overflow": "archive",
+            "field_length_extend": true,
+            "field_length_overflow": "archive",
+            "ingesting_error": "archive",
+            "connection_timeout_in_second": "1s",
+            "connection_timeout_in_second_unit": "s",
+            "connection_timeout_in_second_value": 1
         }"#;
         let process: super::ProcessOnAbnormal = serde_json::from_str(process).unwrap();
         dbg!(&process);
     }
 
-    #[test]
-    fn test_parse_message_from_records() {
+    #[tokio::test]
+    async fn test_parse_message_from_records() {
         let parser = r#"{
             "global": {
                 "table_name_length_overflow": "archive",
@@ -3714,6 +3808,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: normal
         let record = RecordBatch::try_from_iter([
@@ -3725,7 +3820,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(1, &record, true);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
 
         // test2: the length of table name exceeds the limit, and the processing method is 'archive'
@@ -3741,7 +3836,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3760,7 +3855,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -3777,7 +3872,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3787,12 +3882,12 @@ mod parser_tests {
         }
     }
 
-    #[test]
-    fn test_table_name_length_overflow() {
+    #[tokio::test]
+    async fn test_table_name_length_overflow() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
-                Arc::new(TimestampNanosecondArray::from(vec![None])) as ArrayRef,
+                Arc::new(TimestampNanosecondArray::from(vec![1])) as ArrayRef,
             ),
             (
                 "str1",
@@ -3801,6 +3896,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: archive
         let parser = r#"{
@@ -3816,7 +3912,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3839,7 +3935,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3862,7 +3958,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -3883,7 +3979,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3906,7 +4002,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3916,8 +4012,8 @@ mod parser_tests {
         }
     }
 
-    #[test]
-    fn test_table_name_contains_illegal_char() {
+    #[tokio::test]
+    async fn test_table_name_contains_illegal_char() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -3927,6 +4023,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: archive
         let parser = r#"{
@@ -3942,7 +4039,8 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3965,7 +4063,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3988,7 +4086,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -4009,7 +4107,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4062,8 +4160,8 @@ mod parser_tests {
         assert_eq!(variables, vec!["var1", "var2", "var3"]);
     }
 
-    #[test]
-    fn test_variable_not_exist_in_table_name_template() {
+    #[tokio::test]
+    async fn test_variable_not_exist_in_table_name_template() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -4076,6 +4174,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: skip
         let parser = r#"{
@@ -4091,7 +4190,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4114,7 +4213,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4137,7 +4236,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4147,8 +4246,8 @@ mod parser_tests {
         }
     }
 
-    #[test]
-    fn test_primary_timestamp_null_use_current_time() {
+    #[tokio::test]
+    async fn test_primary_timestamp_null_use_current_time() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -4161,6 +4260,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: use current time
         let parser = r#"{
@@ -4176,7 +4276,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, true);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4188,8 +4288,8 @@ mod parser_tests {
         }
     }
 
-    #[test]
-    fn test_field_name_length_overflow() {
+    #[tokio::test]
+    async fn test_field_name_length_overflow() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -4202,6 +4302,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: columns empty, use the others not in tags & skip
         let parser = r#"{
@@ -4217,7 +4318,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, true);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4240,7 +4341,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, true);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4270,8 +4371,8 @@ mod parser_tests {
         dbg!(parser);
     }
 
-    #[test]
-    fn test_parse_record_to_sql() {
+    #[tokio::test]
+    async fn test_parse_record_to_sql() {
         let parser = r#"{
             "parse": {
                 "value": {"json": ""}
@@ -4319,9 +4420,10 @@ mod parser_tests {
             )
         )
         .unwrap();
+        let (tx, _rx) = flume::bounded(10);
 
         let records = parser
-            .parse_message_from_records(1, &raw_data, false)
+            .parse_message_from_records(&raw_data, true, tx.clone())
             .unwrap();
         // assert_eq!(records.len(), 2);
         if let super::Message::Records(records) = records {
@@ -4348,6 +4450,80 @@ mod parser_tests {
             }
         } else {
             panic!("not parsed as records");
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Parser;
+
+    #[tokio::test]
+    async fn test_sql_insert_part() {
+        let parser = r#"{
+            "parse": {
+                "value": {"json": ""}
+            },
+            "model": {
+                "name": "t_${DEV_ID}",
+                "using": "deva",
+                "tags": [ "dev_id" ],
+                "columns": [ "_ts", "_val0", "_val1" ]
+            },
+            "mutate": [{
+                "map": {
+                    "_ts": {
+                        "cast": "_ts",
+                        "as": "TIMESTAMP(ms)"
+                    },
+                    "_val0": {
+                        "cast": "_val0",
+                        "as": "INT"
+                    },
+                    "_val1": {
+                        "cast": "_val1",
+                        "as": "INT"
+                    },
+                    "dev_id": {
+                        "cast": "DEV_ID",
+                        "as": "VARCHAR"
+                    }
+                }
+            }]
+
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+
+        let raw_data = arrow::array::record_batch!(
+            ("topic", Utf8, ["test", "test", "test"]),
+            (
+                "value",
+                Utf8,
+                [
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val0": 12, "DEV_ID": "2212"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val1": 13, "DEV_ID": "2213"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:01+08:00", "DEV_ID": "2212"}"#
+                ]
+            )
+        )
+        .unwrap();
+        let (tx, _rx) = flume::bounded(10);
+
+        let records = parser
+            .parse_message_from_records(&raw_data, false, tx.clone())
+            .unwrap();
+
+        if let super::Message::Records(records) = records {
+            println!("--sql_insert_part--");
+            for record in &records {
+                let sql = record.sql_insert_part(taos::Precision::Millisecond, true, true, None);
+                dbg!(&sql);
+            }
+            println!("--sql_insert_part_skip_null--");
+            for record in &records {
+                let sql = record.sql_insert_part_skip_null(taos::Precision::Millisecond);
+                dbg!(&sql);
+            }
         }
     }
 }

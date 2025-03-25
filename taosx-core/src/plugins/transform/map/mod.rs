@@ -401,6 +401,28 @@ mod tests {
         });
         let field_value: FieldValue = serde_json::from_value(value)?;
         assert!(matches!(field_value.r#as, Some(AsType::Ipc(_))));
+
+        let value = serde_json::json!({
+            "cast": "value",
+            "as": "DECIMAL(5,2)"
+        });
+        let field_value: FieldValue = serde_json::from_value(value)?;
+        assert!(matches!(field_value.r#as, Some(AsType::Ipc(_))));
+        assert_eq!(
+            field_value.r#as,
+            Some(AsType::Ipc(IpcDataType::Decimal(5, 2)))
+        );
+
+        let value = serde_json::json!({
+            "cast": "value",
+            "as": " DECIMAL ( 5 , 2 ) "
+        });
+        let field_value: FieldValue = serde_json::from_value(value)?;
+        assert!(matches!(field_value.r#as, Some(AsType::Ipc(_))));
+        assert_eq!(
+            field_value.r#as,
+            Some(AsType::Ipc(IpcDataType::Decimal(5, 2)))
+        );
         Ok(())
     }
 }

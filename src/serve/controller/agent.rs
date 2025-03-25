@@ -1,14 +1,26 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::{borrow::Cow, convert::Infallible, fmt::Display, str::FromStr};
+use std::{borrow::Cow, convert::Infallible, fmt::Display, str::FromStr, sync::OnceLock};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sqlx::{encode::IsNull, sqlite::SqliteArgumentValue, Decode, Encode, FromRow, Type};
-use tracing::debug;
+use tracing::{debug, Instrument};
 use utoipa::{IntoParams, ToSchema};
+
+static GRPC_SSL_CA_CERTIFICATE: OnceLock<String> = OnceLock::new();
+
+pub fn set_grpc_ssl_ca_certificate(ca: impl Into<String>) {
+    if GRPC_SSL_CA_CERTIFICATE.set(ca.into()).is_ok() {
+        debug!("Set grpc ssl ca certificate");
+    }
+}
+
+pub fn get_grpc_ssl_ca_certificate() -> Option<&'static str> {
+    GRPC_SSL_CA_CERTIFICATE.get().map(|s| s.as_str())
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, ToSchema, Type)]
 #[serde(rename_all = "snake_case")]
@@ -88,7 +100,7 @@ fn test_activity() {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct AgentActivityItem {
-    id: i64,
+    pub id: i64,
     at: chrono::DateTime<Utc>,
     level: LevelFilter,
     activity: String,
@@ -186,6 +198,7 @@ impl<'q> Encode<'q, sqlx::Sqlite> for Context {
 pub struct AgentWithToken {
     pub id: i64,
     pub token: AgentToken,
+    pub ca: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -232,6 +245,7 @@ impl Agent {
         AgentWithToken {
             id: self.id,
             token: AgentToken(token),
+            ca: get_grpc_ssl_ca_certificate().map(|s| s.to_string()),
         }
     }
 }
@@ -360,10 +374,10 @@ impl Display for ActivityOrder {
 }
 #[derive(Debug, Deserialize, Serialize, IntoParams, ToSchema, Default)]
 pub struct AgentActivityFilter {
-    since: Option<DateTime<Utc>>,
-    level: Option<LevelFilter>,
-    limit: Option<usize>,
-    order: Option<ActivityOrder>,
+    pub since: Option<DateTime<Utc>>,
+    pub level: Option<LevelFilter>,
+    pub limit: Option<usize>,
+    pub order: Option<ActivityOrder>,
 }
 
 impl AgentActivityFilter {
@@ -398,5 +412,39 @@ impl super::TaskController {
         debug!("sql: {sql}");
         let items = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
         Ok(items)
+    }
+
+    pub async fn all_agents_activities(&self) -> anyhow::Result<Vec<AgentActivityItem>> {
+        let cond = AgentActivityFilter {
+            since: None,
+            level: None,
+            limit: Some(10000),
+            order: Some(ActivityOrder::Asc),
+        }
+        .condition();
+        let sql = format!("select * from (select *, row_number() over (partition by id order by at desc) as rn from agent_activities) r where r.rn<=5 {cond}");
+        let items = sqlx::query_as(&sql)
+            .fetch_all(&self.pool)
+            .in_current_span()
+            .await?;
+        Ok(items)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sql_all_agents_activities() {
+        let cond = AgentActivityFilter {
+            since: None,
+            level: None,
+            limit: Some(10000),
+            order: Some(ActivityOrder::Desc),
+        }
+        .condition();
+        let sql = format!("select * from (select *, row_number() over (partition by id order by at desc) as rn from agent_activities) r where r.rn<=5 {cond}");
+        println!("{}", sql);
     }
 }

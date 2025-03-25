@@ -6,20 +6,20 @@ edition = "2021"
 [dependencies]
 actix-web = { version = "*", default-features = false }
 tracing-actix-web = { version = "*" }
-tracing = { version = "*", default-features = false }
+tracing = { workspace = true }
 tracing-subscriber = { version = "*", default-features = false, features = [
     "fmt",
     "std",
 ] }
 chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
-parking_lot = "0.12.3"
-snafu = "0.8.4"
+parking_lot.workspace = true
+snafu.workspace = true
 flate2 = "1.0"
 thread-id = "4.2.2"
 regex = "1"
 sysinfo = { version = "0.31.4", default-features = false, features = ["disk"] }
-flume = "0.11.0"
-arrow-schema = "*"
+flume.workspace = true
+arrow-schema.workspace = true
 http = "0.2.12"
 nu-ansi-term = { version = "0.50.1", optional = true }
 rayon = "1"
@@ -27,10 +27,15 @@ rayon = "1"
 [dev-dependencies]
 crossbeam = "0.8.4"
 log = "0.4.22"
-rand = "0.8.5"
-tokio = { version = "*", features = ["full"] }
-tracing = { version = "*", features = ["log"] }
+rand.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true, features = ["log"] }
 tracing-log = "0.2.0"
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
 ansi = ["dep:nu-ansi-term"]
+
+[[bench]]
+name = "log_write_benchmark"
+harness = false

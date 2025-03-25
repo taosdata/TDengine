@@ -134,6 +134,7 @@ async fn worker(
                                 || err_string.contains("channel closed"))
                                 && retries > 0
                             {
+                                // 0xE00: connection error
                                 from = source.get().await?;
                                 to = target.get().await?;
                                 retries -= 1;
@@ -208,6 +209,7 @@ async fn worker(
                                         || err_string.contains("channel closed"))
                                         && retries > 0
                                     {
+                                        // 0xE00: connection error
                                         from = source.get().await?;
                                         to = target.get().await?;
                                         retries -= 1;
@@ -433,6 +435,7 @@ async fn worker(
                                             || err_string.contains("channel closed"))
                                             && retries > 0
                                         {
+                                            // 0xE00: connection error
                                             from = source.get().await?;
                                             to = target.get().await?;
                                             retries -= 1;
@@ -441,6 +444,7 @@ async fn worker(
                                         } else if err_string.contains("0x263F")
                                             || err_string.contains("Column does not exist")
                                         {
+                                            // 0x263F: invalid columns number
                                             tracing::info!("[worker:{worker}] sync table {table} error 0x263F: {err:?}, add column");
                                             let st = stable.as_ref().map(|s| s.as_str());
                                             if let Some(stable) = st {
@@ -572,6 +576,7 @@ async fn worker(
                                 || err_string.contains("channel closed"))
                                 && retries > 0
                             {
+                                // 0xE00: connection error
                                 from = source.get().await?;
                                 to = target.get().await?;
                                 retries -= 1;
@@ -582,6 +587,7 @@ async fn worker(
                             } else if err_string.contains("0x263F")
                                 || err_string.contains("Column does not exist")
                             {
+                                // 0x263F: invalid columns number
                                 tracing::info!(
                                     "[worker:{worker}] sync table {table} err 0x263F: {err:?}, add column"
                                 );

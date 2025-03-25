@@ -223,6 +223,11 @@ impl WriteStrategy {
     }
 
     #[inline]
+    pub fn prefer_raw(&self) -> bool {
+        matches!(self, WriteStrategy::Raw)
+    }
+
+    #[inline]
     pub fn is_default(&self) -> bool {
         matches!(self, WriteStrategy::Auto)
     }
@@ -271,11 +276,7 @@ impl WriteOptions {
         Ok(RawMessage::meta_only(self.next_mid(), raw, json_meta))
     }
     async fn parse_data(&self, data: &Data, metrics: &TmqMetrics) -> Result<RawMessage> {
-        let raw = unsafe {
-            std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(
-                data.as_raw_data().await?,
-            )
-        };
+        let raw = data.as_raw_data().await?;
 
         if self.actions.is_empty() && !self.strategy.require_blocks() {
             return Ok(RawMessage::raw_only(
@@ -387,6 +388,8 @@ pub(super) async fn write_with_raw_block(
         if let Some(source_table_name) = source_table_name {
             match code {
                 0x0118 => {
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0x0118: the table does not exist
                     let from = source.get().await?;
                     // sync schema
                     // let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = database() and table_name = '{source_table_name}'")).await?;
@@ -416,6 +419,12 @@ pub(super) async fn write_with_raw_block(
                         .context("Write raw block into target error after 0x0118 fix")?;
                 }
                 0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0x0218: the table does not exist
+                    // 0x2603: the table does not exist
+                    // 0x2662: the table does not exist
+                    // 0x036D: the table does not exist
+                    // 0x0618: the table does not exist
                     let from = source.get().await?;
                     let database = topic.database.as_str();
                     if topic.is_query() {
@@ -463,6 +472,8 @@ pub(super) async fn write_with_raw_block(
                     }
                 }
                 0x060B => {
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0x060B: the primary timestamp is out of range
                     let cancel = CancellationToken::new();
                     let _guard = cancel.clone().drop_guard();
                     let mut target_conn = Some(target.get().await?);
@@ -495,7 +506,8 @@ pub(super) async fn write_with_raw_block(
                     }
                 }
                 0x061B => {
-                    // Table schema is old.
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0x061B: invalid table schema version
                     let _ = taos.describe(raw.table_name().unwrap()).await;
                     let mut max_retries = 5;
                     loop {
@@ -691,6 +703,10 @@ impl Worker {
             match code {
                 // Table not exist error codes.
                 0x0218 | 0x2603 | 0x036D | 0x0618 => {
+                    // 0x0218: the table does not exist
+                    // 0x2603: the table does not exist
+                    // 0x036D: the table does not exist
+                    // 0x0618: the table does not exist
                     for json_meta in meta {
                         match json_meta {
                             MetaUnit::Create(create) => match create {
@@ -745,12 +761,11 @@ impl Worker {
                     }
                 }
                 0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
+                    // 0x032C: object is creating
+                    // 0x0115: invalid msg
+                    // 0x03C7: stable uid not match
+                    // 0x03D3: conflict transaction not completed
                     tokio::time::sleep(Duration::from_millis(500)).await;
-                    // let _ = conn;
-                    // let _ = self.target_connection.take();
-                    // self.target_connection.replace(self.target.get().await?);
-                    // let conn = self.target_connection.as_ref().unwrap();
-                    // // let _ = conn.exec("show tables").await;
                     let _ = conn.write_raw_meta(&message.raw).await.inspect_err(|err| {
                         tracing::debug!(
                             error = format!("{err:#}"),
@@ -1040,6 +1055,8 @@ impl Worker {
                     if let Some(source_table_name) = source_table_name {
                         match code {
                             0x0118 => {
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                                // 0x0118: invalid parameter
                                 let from = self.source.get().await?;
                                 // sync schema
                                 // let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = database() and table_name = '{source_table_name}'")).await?;
@@ -1078,6 +1095,12 @@ impl Worker {
                                 )?;
                             }
                             0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                                // 0x0218: the table does not exist
+                                // 0x2603: the table does not exist
+                                // 0x2662: the table does not exist
+                                // 0x036D: the table does not exist
+                                // 0x0618: the table does not exist
                                 let from = self.source.get().await?;
                                 let database = self.topic.database.as_str();
                                 if self.topic.is_query() {
@@ -1146,7 +1169,8 @@ impl Worker {
                                 }
                             }
                             0x061B => {
-                                // Table schema is old.
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                                // 0x061B: invalid table schema version
                                 let _ = taos.describe(raw.table_name().unwrap()).await;
                                 let mut max_retries = 5;
                                 loop {
@@ -1286,6 +1310,11 @@ impl Worker {
                 match code {
                     // Table not exist error codes.
                     0x0218 | 0x2603 | 0x036D | 0x0618 => {
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                        // 0x0218: the table does not exist
+                        // 0x2603: the table does not exist
+                        // 0x036D: the table does not exist
+                        // 0x0618: the table does not exist
                         for json_meta in meta {
                             match json_meta {
                                 MetaUnit::Create(create) => match create {
@@ -1340,6 +1369,7 @@ impl Worker {
                         }
                     }
                     0x0603 => {
+                        // 0x0603: table already exists
                         // Fallback to sql method.
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
                         let sqls = meta.iter().map(ToString::to_string).collect_vec();
@@ -1349,6 +1379,12 @@ impl Worker {
                             .context("Write raw meta with sql error");
                     }
                     0x032C | 0x0115 | 0x03C7 | 0x03D3 | 0x0900..=0x09FF => {
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                        // 0x032C: object is creating
+                        // 0x0115: invalid msg
+                        // 0x03C7: stable uid not match
+                        // 0x03D3: conflict transaction not completed
+                        // 0x0900..=0x09FF: sync error
                         tokio::time::sleep(Duration::from_millis(500)).await;
                         // let _ = conn;
                         // let _ = self.target_connection.take();
@@ -1378,12 +1414,23 @@ impl Worker {
                     // Table not exist error codes or invalid input.
                     0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000
                     | 0x0603 => {
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                        // 0x070F: invalid input
+                        // 0x0218: the table does not exist
+                        // 0x2603: the table does not exist
+                        // 0x036D: the table does not exist
+                        // 0x0618: the table does not exist
+                        // 0x2662: the table does not exist
+                        // 0x0118: invalid parameter
+                        // 0x4000: invalid msg
+                        // 0x0603: table already exists
                         tracing::debug!("Fallback to block-by-block method due to: {err:#}.");
                         self.try_mutate_data(data)?;
                         self.write_blocks(data).await?;
                     }
-                    // Timestamp out of range
                     0x060B => {
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                        // 0x060B: the primary timestamp out of range
                         let cancel = CancellationToken::new();
                         let _guard = cancel.clone().drop_guard();
                         let (_precision, min, max) = crate::utils::sql::get_timestamp_range(

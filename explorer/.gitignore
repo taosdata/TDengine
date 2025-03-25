@@ -1,33 +1,33 @@
-*~
-.DS_Store
-node_modules
-dist/
-*.zip
-.env.dev
-# local env files
-*.local
-
-# Log files
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+target
 
 # Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .idea
-.vscode
+.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-TDC-Hub-fe
-target
-src/views/0_login/data.json
-package-lock.json
-
-public/docs
-public/docs-en
-public/docs-oem
+types
 public/version.txt
-yarn.lock
+
+.eslintrc-auto-import.json
+types/auto-imports.d.ts
+types/components.d.ts

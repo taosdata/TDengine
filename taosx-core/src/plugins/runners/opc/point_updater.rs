@@ -100,7 +100,7 @@ impl PointsUpdater {
             let to_list = match &self.update_by {
                 UpdateBy::Command => opc_datasets_by_command(&self.opc_config).await,
                 UpdateBy::Csv(csv) => {
-                    let opc_type = self.opc_config.opc_type.clone();
+                    let opc_type = self.opc_config.opc_type;
                     let csv = csv.clone();
                     let csv_path = OPCConfig::parse_csv_origin(&self.origin_dsn);
                     opc_datasets_by_csv(opc_type, csv, csv_path).await

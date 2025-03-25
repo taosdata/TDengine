@@ -1,6 +1,3 @@
-use chrono::Duration;
-use chrono::FixedOffset;
-use chrono::Local;
 use regex::Regex;
 use serde_json::json;
 use serde_json::Map;
@@ -44,21 +41,11 @@ struct ParserConfig {
     value_type_range: HashSet<String>,
 }
 
-fn get_now_and_d7_ago() -> (String, String) {
-    let offset = FixedOffset::east_opt(8 * 3600).unwrap();
-    let now = Local::now().with_timezone(&offset);
-    let d7_ago = now - Duration::days(7);
-    let fmt = "%Y-%m-%dT%H:%M:%S%%Z";
-    let now = now.format(fmt).to_string();
-    let d7_ago = d7_ago.format(fmt).to_string();
-    (now, d7_ago)
-}
-
 impl ParserConfig {
     fn new(config_param: &str) -> Result<Self, String> {
         tracing::info!("hebeipower config_param: {:?}", config_param);
         let ctx_parts = config_param.split(",").collect::<Vec<&str>>();
-        if ctx_parts.len() < 1 || ctx_parts[0] == "" {
+        if ctx_parts.is_empty() || ctx_parts[0].is_empty() {
             return Err("Invalid config".to_string());
         }
 
@@ -104,21 +91,15 @@ impl ParserConfig {
             return arr_data;
         }
 
-        let (now, d7_ago) = get_now_and_d7_ago();
-
         let mut share_object = Map::new();
         for (k, v) in object.iter() {
             if self.value_key_pattern.is_match(k) {
                 let dt = format!(
                     "{}T{}:{}:00+08:00",
                     data_date,
-                    k[1..3].to_string(),
-                    k[3..].to_string()
+                    &k[1..3],
+                    &k[3..]
                 );
-
-                if dt < d7_ago || dt > now {
-                    continue;
-                }
 
                 let mut new_obj = Map::new();
                 new_obj.insert(format!("_val{}", the_flag), v.clone());
@@ -158,7 +139,7 @@ impl ParserConfig {
 #[no_mangle]
 pub extern "C" fn parser_new(ctx: *const c_char, len: i32) -> ParserResponse {
     let ctx = unsafe { std::slice::from_raw_parts(ctx as *const u8, len as usize) };
-    let parser_config = std::str::from_utf8(ctx).map(|s| ParserConfig::new(s));
+    let parser_config = std::str::from_utf8(ctx).map(ParserConfig::new);
     if parser_config.is_err() {
         return ParserResponse {
             e: 1,
@@ -182,6 +163,9 @@ fn set_output(output_string: String, output_p: *mut *mut u8, output_l: *mut u32)
     }
 }
 
+/// # Safety
+///
+/// This function should be called after the parser config given.
 #[no_mangle]
 pub unsafe extern "C" fn parser_mutate(
     p: *mut c_void,
@@ -200,7 +184,7 @@ pub unsafe extern "C" fn parser_mutate(
 
     let input_len = input_l as usize;
     let output_string = std::str::from_utf8(std::slice::from_raw_parts(input_p, input_len))
-        .map(|s| serde_json::from_str::<serde_json::Value>(s))
+        .map(serde_json::from_str::<serde_json::Value>)
         .map(|value| match value {
             Ok(JsonValue::Object(object)) => {
                 let parsed_data = parser_config.parse_object(object);
@@ -249,6 +233,9 @@ pub unsafe extern "C" fn parser_mutate(
     std::ptr::null()
 }
 
+/// # Safety
+///
+/// This function should be called to release the parser config.
 #[no_mangle]
 pub unsafe extern "C" fn parser_free(p: *mut c_void) {
     let parser_config = Box::from_raw(p as *mut ParserConfig);
@@ -257,17 +244,13 @@ pub unsafe extern "C" fn parser_free(p: *mut c_void) {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{Duration, FixedOffset, Local};
+
     use super::*;
 
     fn get_yesterday() -> String {
         let offset = FixedOffset::east_opt(8 * 3600).unwrap();
         let yesterday = Local::now().with_timezone(&offset) - Duration::days(1);
-        yesterday.format("%Y-%m-%d").to_string()
-    }
-
-    fn get_day_ago(d: i64) -> String {
-        let offset = FixedOffset::east_opt(8 * 3600).unwrap();
-        let yesterday = Local::now().with_timezone(&offset) - Duration::days(d);
         yesterday.format("%Y-%m-%d").to_string()
     }
 
@@ -372,36 +355,6 @@ mod tests {
         });
         let object = object.as_object().unwrap();
 
-        let parsed_data = parser_config.parse_object(object.clone());
-        assert_eq!(parsed_data.len(), 0);
-    }
-
-    #[test]
-    fn test_parse_object_not_in_date_range() {
-        let d8_ago = get_day_ago(8);
-        let parser_config = ParserConfig::new(r"^U\d{4}$").unwrap();
-        let object = json!({
-            "DATA_DATE": d8_ago.clone(),
-            "DATA_TYPE": "1",
-            "U0001": 1.0,
-            "U0002": 2.0,
-            "U0003": 3.0,
-            "DEV_ID": "8100000888",
-        });
-        let object = object.as_object().unwrap();
-        let parsed_data = parser_config.parse_object(object.clone());
-        assert_eq!(parsed_data.len(), 0);
-
-        let d1_after = get_day_ago(-1);
-        let object = json!({
-            "DATA_DATE": d1_after.clone(),
-            "DATA_TYPE": "1",
-            "U0001": 1.0,
-            "U0002": 2.0,
-            "U0003": 3.0,
-            "DEV_ID": "8100000888",
-        });
-        let object = object.as_object().unwrap();
         let parsed_data = parser_config.parse_object(object.clone());
         assert_eq!(parsed_data.len(), 0);
     }

@@ -14,7 +14,7 @@ type Result<T> = std::result::Result<T, Error>;
 
 const IGNORE_WILDCARD: &str = "_";
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TopicPattern(String);
 
 impl TopicPattern {

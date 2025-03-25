@@ -11,11 +11,11 @@ use super::TransformExt;
 
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
-        Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
-        ListArray, StringArray, StructArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-        TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        Array, ArrayRef, BinaryArray, BooleanArray, Decimal128Array, Float16Array, Float32Array,
+        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
+        LargeStringArray, ListArray, StringArray, StructArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt16Array,
+        UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{Field, Schema},
     error::ArrowError,
@@ -568,6 +568,12 @@ pub trait ArrayForTaos: Array {
                     taos::Value::VarChar(format!("{:?}", values))
                 }
                 arrow::datatypes::DataType::Null => taos::Value::Null(ty),
+                arrow::datatypes::DataType::Decimal128(_, scale) => {
+                    let array = self.as_any().downcast_ref::<Decimal128Array>().unwrap();
+                    let value =
+                        bigdecimal::BigDecimal::from_bigint(array.value(index).into(), *scale as _);
+                    taos::Value::Decimal(value)
+                }
                 _ => {
                     tracing::warn!("Unsupported data type: {:?}", self.data_type());
                     taos::Value::Null(ty)

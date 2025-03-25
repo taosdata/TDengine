@@ -1,31 +1,24 @@
 <template>
   <div class="sidebar_logo_container">
-    <router-link :to="isOem?'/explorer':'/landing'">
-      <span v-if="isOem" :class="opened ? 'oem' : 'oem-none'">{{ title }}</span>
+    <router-link :to="$IS_OEM?'/explorer':'/landing'">
+      <span v-if="$IS_OEM" :class="opened ? 'oem' : 'oem-none'">{{ OEM_NAME }}</span>
       <template v-else>
         <img
           v-if="opened"
           src="./logo_expend.svg"
           class="sidebar_logo_expend"
         />
-        <img v-else src="@/assets/logo.svg" class="sidebar_logo_fold" />
+        <img v-else src="@/assets/icons/logo.svg" class="sidebar_logo_fold" />
       </template>
     </router-link>
   </div>
 </template>
 
-<script>
-import { mapState } from "vuex";
-
-export default {
-  computed: mapState("sidebar", ["opened"]),
-  data() {
-    return {
-      title: process.env.VUE_APP_CUS_NAME,
-      isOem: process.env.VUE_APP_CUS_NAME && process.env.VUE_APP_CUS_NAME !== "TDengine",
-    };
-  },
-};
+<script setup lang="ts">
+import { useStore } from "vuex";
+const store = useStore()
+const { $IS_OEM, OEM_NAME } = inject("globalCustomProperties") as GlobalCustomProperties;
+const opened = computed(() => store.state.sidebar.opened)
 </script>
 
 <style lang="scss" scoped>

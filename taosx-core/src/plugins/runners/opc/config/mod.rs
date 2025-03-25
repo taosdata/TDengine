@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use taos::Dsn;
 use tempfile::NamedTempFile;
 
-use crate::runners::opc::config::collect::CollectConfig;
-use crate::runners::opc::config::connect::ConnectConfig;
-use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{
+use crate::plugins::runners::opc::csv::CsvParser;
+use crate::plugins::runners::opc::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, OpcPointMappingRule,
 };
+use crate::runners::opc::config::collect::CollectConfig;
+use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
 use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
@@ -17,8 +17,6 @@ use crate::utils::validate_table_column_name;
 
 pub mod collect;
 mod connect;
-pub mod csv;
-pub mod model;
 pub mod points;
 mod report;
 
@@ -88,7 +86,7 @@ impl OPCConfig {
                 let (point_map, table_map) = rule.generate(points)?;
 
                 OpcModelConfig {
-                    opc_type: opc_type.clone(),
+                    opc_type,
                     generate_rule: Some(GeneratePointMappingBy::Rule(rule)),
                     point_config_map: point_map,
                     table_config_map: table_map,
@@ -283,19 +281,22 @@ impl OPCConfig {
     }
 
     /// 从 dsn 中解析 table_primary_key 参数：主键列。
-    /// "选择数据点位"时，table_primary_key 参数指定主键列，只能是 original_ts 或 received_ts。
+    /// "选择数据点位"时，table_primary_key 参数指定主键列，只能是 original_ts/request_ts/received_ts。
     pub fn parse_primary_key(dsn: &Dsn) -> anyhow::Result<Option<String>> {
         dsn.params.get("table_primary_key").map_or(Ok(None), |v| {
             if v.is_empty() {
                 return Ok(None);
             }
             match v.as_str() {
-                ColumnConfig::ORIGINAL_TS | ColumnConfig::RECEIVED_TS => Ok(Some(v.to_string())),
+                ColumnConfig::ORIGINAL_TS
+                | ColumnConfig::REQUEST_TS
+                | ColumnConfig::RECEIVED_TS => Ok(Some(v.to_string())),
                 _ => {
                     bail!(
-                        "invalid table_primary_key: {}, must be {} or {}",
+                        "invalid table_primary_key: {}, must be {} or {} or {}",
                         v.to_string(),
                         ColumnConfig::ORIGINAL_TS,
+                        ColumnConfig::REQUEST_TS,
                         ColumnConfig::RECEIVED_TS
                     );
                 }
@@ -336,9 +337,132 @@ pub enum AuthMethod {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use taos::IntoDsn;
 
     use super::*;
+
+    /// 测试从 dsn 解析参数，生成一个 taosx-opc 的配置文件
+    #[tokio::test]
+    async fn test_dsn_to_toml_in_check_mode() {
+        // given
+        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
+        // when
+        let config = OPCConfig::from_dsn_check_mode(&dsn).await.unwrap();
+        let toml = toml::to_string(&config).unwrap();
+        // then
+        assert_eq!(
+            toml,
+            r#"opc_type = "opcua"
+debug = false
+
+[connect.ua]
+endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
+connect_timeout = 10
+request_timeout = 10
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[report]
+remote = "127.0.0.1:0"
+batch_size = 1000
+batch_timeout = 1
+"#
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dsn_to_toml_in_point_mode() {
+        // given
+        let dsn = format!(
+            "opcua://{}?node_id_pattern={}&browse_name_pattern={}",
+            "192.168.2.16:53530/OPCUA/SimulationServer", "^(?!.*_Error).+$", "^(?!.*_Error).+$"
+        )
+        .into_dsn()
+        .unwrap();
+        // when
+        let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
+        let toml = toml::to_string(&config).unwrap();
+        // then
+        assert_eq!(
+            toml,
+            r#"opc_type = "opcua"
+debug = false
+
+[connect.ua]
+endpoint = "opc.tcp://192.168.2.16:53530/OPCUA/SimulationServer"
+connect_timeout = 10
+request_timeout = 10
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[report]
+remote = "127.0.0.1:0"
+batch_size = 1000
+batch_timeout = 1
+
+[points]
+regex_id = "^(?!.*_Error).+$"
+regex_name = "^(?!.*_Error).+$"
+limit = 0
+
+[points.ua]
+"#
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dsn_to_toml_in_collect_mode() {
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        let dsn = "opcua://192.168.2.16:53530?csv_config_file=@./tests/opc/opcua-3.3.6.0.csv"
+            .into_dsn()
+            .unwrap();
+        let config = OPCConfig::from_dsn_collect_mode(&dsn, 0, None)
+            .await
+            .unwrap();
+        let toml = toml::to_string(&config).unwrap();
+        assert_eq!(
+            toml,
+            r#"opc_type = "opcua"
+debug = false
+
+[connect.ua]
+endpoint = "opc.tcp://192.168.2.16:53530/"
+connect_timeout = 10
+request_timeout = 10
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[report]
+remote = "127.0.0.1:0"
+batch_size = 1000
+batch_timeout = 1
+
+[points]
+limit = 0
+update_mode = "Append"
+update_interval = 60
+
+[points.ua]
+
+[collect.ua]
+collect_mode = "observe"
+
+[[collect.ua.nodes]]
+id = "ns=3;i=1005"
+
+[[collect.ua.nodes]]
+id = "ns=3;i=1006"
+
+[[collect.ua.nodes]]
+id = 'ns=3;s="数据块_1"."Tag101"'
+"#
+        );
+    }
 
     #[test]
     fn test_parse_stable_expression() {
@@ -406,7 +530,7 @@ mod tests {
         let result = OPCConfig::parse_primary_key(&dsn);
         assert!(result.is_err());
         assert_eq!(
-            "invalid table_primary_key: invalid, must be original_ts or received_ts",
+            "invalid table_primary_key: invalid, must be original_ts or request_ts or received_ts",
             result.err().unwrap().to_string()
         );
     }

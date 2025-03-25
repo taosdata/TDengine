@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 metrics = { workspace = true }
 metrics-util = { workspace = true }
-flume = "0.11.0"
+flume.workspace = true
 quanta = { version = "0.12", default-features = true }
 bincode = "2.0.0-rc.3"
-serde = { version = "1", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }

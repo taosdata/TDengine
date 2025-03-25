@@ -20,14 +20,18 @@ pub fn qid_db_init() -> anyhow::Result<()> {
     if !db_path.is_dir() {
         std::fs::create_dir_all(&db_path).context("create qid database path error")?;
     }
-    match sled::open(&db_path) {
-        Ok(db) => {
-            QID_DB.get_or_init(|| db);
-        }
-        Err(e) => {
-            tracing::warn!("open sled db {} error: {e}", db_path.display());
-        }
-    };
+
+    // TS-5631: Use the qid file lock to ensure that multiple taosx services do not access the same data directory.
+    let db = sled::open(&db_path).context("qid db file has been locked")?;
+    QID_DB.get_or_init(|| db);
+    // match sled::open(&db_path) {
+    //     Ok(db) => {
+    //         QID_DB.get_or_init(|| db);
+    //     }
+    //     Err(e) => {
+    //         tracing::warn!("open sled db {} error: {e}", db_path.display());
+    //     }
+    // };
     Ok(())
 }
 
@@ -176,7 +180,11 @@ impl Clone for Qid {
 impl QidManager for Qid {
     fn init() -> Self {
         let mut this = Self(0);
-        this.inner_set_instance_id(*INSTANCE_ID.get().unwrap());
+        if let Some(instance_id) = INSTANCE_ID.get() {
+            this.inner_set_instance_id(*instance_id);
+        } else {
+            this.inner_set_instance_id(DEFAULT_INSTANCE_ID);
+        }
         this
     }
 
