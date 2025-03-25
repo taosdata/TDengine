@@ -52,6 +52,9 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
         # normalize input data using z-score
         normalized_list = (df - self.mean.value) / self.std.value
+        if len(normalized_list) < self.time_interval:
+            raise ValueError("input data is too short")
+
         seq = create_sequences(normalized_list.values, self.time_interval)
 
         # Get test MAE loss.
