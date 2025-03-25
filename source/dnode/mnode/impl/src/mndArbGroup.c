@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
+#include "mndSync.h"
 
 #define ARBGROUP_VER_NUMBER   1
 #define ARBGROUP_RESERVE_SIZE 51
@@ -266,8 +267,10 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
 _OVER:
   (void)taosThreadMutexUnlock(&pOld->mutex);
 
-  if (taosHashRemove(arbUpdateHash, &pOld->vgId, sizeof(int32_t)) != 0) {
-    mError("arbgroup:%d, failed to remove from arbUpdateHash", pOld->vgId);
+  if (mndIsLeader(pSdb->pMnode)) {
+    if (taosHashRemove(arbUpdateHash, &pOld->vgId, sizeof(int32_t)) != 0) {
+      mError("arbgroup:%d, failed to remove from arbUpdateHash", pOld->vgId);
+    }
   }
   return 0;
 }
