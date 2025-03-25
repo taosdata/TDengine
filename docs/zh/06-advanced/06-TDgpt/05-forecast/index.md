@@ -1,6 +1,6 @@
 ---
-title: 预测算法
-description: 预测算法
+title: 预测分析
+description: 预测分析
 ---
 
 import fc_result from '../pic/fc-result.png';
