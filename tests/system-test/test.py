@@ -252,8 +252,9 @@ if __name__ == "__main__":
     #
     # do exeCmd command
     #
+    taosAdapter = True  # default is websocket , so must start taosAdapter
     if not execCmd == "":
-        if restful or websocket:
+        if restful or websocket or taosAdapter:
             tAdapter.init(deployPath)
         else:
             tdDnodes.init(deployPath)
@@ -292,7 +293,7 @@ if __name__ == "__main__":
         if valgrind:
             time.sleep(2)
 
-        if restful or websocket:
+        if restful or websocket or taosAdapter:
             toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
@@ -388,13 +389,13 @@ if __name__ == "__main__":
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
-            if restful or websocket:
+            if restful or websocket or taosAdapter:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
-                if restful:
+                if restful or websocket or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
                 elif websocket:
                     conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -428,11 +429,11 @@ if __name__ == "__main__":
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if restful or websocket:
+            if restful or taosAdapter:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
-            if restful:
+            if restful or taosAdapter:
                 conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
             elif websocket:
                 conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -452,7 +453,7 @@ if __name__ == "__main__":
                 print(r)
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
-                if restful:
+                if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
                 elif websocket:
                     conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -476,7 +477,7 @@ if __name__ == "__main__":
         if ucase is not None and hasattr(ucase, 'noConn') and ucase.noConn == True:
             conn = None
         else:
-            if restful:
+            if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
             elif websocket:
                 conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -491,7 +492,7 @@ if __name__ == "__main__":
                 tdCases.runOneCluster(fileName)
         else:
             tdLog.info("Procedures for testing self-deployment")
-            if restful:
+            if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
             elif websocket:
                 conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -512,7 +513,7 @@ if __name__ == "__main__":
                     tdDnodes.stopAll()
                     tdDnodes.start(1)
                     time.sleep(1)
-                    if restful:
+                    if restful or taosAdapter:
                         conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
                     elif websocket:
                         conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -550,7 +551,7 @@ if __name__ == "__main__":
             except:
                 pass
 
-        if restful or websocket:
+        if restful or websocket or taosAdapter:
             tAdapter.init(deployPath, masterIp)
             tAdapter.stop(force_kill=True)
 
@@ -560,13 +561,13 @@ if __name__ == "__main__":
             tdDnodes.start(1)
             tdCases.logSql(logSql)
 
-            if restful or websocket:
+            if restful or websocket or taosAdapter:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
-                if restful:
+                if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
                 elif websocket:
                     conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -615,12 +616,12 @@ if __name__ == "__main__":
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if restful or websocket:
+            if restful or websocket or taosAdapter:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
             # create taos connect
-            if restful:
+            if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
             elif websocket:
                 conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -643,7 +644,7 @@ if __name__ == "__main__":
             # do queryPolicy option
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
-                if restful:
+                if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
                 elif websocket:
                     conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -674,7 +675,7 @@ if __name__ == "__main__":
                 tdCases.runOneCluster(fileName)
         else:
             tdLog.info("Procedures for testing self-deployment")
-            if restful:
+            if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
             elif websocket:
                 conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
@@ -696,7 +697,7 @@ if __name__ == "__main__":
                     tdDnodes.stopAll()
                     tdDnodes.start(1)
                     time.sleep(1)
-                    if restful:
+                    if restful or taosAdapter:
                         conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
                     elif websocket:
                         conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")

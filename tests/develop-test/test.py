@@ -211,8 +211,9 @@ if __name__ == "__main__":
         if key in ["-n", "--replicaVar"]:
             replicaVar = value
 
+    taosAdapter = True  # default is websocket , so must start taosAdapter
     if not execCmd == "":
-        if restful:
+        if restful or taosAdapter:
             tAdapter.init(deployPath)
         else:
             tdDnodes.init(deployPath)
@@ -251,7 +252,7 @@ if __name__ == "__main__":
         if valgrind:
             time.sleep(2)
 
-        if restful:
+        if restful or taosAdapter:
             toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
@@ -339,13 +340,13 @@ if __name__ == "__main__":
             tdDnodes.deploy(1, updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
-            if restful:
+            if restful or taosAdapter:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
             if queryPolicy != 1:
                 queryPolicy = int(queryPolicy)
-                if restful:
+                if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041")
                 else:
                     conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
@@ -383,7 +384,7 @@ if __name__ == "__main__":
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if restful:
+            if restful or taosAdapter:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -404,7 +405,7 @@ if __name__ == "__main__":
                 print(r)
             if queryPolicy != 1:
                 queryPolicy = int(queryPolicy)
-                if restful:
+                if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041")
                 else:
                     conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
@@ -461,7 +462,7 @@ if __name__ == "__main__":
             except:
                 pass
 
-        if restful:
+        if restful or taosAdapter:
             tAdapter.init(deployPath, masterIp)
             tAdapter.stop(force_kill=True)
 
@@ -470,7 +471,7 @@ if __name__ == "__main__":
             tdDnodes.start(1)
             tdCases.logSql(logSql)
 
-            if restful:
+            if restful or taosAdapter:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -526,7 +527,7 @@ if __name__ == "__main__":
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if restful:
+            if restful or taosAdapter:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -548,7 +549,7 @@ if __name__ == "__main__":
 
             if queryPolicy != 1:
                 queryPolicy = int(queryPolicy)
-                if restful:
+                if restful or taosAdapter:
                     conn = taosrest.connect(url=f"http://{host}:6041")
                 else:
                     conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
