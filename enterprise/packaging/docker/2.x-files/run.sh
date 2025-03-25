@@ -442,21 +442,25 @@ function initDnodeAndMnode {
 }
 
 function run_tdtsfm_server() {
-    logger "INFO" "Starting tdtsfm server..."
-    python3 $TS_SERVER_FILE --action server &
-    TAOS_TS_PID=$!
-    if ! ps -p $TAOS_TS_PID > /dev/null; then
-        logger "ERROR" "tdtsfm server failed to start!"
+    if [ -f $TS_SERVER_FILE ];then
+        logger "INFO" "Starting tdtsfm server..."
+        python3 $TS_SERVER_FILE --action server &
+        TAOS_TS_PID=$!
+        if ! ps -p $TAOS_TS_PID > /dev/null; then
+            logger "ERROR" "tdtsfm server failed to start!"
+        fi
     fi
 }
 
 function run_timer_moe_server() {
-    logger "INFO" "Starting timer-moe server..."
-    cd $(dirname "$TIMER_POE_FILE")
-    python3 $TIMER_POE_FILE --action server &
-    TIMER_MOE_PID=$!
-    if ! ps -p $TIMER_MOE_PID > /dev/null; then
-        logger "ERROR" "timer-moe server failed to start!"
+    if [ -f $TIMER_POE_FILE ];then
+        logger "INFO" "Starting timer-moe server..."
+        cd $(dirname "$TIMER_POE_FILE")
+        python3 $TIMER_POE_FILE --action server &
+        TIMER_MOE_PID=$!
+        if ! ps -p $TIMER_MOE_PID > /dev/null; then
+            logger "ERROR" "timer-moe server failed to start!"
+        fi
     fi
 }
 

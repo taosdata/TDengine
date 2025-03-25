@@ -8,20 +8,21 @@ ARG tdgptPkgFile
 ARG tdgptDirName
 ARG modelDlUrl
 
+# for timer-moe
+# ADD ${modelDlUrl}/timer-moe.tar.gz /root/
+# RUN tar -xzf timer-moe.tar.gz && rm -rf timer-moe.tar.gz
+
 ADD ${tdgptPkgFile} \
     ${pkgFile} \
     ${modelDlUrl}/taos.pth \
     ${modelDlUrl}/taos_ts_server.py \
     ${modelDlUrl}/fc_australia.sql \
-    ${modelDlUrl}/timer-moe.tar.gz \
     /root/
 
 RUN echo ${pkgFile} && \
     echo ${dirName} && \
     echo ${tdgptPkgFile} && \
     echo ${tdgptDirName} && \
-    tar -xzf timer-moe.tar.gz && \
-    rm -rf timer-moe.tar.gz && \
     cd ${tdgptDirName}/ && \
     /bin/bash install.sh -e no && \
     cd .. && \
