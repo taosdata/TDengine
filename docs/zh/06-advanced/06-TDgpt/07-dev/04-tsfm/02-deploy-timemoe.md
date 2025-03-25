@@ -1,9 +1,9 @@
 ---
-title: "部署时序基础模型"
-sidebar_label: "部署时序基础模型"
+title: "部署 Time-MoE 模型"
+sidebar_label: "部署 Time-MoE 模型"
 ---
 
-# 准备环境运行环境
+# 准备环境
 
 为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备 Python 环境。使用 PiPy 安装必要的依赖包：
 
@@ -15,6 +15,8 @@ pip install accelerate
 ```
 
 # 设置服务端口和 URL 地址
+
+TDgpt 安装根目录下的 `./lib/taosanalytics/time-moe.py` 文件负责 Time-MoE 模型的部署和服务，修改该问题设置合适的服务 URL 和服务端口即可。
 
 ```Python
 @app.route('/ds_predict', methods=['POST'])
