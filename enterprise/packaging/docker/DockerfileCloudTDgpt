@@ -10,10 +10,10 @@ ARG modelDlUrl
 
 ADD ${tdgptPkgFile} \
     ${pkgFile} \
-    http://${modelDlUrl}/taos.pth \
-    http://${modelDlUrl}/taos_ts_server.py \
-    http://${modelDlUrl}/fc_australia.sql \
-    http://${modelDlUrl}/timer-moe.tar.gz \
+    ${modelDlUrl}/taos.pth \
+    ${modelDlUrl}/taos_ts_server.py \
+    ${modelDlUrl}/fc_australia.sql \
+    ${modelDlUrl}/timer-moe.tar.gz \
     /root/
 
 RUN echo ${pkgFile} && \
