@@ -712,6 +712,28 @@ void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec) 
 }
 
 
+int decimal64BCompare(const Decimal64* a, const Decimal64* b) {
+    return DECIMAL64_GET_VALUE(a) < DECIMAL64_GET_VALUE(b) ? -1 : (DECIMAL64_GET_VALUE(a) > DECIMAL64_GET_VALUE(b));
+}
+
+
+int decimal128BCompare(const Decimal128* a, const Decimal128* b) {
+    const uint64_t sign_mask = (uint64_t)1 << 63;
+    int a_sign = (DECIMAL128_HIGH_WORD(a) & sign_mask) >> 63;
+    int b_sign = (DECIMAL128_HIGH_WORD(b) & sign_mask) >> 63;
+
+    if (a_sign != b_sign) {
+        return a_sign < b_sign ? 1 : -1;
+    }
+
+    if (DECIMAL128_HIGH_WORD(a) != DECIMAL128_HIGH_WORD(b)) {
+        return DECIMAL128_HIGH_WORD(a) < DECIMAL128_HIGH_WORD(b) ? -1 : 1;
+    } else {
+        return DECIMAL128_LOW_WORD(a) < DECIMAL128_LOW_WORD(b) ? -1 : (DECIMAL128_LOW_WORD(a) > DECIMAL128_LOW_WORD(b));
+    }
+}
+
+
 // compare str with length
 int32_t strCompareN(char *str1, char *str2, int length) {
     if (length == 0) {

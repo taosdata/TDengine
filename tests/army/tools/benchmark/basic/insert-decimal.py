@@ -161,6 +161,15 @@ class TDTestCase(TBase):
         self.exec_benchmark_and_check(benchmark, new_json_file, "Invalid scale value of decimal type in json", options)
         self.deleteFile(new_json_file)
 
+        # check dec_min/dec_max
+        new_json_file = self.genNewJson(json_file, self.func_dec64_min_max)
+        self.exec_benchmark_and_check(benchmark, new_json_file, "Invalid dec_min/dec_max value of decimal type in json", options)
+        self.deleteFile(new_json_file)
+
+        new_json_file = self.genNewJson(json_file, self.func_dec128_min_max)
+        self.exec_benchmark_and_check(benchmark, new_json_file, "Invalid dec_min/dec_max value of decimal type in json", options)
+        self.deleteFile(new_json_file)
+
 
     def func_precision_zero(self, data):
         db  = data['databases'][0]
@@ -195,6 +204,20 @@ class TDTestCase(TBase):
         stb = db["super_tables"][0]
         stb['columns'].clear()
         stb['columns'].append({ "type": "decimal", "name": "dec64a", "precision": 10, "scale": 11})
+
+
+    def func_dec64_min_max(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['columns'].clear()
+        stb['columns'].append({ "type": "decimal", "name": "dec64f", "precision": 10, "scale": 6, "dec_max": "555.456789", "dec_min": "555.456789"})
+
+
+    def func_dec128_min_max(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['columns'].clear()
+        stb['columns'].append({ "type": "decimal", "name": "dec128f", "precision": 24, "scale": 10, "dec_max": "1234567890.5678912345", "dec_min": "1234567890.5678912345"})
 
 
     def check_cmd_normal(self, benchmark, options=""):
@@ -238,6 +261,11 @@ class TDTestCase(TBase):
 
 
     def run(self):
+        # check env
+        cmd = f"pip3 list"
+        output, error, code = eos.run(cmd)
+        tdLog.info("output: >>>%s<<<" % output)
+
         # path
         benchmark = etool.benchMarkFile()
 

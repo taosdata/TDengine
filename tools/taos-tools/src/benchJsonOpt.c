@@ -345,6 +345,12 @@ static int getColumnAndTagTypeFromInsertJsonFile(
                 } else {
                     getDecimal128DefaultMin(precision, scale, &decMin.dec128);
                 }
+
+                if (decimal128BCompare(&decMax.dec128, &decMin.dec128) < 0) {
+                    errorPrint("Invalid dec_min/dec_max value of decimal type in json, dec_min: %s, dec_max: %s\n",
+                            strDecMin ? strDecMin : "", strDecMax ? strDecMax : "");
+                    goto PARSE_OVER;
+                }
             } else {
                 if (precision > TSDB_DECIMAL64_MAX_PRECISION) {
                     precision = TSDB_DECIMAL64_MAX_PRECISION;
@@ -369,6 +375,12 @@ static int getColumnAndTagTypeFromInsertJsonFile(
                     doubleToDecimal64(minInDbl, precision, scale, &decMin.dec64);
                 } else {
                     getDecimal64DefaultMin(precision, scale, &decMin.dec64);
+                }
+
+                if (decimal64BCompare(&decMax.dec64, &decMin.dec64) < 0) {
+                    errorPrint("Invalid dec_min/dec_max value of decimal type in json, dec_min: %s, dec_max: %s\n",
+                            strDecMin ? strDecMin : "", strDecMax ? strDecMax : "");
+                    goto PARSE_OVER;
                 }
             }
         }
