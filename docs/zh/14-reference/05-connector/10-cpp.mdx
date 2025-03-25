@@ -680,7 +680,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
   - **接口说明**：清理运行环境，应用退出前应调用。
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
-  - **接口说明**：设置客户端选项，支持区域设置（`TSDB_OPTION_LOCALE`）、字符集设置（`TSDB_OPTION_CHARSET`）、时区设置（`TSDB_OPTION_TIMEZONE`）、配置文件路径设置（`TSDB_OPTION_CONFIGDIR`）。区域设置、字符集、时区默认为操作系统当前设置。
+  - **接口说明**：设置客户端选项，支持区域设置（`TSDB_OPTION_LOCALE`）、字符集设置（`TSDB_OPTION_CHARSET`）、时区设置（`TSDB_OPTION_TIMEZONE`）、配置文件路径设置（`TSDB_OPTION_CONFIGDIR`）、驱动类型设置（`TSDB_OPTION_DRIVER`）。区域设置、字符集、时区默认为操作系统当前设置。驱动类型可选内部原生接口（`native`）和 WebSocket 接口（`websocket`），默认为 `websocket`。
   - **参数说明**：
     - `option`：[入参] 设置项类型。
     - `arg`：[入参] 设置项值。
@@ -825,6 +825,12 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
   - **参数说明**：
     - res：[入参] 结果集。
   - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_FIELD 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。    
+
+- `TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res)`
+  - **接口说明**：获取查询结果集每列数据的属性（列的名称、列的数据类型、列的长度），与 `taos_num_fields()` 配合使用，可用来解析 `taos_fetch_row()` 返回的一个元组(一行)的数据。TAOS_FIELD_E中 除了 TAOS_FIELD 的基本信息外, 还包括了类型的 `precision` 和 `scale` 信息。
+  - **参数说明**：
+    - res：[入参] 结果集。
+  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_FIELD_E 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。    
 
 - `void taos_stop_query(TAOS_RES *res)`
   - **接口说明**：停止当前查询的执行。
@@ -1115,10 +1121,14 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - conf：[入参] 指向一个有效的 tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - key：[入参] 数配置项的键名。
     - value：[入参] 配置项的值。
-  - **返回值**：返回一个 tmq_conf_res_t 枚举值，表示配置设置的结果。
-    - TMQ_CONF_OK：成功设置配置项。
-    - TMQ_CONF_INVALID_KEY：键值无效。
-    - TMQ_CONF_UNKNOWN：键名无效。
+  - **返回值**：返回一个 tmq_conf_res_t 枚举值，表示配置设置的结果。tmq_conf_res_t 定义如下：
+    ```
+    typedef enum tmq_conf_res_t {
+         TMQ_CONF_UNKNOWN = -2,  // 键名无效
+         TMQ_CONF_INVALID = -1,  // 键值无效
+         TMQ_CONF_OK = 0,        // 成功设置配置项
+       } tmq_conf_res_t;
+    ```
 
 - `void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
   - **接口说明**：设置 TMQ 配置对象中的自动提交回调函数。

@@ -338,7 +338,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   if (mndEnableIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
     ver = 0;
   }
-  mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
+  mDebug("ip-white-list on mnode ver: %" PRId64, ver);
   return ver;
 }
 

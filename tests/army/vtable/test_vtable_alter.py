@@ -22,10 +22,43 @@ class TDTestCase(TBase):
 
     def prepare_vtables(self):
         tdSql.execute("drop table if exists vtb_virtual_stb;")
+        tdSql.execute("drop table if exists vtb_virtual_stb_1;")
         tdSql.execute("drop table if exists vtb_virtual_ctb0;")
+        tdSql.execute("drop table if exists vtb_virtual_ctb_after_modified_1;")
+        tdSql.execute("drop table if exists vtb_virtual_ctb_after_modified_2;")
         tdSql.execute("drop table if exists vtb_virtual_ntb0;")
         tdLog.info(f"prepare virtual super tables.")
         tdSql.execute(f"CREATE STABLE `vtb_virtual_stb` ("
+                      "ts timestamp, "
+                      "u_tinyint_col tinyint unsigned, "
+                      "u_smallint_col smallint unsigned, "
+                      "u_int_col int unsigned, "
+                      "u_bigint_col bigint unsigned, "
+                      "tinyint_col tinyint, "
+                      "smallint_col smallint, "
+                      "int_col int, "
+                      "bigint_col bigint, "
+                      "float_col float, "
+                      "double_col double, "
+                      "bool_col bool, "
+                      "binary_16_col binary(16),"
+                      "binary_32_col binary(32),"
+                      "nchar_16_col nchar(16),"
+                      "nchar_32_col nchar(32),"
+                      "varbinary_16_col varbinary(16),"
+                      "varbinary_32_col varbinary(32),"
+                      "geo_16_col geometry(16),"
+                      "geo_32_col geometry(32)"
+                      ") TAGS ("
+                      "int_tag int,"
+                      "bool_tag bool,"
+                      "float_tag float,"
+                      "double_tag double,"
+                      "nchar_32_tag nchar(32),"
+                      "binary_32_tag binary(32))"
+                      "VIRTUAL 1")
+
+        tdSql.execute(f"CREATE STABLE `vtb_virtual_stb_1` ("
                       "ts timestamp, "
                       "u_tinyint_col tinyint unsigned, "
                       "u_smallint_col smallint unsigned, "
@@ -301,6 +334,27 @@ class TDTestCase(TBase):
         tdSql.query(f"select tag_type from information_schema.ins_tags where db_name='test_vtable_alter' and table_name='vtb_virtual_ctb0' and tag_name='nchar_32_tag'")
         tdSql.checkData(0, 0, "NCHAR(64)")
 
+    def test_alter_virtual_super_table_and_create_child(self):
+        tdLog.info(f"test alter virtual super tables and create child.")
+
+        tdSql.execute("use test_vtable_alter;")
+        tdSql.execute("select database();")
+
+        # 1. add column
+        # 1.1. add column without column reference
+        tdSql.execute("alter stable vtb_virtual_stb_1 add column extra_boolcol bool")
+
+        # 1.2. create child table using modified super table
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb_after_modified_1`(bool_col from vtb_org_child_18.bool_col, extra_boolcol from vtb_org_child_19.bool_col) USING vtb_virtual_stb_1 TAGS (0, false, 0, 0, 'vchild0', 'vchild0')")
+        tdSql.execute("select * from vtb_virtual_ctb_after_modified_1")
+
+        # 2. drop column
+        # 2.1. drop column from stb
+        tdSql.execute("alter stable vtb_virtual_stb_1 drop column bool_col;")
+        tdSql.execute("CREATE VTABLE `vtb_virtual_ctb_after_modified_2`(extra_boolcol from vtb_org_child_17.bool_col) USING vtb_virtual_stb_1 TAGS (0, false, 0, 0, 'vchild0', 'vchild0')")
+
+        tdSql.execute("select * from vtb_virtual_ctb_after_modified_2")
+
 
     def test_error_cases(self):
         tdLog.info(f"test alter virtual super tables.")
@@ -328,6 +382,9 @@ class TDTestCase(TBase):
         # 1.6. change column length when column reference exists
         tdSql.error("alter vtable vtb_virtual_ntb0 modify column nchar_16_col nchar(32);")
 
+        # 1.7. add column with decimal type
+        tdSql.error("alter vtable vtb_virtual_ntb0 add column extra_decimal decimal(38,38)")
+
         # 2. child table
         # 2.1. change column reference with wrong type
         tdSql.error("alter vtable vtb_virtual_ctb0 alter column int_col set vtb_org_child_19.tinyint_col")
@@ -343,6 +400,12 @@ class TDTestCase(TBase):
         tdSql.execute("alter stable vtb_virtual_stb modify column nchar_16_col nchar(32);")
         tdSql.error("select nchar_16_col from vtb_virtual_ctb0;")
 
+        # 3.3. add column with decimal type
+        tdSql.error("alter stable vtb_virtual_stb add column extra_decimal decimal(38,38)")
+
+        # 3.4. add tag with decimal type
+        tdSql.error("alter stable vtb_virtual_stb add tag extra_decimal_tag decimal(38,38)")
+
 
     def run(self):
             tdLog.debug(f"start to excute {__file__}")
@@ -351,6 +414,7 @@ class TDTestCase(TBase):
             self.test_alter_virtual_normal_table()
             self.test_alter_virtual_child_table()
             self.test_alter_virtual_super_table()
+            self.test_alter_virtual_super_table_and_create_child()
             self.test_error_cases()
 
             tdLog.success(f"{__file__} successfully executed")

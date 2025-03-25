@@ -57,7 +57,7 @@ function clean_bin() {
     ${csudo}rm -f ${bin_link_dir}/${dumpName2}        || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript2}  || :
     ${csudo}rm -f ${bin_link_dir}/set_core  || :
-    [ -f ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+    [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
 
     if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
@@ -65,18 +65,21 @@ function clean_bin() {
         ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
         ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
-        [ -f ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+        [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
     fi
 }
 
 function clean_lib() {
-  # Remove link
-  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+    # Remove link
+    ${csudo}find ${lib_link_dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+    ${csudo}find ${lib_link_dir} -name "libtaosnative.*" -exec ${csudo}rm -f {} \; || :
+    ${csudo}find ${lib_link_dir} -name "libtaosws.*" -exec ${csudo}rm -f {} \; || :
 
-  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
-  #${csudo}rm -rf ${v15_java_app_dir}           || :
+    ${csudo}find ${lib64_link_dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+    ${csudo}find ${lib64_link_dir} -name "libtaosnative.*" -exec ${csudo}rm -f {} \; || :
+    ${csudo}find ${lib64_link_dir} -name "libtaosws.*" -exec ${csudo}rm -f {} \; || :
+    #${csudo}rm -rf ${v15_java_app_dir}           || :
+
 }
 
 function clean_header() {

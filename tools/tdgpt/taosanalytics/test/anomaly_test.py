@@ -44,7 +44,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_params({"k": 2})
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "ksigma")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "ksigma", s.valid_code)
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -64,7 +64,7 @@ class AnomalyDetectionTest(unittest.TestCase):
             self.assertEqual(1, 0, e)
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "iqr")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "iqr", s.valid_code)
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -82,7 +82,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_params({"alpha": 0.95})
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "grubbs")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "grubbs", s.valid_code)
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -100,7 +100,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_input_list(AnomalyDetectionTest.input_list, None)
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "shesd")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "shesd", s.valid_code)
 
         self.assertEqual(r[-1], -1)
 
@@ -116,7 +116,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_input_list(AnomalyDetectionTest.input_list, None)
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "lof")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "lof", s.valid_code)
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(r[-2], -1)
@@ -141,15 +141,14 @@ class AnomalyDetectionTest(unittest.TestCase):
 
     def test_autoencoder_ad(self):
         """for local test only, disabled it in github action"""
-        pass
-
+        pass 
         # data = self.__load_remote_data_for_ad()
         #
-        # s = loader.get_service("ad_encoder")
+        # s = loader.get_service("sample_ad_model")
         # s.set_input_list(data)
         #
         # try:
-        #     s.set_params({"model": "ad_encoder_"})
+        #     s.set_params({"model": "sample-ad-autoencoder"})
         # except ValueError as e:
         #     app_logger.log_inst.error(f"failed to set the param for auto_encoder algorithm, reason:{e}")
         #     return
@@ -157,9 +156,9 @@ class AnomalyDetectionTest(unittest.TestCase):
         # r = s.execute()
         #
         # num_of_error = -(sum(filter(lambda x: x == -1, r)))
-        # self.assertEqual(num_of_error, 109)
-        #
         # draw_ad_results(data, r, "autoencoder")
+        #
+        # self.assertEqual(num_of_error, 109)
 
     def test_get_all_services(self):
         """Test get all services"""

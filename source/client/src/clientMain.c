@@ -487,10 +487,10 @@ void taos_close_internal(void *taos) {
   }
 
   STscObj *pTscObj = (STscObj *)taos;
-  tscDebug("connObj:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  tscDebug("conn:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
   if (TSDB_CODE_SUCCESS != taosRemoveRef(clientConnRefPool, pTscObj->id)) {
-    tscError("connObj:0x%" PRIx64 ", failed to remove ref from conn pool", pTscObj->id);
+    tscError("conn:0x%" PRIx64 ", failed to remove ref from conn pool", pTscObj->id);
   }
 }
 
@@ -548,7 +548,7 @@ void taos_free_result(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
-    tscDebug("QID:0x%" PRIx64 ", call taos_free_result to free query", pRequest->requestId);
+    tscDebug("QID:0x%" PRIx64 ", call taos_free_result to free query, res:%p", pRequest->requestId, res);
     destroyRequest(pRequest);
     return;
   }
@@ -647,7 +647,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     }
 
     if (pResultInfo->current < pResultInfo->numOfRows) {
-      doSetOneRowPtr(pResultInfo, false);
+      doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
       return pResultInfo->row;
     } else {
@@ -655,7 +655,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
         return NULL;
       }
 
-      doSetOneRowPtr(pResultInfo, false);
+      doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
       return pResultInfo->row;
     }
@@ -1360,7 +1360,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   SQuery              *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgCostUs += taosGetTimestampUs() - pRequest->metric.ctgStart;
-  qDebug("req:0x%" PRIx64 ", start to continue parse, QID:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
+  qDebug("req:0x%" PRIx64 ", continue parse query, QID:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
          tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -2239,7 +2239,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     SVCreateTbReq *pCreateTbReq = NULL;
     if (bindv->tags && bindv->tags[i]) {
       code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
-    } else if (pStmt->sql.autoCreateTbl || pStmt->bInfo.needParse) {
+    } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
       code = stmtCheckTags2(stmt, &pCreateTbReq);
     } else {
       pStmt->sql.autoCreateTbl = false;

@@ -35,6 +35,7 @@ The list of keywords is as follows:
 | AS                   | |
 | ASC                  | |
 | ASOF                 | |
+| ASYNC                | 3.3.6.0+ |
 | AT_ONCE              | |
 | ATTACH               | |
 | AUTO                 | 3.3.5.0+ |
@@ -98,6 +99,7 @@ The list of keywords is as follows:
 | CONSUMER             | |
 | CONSUMERS            | |
 | CONTAINS             | |
+| CONTINUOUS_WINDOW_CLOSE | 3.3.6.0+ |
 | COPY                 | |
 | COUNT                | |
 | COUNT_WINDOW         | |
@@ -112,7 +114,7 @@ The list of keywords is as follows:
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
-| DECIMAL              | |
+| DECIMAL              | 3.3.6.0+ |
 | DEFERRED             | |
 | DELETE               | |
 | DELETE_MARK          | |

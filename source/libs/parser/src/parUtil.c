@@ -618,8 +618,8 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                 char* pStr, bool isView) {
-  return snprintf(pStr, USER_AUTH_KEY_MAX_LEN, "%s*%d*%s*%s*%d*%d", pUser, acctId, pDb,
-                  (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable, type, isView);
+  return snprintf(pStr, USER_AUTH_KEY_MAX_LEN, "`%s`*%d*`%s`*`%s`*%d*%d", pUser, acctId, pDb,
+                  (NULL == pTable || '\0' == pTable[0]) ? "" : pTable, type, isView);
 }
 
 static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
@@ -633,6 +633,30 @@ static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
     *pNext = ++p;
   }
   return taosStr2Int32(buf, NULL, 10);
+}
+
+static int32_t getBackQuotedStringFromAuthStr(const char* pStart, char* pStr, uint32_t dstLen, char** pNext) {
+  const char* pBeginQuote = strchr(pStart, '`');
+  if (!pBeginQuote) {
+    qWarn("failed to get string from auth string, %s, should be quoted with `", pStart);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  const char* pEndQuote = strchr(pBeginQuote + 1, '`');
+  if (!pEndQuote) {
+    qWarn("failed to get string from auth string, %s, should be quoted with `", pStart);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pStr[0] = '\0';
+  strncpy(pStr, pBeginQuote + 1, TMIN(dstLen, pEndQuote - pBeginQuote - 1));
+
+  char* pSeperator = strchr(pEndQuote + 1, '*');
+  if (!pSeperator) {
+    *pNext = NULL;
+  } else {
+    *pNext = ++pSeperator;
+  }
+  return 0;
 }
 
 static void getStringFromAuthStr(const char* pStart, char* pStr, uint32_t dstLen, char** pNext) {
@@ -649,19 +673,26 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, uint32_t dstLen
   }
 }
 
-static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
+static int32_t stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
   char* p = NULL;
-  getStringFromAuthStr(pStr, pUserAuth->user, TSDB_USER_LEN, &p);
-  pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
-  getStringFromAuthStr(p, pUserAuth->tbName.dbname, TSDB_DB_NAME_LEN, &p);
-  getStringFromAuthStr(p, pUserAuth->tbName.tname, TSDB_TABLE_NAME_LEN, &p);
-  if (pUserAuth->tbName.tname[0]) {
-    pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
-  } else {
-    pUserAuth->tbName.type = TSDB_DB_NAME_T;
+  int32_t code = getBackQuotedStringFromAuthStr(pStr, pUserAuth->user, TSDB_USER_LEN, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
+    code = getBackQuotedStringFromAuthStr(p, pUserAuth->tbName.dbname, TSDB_DB_NAME_LEN, &p);
   }
-  pUserAuth->type = getIntegerFromAuthStr(p, &p);
-  pUserAuth->isView = getIntegerFromAuthStr(p, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = getBackQuotedStringFromAuthStr(p, pUserAuth->tbName.tname, TSDB_TABLE_NAME_LEN, &p);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pUserAuth->tbName.tname[0]) {
+      pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
+    } else {
+      pUserAuth->tbName.type = TSDB_DB_NAME_T;
+    }
+    pUserAuth->type = getIntegerFromAuthStr(p, &p);
+    pUserAuth->isView = getIntegerFromAuthStr(p, &p);
+  }
+  return code;
 }
 
 static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
@@ -762,8 +793,9 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
       char   key[USER_AUTH_KEY_MAX_LEN] = {0};
       strncpy(key, pKey, len);
       SUserAuthInfo userAuth = {0};
-      stringToUserAuth(key, len, &userAuth);
-      if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {
+      int32_t code = stringToUserAuth(key, len, &userAuth);
+      if (TSDB_CODE_SUCCESS != code) terrno = code;
+      if (code != 0 || NULL == taosArrayPush(*pUserAuth, &userAuth)) {
         taosHashCancelIterate(pUserAuthHash, p);
         taosArrayDestroy(*pUserAuth);
         *pUserAuth = NULL;

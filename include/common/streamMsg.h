@@ -79,10 +79,12 @@ typedef struct SStreamTaskNodeUpdateMsg {
   int64_t streamId;
   int32_t taskId;
   SArray* pNodeList;  // SArray<SNodeUpdateInfo>
+  SArray* pTaskList;  // SArray<int32_t>, taskId list
 } SStreamTaskNodeUpdateMsg;
 
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
+void    tDestroyNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg);
 
 typedef struct {
   int64_t reqId;
@@ -241,6 +243,7 @@ typedef struct SRestoreCheckpointInfo {
   int32_t  transId;        // transaction id of the update the consensus-checkpointId transaction
   int32_t  taskId;
   int32_t  nodeId;
+  int32_t  term;
 } SRestoreCheckpointInfo;
 
 int32_t tEncodeRestoreCheckpointInfo(SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);

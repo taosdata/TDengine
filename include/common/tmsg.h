@@ -1257,18 +1257,18 @@ int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteR
 typedef struct {
   int32_t dnodeId;
   int64_t analVer;
-} SRetrieveAnalAlgoReq;
+} SRetrieveAnalyticsAlgoReq;
 
 typedef struct {
   int64_t   ver;
   SHashObj* hash;  // algoname:algotype -> SAnalUrl
-} SRetrieveAnalAlgoRsp;
+} SRetrieveAnalyticAlgoRsp;
 
-int32_t tSerializeRetrieveAnalAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalAlgoReq* pReq);
-int32_t tDeserializeRetrieveAnalAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalAlgoReq* pReq);
-int32_t tSerializeRetrieveAnalAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalAlgoRsp* pRsp);
-int32_t tDeserializeRetrieveAnalAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalAlgoRsp* pRsp);
-void    tFreeRetrieveAnalAlgoRsp(SRetrieveAnalAlgoRsp* pRsp);
+int32_t tSerializeRetrieveAnalyticAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalyticsAlgoReq* pReq);
+int32_t tDeserializeRetrieveAnalyticAlgoReq(void* buf, int32_t bufLen, SRetrieveAnalyticsAlgoReq* pReq);
+int32_t tSerializeRetrieveAnalyticAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalyticAlgoRsp* pRsp);
+int32_t tDeserializeRetrieveAnalyticAlgoRsp(void* buf, int32_t bufLen, SRetrieveAnalyticAlgoRsp* pRsp);
+void    tFreeRetrieveAnalyticAlgoRsp(SRetrieveAnalyticAlgoRsp* pRsp);
 
 typedef struct {
   int8_t alterType;
@@ -1430,6 +1430,7 @@ typedef struct {
   int64_t     watermark1;
   int64_t     watermark2;
   int32_t     ttl;
+  int32_t     keep;
   SArray*     pFuncs;
   int32_t     commentLen;
   char*       pComment;
@@ -3358,6 +3359,7 @@ typedef struct {
   int8_t  igNotExists;
   int32_t sqlLen;
   char*   sql;
+  int8_t  force;
 } SMDropTopicReq;
 
 int32_t tSerializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
@@ -3368,6 +3370,7 @@ typedef struct {
   char   topic[TSDB_TOPIC_FNAME_LEN];
   char   cgroup[TSDB_CGROUP_LEN];
   int8_t igNotExists;
+  int8_t force;
 } SMDropCgroupReq;
 
 int32_t tSerializeSMDropCgroupReq(void* buf, int32_t bufLen, SMDropCgroupReq* pReq);

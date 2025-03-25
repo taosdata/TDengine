@@ -14,7 +14,7 @@
                 "name": "test",
                 "drop": "yes",
                 "precision": "ns",
-                "vgroups": 2
+                "   vgroups    ": 2
             },
             "super_tables": [
                 {
