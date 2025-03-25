@@ -6,8 +6,6 @@ slug: /basic-features/data-model
 
 import Image from '@theme/IdealImage';
 import dataModel from '../assets/data-model-01.png';
-import origintable from '../assets/data-model-origin-table.png';
-import origintable2 from '../assets/data-model-origin-table-2.png';
 
 To clearly explain the concepts of time-series data and facilitate the writing of example programs, the TDengine documentation uses smart meters as an example. These example smart meters can collect three metrics: current, voltage, and phase. In addition, each smart meter also has two static attributes: location and group ID. The data collected by these smart meters is shown in the table below.
 
@@ -370,7 +368,63 @@ TAGS (
 
 Taking device d1001 as an example, assume that the current, voltage, and phase data of device d1001 are as follows:
 
-<img src={origintable} width="500" alt="data-model-origin-table" />
+<table>
+    <tr>
+        <th colspan="2" align="center">current_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">voltage_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">phase_d1001</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Voltage</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Phase</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">219</td>
+        <td align="center">1538548685000</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">218</td>
+        <td align="center">1538548695000</td>
+        <td align="center">0.33</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">221</td>
+        <td align="center">1538548696800</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697100</td>
+        <td align="center">220</td>
+        <td align="center">1538548697200</td>
+        <td align="center">0.32</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697800</td>
+        <td align="center">222</td>
+        <td align="center">1538548697800</td>
+        <td align="center">0.33</td>
+    </tr>
+</table>
 
 | Timestamp         | Current | Voltage | Phase |
 |-------------------|---------|---------|-------|
@@ -399,7 +453,78 @@ CREATE VTABLE current_v (
 ```
 
 Assume that the current data of devices d1001, d1002, d1003, and d1004 are as follows:
-<img src={origintable2} width="500" alt="data-model-origin-table-2" />
+
+<table>
+    <tr>
+        <th colspan="2" align="center">d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1002</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1003</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1004</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.7</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.2</td>
+        <td align="center">1538548685000</td>
+        <td align="center">12.4</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.9</td>
+        <td align="center">1538548695000</td>
+        <td align="center">10.8</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.3</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.4</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">10.1</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">12.2</td>
+        <td align="center">1538548697100</td>
+        <td align="center">11.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">11.7</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697700</td>
+        <td align="center">11.4</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.6</td>
+    </tr>
+</table>
 
 The virtual table `current_v` aligns current data by timestamp:
 
