@@ -57,7 +57,7 @@ SNode *mallocNode(const char* name, int32_t len);
 void freeNodes(SNode* head);
 
 
-static void freeTbDes(TableDes *tableDes, bool self);
+void freeTbDes(TableDes *tableDes, bool self);
 
 //
 // ---------------  native ------------------
@@ -103,10 +103,8 @@ void freeDBChange(DBChange *pDbChange);
 void freeStbChange(StbChange *stbChange);
 
 
-
-
 // add stb recordSchema to dbChange
-int32_t AddStbChanged(DBChange *pDbChange, TAOS taos, RecordSchema *recordSchema, StbChange **ppStbChange);
+int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchema, StbChange **ppStbChange);
 
 // find stbChange with stbName
 StbChange * findStbChange(DBChange *pDbChange, char *stbName);

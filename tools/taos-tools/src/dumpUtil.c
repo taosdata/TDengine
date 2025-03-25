@@ -82,7 +82,7 @@ bool canRetry(int32_t code, int8_t type) {
 }
 
 // free tbDes
-static void freeTbDes(TableDes *tableDes, bool self) {
+void freeTbDes(TableDes *tableDes, bool self) {
     if (NULL == tableDes) return;
 
     for (int i = 0; i < (tableDes->columns+tableDes->tags); i++) {
@@ -258,7 +258,7 @@ void hashMapInit(HashMap *map) {
 bool hashMapInsert(HashMap *map, const char *key, void *value) {
     // lock map
     pthread_mutex_lock(&map->lock);
-    uint32_t hash = bkdr_hash(key) % HASH32_MAP_MAX_BUCKETS;
+    uint32_t hash = bkdrHash(key) % HASH32_MAP_MAX_BUCKETS;
     HashMapEntry *entry = (HashMapEntry *)malloc(sizeof(HashMapEntry));
     if (entry == NULL) {
         pthread_mutex_unlock(&map->lock);
@@ -278,7 +278,7 @@ bool hashMapInsert(HashMap *map, const char *key, void *value) {
 
 // Find the value based on the key
 void *hashMapFind(HashMap *map, const char *key) {
-    uint32_t hash = bkdr_hash(key) % HASH32_MAP_MAX_BUCKETS;
+    uint32_t hash = bkdrHash(key) % HASH32_MAP_MAX_BUCKETS;
     HashMapEntry *entry = map->buckets[hash];
     while (entry != NULL) {
         if (strcmp(entry->key, key) == 0) {
@@ -318,7 +318,7 @@ void hashMapDestroy(HashMap *map) {
 DBChange *createDbChange(const char *dbPath) {
     //TOTO
     DBChange * pDbChange = (DBChange *)calloc(1, sizeof(DBChange));
-    pDbChange->dbPath = dbPath;
+    pDbChange->dbPath    = dbPath;
 
     return pDbChange;
 }
@@ -327,7 +327,6 @@ DBChange *createDbChange(const char *dbPath) {
 void freeDBChange(DBChange *pDbChange) {
     // free stbChagne map
     hashMapDestroy(&pDbChange->stbMap);
-    pDbChange->stbMap = NULL;
 
     // free 
     free(pDbChange);
@@ -390,8 +389,8 @@ bool schemaNoChanged(RecordSchema *recordSchema, TableDes *tableDesSrv) {
 
     // filed & type
     for (int32_t i = 0; i < localDes->columns + localDes->tags; i++) {
-        ColDes * local = localDes->cols[i];
-        ColDes * srv   = tableDesSrv->cols[i];
+        ColDes * local = &localDes->cols[i];
+        ColDes * srv   = &tableDesSrv->cols[i];
         // field name
         if (strcmp(local->field, srv->field) != 0) {
             // field name
@@ -399,7 +398,7 @@ bool schemaNoChanged(RecordSchema *recordSchema, TableDes *tableDesSrv) {
             return false;    
         }
         // type
-        if (strcmp(local->type, srv->type) != 0) {
+        if (local->type != srv->type) {
             infoPrint("i=%d stb=%s field name same but type changed. %s local:%d server:%d \n", i, stb, local->field, local->type, srv->type);
             return false;    
         }
@@ -435,8 +434,8 @@ void moveColDes(ColDes *colDes, int32_t des, int32_t src) {
 // local schema recordSchema cross with server schema tableDes
 int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchema *recordSchema, TableDes *tableDesSrv) {
     // record old
-    int oldc = tableDes->columns;
-    int oldt = tableDes->tags;
+    int oldc = tableDesSrv->columns;
+    int oldt = tableDesSrv->tags;
 
     int newc = 0; // col num
     int newt = 0; // tag num
@@ -453,17 +452,17 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
 
     // loop all
     for (int i = 0; i < oldc + oldt; i++) {
-        ColDes * colDes = tableDes->cols + i;
+        ColDes * colDes = tableDesSrv->cols + i;
         if (i < oldc) {
             // col
             if (findFieldInLocal(colDes, recordSchema->tableDes)) {
-                moveColDes(tableDes->cols, i, newc);
+                moveColDes(tableDesSrv->cols, i, newc);
                 ++newc;
             }
         } else {
             // tag
             if (findFieldInLocal(colDes, recordSchema->tableDes)) {
-                moveColDes(tableDes->cols, i,  newc + newt);
+                moveColDes(tableDesSrv->cols, i,  newc + newt);
                 ++newt;
             }
         }
@@ -482,15 +481,15 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
     }
 
     // set new
-    tableDes->columns = newc;
-    tableDes->tags    = newt;
+    tableDesSrv->columns = newc;
+    tableDesSrv->tags    = newt;
 
     // save tableDes to StbChange
     pStbChange->tableDes = tableDesSrv;
     
     // gen part str
-    pStbChange->strCols = genPartStr(tableDes->cols, 0, newc);
-    pStbChange->strTags = genPartStr(tableDes->cols, newc, newt);
+    pStbChange->strCols = genPartStr(tableDesSrv->cols, 0,    newc);
+    pStbChange->strTags = genPartStr(tableDesSrv->cols, newc, newt);
 
     pStbChange->schemaChanged = true;
     // show change log
@@ -525,7 +524,7 @@ int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchem
     }
 
     // get from server
-    if (getTableDes(taos, pDbChange->dbName, stbName, tableDesSrv, true) < 0) {
+    if (getTableDes(taos, pDbChange->dbName, stbName, tableDesSrv, false) < 0) {
         errorPrint("%s() LN%d getTableDes failed, db:%s stb:%s !\n", __func__, __LINE__, pDbChange->dbName, stbName);
         return -1;
     }
@@ -549,7 +548,7 @@ int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchem
     }
 
     // add to DbChange hashMap
-    if (!hashMapInsert(pDbChange->stbMap, pStbChange)) {
+    if (!hashMapInsert(&pDbChange->stbMap, stbName, pStbChange)) {
         errorPrint("%s() LN%d add hashMap failed, db:%s stb:%s !\n", __func__, __LINE__, pDbChange->dbName, stbName);
         free(pStbChange);
         freeTbDes(tableDesSrv, true);
@@ -569,5 +568,5 @@ StbChange * findStbChange(DBChange *pDbChange, char *stbName) {
     }
 
     // find
-    return (StbChange *)hashMapFind(pDbChange->stbMap, stbName);
+    return (StbChange *)hashMapFind(&pDbChange->stbMap, stbName);
 }

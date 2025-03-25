@@ -261,6 +261,27 @@ enum enAVROTYPE {
 };
 
 //
+// ------------------ hash map struct -----------------------
+//
+
+// Define the maximum number of buckets
+#define HASH32_MAP_MAX_BUCKETS 1024
+
+// Define the key-value pair structure
+typedef struct HashMapEntry {
+    char *key;
+    void *value;
+    struct HashMapEntry *next;
+} HashMapEntry;
+
+// Define the hash table structure
+typedef struct HashMap {
+    HashMapEntry *buckets[HASH32_MAP_MAX_BUCKETS];
+    pthread_mutex_t lock;
+} HashMap;
+
+
+//
 // --------------------- db changed struct ------------------------
 //
 
@@ -281,27 +302,9 @@ typedef struct DBChange {
     // record all stb
     HashMap  stbMap;
     char     dbName[TSDB_DB_NAME_LEN];
+    const char *dbPath;
 } DBChange;
 
-//
-// ------------------ hash map struct -----------------------
-//
-
-// Define the maximum number of buckets
-#define HASH32_MAP_MAX_BUCKETS 1024
-
-// Define the key-value pair structure
-typedef struct HashMapEntry {
-    char *key;
-    void *value;
-    struct HashMapEntry *next;
-} HashMapEntry;
-
-// Define the hash table structure
-typedef struct HashMap {
-    HashMapEntry *buckets[HASH32_MAP_MAX_BUCKETS];
-    pthread_mutex_t lock;
-} HashMap;
 
 typedef enum enAVROTYPE AVROTYPE;
 
@@ -505,13 +508,6 @@ int processResultValue(
         const void *value,
         uint32_t len);
 
-int convertTbDesToJsonWrap(
-        const char *dbName, 
-        const char *stable,
-        const char *tbName,
-        TableDes *tableDes, 
-        int colCount,
-        char **jsonSchema);
 int64_t dumpNormalTable(
         const int64_t index,
         void  **taos,
@@ -536,6 +532,7 @@ void closeQuery(void* res);
 int32_t readRow(void *res, int32_t idx, int32_t col, uint32_t *len, char **data);
 void engineError(char * module, char * fun, int32_t code);
 
+int getTableDes(TAOS *taos, const char* dbName, const char *table, TableDes *tableDes, const bool colOnly);
 
 extern struct arguments g_args;
 
