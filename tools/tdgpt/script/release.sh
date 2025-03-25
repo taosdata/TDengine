@@ -17,11 +17,11 @@ if [ -z "$edition" ] || [ -z "$version" ]; then
     exit 1
 fi
 if [ "$edition" == "enterprise" ]; then
-    productName="TDengine-enterprise-anode"
+    productName="TDengine-enterprise-TDgpt"
 fi
 
 if [ "$edition" == "community" ]; then
-    productName="TDengine-anode"
+    productName="TDengine-TDgpt"
 fi
 
 echo start to build release package, edition: ${edition}, version: ${version}
