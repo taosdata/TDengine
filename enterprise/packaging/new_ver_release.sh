@@ -24,7 +24,7 @@ dockerMode="no"
 dockerProject="tdengine"
 grantValue=10
 skip=0
-modelDlUrl=https://dl
+modelDlUrl=""
 tdGpt=false
 
 while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:s:u:g:" arg
@@ -101,7 +101,7 @@ do
       echo "                     -D <harbor docker project>"
       echo "                     -G <grant days>"
       echo "                     -s [0, 1] skip some steps, 0: do not skip, 1: skip"
-      echo "                     -i <nas ip>"
+      echo "                     -u <model download url>"
       echo "                     -g [true | false] enable/disable TDgpt"
       exit 0
       ;;
