@@ -12,22 +12,22 @@ import PkgListV3 from "/components/PkgListV3";
 
 ### 启动 TDgpt
 
-如果已经安装了 Docker，首先拉取最新的 TDengine 容器镜像：
+如果已经安装了 Docker，首先拉取最新的 TDgpt 容器镜像：
 
 ```shell
-docker pull tdengine/tdengine:latest
+docker pull tdengine/tdengine-tdgpt:latest
 ```
 
 或者指定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdengine:3.3.3.0
+docker pull tdengine/tdengine-tdgpt:3.3.6.0
 ```
 
 然后只需执行下面的命令：
 
 ```shell
-docker run -d -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6044-6049:6044-6049 -p 6044-6045:6044-6045/udp -p 6060:6060 tdengine/tdengine
+docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
 ```
 
 注意：TDgpt 服务端使用  6090 TCP 端口。TDgpt 是一个无状态时序数据分析智能体，并不会在本地持久化保存数据，仅根据配置可能在本地生成运行日志。
@@ -55,9 +55,11 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 ### 环境准备
 
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署Taos AI node（Anode）。Anode 运行在 Linux 平台上，并需要 3.10 或以上版本的 Python 环境支持。
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署Taos AI node（Anode）。Anode 运行在 Linux 平台上, 对部署 Anode 的有一定的环境要求：
 
-> 部署 Anode 需要 TDengine 3.3.6.0 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
+> Python: 3.10 或以上版本
+> TDengine：需使用 3.3.6.0 或以上版本。
+> C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
 
 可以使用以下的命令在 Ubuntu Linux 上安装 Python 3.10 环境
 
@@ -86,6 +88,13 @@ export PATH=$PATH:~/.local/bin
 ```
 至此 Python 环境准备完成，可以进行 taosanode 的安装和部署。
 
+#### 安装 C 编译器（按需安装）
+
+```shell 
+sudo apt update
+sudo apt install build-essential
+```
+
 ### 获取安装包
 1. 从列表中下载获得 tar.gz 安装包：
 
@@ -105,7 +114,7 @@ tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
 
 ```bash
 cd TDengine-TDgpt-<version>
-sudo ./install.sh
+./install.sh
 ```
 
 为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要 Python 的虚拟环境，手动删除该目录即可。
