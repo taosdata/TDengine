@@ -191,5 +191,6 @@ python3.10 ./analytics_compare.py forecast
 
 如果设置了 `gen_figure` 为 true，分析结果中还会有绘制的分析预测结果图（如下图所示）。
 
+<figure style={{textAlign: "center"}}>
 <img src={fc_result} alt="预测对比结果"/>
-
+</figure>
