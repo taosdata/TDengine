@@ -289,11 +289,11 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     int32_t     sysErr = ERRNO;
     const char* sysErrStr = strerror(ERRNO);
 
-    if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      sNTrace(pData->pSyncNode, "wal read not exist, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s", index,
+    if (err == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+      sNError(pData->pSyncNode, "wal read not exist, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s", index,
               err, errStr, sysErr, sysErrStr);
     } else {
-      sNTrace(pData->pSyncNode, "wal read error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s", index, err,
+      sNError(pData->pSyncNode, "wal read error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s", index, err,
               errStr, sysErr, sysErrStr);
     }
 
