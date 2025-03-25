@@ -683,21 +683,3 @@ bool mndIsLeader(SMnode *pMnode) {
 
   return true;
 }
-
-bool mndIsLeaderState(SMnode *pMnode) {
-  terrno = 0;
-  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
-
-  if (terrno != 0) {
-    mDebug("vgId:1, mnode is stopping");
-    return false;
-  }
-
-  if (state.state != TAOS_SYNC_STATE_LEADER) {
-    terrno = TSDB_CODE_SYN_NOT_LEADER;
-    mDebug("vgId:1, mnode not leader, state:%s", syncStr(state.state));
-    return false;
-  }
-
-  return true;
-}
