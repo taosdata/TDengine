@@ -72,8 +72,8 @@ kill_service_of() {
 }
 
 kill_model_service() {
-  [ -f "/usr/local/taos/taosanode/bin/stop-tdtsfm.sh "] &&  sudo bash /usr/local/taos/taosanode/bin/stop-tdtsfm.sh || :
-  [ -f "/usr/local/taos/taosanode/bin/stop-timer-moe.sh "] &&  sudo bash /usr/local/taos/taosanode/bin/stop-timer-moe.sh || :
+  [[ -f "/usr/local/taos/taosanode/bin/stop-tdtsfm.sh" ]] &&  sudo bash /usr/local/taos/taosanode/bin/stop-tdtsfm.sh || :
+  [[ -f "/usr/local/taos/taosanode/bin/stop-timer-moe.sh" ]] &&  sudo bash /usr/local/taos/taosanode/bin/stop-timer-moe.sh || :
 }
 
 clean_service_on_systemd_of() {

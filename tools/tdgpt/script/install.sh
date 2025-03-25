@@ -175,31 +175,24 @@ function install_bin_and_lib() {
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
   ${csudo}cp -r ${script_dir}/lib/* ${install_main_dir}/lib/
 
-  if [[ -L "${bin_link_dir}/rmtaosanode" ]]; then
-    rm -rf ${bin_link_dir}/rmtaosanode
-    ${csudo}ln -s ${install_main_dir}/bin/uninstall.sh ${bin_link_dir}/rmtaosanode
-  fi
-  
-  if [[  -L "${bin_link_dir}/start-tdtsfm " ]]; then
-    rm -rf ${bin_link_dir}/start-tdtsfm
-    ${csudo}ln -s ${install_main_dir}/bin/start-tdtsfm.sh ${bin_link_dir}/start-tdtsfm
-  fi
+  # Handle rmtaosanode separately
+  [ -L "${bin_link_dir}/rmtaosanode" ] && ${csudo}rm -rf "${bin_link_dir}/rmtaosanode" || :
+  ${csudo}ln -s "${install_main_dir}/bin/uninstall.sh" "${bin_link_dir}/rmtaosanode"
 
-  if [[ -L "${bin_link_dir}/stop-tdtsfm" ]]; then
-    rm -rf ${bin_link_dir}/stop-tdtsfm
-    ${csudo}ln -s ${install_main_dir}/bin/stop-tdtsfm.sh ${bin_link_dir}/stop-tdtsfm
-  fi
+  # Create an array of link names and target scripts
+  declare -A links=(
+    ["start-tdtsfm"]="${install_main_dir}/bin/start-tdtsfm.sh"
+    ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
+    ["start-timer-moe"]="${install_main_dir}/bin/start-timer-moe.sh"
+    ["stop-timer-moe"]="${install_main_dir}/bin/stop-timer-moe.sh"
+  )
 
-  if [[ -L "${bin_link_dir}/start-timer-moe" ]]; then
-    rm -rf ${bin_link_dir}/start-timer-moe
-    ${csudo}ln -s ${install_main_dir}/bin/start-timer-moe.sh ${bin_link_dir}/start-timer-moe
-  fi
-
-  if [[ -L "${bin_link_dir}/stop-timer-moe" ]]; then
-    rm -rf ${bin_link_dir}/stop-timer-moe
-    ${csudo}ln -s ${install_main_dir}/bin/stop-timer-moe.sh ${bin_link_dir}/stop-timer-moe
-  fi
-
+  # Iterate over the array and create/remove links as needed
+  for link in "${!links[@]}"; do
+    target="${links[$link]}"
+    [ -L "${bin_link_dir}/${link}" ] && ${csudo}rm -rf "${bin_link_dir}/${link}" || :
+    ${csudo}ln -s "${target}" "${bin_link_dir}/${link}"
+  done
 }
 
 function add_newHostname_to_hosts() {
