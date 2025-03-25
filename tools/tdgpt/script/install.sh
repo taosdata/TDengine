@@ -158,6 +158,13 @@ function kill_process() {
   fi
 }
 
+function kill_model_service() {
+  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+    script_path="${installDir}/bin/${script}"
+    [ -f "${script_path}" ] && sudo bash "${script_path}" || :
+  done
+}
+
 function install_main_path() {
   #create install main dir and all sub dir
   if [ ! -z "${install_main_dir}" ]; then
@@ -429,6 +436,7 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install requests
   ${csudo}${venvDir}/bin/pip3 install taospy
   ${csudo}${venvDir}/bin/pip3 install transformers
+  ${csudo}${venvDir}/bin/pip3 install accelerate
 
   echo -e "Install python library for venv completed!"
 }
@@ -700,8 +708,11 @@ function installProduct() {
   install_anode_config
   install_module
   install_resource
-
+  
+  
   install_bin_and_lib
+  kill_model_service
+  
   if ! is_container; then
     install_services
   fi
