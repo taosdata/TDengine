@@ -1,6 +1,6 @@
 ---
-sidebar_label: TDgpt 技术内幕
-title: TDgpt 技术内幕
+sidebar_label: 简介
+title: 简介
 ---
 
 import TDgpt from './pic/data-analysis.png';
