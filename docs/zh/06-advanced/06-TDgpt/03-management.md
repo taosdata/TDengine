@@ -115,20 +115,39 @@ Query OK, 1 row(s) in set (0.037205s)
 ```SQL
 SHOW ANODES FULL;
 
-taos> show anodes full;
-     id      |            type            |              algo              |
-============================================================================
-           1 | anomaly-detection          | shesd                          |
-           1 | anomaly-detection          | iqr                            |
-           1 | anomaly-detection          | ksigma                         |
-           1 | anomaly-detection          | lof                            |
-           1 | anomaly-detection          | grubbs                         |
-           1 | anomaly-detection          | ad_encoder                     |
-           1 | forecast                   | holtwinters                    |
-           1 | forecast                   | arima                          |
-Query OK, 8 row(s) in set (0.008796s)
-
+taos> show anodes full;                                                      
+     id      |            type            |              algo              | 
+============================================================================ 
+           1 | anomaly-detection          | grubbs                         | 
+           1 | anomaly-detection          | lof                            | 
+           1 | anomaly-detection          | shesd                          | 
+           1 | anomaly-detection          | ksigma                         | 
+           1 | anomaly-detection          | iqr                            | 
+           1 | anomaly-detection          | sample_ad_model                | 
+           1 | forecast                   | arima                          | 
+           1 | forecast                   | holtwinters                    | 
+           1 | forecast                   | tdtsfm_1                       | 
+           1 | forecast                   | timemoe-fc                     | 
+Query OK, 10 row(s) in set (0.028750s)                                       
 ```
+
+列表中的算法分为两个部分，分别是异常检测算法集合，包含六个算法模型，四个预测算法集。算法模型如下：
+
+|类型    |模型名称|说明                |
+|--------|--------|--------------------|
+|异常检测 |grubbs |基于数学统计学检测模型|
+|异常检测 |lof    |基于密度的检测模型   |
+|异常检测 |shesd  |季节性ESD算法模型    |
+|异常检测 |ksigma |数学统计学检测模型   |
+|异常检测 |iqr    |数学统计学检测模型   |
+|预测分析 |sample_ad_model |基于自编码器的异常检测示例模型|
+|预测分析 |arima |移动平均自回归预测算法|
+|预测分析 |holtwinters |多次指数平滑预测算法|
+|预测分析 |tdtsfm_1 |涛思时序数据基础模型 v1.0 版本|
+|预测分析 |timemoe-fc |Time-MoE时序基础模型的预测能力|
+
+相关算法的具体介绍和使用说明见后续章节。
+
 
 #### 刷新集群中的分析算法缓存
 ```SQL
