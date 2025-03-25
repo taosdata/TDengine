@@ -15,6 +15,7 @@ pip install flask==3.0.3
 pip install transformers==4.40.0
 pip install accelerate
 ```
+您可以使用安装过程中创建的虚拟环境，也可以创建一个独立虚拟环境，使用该虚拟环境之前，确保安装了上述的依赖包。
 
 # 设置服务端口和 URL 地址
 
@@ -41,7 +42,7 @@ def time_moe():
 # 启动部署 Python 脚本
 
 ```shell
-nohup Python time-moe.py > custom_output.out 2>&1 &
+nohup python time-moe.py > service_output.out 2>&1 &
 ```
 
 第一次启动脚本会从 huggingface 自动加载[2亿参数时序数据基础模型](https://huggingface.co/Maple728/TimeMoE-200M)。该模型是 Time-MoE 200M参数版本，如果您需要部署参数规模更小的版本请将 `time-moe.py` 文件中 `'Maple728/TimeMoE-200M'` 修改为 `Maple728/TimeMoE-50M`，此时将加载 [0.5亿参数版本模型](https://huggingface.co/Maple728/TimeMoE-50M)。
@@ -54,10 +55,10 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 再执行脚本：
 ```shell
-nohup Python time-moe.py > custom_output.out 2>&1 &
+nohup python time-moe.py > service_output.out 2>&1 &
 ```
 
-显示如下，则说明加载成功
+检查 `service_output.out` 文件，有如下输出，则说明加载成功
 ```shell
 Running on all addresses (0.0.0.0)
 Running on http://127.0.0.1:5001
@@ -70,7 +71,8 @@ Running on http://127.0.0.1:5001
 ```shell
 curl 127.0.0.1:5001/ds_predict
 ```
-如果看到如下返回表明服务正常
+
+如果看到如下返回信息表明服务正常，自此部署 Time-MoE 完成。
 
 ```html
 <!doctype html>
