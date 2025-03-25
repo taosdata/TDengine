@@ -80,19 +80,19 @@ docker exec -it <container name> bash
 
 ## 注册云服务使用 TDgpt
 
-TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，请在数据库集市里面找到“时序数据预测分析数据集”数据库，点击启用就可以进入这个数据库，然后按照 TDgpt 的 SQL 操作手册来执行语句，比如 `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`。
+TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，请在数据库集市里面找到 **时序数据预测分析数据集** 数据库，点击启用就可以进入这个数据库。然后按照 TDgpt 的 SQL 操作手册来执行语句，比如 `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`。
 
 ## 通过安装包部署 TDgpt
 
 ### 环境准备
 
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署Taos AI node（Anode）。Anode 运行在 Linux 平台上, 对部署 Anode 的有一定的环境要求：
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 Taos AI node（Anode）。Anode 运行在 Linux 平台上, 对部署 Anode 的有一定的环境要求：
 
-> Python: 3.10 或以上版本
-> TDengine：需使用 3.3.6.0 或以上版本。
-> C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
+- Python: 3.10 或以上版本。
+- TDengine：需使用 3.3.6.0 或以上版本。
+- C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
 
-可以使用以下的命令在 Ubuntu Linux 上安装 Python 3.10 环境，如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看[获取安装包](#获取安装包) 部分。
+可以使用以下的命令在 Ubuntu Linux 上安装 Python 3.10 环境，如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
 
 #### 安装 Python
 
@@ -113,7 +113,7 @@ sudo apt install python3.10-dev
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
 ```
 
-将 `~/.local/bin` 路径添加到环境变量中 `~/.bashrc or ~/.bash_profile`
+将 `~/.local/bin` 路径添加到环境变量中 `~/.bashrc or ~/.bash_profile`。
 ```shell
 export PATH=$PATH:~/.local/bin
 ```
@@ -127,7 +127,7 @@ sudo apt install build-essential
 ```
 
 ### 获取安装包
-1. 从列表中下载获得 tar.gz 安装包：
+1. 从列表中下载获得 tar.gz 安装包
 
    <PkgListV3 type={9}/>
 
@@ -154,7 +154,7 @@ cd TDengine-TDgpt-<version>
 
 ### 激活虚拟环境
 
-为了避免安装操作系统的Python 环境， TDgpt 安装过程中会自动创建一个虚拟环境，该虚拟环境默认创建的路径在 `/var/lib/taos/taosanode/venv/`。创建完成该虚拟环境，该虚拟环境通过 PiPy 安装了支持 TDgpt 运行所必须的 Python 依赖库。
+为了避免安装操作系统的 Python 环境， TDgpt 安装过程中会自动创建一个虚拟环境，该虚拟环境默认创建的路径在 `/var/lib/taos/taosanode/venv/`。创建完成该虚拟环境，该虚拟环境通过 PiPy 安装了支持 TDgpt 运行所必须的 Python 依赖库。
 该虚拟环境不会被卸载脚本 `rmtaosanode` 删除，当您确认不再需要该虚拟环境的时候，需要手动删除该虚拟环境。
 后续如果您需要开发自己的算法模型，并能够 TDgpt 正确调用，需要将新的依赖库通过虚拟环境的 Pip 正确地安装。
 

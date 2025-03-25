@@ -14,10 +14,16 @@ TDgpt 内置了涛思数据时序基础模型和 Time-MoE 两个时序基础模�
 |1| tdtsfm_1 | 涛思时序数据基础模型 v1.0|
 |2| time-moe | 亿级别参数 MoE时序基础模型|
 
-调用时序基础模型，无需设置模型相关参数，使用如下的 SQL 语句即可调用涛思时序基础模型（TDtsfm）的预测能力：
+TDgpt 集成了时序基础模型的预测能力，无需设置模型相关参数，使用 SQL 语句即可轻松调用时序基础模型的进行预测。
+
+- 通过以下 SQL 语句，调用涛思时序基础模型（tdtfsm）预测数据。
 
 ```SQL
 SELECT _frowts, FORECAST(i32, "algo=tdtsfm_1,rows=10") from foo
 ```
 
-如果希望调用Time-MoE的预测分析能力，将参数 `algo=tdtsfm_1` 修改为 `algo=timemoe-fc` 即可。
+- 通过以下 SQL 语句，调用 TimeMoE 时序基础模型预测数据
+
+```SQL
+SELECT _frowts, FORECAST(i32, "algo=timemoe-fc,rows=10") from foo
+```

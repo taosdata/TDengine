@@ -7,7 +7,6 @@ title: 添加时序基础模型
 
 TDgpt 已经内置原生支持了两个时序基础模型涛思时序基础模型 (TDtsfm v1.0) 和 Time-MoE。但是越来越多的开源或商业时序模型需要用户按需将其整合到 TDgpt 中，本章将以支持 Time-MoE 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
 
-
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
