@@ -82,12 +82,6 @@ IF(TD_WEBSOCKET)
 ENDIF()
 
 IF(TD_TAOS_TOOLS)
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/tools/taos_tools/deps/avro/lang/c/src)
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/client)
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/util)
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/os)
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/libs/transport)
     ADD_SUBDIRECTORY(taos-tools)
 ENDIF()
 
