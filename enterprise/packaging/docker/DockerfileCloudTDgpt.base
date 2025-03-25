@@ -40,7 +40,7 @@ RUN pip install --upgrade pip && \
                     flask \
                     matplotlib \
                     uwsgi \
-                    transformers:4.40.0 \
+                    transformers==4.40.0 \
                     accelerate \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple
