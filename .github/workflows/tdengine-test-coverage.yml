@@ -1,5 +1,5 @@
 # Coverage test for taosd & taosc
-	
+
 name: TDengine Coverage
 
 on:

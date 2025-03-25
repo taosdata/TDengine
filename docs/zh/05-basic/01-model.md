@@ -3,8 +3,6 @@ sidebar_label: 数据模型
 title: TDengine 数据模型
 toc_max_heading_level: 4
 ---
-import origintable from './data-model-origin-table.png';
-import origintable2 from './data-model-origin-table-2.png';
 
 为了清晰地阐述时序数据的基本概念，并为示例程序的编写提供便利，整个文档都将以智能电表为例，探讨时序数据的典型应用场景。设想有一种型号的智能电表，它能够采集
 电流、电压和相位这 3 个模拟量。此外，每块智能电表还具有位置和分组等静态属性。这些智能电表采集的数据示例如下表所示。
@@ -357,7 +355,63 @@ TAGS (
 
 以设备 d1001 为例，假设 d1001 设备的电流、电压、相位数据如下：
 
-<img src={origintable} width="500" alt="data-model-origin-table" />
+<table>
+    <tr>
+        <th colspan="2" align="center">current_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">voltage_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">phase_d1001</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Voltage</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Phase</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">219</td>
+        <td align="center">1538548685000</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">218</td>
+        <td align="center">1538548695000</td>
+        <td align="center">0.33</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">221</td>
+        <td align="center">1538548696800</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697100</td>
+        <td align="center">220</td>
+        <td align="center">1538548697200</td>
+        <td align="center">0.32</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697800</td>
+        <td align="center">222</td>
+        <td align="center">1538548697800</td>
+        <td align="center">0.33</td>
+    </tr>
+</table>
 
 虚拟表 d1001_v 中的数据如下:
 
@@ -390,7 +444,77 @@ CREATE VTABLE current_v (
 
 假设 d1001, d1002, d1003, d1004 四个设备的电流数据如下：
 
-<img src={origintable2} width="500" alt="data-model-origin-table-2" />
+<table>
+    <tr>
+        <th colspan="2" align="center">d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1002</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1003</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1004</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.7</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.2</td>
+        <td align="center">1538548685000</td>
+        <td align="center">12.4</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.9</td>
+        <td align="center">1538548695000</td>
+        <td align="center">10.8</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.3</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.4</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">10.1</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">12.2</td>
+        <td align="center">1538548697100</td>
+        <td align="center">11.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">11.7</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697700</td>
+        <td align="center">11.4</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.6</td>
+    </tr>
+</table>
 
 虚拟表 current_v 中的数据如下：
 
