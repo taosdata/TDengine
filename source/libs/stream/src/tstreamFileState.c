@@ -289,6 +289,7 @@ _end:
 }
 
 void destroyRowBuffPos(SRowBuffPos* pPos) {
+  if (pPos == NULL) return;
   printSRowBuffPos(pPos, __FUNCTION__, __LINE__);
   taosMemoryFreeClear(pPos->pKey);
   taosMemoryFreeClear(pPos->pRowBuff);
@@ -300,7 +301,7 @@ void destroyRowBuffPosPtr(void* ptr) {
     return;
   }
   SRowBuffPos* pPos = *(SRowBuffPos**)ptr;
-  if (!pPos->beUsed) {
+  if (pPos != NULL && !pPos->beUsed) {
     destroyRowBuffPos(pPos);
   }
   *(SRowBuffPos**)ptr = NULL;
@@ -319,7 +320,7 @@ void destroyRowBuff(void* ptr) {
   if (!ptr) {
     return;
   }
-  taosMemoryFree(*(void**)ptr);
+  taosMemoryFreeClear(*(void**)ptr);
 }
 
 void streamFileStateDestroy(SStreamFileState* pFileState) {
