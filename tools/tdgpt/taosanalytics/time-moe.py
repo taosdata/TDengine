@@ -1,7 +1,5 @@
 import torch
-from typing import Any, Dict, List, Optional, Union, Callable
 from flask import Flask, request, jsonify
-import argparse
 from transformers import AutoModelForCausalLM
 
 app = Flask(__name__)
