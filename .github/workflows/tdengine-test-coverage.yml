@@ -21,7 +21,7 @@ env:
 
 jobs:
   run-tests-on-linux:
-    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@main
+    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
     with:
       tdinternal: false
