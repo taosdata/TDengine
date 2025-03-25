@@ -1,45 +1,21 @@
 FROM tdengine/tdengine-cloud-base
 
+ARG pkgFile
+ARG dirName
+
 WORKDIR /root/
-
-ARG tdengine_pkgFile
-ARG tdengine_dirName
-ARG tdgpt_pkgFile
-ARG tdgpt_dirName
-ARG nas_ip
-
-ADD ${tdgpt_pkgFile} \
-    ${tdengine_pkgFile} \
-    http://${nas_ip}/data/nas/TDengine/anode/taos.pth \
-    http://${nas_ip}/data/nas/TDengine/anode/taos_ts_server.py \
-    /root/
-
-RUN echo ${tdengine_pkgFile} && \
-    echo ${tdengine_dirName} && \
-    echo ${tdgpt_pkgFile} && \
-    echo ${tdgpt_dirName} && \
-    cd ${tdgpt_dirName}/ && \
-    /bin/bash install.sh -e no && \
-    cd .. && \
-    rm -rf ${tdgpt_dirName} && \
-    cd ${tdengine_dirName}/ && \
-    /bin/bash install.sh -e no && \
-    cd .. && \
-    rm -rf ${tdengine_dirName} && \
-    locale-gen en_US.UTF-8
+RUN echo ${pkgFile} && echo ${dirName}
+COPY ${pkgFile} /root/
+RUN tar -zxf ${pkgFile} && cd /root/${dirName}/ && /bin/bash install.sh -e no && cd /root && rm /root/${pkgFile} && rm -rf /root/${dirName} && locale-gen en_US.UTF-8
 
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
     LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
-
-ADD ./run.sh \
-    ./td_cluster_check \
-    ./bin/* \
-    /usr/bin/
+COPY ./run.sh /usr/bin/
+COPY ./td_cluster_check /usr/bin/
+COPY ./bin/* /usr/bin/
 
 VOLUME [ "/var/lib/taos" ]
-
-EXPOSE 6090 8387 5000
 
 ENTRYPOINT exec /usr/bin/run.sh
