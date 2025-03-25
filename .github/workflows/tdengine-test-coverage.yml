@@ -3,6 +3,9 @@
 name: TDengine Coverage
 
 on:
+  pull_request:
+    branches:
+      - 'main'
   workflow_dispatch:
     inputs:
       specified_test_branch:
