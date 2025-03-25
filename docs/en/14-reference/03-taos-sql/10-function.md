@@ -637,7 +637,7 @@ taos> select radians(180);
 ```sql
 CRC32(expr)
 ```
-**Function Description**: Return the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
+**Function Description**: Returns the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
 
 **Return Type**: UINT. 
 
