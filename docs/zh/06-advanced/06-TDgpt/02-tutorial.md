@@ -105,7 +105,7 @@ tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
 
 ```bash
 cd TDengine-TDgpt-<version>
-sudo ./install.sh
+./install.sh
 ```
 
 为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要 Python 的虚拟环境，手动删除该目录即可。
