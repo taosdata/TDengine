@@ -16,6 +16,8 @@ pip install accelerate
 
 # 设置服务端口和 URL 地址
 
+TDgpt 安装根目录下的 `./lib/taosanalytics/time-moe.py` 文件负责 Time-MoE 模型的部署和服务，修改该问题设置合适的服务 URL 和服务端口即可。
+
 ```Python
 @app.route('/ds_predict', methods=['POST'])
 def time_moe():
