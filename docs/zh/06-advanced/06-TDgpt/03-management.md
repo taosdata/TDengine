@@ -82,14 +82,16 @@ Anode 运行配置主要是以下：
 
 ### Anode 基本操作
 对于 Anode 的管理，用户需要通过 TDengine 的命令行接口 taos 进行。因此下述介绍的管理命令都需要先打开 taos, 连接到 TDengine 运行实例。 
+
 #### 创建 Anode
 ```sql 
 CREATE ANODE {node_url}
 ```
-node_url 是提供服务的 Anode 的 IP 和 PORT组成的字符串, 例如：`create anode '127.0.0.1:6090'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串, 例如：`create anode '127.0.0.1:6090'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`等属性。
+
 ```sql
 SHOW ANODES;
 
