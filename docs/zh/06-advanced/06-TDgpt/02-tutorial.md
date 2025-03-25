@@ -10,7 +10,7 @@ import PkgListV3 from "/components/PkgListV3";
 
 本节介绍如何通过 Docker 快速使用 TDgpt，包含标准版和完整版镜像的使用说明。
 
-## 镜像版本说明
+### 镜像版本说明
 
 | 镜像名称                          | 包含模型               |
 |-----------------------------------|-----------------------|
@@ -18,11 +18,11 @@ import PkgListV3 from "/components/PkgListV3";
 | `tdengine/tdengine-tdgpt-full`    | tdtsfm + 小红书模型   |
 
 
-## 快速启动指南
+### 快速启动指南
 
 您需要先安装 Docker，然后通过以下方式获取镜像并启动容器
 
-### 标准版镜像
+#### 标准版镜像
 
 拉取最新的 TDgpt 容器镜像：
 
@@ -42,7 +42,7 @@ docker pull tdengine/tdengine-tdgpt:3.3.6.0
 docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
 ```
 
-### 完整版镜像
+#### 完整版镜像
 
 拉取最新的 TDgpt 容器镜像：
 
