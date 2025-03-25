@@ -1385,7 +1385,7 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t term, bool isLeader) 
 
     int32_t code = streamMetaAcquireTaskUnsafe(pMeta, pId, &pTask);
     if (code == 0) {
-      stInfo("vgId:%d role changed, added into nodeUpdate list, use s-task:0x%x", pMeta->vgId, pTask->id.idStr);
+      stInfo("vgId:%d role changed, added into nodeUpdate list, use s-task:0x%s", pMeta->vgId, pTask->id.idStr);
       int32_t unused = streamTaskAddIntoNodeUpdateList(pTask, pMeta->vgId);
       streamMetaReleaseTask(pMeta, pTask);
     }
