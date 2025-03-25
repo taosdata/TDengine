@@ -165,7 +165,7 @@ static int32_t streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
 }
 
 static void printSRowBuffPos(SRowBuffPos* buf, const char* info, int32_t line) {
-  qError("[InternalERR] rowBuf:%p, %s, line:%d", buf->pRowBuff, info, line);
+  qTrace("[InternalERR] rowBuf:%p, %s, line:%d", buf->pRowBuff, info, line);
 }
 
 int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize, GetTsFun fp,
