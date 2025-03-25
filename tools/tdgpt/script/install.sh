@@ -410,6 +410,7 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install --upgrade keras
   ${csudo}${venvDir}/bin/pip3 install requests
   ${csudo}${venvDir}/bin/pip3 install taospy
+  ${csudo}${venvDir}/bin/pip3 install transformers
 
   echo -e "Install python library for venv completed!"
 }
