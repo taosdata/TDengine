@@ -60,7 +60,8 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 
 > 部署 Anode 需要 TDengine 3.3.6.0 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
-因为使用 uWSGI，所以需要环境有 C 编译器。
+> Anode 会使用 uWSGI，所以需要部署环境中包含 C 编译器。
+
 
 可以使用以下的命令在 Ubuntu Linux 上安装 Python 3.10 环境
 
@@ -89,7 +90,7 @@ export PATH=$PATH:~/.local/bin
 ```
 至此 Python 环境准备完成，可以进行 taosanode 的安装和部署。
 
-#### 安装 C 编译器
+#### 安装 C 编译器（按需安装）
 
 ```shell 
 sudo apt update
