@@ -77,24 +77,32 @@ cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_
 
 # copy model files
 model_dir=${model_dir:-"/pkgs/TDengine/anode/"}
-if [ -d "${model_dir}" ]; then
-  mkdir -p ${install_dir}/lib/model
+model_install_dir="${install_dir}/model"
 
-  echo "copy td-server model files"
-  cp -r ${model_dir}/tdtsfm.tar.gz ${install_dir}/lib/model/ || :
-  echo "copy td-server model files done"
-  echo "copy xhs model files "
-  cp -r ${model_dir}/timer-moe.tar.gz ${install_dir}/lib/model/ || :
-  echo "copy xhs model files done"
+if [ -d "${model_dir}" ]; then
+  mkdir -p ${model_install_dir}
+  td_model_name="tdtsfm"
+  echo "copy ${td_model_name} model files"
+  cp -r ${model_dir}/${td_model_name}.tar.gz ${model_install_dir} || :
+  echo "copy ${td_model_name}  model files done"
+  xhs_model_name="timer-moe"
+  echo "copy ${xhs_model_name} model files "
+  cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
+  echo "copy  ${xhs_model_name} model files done"
 fi
 
+# tar lib and model files
 cd ${install_dir}
-
-tar -zcv -f ${tarName} ./lib/* || :
+if [ -d "${model_install_dir}" ]; then
+  tar -zcv -f ${tarName} ./lib/* ./model/* || :
+else
+  tar -zcv -f ${tarName} ./lib/* || :
+fi
 
 if [ ! -z "${install_dir}" ]; then
   # shellcheck disable=SC2115
-  rm -rf "${install_dir}"/lib || :
+  rm -rf ${install_dir}/lib || :
+  rm -rf ${install_dir}/model || :
 fi
 
 exitcode=$?
