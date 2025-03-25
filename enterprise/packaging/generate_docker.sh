@@ -9,7 +9,7 @@ cpuType=$4
 verMode=$5
 dockerMode=$6
 tdGpt=$7
-nasIp=$8
+modelDlUrl=$8
 
 # docker parameters
 password="tbase125!"
@@ -83,7 +83,7 @@ fi
 
 cd ${communityDir}/packaging/docker
 if [ "$tdGpt" == "true" ];then
-  ./dockerbuild.sh -c ${cpuType} -f ${pkgFile} -g ${tdgptPkgFile} -i ${nasIp} -n ${version} -p ${password} -V ${verType} ${dockerParam}
+  ./dockerbuild.sh -c ${cpuType} -f ${pkgFile} -g ${tdgptPkgFile} -u ${modelDlUrl} -n ${version} -p ${password} -V ${verType} ${dockerParam}
 else
   ./dockerbuild.sh -c ${cpuType} -f ${pkgFile} -n ${version} -p ${password} -V ${verType} ${dockerParam}
 fi

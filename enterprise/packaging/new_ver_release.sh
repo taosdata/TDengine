@@ -24,10 +24,10 @@ dockerMode="no"
 dockerProject="tdengine"
 grantValue=10
 skip=0
-nasIp=0.0.0.0
+modelDlUrl=https://dl
 tdGpt=false
 
-while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:s:i:g:" arg
+while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:s:u:g:" arg
 do
   case $arg in
     c)
@@ -81,8 +81,8 @@ do
       #echo "skip=$OPTARG"
       skip=$(echo $OPTARG)
       ;;
-    i)
-      nasIp=$(echo $OPTARG)
+    u)
+      modelDlUrl=$(echo $OPTARG)
       ;;
     g)
       tdGpt=$(echo $OPTARG)
@@ -150,7 +150,7 @@ if [ "$dockerMode" == "build" ] || [ "$dockerMode" == "push" ];then
     bash generate_docker_enterprise.sh     $version $branchName $verType $cpuType $verMode $dockerMode $dockerProject
   else
     if [ "$tdGpt" == "true" ];then
-      bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode $tdGpt $nasIp
+      bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode $tdGpt $modelDlUrl
     else
       bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
     fi

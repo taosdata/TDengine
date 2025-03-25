@@ -6,14 +6,14 @@ ARG pkgFile
 ARG dirName
 ARG tdgptPkgFile
 ARG tdgptDirName
-ARG nasIp
+ARG modelDlUrl
 
 ADD ${tdgptPkgFile} \
     ${pkgFile} \
-    http://${nasIp}/data/nas/TDengine/anode/taos.pth \
-    http://${nasIp}/data/nas/TDengine/anode/taos_ts_server.py \
-    http://${nasIp}/data/nas/TDengine/anode/fc_australia.sql \
-    http://${nasIp}/data/nas/TDengine/anode/timer-moe.tar.gz \
+    http://${modelDlUrl}/taos.pth \
+    http://${modelDlUrl}/taos_ts_server.py \
+    http://${modelDlUrl}/fc_australia.sql \
+    http://${modelDlUrl}/timer-moe.tar.gz \
     /root/
 
 RUN echo ${pkgFile} && \
