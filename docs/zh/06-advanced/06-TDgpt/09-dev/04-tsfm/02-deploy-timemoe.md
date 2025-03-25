@@ -44,7 +44,7 @@ def time_moe():
 nohup python time-moe.py > service_output.out 2>&1 &
 ```
 
-第一次启动脚本会从 huggingface 自动加载[2亿参数模型](https://huggingface.co/Maple728/TimeMoE-200M)。该模型是 Time-MoE 200M参数版本，如果您需要部署参数规模更小的版本请将 `time-moe.py` 文件中 `'Maple728/TimeMoE-200M'` 修改为 `Maple728/TimeMoE-50M`，此时将加载 [0.5亿参数模型](https://huggingface.co/Maple728/TimeMoE-50M)。
+第一次启动脚本会从 huggingface 自动加载 [2 亿参数模型](https://huggingface.co/Maple728/TimeMoE-200M)。该模型是 Time-MoE 200M参数版本，如果您需要部署参数规模更小的版本请将 `time-moe.py` 文件中 `'Maple728/TimeMoE-200M'` 修改为 `Maple728/TimeMoE-50M`，此时将加载 [0.5 亿参数模型](https://huggingface.co/Maple728/TimeMoE-50M)。
 
 如果加载失败，请尝试执行如下命令切换为国内镜像下载模型。
 
