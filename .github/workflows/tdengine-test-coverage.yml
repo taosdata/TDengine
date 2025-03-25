@@ -4,11 +4,7 @@ name: TDengine Coverage
 
 on:
   workflow_dispatch:
-    inputs:
-      specified_test_branch:
-        description: 'Enter the test branch name of TDengine'
-        required: true
-        type: string
+
   schedule:
     - cron: '30 00 * * *'
 
@@ -20,9 +16,42 @@ env:
   WKC: '/var/lib/jenkins/workspace/TDinternal/community'
 
 jobs:
+  get-branches:
+    runs-on: ubuntu-latest
+    outputs:
+      branches: ${{ steps.get-branches.outputs.branches }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Get branches
+        id: get-branches
+        run: |
+          branches=$(git branch -r | grep -v '\->' | sed 's|origin/||' | tr '\n' ',' | sed 's/,$//')
+          echo "::set-output name=branches::${branches}"
+
   run-tests-on-linux:
-    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
-    with:
-      tdinternal: false
-      specified_test_branch: ${{ github.event_name == 'schedule' && 'unavailable' || github.event.inputs.specified_test_branch  || '3.0' }}
+    needs: get-branches
+    runs-on: ubuntu-latest
+    env:
+      WKC: '/var/lib/jenkins/workspace/TDinternal/community'
+      BRANCHES: ${{ needs.get-branches.outputs.branches }}
+    steps:
+      - name: Set environment variables based on condition
+        run: |
+          if [[ "${{ github.event_name }}" == 'schedule' ]]; then
+            echo "SOURCE_BRANCH=3.0" >> $GITHUB_ENV
+          else
+            echo "Please select a branch from the following list:"
+            echo "${{ env.BRANCHES }}"
+            read -p "Enter the branch name: " branch_name
+            echo "SOURCE_BRANCH=${branch_name}" >> $GITHUB_ENV
+          fi
+          echo "Current step debug (GITHUB_ENV content):"
+          cat $GITHUB_ENV
+
+      - name: Run tests
+        uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
+        with:
+          tdinternal: false
+          specified_test_branch: ${{ github.env.SOURCE_BRANCH }}
