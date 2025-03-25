@@ -55,7 +55,7 @@ static char *bseFilexSuffix[] = {
     "data",
     "log",
 };
-static int32_t kBlockCap = 16 * 1024 * 1024;
+static int32_t kBlockCap = 64 * 1024 * 1024;
 
 typedef struct {
   int64_t seq;
@@ -1237,24 +1237,17 @@ int32_t bseBatchDestroy(SBseBatch *pBatch) {
 int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen) {
   int32_t lino = 0;
   int32_t code = 0;
-  if (alen >= pBatch->cap) {
-    int32_t cap = (pBatch->cap == 0) ? 1 : pBatch->cap;
-    if (cap > (INT32_MAX >> 1)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+  if (alen > pBatch->cap) {
+    int32_t cap = pBatch->cap;
+    while (cap < alen) {
+      cap <<= 1;
     }
-    cap--;
-    cap |= cap >> 1;
-    cap |= cap >> 2;
-    cap |= cap >> 4;
-    cap |= cap >> 8;
-    cap |= cap >> 16;
-    cap++;
-    cap = (cap < alen) ? cap << 1 : cap;
 
     uint8_t *buf = taosMemRealloc(pBatch->buf, cap);
     if (buf == NULL) {
       TSDB_CHECK_CODE(code = terrno, lino, _error);
     }
+
     pBatch->cap = cap;
     pBatch->buf = buf;
   } else {
