@@ -55,7 +55,7 @@ static char *bseFilexSuffix[] = {
     "data",
     "log",
 };
-static int32_t kBlockCap = 4 * 1024 * 1024;
+static int32_t kBlockCap = 16 * 1024 * 1024;
 
 typedef struct {
   int64_t seq;
@@ -342,7 +342,7 @@ _err:
       tableClose(pTable, 1);
     }
   } else {
-    bseInfo("bse table file %s succ to be opened", pTable->name);
+    bseDebug("bse table file %s succ to be opened", pTable->name);
   }
 
   return code;
@@ -758,7 +758,7 @@ int32_t bseSaveMeta(SBse *pBse) {
     if (code) {
       bseError("vgId:%d, failed to remove file due to %s. file:%s", pBse->cfg.vgId, strerror(errno), fNameStr);
     } else {
-      bseInfo("vgId:%d, remove old meta file: %s", pBse->cfg.vgId, fNameStr);
+      bseDebug("vgId:%d, remove old meta file: %s", pBse->cfg.vgId, fNameStr);
     }
   }
   taosMemoryFree(buf);
@@ -1202,7 +1202,7 @@ int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t le
   pBatch->num++;
 
   *seq = lseq;
-  bseInfo("succ to put seq %" PRId64 " to batch", lseq);
+  bseDebug("succ to put seq %" PRId64 " to batch", lseq);
 
 _error:
   if (code != 0) {

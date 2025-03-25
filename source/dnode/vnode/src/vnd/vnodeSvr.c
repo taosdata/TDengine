@@ -615,7 +615,13 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
     code = bseBatchPut(pBatch, &seq, pBlobRow->data + p->offset, p->len);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    memcpy(pRow[nr]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
+    if (pRow[nr]->flag == 0) {
+      ASSERT(0);
+    }
+    // memcpy(pRow[nr]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
+    if (pRow[nr]->flag == 0) {
+      ASSERT(0);
+    }
 
     pIter = taosHashIterate(pBlobRow->pSeqTable, pIter);
     nr += 1;

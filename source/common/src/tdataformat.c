@@ -267,6 +267,10 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
     return 0;
   }
 
+  if ((*ppRow)->flag == 0) {
+    ASSERT(0);
+  }
+
   uint8_t *primaryKeys = (*ppRow)->data;
   uint8_t *bitmap = primaryKeys + sinfo->tuplePKSize;
   uint8_t *fixed = bitmap + sinfo->tupleBitmapSize;
@@ -330,6 +334,9 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   if (hasBlob == 1) {
     //(*ppRow)->flag |= HAS_BLOB;
   }
+  if ((*ppRow)->flag == 0) {
+    ASSERT(0);
+  }
 
   return 0;
 }
@@ -349,6 +356,9 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
   (*ppRow)->len = sinfo->tupleRowSize;
   (*ppRow)->ts = colValArray[0].value.val;
 
+  if (((*ppRow)->flag) == 0) {
+    ASSERT(0);
+  }
   if (sinfo->tupleFlag == HAS_NONE || sinfo->tupleFlag == HAS_NULL) {
     return 0;
   }
@@ -419,6 +429,10 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
         colValIndex++;
       }
     }
+  }
+
+  if (((*ppRow)->flag) == 0) {
+    ASSERT(0);
   }
   if (hasBlob == 1) {
     //(*ppRow)->flag |= HAS_BLOB;
@@ -598,9 +612,9 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
     }
   }
 
-  if (withBlob) {
-    (*ppRow)->flag |= HAS_BLOB;
-  }
+  // if (withBlob) {
+  //   (*ppRow)->flag |= HAS_BLOB;
+  // }
   return 0;
 }
 
@@ -623,6 +637,9 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
     return TSDB_CODE_INVALID_PARA;
   }
 
+  if (((*ppRow)->flag) == 0) {
+    ASSERT(0);
+  }
   uint8_t *primaryKeys = (*ppRow)->data;
   SKVIdx  *indices = (SKVIdx *)(primaryKeys + sinfo->kvPKSize);
   uint8_t *payload = primaryKeys + sinfo->kvPKSize + sinfo->kvIndexSize;
@@ -691,9 +708,12 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
     }
   }
 
-  if (isBlob) {
-    (*ppRow)->flag |= HAS_BLOB;
+  if (((*ppRow)->flag) == 0) {
+    ASSERT(0);
   }
+  // if (isBlob) {
+  //   (*ppRow)->flag |= HAS_BLOB;
+  // }
   return 0;
 }
 int32_t tRowBuildWithMerge(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
