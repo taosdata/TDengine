@@ -10,7 +10,7 @@ from taosanalytics.service import AbstractForecastService
 
 
 class _TimeMOEService(AbstractForecastService):
-    name = 'timemoe'
+    name = 'timemoe-fc'
     desc = ("Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts; "
             "Ref to https://github.com/Time-MoE/Time-MoE")
 
@@ -18,7 +18,13 @@ class _TimeMOEService(AbstractForecastService):
         super().__init__()
 
         self.table_name = None
-        self.service_host = 'http://127.0.0.1:5001/timemoe'
+
+        service_host = conf.get_tsfm_service("timemoe-fc")
+        if  service_host is not None:
+            self.service_host = service_host
+        else:
+            self.service_host = 'http://127.0.0.1:5001/timemoe'
+
         self.headers = {'Content-Type': 'application/json'}
 
 
