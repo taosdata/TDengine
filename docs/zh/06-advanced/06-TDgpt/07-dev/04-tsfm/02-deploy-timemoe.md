@@ -3,11 +3,11 @@ title: "部署 Time-MoE 模型"
 sidebar_label: "部署 Time-MoE 模型"
 ---
 
-本章介绍如何本地部署 [Time-MoE] (https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配完成后，提供时序数据预测服务。
+本章介绍如何本地部署 [Time-MoE](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配完成后，提供时序数据预测服务。
 
 # 准备环境
 
-为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备 Python 环境。使用 PiPy 安装必要的依赖包：
+为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备 Python 环境，使用 PiPy 安装必要的依赖包：
 
 ```shell
 pip install torch==2.4.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
@@ -15,7 +15,7 @@ pip install flask==3.0.3
 pip install transformers==4.40.0
 pip install accelerate
 ```
-您可以使用安装 TDgpt 过程中自动创建的虚拟环境，也可以创建一个独立虚拟环境，使用该虚拟环境之前，确保安装了上述的依赖包。
+您可以使用 TDgpt 的虚拟环境，也可以新创建一个虚拟环境，使用该虚拟环境之前，确保正确安装了上述依赖包。
 
 # 设置服务端口和地址
 
@@ -26,7 +26,7 @@ TDgpt 安装根目录下的 `./lib/taosanalytics/time-moe.py` 文件负责 Time-
 def time_moe():
 ...
 ```
-修改 `ds_predict` 为需要开启的 URL 服务地址，或者使用默认值即可。
+修改 `ds_predict` 为需要开启的 URL 服务地址，或者使用默认值亦可。
 
 ```Python
     app.run(
@@ -36,7 +36,7 @@ def time_moe():
             debug=False     
         )
 ```
-其中的 port 修改为希望开启的端口，重启脚本即可。
+其中的 port 修改为希望开启的端口，包括使用默认值亦可。完成之后重启服务。
 
 
 # 启动部署 Python 脚本
