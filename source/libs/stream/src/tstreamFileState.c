@@ -164,7 +164,7 @@ static int32_t streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void printSRowBuffPos(SRowBuffPos* buf, char* info, int32_t line) {
+static void printSRowBuffPos(SRowBuffPos* buf, const char* info, int32_t line) {
   qError("[InternalERR] rowBuf:%p, %s, line:%d", buf->pRowBuff, info, line);
 }
 
