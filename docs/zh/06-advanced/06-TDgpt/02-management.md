@@ -35,11 +35,20 @@ export PATH=$PATH:~/.local/bin
 至此 Python 环境准备完成，可以进行 taosanode 的安装和部署。
 
 ### 安装及卸载
-使用 Linux 环境下的安装包 TDengine-anode-3.3.x.x-Linux-x64.tar.gz 可进行 Anode 的安装部署工作，命令如下：
+1. 从列表中下载获得 tar.gz 安装包：
+   <PkgListV3 type={9}/>
+
+2. 进入到安装包所在目录，使用 tar 解压安装包；
+> 请将 `<version>` 替换为下载的安装包版本
+```bash
+tar -zxvf TDengine-anode-<version>-Linux-x64.tar.gz
+```
+
+3. 解压文件后，进入相应子目录，执行其中的 `install.sh` 安装脚本：
+请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-tar -xzvf TDengine-anode-3.3.6.0-Linux-x64.tar.gz
-cd TDengine-anode-3.3.6.0
+cd TDengine-anode-<version>
 sudo ./install.sh
 ```
 
