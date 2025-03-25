@@ -6,8 +6,6 @@ sidebar_label: "安装部署"
 import PkgListV3 from "/components/PkgListV3";
 
 
-## 使用 TDgpt Docker 镜像
-
 本节首先介绍如何通过 Docker 快速使用 TDgpt。
 
 ### 启动 TDgpt
