@@ -67,6 +67,11 @@ jobs:
             snappy \
             zlib
 
+      - name: Prepare install path
+        run: |
+          sudo mkdir -p /usr/local/lib
+          sudo mkdir -p /usr/local/include
+
       - name: Build and install TDengine
         run: |
           mkdir debug && cd debug
