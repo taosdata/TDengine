@@ -95,7 +95,7 @@ export PATH=$PATH:~/.local/bin
 > 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-tar -zxvf TDengine-anode-<version>-Linux-x64.tar.gz
+tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
 ```
 
 ## 执行安装脚本
@@ -104,7 +104,7 @@ tar -zxvf TDengine-anode-<version>-Linux-x64.tar.gz
 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-cd TDengine-anode-<version>
+cd TDengine-TDgpt-<version>
 sudo ./install.sh
 ```
 
