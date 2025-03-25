@@ -3,6 +3,8 @@ title: "安装部署"
 sidebar_label: "安装部署"
 ---
 
+import PkgListV3 from "/components/PkgListV3";
+
 ### 环境准备
 使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 AI node（Anode）。Anode 运行在 Linux 平台上，并需要 3.10 或以上版本的 Python 环境支持。
 > 部署 Anode 需要 TDengine 3.3.6.0 及以后版本，请首先确认搭配 Anode 使用的 TDengine 能够支持 Anode。
