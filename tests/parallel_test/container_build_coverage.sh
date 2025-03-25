@@ -91,6 +91,8 @@ if [[ -d ${WORKDIR}/debugRelease ]] ;then
 fi
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan
+cd ${WORKDIR}/debugNoSan
+ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$' 
 
 
 ret=$?
