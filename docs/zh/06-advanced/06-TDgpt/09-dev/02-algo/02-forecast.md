@@ -88,7 +88,7 @@ SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
 FROM foo;
 ```
 
-如果是第一次启动该 Anode, 请按照 [运维管理指南](../../management/) 里的步骤先将该 Anode 添加到 TDengine 系统中。
+如果是第一次启动该 Anode, 请按照 [运维管理指南](../../03-management) 里的步骤先将该 Anode 添加到 TDengine 系统中。
 
 ### 单元测试
 
