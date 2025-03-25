@@ -8,9 +8,21 @@ import PkgListV3 from "/components/PkgListV3";
 
 本节首先介绍如何通过 Docker 快速使用 TDgpt。
 
-### 启动 TDgpt
+### 镜像版本说明
 
-如果已经安装了 Docker，首先拉取最新的 TDgpt 容器镜像：
+| 镜像名称                          | 包含模型               |
+|-----------------------------------|-----------------------|
+| `tdengine/tdengine-tdgpt`         | 涛思时序数据基础模型（TDtsfm v1.0）       |
+| `tdengine/tdengine-tdgpt-full`    | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型   |
+
+
+### 快速启动指南
+
+您需要先安装 Docker，然后通过以下方式获取镜像并启动容器
+
+#### 标准版镜像
+
+拉取最新的 TDgpt 容器镜像：
 
 ```shell
 docker pull tdengine/tdengine-tdgpt:latest
@@ -22,13 +34,34 @@ docker pull tdengine/tdengine-tdgpt:latest
 docker pull tdengine/tdengine-tdgpt:3.3.6.0
 ```
 
-然后只需执行下面的命令：
+执行下面的命令来启动容器：
 
 ```shell
 docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
 ```
 
-注意：TDgpt 服务端使用  6090 TCP 端口。TDgpt 是一个无状态时序数据分析智能体，并不会在本地持久化保存数据，仅根据配置可能在本地生成运行日志。
+#### 完整版镜像
+
+拉取最新的 TDgpt 容器镜像：
+
+```shell
+docker pull tdengine/tdengine-tdgpt-full:latest
+```
+
+或者指定版本的容器镜像：
+
+```shell
+docker pull tdengine/tdengine-tdgpt-full:3.3.6.0
+```
+
+执行下面的命令来启动容器：
+
+```shell
+docker run -d -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+```
+
+注意：TDgpt 服务端使用 6090 TCP 端口，5000 和 5001 端口分别标准版模型和完整版模型的服务端口；
+TDgpt 是一个无状态时序数据分析智能体，并不会在本地持久化保存数据，仅根据配置可能在本地生成运行日志。
 
 确定该容器已经启动并且在正常运行。
 
