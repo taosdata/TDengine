@@ -90,8 +90,8 @@ curl 127.0.0.1:5001/ds_predict
 <p>The method is not allowed for the requested URL.</p>
 ```
 
-# 添加模型预测分析适配代码
-您可用参考 https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py 文件进行 MaaS 服务的适配。
+# 添加模型适配代码
+您可用参考 https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py 文件进行 MaaS 服务的适配。我们适配Time-MoE提供预测服务。
 
 ```python
 class _TimeMOEService(AbstractForecastService):
