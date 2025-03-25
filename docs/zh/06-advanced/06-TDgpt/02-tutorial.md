@@ -14,8 +14,8 @@ import PkgListV3 from "/components/PkgListV3";
 
 | 镜像名称                          | 包含模型               |
 |-----------------------------------|-----------------------|
-| `tdengine/tdengine-tdgpt`         | tdtsfm 基础模型       |
-| `tdengine/tdengine-tdgpt-full`    | tdtsfm + 小红书模型   |
+| `tdengine/tdengine-tdgpt`         | 涛思时序数据基础模型（TDtsfm v1.0）       |
+| `tdengine/tdengine-tdgpt-full`    | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型   |
 
 
 ### 快速启动指南
@@ -62,7 +62,7 @@ docker pull tdengine/tdengine-tdgpt-full:3.3.6.0
 docker run -d -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
 ```
 
-注意：TDgpt 服务端使用 6090 TCP 端口，5000 和 5001 端口分别 tdtsfm 基础模型和小红书模型的服务端口；
+注意：TDgpt 服务端使用 6090 TCP 端口，5000 和 5001 端口分别标准版模型和完整版模型的服务端口；
 TDgpt 是一个无状态时序数据分析智能体，并不会在本地持久化保存数据，仅根据配置可能在本地生成运行日志。
 
 确定该容器已经启动并且在正常运行。
