@@ -132,7 +132,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 |     JSON        |    str     |
 |   GEOMETRY      | bytearray  |
 |   VARBINARY     | bytearray  |
-|    DECIMAL      |  decimal   |
+|    DECIMAL      |  Decimal   |
 
 ## Example Programs Summary
 
