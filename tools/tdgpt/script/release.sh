@@ -59,7 +59,8 @@ if [ -f "${cfg_dir}/${serverName}.service" ]; then
 fi
 
 # python files
-mkdir -p ${install_dir}/bin && mkdir -p ${install_dir}/lib
+lib_install_dir="${install_dir}/lib"
+mkdir -p ${install_dir}/bin && mkdir -p ${lib_install_dir}
 
 # copy enterprise tools from outside
 if [ "$edition" == "enterprise" ]; then
@@ -71,7 +72,9 @@ TARGET_PATTERN="__pycache__"
 find "${top_dir}/taosanalytics/" -type d -name "$TARGET_PATTERN" -exec rm -rf {} +
 
 # script to control start/stop/uninstall process
-cp -r ${top_dir}/taosanalytics/ ${install_dir}/lib/ && chmod a+x ${install_dir}/lib/ || :
+
+
+cp -r ${top_dir}/taosanalytics/ ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
 cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 
@@ -101,8 +104,8 @@ fi
 
 if [ ! -z "${install_dir}" ]; then
   # shellcheck disable=SC2115
-  rm -rf ${install_dir}/lib || :
-  rm -rf ${install_dir}/model || :
+  [ -d "${lib_install_dir}" ] && rm -rf ${lib_install_dir} || :
+  [ -d "${model_install_dir}" ] &&  rm -rf ${model_install_dir} || :
 fi
 
 exitcode=$?
