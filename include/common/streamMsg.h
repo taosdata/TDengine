@@ -17,7 +17,6 @@
 #define TDENGINE_STREAMMSG_H
 
 #include "tmsg.h"
-//#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,10 +79,12 @@ typedef struct SStreamTaskNodeUpdateMsg {
   int64_t streamId;
   int32_t taskId;
   SArray* pNodeList;  // SArray<SNodeUpdateInfo>
+  SArray* pTaskList;  // SArray<int32_t>, taskId list
 } SStreamTaskNodeUpdateMsg;
 
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
+void    tDestroyNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg);
 
 typedef struct {
   int64_t reqId;
@@ -257,6 +258,14 @@ typedef struct {
 
 int32_t tEncodeStreamTaskRunReq(SEncoder* pEncoder, const SStreamTaskRunReq* pReq);
 int32_t tDecodeStreamTaskRunReq(SDecoder* pDecoder, SStreamTaskRunReq* pReq);
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+} SStreamTaskStopReq;
+
+int32_t tEncodeStreamTaskStopReq(SEncoder* pEncoder, const SStreamTaskStopReq* pReq);
+int32_t tDecodeStreamTaskStopReq(SDecoder* pDecoder, SStreamTaskStopReq* pReq);
 
 #ifdef __cplusplus
 }

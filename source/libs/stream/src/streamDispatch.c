@@ -25,9 +25,11 @@ typedef struct SBlockName {
 
 static void    doMonitorDispatchData(void* param, void* tmrId);
 static int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet);
-static int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq);
+static int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq, bool withUid);
 static int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock,
                                        int64_t groupId, int64_t now);
+static int32_t streamMapAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock,
+                                    int64_t now);
 static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTask* pTask, int32_t vgId,
                                       int32_t numOfBlocks, int64_t dstTaskId, int32_t type);
 static int32_t getFailedDispatchInfo(SDispatchMsgInfo* pMsgInfo, int64_t now);
@@ -135,7 +137,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
       stError("s-task:%s (child %d) failed to send retrieve req to task:0x%x (vgId:%d) QID:0x%" PRIx64 " code:%s",
               pTask->id.idStr, pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId, tstrerror(code));
     } else {
-      stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
+      stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), QID:0x%" PRIx64, pTask->id.idStr,
               pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId);
     }
   }
@@ -267,7 +269,7 @@ static SStreamDispatchReq* createDispatchDataReq(SStreamTask* pTask, const SStre
   int32_t type = pTask->outputInfo.type;
   int32_t num = streamTaskGetNumOfDownstream(pTask);
 
-  if (type != TASK_OUTPUT__SHUFFLE_DISPATCH && type != TASK_OUTPUT__FIXED_DISPATCH) {
+  if (type != TASK_OUTPUT__SHUFFLE_DISPATCH && type != TASK_OUTPUT__FIXED_DISPATCH && type != TASK_OUTPUT__VTABLE_MAP) {
     terrno = TSDB_CODE_INVALID_PARA;
     stError("s-task:%s invalid dispatch type:%d not dispatch data", pTask->id.idStr, type);
     return NULL;
@@ -292,6 +294,23 @@ static SStreamDispatchReq* createDispatchDataReq(SStreamTask* pTask, const SStre
       code = tInitStreamDispatchReq(&pReqs[i], pTask, pData->srcVgId, 0, pVgInfo->taskId, pData->type);
       if (code != TSDB_CODE_SUCCESS) {
         destroyDispatchMsg(pReqs, numOfVgroups);
+        terrno = code;
+        return NULL;
+      }
+    }
+  } else if (type == TASK_OUTPUT__VTABLE_MAP) {
+    SArray *pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+    int32_t numOfTasks = taosArrayGetSize(pTaskInfos);
+
+    for (int32_t i = 0; i < numOfTasks; ++i) {
+      STaskDispatcherFixed *pAddr = taosArrayGet(pTaskInfos, i);
+      if (pAddr == NULL) {
+        continue;
+      }
+
+      code = tInitStreamDispatchReq(&pReqs[i], pTask, pData->srcTaskId, 0, pAddr->taskId, pData->type);
+      if (code != TSDB_CODE_SUCCESS) {
+        destroyDispatchMsg(pReqs, numOfTasks);
         terrno = code;
         return NULL;
       }
@@ -348,7 +367,7 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
         return terrno;
       }
 
-      code = streamAddBlockIntoDispatchMsg(pDataBlock, pReqs);
+      code = streamAddBlockIntoDispatchMsg(pDataBlock, pReqs, false);
       if (code != TSDB_CODE_SUCCESS) {
         destroyDispatchMsg(pReqs, 1);
         return code;
@@ -369,10 +388,12 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
       }
 
       // TODO: do not use broadcast
-      if (pDataBlock->info.type == STREAM_DELETE_RESULT || pDataBlock->info.type == STREAM_CHECKPOINT ||
-          pDataBlock->info.type == STREAM_TRANS_STATE) {
+
+      EStreamType type = pDataBlock->info.type;
+      if (type == STREAM_DELETE_RESULT || type == STREAM_CHECKPOINT ||
+          type == STREAM_TRANS_STATE || type == STREAM_RECALCULATE_START) {
         for (int32_t j = 0; j < numOfVgroups; j++) {
-          code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j]);
+          code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j], false);
           if (code != 0) {
             destroyDispatchMsg(pReqs, numOfVgroups);
             return code;
@@ -397,6 +418,51 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
       code = streamSearchAndAddBlock(pTask, pReqs, pDataBlock, pDataBlock->info.id.groupId, now);
       if (code != 0) {
         destroyDispatchMsg(pReqs, numOfVgroups);
+        return code;
+      }
+    }
+
+    pTask->msgInfo.pData = pReqs;
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    SArray *pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+    int32_t numOfTasks = taosArrayGetSize(pTaskInfos);
+
+    for (int32_t i = 0; i < numOfBlocks; i++) {
+      SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
+      if (pDataBlock == NULL) {
+        destroyDispatchMsg(pReqs, numOfTasks);
+        return terrno;
+      }
+
+      // TODO: do not use broadcast
+      if (pDataBlock->info.type == STREAM_DELETE_RESULT || pDataBlock->info.type == STREAM_CHECKPOINT ||
+          pDataBlock->info.type == STREAM_TRANS_STATE) {
+        for (int32_t j = 0; j < numOfTasks; j++) {
+          code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j], false);
+          if (code != 0) {
+            destroyDispatchMsg(pReqs, numOfTasks);
+            return code;
+          }
+
+          // it's a new vnode to receive dispatch msg, so add one
+          if (pReqs[j].blockNum == 0) {
+            STaskDispatcherFixed *pAddr = taosArrayGet(pTaskInfos, j);
+            if (pAddr == NULL) {
+              destroyDispatchMsg(pReqs, numOfTasks);
+              return terrno;
+            }
+            addDispatchEntry(&pTask->msgInfo, pAddr->nodeId, now, true);
+          }
+
+          pReqs[j].blockNum++;
+        }
+
+        continue;
+      }
+
+      code = streamMapAndAddBlock(pTask, pReqs, pDataBlock, now);
+      if (code != 0) {
+        destroyDispatchMsg(pReqs, numOfTasks);
         return code;
       }
     }
@@ -430,6 +496,39 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
             pTask->info.selfChildId, 1, downstreamTaskId, vgId, msgId);
 
     code = doSendDispatchMsg(pTask, pDispatchMsg, vgId, pEpSet);
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    SArray *pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+    int32_t numOfTasks = taosArrayGetSize(pTaskInfos);
+    int32_t numOfBranches = taosArrayGetSize(pTask->msgInfo.pSendInfo);
+
+    stDebug("s-task:%s (child taskId:%d) start to vtable-map-dispatch blocks to %d/%d vgroup(s), msgId:%d", id,
+            pTask->info.selfChildId, numOfBranches, numOfTasks, msgId);
+
+    int32_t numOfSend = 0;
+    for (int32_t i = 0; i < numOfTasks; ++i) {
+      if (pDispatchMsg[i].blockNum > 0) {
+        STaskDispatcherFixed *pAddr = taosArrayGet(pTaskInfos, i);
+        if (pAddr == NULL) {
+          code = terrno;
+          break;
+        }
+
+        stDebug("s-task:%s (child taskId:%d) vtable-map-dispatch blocks:%d to vgId:%d", id, pTask->info.selfChildId,
+                pDispatchMsg[i].blockNum, pAddr->nodeId);
+
+        code = doSendDispatchMsg(pTask, &pDispatchMsg[i], pAddr->nodeId, &pAddr->epSet);
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+
+        // no need to try remain, all already send.
+        if (++numOfSend == numOfBranches) {
+          break;
+        }
+      }
+    }
+
+    stDebug("s-task:%s complete vtable-map-dispatch blocks to all %d vnodes, msgId:%d", id, numOfTasks, msgId);
   } else {
     SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t numOfVgroups = taosArrayGetSize(vgInfo);
@@ -502,21 +601,43 @@ static void doSendFailedDispatch(SStreamTask* pTask, SDispatchEntry* pEntry, int
   SStreamDispatchReq* pReq = pTask->msgInfo.pData;
 
   int32_t msgId = pTask->msgInfo.msgId;
-  SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
-  int32_t numOfVgroups = taosArrayGetSize(vgInfo);
-
   setResendInfo(pEntry, now);
-  for (int32_t j = 0; j < numOfVgroups; ++j) {
-    SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, j);
-    if (pVgInfo == NULL) {
-      continue;
-    }
 
-    if (pVgInfo->vgId == pEntry->nodeId) {
-      int32_t code = doSendDispatchMsg(pTask, &pReq[j], pVgInfo->vgId, &pVgInfo->epSet);
-      stDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to vgId:%d for %s, msgId:%d, code:%s",
-              pTask->id.idStr, pTask->info.selfChildId, pReq[j].blockNum, pVgInfo->vgId, pMsg, msgId, tstrerror(code));
-      break;
+  if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
+    int32_t numOfVgroups = taosArrayGetSize(vgInfo);
+
+    for (int32_t j = 0; j < numOfVgroups; ++j) {
+      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, j);
+      if (pVgInfo == NULL) {
+        continue;
+      }
+
+      if (pVgInfo->vgId == pEntry->nodeId) {
+        int32_t code = doSendDispatchMsg(pTask, &pReq[j], pVgInfo->vgId, &pVgInfo->epSet);
+        stDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to vgId:%d for %s, msgId:%d, code:%s",
+                pTask->id.idStr, pTask->info.selfChildId, pReq[j].blockNum, pVgInfo->vgId, pMsg, msgId,
+                tstrerror(code));
+        break;
+      }
+    }
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    SArray *pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+    int32_t numOfTasks = taosArrayGetSize(pTaskInfos);
+
+    for (int32_t j = 0; j < numOfTasks; ++j) {
+      STaskDispatcherFixed *pAddr = taosArrayGet(pTaskInfos, j);
+      if (pAddr == NULL) {
+        continue;
+      }
+
+      if (pAddr->nodeId == pEntry->nodeId) {
+        int32_t code = doSendDispatchMsg(pTask, &pReq[j], pAddr->nodeId, &pAddr->epSet);
+        stDebug("s-task:%s (child taskId:%d) vtable-map-dispatch blocks:%d to vgId:%d for %s, msgId:%d, code:%s",
+                pTask->id.idStr, pTask->info.selfChildId, pReq[j].blockNum, pAddr->nodeId, pMsg, msgId,
+                tstrerror(code));
+        break;
+      }
     }
   }
 }
@@ -539,9 +660,10 @@ static int32_t sendFailedDispatchData(SStreamTask* pTask, int64_t now) {
   int32_t             msgId = pMsgInfo->msgId;
   SStreamDispatchReq* pReq = pTask->msgInfo.pData;
 
-  if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    stDebug("s-task:%s (child taskId:%d) retry shuffle-dispatch to down streams, msgId:%d", id, pTask->info.selfChildId,
-            msgId);
+  if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH || pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    const char *taskType = (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) ? "shuffle" : "vtable-map";
+    stDebug("s-task:%s (child taskId:%d) retry %s-dispatch to down streams, msgId:%d", id, pTask->info.selfChildId,
+            taskType, msgId);
 
     int32_t numOfRetry = 0;
     for (int32_t i = 0; i < taosArrayGetSize(pTask->msgInfo.pSendInfo); ++i) {
@@ -575,8 +697,8 @@ static int32_t sendFailedDispatchData(SStreamTask* pTask, int64_t now) {
       }
     }
 
-    stDebug("s-task:%s complete retry shuffle-dispatch blocks to all %d vnodes, msgId:%d", pTask->id.idStr, numOfRetry,
-            msgId);
+    stDebug("s-task:%s complete retry %s-dispatch blocks to all %d vnodes, msgId:%d", pTask->id.idStr, taskType,
+            numOfRetry, msgId);
   } else {
     int32_t dstVgId = pTask->outputInfo.fixedDispatcher.nodeId;
     SEpSet* pEpSet = &pTask->outputInfo.fixedDispatcher.epSet;
@@ -701,7 +823,7 @@ static int32_t doAddDispatchBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs,
       stDebug("s-task:%s dst table hashVal:0x%x assign to vgId:%d range[0x%x, 0x%x]", pTask->id.idStr, hashValue,
               pVgInfo->vgId, pVgInfo->hashBegin, pVgInfo->hashEnd);
 
-      if ((code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j])) < 0) {
+      if ((code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j], false)) < 0) {
         stError("s-task:%s failed to add dispatch block, code:%s", pTask->id.idStr, tstrerror(terrno));
         return code;
       }
@@ -754,7 +876,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
           !alreadyAddGroupId(pDataBlock->info.parTbName, groupId) && groupId != 0) {
         if (pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
           code = buildCtbNameAddGroupId(NULL, pDataBlock->info.parTbName, groupId, sizeof(pDataBlock->info.parTbName));
-        } else if (pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
+        } else if (pTask->ver >= SSTREAM_TASK_APPEND_STABLE_NAME_VER) {
           code = buildCtbNameAddGroupId(pTask->outputInfo.shuffleDispatcher.stbFullName, pDataBlock->info.parTbName,
                                         groupId, sizeof(pDataBlock->info.parTbName));
         }
@@ -803,6 +925,32 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   } else {
     return 0;
   }
+}
+
+int32_t streamMapAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int64_t now) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
+  SArray*    pTaskInfos = pTask->outputInfo.vtableMapDispatcher.taskInfos;
+  SSHashObj* pVtableMap = pTask->outputInfo.vtableMapDispatcher.vtableMap;
+
+  int32_t* pIdx = tSimpleHashGet(pVtableMap, &pDataBlock->info.id.uid, sizeof(int64_t));
+  QUERY_CHECK_NULL(pIdx, code, lino, _end, terrno);
+  STaskDispatcherFixed* pAddr = taosArrayGet(pTaskInfos, *pIdx);
+  QUERY_CHECK_NULL(pAddr, code, lino, _end, terrno);
+
+  code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[*pIdx], true);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pReqs[*pIdx].blockNum == 0) {
+    addDispatchEntry(&pTask->msgInfo, pAddr->nodeId, now, false);
+  }
+  pReqs[*pIdx].blockNum++;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("s-task:%s failed at %s lino %d since %s", pTask->id.idStr, __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
@@ -854,7 +1002,8 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
     int32_t type = pBlock->type;
     if (!(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-          type == STREAM_INPUT__TRANS_STATE)) {
+          type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__RECALCULATE)) {
+      atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
       stError("s-task:%s invalid dispatch block type:%d", id, type);
       return TSDB_CODE_INTERNAL_ERROR;
     }
@@ -1276,7 +1425,7 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
+int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq, bool withUid) {
   size_t  dataEncodeSize = blockGetEncodeSize(pBlock);
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + dataEncodeSize + PAYLOAD_PREFIX_LEN;
   void*   buf = taosMemoryCalloc(1, dataStrLen);
@@ -1285,7 +1434,7 @@ int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatch
   }
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
-  pRetrieve->useconds = 0;
+  pRetrieve->useconds = withUid ? htobe64(pBlock->info.id.uid) : 0;
   pRetrieve->precision = TSDB_DEFAULT_PRECISION;
   pRetrieve->compressed = 0;
   pRetrieve->completed = 1;
@@ -1339,13 +1488,13 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
   int32_t tlen;
   tEncodeSize(tEncodeStreamDispatchReq, pReq, tlen, code);
   if (code < 0) {
-    goto FAIL;
+    goto _ERR;
   }
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
     code = terrno;
-    goto FAIL;
+    goto _ERR;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(vgId);
@@ -1355,7 +1504,7 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeStreamDispatchReq(&encoder, pReq)) < 0) {
     tEncoderClear(&encoder);
-    goto FAIL;
+    goto _ERR;
   }
   tEncoderClear(&encoder);
 
@@ -1364,7 +1513,7 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
 
   return tmsgSendReq(pEpSet, &msg);
 
-FAIL:
+_ERR:
   if (buf) {
     rpcFreeCont(buf);
   }
@@ -1749,7 +1898,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   streamMutexUnlock(&pMsgInfo->lock);
 
-  if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+  if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH || pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
     if (!allRsp) {
       stDebug(
           "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s, "
@@ -1853,6 +2002,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   int32_t      status = 0;
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  id = pTask->id.idStr;
+  bool         chkptMsg = false;
 
   stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64 ", msgId:%d", id,
           pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen, pReq->msgId);
@@ -1885,9 +2035,12 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         // blocked. Note that there is no race condition here.
         if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
           streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+          chkptMsg = true;
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
         } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
           stDebug("s-task:%s recv trans-state msgId:%d from upstream:0x%x", id, pReq->msgId, pReq->upstreamTaskId);
+        } else if (pReq->type == STREAM_INPUT__RECALCULATE) {
+          stDebug("s-task:%s recv recalculate msgId:%d from upstream:0x%x", id, pReq->msgId, pReq->upstreamTaskId);
         }
 
         if (pReq->msgId > pInfo->lastMsgId) {
@@ -1926,5 +2079,5 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     tmsgSendRsp(pRsp);
   }
 
-  return streamTrySchedExec(pTask);
+  return streamTrySchedExec(pTask, chkptMsg);
 }

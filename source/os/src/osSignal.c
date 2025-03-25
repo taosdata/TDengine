@@ -37,7 +37,7 @@ int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp) {
     }
   } else {
     if(signal(signum, (FWinSignalHandler)sigfp) == SIG_ERR) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       return terrno;
     }
   }
@@ -47,7 +47,7 @@ int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp) {
 int32_t taosIgnSignal(int32_t signum) {
   if (signum == SIGUSR1 || signum == SIGHUP) return 0;
   if(signal(signum, SIG_IGN) == SIG_ERR) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -57,7 +57,7 @@ int32_t taosIgnSignal(int32_t signum) {
 int32_t taosDflSignal(int32_t signum) {
   if (signum == SIGUSR1 || signum == SIGHUP) return 0;
   if(signal(signum, SIG_DFL) == SIG_ERR) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -87,7 +87,7 @@ int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp) {
 #endif
   int32_t code = sigaction(signum, &act, NULL);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -97,7 +97,7 @@ int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp) {
 int32_t taosIgnSignal(int32_t signum) { 
   sighandler_t h = signal(signum, SIG_IGN); 
   if (SIG_ERR == h) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -107,18 +107,19 @@ int32_t taosIgnSignal(int32_t signum) {
 int32_t taosDflSignal(int32_t signum) { 
   sighandler_t h = signal(signum, SIG_DFL); 
   if (SIG_ERR == h) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
   return 0;
 }
 
+#if 0
 int32_t taosKillChildOnParentStopped() {
-#ifndef _TD_DARWIN_64
+#if !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
   int32_t code = prctl(PR_SET_PDEATHSIG, SIGKILL);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -126,5 +127,6 @@ int32_t taosKillChildOnParentStopped() {
 #endif
   return 0;
 }
+#endif
 
 #endif

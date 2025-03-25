@@ -19,7 +19,7 @@ script_dir=$(dirname $(readlink -f "$0"))
 PREFIX="taos"
 clientName="${PREFIX}"
 serverName="${PREFIX}d"
-udfdName="udfd"
+udfdName="taosudf"
 configFile="${PREFIX}.cfg"
 productName="TDengine"
 emailName="taosdata.com"
@@ -157,7 +157,7 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh taosudf set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 elif [ "${verMode}" == "edge" ]; then
@@ -271,19 +271,29 @@ function install_lib() {
   # Remove links
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+  ${csudo}rm -f ${lib_link_dir}/libtaosnative.* || :
+  ${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
+  ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+  ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}              || :
   ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
+  #link lib/link_dir
   ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+  ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
+  ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
   [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
 
+  #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
+    ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
 
-    [ -f ${install_main_dir}/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
+    [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig

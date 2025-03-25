@@ -198,6 +198,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
 
@@ -283,11 +284,16 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   return 0;
 }
 
-int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key) {
+int8_t streamTaskShouldRecalated(SStreamTask* pTask) { return pTask->info.fillHistory == 2 ? 1 : 0; }
+
+int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key, uint8_t recalated) {
   int32_t code = 0;
   int64_t chkpId = pTask->chkInfo.checkpointId;
 
+  // int8_t recalated = streamTaskShouldRecalated(pTask);
+
   streamMutexLock(&pMeta->backendMutex);
+  // streamId--taskId
   void** ppBackend = taosHashGet(pMeta->pTaskDbUnique, key, strlen(key));
   if ((ppBackend != NULL) && (*ppBackend != NULL)) {
     void* p = taskDbAddRef(*ppBackend);
@@ -299,7 +305,11 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
 
     STaskDbWrapper* pBackend = *ppBackend;
     pBackend->pMeta = pMeta;
-    pTask->pBackend = pBackend;
+    if (recalated) {
+      pTask->pRecalBackend = pBackend;
+    } else {
+      pTask->pBackend = pBackend;
+    }
 
     streamMutexUnlock(&pMeta->backendMutex);
     stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
@@ -322,7 +332,11 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   }
 
   int64_t tref = taosAddRef(taskDbWrapperId, pBackend);
-  pTask->pBackend = pBackend;
+  if (recalated) {
+    pTask->pRecalBackend = pBackend;
+  } else {
+    pTask->pBackend = pBackend;
+  }
   pBackend->refId = tref;
   pBackend->pTask = pTask;
   pBackend->pMeta = pMeta;
@@ -347,7 +361,11 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   }
   streamMutexUnlock(&pMeta->backendMutex);
 
-  stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
+  if (recalated) {
+    stDebug("s-task:0x%x set recalated backend %p", pTask->id.taskId, pBackend);
+  } else {
+    stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
+  }
   return 0;
 }
 
@@ -363,6 +381,31 @@ void streamMetaRemoveDB(void* arg, char* key) {
 
   streamMutexUnlock(&pMeta->backendMutex);
 }
+
+int32_t streamMetaUpdateInfoInit(STaskUpdateInfo* pInfo) {
+  _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
+
+  pInfo->pTasks = taosHashInit(64, fp, false, HASH_NO_LOCK);
+  if (pInfo->pTasks == NULL) {
+    return terrno;
+  }
+
+  pInfo->pTaskList = taosArrayInit(4, sizeof(int32_t));
+  if (pInfo->pTaskList == NULL) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void streamMetaUpdateInfoCleanup(STaskUpdateInfo* pInfo) {
+  taosHashCleanup(pInfo->pTasks);
+  taosArrayDestroy(pInfo->pTaskList);
+  pInfo->pTasks = NULL;
+  pInfo->pTaskList = NULL;
+}
+
+
 
 int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, FTaskExpand expandTaskFn, int32_t vgId,
                        int64_t stage, startComplete_fn_t fn, SStreamMeta** p) {
@@ -417,8 +460,8 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   pMeta->pTasksMap = taosHashInit(64, fp, true, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pMeta->pTasksMap, code, lino, _err, terrno);
 
-  pMeta->updateInfo.pTasks = taosHashInit(64, fp, false, HASH_NO_LOCK);
-  TSDB_CHECK_NULL(pMeta->updateInfo.pTasks, code, lino, _err, terrno);
+  code = streamMetaUpdateInfoInit(&pMeta->updateInfo);
+  TSDB_CHECK_CODE(code, lino, _err);
 
   code = streamMetaInitStartInfo(&pMeta->startInfo);
   TSDB_CHECK_CODE(code, lino, _err);
@@ -623,8 +666,8 @@ void streamMetaCloseImpl(void* arg) {
 
   taosHashCleanup(pMeta->pTasksMap);
   taosHashCleanup(pMeta->pTaskDbUnique);
-  taosHashCleanup(pMeta->updateInfo.pTasks);
 
+  streamMetaUpdateInfoCleanup(&pMeta->updateInfo);
   streamMetaClearStartInfo(&pMeta->startInfo);
 
   destroyMetaHbInfo(pMeta->pHbInfo);
@@ -1073,6 +1116,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
     tDecoderClear(&decoder);
@@ -1473,16 +1517,19 @@ void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SSt
 
 void streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta) {
   STaskUpdateInfo* pInfo = &pMeta->updateInfo;
+  int32_t          num = taosArrayGetSize(pInfo->pTaskList);
 
   taosHashClear(pInfo->pTasks);
+  taosArrayClear(pInfo->pTaskList);
 
   int32_t prev = pInfo->completeTransId;
   pInfo->completeTransId = pInfo->activeTransId;
   pInfo->activeTransId = -1;
   pInfo->completeTs = taosGetTimestampMs();
 
-  stDebug("vgId:%d set the nodeEp update complete, ts:%" PRId64 ", complete transId:%d->%d, reset active transId",
-          pMeta->vgId, pInfo->completeTs, prev, pInfo->completeTransId);
+  stDebug("vgId:%d set the nodeEp update complete, ts:%" PRId64
+          ", complete transId:%d->%d, update Tasks:%d reset active transId",
+          pMeta->vgId, pInfo->completeTs, prev, pInfo->completeTransId, num);
 }
 
 bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {

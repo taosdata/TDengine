@@ -23,7 +23,7 @@
 #include "trpc.h"
 
 FORCE_INLINE int32_t schAcquireJob(int64_t refId, SSchJob **ppJob) {
-  qDebug("sch acquire jobId:0x%" PRIx64, refId);
+  qTrace("jobId:0x%" PRIx64 ", sch acquire", refId);
   *ppJob = (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId);
   if (NULL == *ppJob) {
     return terrno;
@@ -37,7 +37,7 @@ FORCE_INLINE int32_t schReleaseJob(int64_t refId) {
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("sch release jobId:0x%" PRIx64, refId);
+  qTrace("jobId:0x%" PRIx64 ", sch release", refId);
   return taosReleaseRef(schMgmt.jobRef, refId);
 }
 
@@ -46,7 +46,7 @@ FORCE_INLINE int32_t schReleaseJobEx(int64_t refId, int32_t *released) {
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("sch release ex jobId:0x%" PRIx64, refId);
+  qTrace("jobId:0x%" PRIx64 ", sch release ex", refId);
   return taosReleaseRefEx(schMgmt.jobRef, refId, released);
 }
 
@@ -122,7 +122,7 @@ int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *ep
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
-    SCH_TASK_ELOG("nodeId %d fqdn %s port %d not in hb connections", epId->nodeId, epId->ep.fqdn, epId->ep.port);
+    SCH_TASK_ELOG("nodeId:%d fqdn:%s port:%d not in hb connections", epId->nodeId, epId->ep.fqdn, epId->ep.port);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -301,7 +301,7 @@ int32_t initClientId(void) {
     qError("failed to generate clientId since %s", tstrerror(code));
     SCH_ERR_RET(code);
   }
-  qInfo("initialize");
+  qInfo("generate clientId:%" PRIu64, schMgmt.clientId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -317,7 +317,7 @@ uint64_t schGenUUID(void) {
   if (hashId == 0) {
     int32_t code = taosGetSystemUUID32(&hashId);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(ERRNO)));
     }
   }
 

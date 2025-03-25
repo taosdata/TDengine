@@ -40,7 +40,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   tqDebug("s-task:%s vgId:%d start to expand stream task", pTask->id.idStr, vgId);
 
-  if (pTask->info.fillHistory) {
+  if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
     streamId = pTask->streamTaskId.streamId;
     taskId = pTask->streamTaskId.taskId;
   } else {
@@ -50,23 +50,34 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   // sink task does not need the pState
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+    if (pTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+      pTask->pRecalState = streamStateRecalatedOpen(pMeta->path, pTask, pTask->id.streamId, pTask->id.taskId);
+      if (pTask->pRecalState == NULL) {
+        tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
+        return terrno;
+      } else {
+        tqDebug("s-task:%s recal state:%p", pTask->id.idStr, pTask->pRecalState);
+      }
+    }
+
     pTask->pState = streamStateOpen(pMeta->path, pTask, streamId, taskId);
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
       return terrno;
     } else {
-      tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+      tqDebug("s-task:%s stream state:%p", pTask->id.idStr, pTask->pState);
     }
   }
 
   SReadHandle handle = {
       .checkpointId = pTask->chkInfo.checkpointId,
-      .pStateBackend = pTask->pState,
+      .pStateBackend = NULL,
       .fillHistory = pTask->info.fillHistory,
       .winRange = pTask->dataRange.window,
+      .pOtherBackend = NULL,
   };
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__MERGE) {
     handle.vnode = ((STQ*)pMeta->ahandle)->pVnode;
     handle.initTqReader = 1;
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
@@ -75,7 +86,16 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   initStorageAPI(&handle.api);
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG ||
+      pTask->info.taskLevel == TASK_LEVEL__MERGE) {
+    if (pTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+      handle.pStateBackend = pTask->pRecalState;
+      handle.pOtherBackend = pTask->pState;
+    } else {
+      handle.pStateBackend = pTask->pState;
+      handle.pOtherBackend = NULL;
+    }
+
     code = qCreateStreamExecTaskInfo(&pTask->exec.pExecutor, pTask->exec.qmsg, &handle, vgId, pTask->id.taskId);
     if (code) {
       tqError("s-task:%s failed to expand task, code:%s", pTask->id.idStr, tstrerror(code));
@@ -86,6 +106,16 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     if (code) {
       return code;
     }
+
+    code = qSetStreamNotifyInfo(pTask->exec.pExecutor, pTask->notifyInfo.notifyEventTypes,
+                                pTask->notifyInfo.pSchemaWrapper, pTask->notifyInfo.stbFullName,
+                                IS_NEW_SUBTB_RULE(pTask), &pTask->notifyEventStat);
+    if (code) {
+      tqError("s-task:%s failed to set stream notify info, code:%s", pTask->id.idStr, tstrerror(code));
+      return code;
+    }
+
+    qSetStreamMergeInfo(pTask->exec.pExecutor, pTask->pVTables);
   }
 
   streamSetupScheduleTrigger(pTask);
@@ -123,7 +153,7 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   tqDebug("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
 
   int32_t type = restart ? STREAM_EXEC_T_RESTART_ALL_TASKS : STREAM_EXEC_T_START_ALL_TASKS;
-  return streamTaskSchedTask(cb, vgId, 0, 0, type);
+  return streamTaskSchedTask(cb, vgId, 0, 0, type, false);
 }
 
 int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
@@ -135,33 +165,33 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
   }
 
   tqDebug("vgId:%d start task:0x%x async", vgId, taskId);
-  return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK);
+  return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK, false);
 }
 
 // this is to process request from transaction, always return true.
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored, bool isLeader) {
-  int32_t      vgId = pMeta->vgId;
-  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
-  SRpcMsg      rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
-  int64_t      st = taosGetTimestampMs();
-  bool         updated = false;
-  int32_t      code = 0;
-  SStreamTask* pTask = NULL;
-  SStreamTask* pHTask = NULL;
-
+  int32_t                  vgId = pMeta->vgId;
+  char*                    msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t                  len = pMsg->contLen - sizeof(SMsgHead);
+  SRpcMsg                  rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
+  int64_t                  st = taosGetTimestampMs();
+  bool                     updated = false;
+  int32_t                  code = 0;
+  SStreamTask*             pTask = NULL;
+  SStreamTask*             pHTask = NULL;
   SStreamTaskNodeUpdateMsg req = {0};
+  SDecoder                 decoder;
 
-  SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
-  if (tDecodeStreamTaskUpdateMsg(&decoder, &req) < 0) {
+  code = tDecodeStreamTaskUpdateMsg(&decoder, &req);
+  tDecoderClear(&decoder);
+
+  if (code < 0) {
     rsp.code = TSDB_CODE_MSG_DECODE_ERROR;
     tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(rsp.code));
-    tDecoderClear(&decoder);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
-
-  tDecoderClear(&decoder);
 
   int32_t gError = streamGetFatalError(pMeta);
   if (gError != 0) {
@@ -462,7 +492,7 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   }
 
   // enqueue
-  tqDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
+  tqDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d), QID:0x%" PRIx64, pTask->id.idStr,
           pTask->pMeta->vgId, pTask->info.taskLevel, req.srcTaskId, req.srcNodeId, req.reqId);
 
   // if task is in ck status, set current ck failed
@@ -1014,6 +1044,39 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tqStreamTaskProcessAllTaskStopReq(SStreamMeta* pMeta, SMsgCb* pMsgCb, SRpcMsg* pMsg) {
+  int32_t  code = 0;
+  int32_t  vgId = pMeta->vgId;
+  char*    msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t  len = pMsg->contLen - sizeof(SMsgHead);
+  SDecoder decoder;
+
+  SStreamTaskStopReq req = {0};
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if ((code = tDecodeStreamTaskStopReq(&decoder, &req)) < 0) {
+    tqError("vgId:%d failed to decode stop all streams, code:%s", pMeta->vgId, tstrerror(code));
+    tDecoderClear(&decoder);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tDecoderClear(&decoder);
+
+  // stop all stream tasks, only invoked when trying to drop db
+  if (req.streamId <= 0) {
+    tqDebug("vgId:%d recv msg to stop all tasks in sync before dropping vnode", vgId);
+    code = streamMetaStopAllTasks(pMeta);
+    if (code) {
+      tqError("vgId:%d failed to stop all tasks, code:%s", vgId, tstrerror(code));
+    }
+
+  } else {  // stop only one stream tasks
+
+  }
+
+  // always return success
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   SRetrieveChkptTriggerReq req = {0};
   SStreamTask*             pTask = NULL;
@@ -1203,7 +1266,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
       //      code = tqScanWalAsync((STQ*)handle, false);
     } else {
-      code = streamTrySchedExec(pTask);
+      code = streamTrySchedExec(pTask, false);
     }
   }
 

@@ -81,7 +81,12 @@ taosx replica start -f source_endpoint -t sink_endpoint [database...]
 taosx replica start -f td1:6030 -t td2:6030 
 ```
 
-该示例命令会自动创建除 information_schema、performance_schema、log、audit 库之外的同步任务。可以使用 `http://td2:6041` 指定该 endpoint 使用 websocket 接口（默认是原生接口）。也可以指定数据库同步：taosx replica start -f td1:6030 -t td2:6030 db1 仅创建指定的数据库同步任务。
+该示例命令会自动创建除 information_schema、performance_schema、log、audit 库之外的同步任务，并持续监听新增的数据库，当 td1 和 td2 中新增同名数据库时可自动启动新增数据库的数据复制任务。需要说明的是：
+
+- 可以使用 `http://td2:6041` 指定该 endpoint 使用 websocket 接口（默认是原生接口）。
+- 可以使用 `--new-database-checking-interval <SECONDS>` 指定新增数据库的检查间隔，默认为 30 分钟。
+- 可以使用 `--no-new-databases` 禁用监听行为。
+- 也可以指定数据库同步：taosx replica start -f td1:6030 -t td2:6030 db1 仅创建指定的数据库同步任务。此时相当于配置了 `--no-new-databases`，不会开启新增数据库自动同步。
 
 2. 方法二
 
@@ -121,6 +126,7 @@ taosx replica stop id [db...]
 该命令作用如下：
 1. 停止指定 Replica ID 下所有或指定数据库的双副本同步任务。
 2. 使用 `taosx replica stop id1 db1` 表示停止 id1 replica 下 db1的同步任务。
+3. `--no-new-databases` 选项启用时，不停止新增数据库监听任务，仅停止当前同步中的数据库。
 
 ### 重启双活任务
 
@@ -145,8 +151,8 @@ taosx replica diff id [db....]
 | replica | database | source   | sink     | vgroup_id | current | latest  | diff |
 +---------+----------+----------+----------+-----------+---------+---------+------+
 | a       | opc      | td1:6030 | td2:6030 | 2         | 17600   | 17600   | 0    |
-| ad       | opc      | td2:6030 | td2:6030 | 3         | 17600   | 17600   | 0    |
-``` 
+| a       | opc      | td2:6030 | td2:6030 | 3         | 17600   | 17600   | 0    |
+```
 
 ### 删除双活任务
 
@@ -155,6 +161,16 @@ taosx replica remove id [--force]
 ```
 
 删除当前所有双活同步任务。正常情况下要想删除同步任务，需要先 stop 该任务；但当 --force 启用时，会强制停止并清除任务。
+
+`--no-new-databases` 选项启用时，不会删除新增数据库同步任务，仅删除当前数据库的同步任务。当 taosx 重启后，如果删除的数据库任务对应的数据库仍然存在，则会继续创建同步任务；不重启 taosx 或者不更新双活监听任务时，也不会再新建这些数据库的同步任务。
+
+### 更新双活新增数据库检查间隔
+
+```shell
+taosx replica update id --new-database-checking-interval <SECONDS>
+```
+
+更新双活新增数据库的检查间隔，单位为秒。
 
 ### 推荐使用步骤
 

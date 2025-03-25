@@ -36,7 +36,7 @@ extern "C" {
 #define MND_STREAM_TASK_UPDATE_NAME  "stream-task-update"
 #define MND_STREAM_CHKPT_UPDATE_NAME "stream-chkpt-update"
 #define MND_STREAM_CHKPT_CONSEN_NAME "stream-chkpt-consen"
-#define MND_STREAM_RESTART_NAME      "stream-restart"
+#define MND_STREAM_STOP_NAME         "stream-stop"
 
 typedef struct SStreamTransInfo {
   int64_t     startTime;
@@ -148,9 +148,11 @@ int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *
 int32_t mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int64_t chkptId);
 int32_t mndStreamSetChkptIdAction(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream, int64_t checkpointId, SArray *pList);
-int32_t mndStreamSetRestartAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t mndStreamSetStopAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t checkpointId,
                                      int8_t mndTrigger);
+int32_t mndStreamSetStopStreamTasksActions(SMnode* pMnode, STrans *pTrans, uint64_t dbUid);
+
 int32_t mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SArray *pChkptInfoList);
 int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq);
 int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId, SArray* pList);
