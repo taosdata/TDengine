@@ -388,7 +388,7 @@ function initDnodeAndMnode {
             #snode can only be create once;
             SNODE_CREATED=1
         fi
-        if [ $DNODE_CREATED -eq 1 ] && [ "$FQDN" == "$FIRST_EP_HOST" ]; then
+        if [ $DNODE_CREATED -eq 1 ] && [ "$FQDN" == "$FIRST_EP_HOST" ] && [ -f $TS_SERVER_FILE ]; then
             #check snode created
             ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$ANODETmp" == "" ]]; then
@@ -471,7 +471,7 @@ function run_tdgpt() {
     if [ ! -d "$TAOSANODE_LOG" ]; then
         mkdir -p "$TAOSANODE_LOG"
     fi
-    
+
     logger "INFO" "Starting uWSGI with config: $CONFIG_FILE"
     /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE" &
     UWSGI_PID=$!
