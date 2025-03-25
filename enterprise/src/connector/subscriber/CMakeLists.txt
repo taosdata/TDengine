@@ -1,8 +1,6 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 PROJECT(TDengine)
 
-IF (TD_MVN_INSTALLED)
+IF(TD_MVN_INSTALLED)
   SET(SUBSCRIBER_CMD_NAME "subscriber_cmd")
   SET(SUBSCRIBER_TARGET_NAME "subscriber_target")
   MESSAGE(STATUS "MVN is installed and subscriber will be compiled")
@@ -13,8 +11,6 @@ IF (TD_MVN_INSTALLED)
     COMMAND mvn -Dmaven.test.skip=true clean -f ${CMAKE_CURRENT_SOURCE_DIR}/pom.xml
     COMMENT "build java subscriber driver")
   ADD_CUSTOM_TARGET(${SUBSCRIBER_TARGET_NAME} ALL WORKING_DIRECTORY ${EXECUTABLE_OUTPUT_PATH} DEPENDS ${SUBSCRIBER_CMD_NAME})
-ELSE ()
+ELSE()
   MESSAGE(STATUS "MVN is not installed and subscriber is not compiled")
-ENDIF ()
-
-
+ENDIF()

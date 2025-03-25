@@ -3,7 +3,7 @@ IF ("${BUILD_TAOSX}" MATCHES "true")
         PREFIX taosx
         GIT_REPOSITORY https://github.com/taosdata/taosx.git
         GIT_TAG main
-        SOURCE_DIR "${TD_SOURCE_DIR}/enterprise/src/plugins/taosx"
+        SOURCE_DIR "${TD_ENTERPRISE_DIR}/src/plugins/taosx"
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
