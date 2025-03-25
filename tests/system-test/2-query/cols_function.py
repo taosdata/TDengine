@@ -1059,8 +1059,31 @@ class TDTestCase:
         tdSql.checkData(0, 2, 1)
     
     def stream_cols_test(self):
-        tdSql.error(f'CREATE STREAM last_col_s1 INTO last_col1 AS SELECT cols(last(ts), ts, c0) FROM meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);', TSDB_CODE_PAR_INVALID_COLS_FUNCTION)
-        tdSql.query(f'CREATE STREAM last_col_s INTO last_col AS SELECT last(ts), c0 FROM meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
+        tdSql.execute(f'CREATE STREAM last_col_s1 INTO {self.dbname}.last_col1 AS SELECT cols(last(ts), ts, c0) FROM {self.dbname}.meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
+        tdSql.execute(f'CREATE STREAM last_col_s2 INTO {self.dbname}.last_col2 AS SELECT last(ts), c0 FROM {self.dbname}.meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
+        
+        tdSql.waitedQuery(f'show streams', 2, 10)
+        sleep(5)
+        
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574930000, 0, 1, NULL, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574931000, 1, 1, NULL, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574932000, 2, 2, NULL, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574933000, 3, 3, NULL, NULL)')
+        
+        tdSql.waitedQuery(f'select * from {self.dbname}.last_col2', 3, 10)
+        tdSql.waitedQuery(f'select * from {self.dbname}.last_col1', 3, 10)
+        tdSql.query(f'select * from {self.dbname}.last_col1')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1734574930000)
+        tdSql.checkData(0, 1, 1734574930000)
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(1, 0, 1734574931000)
+        tdSql.checkData(1, 1, 1734574931000)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(2, 0, 1734574932000)
+        tdSql.checkData(2, 1, 1734574932000)
+        tdSql.checkData(2, 2, 2)
+        
         
     def include_null_test(self):
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929010, 0, NULL, NULL, NULL)')
@@ -1311,7 +1334,6 @@ class TDTestCase:
         self.subquery_test()
         self.window_test()
         self.join_test()
-        self.stream_cols_test()
         self.test_in_interval()
         self.include_null_test()
         self.long_column_name_test()
@@ -1320,6 +1342,7 @@ class TDTestCase:
         self.having_test("(select tbname, * from test.meters)", True)
         self.test_null2()
         self.window_test2()
+        self.stream_cols_test()
 
 
     def stop(self):
