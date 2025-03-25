@@ -8,7 +8,7 @@ TDgpt 是与 TDengine 主进程 taosd 适配的外置式时序数据分析智能
 
 云服务上的公共数据库“时序数据预测分析数据集”预先准备好了三个数据集，用于体验时序数据基础模型强大的预测能力和泛化能力。两个时序模型均为在该数据集上进行训练。内置的数据集包括：1）不同时间段的电力需求数据 electricity_demands；2）cpc 和 cpm 两个数据集是来源于 NAB 的公开数据集。
 
-Dgpt 当前只集成了时序基础模型的预测能力，使用 SQL 语句可以轻松调用时序基础模型的预测能力，通过以下 SQL 语句即可调用涛思时序基础模型预测能力。
+TDgpt 当前只集成了时序基础模型的预测能力，使用 SQL 语句可以轻松调用时序基础模型的预测能力，通过以下 SQL 语句即可调用涛思时序基础模型预测能力。
 
 ``` SQL
 select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand_sub;
