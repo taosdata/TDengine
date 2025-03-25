@@ -154,10 +154,10 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 该模型已经预置在系统中，您可通过 `show anodes full` 直接查看。一个新的算法适配完成以后，需要重新启动 taosanode，并执行命令 `update all anodes` 更新 mnode 的算法列表。
 
 - 通过设置参数 `algo=sample_ad_model`，告诉 TDgpt 调用自编码器算法训练的模型（该算法模型在可用算法列表中）。
-- 通过设置参数 `model=sample-ad-autoencoder`，指定自编码器针对某数据集训练的模型。
+- 通过设置参数 `model=sample-ad-autoencoder`，告诉自编码器加载特定的模型。
 
 ```SQL
---- 在 options 中增加 model 的名称，ad_autoencoder_foo， 针对 foo 数据集（表）训练的采用自编码器的异常检测模型进行异常检测
+--- 在 options 中增加 model 参数 sample-ad-autoencoder， 针对 foo 数据集（表）训练的采用自编码器的异常检测模型进行异常检测
 SELECT _wstart, count(*) 
-FROM ad_sample anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
+FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
 ```
