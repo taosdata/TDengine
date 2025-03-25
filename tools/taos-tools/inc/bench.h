@@ -1062,5 +1062,7 @@ void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec);
 void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec);
 void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec);
 void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec);
+int decimal64BCompare(const Decimal64* a, const Decimal64* b);
+int decimal128BCompare(const Decimal128* a, const Decimal128* b);
 
 #endif   // INC_BENCH_H_
