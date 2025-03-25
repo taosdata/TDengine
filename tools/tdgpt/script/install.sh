@@ -698,8 +698,9 @@ function installProduct() {
   fi
 
   tar -zxf ${tarName}
-  tar -zxf ${script_dir}/model/${tar_td_model_name} -C ${script_dir}/model
-  tar -zxf ${script_dir}/model/${tar_xhs_model_name} -C ${script_dir}/model
+ 
+  [ -f "${script_dir}/model/${tar_td_model_name}" ]  && tar -zxf ${script_dir}/model/${tar_td_model_name} -C ${script_dir}/model || :
+  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf ${script_dir}/model/${tar_xhs_model_name} -C ${script_dir}/model || :
 
   echo "Start to install ${productName}..."
 
@@ -712,7 +713,7 @@ function installProduct() {
   
   install_bin_and_lib
   kill_model_service
-  
+
   if ! is_container; then
     install_services
   fi
