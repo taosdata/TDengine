@@ -14,11 +14,22 @@ systemctl stop   taosanoded
 systemctl status taosanoded
 ```
 
-### 启动时间序列基础模型服务
+### 启停时间序列基础模型服务
 考虑到时序基础模型服务，需要较大的资源。避免启动过程中资源不足导致的启动失败，暂不提供自动启动方式。如果您希望体验时序基础模型服务，需要手动执行如下命令
 ```bash
+# 启动涛思时序数据基础模型
+start-tdtsfm
 
+# 启动 Time-MoE 基础模型
+start-timer-moe
+```
 
+```bash
+# 停止涛思时序数据基础模型
+stop-tdtsfm
+
+# 停止 Time-MoE 基础模型
+stop-timer-moe
 ```
 
 ### 目录及配置说明
