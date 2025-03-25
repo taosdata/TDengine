@@ -8,6 +8,8 @@ verType=$3
 cpuType=$4
 verMode=$5
 dockerMode=$6
+tdGpt=$7
+modelDlUrl=$8
 
 # docker parameters
 password="tbase125!"
@@ -37,8 +39,13 @@ elif [ "$verMode" == "cloud" ];then
   cp docker/2.x-files/td_cluster_check ${communityDir}/packaging/docker/
   chmod u+x ${communityDir}/packaging/docker/run.sh
   chmod u+x ${communityDir}/packaging/docker/td_cluster_check
-  cp docker/DockerfileCloud.base ${communityDir}/packaging/docker/
-  cp docker/DockerfileCloud ${communityDir}/packaging/docker/
+  if [ "$tdGpt" == "true" ];then
+    cp docker/DockerfileCloudTDgpt.base ${communityDir}/packaging/docker/
+    cp docker/DockerfileCloudTDgpt ${communityDir}/packaging/docker/
+  else
+    cp docker/DockerfileCloud.base ${communityDir}/packaging/docker/
+    cp docker/DockerfileCloud ${communityDir}/packaging/docker/
+  fi
   tdengineNameType="-cloud"
   dockerParam="-d y"
 else
@@ -56,8 +63,12 @@ if [ "$verType" == "stable" ];then
   dockerim=tdengine/tdengine${tdengineNameType}
 else
   verType=beta
-  pkgFile=TDengine${tdengineNameType}-server-${version}-${verType}-Linux-$cpuType.tar.gz  
+  pkgFile=TDengine${tdengineNameType}-server-${version}-${verType}-Linux-$cpuType.tar.gz
   dockerim=tdengine/tdengine${tdengineNameType}-beta
+fi
+
+if [ "$tdGpt" == "true" ];then
+  tdgptPkgFile=TDengine-enterprise-TDgpt-${version}-Linux-x64.tar.gz
 fi
 
 ####################### build docker image and push
@@ -71,7 +82,11 @@ elif [[ "${cpuType}" == "arm64" ]]; then
 fi
 
 cd ${communityDir}/packaging/docker
-./dockerbuild.sh -c ${cpuType} -f ${pkgFile} -n ${version} -p ${password} -V ${verType} ${dockerParam}
+if [ "$tdGpt" == "true" ];then
+  ./dockerbuild.sh -c ${cpuType} -f ${pkgFile} -g ${tdgptPkgFile} -u ${modelDlUrl} -n ${version} -p ${password} -V ${verType} ${dockerParam}
+else
+  ./dockerbuild.sh -c ${cpuType} -f ${pkgFile} -n ${version} -p ${password} -V ${verType} ${dockerParam}
+fi
 
 if [ "${dockerMode}" == "push" ] && [ "${verMode}" == "cloud" ]; then
   echo ">>>>>>>>>>>>> check whether the docker image has been published"
