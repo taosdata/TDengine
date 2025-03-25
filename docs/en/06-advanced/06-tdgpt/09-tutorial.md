@@ -54,7 +54,7 @@ You can now run Linux commands and access TDengine.
 Note: Replace `<version>` with the version that you downloaded.
 
 ```bash
-tar -zxvf TDengine-anode-<version>-Linux-x64.tar.gz
+tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
 ```
 
 Decompress the file, open the directory created, and run the `install.sh` script:
