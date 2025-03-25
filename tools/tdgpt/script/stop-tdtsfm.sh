@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Find the process ID (PID) of the running taos_ts_server.py script
-pid=$(pgrep -f "python3 taos_ts_server.py --action server")
+pid=$(pgrep -f "taos_ts_server.py")
 
 # If the process is found, kill it
 if [ -n "$pid" ]; then

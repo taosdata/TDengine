@@ -72,8 +72,10 @@ kill_service_of() {
 }
 
 kill_model_service() {
-  [[ -f "/usr/local/taos/taosanode/bin/stop-tdtsfm.sh" ]] &&  sudo bash /usr/local/taos/taosanode/bin/stop-tdtsfm.sh || :
-  [[ -f "/usr/local/taos/taosanode/bin/stop-timer-moe.sh" ]] &&  sudo bash /usr/local/taos/taosanode/bin/stop-timer-moe.sh || :
+  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+    script_path="${installDir}/bin/${script}"
+    [ -f "${script_path}" ] && sudo bash "${script_path}" || :
+  done
 }
 
 clean_service_on_systemd_of() {
