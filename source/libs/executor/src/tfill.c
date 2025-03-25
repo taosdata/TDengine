@@ -831,3 +831,112 @@ _end:
   }
   return NULL;
 }
+/*
+ * 1. Get the windows for fill, from window [start_win] to [end_win]
+ * 2. Loop all the windows, if Interval operator got non-null data for cur window, use it, otherwise fill it.
+ *    If the col data from block is NULL, if ASC FILL PREV or DESC FILL NEXT, there is no problem, if ASC FILL NEXT or DESC
+ * FILL PREV, just leave current window of this col empty, wait for next row.
+ * 3. Break conditions:
+ *    a. Output block has reached the maxRows and all columns are filled.
+ *    b. Current block exhausted, try fetch next block from downstream.
+ *    c. Output block has reached the maxRows but not all columns are filled, save the block and continue to consume
+ * blocks.
+ *    d. Current group fill finished
+ * 4. When checking row data from blocks, if some empty column got non-null value, fill till current window. If no empty
+ * cols left, send out these blocks till next full block with empty cols or not full block
+ */
+
+// check in fill operator not tfill
+static bool fillShouldPause(SFillInfo* pFillInfo) {
+  return false;
+}
+
+static bool hasNotFilledCol(SFillInfo* pFillInfo) {
+  return false;
+}
+
+static TSKEY getBlockCurTs(const struct SFillInfo* pFillInfo, const SSDataBlock* pBlock, int32_t rowIdx) {
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pFillInfo->srcTsSlotId);
+  return ((TSKEY*)pTsCol->pData)[rowIdx];
+}
+
+// 1. need fill: blockCurTs != currentKey
+//    asc next, blockCurTs must > currentKey, and save into next
+//    asc prev, blockCurTs must > currentKey, do not save prev, it's not prev
+//    desc next, blockCurTs must < currentKey, do not save next, it's not next
+//    desc prev, blockCurTs must < currentKey, save into prev
+// 2. not need fill
+//    asc next, do not need save
+//    asc prev, save to prev
+//    desc next, save to next
+//    desc prev, do not save
+// -> asc next,  save when blockCurTs >  currentKey
+//    asc prev,  save when blockCurTs == currentKey
+//    desc next, save when blockCurTs == currentKey
+//    desc prev, save when blockCurTs <  currentKey
+static int32_t fillSaveRow(struct SFillInfo* pFillInfo, const SSDataBlock* pBlock, int32_t rowIdx) {
+  int32_t code = 0;
+  bool    ascFill = FILL_IS_ASC_FILL(pFillInfo);
+  TSKEY   blockCurKey = getBlockCurTs(pFillInfo, pBlock, rowIdx);
+  int32_t fillType = pFillInfo->type;
+  bool    ascNext = ascFill && fillType == TSDB_FILL_NEXT, descPrev = !ascFill && fillType == TSDB_FILL_PREV;
+  SRowVal *pFillRow = fillType == TSDB_FILL_NEXT ? &pFillInfo->next : &pFillInfo->prev;
+  if (ascFill) {
+    assert(blockCurKey >= pFillInfo->currentKey);
+  } else {
+    assert(blockCurKey <= pFillInfo->currentKey);
+  }
+  if (ascNext || descPrev || blockCurKey == pFillInfo->currentKey) {
+    // if current col in block is NULL, set VALUE_NULL flag.
+    code = copyCurrentRowIntoBuf(pFillInfo, rowIdx, pFillRow, false);
+  }
+  return code;
+}
+
+int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity, int32_t* pRowIdx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  bool    ascFill = FILL_IS_ASC_FILL(pFillInfo);
+
+  if (*pRowIdx >= pFillInfo->pSrcBlock->info.rows) return code;
+
+  if (fillShouldPause(pFillInfo)) {
+    return code;
+  }
+
+  code = fillSaveRow(pFillInfo, pFillInfo->pSrcBlock, *pRowIdx);
+
+  TSKEY fillCurTs = pFillInfo->currentKey;
+  TSKEY blockCurTs = getBlockCurTs(pFillInfo, pFillInfo->pSrcBlock, *pRowIdx);
+
+  if (blockCurTs != fillCurTs) {
+    // when filling using prev/next values, if VALUE_NULL is set, leave this col empty.
+    // And when VALUE_NULL is not set for current fill col, and check current col fill position, if lag behind, fill till currentKey
+    doFillOneRow(pFillInfo, pDstBlock, pFillInfo->pSrcBlock, blockCurTs, false);
+  } else {
+    // if col value in block is NULL, skip setting value for this col, save current position, wait till we got not null data
+    for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+      SFillColInfo*    pCol = &pFillInfo->pFillCol[i];
+      int32_t          index = pDstBlock->info.rows;
+      int32_t          dstSlotId = GET_DEST_SLOT_ID(pCol);
+      SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, dstSlotId);
+      SColumnInfoData* pSrc = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, dstSlotId);
+
+      char* src = colDataGetData(pSrc, pFillInfo->index);
+      if (!colDataIsNull_s(pSrc, pFillInfo->index)) {
+        code = colDataSetVal(pDst, index, src, false);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+
+        continue;
+      }
+    }
+    (*pRowIdx)++;
+  }
+
+  // if all blocks are consumed, we have to fill NULL for not filled cols
+
+  return code;
+_end:
+  return code;
+}

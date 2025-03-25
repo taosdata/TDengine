@@ -143,6 +143,7 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFi
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
+int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity, int32_t* pRowIdx);
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
 bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
