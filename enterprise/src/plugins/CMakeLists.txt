@@ -84,7 +84,7 @@ IF(TD_BUILD_TAOSA_INTERNAL)
       PREFIX "taosainternal"
       SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
       BUILD_ALWAYS off
-      DEPENDS taos
+      DEPENDS ${TAOS_NATIVE_LIB}
       BUILD_IN_SOURCE 1
       CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
       PATCH_COMMAND
@@ -108,7 +108,7 @@ IF(TD_BUILD_TAOSA_INTERNAL)
       PREFIX "taosainternal"
       SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
       BUILD_ALWAYS off
-      DEPENDS taos
+      DEPENDS ${TAOS_NATIVE_LIB}
       BUILD_IN_SOURCE 1
       CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
       PATCH_COMMAND

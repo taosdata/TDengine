@@ -23,7 +23,9 @@ ANODE_CREATED=0
 
 # Add for TDgpt
 CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
-TS_SERVER_FILE="/root/taos_ts_server.py "
+TS_SERVER_FILE="/root/taos_ts_server.py"
+TIMER_POE_FILE="/root/timer-moe/timer-moe_server.py"
+
 
 # set the timezone for the TDengine
 if [ "$TZ" != "" ]; then
@@ -438,12 +440,26 @@ function initDnodeAndMnode {
     done
 }
 
-function run_taos_ts_server() {
-    logger "INFO" "Starting taos_ts_server..."
-    python3 /root/taos_ts_server.py --action server &
-    TAOS_TS_PID=$!
-    if ! ps -p $TAOS_TS_PID > /dev/null; then
-        logger "ERROR" "taos_ts_server failed to start!"
+function run_tdtsfm_server() {
+    if [ -f $TS_SERVER_FILE ];then
+        logger "INFO" "Starting tdtsfm server..."
+        python3 $TS_SERVER_FILE --action server &
+        TAOS_TS_PID=$!
+        if ! ps -p $TAOS_TS_PID > /dev/null; then
+            logger "ERROR" "tdtsfm server failed to start!"
+        fi
+    fi
+}
+
+function run_timer_moe_server() {
+    if [ -f $TIMER_POE_FILE ];then
+        logger "INFO" "Starting timer-moe server..."
+        cd $(dirname "$TIMER_POE_FILE")
+        python3 $TIMER_POE_FILE --action server &
+        TIMER_MOE_PID=$!
+        if ! ps -p $TIMER_MOE_PID > /dev/null; then
+            logger "ERROR" "timer-moe server failed to start!"
+        fi
     fi
 }
 
@@ -506,7 +522,14 @@ do
     fi
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ]; then
-        run_taos_ts_server
+        nc -z localhost 5000
+        if [ $? -ne 0 ];then
+            run_tdtsfm_server
+        fi
+        nc -z localhost 5001
+        if [ $? -ne 0 ];then
+            run_timer_moe_server
+        fi
         run_tdgpt
         initDnodeAndMnode
         if [ "$clustercheckneeded"x = "0"x ]; then
