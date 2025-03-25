@@ -4,10 +4,11 @@
 
 set -e
 
-while getopts "e:v:" opt; do
+while getopts "e:v:m:" opt; do
     case "$opt" in
         e) edition="$OPTARG" ;;  # -e enterprise/community
         v) version="$OPTARG" ;;  # -v version
+        m) model_dir="$OPTARG" ;;  # -m model_dir
         *) echo "Usage: $0 -e edition -v version"; exit 1 ;;
     esac
 done
@@ -73,6 +74,19 @@ find "${top_dir}/taosanalytics/" -type d -name "$TARGET_PATTERN" -exec rm -rf {}
 cp -r ${top_dir}/taosanalytics/ ${install_dir}/lib/ && chmod a+x ${install_dir}/lib/ || :
 cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
+
+# copy model files
+model_dir=${model_dir:-"/pkgs/TDengine/anode/"}
+if [ -d "${model_dir}" ]; then
+  mkdir -p ${install_dir}/lib/model
+
+  echo "copy td-server model files"
+  cp -r ${model_dir}/tdtsfm.tar.gz ${install_dir}/lib/model/ || :
+  echo "copy td-server model files done"
+  echo "copy xhs model files "
+  cp -r ${model_dir}/timer-moe.tar.gz ${install_dir}/lib/model/ || :
+  echo "copy xhs model files done"
+fi
 
 cd ${install_dir}
 
