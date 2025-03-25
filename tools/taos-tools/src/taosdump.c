@@ -9076,7 +9076,7 @@ static int dumpInWithDbPath(const char *dbPath) {
         return -1;
     }
 
-    // create 
+    // create  
     DBChange *pDbChange = createDbChange(dbPath);
 
     if (g_args.avro) {

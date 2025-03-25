@@ -40,7 +40,6 @@
 #include <taoserror.h>
 #include <toolsdef.h>
 #include "../../inc/pub.h"
-#include "dumpUtil.h"
 
 
 //
@@ -261,6 +260,10 @@ enum enAVROTYPE {
     AVRO_INVALID
 };
 
+//
+// --------------------- db changed struct ------------------------
+//
+
 // record db table schema changed
 typedef struct StbChange {
     // main
@@ -272,7 +275,6 @@ typedef struct StbChange {
     bool schemaChanged; // col or tag have changed is True else false
 } StbChange;
 
-
 // record db table schema changed
 typedef struct DBChange {
     int16_t version;
@@ -280,6 +282,26 @@ typedef struct DBChange {
     HashMap  stbMap;
     char     dbName[TSDB_DB_NAME_LEN];
 } DBChange;
+
+//
+// ------------------ hash map struct -----------------------
+//
+
+// Define the maximum number of buckets
+#define HASH32_MAP_MAX_BUCKETS 1024
+
+// Define the key-value pair structure
+typedef struct HashMapEntry {
+    char *key;
+    void *value;
+    struct HashMapEntry *next;
+} HashMapEntry;
+
+// Define the hash table structure
+typedef struct HashMap {
+    HashMapEntry *buckets[HASH32_MAP_MAX_BUCKETS];
+    pthread_mutex_t lock;
+} HashMap;
 
 typedef enum enAVROTYPE AVROTYPE;
 

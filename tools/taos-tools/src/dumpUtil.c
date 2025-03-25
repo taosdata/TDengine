@@ -315,7 +315,7 @@ void hashMapDestroy(HashMap *map) {
 //
 
 // create 
-DBChange createDbChange(const char *dbPath) {
+DBChange *createDbChange(const char *dbPath) {
     //TOTO
     DBChange * pDbChange = (DBChange *)calloc(1, sizeof(DBChange));
     pDbChange->dbPath = dbPath;
@@ -420,6 +420,16 @@ bool findFieldInLocal(ColDes *colDes, TableDes * tableDes) {
 
     debugPrint("%s not found fields:%s type=%d\n", __func__, colDes->field, colDes->type);
     return false;
+}
+
+void moveColDes(ColDes *colDes, int32_t des, int32_t src) {
+    // same no need move
+    if (des == src) {
+        return ;
+    }
+
+    // set
+    colDes[des] = colDes[src];
 }
 
 // local schema recordSchema cross with server schema tableDes

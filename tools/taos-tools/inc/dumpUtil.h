@@ -4,6 +4,7 @@
 #include <taos.h>
 #include <taoserror.h>
 #include <toolsdef.h>
+#include "dump.h"
 
 //
 // ------------  error code range defin ------------
@@ -44,7 +45,6 @@ typedef struct SNode {
 // declare dump.h
 struct TableDes;
 
-
 // return true to do retry , false no retry , code is error code 
 bool canRetry(int32_t code, int8_t type);
 
@@ -55,6 +55,7 @@ SNode *mallocNode(const char* name, int32_t len);
 
 // free nodes
 void freeNodes(SNode* head);
+
 
 static void freeTbDes(TableDes *tableDes, bool self);
 
@@ -74,21 +75,7 @@ TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code);
 // ---------------- hash map -----------------
 //
 
-// Define the maximum number of buckets
-#define HASH32_MAP_MAX_BUCKETS 1024
 
-// Define the key-value pair structure
-typedef struct HashMapEntry {
-    char *key;
-    void *value;
-    struct HashMapEntry *next;
-} HashMapEntry;
-
-// Define the hash table structure
-typedef struct HashMap {
-    HashMapEntry *buckets[HASH32_MAP_MAX_BUCKETS];
-    pthread_mutex_t lock;
-} HashMap;
 
 // Initialize the hash table
 HashMap* hashMapCreate();
@@ -106,12 +93,10 @@ void hashMapDestroy(HashMap *map);
 //
 // -----------------  dbChange -------------------------
 //
-struct DBChange;
-struct StbChange;
-struct RecordSchema;
+
 
 // create db
-DBChange createDbChange(const char *dbPath);
+DBChange *createDbChange(const char *dbPath);
 // free db
 void freeDBChange(DBChange *pDbChange);
 // free stb
