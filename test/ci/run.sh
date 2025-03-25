@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+# set -x
 function usage() {
     echo "$0"
     echo -e "\t -m vm config file"
@@ -67,6 +67,8 @@ if [ ! -f "$t_file" ]; then
     usage
     exit 1
 fi
+
+
 date_tag=$(date +%Y%m%d-%H%M%S)
 test_log_dir=${branch}_${date_tag}
 if [ -z "$log_dir" ]; then
@@ -80,6 +82,7 @@ usernames=()
 passwords=()
 workdirs=()
 threads=()
+
 
 i=0
 while true; do
@@ -139,9 +142,9 @@ function run_thread() {
         runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
     local count=0
-    local script="${workdirs[index]}/TDengine/test/parallel_test/run_container.sh"
+    local script="${workdirs[index]}/TDengine/test/ci/run_container.sh"
     if [ $ent -ne 0 ]; then
-        local script="${workdirs[index]}/TDinternal/community/test/parallel_test/run_container.sh -e"
+        local script="${workdirs[index]}/TDinternal/community/test/ci/run_container.sh -e"
     fi
     local cmd="${runcase_script} ${script}"
 
@@ -183,27 +186,36 @@ function run_thread() {
         case_cmd=$(echo "$line" | cut -d, -f5)
         local case_file=""
 
+        # get the docs-examples test case from cases.task file
         if echo "$case_cmd" | grep -q "\.sh"; then
             case_file=$(echo "$case_cmd" | grep -o ".*\.sh" | awk '{print $NF}')
         fi
 
-        if echo "$case_cmd" | grep -q "^pytest"; then
-            if [[ $case_cmd == *".py"* ]] || [[ $case_cmd == *".sim"* ]]; then
-                case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
-            fi
+        # get python cases from cases.task file with asan
+        if echo "$case_cmd" | grep -q "^./ci/pytest.sh"; then
+            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         fi
 
+        # get python cases from cases.task file without asan or sim cases
+        if echo "$case_cmd" | grep -q "^pytest"; then
+            # get python cases from cases.task file without asan
+            if [[ $case_cmd == *"\.py"* ]]; then
+                case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
+            fi
+            # get sim cases from cases.task file
+            if [[ $case_cmd == *"--tsim"* ]]; then
+                case_file=$(echo "$case_cmd" | grep -oP '(?<=--tsim=)[^ ]+')
+            fi
+        fi
 
         # if echo "$case_cmd" | grep -q "^python3"; then
         #     case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         # fi
 
-        if echo "$case_cmd" | grep -q "^./pytest.sh"; then
-            case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
-        fi
-
-        # if echo "$case_cmd" | grep -q "\.sim"; then
-        #     case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
+        # get sim cases from cases.task file
+        # if echo "$case_cmd" | grep -q "^pytest"; then
+        #     # case_file=$(echo "$case_cmd" | grep -o ".*\.sim" | awk '{print $NF}')
+        #     case_file=$(echo "$case_cmd" | grep -oP '(?<=--tsim=)[^ ]+')
         # fi
         if [ -z "$case_file" ]; then
             case_file=$(echo "$case_cmd" | awk '{print $NF}')
@@ -300,6 +312,16 @@ function run_thread() {
         total_time=$((end_time - start_time))
         echo "${hosts[index]} total time: ${total_time}s" >>"$case_log_file"
         # echo "$thread_no ${line} DONE"
+
+        # save the test results for allure report
+        local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        if [ -z "${passwords[index]}" ]; then
+            scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        fi
+        local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
+        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
+        $cmd
+
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
             flock -x "$lock_file" -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
@@ -311,10 +333,10 @@ function run_thread() {
             fi
             mkdir -p "${log_dir}"/"${case_file}".coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            if [ -z "${passwords[index]}" ]; then
-                scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            fi
+            # scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            # if [ -z "${passwords[index]}" ]; then
+            #     scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            # fi
             cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             $cmd # 2>/dev/null
             local corefile
@@ -355,6 +377,7 @@ function run_thread() {
             $cmd
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
+            # local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
             scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             if [ -z "${passwords[index]}" ]; then
                 scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
@@ -363,6 +386,8 @@ function run_thread() {
             $cmd
             cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
             $cmd
+            # cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
+            # $cmd
             # backup source code (disabled)
             source_tar_dir=$log_dir/TDengine_${hosts[index]}
             source_tar_file=TDengine.tar.gz
@@ -394,6 +419,7 @@ wait
 
 mkdir -p "$log_dir"
 rm -rf "${log_dir:?}"/*
+mkdir "$log_dir/allure-results"
 task_file=$log_dir/$$.task
 lock_file=$log_dir/$$.lock
 index_file=$log_dir/case_index.txt
@@ -469,8 +495,48 @@ if [ -f "${failed_case_file}" ]; then
     RET=1
 fi
 
-echo "${log_dir}" >&2
+# generated test report
+mount_reports_dir="/mnt/platform/reports"
+results_dir="$mount_reports_dir/$branch/results"
+report_dir="$mount_reports_dir/$branch/report"
 
+# check report results directory
+if [ ! -d "$results_dir" ]; then
+    mkdir -p "$results_dir"
+else
+    # clear results
+    rm -rf "$results_dir"/*
+fi
+
+# check report directory
+if [ ! -d "$report_dir" ]; then
+    mkdir -p "$report_dir"
+else
+    if [ -n "$(ls -A "$report_dir/history/")" ]; then
+        mkdir -p "$results_dir/history/"
+        # copy history to results
+        echo "Moving history results to results directory..."
+        cp -r "$report_dir/history/"* "$results_dir/history/"
+    fi
+fi
+
+# copy results to server
+cp -r "$log_dir/allure-results/"* "$results_dir"
+
+# generate the test report for pr
+allure generate "$results_dir" -o "$report_dir" --clean
+
+# check report is generated successfully
+if [ -f "$report_dir/index.html" ]; then
+    echo "Allure report generated successfully at $report_dir."
+else
+    echo "Error: Failed to generate Allure report."
+    exit 1
+fi
+
+echo "Test report: http://platform.tdengine.net:8090/reports/$branch/report"
+
+echo "${log_dir}" >&2
 date
 
 exit $RET

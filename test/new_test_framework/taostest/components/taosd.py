@@ -356,10 +356,10 @@ class TaosD:
                         self._remote.cmd(fqdn, killCmd)
                     if self.taosd_valgrind:
                         self._remote.cmd(fqdn, [f'mkdir -p /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null', f'cp -rf {i["config"]["logDir"]}/* /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null'])
-                    cmdList = []
-                    for dir in (i["config_dir"], i["config"]["dataDir"], i["config"]["logDir"]):
-                        cmdList.append("rm -rf {}".format(dir))
-                    self._remote.cmd(fqdn, cmdList)
+                    #cmdList = []
+                    #for dir in (i["config_dir"], i["config"]["dataDir"], i["config"]["logDir"]):
+                    #    cmdList.append("rm -rf {}".format(dir))
+                    #self._remote.cmd(fqdn, cmdList)
 
 
     def kill_and_start(self, nodeDict, sleep_seconds=1):

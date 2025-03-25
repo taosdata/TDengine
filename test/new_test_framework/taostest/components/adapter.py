@@ -3,6 +3,7 @@ import re
 import winrm
 from threading import Thread
 import platform
+import subprocess
 from ..util.file import dict2toml, dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
@@ -87,15 +88,28 @@ class TaosAdapter:
                     dir_win = dir.replace('/','\\')
                     win_taosadapter.run_cmd(f"rd /S /Q {dir_win}")
             else:
-                killCmd = [
-                    "ps -ef|grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict[
-                        "name"]]
-                self._remote.cmd(i, killCmd)
-                cmdList = []
-                for dir in (tmpDict["config_file"], tmpDict["adapter_config"]["taosConfigDir"],
-                            tmpDict["adapter_config"]["log"]["path"], tmpDict["taos_config"]["logDir"]):
-                    cmdList.append("rm -rf {}".format(dir))
-                self._remote.cmd(i, cmdList)
+                if "asanDir" in tmpDict:
+                    if i == "localhost":
+                        killCmd = ["ps -ef | grep -w taosadapter | grep -v grep | awk '{print $2}' | xargs kill "]
+                        env = os.environ.copy()
+                        env.pop('LD_PRELOAD', None)
+                        try:
+                            subprocess.run(killCmd, shell=True, text=True, env=env)
+                        except Exception as e:
+                            print(e)
+                    else:
+                        killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
+                        self._remote.cmd(i, killCmd)
+                else:
+                    killCmd = [
+                        "ps -ef|grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % nodeDict[
+                            "name"]]
+                    self._remote.cmd(i, killCmd)
+                #cmdList = []
+                #for dir in (tmpDict["config_file"], tmpDict["adapter_config"]["taosConfigDir"],
+                #            tmpDict["adapter_config"]["log"]["path"], tmpDict["taos_config"]["logDir"]):
+                #    cmdList.append("rm -rf {}".format(dir))
+                #self._remote.cmd(i, cmdList)
 
     def _install(self, host, version, pkg):
         if pkg is None:

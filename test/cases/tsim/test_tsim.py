@@ -9,26 +9,27 @@ class TestTsim:
     def setup_class(cls):
         if cls.tsim_file is None:
             pytest.skip("No tsim file provided")
-        cls.SIM_DIR = cls.ci_workdir
+        cls.SIM_DIR = cls.work_dir
         cls.PRG_DIR = os.path.join(cls.SIM_DIR, "tsim")
         cls.CFG_DIR = os.path.join(cls.PRG_DIR, "cfg")
         cls.LOG_DIR = os.path.join(cls.PRG_DIR, "log")
         cls.DATA_DIR = os.path.join(cls.PRG_DIR, "data")
         cls.ASAN_DIR = os.path.join(cls.SIM_DIR, "asan")
         cls.CODE_DIR = os.path.dirname(os.path.abspath(__file__))
+        cls.TAOS_BIN_PATH = cls.taos_bin_path
 
         
-        if cls.SIM_DIR and os.path.exists(cls.SIM_DIR):
-            shutil.rmtree(cls.SIM_DIR)
+        #if cls.SIM_DIR and os.path.exists(cls.SIM_DIR):
+        #    shutil.rmtree(cls.SIM_DIR)
 
-        if cls.LOG_DIR and os.path.exists(cls.LOG_DIR):
-            shutil.rmtree(cls.LOG_DIR)
+        #if cls.LOG_DIR and os.path.exists(cls.LOG_DIR):
+        #    shutil.rmtree(cls.LOG_DIR)
 
-        if cls.CFG_DIR and os.path.exists(cls.CFG_DIR):
-            shutil.rmtree(cls.CFG_DIR)
+        #if cls.CFG_DIR and os.path.exists(cls.CFG_DIR):
+        #    shutil.rmtree(cls.CFG_DIR)
 
-        if cls.ASAN_DIR and os.path.exists(cls.ASAN_DIR):
-            shutil.rmtree(cls.ASAN_DIR)
+        #if cls.ASAN_DIR and os.path.exists(cls.ASAN_DIR):
+         #   shutil.rmtree(cls.ASAN_DIR)
 
         os.makedirs(cls.PRG_DIR, exist_ok=True)
         os.makedirs(cls.LOG_DIR, exist_ok=True)
@@ -64,6 +65,7 @@ class TestTsim:
         cls.env_vars["DATA_DIR"] = cls.DATA_DIR
         cls.env_vars["ASAN_DIR"] = cls.ASAN_DIR
         cls.env_vars["CODE_DIR"] = cls.CODE_DIR
+        cls.env_vars["TAOS_BIN_PATH"] = cls.TAOS_BIN_PATH
         tdLog.debug(f"env_vars: {cls.env_vars}")
 
     @pytest.mark.tsim
@@ -73,10 +75,10 @@ class TestTsim:
         tsim_file = self.tsim_file
         #tsim_file_path = os.path.join("cases", tsim_file)
         tsim_path = self.tsim_path
-        bin_path = self.bin_path
+        bin_path = self.taos_bin_path
         lib_path = self.lib_path
-        asan_path = os.path.join(self.ci_workdir, "asan", "tsim.asan")
-        os.makedirs(os.path.join(self.ci_workdir, "asan"), exist_ok=True)
+        asan_path = os.path.join(self.work_dir, "asan", "tsim.asan")
+        os.makedirs(os.path.join(self.work_dir, "asan"), exist_ok=True)
         tdLog.debug(f"tsim_file: {tsim_file}, tsim_path: {tsim_path}, bin_path: {bin_path}, lib_path: {lib_path}, asan_path: {asan_path}")
 
         with open(asan_path, "w") as f:
@@ -87,3 +89,4 @@ class TestTsim:
         else:
             tdLog.info(f"Tsim test passed")
             assert True
+            tdLog.info("%s successfully executed" % __file__)

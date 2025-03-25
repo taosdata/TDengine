@@ -104,7 +104,7 @@ class TestInsertDouble:
         tdSql.query(f"select * from {stable_name}")
         tdSql.checkRows(12)
 
-    @pytest.mark.common
+
     @pytest.mark.ci
     def test_insert_double(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         """测试插入各种double值
@@ -137,7 +137,4 @@ class TestInsertDouble:
         self.run_tags("t_small", "smallint", 16)
         self.run_tags("t_tiny", "tinyint", 8)
         tdLog.printNoPrefix("==========end case2 run ...............")
-
-
-    def teardown_class(cls):
         logger.info(f"{__file__} successfully executed")

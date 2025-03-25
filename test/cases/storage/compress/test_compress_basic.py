@@ -383,6 +383,4 @@ class TestCompressBasic:
 
         # check corrent
         self.checkCorrect()
-
-    def teardown_class(cls):
         logger.info(f"{__file__} successfully executed")

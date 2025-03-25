@@ -52,11 +52,11 @@ class TDSimClient:
         }
 
     def getLogDir(self):
-        self.logDir = os.path.join(self.path,"sim","psim","log")
+        self.logDir = os.path.join(self.path,"psim","log")
         return self.logDir
 
     def getCfgDir(self):
-        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
+        self.cfgDir = os.path.join(self.path,"psim","cfg")
         return self.cfgDir
 
     def setTestCluster(self, value):
@@ -71,9 +71,9 @@ class TDSimClient:
             tdLog.exit(cmd)
 
     def deploy(self, *updatecfgDict):
-        self.logDir = os.path.join(self.path,"sim","psim","log")
-        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
-        self.cfgPath = os.path.join(self.path,"sim","psim","cfg","taos.cfg")
+        self.logDir = os.path.join(self.path,"psim","log")
+        self.cfgDir = os.path.join(self.path,"psim","cfg")
+        self.cfgPath = os.path.join(self.path,"psim","cfg","taos.cfg")
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:

@@ -10,14 +10,17 @@ import yaml
 import logging
 import socket
 import configparser
+import shutil
 #from utils.log import testLog
 from .frame import tdSql, etool, tdLog, testLog
 from .util import cluster as cluster_pytest, ClusterDnodes as ClusterDnodes_pytest
 from .util import tdDnodes as tdDnodes_pytest
 from .util import tAdapter as tAdapter_pytest
+from .util import tdCom as tdCom_pytest
 from .frame import cluster as cluster_army, ClusterDnodes as ClusterDnodes_army, clusterDnodes as clusterDnodes_army
 from .frame import tdDnodes as tdDnodes_army
 from .frame import tAdapter as tAdapter_army
+from .frame import tdCom as tdCom_army
 
 
 class BeforeTest:
@@ -152,18 +155,19 @@ class BeforeTest:
             testLog.error(f"[BeforeTest.destroy] Error run taostest --destroy: {e}")
         
     def get_config_from_param(self, request):
-        if "TDinternal" in self.root_dir:
-            ci_path = os.path.join(os.path.dirname(os.path.dirname(self.root_dir)), 'sim')
-        else:
-            ci_path = os.path.join(os.path.dirname(self.root_dir), 'sim')
-        cfg_path = os.path.join(ci_path, 'cfg')
-        bin_path = os.path.dirname(self.getPath("taosd"))
-        lib_path = os.path.join(os.path.dirname(bin_path), 'lib')
+        work_dir = request.session.work_dir
+        #if "TDinternal" in self.root_dir:
+        #    ci_path = os.path.join(os.path.dirname(os.path.dirname(self.root_dir)), 'sim')
+        #else:
+        #    ci_path = os.path.join(os.path.dirname(self.root_dir), 'sim')
+        cfg_path = os.path.join(work_dir, 'cfg')
+        #bin_path = os.path.dirname(self.getPath("taosd"))
+        lib_path = os.path.join(os.path.dirname(request.session.taos_bin_path), 'lib')
         testLog.debug(f"lib_path: {lib_path}")
         #os.environ["LD_LIBRARY_PATH"] = f"{lib_path}:{os.environ['LD_LIBRARY_PATH']}"
-        libso_file = os.path.basename(subprocess.check_output([f"ls -l {lib_path}/libtaos.so.3.3* | awk '{{print $9}}'"], shell=True).splitlines()[0].decode())
-        testLog.debug(f"libso_file: {libso_file}")
-        if os.path.exists("/usr/lib/libtaos.so"):
+        if os.path.exists(f"{lib_path}/libtaos.so") and lib_path != "/usr/lib":
+            libso_file = os.path.basename(subprocess.check_output([f"ls -l {lib_path}/libtaos.so.3.3* | awk '{{print $9}}'"], shell=True).splitlines()[0].decode())
+            testLog.debug(f"libso_file: {libso_file}")
             subprocess.run([f"rm -rf /usr/lib/libtaos.so && ln -s {lib_path}/libtaos.so /usr/lib/libtaos.so"], check=True, text=True, shell=True)
             subprocess.run([f"rm -rf /usr/lib/libtaos.so.1 && ln -s {lib_path}/{libso_file} /usr/lib/libtaos.so.1"], check=True, text=True, shell=True)
         # os.environ["LIB_PATH"]= f"{lib_path}:{os.environ['LIB_PATH']}"
@@ -184,23 +188,23 @@ class BeforeTest:
         }
         servers = []
         for i in range(request.session.denodes_num):
-            dnode_cfg_path = os.path.join(ci_path, f"dnode{i+1}", "cfg")
-            log_path = os.path.join(ci_path, f"dnode{i+1}", "log")
+            dnode_cfg_path = os.path.join(work_dir, f"dnode{i+1}", "cfg")
+            log_path = os.path.join(work_dir, f"dnode{i+1}", "log")
             if request.session.level > 1 or request.session.disk > 1:
                 data_path = []
                 primary = 1
                 for l in range(request.session.level):
                     for d in range(request.session.disk):
-                        eDir = os.path.join(ci_path, f"dnode{i+1}", f"data{l}{d}")
+                        eDir = os.path.join(work_dir, f"dnode{i+1}", f"data{l}{d}")
                         data_path.append(f"{eDir} {l} {primary}")
                         if primary == 1:
                             primary = 0
             else:
-                data_path = os.path.join(ci_path, f"dnode{i+1}", "data")
+                data_path = os.path.join(work_dir, f"dnode{i+1}", "data")
             dnode = {
                 "endpoint": f"localhost:{6030 + i * 100}",
                 "config_dir": dnode_cfg_path,
-                "taosdPath": self.getPath("taosd"),
+                "taosdPath": os.path.join(request.session.taos_bin_path, "taosd"),
                 "config": {
                     "dataDir": data_path,
                     "logDir": log_path,
@@ -236,7 +240,7 @@ class BeforeTest:
             if request.session.independentMnode and i < request.session.mnodes_num:
                 dnode["config"]["supportVnodes"] = 0
             if request.session.asan:
-                dnode["asanDir"] = os.path.join(ci_path, "asan", f"dnode{i+1}.asan")
+                dnode["asanDir"] = os.path.join(work_dir, "asan", f"dnode{i+1}.asan")
                 os.makedirs(os.path.dirname(dnode["asanDir"]), exist_ok=True)
                 request.session.asan_dir = dnode["asanDir"]
             yaml_data["settings"][0]["spec"]["dnodes"].append(dnode)
@@ -253,11 +257,11 @@ class BeforeTest:
         request.session.servers = servers
         if request.session.restful:
             # TODO: 增加taosAdapter的配置
-            adapter_config_dir = os.path.join(ci_path, "dnode1", "cfg")
+            adapter_config_dir = os.path.join(work_dir, "dnode1", "cfg")
             adapter_config_file = os.path.join(adapter_config_dir, "taosadapter.toml")
-            taos_config_file = os.path.join(ci_path, "dnode1", "cfg", "taos.cfg")
-            adapter_log_dir = os.path.join(ci_path, "dnode1", "log")
-            taos_log_dir = os.path.join(ci_path, "dnode1", "log")
+            taos_config_file = os.path.join(work_dir, "dnode1", "cfg", "taos.cfg")
+            adapter_log_dir = os.path.join(work_dir, "dnode1", "log")
+            taos_log_dir = os.path.join(work_dir, "dnode1", "log")
             restful_dict = {
                 "name": "taosAdapter",
                 "fqdn": ["localhost"],
@@ -274,9 +278,11 @@ class BeforeTest:
                         "firstEP": "localhost:6030",
                         "logDir": taos_log_dir
                     },
-                    "taosadapterPath": self.getPath("taosadapter")
+                    "taosadapterPath": os.path.join(request.session.taos_bin_path, "taosadapter")
                 }
             }
+            if request.session.asan:
+                restful_dict["spec"]["asanDir"] = os.path.join(work_dir, "asan", f"taosadapter.asan")
             yaml_data["settings"].append(restful_dict)
             adapter = {}
             adapter["host"] = "localhost"
@@ -346,10 +352,10 @@ class BeforeTest:
         request.session.user = "root"
         request.session.password = "taosdata"
         request.session.cfg_path = servers[0]["cfg_path"]
-        request.session.bin_path = bin_path
+        #request.session.bin_path = bin_path
         request.session.lib_path = lib_path
-        request.session.tsim_path = os.path.join(bin_path, "tsim")
-        request.session.ci_workdir = ci_path
+        request.session.tsim_path = os.path.join(request.session.taos_bin_path, "tsim")
+        #request.session.ci_workdir = ci_path
     
 
     def get_config_from_yaml(self, request, yaml_file_path):
@@ -371,7 +377,8 @@ class BeforeTest:
                         "endpoint": endpoint,
                         "log_dir": dnode["config"]["logDir"],
                         "data_dir": dnode["config"]["dataDir"],
-                        "config": dnode["config"]
+                        "config": dnode["config"],
+                        "taosd_path": dnode["taosdPath"] if "taosdPath" in dnode else None
                     }
                     servers.append(server)
             if setting.get("name") == "taosAdapter":
@@ -412,7 +419,11 @@ class BeforeTest:
         request.session.query_policy = 1
         request.session.yaml_data = yaml_data
         request.session.adapter = adapter
+
         request.session.taoskepper = taoskeeper
+
+        if servers[0]["taosd_path"] is not None:
+            request.session.taos_bin_path = servers[0]["taosd_path"]
 
 
     def init_dnode_cluster(self, request, dnode_nums, mnode_nums, independentMnode=True, level=1, disk=1):
@@ -426,37 +437,41 @@ class BeforeTest:
         if dnode_nums > 1:
             dnodes_list_pytest = cluster_pytest.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
             tdDnodes_pytest = ClusterDnodes_pytest(dnodes_list_pytest)
-            tdDnodes_pytest.init("", master_ip)
+            tdDnodes_pytest.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
             tdDnodes_pytest.setTestCluster(False)
             tdDnodes_pytest.setValgrind(0)
             tdDnodes_pytest.setAsan(request.session.asan)
             dnodes_list_army = cluster_army.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
-            clusterDnodes_army.init(dnodes_list_army, "", master_ip)
+            clusterDnodes_army.init(dnodes_list_army, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
             clusterDnodes_army.setTestCluster(False)
             clusterDnodes_army.setValgrind(0)
             clusterDnodes_army.setAsan(request.session.asan)
             tdDnodes_army = clusterDnodes_army
+            #tdDnodes_army.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
+            #tdDnodes_army.setTestCluster(False)
+            #tdDnodes_army.setValgrind(0)
+            #tdDnodes_army.setAsan(request.session.asan)
         else:
-            tdDnodes_pytest.init("", master_ip)
+            tdDnodes_pytest.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
             tdDnodes_pytest.setKillValgrind(1)
             tdDnodes_pytest.setTestCluster(False)
             tdDnodes_pytest.setValgrind(0)
             tdDnodes_pytest.setAsan(request.session.asan)
-            tdDnodes_army.init("", master_ip)
+            tdDnodes_army.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
             tdDnodes_army.setKillValgrind(1)
             tdDnodes_army.setTestCluster(False)
             tdDnodes_army.setValgrind(0)
             tdDnodes_army.setAsan(request.session.asan)
         tdDnodes_pytest.sim.setTestCluster(False)
-        tdDnodes_pytest.sim.logDir = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","log")
-        tdDnodes_pytest.sim.cfgDir = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","cfg")
-        tdDnodes_pytest.sim.cfgPath = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","cfg","taos.cfg")
+        tdDnodes_pytest.sim.logDir = os.path.join(tdDnodes_pytest.sim.path,"psim","log")
+        tdDnodes_pytest.sim.cfgDir = os.path.join(tdDnodes_pytest.sim.path,"psim","cfg")
+        tdDnodes_pytest.sim.cfgPath = os.path.join(tdDnodes_pytest.sim.path,"psim","cfg","taos.cfg")
         tdDnodes_pytest.simDeployed = True
         tdDnodes_army.sim.setTestCluster(False)
         tdDnodes_army.setLevelDisk(request.session.level, request.session.disk)
-        tdDnodes_army.sim.logDir = os.path.join(tdDnodes_army.sim.path,"sim","psim","log")
-        tdDnodes_army.sim.cfgDir = os.path.join(tdDnodes_army.sim.path,"sim","psim","cfg")
-        tdDnodes_army.sim.cfgPath = os.path.join(tdDnodes_army.sim.path,"sim","psim","cfg","taos.cfg")
+        tdDnodes_army.sim.logDir = os.path.join(tdDnodes_army.sim.path,"psim","log")
+        tdDnodes_army.sim.cfgDir = os.path.join(tdDnodes_army.sim.path,"psim","cfg")
+        tdDnodes_army.sim.cfgPath = os.path.join(tdDnodes_army.sim.path,"psim","cfg","taos.cfg")
         tdDnodes_army.simDeployed = True
         for i in range(dnode_nums):
             tdDnodes_pytest.dnodes[i].setTestCluster(False)
@@ -481,27 +496,32 @@ class BeforeTest:
             tdDnodes_army.dnodes[i].cfgDict["logDir"] = tdDnodes_army.dnodes[i].logDir
             tdDnodes_army.dnodes[i].deployed = 1
             tdDnodes_army.dnodes[i].running = 1
-    # TODO: 增加taosAdapter实例化
-
+        
         if request.session.restful:
-            tAdapter_pytest.init("", master_ip)
+            tAdapter_pytest.init(request.session.work_dir, master_ip)
             tAdapter_pytest.log_dir = request.session.adapter["log_path"]
             tAdapter_pytest.cfg_dir = request.session.adapter["cfg_dir"]
             tAdapter_pytest.cfg_path = request.session.adapter["config_file"]
             tAdapter_pytest.taosadapter_cfg_dict["log"]["path"] = request.session.adapter["log_path"]
             tAdapter_pytest.deployed = 1
             tAdapter_pytest.running = 1
-            tAdapter_army.init("", master_ip)
+            tAdapter_army.init(request.session.work_dir, master_ip)
             tAdapter_army.log_dir = request.session.adapter["log_path"]
             tAdapter_army.cfg_dir = request.session.adapter["cfg_dir"]
             tAdapter_army.cfg_path = request.session.adapter["config_file"]
             tAdapter_army.taosadapter_cfg_dict["log"]["path"] = request.session.adapter["log_path"]
             tAdapter_army.deployed = 1
             tAdapter_army.running = 1
+
     # TODO: 增加taoskeeper实例化
         if request.session.taoskeeper:
             taoskeeper_pytest.init("", master_ip)
             taoskeeper_pytest.log_dir = request.session.taoskeeper["log_dir"]
+
+        # 实例化 tdCommon
+        tdCom_pytest.init(request.session.taos_bin_path, request.session.cfg_path, request.session.work_dir)
+        tdCom_army.init(request.session.taos_bin_path, request.session.cfg_path, request.session.work_dir)
+
     
 
     def update_cfg(self, updatecfgDict):
@@ -529,18 +549,47 @@ class BeforeTest:
                     paths.append(os.path.join(root, binary))
                     break
         if (len(paths) == 0):
-                if sys.platform == "win32":
-                    return f"C:\\TDengine\\bin\\{binary}.exe"
-                elif sys.platform == "darwin":
-                    if os.path.exists("/usr/local/bin/{binary}"):
-                        return f"/usr/local/bin/{binary}"
-                    else:
-                        testLog.error(f"taosd binary not found in /usr/local/bin/{binary}")
-                        raise Exception(f"taosd binary not found in debug/build/bin or /usr/local/bin/{binary}")
+            if sys.platform == "win32":
+                return f"C:\\TDengine\\bin\\{binary}.exe"
+            elif sys.platform == "darwin":
+                if os.path.exists("/usr/local/bin/{binary}"):
+                    return f"/usr/local/bin/{binary}"
                 else:
-                    if os.path.exists("/usr/bin/{binary}"):
-                        return f"/usr/bin/{binary}"
-                    else:
-                        testLog.error(f"taosd binary not found in /usr/bin/{binary}")
-                        raise Exception(f"taosd binary not found in debug/build/bin or /usr/bin/{binary}")
+                    testLog.error(f"taosd binary not found in /usr/local/bin/{binary}")
+                    #raise Exception(f"taosd binary not found in debug/build/bin or /usr/local/bin/{binary}")
+                    return None
+            else:
+                testLog.debug(f"taos_bin_path: {os.path.exists('/usr/bin/{binary}')}")
+                if os.path.exists(f"/usr/bin/{binary}"):
+                    return f"/usr/bin/{binary}"
+                else:
+                    testLog.error(f"taosd binary not found in /usr/bin/{binary}")
+                    return None
+                        #raise Exception(f"taosd binary not found in debug/build/bin or /usr/bin/{binary}")
         return paths[0]
+
+    def get_taos_bin_path(self, taos_bin_path):
+        if taos_bin_path is not None and os.path.exists(os.path.join(taos_bin_path, "taosd")):
+            return taos_bin_path
+        bin_path = self.getPath()
+        if bin_path is not None:
+            return os.path.dirname(bin_path)
+        raise Exception("taosd binary not found in TAOS_BIN_PATH")
+
+    def get_and_mkdir_workdir(self, workdir):
+        if workdir is None:
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            projPath = None
+            if ("community" in selfPath):
+                projPath = selfPath[:selfPath.find("community")]
+            elif ("TDengine" in selfPath):
+                projPath = selfPath[:selfPath.find("test")]
+            if projPath is not None:
+                workdir = os.path.join(projPath, "sim")
+            else:
+                workdir = os.path.join(selfPath, "sim")
+        testLog.debug(f"workdir: {workdir}")
+        #if os.path.exists(workdir):
+        #    shutil.rmtree(workdir)
+        os.makedirs(workdir, exist_ok=True)
+        return workdir

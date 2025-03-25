@@ -28,6 +28,7 @@ apt install python3-pip
 - Install Python dependencies
 
 ```bash
+cd test
 pip3 install -r requirements.txt
 ```
 
@@ -48,11 +49,12 @@ Outline the main directories and their purposes:
 test/
 │
 ├── cases/                # cases directory
-│   ├── test_demo.py      # demo test case
+│   ├── demo/             
+│   │   ├── test_demo.py  # demo test case
 │   └── ...
 │
 ├── env/                  # TDengine deploy configuration yaml file directory
-│   └── config.yaml       # config example
+│   └── demo.yaml         # configuration example
 │
 ├── utils/                # common functions utils directory
 │   └── ...
@@ -67,7 +69,7 @@ Run test cases command description:
 
 ```bash
 cd test
-pytest [options] [test_file_path]
+pytest [options] [test_file_path] [test_file_path]
 ```
 
 Options:
@@ -116,7 +118,7 @@ pytest
 pytest cases/data_write/sql_statement/test_insert_double.py
 
 # 3. Run a specific test case
-pytest cases/data_write/sql_statement/test_insert_double.py::test_tags
+pytest cases/data_write/sql_statement/test_insert_double.py::TestInsertDouble::test_value
 
 # 4. Run test cases with a specific marker
 pytest -m ci

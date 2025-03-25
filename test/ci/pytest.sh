@@ -91,6 +91,7 @@ else
 
   $* -A 2>$AsanFile
 
+
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
     AsanFileLen=$(cat $AsanFile | wc -l)
@@ -104,7 +105,7 @@ else
   AsanFileSuccessLen=$(grep -w "successfully executed" $AsanFile | wc -l)
   echo "AsanFileSuccessLen:" $AsanFileSuccessLen
 
-  if [ $AsanFileSuccessLen -gt 0 ]; then
+  if [[ "$AsanFileSuccessLen" -gt 0 ]]; then
     echo "Execute script successfully and check asan"
     $CODE_DIR/ci/checkAsan.sh
   else

@@ -27,10 +27,12 @@ from .cases import *
 from .server.dnodes import *
 from .common import *
 from .constant import *
+from .epath import *
 from dataclasses import dataclass,field
 from typing import List
 from datetime import datetime
 import re
+
 @dataclass
 class DataSet:
     ts_data     : List[int]     = field(default_factory=list)
@@ -202,8 +204,16 @@ class TDCom:
         self.cast_tag_stb_filter_des_select_elm = "ts, t1, t2, t3, t4, cast(t1 as TINYINT UNSIGNED), t6, t7, t8, t9, t10, cast(t2 as varchar(256)), t12, cast(t3 as bool)"
         self.tag_count = len(self.tag_filter_des_select_elm.split(","))
         self.state_window_range = list()
+        self.taos_bin_path = "/usr/bin"
+        self.taos_cfg_path = "/etc/taos"
+        self.work_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "sim")
     # def init(self, conn, logSql):
     #     # tdSql.init(conn.cursor(), logSql)
+
+    def init(self, taos_bin_path, taos_cfg_path, work_dir):
+        self.taos_bin_path = taos_bin_path
+        self.taos_cfg_path = taos_cfg_path
+        self.work_dir = work_dir
 
     def preDefine(self):
         header = {'Authorization': 'Basic cm9vdDp0YW9zZGF0YQ=='}
@@ -510,15 +520,16 @@ class TDCom:
         return buildPath
 
     def getClientCfgPath(self):
-        buildPath = self.getBuildPath()
+        return os.path.join(self.work_dir, "psim", "cfg")
+        #buildPath = self.getBuildPath()
 
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
-        tdLog.info("cfgPath: %s" % cfgPath)
-        return cfgPath
+        #if (buildPath == ""):
+        #    tdLog.exit("taosd not found!")
+        #else:
+        #    tdLog.info("taosd found in %s" % buildPath)
+        #cfgPath = buildPath + "/../sim/psim/cfg"
+        #tdLog.info("cfgPath: %s" % cfgPath)
+        #return cfgPath
 
     def newcon(self,host='localhost',port=6030,user='root',password='taosdata'):
         con=taos.connect(host=host, user=user, password=password, port=port)
@@ -1891,22 +1902,23 @@ def is_json(msg):
         return False
 
 def get_path(tool="taosd"):
-    selfPath = os.path.dirname(os.path.realpath(__file__))
-    if ("community" in selfPath):
-        projPath = selfPath[:selfPath.find("community")]
-    else:
-        projPath = selfPath[:selfPath.find("tests")]
+    return binFile(tool)
+    #selfPath = os.path.dirname(os.path.realpath(__file__))
+    #if ("community" in selfPath):
+    #    projPath = selfPath[:selfPath.find("community")]
+    #else:
+    #    projPath = selfPath[:selfPath.find("tests")]
 
-    paths = []
-    for root, dirs, files in os.walk(projPath):
-        if ((tool) in files or ("%s.exe"%tool) in files):
-            rootRealPath = os.path.dirname(os.path.realpath(root))
-            if ("packaging" not in rootRealPath):
-                paths.append(os.path.join(root, tool))
-                break
-    if (len(paths) == 0):
-            return ""
-    return paths[0]
+    #paths = []
+    #for root, dirs, files in os.walk(projPath):
+    #    if ((tool) in files or ("%s.exe"%tool) in files):
+    #        rootRealPath = os.path.dirname(os.path.realpath(root))
+    #        if ("packaging" not in rootRealPath):
+    #            paths.append(os.path.join(root, tool))
+    #            break
+    #if (len(paths) == 0):
+    #        return ""
+    #return paths[0]
 
 def dict2toml(in_dict: dict, file:str):
     if not isinstance(in_dict, dict):

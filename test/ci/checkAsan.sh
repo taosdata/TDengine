@@ -26,9 +26,16 @@ if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
 else
   cd ../
 fi
-
-TAOS_DIR=$(pwd)
-LOG_DIR=$TAOS_DIR/sim/asan
+if [[ -n "$WORK_DIR" ]]; then
+  echo "WORK_DIR: $WORK_DIR"
+  TAOS_DIR=$WORK_DIR  
+elif [[ -n "$SIM_DIR" ]]; then
+  echo "SIM_DIR: $SIM_DIR"
+  TAOS_DIR=$SIM_DIR
+else
+  TAOS_DIR=$(pwd)/sim
+fi
+LOG_DIR=$TAOS_DIR/asan
 
 error_num=$(cat ${LOG_DIR}/*.asan | grep "ERROR" | wc -l)
 

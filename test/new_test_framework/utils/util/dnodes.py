@@ -53,11 +53,11 @@ class TDSimClient:
         }
 
     def getLogDir(self):
-        self.logDir = os.path.join(self.path,"sim","psim","log")
+        self.logDir = os.path.join(self.path,"psim","log")
         return self.logDir
 
     def getCfgDir(self):
-        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
+        self.cfgDir = os.path.join(self.path,"psim","cfg")
         return self.cfgDir
 
     def setTestCluster(self, value):
@@ -72,9 +72,9 @@ class TDSimClient:
             tdLog.exit(cmd)
 
     def deploy(self, *updatecfgDict):
-        self.logDir = os.path.join(self.path,"sim","psim","log")
-        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
-        self.cfgPath = os.path.join(self.path,"sim","psim","cfg","taos.cfg")
+        self.logDir = os.path.join(self.path,"psim","log")
+        self.cfgDir = os.path.join(self.path,"psim","cfg")
+        self.cfgPath = os.path.join(self.path,"psim","cfg","taos.cfg")
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
@@ -154,9 +154,12 @@ class TDDnode:
             "telemetryReporting": "0",
             "safetyCheckLevel":"2"
         }
+        self.binPath = "/usr/bin"
+        self.execPath = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "exec.sh")
 
-    def init(self, path, remoteIP = ""):
+    def init(self, path, binPath, remoteIP = ""):
         self.path = path
+        self.binPath = binPath
         self.remoteIP = remoteIP
         if (not self.remoteIP == ""):
             try:
@@ -175,10 +178,12 @@ class TDDnode:
         self.asan = value
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
-            if ("community" in selfPath):
-                self.execPath = os.path.abspath(self.path + "/community/test/utils/exec.sh")
-            else:
-                self.execPath = os.path.abspath(self.path + "/test/utils/exec.sh")
+            utils_path = os.path.dirname(selfPath)
+            self.execPath = os.path.join(utils_path, "exec.sh")
+            #if ("community" in selfPath):
+            #    self.execPath = os.path.abspath(self.path + "/community/test/utils/exec.sh")
+            #else:
+            #    self.execPath = os.path.abspath(self.path + "/test/utils/exec.sh")
 
     def getDataSize(self):
         totalSize = 0
@@ -213,10 +218,10 @@ class TDDnode:
             self.remote_conn.run("python3 ./test.py %s -d %s -e %s"%(valgrindStr,remoteCfgDictStr,execCmdStr))
 
     def deploy(self, *updatecfgDict):
-        self.logDir = os.path.join(self.path,"sim","dnode%d" % self.index, "log")
-        self.dataDir = os.path.join(self.path,"sim","dnode%d" % self.index, "data")
-        self.cfgDir = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
-        self.cfgPath = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg","taos.cfg")
+        self.logDir = os.path.join(self.path,"dnode%d" % self.index, "log")
+        self.dataDir = os.path.join(self.path,"dnode%d" % self.index, "data")
+        self.cfgDir = os.path.join(self.path,"dnode%d" % self.index, "cfg")
+        self.cfgPath = os.path.join(self.path,"dnode%d" % self.index, "cfg","taos.cfg")
 
         cmd = "rm -rf " + self.dataDir
         if os.system(cmd) != 0:
@@ -289,31 +294,31 @@ class TDDnode:
             (self.index, self.cfgPath))
 
     def getPath(self, tool="taosd"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
+        return os.path.join(os.path.dirname(self.binPath), tool)
+        #selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
+        # if ("community" in selfPath):
+        #     projPath = selfPath[:selfPath.find("community")]
+        # else:
+        #     projPath = selfPath[:selfPath.find("tests")]
 
-        paths = []
-        for root, dirs, files in os.walk(projPath):
-            if ((tool) in files or ("%s.exe"%tool) in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    paths.append(os.path.join(root, tool))
-                    break
-        if (len(paths) == 0):
-                return ""
-        return paths[0]
-
+        #paths = []
+        #for root, dirs, files in os.walk(projPath):
+        #    if ((tool) in files or ("%s.exe"%tool) in files):
+        #        rootRealPath = os.path.dirname(os.path.realpath(root))
+        #        if ("packaging" not in rootRealPath):
+        #            paths.append(os.path.join(root, tool))
+        #            break
+        #if (len(paths) == 0):
+        #   return ""
+        #return paths[0]
     def starttaosd(self):
-        binPath = self.getPath()
+        #binPath = self.getPath()
 
-        if (binPath == ""):
-            tdLog.exit("taosd not found!")
+        if os.path.exists(self.binPath):
+            tdLog.info("taosd found: %s" % self.binPath)
         else:
-            tdLog.info("taosd found: %s" % binPath)
+            tdLog.exit("taosd not found!")
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -321,25 +326,26 @@ class TDDnode:
         if self.valgrind == 0:
             if platform.system().lower() == 'windows':
                 cmd = "mintty -h never %s -c %s" % (
-                    binPath, self.cfgDir)
+                    self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
-                        binPath, self.cfgDir, asanDir)
+                        self.binPath, self.cfgDir, asanDir)
+                    tdLog.info(cmd)
                 else:
                     cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                        binPath, self.cfgDir)
+                        self.binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             if platform.system().lower() == 'windows':
                 cmd = "mintty -h never %s %s -c %s" % (
-                    valgrindCmdline, binPath, self.cfgDir)
+                    valgrindCmdline, self.binPath, self.cfgDir)
             else:
                 cmd = "nohup %s %s -c %s 2>&1 & " % (
-                    valgrindCmdline, binPath, self.cfgDir)
+                    valgrindCmdline, self.binPath, self.cfgDir)
 
             print(cmd)
 
@@ -395,12 +401,12 @@ class TDDnode:
                 time.sleep(10)
 
     def start(self):
-        binPath = self.getPath()
+        #binPath = self.getPath()
 
-        if (binPath == ""):
-            tdLog.exit("taosd not found!")
+        if os.path.exists(self.binPath):
+            tdLog.info("taosd found: %s" % self.binPath)
         else:
-            tdLog.info("taosd found: %s" % binPath)
+            tdLog.exit("taosd not found!")
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -408,25 +414,25 @@ class TDDnode:
         if self.valgrind == 0:
             if platform.system().lower() == 'windows':
                 cmd = "mintty -h never %s -c %s" % (
-                    binPath, self.cfgDir)
+                    self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
-                        binPath, self.cfgDir, asanDir)
+                        self.binPath, self.cfgDir, asanDir)
                 else:
                     cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                        binPath, self.cfgDir)
+                        self.binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             if platform.system().lower() == 'windows':
                 cmd = "mintty -h never %s %s -c %s" % (
-                    valgrindCmdline, binPath, self.cfgDir)
+                    valgrindCmdline, self.binPath, self.cfgDir)
             else:
                 cmd = "nohup %s %s -c %s 2>&1 & " % (
-                    valgrindCmdline, binPath, self.cfgDir)
+                    valgrindCmdline, self.binPath, self.cfgDir)
 
             print(cmd)
 
@@ -466,36 +472,36 @@ class TDDnode:
                 time.sleep(10)
 
     def startWithoutSleep(self):
-        binPath = self.getPath()
+        #binPath = self.getPath()
 
-        if (binPath == ""):
-            tdLog.exit("taosd not found!")
+        if os.path.exists(self.binPath):
+            tdLog.info("taosd found: %s" % self.binPath)
         else:
-            tdLog.info("taosd found: %s" % binPath)
+            tdLog.exit("taosd not found!")
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
             if platform.system().lower() == 'windows':
-                cmd = "mintty -h never %s -c %s" % (binPath, self.cfgDir)
+                cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
             else:
                 if self.asan:
-                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                    asanDir = "%s/asan/dnode%d.asan" % (
                         self.path, self.index)
                     cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
-                        binPath, self.cfgDir, asanDir)
+                        self.binPath, self.cfgDir, asanDir)
                 else:
                     cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                        binPath, self.cfgDir)
+                        self.binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind  --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
             if platform.system().lower() == 'windows':
                 cmd = "mintty -h never %s %s -c %s" % (
-                    valgrindCmdline, binPath, self.cfgDir)
+                    valgrindCmdline, self.binPath, self.cfgDir)
             else:
                 cmd = "nohup %s %s -c %s 2>&1 & " % (
-                    valgrindCmdline, binPath, self.cfgDir)
+                    valgrindCmdline, self.binPath, self.cfgDir)
             print(cmd)
 
         if (self.remoteIP == ""):
@@ -650,11 +656,11 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def getDnodeRootDir(self, index):
-        dnodeRootDir = os.path.join(self.path,"sim","psim","dnode%d" % index)
+        dnodeRootDir = os.path.join(self.path,"psim","dnode%d" % index)
         return dnodeRootDir
 
     def getDnodesRootDir(self):
-        dnodesRootDir = os.path.join(self.path,"sim","psim")
+        dnodesRootDir = os.path.join(self.path,"psim")
         return dnodesRootDir
 
 
@@ -677,19 +683,20 @@ class TDDnodes:
         self.asan = False
         self.killValgrind = 0
 
-    def init(self, path, remoteIP = ""):
-        binPath = self.dnodes[0].getPath() + "/../../../"
+    def init(self, path, binPath, remoteIP = ""):
+        self.binPath = binPath
+        #binPath = self.dnodes[0].getPath() + "/../../../"
         # tdLog.debug("binPath %s" % (binPath))
-        binPath = os.path.realpath(binPath)
+        #binPath = os.path.realpath(binPath)
         # tdLog.debug("binPath real path %s" % (binPath))
 
         if path == "":
-            self.path = os.path.abspath(binPath + "../../")
+            self.path = os.path.abspath(self.binPath + "../../")
         else:
             self.path = os.path.realpath(path)
 
         for i in range(len(self.dnodes)):
-            self.dnodes[i].init(self.path, remoteIP)
+            self.dnodes[i].init(self.path, self.binPath, remoteIP)
         self.sim = TDSimClient(self.path)
 
     def setTestCluster(self, value):
@@ -703,11 +710,11 @@ class TDDnodes:
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
             if ("community" in selfPath):
-                self.stopDnodesPath = os.path.abspath(self.path + "/community/tests/script/sh/stop_dnodes.sh")
-                self.stopDnodesSigintPath = os.path.abspath(self.path + "/community/tests/script/sh/sigint_stop_dnodes.sh")
+                self.stopDnodesPath = os.path.abspath(selfPath + "/../stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(selfPath + "/../sigint_stop_dnodes.sh")
             else:
-                self.stopDnodesPath = os.path.abspath(self.path + "/tests/script/sh/stop_dnodes.sh")
-                self.stopDnodesSigintPath = os.path.abspath(self.path + "/tests/script/sh/sigint_stop_dnodes.sh")
+                self.stopDnodesPath = os.path.abspath(selfPath + "/../stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(selfPath + "/../sigint_stop_dnodes.sh")
             tdLog.info("run in address sanitizer mode")
 
     def setKillValgrind(self, value):
@@ -877,7 +884,7 @@ class TDDnodes:
         # tdLog.exit(cmd)
 
     def getDnodesRootDir(self):
-        dnodesRootDir = "%s/sim" % (self.path)
+        dnodesRootDir = self.path
         return dnodesRootDir
 
     def getSimCfgPath(self):

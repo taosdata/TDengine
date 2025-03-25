@@ -180,7 +180,5 @@ class TestTmqParams:
                                 tdSql.checkEqual(rows_value_list, [0]*len(subscription_info))
                         tdSql.execute(f"drop topic if exists {topic_name}")
                         tdSql.execute(f'drop database if exists {paraDict["dbName"]}')
-
-    def teardown_class(cls):
         tdLog.success(f"{__file__} successfully executed")
 

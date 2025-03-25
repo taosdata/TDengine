@@ -3,11 +3,11 @@ from random import randrange
 import time
 import threading
 import secrets
-from utils.pytest.util.log import *
-from utils.pytest.util.sql import *
-from utils.pytest.util.cases import *
-from utils.pytest.util.dnodes import *
-from utils.pytest.util.common import *
+from new_test_framework.utils.util.log import *
+from new_test_framework.utils.util.sql import *
+from new_test_framework.utils.util.cases import *
+from new_test_framework.utils.util.dnodes import *
+from new_test_framework.utils.util.common import *
 # from tmqCommon import *
 
 ROUND = 1000

@@ -31,9 +31,9 @@ echo "SCRIPT_DIR: $SCRIPT_DIR"
 
 IN_TDINTERNAL="community"
 if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  cd ../../../..
-else
   cd ../../..
+else
+  cd ../../
 fi
 
 TAOS_DIR=`pwd`
@@ -49,7 +49,9 @@ fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR
 
-SIM_DIR=$TAOS_DIR/sim
+if [[ -z "$SIM_DIR" ]]; then
+  SIM_DIR=$TAOS_DIR/sim
+fi
 
 NODE_DIR=$SIM_DIR/$NODE_NAME
 EXE_DIR=$BUILD_DIR/bin

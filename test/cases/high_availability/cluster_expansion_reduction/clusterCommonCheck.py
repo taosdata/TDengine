@@ -179,6 +179,10 @@ class ClusterComCheck:
                             return True
                 count+=1
             elif offlineDnodeNo == 2:
+                tdLog.info(tdSql.queryResult)
+                tdLog.info(tdSql.queryResult[1][2])
+                tdLog.info(tdSql.queryResult[0][2])
+                tdLog.info(tdSql.queryResult[2][2])
                 if  tdSql.queryResult[1][2]=='offline' :
                     if  tdSql.queryResult[0][2]=='leader':
                         if  tdSql.queryResult[2][2]=='follower':
