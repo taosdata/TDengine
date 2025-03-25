@@ -744,19 +744,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
-static void freeTbDes(TableDes *tableDes, bool self) {
-    if (NULL == tableDes) return;
-
-    for (int i = 0; i < (tableDes->columns+tableDes->tags); i++) {
-        if (tableDes->cols[i].var_value) {
-            free(tableDes->cols[i].var_value);
-        }
-    }
-
-    if(self) {
-        free(tableDes);
-    }
-}
 
 static void parse_args(
         int argc, char *argv[], SArguments *arguments) {
@@ -2238,11 +2225,15 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
     json_t *value;
 
     json_object_foreach(element, key, value) {
+        // version
+        if (0 == strcmp(key, VERSION_KEY)) {
+            recordSchema->version = json_integer_value(value);
+        }
         // name
-        if (0 == strcmp(key, "name")) {
+        else if (0 == strcmp(key, NAME_KEY)) {
             tstrncpy(recordSchema->name, json_string_value(value), RECORD_NAME_LEN - 1);
         // fields    
-        } else if (0 == strcmp(key, "fields")) {
+        } else if (0 == strcmp(key, FIELDS_KEY)) {
             if (readJsonFields(value, recordSchema)) {
                 free(recordSchema);
                 return NULL;
@@ -2946,21 +2937,16 @@ uint32_t colDesToJson(char *pstr, ColDes * colDes, uint32_t num, char * label) {
 }
 
 // append stb schema
-uint32_t addStbSchema(char * pstr, TableDes *tableDes, bool onlyColumn) {
+uint32_t addStbSchema(char * pstr, const char *stable, TableDes *tableDes, bool onlyColumn) {
     
     uint32_t size = 0;
-    // name
+    // stbName
     size += sprintf(pstr + size,
         "\"%s:\"{"
         "\"name\":\"%s\","
         STB_SCHEMA_KEY,
-        tableDes->name);
+        stable);
     
-    // child data
-    if (onlyColumn) {
-        return size;
-    }
-
     // cols
     size += sprintf(pstr + size, 
         "\"cols\": {");
@@ -2969,6 +2955,11 @@ uint32_t addStbSchema(char * pstr, TableDes *tableDes, bool onlyColumn) {
     size += sprintf(pstr + size, 
         "},");
 
+    // child data
+    if (onlyColumn) {
+        return size;
+    }
+        
     // tags
     size += sprintf(pstr + size, 
         "\"tags\": {");
@@ -2983,6 +2974,7 @@ uint32_t addStbSchema(char * pstr, TableDes *tableDes, bool onlyColumn) {
 
 static int convertTbDesToJsonImpl(
         const char *namespace,
+        const char *stable,
         const char *tbName,
         TableDes *tableDes,
         char **jsonSchema, bool onlyColumn) {
@@ -3054,7 +3046,7 @@ static int convertTbDesToJsonImpl(
     pstr += sprintf(pstr, "],");
 
     // append new json stb_schema_for_db
-    pstr += addStbSchema(pstr, tableDes, onlyColumn); 
+    pstr += addStbSchema(pstr, stable, tableDes, onlyColumn); 
 
     // end
     pstr += sprintf(pstr, "}");
@@ -3067,7 +3059,7 @@ static int convertTbDesToJsonImpl(
 
 
 static int convertTbTagsDesToJsonLoose(
-        const char *dbName, const char *stbName, TableDes *tableDes,
+        const char *dbName, const char *stable, TableDes *tableDes,
         char **jsonSchema) {
     bool onlyColumn = false;
     *jsonSchema = (char *)calloc(1, getTbDesJsonSize(tableDes, onlyColumn));
@@ -3078,11 +3070,11 @@ static int convertTbTagsDesToJsonLoose(
         return -1;
     }
 
-    return convertTbDesToJsonImpl(dbName, stbName, tableDes, jsonSchema, onlyColumn);
+    return convertTbDesToJsonImpl(dbName, stable, tableDes, jsonSchema, onlyColumn);
 }
 
 static int convertTbTagsDesToJson(
-        const char *dbName, const char *stbName, TableDes *tableDes,
+        const char *dbName, const char *stable, TableDes *tableDes,
         char **jsonSchema) {
 
     bool onlyColumn = false;
@@ -3092,7 +3084,7 @@ static int convertTbTagsDesToJson(
         return -1;
     }
 
-    return convertTbDesToJsonImpl(dbName, stbName, tableDes, jsonSchema, onlyColumn);
+    return convertTbDesToJsonImpl(dbName, stable, tableDes, jsonSchema, onlyColumn);
 }
 
 static int convertTbTagsDesToJsonWrap(
@@ -3116,6 +3108,7 @@ static int convertTbTagsDesToJsonWrap(
 
 static int convertTbDesToJsonLoose(
         const char *dbName,
+        const char *stable,
         const char *tbName,
         TableDes *tableDes, int colCount,
         char **jsonSchema) {
@@ -3129,11 +3122,12 @@ static int convertTbDesToJsonLoose(
         return -1;
     }
 
-    return convertTbDesToJsonImpl(dbName, tbName, tableDes, jsonSchema, onlyColumn);
+    return convertTbDesToJsonImpl(dbName, stable, tbName, tableDes, jsonSchema, onlyColumn);
 }
 
 static int convertTbDesToJson(
         const char *dbName,
+        const char *stable,
         const char *tbName, TableDes *tableDes, int colCount,
         char **jsonSchema) {
 
@@ -3146,22 +3140,25 @@ static int convertTbDesToJson(
         return -1;
     }
 
-    return convertTbDesToJsonImpl(dbName, tbName, tableDes, jsonSchema, onlyColumn);
+    return convertTbDesToJsonImpl(dbName, stable, tbName, tableDes, jsonSchema, onlyColumn);
 }
 
 int convertTbDesToJsonWrap(
-        const char *dbName, const char *tbName,
-        TableDes *tableDes, int colCount,
+        const char *dbName,
+        const char *stable,
+        const char *tbName,
+        TableDes *tableDes, 
+        int colCount,
         char **jsonSchema) {
     int ret = -1;
     if (g_args.loose_mode) {
         ret = convertTbDesToJsonLoose(
-                dbName, tbName,
+                dbName, stable, tbName,
                 tableDes, colCount,
                 jsonSchema);
     } else {
         ret = convertTbDesToJson(
-                dbName, tbName,
+                dbName, stable, tbName,
                 tableDes, colCount,
                 jsonSchema);
     }
@@ -4484,6 +4481,7 @@ static int64_t dumpInAvroTbTagsImpl(
     // add stb schema changed info to dbChanged
     //
     StbChange * pStbChange = NULL;
+    // if recordSchema->version == 0, pStbChange return NULL
     int code = AddStbChanged(pDbChange, *taos_v, recordSchema, &pStbChange);
     if (code) {
         return code;
@@ -5524,7 +5522,9 @@ static int64_t dumpInAvroDataImpl(
     char *stmtBuffer = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
     if (NULL == stmtBuffer) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-        free(tableDes);
+        if (mallocDes) {
+            freeTbDes(mallocDes, true);
+        }
         taos_stmt_close(stmt);
         return -1;
     }
@@ -5555,7 +5555,9 @@ static int64_t dumpInAvroDataImpl(
                 taos_stmt_errstr(stmt));
 
         free(stmtBuffer);
-        free(tableDes);
+        if (mallocDes) {
+            freeTbDes(mallocDes, true);
+        }
         taos_stmt_close(stmt);
         return -1;
     }
@@ -6597,6 +6599,7 @@ TAOS_RES *queryDbForDumpOutNative(TAOS *taos,
 static int64_t dumpTableDataAvroNative(
         char *dataFilename,
         int64_t index,
+        const char *stable,
         const char *tbName,
         const bool belongStb,
         const char* dbName,
@@ -6613,7 +6616,7 @@ static int64_t dumpTableDataAvroNative(
 
     char *jsonSchema = NULL;
     if (0 != convertTbDesToJsonWrap(
-                dbName, tbName, tableDes, colCount, &jsonSchema)) {
+                dbName, stable, tbName, tableDes, colCount, &jsonSchema)) {
         errorPrint("%s() LN%d, convertTbDesToJsonWrap failed\n",
                 __func__,
                 __LINE__);
@@ -6777,6 +6780,7 @@ static int generateFilename(AVROTYPE avroType, char *fileName,
 
 static int64_t dumpTableDataAvro(
         const int64_t index,
+        const char *stable,
         const char *tbName,
         const bool belongStb,
         const SDbInfo *dbInfo,
@@ -6796,7 +6800,7 @@ static int64_t dumpTableDataAvro(
         return -1;
     }
 
-    int64_t rows = dumpTableDataAvroNative(dataFilename, index, tbName,
+    int64_t rows = dumpTableDataAvroNative(dataFilename, index, stable, tbName,
                 belongStb, dbInfo->name, precision, colCount, tableDes,
                 start_time, end_time);
     return rows;
@@ -6981,6 +6985,7 @@ int64_t dumpNormalTable(
 
             totalRows = dumpTableDataAvro(
                     index,
+                    stbale,
                     tbName,
                     belongStb,
                     dbInfo, precision,

@@ -60,7 +60,11 @@
 
 
 // json schema key
+#define VERSION_KEY     "version"
+#define NAME_KEY        "name"
+#define FIELDS_KEY      "fields"
 #define STB_SCHEMA_KEY  "stb_schema_for_db"
+
 
 #define debugPrint(fmt, ...) \
     do { if (g_args.debug_print || g_args.verbose_print) { \
@@ -480,8 +484,11 @@ int processResultValue(
         uint32_t len);
 
 int convertTbDesToJsonWrap(
-        const char *dbName, const char *tbName,
-        TableDes *tableDes, int colCount,
+        const char *dbName, 
+        const char *stable,
+        const char *tbName,
+        TableDes *tableDes, 
+        int colCount,
         char **jsonSchema);
 int64_t dumpNormalTable(
         const int64_t index,

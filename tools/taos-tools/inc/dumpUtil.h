@@ -41,6 +41,9 @@ typedef struct SNode {
     struct SNode *next;
 }SNode;
 
+// declare dump.h
+struct TableDes;
+
 
 // return true to do retry , false no retry , code is error code 
 bool canRetry(int32_t code, int8_t type);
@@ -52,6 +55,8 @@ SNode *mallocNode(const char* name, int32_t len);
 
 // free nodes
 void freeNodes(SNode* head);
+
+static void freeTbDes(TableDes *tableDes, bool self);
 
 //
 // ---------------  native ------------------
@@ -105,10 +110,13 @@ struct DBChange;
 struct StbChange;
 struct RecordSchema;
 
-// create 
+// create db
 DBChange createDbChange(const char *dbPath);
-// free
+// free db
 void freeDBChange(DBChange *pDbChange);
+// free stb
+void freeStbChange(StbChange *stbChange);
+
 
 
 
