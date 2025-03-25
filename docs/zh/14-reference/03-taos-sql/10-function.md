@@ -1137,7 +1137,7 @@ CAST(expr AS type_name)
   - 字符串类型转换数值类型时可能出现的无效字符情况，例如 "a" 可能转为 0，但不会报错。
   - 转换到数值类型时，数值大于 type_name 可表示的范围时，则会溢出，但不会报错。
   - 转换到字符串类型时，如果转换后长度超过 type_name 中指定的长度，则会截断，但不会报错。
-- DECIMAL类型不支持与JSON,VARBINARY,GEOMERTY类型的互转.
+- DECIMAL 类型不支持与 JSON、VARBINARY、GEOMERTY 类型的互转。
 
 #### TO_CHAR
 
@@ -1619,13 +1619,13 @@ AVG(expr)
 
 **功能说明**：统计指定字段的平均值。
 
-**返回数据类型**：DOUBLE, DECIMAL。
+**返回数据类型**：DOUBLE、DECIMAL。
 
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
-**说明**: 当输入类型为DECIMAL类型时, 输出类型也为DECIMAL类型, 输出的precision和scale大小符合数据类型章节中的描述规则, 通过计算SUM类型和UINT64的除法得到结果类型, 若SUM的结果导致DECIMAL类型溢出, 则报DECIMAL OVERFLOW错误。
+**说明**: 当输入类型为 DECIMAL 类型时，输出类型也为 DECIMAL 类型，输出的 precision 和 scale 大小符合数据类型章节中的描述规则，通过计算 SUM 类型和 UINT64 的除法得到结果类型，若 SUM 的结果导致 DECIMAL 类型溢出, 则报 DECIMAL OVERFLOW 错误。
 
 ### COUNT
 
@@ -1808,13 +1808,13 @@ SUM(expr)
 
 **功能说明**：统计表/超级表中某列的和。
 
-**返回数据类型**：DOUBLE、BIGINT,DECIMAL。
+**返回数据类型**：DOUBLE、BIGINT、DECIMAL。
 
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
-**说明**: 输入类型为DECIMAL类型时, 输出类型为DECIMAL(38, scale), precision为当前支持的最大值, scale为输入类型的scale, 若SUM的结果溢出时, 报DECIMAL OVERFLOW错误.
+**说明**: 输入类型为 DECIMAL 类型时，输出类型为 DECIMAL(38, scale) ，precision 为当前支持的最大值，scale 为输入类型的 scale，若 SUM 的结果溢出时，报 DECIMAL OVERFLOW 错误.
 
 ### VAR_POP
 

@@ -64,16 +64,16 @@ CREATE DATABASE db_name PRECISION 'ns';
 
 :::
 
-### DECIMAL数据类型
-`DECIMAL`数据类型用于高精度数值存储, 自版本3.3.6开始支持, 定义语法: DECIMAL(18, 2), DECIMAL(38, 10), 其中需要指定两个参数, 分别为`precision`和`scale`. `precision`是指最大支持的有效数字个数, `scale`是指最大支持的小数位数. 如DECIMAL(8, 4), 可表示范围即[-9999.9999, 9999.9999]. 定义DECIMAL数据类型时, `precision`范围为: [1,38], scale的范围为: [0,precision], scale为0时, 仅表示整数. 也可以不指定scale, 默认为0, 如DECIMAL(18), 与DECIMAL(18,0)相同。
+### DECIMAL 数据类型
+`DECIMAL` 数据类型用于高精度数值存储，自 v3.3.6.0 开始支持, 定义语法：`DECIMAL(18, 2)`，`DECIMAL(38, 10)`, 其中需要指定两个参数, 分别为 `precision` 和 `scale`。`precision` 是指最大支持的有效数字个数，`scale` 是指最大支持的小数位数。如 `DECIMAL(8, 4)`，可表示范围即 `[-9999.9999, 9999.9999]`。定义 DECIMAL 数据类型时，`precision` 范围为：`[1, 38]`， scale 的范围为：`[0, precision]`，scale 为 0 时，仅表示整数。也可以不指定 scale，默认为 0，例如 `DECIMAL(18)`，与 `DECIMAL(18, 0)` 相同。
 
-当`precision`值不大于18时, 内部使用8字节存储(DECIMAL64), 当precision范围为(18, 38]时, 使用16字节存储(DECIMAL). SQL中写入DECIMAL类型数据时, 可直接使用数值写入, 当写入值大于类型可表示的最大值时会报DECIMAL_OVERFLOW错误, 当未大于类型表示的最大值, 但小数位数超过SCALE时, 会自动四舍五入处理, 如定义类型DECIMAL(10, 2), 写入10.987, 则实际存储值为10.99。
+当 `precision` 值不大于 18 时, 内部使用 8 字节存储(DECIMAL64), 当 `precision` 范围为 `(18, 38]` 时, 使用 16 字节存储(DECIMAL)。SQL 中写入 DECIMAL 类型数据时，可直接使用数值写入，当写入值大于类型可表示的最大值时会报 DECIMAL_OVERFLOW 错误, 当未大于类型表示的最大值, 但小数位数超过 SCALE 时, 会自动四舍五入处理。如定义类型 DECIMAL(10, 2)，写入10.987，则实际存储值为 10.99 。
 
-DECIMAL类型仅支持普通列, 暂不支持tag列. DECIMAL类型只支持SQL写入， 暂不支持stmt写入和schemeless写入。
+DECIMAL 类型仅支持普通列，暂不支持 tag 列。DECIMAL 类型只支持 SQL 写入，暂不支持 stmt 写入和 schemeless 写入。
 
-整数类型和DECIMAL类型操作时, 会将整数类型转换为DECIMAL类型再进行计算.  DECIMAL类型与DOUBLE/FLOAT/VARCHAR/NCHAR等类型计算时, 转换为DOUBLE类型进行计算.
+整数类型和 DECIMAL 类型操作时, 会将整数类型转换为 DECIMAL 类型再进行计算。DECIMAL 类型与 DOUBLE/FLOAT/VARCHAR/NCHAR 等类型计算时, 转换为 DOUBLE 类型进行计算。
 
-查询DECIMAL类型表达式时, 若计算的中间结果超出当前类型可表示的最大值时, 报DECIMAL OVERFLOW错误.
+查询 DECIMAL 类型表达式时，若计算的中间结果超出当前类型可表示的最大值时，报 DECIMAL OVERFLOW 错误.
 
 
 ## 常量

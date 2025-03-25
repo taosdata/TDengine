@@ -44,7 +44,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_params({"k": 2})
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "ksigma")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "ksigma", s.valid_code)
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -64,7 +64,7 @@ class AnomalyDetectionTest(unittest.TestCase):
             self.assertEqual(1, 0, e)
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "iqr")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "iqr", s.valid_code)
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -82,7 +82,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_params({"alpha": 0.95})
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "grubbs")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "grubbs", s.valid_code)
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -100,7 +100,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_input_list(AnomalyDetectionTest.input_list, None)
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "shesd")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "shesd", s.valid_code)
 
         self.assertEqual(r[-1], -1)
 
@@ -116,7 +116,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_input_list(AnomalyDetectionTest.input_list, None)
 
         r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "lof")
+        draw_ad_results(AnomalyDetectionTest.input_list, r, "lof", s.valid_code)
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(r[-2], -1)

@@ -382,6 +382,31 @@ void streamMetaRemoveDB(void* arg, char* key) {
   streamMutexUnlock(&pMeta->backendMutex);
 }
 
+int32_t streamMetaUpdateInfoInit(STaskUpdateInfo* pInfo) {
+  _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
+
+  pInfo->pTasks = taosHashInit(64, fp, false, HASH_NO_LOCK);
+  if (pInfo->pTasks == NULL) {
+    return terrno;
+  }
+
+  pInfo->pTaskList = taosArrayInit(4, sizeof(int32_t));
+  if (pInfo->pTaskList == NULL) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void streamMetaUpdateInfoCleanup(STaskUpdateInfo* pInfo) {
+  taosHashCleanup(pInfo->pTasks);
+  taosArrayDestroy(pInfo->pTaskList);
+  pInfo->pTasks = NULL;
+  pInfo->pTaskList = NULL;
+}
+
+
+
 int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, FTaskExpand expandTaskFn, int32_t vgId,
                        int64_t stage, startComplete_fn_t fn, SStreamMeta** p) {
   QRY_PARAM_CHECK(p);
@@ -435,8 +460,8 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   pMeta->pTasksMap = taosHashInit(64, fp, true, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pMeta->pTasksMap, code, lino, _err, terrno);
 
-  pMeta->updateInfo.pTasks = taosHashInit(64, fp, false, HASH_NO_LOCK);
-  TSDB_CHECK_NULL(pMeta->updateInfo.pTasks, code, lino, _err, terrno);
+  code = streamMetaUpdateInfoInit(&pMeta->updateInfo);
+  TSDB_CHECK_CODE(code, lino, _err);
 
   code = streamMetaInitStartInfo(&pMeta->startInfo);
   TSDB_CHECK_CODE(code, lino, _err);
@@ -641,8 +666,8 @@ void streamMetaCloseImpl(void* arg) {
 
   taosHashCleanup(pMeta->pTasksMap);
   taosHashCleanup(pMeta->pTaskDbUnique);
-  taosHashCleanup(pMeta->updateInfo.pTasks);
 
+  streamMetaUpdateInfoCleanup(&pMeta->updateInfo);
   streamMetaClearStartInfo(&pMeta->startInfo);
 
   destroyMetaHbInfo(pMeta->pHbInfo);
@@ -1492,16 +1517,19 @@ void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SSt
 
 void streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta) {
   STaskUpdateInfo* pInfo = &pMeta->updateInfo;
+  int32_t          num = taosArrayGetSize(pInfo->pTaskList);
 
   taosHashClear(pInfo->pTasks);
+  taosArrayClear(pInfo->pTaskList);
 
   int32_t prev = pInfo->completeTransId;
   pInfo->completeTransId = pInfo->activeTransId;
   pInfo->activeTransId = -1;
   pInfo->completeTs = taosGetTimestampMs();
 
-  stDebug("vgId:%d set the nodeEp update complete, ts:%" PRId64 ", complete transId:%d->%d, reset active transId",
-          pMeta->vgId, pInfo->completeTs, prev, pInfo->completeTransId);
+  stDebug("vgId:%d set the nodeEp update complete, ts:%" PRId64
+          ", complete transId:%d->%d, update Tasks:%d reset active transId",
+          pMeta->vgId, pInfo->completeTs, prev, pInfo->completeTransId, num);
 }
 
 bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
