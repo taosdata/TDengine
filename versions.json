@@ -1,5 +1,12 @@
 [
   {
+    "version": "new_test_framework",
+    "title": "new_test_framework",
+    "aliases": [
+      "latest"
+    ]
+  },
+  {
     "version": "main",
     "title": "main",
     "aliases": []
@@ -7,8 +14,6 @@
   {
     "version": "3.0",
     "title": "3.0",
-    "aliases": [
-      "latest"
-    ]
+    "aliases": []
   }
 ]
