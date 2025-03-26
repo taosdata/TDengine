@@ -564,6 +564,7 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
 
 /// Keep max activities per task or agent, but at least keep 10 activities.
 async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()> {
+    tracing::info!("check and delete activities, max: {}", max);
     let max = if max > 9 { max - 1 } else { 9 } as i64;
     // tasks
     let tasks = sqlx::query_scalar::<_, i64>("select id from tasks")
@@ -609,6 +610,9 @@ async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()
                 .await?;
         }
     }
+
+    // run vacuum to reclaim space
+    sqlx::query("vacuum").execute(pool).await?;
     Ok(())
 }
 
@@ -802,16 +806,16 @@ impl TaskController {
         database_initiate(&pool).in_current_span().await?;
 
         let max_activities_pool = pool.clone();
-        let max_activities_keep_interval = Duration::from_secs(60 * 60);
+        let max_activities_keep_interval = Duration::from_secs(10 * 60);
         tokio::task::spawn(
             async move {
                 loop {
-                    tokio::time::sleep(max_activities_keep_interval).await;
                     if let Err(err) =
                         keep_max_activities(&max_activities_pool, max_activities_per_entity).await
                     {
                         tracing::error!("keep max activities error: {err:?}");
                     }
+                    tokio::time::sleep(max_activities_keep_interval).await;
                 }
             }
             .instrument(tracing::info_span!("keep_max_activities")),
