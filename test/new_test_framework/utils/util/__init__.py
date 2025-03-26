@@ -17,4 +17,3 @@ from .sqlset import *
 from .sub import *
 from .taosadapter import *
 from .taosdemoCfg import *
-from .taoskeeper import *

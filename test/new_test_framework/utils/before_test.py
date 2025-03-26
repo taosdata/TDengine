@@ -17,7 +17,7 @@ from .util import cluster as cluster_pytest, ClusterDnodes as ClusterDnodes_pyte
 from .util import tdDnodes as tdDnodes_pytest
 from .util import tAdapter as tAdapter_pytest
 from .util import tdCom as tdCom_pytest
-from .util import taoskeeper as taoskeeper_pytest
+from .taoskeeper import taoskeeper as taoskeeper_pytest
 from .frame import cluster as cluster_army, ClusterDnodes as ClusterDnodes_army, clusterDnodes as clusterDnodes_army
 from .frame import tdDnodes as tdDnodes_army
 from .frame import tAdapter as tAdapter_army

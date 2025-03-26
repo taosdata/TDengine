@@ -155,7 +155,7 @@ class TAdapter:
 
     def start(self):
         bin_path = get_path(tool="taosadapter")
-
+        print("taosadapter_bin_bath:",bin_path)
         if (bin_path == ""):
             tdLog.exit("taosadapter not found!")
         else:
@@ -198,7 +198,7 @@ class TAdapter:
             use this method, must deploy taosadapter
         """
         bin_path = get_path(tool="taosadapter")
-
+        print("taosadapter_bin_bath:",bin_path)
         if (bin_path == ""):
             tdLog.exit("taosadapter not found!")
         else:
