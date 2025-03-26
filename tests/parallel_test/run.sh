@@ -139,9 +139,9 @@ function run_thread() {
         runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
     local count=0
-    local script="${workdirs[index]}/TDengine/tests/parallel_test/run_container.sh"
+    local script="${workdirs[index]}/TDengine/tests/parallel_test/run_container_coveragecase.sh"
     if [ $ent -ne 0 ]; then
-        local script="${workdirs[index]}/TDinternal/community/tests/parallel_test/run_container.sh -e"
+        local script="${workdirs[index]}/TDinternal/community/tests/parallel_test/run_container_coveragecase.sh -e"
     fi
     local cmd="${runcase_script} ${script}"
 
