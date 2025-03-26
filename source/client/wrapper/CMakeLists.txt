@@ -6,6 +6,8 @@ else()
     add_library(${TAOS_LIB} SHARED ${WRAPPER_SRC})
 endif()
 
+add_dependencies(${TAOS_LIB} ${TAOS_NATIVE_LIB})
+
 if(${TD_DARWIN})
     target_compile_options(${TAOS_LIB} PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
@@ -46,6 +48,7 @@ set_target_properties(
 )
 
 add_library(${TAOS_LIB_STATIC} STATIC ${WRAPPER_SRC})
+add_dependencies(${TAOS_LIB_STATIC} ${TAOS_NATIVE_LIB_STATIC})
 
 if(${TD_DARWIN})
     target_compile_options(${TAOS_LIB_STATIC} PRIVATE -Wno-error=deprecated-non-prototype)
