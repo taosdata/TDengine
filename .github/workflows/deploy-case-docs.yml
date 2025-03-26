@@ -3,7 +3,7 @@ name: Deploy Case Docs
 on:
   push:
     branches:
-      - 'new_test_framework_docs'
+      - 'new_test_framework'
     paths:
       - 'test/cases/**/*.py'
   pull_request:
