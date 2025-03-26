@@ -44,5 +44,5 @@ jobs:
       - name: Build the english document
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
-          yarn ass local
+          yarn ass localCloud 
           yarn build
