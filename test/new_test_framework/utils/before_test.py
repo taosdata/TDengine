@@ -310,18 +310,37 @@ class BeforeTest:
                     "version": "2.4.0.0",
                     "config_file": taoskeeper_config_file,
                     "taoskeeper_config": {
-                        "logLevel": "info",
-                        "host": "localhost",
+                        "tdengine":{
+                            "host": "localhost",
+                            "port": 6041,
+                            "username": "root",
+                            "password": "taosdata",
+                        },
                         "port": 6043,
-                        "username": "root",
-                        "password": "taosdata",
-                        "RotationInterval": "15s",
-                        "level": "info",
-                        "rotationSize": "1GB",
-                        "rotationCount": 30,
                         "taosConfigDir": "/etc/taos",
-                        "log":{"path": f"{taoskeeper_log_dir}"},
-                        "keepDays": 30
+                        "log":{"path": f"{taoskeeper_log_dir}",
+                               "level": "info",
+                               "RotationInterval": "15s",
+                               "keepDays": 30,
+                               "rotationSize": "1GB",
+                               "rotationCount": 30
+                               },
+                        "metrics":{
+                            "prefix": "taos",
+                        },
+                        "metrics.database":{
+                            "name": "log",
+                        },
+                        "metrics.database.options":{
+                            "vgroups": 1,
+                            "buffer": 64,
+                            "keep": 90,
+                            "cachemodel": "both",
+                        },
+                        "enviornment":{
+                            "incgroup": "false",
+                        }
+                        
                 },
                     "taos_config": {
                         "firstEP": "localhost:6030",

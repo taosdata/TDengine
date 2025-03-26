@@ -49,7 +49,18 @@ class TaosKeeper:
                 self.remote_conn = Connection(host=self.config["host"], port=self.config["port"], user=self.config["user"], connect_kwargs={'password':self.config["password"]})
             except Exception as e:
                 tdLog.notice(e)
-
+    def update_cfg(self, update_dict :dict):
+        if not isinstance(update_dict, dict):
+            return
+        if "log" in update_dict and "path" in update_dict["log"]:
+            del update_dict["log"]["path"]
+        for key, value in update_dict.items():
+            if key in ["tdengine","log","metrics","metrics.database","metrics.database.options","enviornment"]:
+                if  isinstance(value, dict):
+                    for k, v in value.items():
+                        self.taoskeeper_cfg_dict[key][k] = v
+            else:
+                self.taoskeeper_cfg_dict[key] = value
     def remote_exec(self, updateCfgDict, execCmd):
         remoteCfgDict = copy.deepcopy(updateCfgDict)
         if "log" in remoteCfgDict and "path" in remoteCfgDict["log"]:

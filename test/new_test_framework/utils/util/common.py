@@ -2153,7 +2153,6 @@ def is_json(msg):
 
 def get_path(tool="taosd"):
     selfPath = os.path.dirname(os.path.realpath(__file__))
-    print(f"path:{selfPath}")
     if "community"  in selfPath:
         projPath = selfPath[:selfPath.find("community")]
     elif "TDengine" in selfPath:
@@ -2162,7 +2161,6 @@ def get_path(tool="taosd"):
         projPath = selfPath[:selfPath.find("tests")]
 
     
-    print(f"projPath:",projPath)
     paths = []
     for root, dirs, files in os.walk(projPath):
         if ((tool) in files or ("%s.exe"%tool) in files):
