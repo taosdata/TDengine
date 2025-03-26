@@ -25,7 +25,7 @@ taos> select CRC32('北京涛思数据科技有限公司')
                                     1935136661 |
 
 taos> select CRC32('hello') from ts_4893.meters limit 5
- crc32("hello") |
+ crc32('hello') |
 =================
       907060870 |
       907060870 |
@@ -34,14 +34,14 @@ taos> select CRC32('hello') from ts_4893.meters limit 5
       907060870 |
 
 taos> select CRC32('hello') + 1 from ts_4893.meters limit 1
- crc32("hello") + 1 |
-=====================
-          907060871 |
+    crc32('hello') + 1     |
+============================
+                 907060871 |
 
 taos> select CRC32('hello') + CRC32('hello') from ts_4893.meters limit 1
  crc32('hello') + crc32('hello') |
 ==================================
-           1.814121740000000e+09 |
+                      1814121740 |
 
 taos> select cast(CRC32('hello') as VARCHAR)
  cast(crc32('hello') as varchar) |
@@ -54,9 +54,9 @@ taos> select CRC32(cast('hello' as VARCHAR))
                        907060870 |
 
 taos> select crc32('')
-    crc32('')    |
-==================
-               0 |
+  crc32('')  |
+==============
+           0 |
 
 taos> select crc32(NULL)
  crc32(null) |
@@ -77,3 +77,4 @@ taos> select crc32(1234.567 + 0.1)
  crc32(1234.567 + 0.1) |
 ========================
              894613740 |
+
