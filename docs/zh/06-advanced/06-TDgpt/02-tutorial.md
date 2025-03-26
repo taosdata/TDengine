@@ -5,14 +5,16 @@ sidebar_label: "安装部署"
 
 import PkgListV3 from "/components/PkgListV3";
 
-本节介绍如何通过多种方式快速体验和使用 TDgpt 的数据分析能力。
 
-### 镜像说明
+本节介绍如何通过 Docker，云服务或安装包来部署 TDgpt
 
-| 镜像名称                           | 包含模型                                       |
-| ------------------------------ | ------------------------------------------ |
-| `tdengine/tdengine-tdgpt`      | 涛思时序数据基础模型（TDtsfm v1.0）                    |
-| `tdengine/tdengine-tdgpt-full` | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型 |
+### 镜像版本说明
+
+| 镜像名称                          | 包含模型               |
+|-----------------------------------|-----------------------|
+| `tdengine/tdengine-tdgpt`         | 涛思时序数据基础模型（TDtsfm v1.0）       |
+| `tdengine/tdengine-tdgpt-full`    | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型   |
+
 
 ### 快速启动指南
 
@@ -87,9 +89,9 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 - Python: 3.10 或以上版本。
 - TDengine：需使用 3.3.6.0 或以上版本。
-- C 编译器：因依赖 uWSGI，部署环境需安装 C 编译器。
+- C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
 
-可以使用以下的命令在 Ubuntu Linux 上安装 Python 3.10 环境，如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
+使用如下命令在 Ubuntu Linux 上安装 Python 3.10 环境。如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
 
 #### 安装 Python
 
@@ -126,16 +128,15 @@ sudo apt install build-essential
 ```
 
 ### 获取安装包
-
 1. 从列表中下载获得 tar.gz 安装包
-   
-   <PkgListV3 type={9}/>
-   
-   TDgpt 的安装包中包含两个时序模型，分别是涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定规模的内存空间，请确保运行系统中有至少有 16GiB 可用内存空间。
 
+   <PkgListV3 type={9}/>
+
+   安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
+  
 2. 进入到安装包所在目录，使用 tar 解压安装包；
    
-   > 请将 `<version>` 替换为下载的安装包版本
+> 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
 tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
@@ -151,7 +152,8 @@ cd TDengine-TDgpt-<version>
 ./install.sh
 ```
 
-为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要 Python 的虚拟环境，手动删除该目录即可。
+为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。
+> 为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要该 Python 虚拟环境，手动删除该目录即可。
 
 ### 激活虚拟环境
 
