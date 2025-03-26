@@ -58,7 +58,7 @@ function lcovFunc {
     cd $TDENGINE_DIR
 
     # collect data
-    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
+    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info  --quiet
 
     # remove exclude paths 
     lcov --remove coverage.info \
@@ -82,7 +82,8 @@ function lcovFunc {
 
     # push result to coveralls.io
     echo "push result to coveralls.io"
-    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info
+    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info > coverall.log 2>&1
+    tail -n 100 coverall.log
 }
 
 
