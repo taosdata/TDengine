@@ -103,7 +103,7 @@ docker run \
     --name taos_coverage \
     -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
     -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/debug \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd /home/TDinternal/debug/build/bin ; ./osAtomicTests;./osDirTests;" || true
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd /home/TDinternal/debug/; make -j install ; cd /home/TDinternal/debug/build/bin ; ./osAtomicTests;./osDirTests;" || true
 
 cd ${WORKDIR}/debugNoSan
 if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
