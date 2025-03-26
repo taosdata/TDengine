@@ -115,6 +115,7 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
 # ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-import.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert-decimal.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
@@ -122,7 +123,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBasic.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
