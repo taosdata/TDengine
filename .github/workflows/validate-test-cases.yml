@@ -1,12 +1,12 @@
-name: Validate Python Tests
+# validate test cases on PRs. The workflow runs a validation script for each changed file.
 
+name: Validate Test Cases
 
 on:
-  push:
+  pull_request:
     branches:
       - 'main'
       - '3.0'
-      - '3.1'
     paths:
       - 'test/cases/**/*.py'
 
