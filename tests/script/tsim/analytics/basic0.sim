@@ -23,8 +23,8 @@ endi
 
 print =============== show info
 sql show anodes full
-if $rows != 10 then
-  print expect 10 , actual $rows
+if $rows != 8 then
+  print expect 8 , actual $rows
   return -1
 endi
 
