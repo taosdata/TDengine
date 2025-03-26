@@ -36,7 +36,7 @@ sample-ad-autoencoder.info   模型附加参数文件，采用了 joblib 格式�
 ## 添加模型适配代码
 
 需要在 taosanalytics 目录下添加加载该模型并进行适配的 Python 代码。适配并行运行的代码见 [autoencoder.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/ad/autoencoder.py)。
-为了便于方便，我们已经将该文件保存在该目录，所以您在执行 `show anodes full` 命令时候，能够看见该算法模型。
+为了方便使用，我们已经将该文件保存在该目录，所以您在执行 `show anodes full` 命令时候，能够看见该算法模型。
 
 下面详细说明该代码的逻辑。
 

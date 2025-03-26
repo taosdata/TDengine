@@ -53,7 +53,7 @@ def time_moe():
 nohup python time-moe.py > service_output.out 2>&1 &
 ```
 
-第一次启动脚本会从 huggingface 自动加载 [2 亿参数模型](https://huggingface.co/Maple728/TimeMoE-200M)。该模型是 Time-MoE 200M参数版本，如果您需要部署参数规模更小的版本请将 `time-moe.py` 文件中 `'Maple728/TimeMoE-200M'` 修改为 `Maple728/TimeMoE-50M`，此时将加载 [0.5 亿参数模型](https://huggingface.co/Maple728/TimeMoE-50M)。
+第一次启动脚本会从 huggingface 自动加载 [2 亿参数模型](https://huggingface.co/Maple728/TimeMoE-200M)。该模型是 Time-MoE 200M 参数版本，如果您需要部署参数规模更小的版本请将 `time-moe.py` 文件中 `'Maple728/TimeMoE-200M'` 修改为 `Maple728/TimeMoE-50M`，此时将加载 [0.5 亿参数模型](https://huggingface.co/Maple728/TimeMoE-50M)。
 
 如果加载失败，请尝试执行如下命令切换为国内镜像下载模型。
 
@@ -91,7 +91,7 @@ curl 127.0.0.1:5001/ds_predict
 ```
 
 # 添加模型适配代码
-您可用参考 https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py 文件进行 MaaS 服务的适配。我们适配Time-MoE提供预测服务。
+您可参考 [timemoe.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py） 文件进行 MaaS 服务的适配。我们适配Time-MoE提供预测服务。
 
 ```python
 class _TimeMOEService(AbstractForecastService):
@@ -177,7 +177,7 @@ FROM foo;
 ```
 
 # 添加其他开源时序基础模型
-模型在本地部署服务以后，在TDgpt 中注册的逻辑相似。只需要修改类名称和模型服务名称(Key)、设置正确的服务地址即可。
+模型在本地部署服务以后，在 TDgpt 中注册的逻辑相似。只需要修改类名称和模型服务名称(Key)、设置正确的服务地址即可。
 
 
 # 参考文献
