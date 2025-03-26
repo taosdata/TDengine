@@ -89,6 +89,7 @@ async fn worker(
     target_is_v3: bool,
     with_precision: Option<Precision>,
     breakpoints: Option<BreakpointDb>,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let metrics = metrics_arc.legacy();
     const MAX_WS_RETRIES: usize = 5;
@@ -388,6 +389,7 @@ async fn worker(
                                     target_is_v3,
                                     with_precision,
                                     &metrics_arc,
+                                    &cancel,
                                 )
                                 .in_current_span()
                                 .await
@@ -712,6 +714,7 @@ impl Scheduler {
                 target_is_v3,
                 with_precision,
                 breakpoints.clone(),
+                cancellation.clone(),
             )
             .in_current_span();
             task_set.spawn(future);
