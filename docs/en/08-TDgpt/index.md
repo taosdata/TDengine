@@ -28,4 +28,4 @@ TDgpt integrates the prediction capabilities of time-series foundation models, a
   
 3. After the query is complete, you can display the data graph by clicking the **Draw** button in the **Chart** section.
 
-Users can execute `show anodes full;` to query the list of pre-configured algorithms in the current system. For usage methods of each algorithm, please refer to the [TDgpt Document](https://docs.tdengine.com/advanced/TDgpt/introduction/)。
+Users can execute `show anodes full;` to query the list of pre-configured algorithms in the current system. For usage methods of each algorithm, please refer to the [TDgpt Document](https://docs.tdengine.com/advanced/tdgpt/)。
