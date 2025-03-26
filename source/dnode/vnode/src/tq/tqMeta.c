@@ -303,6 +303,24 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
     void* scanner = NULL;
     qExtractStreamScanner(handle->execHandle.task, &scanner);
     TQ_NULL_GO_TO_END(scanner);
+
+    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &pReader->extSchema);
+
+    SNode  *pAst = NULL;
+    MND_TMQ_RETURN_CHECK(nodesStringToNode(pCreate->ast, &pAst));
+    SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
+    MND_TMQ_RETURN_CHECK(qCreateQueryPlan(&cxt, &pPlan, NULL));
+
+    topicObj.ntbColIds = taosArrayInit(0, sizeof(int16_t));
+    MND_TMQ_NULL_CHECK(topicObj.ntbColIds);
+    MND_TMQ_RETURN_CHECK(extractTopicTbInfo(pAst, &topicObj));
+    if (topicObj.ntbUid == 0) {
+      taosArrayDestroy(topicObj.ntbColIds);
+      topicObj.ntbColIds = NULL;
+    }
+
+    MND_TMQ_RETURN_CHECK(qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema));
+
     handle->execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
     TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__DB) {

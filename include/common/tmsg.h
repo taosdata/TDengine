@@ -666,6 +666,11 @@ struct SSchemaExt {
   STypeMod typeMod;
 };
 
+struct SColInfo {
+  int8_t   type;
+  col_id_t colId;
+  int32_t  bytes;
+};
 //
 
 struct SSchema2 {

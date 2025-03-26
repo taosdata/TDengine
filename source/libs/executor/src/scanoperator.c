@@ -4752,7 +4752,7 @@ static int32_t createStreamNormalScanOperatorInfo(SReadHandle* pHandle, STableSc
   pInfo->primaryKeyIndex = -1;
   pInfo->basic.primaryPkIndex = -1;
   int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
-  pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
+  pColIds = taosArrayInit(numOfOutput, sizeof(SSchema));
   QUERY_CHECK_NULL(pColIds, code, lino, _error, terrno);
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
