@@ -21,4 +21,4 @@ jobs:
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
     with:
       tdinternal: false
-      specified_test_branch: ${{ github.event_name == 'schedule' && 'unavailable' || github.event.inputs.specified_test_branch  || '3.0' }}
+      specified_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_test_branch }}
