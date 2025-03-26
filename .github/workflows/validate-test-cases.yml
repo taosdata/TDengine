@@ -3,6 +3,11 @@
 name: Validate Test Cases
 
 on:
+  push:
+    branches:
+      - 'new_test_framework'
+    paths:
+      - 'test/cases/**/*.py'
   pull_request:
     branches:
       - 'main'
