@@ -29,7 +29,7 @@ class TDTestCase(TBase):
 
     def run(self):
         binPath = etool.benchMarkFile()
-        cmd = "%s -t 1 -n 1 -y -W http://localhost:6041 -D 30" % binPath
+        cmd = "%s  -t 1 -n 1 -y -W http://localhost:6041 " % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

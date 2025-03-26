@@ -1,6 +1,6 @@
 aux_source_directory(src SHELL_SRC)
 
-add_executable(shell ${SHELL_SRC})
+add_executable(shell ${SHELL_SRC} ../src/pub.c)
 
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
@@ -27,13 +27,14 @@ ELSE()
 ENDIF()
 
 if(TD_WINDOWS)
-    target_link_libraries(shell PUBLIC ${TAOS_LIB_STATIC} ${LINK_WEBSOCKET})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB})
 else()
-    target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif()
 
 target_link_libraries(
     shell
+    PUBLIC ${LINK_WEBSOCKET}
     PRIVATE os common transport geometry util
 )
 
@@ -59,12 +60,12 @@ add_custom_command(TARGET shell
 #
 # generator library shell_ut for uint test
 #
-
 IF(TD_LINUX)
     # include
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inc)
+
     # shell_ut library
-    add_library(shell_ut STATIC ${SHELL_SRC})
+    add_library(shell_ut STATIC ${SHELL_SRC} ../src/pub.c)
 
     IF(TD_WEBSOCKET)
         DEP_ext_taosws(shell_ut)
@@ -82,5 +83,19 @@ IF(TD_LINUX)
     # unit test
     IF(${BUILD_TEST})
         ADD_SUBDIRECTORY(test)
-    ENDIF(${BUILD_TEST})    
+    ENDIF(${BUILD_TEST})
 ENDIF()
+
+#
+# collect --version information
+#
+MESSAGE("collect --version show info:")
+# version
+IF (DEFINED TD_VER_NUMBER)
+    # freemine: global compile flags???
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
+    MESSAGE(STATUS "taos version:${TD_VER_NUMBER}")
+ELSE ()
+    # abort build
+    MESSAGE(FATAL_ERROR "build taos not found TD_VER_NUMBER define.")
+ENDIF ()

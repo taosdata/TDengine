@@ -361,6 +361,7 @@ def pre_test_build_win() {
         pip3 install taospy==2.7.21 
         pip3 install taos-ws-py==0.3.8
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taos.dll C:\\Windows\\System32
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taosnative.dll C:\\Windows\\System32
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\pthreadVC3.dll C:\\Windows\\System32
     '''
     return 1
@@ -380,8 +381,10 @@ def run_win_test() {
     bat '''
         echo "windows test ..."
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taos.dll C:\\Windows\\System32
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taosnative.dll C:\\Windows\\System32
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\pthreadVC3.dll C:\\Windows\\System32
         ls -l C:\\Windows\\System32\\taos.dll
+        ls -l C:\\Windows\\System32\\taosnative.dll
         time /t
         cd %WIN_SYSTEM_TEST_ROOT%
         echo "testing ..."

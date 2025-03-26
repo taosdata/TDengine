@@ -16,6 +16,7 @@
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "osLocale.h"
+#include "tutil.h"
 
 #ifdef WINDOWS
 #if (_WIN64)
@@ -37,11 +38,13 @@
 #include <libproc.h>
 #else
 #include <argp.h>
+#ifndef TD_ASTRA
 #include <linux/sysctl.h>
 #include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/statvfs.h>
 #include <sys/syscall.h>
+#endif
 #include <sys/utsname.h>
 #include <unistd.h>
 #endif
@@ -61,7 +64,7 @@ char *taosCharsetReplace(char *charsetstr) {
   };
 
   for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
-    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
+    if (taosStrcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
       return taosStrdup(charsetRep[i].newCharset);
     }
   }
@@ -122,7 +125,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
 
   locale = setlocale(LC_CTYPE, "");
   if (locale == NULL) {
-    // printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
+    // printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", ERRNO, strerror(ERRNO));
     tstrncpy(outLocale, "en_US.UTF-8", TD_LOCALE_LEN);
   } else {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);

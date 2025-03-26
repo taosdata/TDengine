@@ -64,7 +64,7 @@ int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t num
 
 static void freeItem(void *pValue) {
   SValue *p = (SValue *)pValue;
-  if (IS_VAR_DATA_TYPE(p->type)) {
+  if (IS_VAR_DATA_TYPE(p->type) || p->type == TSDB_DATA_TYPE_DECIMAL) {
     taosMemoryFree(p->pData);
   }
 }
@@ -359,7 +359,7 @@ static int32_t extractSttBlockInfo(SLDataIter *pIter, const TSttBlkArray *pArray
 }
 
 static int32_t tValueDupPayload(SValue *pVal) {
-  if (IS_VAR_DATA_TYPE(pVal->type)) {
+  if (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) {
     char *p = (char *)pVal->pData;
     char *pBuf = taosMemoryMalloc(pVal->nData);
     if (pBuf == NULL) {

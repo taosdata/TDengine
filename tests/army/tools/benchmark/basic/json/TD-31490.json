@@ -22,7 +22,7 @@
                 "wal_retention_period": 0,
                 "buffer": 256,
                 "stt_trigger": 1,
-                "vgroups ": 1
+                "vgroups": 1
             },
             "super_tables": [
                 {

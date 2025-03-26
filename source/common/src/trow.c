@@ -517,7 +517,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
         val = varBuf;
         ++iBound;
       } else {
-        val = (const void *)&pColVal->value.val;
+        val = VALUE_GET_DATUM(&pColVal->value, pTColumn->type);
         ++iBound;
       }
     } else {
@@ -972,7 +972,7 @@ int32_t tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pC
       pColVal->value.nData = varDataLen(cv.val);
       pColVal->value.pData = varDataVal(cv.val);
     } else {
-      (void)memcpy(&pColVal->value.val, cv.val, tDataTypes[pTColumn->type].bytes);
+      valueSetDatum(&pColVal->value, pTColumn->type, cv.val, tDataTypes[pTColumn->type].bytes);
     }
   }
   return 0;

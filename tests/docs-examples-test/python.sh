@@ -126,7 +126,7 @@ python3 mockdatasource.py
 python3 fast_write_example.py
 
 # 20
-pip3 install kafka-python
+pip3 install kafka-python==2.1.2
 python3 kafka_example_consumer.py
 
 # 21
@@ -197,3 +197,4 @@ reset_cache || exit 1
 python3 tmq_websocket_example.py
 
 python3 stmt2_native.py
+

@@ -31,6 +31,7 @@ class TDTestCase(TBase):
         # exe insert 
         cmd = f"{benchmark} {options} -f {jsonFile}"
         os.system(cmd)
+        precision = None
         
         #
         # check insert result
@@ -39,14 +40,17 @@ class TDTestCase(TBase):
             data = json.load(file)
         
         db  = data["databases"][0]["dbinfo"]["name"]
-        precison = data["databases"][0]["dbinfo"]["precision"]
+        dbinfo = data["databases"][0]["dbinfo"]
+        for key,value in dbinfo.items():
+            if key.strip().lower() == "precision":
+                precision = value
         stb = data["databases"][0]["super_tables"][0]["name"]
         child_count = data["databases"][0]["super_tables"][0]["childtable_count"]
         insert_rows = data["databases"][0]["super_tables"][0]["insert_rows"]
         timestamp_step = data["databases"][0]["super_tables"][0]["timestamp_step"]
         start_timestamp = data["databases"][0]["super_tables"][0]["start_timestamp"]
         
-        tdLog.info(f"get json info: db={db} precision={precison} stb={stb} child_count={child_count} insert_rows={insert_rows} "
+        tdLog.info(f"get json info: db={db} precision={precision} stb={stb} child_count={child_count} insert_rows={insert_rows} "
                    f"start_timestamp={start_timestamp} timestamp_step={timestamp_step} \n")
         
         # all count insert_rows * child_table_count

@@ -19,7 +19,9 @@
 #include "wincrypt.h"
 #include "windows.h"
 #else
+#ifndef TD_ASTRA
 #include <sys/file.h>
+#endif // !TD_ASTRA
 #include <unistd.h>
 #endif
 
@@ -57,6 +59,8 @@ uint32_t taosSafeRand(void) {
   }
   if (hCryptProv != NULL) CryptReleaseContext(hCryptProv, 0);
   return seed;
+#elif defined(TD_ASTRA)
+  return (uint32_t)taosGetTimestampSec();
 #else
   TdFilePtr pFile;
   int       seed;

@@ -11,7 +11,7 @@ IF(NOT TD_DARWIN)
         DEP_ext_cppstub(catalogTest)
         TARGET_LINK_LIBRARIES(
                 catalogTest
-                PUBLIC os util common nodes catalog transport qcom ${TAOS_LIB_STATIC}
+                PUBLIC os util common nodes catalog transport qcom ${TAOS_NATIVE_LIB_STATIC}
         )
 
         TARGET_INCLUDE_DIRECTORIES(
@@ -21,7 +21,7 @@ IF(NOT TD_DARWIN)
         )
 
         add_test(
-            NAME catalogTest
-            COMMAND catalogTest
+                NAME catalogTest
+                COMMAND catalogTest
         )
 ENDIF()

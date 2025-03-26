@@ -230,12 +230,13 @@ void rand_string(char *str, int size, bool chinese) {
 }
 
 // generate prepare sql
-char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
+char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
     int   len = 0;
     char *prepare = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
     int n;
     char *tagQ = NULL;
     char *colQ = genQMark(stbInfo->cols->size);
+    char *colNames = NULL;
     bool  tagQFree = false;
 
     if(tagData == NULL) {
@@ -253,19 +254,30 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
         }
         n = snprintf(prepare + len,
                        TSDB_MAX_ALLOWED_SQL_LEN - len,
-                       "INSERT INTO ? USING `%s` TAGS (%s) %s VALUES(?,%s)",
-                       stbInfo->stbName, tagQ, ttl, colQ);
+                       "INSERT INTO ? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
+                       db, stbInfo->stbName, tagQ, ttl, colQ);
     } else {
-        n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
-                        "INSERT INTO ? VALUES(?,%s)", colQ);
+        if (workingMode(g_arguments->connMode, g_arguments->dsn) == CONN_MODE_NATIVE) {
+            // native
+            n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
+                "INSERT INTO ? VALUES(?,%s)", colQ);
+        } else {
+            // websocket
+            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
+            colNames = genColNames(stbInfo->cols, !ntb);
+            n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
+                "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, stbInfo->stbName, colNames,
+                ntb ? "?" : "?,?", colQ);
+        }
     }
     len += n;
 
-    // free from genQMark
-    if(tagQFree) {
+    // free
+    if (tagQFree) {
         tmfree(tagQ);
     }
     tmfree(colQ);
+    tmfree(colNames);
 
     // check valid
     if (g_arguments->prepared_rand < g_arguments->reqPerReq) {
@@ -282,19 +294,20 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
     return prepare;
 }
 
-int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
-    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq);
+int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
+    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db);
     if (taos_stmt_prepare(stmt, prepare, strlen(prepare))) {
         errorPrint("taos_stmt_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt_errstr(stmt));
         tmfree(prepare);
         return -1;
     }
+    debugPrint("succ call taos_stmt_prepare sql:%s\n", prepare);
     tmfree(prepare);
     return 0;
 }
 
-int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
-    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq);
+int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
+    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db);
     if (taos_stmt2_prepare(stmt2, prepare, strlen(prepare))) {
         errorPrint("taos_stmt2_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt2_error(stmt2));
         tmfree(prepare);
@@ -470,11 +483,11 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
                 return len;
         }
         len += 1;
-        if (iface == SML_REST_IFACE || iface == SML_IFACE) {
+        if (iface == SML_IFACE) {
             len += SML_LINE_SQL_SYNTAX_OFFSET + strlen(field->name);
         }
     }
-    if (iface == SML_IFACE || iface == SML_REST_IFACE) {
+    if (iface == SML_IFACE) {
         len += 2 * TSDB_TABLE_NAME_LEN * 2 + SML_LINE_SQL_SYNTAX_OFFSET;
     }
     len += TIMESTAMP_BUFF_LEN;
@@ -1803,7 +1816,6 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
     int     iface = stbInfo->iface;
     switch (iface) {
         case TAOSC_IFACE:
-        case REST_IFACE:
             return generateRandDataSQL(stbInfo, sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
         case STMT_IFACE:
@@ -1818,7 +1830,6 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
             }
         case SML_IFACE:
-        case SML_REST_IFACE:
             return generateRandDataSml(stbInfo, sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
         default:
@@ -1844,8 +1855,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
     stbInfo->lenOfCols = accumulateRowLen(stbInfo->cols, stbInfo->iface);
     stbInfo->lenOfTags = accumulateRowLen(stbInfo->tags, stbInfo->iface);
     if (stbInfo->partialColNum != 0
-            && ((stbInfo->iface == TAOSC_IFACE
-                || stbInfo->iface == REST_IFACE))) {
+            && stbInfo->iface == TAOSC_IFACE) {
         // check valid
         if(stbInfo->partialColFrom >= stbInfo->cols->size) {
             stbInfo->partialColFrom = 0;
@@ -2004,12 +2014,6 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
         }
     }
 
-    if (0 != convertServAddr(
-            stbInfo->iface,
-            stbInfo->tcpTransfer,
-            stbInfo->lineProtocol)) {
-        return -1;
-    }
     return 0;
 }
 
@@ -2141,7 +2145,7 @@ void generateSmlJsonTags(tools_cJSON *tagsList,
                             uint64_t start_table_from, int tbSeq) {
     tools_cJSON * tags = tools_cJSON_CreateObject();
     char *  tbName = benchCalloc(1, TSDB_TABLE_NAME_LEN, true);
-    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
              stbInfo->childTblPrefix, start_table_from + tbSeq);
     char *tagName = benchCalloc(1, TSDB_MAX_TAGS, true);
     for (int i = 0; i < stbInfo->tags->size; i++) {
@@ -2203,7 +2207,7 @@ void generateSmlTaosJsonTags(tools_cJSON *tagsList, SSuperTable *stbInfo,
                             uint64_t start_table_from, int tbSeq) {
     tools_cJSON * tags = tools_cJSON_CreateObject();
     char *  tbName = benchCalloc(1, TSDB_TABLE_NAME_LEN, true);
-    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64 "",
+    snprintf(tbName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
              stbInfo->childTblPrefix, tbSeq + start_table_from);
     tools_cJSON_AddStringToObject(tags, "id", tbName);
     char *tagName = benchCalloc(1, TSDB_MAX_TAGS, true);

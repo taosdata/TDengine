@@ -6,13 +6,14 @@ on:
       - 'main'
       - '3.0'
       - '3.1'
+      - '3.3.6'
       - 'enh/cmake-TD-33848'
 
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
       - 'tests/**'
-      - '*.md'
+      - '**/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,7 +21,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build and test on ${{ matrix.os }}
+    name: Run on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -29,6 +30,7 @@ jobs:
           - ubuntu-20.04
           - ubuntu-22.04
           - ubuntu-24.04
+          - macos-13
           - macos-14
           - macos-15
           - windows-2022
@@ -50,6 +52,12 @@ jobs:
       - name: Dump CPU Cores
         run: |
           echo "The number of CPU cores is: ${{ env.CPU_CORES }}"
+
+      # NOTE: do we really need this?
+      # freemine: - name: prepare install path
+      # freemine:   run: |
+      # freemine:     sudo mkdir -p /usr/local/lib
+      # freemine:     sudo mkdir -p /usr/local/include
 
       - name: Checkout the repository
         uses: actions/checkout@v4
@@ -190,6 +198,16 @@ jobs:
           cmake --build debug -j4 -v
           cmake --install debug
 
+      - name: Statistics ldd
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -name "*.so" -print0 | xargs -0 ldd || true
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd || true
+
+      - name: Statistics size
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lhrS
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lhrS
+
       - name: Start taosd on Linux and macOS
         if: runner.os != 'Windows'
         run: |
@@ -213,5 +231,5 @@ jobs:
       - name: Clean up  on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          if pgrep taosd; then sudo pkill taosd; fi
-          if pgrep taosadapter; then sudo pkill taosadapter; fi
+          ./build.sh stop
+

@@ -7,13 +7,12 @@ IF(TD_WEBSOCKET)
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
             BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
+            DEPENDS ${TAOS_NATIVE_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo update
             COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib

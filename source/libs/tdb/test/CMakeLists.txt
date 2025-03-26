@@ -1,12 +1,18 @@
 # tdbTest
-add_executable(tdbTest "tdbTest.cpp")
-DEP_ext_gtest(tdbTest)
-target_link_libraries(tdbTest PRIVATE tdb)
+if(${TD_LINUX})
+    add_executable(tdbTest "tdbTest.cpp")
+    DEP_ext_gtest(tdbTest)
+    target_link_libraries(tdbTest PRIVATE tdb)
+endif()
 
 # tdbUtilTest
 add_executable(tdbUtilTest "tdbUtilTest.cpp")
 DEP_ext_gtest(tdbUtilTest)
 target_link_libraries(tdbUtilTest PRIVATE tdb)
+add_test(
+    NAME tdbUtilTest
+    COMMAND tdbUtilTest
+)
 
 # overflow pages testing
 add_executable(tdbExOVFLTest "tdbExOVFLTest.cpp")
@@ -23,3 +29,10 @@ add_executable(tdbPageRecycleTest "tdbPageRecycleTest.cpp")
 DEP_ext_gtest(tdbPageRecycleTest)
 target_link_libraries(tdbPageRecycleTest PRIVATE tdb)
 
+# page flush testing
+add_executable(tdbPageFlushTest "tdbPageFlushTest.cpp")
+target_link_libraries(tdbPageFlushTest tdb gtest_main)
+add_test(
+    NAME tdbPageFlushTest
+    COMMAND tdbPageFlushTest
+)

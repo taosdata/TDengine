@@ -27,7 +27,7 @@
                 {
                     "name": "meters",
                     "child_table_exists": "no",
-                    "childtable_count": 1000,
+                    "childtable_count": 10,
                     "childtable_prefix": "d",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 5,

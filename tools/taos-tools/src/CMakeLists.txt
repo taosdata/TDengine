@@ -327,12 +327,12 @@ ADD_EXECUTABLE(taosBenchmark
   benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c
   benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c
   benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c
-  toolsString.c toolsSys.c toolsString.c
+  toolsSys.c toolsString.c ../../src/pub.c
 )
 
 ADD_EXECUTABLE(taosdump
-  taosdump.c dumpUtil.c wsdump.c toolsSys.c toolstime.c
-  toolsDir.c toolsString.c
+  taosdump.c dumpUtil.c toolsSys.c toolstime.c
+  toolsDir.c toolsString.c ../../src/pub.c
 )
 DEP_ext_avro(taosdump)
 DEP_ext_zlib(taosdump)

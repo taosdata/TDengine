@@ -47,6 +47,10 @@ END:
 void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
   SSyncState state = syncGetState(pTq->pVnode->sync);
   streamMetaUpdateStageRole(pTq->pStreamMeta, state.term, isLeader);
+
+  if (isLeader) {
+    tqScanWalAsync(pTq);
+  }
 }
 
 static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
@@ -70,7 +74,6 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
 
   pRsp->blockSchema = taosArrayInit(0, sizeof(void*));
   TSDB_CHECK_NULL(pRsp->blockSchema, code, lino, END, terrno);
-
 
 END:
   if (code != 0){
@@ -190,10 +193,10 @@ end:
     char buf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.rspOffset);
     if (code != 0){
-      tqError("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s,QID:0x%" PRIx64 " error msg:%s, line:%d",
+      tqError("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, QID:0x%" PRIx64 " error msg:%s, line:%d",
               consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, tstrerror(code), lino);
     } else {
-      tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s,QID:0x%" PRIx64 " success",
+      tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, QID:0x%" PRIx64 " success",
               consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId);
     }
 
