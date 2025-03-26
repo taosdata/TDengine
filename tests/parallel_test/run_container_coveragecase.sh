@@ -67,7 +67,7 @@ fi
 
 #select whether the compilation environment  includes sanitizer
 if [ "${buildSan}" == "y" ]; then
-    DEBUGPATH="debugSan"
+    DEBUGPATH="debugNoSan"
 elif [[ "${buildSan}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
     DEBUGPATH="debugNoSan"
 else
