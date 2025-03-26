@@ -7,6 +7,7 @@
 #include <time.h>
 #include <WinSock2.h>
 #elif defined(DARWIN)
+#include <argp.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <strings.h>
