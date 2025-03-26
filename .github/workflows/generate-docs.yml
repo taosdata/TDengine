@@ -72,6 +72,7 @@ jobs:
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-case-files.outputs.all_changed_files }}
         run: |
+          modified_flag=false
           mkdir -p test/docs/case_list_docs
           for file in ${ALL_CHANGED_FILES}; do
             echo "Processing $file"
@@ -83,17 +84,20 @@ jobs:
             if [ ! -f "$markdown_file" ]; then
               echo "Generating $markdown_file"
               echo "::: ${module_path}" > "$markdown_file"
+              modified_flag=true
             else
               echo "Appending to $markdown_file"
               if ! grep -q "::: ${module_path}" "$markdown_file"; then
                 echo "::: ${module_path}" >> "$markdown_file"
+                modified_flag=true
               else
                 echo "Content already exists in $markdown_file"
               fi
             fi
-            echo "End $file. markdown_file: $markdown_file"
+            echo "End $file. markdown_file: $markdown_file. modified_flag: $modified_flag"
             cat $markdown_file
           done
+          echo "modified_flag=$modified_flag" >> $GITHUB_ENV
         shell: bash
 
       - name: Deploy Documentation with Mike
@@ -107,18 +111,17 @@ jobs:
           mike deploy --push --update-aliases $BRANCH_NAME latest --config-file mkdocs.yml --branch gh-pages --allow-empty
           mike set-default --push --branch gh-pages latest --allow-empty
 
+      - name: Debug modified_flag
+        run: echo "modified_flag=$modified_flag"
+
       - name: Commit and Push Updated Docs to gh-pages
+        if: env.modified_flag == 'true'
         run: |
           git fetch origin gh-pages
           git checkout gh-pages || git checkout -b gh-pages
           echo test/docs/$BRANCH_NAME
           mkdir -p test/docs/$BRANCH_NAME
           cp -r test/docs/case_list_docs test/docs/$BRANCH_NAME/
-          # Check if there are any changes to commit
-          if git diff --quiet; then
-            echo "No changes detected, skipping commit."
-          else
-            git add test/docs/$BRANCH_NAME
-            git commit -m "Update test/docs for branch $BRANCH_NAME"
-            git push origin gh-pages
-          fi
+          git add test/docs/$BRANCH_NAME
+          git commit -m "Update test/docs for branch $BRANCH_NAME"
+          git push origin gh-pages
