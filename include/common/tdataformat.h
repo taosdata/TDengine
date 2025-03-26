@@ -287,6 +287,7 @@ struct SBlobRow2 {
   int64_t   seq;
   int64_t   len;
   int32_t   cap;
+  uint8_t   compress;
   SHashObj *pSeqTable;
   uint8_t  *data;
 };

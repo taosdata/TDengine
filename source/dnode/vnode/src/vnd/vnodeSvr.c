@@ -610,21 +610,29 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
 
   SRow **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
   void  *pIter = taosHashIterate(pBlobRow->pSeqTable, NULL);
+  // int32_t dnr = taosHashGetSize(pBlobRow->pSeqTable);
+  // for (int32_t i = 0; i < dnr; i++) {
+  //   //bseInfo("pRow %p, pRow->data %p, flag = %d", pRow[i], pRow[i]->data, pRow[i]->flag);
+  // }
   while (pIter) {
     SBlobValue *p = (SBlobValue *)pIter;
-    code = bseBatchPut(pBatch, &seq, pBlobRow->data + p->offset, p->len);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    if (p->len != 0) {
+      code = bseBatchPut(pBatch, &seq, pBlobRow->data + p->offset, p->len);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (pRow[nr]->flag == 0) {
-      ASSERT(0);
-    }
-    // memcpy(pRow[nr]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
-    if (pRow[nr]->flag == 0) {
-      ASSERT(0);
-    }
+      // bseInfo("pRow %p, pRow->data %p, p->dataOffset %d, len:%d", pRow[nr], pRow[nr]->data, p->dataOffset, p->len);
+      // bseInfo("blobValue %p, offset:%d, dataOffset:%d", p, (int32_t)(p->offset), p->dataOffset);
 
-    pIter = taosHashIterate(pBlobRow->pSeqTable, pIter);
+      if (pRow[nr]->flag == 0) {
+        ASSERT(0);
+      }
+      memcpy(pRow[nr]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
+      if (pRow[nr]->flag == 0) {
+        ASSERT(0);
+      }
+    }
     nr += 1;
+    pIter = taosHashIterate(pBlobRow->pSeqTable, pIter);
   }
 
   code = bsePutBatch(pVnode->pBse, pBatch);
