@@ -39,31 +39,12 @@
 #include <taos.h>
 #include <taoserror.h>
 #include <toolsdef.h>
-
-#ifdef WEBSOCKET
-#include <taosws.h>
-#endif
+#include "../../inc/pub.h"
 
 
 //
 // ---------------- define ----------------
 //
-
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include <cus_name.h>
-#else
-#ifndef CUS_NAME
-    #define CUS_NAME      "TDengine"
-#endif
-
-#ifndef CUS_PROMPT
-    #define CUS_PROMPT    "taos"
-#endif
-
-#ifndef CUS_EMAIL
-    #define CUS_EMAIL     "<support@taosdata.com>"
-#endif
-#endif
 
 
 // use 256 as normal buffer length
@@ -74,6 +55,7 @@
 #define NEED_CALC_COUNT         UINT64_MAX
 #define HUMAN_TIME_LEN      28
 #define DUMP_DIR_LEN        (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
+#define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
 
 
 #define debugPrint(fmt, ...) \
@@ -352,7 +334,7 @@ typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char     password[SHELL_MAX_PASSWORD_LEN];
+    char     password[TSDB_USET_PASSWORD_LONGLEN];
     uint16_t port;
     // strlen(taosdump.) +1 is 10
     char     outpath[DUMP_DIR_LEN];
@@ -393,22 +375,18 @@ typedef struct arguments {
     bool     performance_print;
     bool     dotReplace;
     int      dumpDbCount;
-#ifdef WEBSOCKET
-    bool     restful;
-    bool     cloud;
-    int      ws_timeout;
+
+    int8_t   connMode;
+    bool     port_inputted;
     char    *dsn;
-    char    *cloudToken;
-    int      cloudPort;
-    char     cloudHost[MAX_HOSTNAME_LEN];
-#endif
 
     // put rename db string
     char      * renameBuf;
     SRenameDB * renameHead;
     // retry for call engine api
     int32_t     retryCount;
-    int32_t     retrySleepMs;      
+    int32_t     retrySleepMs;  
+        
 } SArguments;
 
 bool isSystemDatabase(char *dbName);
@@ -495,6 +473,7 @@ int64_t dumpANormalTableNotBelong(
 void* openQuery(void** taos_v , const char * sql);
 void closeQuery(void* res);
 int32_t readRow(void *res, int32_t idx, int32_t col, uint32_t *len, char **data);
+void engineError(char * module, char * fun, int32_t code);
 
 
 extern struct arguments g_args;

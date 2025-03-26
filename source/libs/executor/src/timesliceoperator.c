@@ -193,7 +193,7 @@ static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t r
 
   pKey->pks[0].type = t;
   if (IS_NUMERIC_TYPE(t)) {
-    GET_TYPED_DATA(pKey->pks[0].val, int64_t, t, colDataGetNumData(pPkCol, rowIndex));
+    valueSetDatum(pKey->pks, t, colDataGetData(pPkCol, rowIndex), tDataTypes[t].bytes);
   } else {
     char* p = colDataGetVarData(pPkCol, rowIndex);
     pKey->pks[0].pData = (uint8_t*)varDataVal(p);
@@ -215,7 +215,7 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
     if (IS_VAR_DATA_TYPE(pPkCol->info.type)) {
       cur.pks[0].pData = (uint8_t*)colDataGetVarData(pPkCol, curIndex);
     } else {
-      memcpy(&cur.pks[0].val, colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
+      valueSetDatum(cur.pks, pPkCol->info.type, colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
     }
   }
 
@@ -460,7 +460,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
           float v = 0;
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
-            GET_TYPED_DATA(v, float, pVar->nType, &pVar->f);
+            GET_TYPED_DATA(v, float, pVar->nType, &pVar->f, 0);
           } else {
             v = taosStr2Float(varDataVal(pVar->pz), NULL);
           }
@@ -469,7 +469,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
           double v = 0;
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
-            GET_TYPED_DATA(v, double, pVar->nType, &pVar->d);
+            GET_TYPED_DATA(v, double, pVar->nType, &pVar->d, 0);
           } else {
             v = taosStr2Double(varDataVal(pVar->pz), NULL);
           }
@@ -478,7 +478,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
           int64_t v = 0;
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
-            GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+            GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i, 0);
           } else {
             v = taosStr2Int64(varDataVal(pVar->pz), NULL, 10);
           }
@@ -487,7 +487,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         } else if (IS_UNSIGNED_NUMERIC_TYPE(pDst->info.type)) {
           uint64_t v = 0;
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
-            GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u);
+            GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u, 0);
           } else {
             v = taosStr2UInt64(varDataVal(pVar->pz), NULL, 10);
           }
@@ -496,7 +496,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         } else if (IS_BOOLEAN_TYPE(pDst->info.type)) {
           bool v = false;
           if (!IS_VAR_DATA_TYPE(pVar->nType)) {
-            GET_TYPED_DATA(v, bool, pVar->nType, &pVar->i);
+            GET_TYPED_DATA(v, bool, pVar->nType, &pVar->i, 0);
           } else {
             v = taosStr2Int8(varDataVal(pVar->pz), NULL, 10);
           }
@@ -537,7 +537,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
         current.val = taosMemoryCalloc(pLinearInfo->bytes, 1);
         QUERY_CHECK_NULL(current.val, code, lino, _end, terrno);
-        taosGetLinearInterpolationVal(&current, pLinearInfo->type, &start, &end, pLinearInfo->type);
+        taosGetLinearInterpolationVal(&current, pLinearInfo->type, &start, &end, pLinearInfo->type, typeGetTypeModFromColInfo(&pDst->info));
         code = colDataSetVal(pDst, rows, (char*)current.val, false);
         QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1389,4 +1389,23 @@ void destroyTimeSliceOperatorInfo(void* param) {
     taosMemoryFree(pInfo->pFillColInfo);
   }
   taosMemoryFreeClear(param);
+}
+
+int64_t getMinWindowSize(struct SOperatorInfo* pOperator) {
+  if (pOperator == NULL) {
+    return 0;
+  }
+
+  switch (pOperator->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
+      return ((SStateWindowOperatorInfo*)pOperator->info)->trueForLimit;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
+      return ((SStreamStateAggOperatorInfo*)pOperator->info)->trueForLimit;
+      case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+      return ((SEventWindowOperatorInfo*)pOperator->info)->trueForLimit;
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+        return ((SStreamEventAggOperatorInfo*)pOperator->info)->trueForLimit;
+    default:
+      return 0;
+  }
 }

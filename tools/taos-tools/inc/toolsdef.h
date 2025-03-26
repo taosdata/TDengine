@@ -16,8 +16,13 @@
 #ifndef __TOOLSDEF_H_
 #define __TOOLSDEF_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdbool.h>
 #include <time.h>
+
 
 #define TINY_BUFF_LEN                   8
 #define SMALL_BUFF_LEN                  20
@@ -70,9 +75,6 @@
 
 #define TSDB_DEFAULT_USER               "root"
 #define TSDB_DEFAULT_PASS               "taosdata"
-
-#define TSDB_PASS_LEN                   129
-#define SHELL_MAX_PASSWORD_LEN          TSDB_PASS_LEN
 
 #define TSDB_TIME_PRECISION_MILLI       0
 #define TSDB_TIME_PRECISION_MICRO       1
@@ -235,5 +237,9 @@ void errorPrintReqArg3(char *program, char *wrong_arg);
 int setConsoleEcho(bool on);
 
 char *toolsFormatTimestamp(char *buf, int64_t val, int32_t precision);
+
+#ifdef __cplusplus
+} /* end extern "C" */
+#endif
 
 #endif // __TOOLSDEF_H_

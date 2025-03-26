@@ -121,7 +121,7 @@ if [ "$EXEC_OPTON" = "start" ]; then
 else
   #relative path
   RCFG_DIR=sim/$NODE_NAME/cfg
-  PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
+  PID=`ps -efww | grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
   while [ -n "$PID" ]
   do
     if [ "$SIGNAL" = "SIGKILL" ]; then
@@ -132,7 +132,7 @@ else
       kill -SIGINT $PID
     fi
     sleep 1
-    PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
+    PID=`ps -efww | grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
   done 
 fi
 

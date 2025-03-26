@@ -649,3 +649,31 @@ def pytest_collection_modifyitems(config, items):
                 item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{tsim_name}"  # 有效，名称可以修改
                 testLog.debug(item.name)
                 testLog.debug(item._nodeid)
+    else:
+        name_suffix = ""
+        if config.getoption('-N'):
+            name_suffix += f"_N{config.getoption('-N')}"
+        if config.getoption('-M'):
+            name_suffix += f"_M{config.getoption('-M')}"
+        if config.getoption('-R'):
+            name_suffix += f"_R"
+        if config.getoption('-Q'):
+            name_suffix += f"_Q"
+        if config.getoption('-D'):
+            name_suffix += f"_D{config.getoption('-D')}"
+        if config.getoption('-L'):
+            name_suffix += f"_L{config.getoption('-L')}"
+        if config.getoption('-C'):
+            name_suffix += f"_C{config.getoption('-C')}"
+        if config.getoption('-I'):
+            name_suffix += f"_I"
+        if config.getoption('--replica'):
+            name_suffix += f"_replica{config.getoption('--replica')}"
+
+            
+        for item in items:
+            if name_suffix != "":
+                item.name = f"{item.name}{name_suffix}"  # 有效，名称可以修改
+                item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{item.name}"  # 有效，名称可以修改
+                testLog.debug(item.name)
+                testLog.debug(item._nodeid)

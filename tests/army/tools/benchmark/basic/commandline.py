@@ -31,18 +31,16 @@ class TDTestCase(TBase):
         # run
         outputs = etool.runBinFile("taosBenchmark", "-V")
         print(outputs)
-        if len(outputs) != 3:
-            tdLog.exit(f"checkVersion return lines count {len(outputs) != 3}")
+        if len(outputs) != 4:
+            tdLog.exit(f"checkVersion return lines count {len(outputs)} != 4")
         # version string len
-        assert len(outputs[0]) > 27
-        assert outputs[0][:22] == "taosBenchmark version:"
-
+        assert len(outputs[1]) > 24
         # commit id
-        assert len(outputs[1]) > 43
-        assert outputs[1][:4] == "git:"
+        assert len(outputs[2]) > 43
+        assert outputs[2][:4] == "git:"
         # build info
-        assert len(outputs[2]) > 36
-        assert outputs[2][:6] == "build:"
+        assert len(outputs[3]) > 36
+        assert outputs[3][:6] == "build:"
 
         tdLog.info("check taosBenchmark version successfully.")        
 
@@ -186,7 +184,7 @@ class TDTestCase(TBase):
         tdSql.query("select last(ts) from test.meters")
         tdSql.checkData(0, 0, "2017-07-14 10:40:00.034")
 
-        cmd = "%s -N -I taosc -t 11 -n 11 -y -x -E" % binPath
+        cmd = "%s -N -I taosc -t 11 -n 11 -y -x -E -c abcde" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use test")
@@ -197,7 +195,7 @@ class TDTestCase(TBase):
         tdSql.query("select count(*) from `d10`")
         tdSql.checkData(0, 0, 11)
 
-        cmd = "%s -N -I rest -t 11 -n 11 -y -x" % binPath
+        cmd = "%s -N -I rest -t 11 -n 11 -y -x -c /etc/taos" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use test")
@@ -316,21 +314,6 @@ class TDTestCase(TBase):
         tdSql.execute("reset query cache")
         tdSql.query("describe test.meters")
         tdSql.checkData(1, 1, "NCHAR")
-
-        # 2.x is binary and 3.x is varchar
-        # cmd = "%s -n 1 -t 1 -y -b binary" %binPath
-        # tdLog.info("%s" % cmd)
-        # os.system("%s" % cmd)
-        # tdSql.execute("reset query cache")
-        # tdSql.query("describe test.meters")
-        # tdSql.checkData(1, 1, "BINARY")
-
-        # cmd = "%s -n 1 -t 1 -y -b binary\(7\)" %binPath
-        # tdLog.info("%s" % cmd)
-        # os.system("%s" % cmd)
-        # tdSql.execute("reset query cache")
-        # tdSql.query("describe test.meters")
-        # tdSql.checkData(1, 1, "BINARY")
 
         cmd = "%s -n 1 -t 1 -y -A json" % binPath
         tdLog.info("%s" % cmd)

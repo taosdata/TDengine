@@ -89,7 +89,7 @@ int32_t mndInitSma(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndSmaActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateSmaReq);
+//  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateSmaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropIdxReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
@@ -313,7 +313,7 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   req.version = 0;
   req.intervalUnit = pSma->intervalUnit;
   req.slidingUnit = pSma->slidingUnit;
-//  req.timezoneInt = pSma->timezone;
+  //  req.timezoneInt = pSma->timezone;
   tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
   req.exprLen = pSma->exprLen;
   req.tagsFilterLen = pSma->tagsFilterLen;
@@ -590,6 +590,7 @@ static void mndDestroySmaObj(SSmaObj *pSmaObj) {
   }
 }
 
+#if 0
 static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCreate, SDbObj *pDb, SStbObj *pStb,
                             const char *streamName) {
   int32_t code = 0;
@@ -616,7 +617,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 #if 0
 //  smaObj.timezone = pCreate->timezone;
 #endif
-//  smaObj.timezone = taosGetLocalTimezoneOffset();  // use timezone of server
+  //  smaObj.timezone = taosGetLocalTimezoneOffset();  // use timezone of server
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;
@@ -760,6 +761,7 @@ _OVER:
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
+#endif
 
 static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   int32_t code = TSDB_CODE_MND_INVALID_SMA_OPTION;
@@ -795,10 +797,11 @@ static int32_t mndGetStreamNameFromSmaName(char *streamName, char *smaName) {
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  snprintf(streamName, TSDB_TABLE_FNAME_LEN,"%d.%s", n.acctId, n.tname);
+  snprintf(streamName, TSDB_TABLE_FNAME_LEN, "%d.%s", n.acctId, n.tname);
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -889,6 +892,7 @@ _OVER:
 
   TAOS_RETURN(code);
 }
+#endif
 
 static int32_t mndSetDropSmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
   int32_t  code = 0;
@@ -1502,7 +1506,7 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 // sma and tag index comm func
 static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
   int ret = mndProcessDropSmaReq(pReq);
-  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST) {
+  if (ret == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || ret == TSDB_CODE_MND_SMA_NOT_EXIST) {
     terrno = 0;
     ret = mndProcessDropTagIdxReq(pReq);
   }
@@ -1551,7 +1555,7 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
   pCxt->pSma->dbUid = pCxt->pDb->uid;
   pCxt->pSma->interval = pCxt->pCreateSmaReq->interval;
   pCxt->pSma->intervalUnit = pCxt->pCreateSmaReq->intervalUnit;
-//  pCxt->pSma->timezone = taosGetLocalTimezoneOffset();
+  //  pCxt->pSma->timezone = taosGetLocalTimezoneOffset();
   pCxt->pSma->version = 1;
 
   pCxt->pSma->exprLen = pCxt->pCreateSmaReq->exprLen;
@@ -1595,8 +1599,8 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   if (!pCxt->pCreateStreamReq->pTags) {
     return terrno;
   }
-  SField  f = {0};
-  int32_t code = 0;
+  SFieldWithOptions f = {0};
+  int32_t           code = 0;
   if (pCxt->pSrcStb) {
     for (int32_t idx = 0; idx < pCxt->pCreateStreamReq->numOfTags - 1; ++idx) {
       SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
@@ -1630,6 +1634,10 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
       f.type = pExprNode->resType.type;
       f.flags = COL_SMA_ON;
       tstrncpy(f.name, pExprNode->userAlias, TSDB_COL_NAME_LEN);
+      if (IS_DECIMAL_TYPE(f.type)) {
+        f.typeMod = decimalCalcTypeMod(pExprNode->resType.precision, pExprNode->resType.scale);
+        f.flags |= COL_HAS_TYPE_MOD;
+      }
       if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pCols, &f)) {
         code = terrno;
         break;
@@ -1797,7 +1805,7 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
     }
   }
   if (LIST_LENGTH(pProjects) > 0) {
-    createStreamReq.pCols = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SField));
+    createStreamReq.pCols = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SFieldWithOptions));
     if (!createStreamReq.pCols) {
       code = terrno;
       goto _OVER;
@@ -1837,7 +1845,7 @@ static int32_t mndTSMAGenerateOutputName(const char *tsmaName, char *streamName,
     return code;
   }
   snprintf(streamName, TSDB_TABLE_FNAME_LEN, "%d.%s", smaName.acctId, smaName.tname);
-  snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s"TSMA_RES_STB_POSTFIX, tsmaName);
+  snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s" TSMA_RES_STB_POSTFIX, tsmaName);
   return TSDB_CODE_SUCCESS;
 }
 
