@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "streaminterval.h"
 #include "taoserror.h"
 #include "tdatablock.h"
 
@@ -42,9 +43,7 @@ typedef struct SIndefOperatorInfo {
 } SIndefOperatorInfo;
 
 static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
-static SSDataBlock* doProjectOperation1(SOperatorInfo* pOperator);
 static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
-static SSDataBlock* doApplyIndefinitFunction1(SOperatorInfo* pOperator);
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);
 static int32_t      setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup,
@@ -162,6 +161,9 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols, &pInfo->pPseudoColInfo);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = initStreamFillOperatorColumnMapInfo(&pOperator->exprSupp, downstream);
   TSDB_CHECK_CODE(code, lino, _error);
 
   setOperatorInfo(pOperator, "ProjectOperator", QUERY_NODE_PHYSICAL_PLAN_PROJECT, false, OP_NOT_OPENED, pInfo,
@@ -557,12 +559,6 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   }
 }
 
-SSDataBlock* doApplyIndefinitFunction1(SOperatorInfo* pOperator) {
-  SSDataBlock* pResBlock = NULL;
-  pOperator->pTaskInfo->code = doApplyIndefinitFunction(pOperator, &pResBlock);
-  return pResBlock;
-}
-
 int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
   SIndefOperatorInfo* pIndefInfo = pOperator->info;
@@ -876,7 +872,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     }
 
     pResult->info.rows = 1;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    goto _exit;
   }
 
   if (pResult != pSrcBlock) {
@@ -1022,7 +1018,12 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
       // _rowts/_c0, not tbname column
       if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId))) {
-        // do nothing
+        if (fmIsGroupIdFunc(pfCtx->functionId)) {
+          SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+          TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
+          code = colDataSetVal(pColInfoData, pResult->info.rows, (const char*)&pSrcBlock->info.id.groupId, false);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
       } else if (fmIsIndefiniteRowsFunc(pfCtx->functionId)) {
         SResultRowEntryInfo* pResInfo = GET_RES_INFO(pfCtx);
         code = pfCtx->fpSet.init(pfCtx, pResInfo);

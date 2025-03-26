@@ -90,7 +90,6 @@ python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
 python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 python3 ./test.py -f 7-tmq/tmqOffset.py
-python3 ./test.py -f 7-tmq/tmq_primary_key.py
 python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 python3 ./test.py -f 1-insert/insert_stb.py
 python3 ./test.py -f 1-insert/delete_stable.py
@@ -247,6 +246,7 @@ python3 ./test.py -f 0-others/user_privilege_all.py
 python3 ./test.py -f 0-others/fsync.py
 python3 ./test.py -f 0-others/multilevel.py
 python3 ./test.py -f 0-others/retention_test.py
+python3 ./test.py -f 0-others/retention_test2.py
 python3 ./test.py -f 0-others/ttl.py
 python3 ./test.py -f 0-others/ttlChangeOnWrite.py
 python3 ./test.py -f 0-others/compress_tsz1.py
@@ -502,7 +502,6 @@ python3 ./test.py -f 2-query/sin.py -R
 python3 ./test.py -f 2-query/smaBasic.py -N 3
 python3 ./test.py -f 2-query/smaTest.py
 python3 ./test.py -f 2-query/smaTest.py -R
-python3 ./test.py -f 0-others/sma_index.py
 python3 ./test.py -f 2-query/sml_TS-3724.py
 python3 ./test.py -f 2-query/sml-TD19291.py
 python3 ./test.py -f 2-query/varbinary.py

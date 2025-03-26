@@ -27,12 +27,12 @@ extern "C" {
 #endif
 
 // clang-format off
-#define azFatal(...) { if (azDebugFlag & DEBUG_FATAL) { taosPrintLog("AZR FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
-#define azError(...) { if (azDebugFlag & DEBUG_ERROR) { taosPrintLog("AZR ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
-#define azWarn(...)  { if (azDebugFlag & DEBUG_WARN)  { taosPrintLog("AZR WARN ",  DEBUG_WARN, 255,         __VA_ARGS__); }}
-#define azInfo(...)  { if (azDebugFlag & DEBUG_INFO)  { taosPrintLog("AZR ",       DEBUG_INFO, 255,         __VA_ARGS__); }}
-#define azDebug(...) { if (azDebugFlag & DEBUG_DEBUG) { taosPrintLog("AZR ",       DEBUG_DEBUG, azDebugFlag, __VA_ARGS__); }}
-#define azTrace(...) { if (azDebugFlag & DEBUG_TRACE) { taosPrintLog("AZR ",       DEBUG_TRACE, azDebugFlag, __VA_ARGS__); }}
+#define azFatal(...) { if (azDebugFlag & DEBUG_FATAL) { taosPrintLog("AZR FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }}
+#define azError(...) { if (azDebugFlag & DEBUG_ERROR) { taosPrintLog("AZR ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }}
+#define azWarn(...)  { if (azDebugFlag & DEBUG_WARN)  { taosPrintLog("AZR WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }}
+#define azInfo(...)  { if (azDebugFlag & DEBUG_INFO)  { taosPrintLog("AZR INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }}
+#define azDebug(...) { if (azDebugFlag & DEBUG_DEBUG) { taosPrintLog("AZR DEBUG ", DEBUG_DEBUG, azDebugFlag, __VA_ARGS__); }}
+#define azTrace(...) { if (azDebugFlag & DEBUG_TRACE) { taosPrintLog("AZR TRACE ", DEBUG_TRACE, azDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
 #ifdef __cplusplus

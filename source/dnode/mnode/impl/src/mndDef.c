@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tunit.h"
 
+#ifdef USE_STREAM
 static void *freeStreamTasks(SArray *pTaskLevel);
 
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
@@ -65,10 +66,10 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, ""));
   }
 
-  int32_t sz = taosArrayGetSize(pObj->tasks);
+  int32_t sz = taosArrayGetSize(pObj->pTaskList);
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, sz));
   for (int32_t i = 0; i < sz; i++) {
-    SArray *pArray = taosArrayGetP(pObj->tasks, i);
+    SArray *pArray = taosArrayGetP(pObj->pTaskList, i);
     int32_t innerSz = taosArrayGetSize(pArray);
     TAOS_CHECK_RETURN(tEncodeI32(pEncoder, innerSz));
     for (int32_t j = 0; j < innerSz; j++) {
@@ -128,16 +129,16 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   TAOS_CHECK_RETURN(tDecodeCStrAlloc(pDecoder, &pObj->ast));
   TAOS_CHECK_RETURN(tDecodeCStrAlloc(pDecoder, &pObj->physicalPlan));
 
-  if (pObj->tasks != NULL) {
-    pObj->tasks = freeStreamTasks(pObj->tasks);
+  if (pObj->pTaskList != NULL) {
+    pObj->pTaskList = freeStreamTasks(pObj->pTaskList);
   }
 
   int32_t sz;
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &sz));
 
   if (sz != 0) {
-    pObj->tasks = taosArrayInit(sz, sizeof(void *));
-    if (pObj->tasks == NULL) {
+    pObj->pTaskList = taosArrayInit(sz, sizeof(void *));
+    if (pObj->pTaskList == NULL) {
       code = terrno;
       TAOS_RETURN(code);
     }
@@ -167,7 +168,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
           }
         }
       }
-      if (taosArrayPush(pObj->tasks, &pArray) == NULL) {
+      if (taosArrayPush(pObj->pTaskList, &pArray) == NULL) {
         taosArrayDestroy(pArray);
         code = terrno;
         TAOS_RETURN(code);
@@ -198,6 +199,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
 }
 
 void *freeStreamTasks(SArray *pTaskLevel) {
+  if (pTaskLevel == NULL) return NULL;
   int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
 
   for (int32_t i = 0; i < numOfLevel; i++) {
@@ -225,14 +227,21 @@ void tFreeStreamObj(SStreamObj *pStream) {
     taosMemoryFree(pStream->outputSchema.pSchema);
   }
 
-  pStream->tasks = freeStreamTasks(pStream->tasks);
-  pStream->pHTasksList = freeStreamTasks(pStream->pHTasksList);
+  pStream->pTaskList = freeStreamTasks(pStream->pTaskList);
+  pStream->pHTaskList = freeStreamTasks(pStream->pHTaskList);
 
   // tagSchema.pSchema
   if (pStream->tagSchema.nCols > 0) {
     taosMemoryFree(pStream->tagSchema.pSchema);
   }
+
+  qDestroyQueryPlan(pStream->pPlan);
+  pStream->pPlan = NULL;
+
+  tSimpleHashCleanup(pStream->pVTableMap);
+  pStream->pVTableMap = NULL;
 }
+#endif
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));

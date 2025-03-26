@@ -20,7 +20,7 @@
 #define MAX_CONTENT_LEN 2 * 1024 * 1024
 
 int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
   int32_t num = 0;
   int32_t size = taosHashGetSize(pMgmt->runngingHash);
@@ -28,7 +28,7 @@ int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnod
   size += closedSize;
   SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
   if (pVnodes == NULL) {
-    (void)taosThreadRwlockUnlock(&pMgmt->lock);
+    (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
     return terrno;
   }
 
@@ -60,7 +60,7 @@ int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnod
     }
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
   *numOfVnodes = num;
   *ppVnodes = pVnodes;
 
@@ -68,7 +68,7 @@ int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnod
 }
 
 int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
   int32_t num = 0;
   int32_t size = taosHashGetSize(pMgmt->runngingHash);
@@ -76,7 +76,7 @@ int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfV
   size += creatingSize;
   SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
   if (pVnodes == NULL) {
-    (void)taosThreadRwlockUnlock(&pMgmt->lock);
+    (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
     return terrno;
   }
 
@@ -107,7 +107,7 @@ int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfV
       taosHashCancelIterate(pMgmt->creatingHash, pIter);
     }
   }
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 
   *numOfVnodes = num;
   *ppVnodes = pVnodes;
@@ -116,13 +116,13 @@ int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfV
 }
 
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
   int32_t     num = 0;
   int32_t     size = taosHashGetSize(pMgmt->runngingHash);
   SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
   if (pVnodes == NULL) {
-    (void)taosThreadRwlockUnlock(&pMgmt->lock);
+    (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
     return terrno;
   }
 
@@ -140,7 +140,7 @@ int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeOb
     }
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
   *numOfVnodes = num;
   *ppVnodes = pVnodes;
 
@@ -350,14 +350,14 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     goto _OVER1;
   }
   if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     lino = __LINE__;
     goto _OVER1;
   }
 
   code = taosCloseFile(&pFile);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     lino = __LINE__;
     goto _OVER1;
   }

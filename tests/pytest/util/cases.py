@@ -20,6 +20,7 @@ import importlib
 import traceback
 from util.log import *
 import platform
+import ast
 
 
 class TDCase:
@@ -51,12 +52,23 @@ class TDCases:
     def addCluster(self, name, case):
         self.clusterCases.append(TDCase(name, case))
 
+    def get_local_classes_in_order(self, file_path):
+        with open(file_path, "r", encoding="utf-8") as file:
+            tree = ast.parse(file.read(), filename=file_path)
+
+        classes = [node.name for node in ast.walk(
+            tree) if isinstance(node, ast.ClassDef)]
+        return classes
+
     def runAllLinux(self, conn):
         # TODO: load all Linux cases here
         runNum = 0
         for tmp in self.linuxCases:
             if tmp.name.find(fileName) != -1:
-                case = testModule.TDTestCase()
+                # get the last class name as the test case class name
+                class_names = self.get_local_classes_in_order(fileName)
+                case_class = getattr(testModule, class_names[-1])
+                case = case_class()
                 case.init(conn)
                 case.run()
                 case.stop()
@@ -72,9 +84,8 @@ class TDCases:
         for tmp in self.linuxCases:
             if tmp.name.find(fileName) != -1:
                 # get the last class name as the test case class name
-                class_names = [name for name, obj in inspect.getmembers(testModule, inspect.isclass)]
-                class_names = class_names[-1]
-                case_class = getattr(testModule, class_names)
+                class_names = self.get_local_classes_in_order(fileName)
+                case_class = getattr(testModule, class_names[-1])
                 case = case_class()
                 case.init(conn, self._logSql, replicaVar)
                 try:
@@ -92,7 +103,10 @@ class TDCases:
         runNum = 0
         for tmp in self.windowsCases:
             if tmp.name.find(fileName) != -1:
-                case = testModule.TDTestCase()
+                # get the last class name as the test case class name
+                class_names = self.get_local_classes_in_order(fileName)
+                case_class = getattr(testModule, class_names[-1])
+                case = case_class()
                 case.init(conn)
                 case.run()
                 case.stop()
@@ -108,11 +122,10 @@ class TDCases:
         for tmp in self.windowsCases:
             if tmp.name.find(fileName) != -1:
                 # get the last class name as the test case class name
-                class_names = [name for name, obj in inspect.getmembers(testModule, inspect.isclass)]
-                class_names = class_names[-1]
-                case_class = getattr(testModule, class_names)
+                class_names = self.get_local_classes_in_order(fileName)
+                case_class = getattr(testModule, class_names[-1])
                 case = case_class()
-                case.init(conn, self._logSql,replicaVar)
+                case.init(conn, self._logSql, replicaVar)
                 try:
                     case.run()
                 except Exception as e:
@@ -132,9 +145,8 @@ class TDCases:
             if tmp.name.find(fileName) != -1:
                 tdLog.notice("run cases like %s" % (fileName))
                 # get the last class name as the test case class name
-                class_names = [name for name, obj in inspect.getmembers(testModule, inspect.isclass)]
-                class_names = class_names[-1]
-                case_class = getattr(testModule, class_names)
+                class_names = self.get_local_classes_in_order(fileName)
+                case_class = getattr(testModule, class_names[-1])
                 case = case_class()
                 case.init()
                 case.run()
@@ -152,9 +164,8 @@ class TDCases:
             if tmp.name.find(fileName) != -1:
                 tdLog.notice("run cases like %s" % (fileName))
                 # get the last class name as the test case class name
-                class_names = [name for name, obj in inspect.getmembers(testModule, inspect.isclass)]
-                class_names = class_names[-1]
-                case_class = getattr(testModule, class_names)
+                class_names = self.get_local_classes_in_order(fileName)
+                case_class = getattr(testModule, class_names[-1])
                 case = case_class()
                 case.init()
                 case.run()
@@ -187,19 +198,20 @@ class TDCases:
         else:
             tdLog.info("taosBenchmark found in %s" % paths[0])
             return paths[0]
-        
+
     def taosBenchmarkExec(self, param):
         buildPath = tdCases.getTaosBenchmarkPath()
 
         if (platform.system().lower() == 'windows'):
-            cmdStr1 = ' mintty -h never %s %s '%(buildPath, param)
+            cmdStr1 = ' mintty -h never %s %s ' % (buildPath, param)
             tdLog.info(cmdStr1)
             os.system(cmdStr1)
         else:
-            cmdStr1 = '%s %s &'%(buildPath, param)
+            cmdStr1 = '%s %s &' % (buildPath, param)
             tdLog.info(cmdStr1)
             os.system(cmdStr1)
-            
+
         time.sleep(5)
-       
+
+
 tdCases = TDCases()

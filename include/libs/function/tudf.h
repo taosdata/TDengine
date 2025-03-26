@@ -37,9 +37,9 @@ extern "C" {
 
 #define UDF_LISTEN_PIPE_NAME_LEN 32
 #ifdef _WIN32
-#define UDF_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\udfd.sock"
+#define UDF_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\taosudf.sock"
 #else
-#define UDF_LISTEN_PIPE_NAME_PREFIX ".udfd.sock."
+#define UDF_LISTEN_PIPE_NAME_PREFIX ".taosudf.sock."
 #endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
@@ -66,7 +66,7 @@ extern "C" {
     const void *ptrs[] = {__VA_ARGS__};                                        \
     for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
       if (ptrs[i] == NULL) {                                                   \
-        fnError("udfd %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        fnError("taosudf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
         return TSDB_CODE_INVALID_PARA;                                         \
       }                                                                        \
     }                                                                          \
@@ -77,7 +77,7 @@ extern "C" {
     const void *ptrs[] = {__VA_ARGS__};                                        \
     for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
       if (ptrs[i] == NULL) {                                                   \
-        fnError("udfd %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        fnError("taosudf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
         return;                                                                \
       }                                                                        \
     }                                                                          \
@@ -137,31 +137,31 @@ int32_t cleanUpUdfs();
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // udf api
 /**
- * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
+ * create taosudf proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
  * @return error code
  */
 int32_t udfcOpen();
 
 /**
- * destroy udfd proxy
+ * destroy taosudf proxy
  * @return error code
  */
 int32_t udfcClose();
 
 /**
- * start udfd that serves udf function invocation under dnode startDnodeId
+ * start taosudf that serves udf function invocation under dnode startDnodeId
  * @param startDnodeId
  * @return
  */
 int32_t udfStartUdfd(int32_t startDnodeId);
 /**
- * stop udfd
+ * stop taosudf
  * @return
  */
 void udfStopUdfd();
 
 /**
- * get udfd pid
+ * get taosudf pid
  *
  */
 // int32_t udfGetUdfdPid(int32_t* pUdfdPid);

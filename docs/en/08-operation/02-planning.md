@@ -87,7 +87,7 @@ Additionally, to accelerate the data processing process, TDengine specifically s
 
 ```text
 Users can use the performance testing tool taosBenchmark to assess the data compression effect of TDengine. By using the -f option to specify the write configuration file, taosBenchmark can write a specified number of CSV sample data into the specified database parameters and table structure.
-After completing the data writing, users can execute the flush database command in the taos shell to force all data to be written to the disk. Then, use the du command of the Linux operating system to get the size of the data folder of the specified vnode. Finally, divide the original data size by the actual storage data size to calculate the real compression ratio.
+After completing the data writing, users can execute the flush database command in the TDengine CLI to force all data to be written to the disk. Then, use the du command of the Linux operating system to get the size of the data folder of the specified vnode. Finally, divide the original data size by the actual storage data size to calculate the real compression ratio.
 ```
 
 The following command can be used to obtain the storage space occupied by TDengine.

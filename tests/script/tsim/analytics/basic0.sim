@@ -23,8 +23,8 @@ endi
 
 print =============== show info
 sql show anodes full
-if $rows != 8 then
-  print expect 8 , actual $rows
+if $rows != 10 then
+  print expect 10 , actual $rows
   return -1
 endi
 
@@ -69,6 +69,9 @@ if $data00 != 1 then
    return -1
 endi
 
+print ================= too many rows error
+sql_error select forecast(c6, 'algo=holtwinters, rows=1025') from ct1;
+
 print =================  try every loaded anomaly detection algorithm
 sql select count(*) from ct1 anomaly_window(c1, 'algo=iqr');
 sql select count(*) from ct1 anomaly_window(c1, 'algo=ksigma');
@@ -86,6 +89,14 @@ sql select count(*) from ct1 anomaly_window(c5, 'algo=ksigma,k=2');
 print =================== invalid column type
 sql_error select count(*) from ct1 anomaly_window(c6, 'algo=ksigma,k=2');
 sql_error select forecast(c6, 'algo=holtwinters,conf=0.5,wncheck=1,period=0') from ct1
+
+
+print ==================== invalid timeout parameter, will reset the parameters.
+sql select forecast(c1, 'algo=holtwinters, timeout=6000') from ct1;
+sql select forecast(c1, 'algo=holtwinters, timeout=0') from ct1;
+
+print =========================== valid timeout
+sql select forecast(c1, 'algo=holtwinters, timeout=120') from ct1;
 
 
 sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=0.5,wncheck=1,period=0') from ct1

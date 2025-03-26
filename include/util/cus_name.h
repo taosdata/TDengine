@@ -16,12 +16,23 @@
 #ifndef _CUS_NAME_H_
 #define _CUS_NAME_H_
 
+//
+// support OEM
+//
+#ifndef TD_PRODUCT_NAME
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
+#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
+#else
+#define TD_PRODUCT_NAME "TDengine Community Edition"
+#endif
+#endif
+
 #ifndef CUS_NAME
 #define CUS_NAME    "TDengine"
 #endif
 
 #ifndef CUS_PROMPT
-#define CUS_PROMPT  "taos"
+#define CUS_PROMPT "taos"
 #endif
 
 #ifndef CUS_EMAIL

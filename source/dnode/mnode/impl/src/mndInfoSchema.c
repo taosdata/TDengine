@@ -47,6 +47,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
   meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
+  meta.virtualStb = false;
 
   size_t               size = 0;
   const SSysTableMeta *pInfosTableMeta = NULL;
@@ -89,7 +90,9 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
     TAOS_RETURN(code);
   }
 
-  if (!sysinfo && pMeta->sysInfo) {
+  bool isShowAnodes = (strcmp(tbName, TSDB_INS_TABLE_ANODES) == 0 || strcmp(tbName, TSDB_INS_TABLE_ANODES_FULL) == 0);
+
+  if (!isShowAnodes && !sysinfo && pMeta->sysInfo) {
     mError("no permission to get schema of table name:%s", tbName);
     code = TSDB_CODE_PAR_PERMISSION_DENIED;
     TAOS_RETURN(code);
@@ -128,6 +131,7 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
   pRsp->numOfTags = pMeta->numOfTags;
   pRsp->numOfColumns = pMeta->numOfColumns;
   pRsp->tableType = pMeta->tableType;
+  pRsp->virtualStb = pMeta->virtualStb;
 
   pRsp->pSchemas = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
@@ -139,6 +143,7 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
   memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
 
   pRsp->pSchemaExt = taosMemoryCalloc(pMeta->numOfColumns, sizeof(SSchemaExt));
+  pRsp->pColRefs = taosMemCalloc(pMeta->numOfColumns, sizeof(SColRef));
   TAOS_RETURN(code);
 }
 

@@ -13,20 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef _TD_DARWIN_64
-#include <pwd.h>
-#endif
-
 #include "shellInt.h"
-#include "version.h"
-
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include "cus_name.h"
-#else
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
-#endif
+#include "../../inc/pub.h"
+char   configDirShell[PATH_MAX] = {0};
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 
@@ -49,17 +38,19 @@
 #define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_BI_MODE  "Set BI mode"
+#define SHELL_VERSION  "Print program version."
+#define SHELL_DSN      "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
+#define SHELL_TIMEOUT  "Set the timeout for WebSocket query in seconds, default is 30."
 #define SHELL_LOG_OUTPUT                                                                                              \
   "Specify log output. Options:\n\r\t\t\t     stdout, stderr, /dev/null, <directory>, <directory>/<filename>, "       \
   "<filename>\n\r\t\t\t     * If OUTPUT contains an absolute directory, logs will be stored in that directory "       \
   "instead of logDir.\n\r\t\t\t     * If OUTPUT contains a relative directory, logs will be stored in the directory " \
   "combined with logDir and the relative directory."
-#define SHELL_VERSION "Print program version."
 
 #ifdef WEBSOCKET
-#define SHELL_DSN     "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
-#define SHELL_REST    "Use RESTful mode when connecting."
-#define SHELL_TIMEOUT "Set the timeout for websocket query in seconds, default is 30."
+#define SHELL_DRIVER_DEFAULT "0." // todo simon -> 1
+#else
+#define SHELL_DRIVER_DEFAULT "0."
 #endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
@@ -88,13 +79,13 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
   printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
   printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
-#ifdef WEBSOCKET
-  printf("%s%s%s%s\r\n", indent, "-E,", indent, SHELL_DSN);
-  printf("%s%s%s%s\r\n", indent, "-R,", indent, SHELL_REST);
+  printf("%s%s%s%s\r\n", indent, "-E,", indent, OLD_DSN_DESC);
   printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
-#endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
+  printf("%s%s%s%s\r\n", indent, "-X,", indent, DSN_DESC);
+  printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
+
 #ifdef CUS_EMAIL
   printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 #else
@@ -102,7 +93,7 @@ void shellPrintHelp() {
 #endif
 }
 
-#ifdef LINUX
+#if defined(LINUX) && !defined(TD_ASTRA)
 #include <argp.h>
 #ifdef _ALPINE
 #include <termios.h>
@@ -135,16 +126,13 @@ static struct argp_option shellOptions[] = {
     {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
     {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKT_LEN},
-#ifdef WEBSOCKET
-    {"dsn", 'E', "DSN", 0, SHELL_DSN},
-    {"restful", 'R', 0, 0, SHELL_REST},
+    {"cloud-dsn", 'E', "DSN", 0, OLD_DSN_DESC},
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
-#endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
-#if defined(LINUX)
     {"log-output", 'o', "OUTPUT", 0, SHELL_LOG_OUTPUT},
-#endif
+    {"dsn", 'X', "DSN", 0, DSN_DESC},
+    {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
     {0},
 };
 
@@ -152,9 +140,10 @@ static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) {
 
 static struct argp shellArgp = {shellOptions, shellParseOpt, "", ""};
 
-static void shellParseArgsUseArgp(int argc, char *argv[]) {
+static int32_t shellParseArgsUseArgp(int argc, char *argv[]) {
   argp_program_version = shell.info.programVersion;
-  argp_parse(&shellArgp, argc, argv, 0, 0, &shell.args);
+  error_t err = argp_parse(&shellArgp, argc, argv, 0, 0, &shell.args);
+  return (err != 0);
 }
 
 #endif
@@ -169,16 +158,14 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   switch (key) {
     case 'h':
       pArgs->host = arg;
-#ifdef WEBSOCKET
-      pArgs->cloud = false;
-#endif
       break;
     case 'P':
       pArgs->port = atoi(arg);
-#ifdef WEBSOCKET
-      pArgs->cloud = false;
-#endif
-      if (pArgs->port == 0) pArgs->port = -1;
+      if (pArgs->port == 0) {
+        pArgs->port = -1;
+      } else {
+        pArgs->port_inputted = true;
+      }
       break;
     case 'u':
       pArgs->user = arg;
@@ -195,9 +182,6 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->is_bi_mode = true;
       break;
     case 'c':
-#ifdef WEBSOCKET
-      pArgs->cloud = false;
-#endif
       pArgs->cfgdir = arg;
       break;
     case 'C':
@@ -236,32 +220,30 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
 #if defined(LINUX)
     case 'o':
       if (strlen(arg) >= PATH_MAX) {
-        printf("failed to set log output since length overflow, max length is %d\n", PATH_MAX);
+        printf("failed to set log output since length overflow, max length is %d\r\n", PATH_MAX);
         return TSDB_CODE_INVALID_CFG;
       }
       tsLogOutput = taosMemoryMalloc(PATH_MAX);
       if (!tsLogOutput) {
-        printf("failed to set log output: '%s' since %s\n", arg, tstrerror(terrno));
+        printf("failed to set log output: '%s' since %s\r\n", arg, tstrerror(terrno));
         return terrno;
       }
       if (taosExpandDir(arg, tsLogOutput, PATH_MAX) != 0) {
-        printf("failed to expand log output: '%s' since %s\n", arg, tstrerror(terrno));
+        printf("failed to expand log output: '%s' since %s\r\n", arg, tstrerror(terrno));
         return terrno;
       }
       break;
 #endif
-#ifdef WEBSOCKET
-    case 'R':
-      pArgs->restful = true;
-      break;
     case 'E':
+    case 'X':
       pArgs->dsn = arg;
-      pArgs->cloud = true;
       break;
     case 'T':
       pArgs->timeout = atoi(arg);
       break;
-#endif
+    case 'Z':
+      pArgs->connMode = getConnMode(arg);
+      break;
     case 'V':
       pArgs->is_version = true;
       break;
@@ -276,15 +258,16 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   }
   return 0;
 }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_64)
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_64) || defined(TD_ASTRA)
+
 int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
+  int32_t     ret = 0;
 
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0
             || strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "/?") == 0) {
-      shellParseSingleOpt('?', NULL);
-      return 0;
+      return shellParseSingleOpt('?', NULL);
     }
 
     char   *key = argv[i];
@@ -298,14 +281,9 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       return -1;
     }
 
-    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u'
-            || key[1] == 'a' || key[1] == 'c' || key[1] == 's'
-            || key[1] == 'f' || key[1] == 'd' || key[1] == 'w'
-            || key[1] == 'n' || key[1] == 'l' || key[1] == 'N'
-#ifdef WEBSOCKET
-        || key[1] == 'E' || key[1] == 'T'
-#endif
-    ) {
+    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
+        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N' ||
+        key[1] == 'E' || key[1] == 'T' || key[1] == 'X' || key[1] == 'Z') {
       if (i + 1 >= argc) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
@@ -315,20 +293,18 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
       }
-      shellParseSingleOpt(key[1], val);
+      ret = shellParseSingleOpt(key[1], val);
       i++;
-    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C'
-                || key[1] == 'r' || key[1] == 'k'
-                || key[1] == 't' || key[1] == 'V'
-                || key[1] == '?' || key[1] == 1
-#ifdef WEBSOCKET
-            ||key[1] == 'R'
-#endif
-    ) {
-      shellParseSingleOpt(key[1], NULL);
+    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
+               key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R'|| key[1] == 'B') {
+      ret = shellParseSingleOpt(key[1], NULL);
     } else {
       fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
+    }
+
+    if (ret != 0) {
+      return ret;
     }
   }
 
@@ -343,7 +319,7 @@ static void shellInitArgs(int argc, char *argv[]) {
       if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
-        if (scanf("%128s", shell.args.password) > 1) {
+        if (scanf("%255s", shell.args.password) > 1) {
           fprintf(stderr, "password reading error\n");
         }
         taosSetConsoleEcho(true);
@@ -354,6 +330,7 @@ static void shellInitArgs(int argc, char *argv[]) {
         tstrncpy(shell.args.password, (char *)(argv[i] + 2), sizeof(shell.args.password));
         strcpy(argv[i], "-p");
       }
+      printf("\r\n");
     }
   }
   if (strlen(shell.args.password) == 0) {
@@ -365,6 +342,9 @@ static void shellInitArgs(int argc, char *argv[]) {
   pArgs->pktLen = SHELL_DEF_PKG_LEN;
   pArgs->pktNum = SHELL_DEF_PKG_NUM;
   pArgs->displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
+  pArgs->timeout = SHELL_WS_TIMEOUT;
+
+  shell.exit = false;
 }
 
 static int32_t shellCheckArgs() {
@@ -401,9 +381,16 @@ static int32_t shellCheckArgs() {
       printf("Invalid cfgdir:%s\r\n", pArgs->cfgdir);
       return -1;
     } else {
-      if (taosExpandDir(pArgs->cfgdir, configDir, PATH_MAX) != 0) {
-        tstrncpy(configDir, pArgs->cfgdir, PATH_MAX);
+      if (taosExpandDir(pArgs->cfgdir, configDirShell, PATH_MAX) != 0) {
+        tstrncpy(configDirShell, pArgs->cfgdir, PATH_MAX);
       }
+      // check cfg dir exist
+      /*
+      if(!taosIsDir(configDirShell)) {
+        printf("folder not exist. cfgdir:%s  expand:%s\r\n", pArgs->cfgdir, configDirShell);
+        configDirShell[0] = 0;
+        return -1;          
+      }*/  
     }
   }
 
@@ -448,8 +435,8 @@ static int32_t shellCheckArgs() {
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
-      "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
-      "Copyright (c) 2023 by %s, all rights reserved.\r\n\r\n";
+      "Welcome to the %s Command Line Interface, %s Client Version:%s \r\n"
+      "Copyright (c) 2025 by %s, all rights reserved.\r\n\r\n";
 #ifdef CUS_NAME
   strcpy(shell.info.cusName, CUS_NAME);
 #else
@@ -483,15 +470,51 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.osname = "Darwin";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
+#elif defined(TD_ASTRA)
+  shell.info.osname = "Astra";
+  snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:%sTDengine%s%s", TD_DIRSEP, TD_DIRSEP,
+           SHELL_HISTORY_FILE);  // TD_ASTRA_TODO getenv("HOME")
+  if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #else
   shell.info.osname = "Linux";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);
-  shellParseArgsUseArgp(argc, argv);
-  // if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
+  if (shellParseArgsUseArgp(argc, argv) != 0) return -1;
   if (shell.args.abort) {
     return -1;
   }
 #endif
 
   return shellCheckArgs();
+}
+
+int32_t getDsnEnv() {
+  if (shell.args.connMode == CONN_MODE_NATIVE) {
+    if (shell.args.dsn != NULL) {
+      fprintf(stderr, DSN_NATIVE_CONFLICT);
+      return -1;
+    }
+  } else {
+    if (shell.args.dsn != NULL) {
+      return 0;
+    } else {
+      // read cloud
+      shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
+      if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
+        fprintf(stderr, "Use the environment variable TDENGINE_CLOUD_DSN:%s as the input for the DSN option.\r\n",
+                shell.args.dsn);
+        return 0;
+      }
+
+      // read local
+      shell.args.dsn = getenv("TDENGINE_DSN");
+      if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
+        fprintf(stderr, "Use the environment variable TDENGINE_DSN:%s as the input for the DSN option.\r\n",
+                shell.args.dsn);
+        return 0;
+      }
+      shell.args.dsn = NULL;
+    }
+  }
+
+  return 0;
 }

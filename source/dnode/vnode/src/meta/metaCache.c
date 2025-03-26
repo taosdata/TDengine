@@ -402,6 +402,8 @@ int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
 
   if (*ppEntry) {  // update
     (*ppEntry)->info.ctbNum = pInfo->ctbNum;
+    (*ppEntry)->info.colNum = pInfo->colNum;
+    (*ppEntry)->info.keep = pInfo->keep;
   } else {  // insert
     if (pCache->sStbStatsCache.nEntry >= pCache->sStbStatsCache.nBucket) {
       TAOS_UNUSED(metaRehashStatsCache(pCache, 1));
@@ -900,4 +902,24 @@ int32_t metaInitTbFilterCache(SMeta* pMeta) {
 #else
 #endif
   return 0;
+}
+
+int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {
+  SMetaStbStats stats = {0};
+
+  if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
+    return stats.keep;
+  }
+
+  SMetaEntry* pEntry = NULL;
+  if (metaFetchEntryByUid(pMeta, uid, &pEntry) == TSDB_CODE_SUCCESS) {
+    int64_t keep = -1;
+    if (pEntry->type == TSDB_SUPER_TABLE) {
+      keep = pEntry->stbEntry.keep;
+    }
+    metaFetchEntryFree(&pEntry);
+    return keep;
+  }
+  
+  return -1;
 }

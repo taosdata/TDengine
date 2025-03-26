@@ -69,10 +69,10 @@ This statement creates a subscription that includes all table data in the databa
 
 ## Delete Topic
 
-If you no longer need to subscribe to the data, you can delete the topic. Note that only topics that are not currently subscribed can be deleted.
+If you no longer need to subscribe to the data, you can delete the topic. If the current topic is subscribed to by a consumer, it can be forcibly deleted using the FORCE syntax. After the forced deletion, the subscribed consumer will consume data with errors (FORCE syntax supported from version 3.3.6.0).
 
 ```sql
-DROP TOPIC [IF EXISTS] topic_name;
+DROP TOPIC [IF EXISTS] [FORCE] topic_name;
 ```
 
 ## View Topics
@@ -99,10 +99,10 @@ Displays information about all consumers in the current database, including the 
 
 ### Delete Consumer Group
 
-When creating a consumer, a consumer group is assigned to the consumer. Consumers cannot be explicitly deleted, but the consumer group can be deleted with the following statement when there are no consumers in the group:
+When creating a consumer, a consumer group is assigned to the consumer. Consumers cannot be explicitly deleted, but the consumer group can be deleted. If there are consumers in the current consumer group who are consuming, the FORCE syntax can be used to force deletion. After forced deletion, subscribed consumers will consume data with errors (FORCE syntax supported from version 3.3.6.0).
 
 ```sql
-DROP CONSUMER GROUP [IF EXISTS] cgroup_name ON topic_name;
+DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
 ```
 
 ## Data Subscription
@@ -137,6 +137,7 @@ If the following 3 data entries were written, then during replay, the first entr
 
 When using the data subscription's replay feature, note the following:
 
+- Enable replay function by configuring the consumption parameter enable.replay to true
 - The replay function of data subscription only supports data playback for query subscriptions; supertable and database subscriptions do not support playback.
 - Replay does not support progress saving.
 - Because data playback itself requires processing time, there is a precision error of several tens of milliseconds in playback.

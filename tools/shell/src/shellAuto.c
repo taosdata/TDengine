@@ -112,6 +112,7 @@ SWords shellCommands[] = {
     {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
 #endif
+    {"desc <all_table>;", 0, 0, NULL},
     {"describe <all_table>;", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>;", 0, 0, NULL},
@@ -786,7 +787,7 @@ void GenerateVarType(int type, char** p, int count) {
 //
 
 // init shell auto function , shell start call once
-bool shellAutoInit() {
+void shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
   for (int32_t i = 0; i < count; i++) {
@@ -815,8 +816,6 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
   GenerateVarType(WT_VAR_GLOBALKEYS, global_keys, sizeof(global_keys) / sizeof(char*));
   GenerateVarType(WT_VAR_FIELD_OPTIONS, field_options, sizeof(field_options) / sizeof(char*));
-
-  return true;
 }
 
 // set conn
