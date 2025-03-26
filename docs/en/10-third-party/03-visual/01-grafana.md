@@ -165,7 +165,7 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
       grafana:
         image: grafana/grafana:latest
         volumes:
-          - ./tdengine.yml:/etc/grafana/provisioning/tdengine.yml
+          - ./tdengine.yml:/etc/grafana/provisioning/datasources/tdengine.yml
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
