@@ -199,9 +199,16 @@ jobs:
           cmake --install debug
 
       - name: Statistics ldd
+        if: runner.os == 'Linux'
         run: |
           find ${{ github.workspace }}/debug/build/lib -type f -name "*.so" -print0 | xargs -0 ldd || true
           find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd || true
+
+      - name: Statistics otool
+        if: runner.os == 'Darwin'
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -name "*.dylib" -print0 | xargs -0 otool -L || true
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 otool -L || true
 
       - name: Statistics size
         run: |
@@ -217,7 +224,8 @@ jobs:
           taos -V
           ./build.sh start
           pgrep -l taos
-          sleep 3     # NOTE: wait for taosd initialization to complete
+          sleep 6     # NOTE: wait for taosd initialization to complete
+          pgrep -l taos
           taos -s "show databases"
           taos -s "show dnodes"
 
