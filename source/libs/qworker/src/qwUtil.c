@@ -334,7 +334,7 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   taosArrayDestroy(ctx->tbInfo);
 
   if (gMemPoolHandle && ctx->memPoolSession) {
-    qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession);
+    qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession, true);
   }
 }
 
