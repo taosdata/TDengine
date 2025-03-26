@@ -15,7 +15,9 @@
 
 #define _DEFAULT_SOURCE
 // clang-format off
+#ifndef TD_ASTRA
 #include <uv.h>
+#endif
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
@@ -336,7 +338,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   if (mndEnableIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
     ver = 0;
   }
-  mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
+  mDebug("ip-white-list on mnode ver: %" PRId64, ver);
   return ver;
 }
 
@@ -688,11 +690,12 @@ void mndCleanupUser(SMnode *pMnode) { ipWhiteMgtCleanup(); }
 static void ipRangeToStr(SIpV4Range *range, char *buf) {
   struct in_addr addr;
   addr.s_addr = range->ip;
-
+#ifndef TD_ASTRA
   (void)uv_inet_ntop(AF_INET, &addr, buf, 32);
   if (range->mask != 32) {
     (void)tsnprintf(buf + strlen(buf), 36 - strlen(buf), "/%d", range->mask);
   }
+#endif
   return;
 }
 static bool isDefaultRange(SIpV4Range *pRange) {
@@ -839,12 +842,13 @@ static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList) {
   }
   (*ppWhiteList)->num = 1;
   SIpV4Range *range = &((*ppWhiteList)->pIpRange[0]);
-
+#ifndef TD_ASTRA
   struct in_addr addr;
   if (uv_inet_pton(AF_INET, "127.0.0.1", &addr) == 0) {
     range->ip = addr.s_addr;
     range->mask = 32;
   }
+#endif
   return 0;
 }
 
@@ -1705,12 +1709,18 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   int32_t  code = 0;
   int32_t  lino = 0;
   SUserObj userObj = {0};
-  if (pCreate->isImport != 1) {
-    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
-  } else {
-    // mInfo("pCreate->pass:%s", pCreate->eass)
+
+  if (pCreate->passIsMd5 == 1) {
     memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+  } else {
+    if (pCreate->isImport != 1) {
+      taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
+    } else {
+      // mInfo("pCreate->pass:%s", pCreate->eass)
+      memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    }
   }
+
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
@@ -1884,16 +1894,18 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  int32_t len = strlen(createReq.pass);
-  if (createReq.isImport != 1) {
-    if (mndCheckPasswordMinLen(createReq.pass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
-    }
-    if (mndCheckPasswordMaxLen(createReq.pass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
-    }
-    if (mndCheckPasswordFmt(createReq.pass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
+  if(createReq.passIsMd5 == 0){
+    int32_t len = strlen(createReq.pass);
+    if (createReq.isImport != 1) {
+      if (mndCheckPasswordMinLen(createReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
+      }
+      if (mndCheckPasswordMaxLen(createReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
+      }
+      if (mndCheckPasswordFmt(createReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
+      }
     }
   }
 
@@ -2322,6 +2334,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pAlterTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
 
+#ifdef USE_TOPIC
   if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
@@ -2349,7 +2362,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     }
     mndReleaseTopic(pMnode, pTopic);
   }
-
+#endif
 _OVER:
   if (code < 0) {
     mError("user:%s, failed to alter user privileges at line %d since %s", pAlterReq->user, lino, tstrerror(code));
@@ -2375,17 +2388,18 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
-
-  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
-    int32_t len = strlen(alterReq.pass);
-    if (mndCheckPasswordMinLen(alterReq.pass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
-    }
-    if (mndCheckPasswordMaxLen(alterReq.pass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
-    }
-    if (mndCheckPasswordFmt(alterReq.pass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
+  if(alterReq.passIsMd5 == 0){
+    if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
+      int32_t len = strlen(alterReq.pass);
+      if (mndCheckPasswordMinLen(alterReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
+      }
+      if (mndCheckPasswordMaxLen(alterReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
+      }
+      if (mndCheckPasswordFmt(alterReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
+      }
     }
   }
 
@@ -2401,10 +2415,13 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
-    char pass[TSDB_PASSWORD_LEN + 1] = {0};
-    taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
-    (void)memcpy(newUser.pass, pass, TSDB_PASSWORD_LEN);
-    if (0 != strncmp(pUser->pass, pass, TSDB_PASSWORD_LEN)) {
+    if (alterReq.passIsMd5 == 1) {
+      (void)memcpy(newUser.pass, alterReq.pass, TSDB_PASSWORD_LEN);
+    } else {
+      taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
+    }
+
+    if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
       ++newUser.passVersion;
     }
   }

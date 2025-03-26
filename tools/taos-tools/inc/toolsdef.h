@@ -76,9 +76,6 @@ extern "C" {
 #define TSDB_DEFAULT_USER               "root"
 #define TSDB_DEFAULT_PASS               "taosdata"
 
-#define TSDB_PASS_LEN                   129
-#define SHELL_MAX_PASSWORD_LEN          TSDB_PASS_LEN
-
 #define TSDB_TIME_PRECISION_MILLI       0
 #define TSDB_TIME_PRECISION_MICRO       1
 #define TSDB_TIME_PRECISION_NANO        2

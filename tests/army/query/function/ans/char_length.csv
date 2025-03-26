@@ -51,7 +51,7 @@ taos> select CHAR_LENGTH('hello') + 1 from ts_4893.meters limit 1
 taos> select CHAR_LENGTH('hello') + CHAR_LENGTH('hello') from ts_4893.meters limit 1
  char_length('hello') + char_length('hello') |
 ==============================================
-                       1.000000000000000e+01 |
+                                          10 |
 
 taos> select CHAR_LENGTH(nch1) from ts_4893.meters order by ts limit 5
    char_length(nch1)   |

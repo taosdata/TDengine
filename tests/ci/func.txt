@@ -79,7 +79,7 @@
 (void)streamMetaAddFailedTask
 (void)streamMetaAddTaskLaunchResult
 (void)streamMetaCommit
-(void)streamMetaRemoveTask
+(void)streamMetaRemoveTaskInMeta
 (void)streamMetaSendHbHelper
 (void)streamMetaStartAllTasks
 (void)streamMetaStartOneTask
@@ -409,7 +409,7 @@
 (void)tqProcessTaskConsenChkptIdReq
 (void)tqProcessTaskResetReq
 (void)tqScanWalAsync
-(void)tqStopStreamTasksAsync
+(void)tqStopStreamAllTasksAsync
 (void)tqUpdateTbUidList
 (void)transAcquireExHandle
 (void)transAsyncSend

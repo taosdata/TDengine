@@ -35,6 +35,7 @@ description: TDengine 保留关键字的详细列表
 | AS                   | |
 | ASC                  | |
 | ASOF                 | |
+| ASYNC                | 3.3.6.0+ |
 | AT_ONCE              | |
 | ATTACH               | |
 | AUTO                 | 3.3.5.0+ |
@@ -96,6 +97,7 @@ description: TDengine 保留关键字的详细列表
 | CONSUMER             | |
 | CONSUMERS            | |
 | CONTAINS             | |
+| CONTINUOUS_WINDOW_CLOSE | 3.3.6.0+ |
 | COPY                 | |
 | COUNT                | |
 | COUNT_WINDOW         | |
@@ -109,7 +111,7 @@ description: TDengine 保留关键字的详细列表
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
-| DECIMAL              | |
+| DECIMAL              | 3.3.6.0+ |
 | DEFERRED             | |
 | DELETE               | |
 | DELETE_MARK          | |
@@ -239,7 +241,7 @@ description: TDengine 保留关键字的详细列表
 | LEADER               | |
 | LEADING              | |
 | LEFT                 | |
-| LEVEL                | 3.3.0.0 到 3.3.2.11 的所有版本 |
+| LEVEL                | 3.3.0.0 - 3.3.2.11 |
 | LICENCES             | |
 | LIKE                 | |
 | LIMIT                | |

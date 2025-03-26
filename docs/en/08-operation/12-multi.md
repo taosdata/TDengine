@@ -55,7 +55,7 @@ When network I/O and other processing resources are not bottlenecks, by optimizi
 
 Generally, when TDengine needs to select a mount point from the same level to create a new data file, it uses a round-robin strategy for selection. However, in reality, each disk may have different capacities, or the same capacity but different amounts of data written, leading to an imbalance in available space on each disk. In practice, this may result in selecting a disk with very little remaining space.
 
-To address this issue, starting from 3.1.1.0, a new configuration minDiskFreeSize was introduced. When the available space on a disk is less than or equal to this threshold, that disk will no longer be selected for generating new data files. The unit of this configuration item is bytes, and its value should be greater than 2GB, i.e., mount points with less than 2GB of available space will be skipped.
+To address this issue, starting from 3.1.1.0, a new configuration minDiskFreeSize was introduced. When the available space on a disk is less than or equal to this threshold, that disk will no longer be selected for generating new data files. The unit of this configuration item is bytes. If its value is set as 2GB, i.e., mount points with less than 2GB of available space will be skipped.
 
 Starting from version 3.3.2.0, a new configuration `disable_create_new_file` has been introduced to control the prohibition of generating new files on a certain mount point. The default value is `false`, which means new files can be generated on each mount point by default.
 

@@ -19,6 +19,9 @@ This manual is intended to give developers a comprehensive guidance to test TDen
 > - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
 > - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.7+.
 > - The commands and steps described below are to run the tests on a single host.
+> - The testing framework is currently compatible with Python versions 3.8 through 3.10.
+> - Vitural Environment is advised when setting up the environment, pease refer to [venv](https://docs.python.org/3/library/venv.html) for details.
+
 
 # 2. Prerequisites
 
@@ -241,20 +244,23 @@ Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) 
 
 ### 3.7.1 How to run tests?
 
-TSBS test can be started locally by running command below. Ensure that your virtual machine supports the AVX instruction set:
+
+TSBS test can be started locally by running command below. Ensure that your virtual machine supports the AVX instruction set. 
+You need to use sudo -s to start a new shell session as the superuser (root) in order to begin the testing:
 
 ```bash
 cd /usr/local/src && \
 git clone https://github.com/taosdata/tsbs.git && \
 cd tsbs && \
-git checkout enh/chr-td-33357 && \
+git checkout enh/add-influxdb3.0 && \
 cd scripts/tsdbComp && \
-./testTsbs.sh 
+./tsbs_test.sh -s scenario4
 ```
 
 > [!NOTE]
-> 1. TSBS test is written in Golang, in order to run the test smoothly, a Go proxy in China is set in above script by default. If this is not what you want, please unset it with command `sed -i '/GOPROXY/d' /usr/local/src/tsbs/scripts/tsdbComp/installTsbsCommand.sh` before starting the test.
-> 2. To check your current Go proxy setting, please run `go env | grep GOPROXY`.
+> 1. TSBS test is written in Golang. If you are unable to connect to the [international Go proxy](https://proxy.golang.org), the script will automatically set it to the [china Go proxy](https://goproxy.cn).
+> 2. If you need to cancel this china Go proxy, you can execute the following command in your environment `go env -u GOPROXY`.
+> 3. To check your current Go proxy setting, please run `go env | grep GOPROXY`.
 
 ### 3.7.2 How to start client and server on different hosts?
 
@@ -277,4 +283,9 @@ serverPass="taosdata123"   # server root password
 
 ### 3.7.3 Check test results
 
-When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+When the test is done, the result can be found in `${installPath}/tsbs/scripts/tsdbComp/log/` directory, which ${installPath} can be configured in `test.ini`.
+
+### 3.7.4 Test more scenario
+
+Use `./tsbs_test.sh -h` to  get more test scenarios.
+

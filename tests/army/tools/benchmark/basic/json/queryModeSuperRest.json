@@ -12,7 +12,7 @@
 	"query_mode": "rest",
 	"super_table_query": {
 		"stblname": "meters",
-		"concurrent": 3,
+		"threads": 3,
 		"query_interval": 0,
 		"sqls": [
 			{

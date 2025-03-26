@@ -151,15 +151,22 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
 
     services:
       tdengine:
-        image: tdengine/tdengine:3.3.0.0
+        image: tdengine/tdengine:latest
+        container_name: tdengine
+        hostname: tdengine
         environment:
           TAOS_FQDN: tdengine
+          MONITOR_FQDN: tdengine
+          EXPLORER_CLUSTER: http://tdengine:6041
+          TAOS_KEEPER_TDENGINE_HOST: tdengine
         volumes:
           - tdengine-data:/var/lib/taos/
+        ports:
+          - 6060:6060
       grafana:
-        image: grafana/grafana:9.3.6
+        image: grafana/grafana:latest
         volumes:
-          - ./tdengine.yml/:/etc/grafana/provisioning/tdengine.yml
+          - ./tdengine.yml:/etc/grafana/provisioning/tdengine.yml
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
@@ -169,6 +176,7 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
           TDENGINE_BASIC_AUTH: "cm9vdDp0YmFzZTEyNQ=="
         ports:
           - 3000:3000
+
     volumes:
       grafana-data:
       tdengine-data:

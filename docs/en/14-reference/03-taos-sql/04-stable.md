@@ -20,6 +20,7 @@ table_options:
 table_option: {
     COMMENT 'string_value'
   | SMA(col_name [, col_name] ...)  
+  | KEEP value
 }
 ```
 
@@ -34,6 +35,7 @@ table_option: {
     - TAGS can have up to 128 columns, at least 1, with a total length not exceeding 16 KB.
 4. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/)
 5. For explanations of parameters in table_option, please refer to [Table SQL Description](../manage-tables/)
+6. Regarding the keep parameter in table_option, it only takes effect for super tables. For detailed explanation of the keep parameter, please refer to [Database Description](02-database.md). The only difference is that the super table's keep parameter does not immediately affect query results, but only takes effect after compaction.
 
 ## View Supertables
 
@@ -144,6 +146,7 @@ alter_table_options:
  
 alter_table_option: {
     COMMENT 'string_value'
+  | KEEP value
 }
 
 ```

@@ -744,7 +744,7 @@ int32_t syncUpdateArbTerm(int64_t rid, SyncTerm arbTerm) {
 }
 
 SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex) {
-  if (!(pSyncNode->raftCfg.configIndexCount >= 1)) {
+  if (pSyncNode->raftCfg.configIndexCount < 1) {
     sError("vgId:%d, failed get snapshot config index, configIndexCount:%d", pSyncNode->vgId,
            pSyncNode->raftCfg.configIndexCount);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -758,8 +758,8 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
       lastIndex = (pSyncNode->raftCfg.configIndexArr)[i];
     }
   }
-  sTrace("vgId:%d, sync get last config index, index:%" PRId64 " lcindex:%" PRId64, pSyncNode->vgId,
-         snapshotLastApplyIndex, lastIndex);
+  sTrace("vgId:%d, index:%" PRId64 ", get last snapshot config index:%" PRId64, pSyncNode->vgId, snapshotLastApplyIndex,
+         lastIndex);
 
   return lastIndex;
 }
@@ -855,7 +855,7 @@ int32_t syncIsCatchUp(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -883,7 +883,7 @@ ESyncRole syncGetRole(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -899,7 +899,7 @@ int64_t syncGetTerm(int64_t rid) {
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("sync Node Acquire error since %d", errno);
+    sError("sync Node Acquire error since %d", ERRNO);
     TAOS_RETURN(code);
   }
 
@@ -943,14 +943,13 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
       // after raft member change, need to handle 1->2 switching point
       // at this point, need to switch entry handling thread
       if (pSyncNode->replicaNum == 1) {
-        sTrace("vgId:%d, propose optimized msg, index:%" PRId64 " type:%s", pSyncNode->vgId, retIndex,
-               TMSG_INFO(pMsg->msgType));
+        sGDebug(&pMsg->info.traceId, "vgId:%d, index:%" PRId64 ", propose optimized msg type:%s", pSyncNode->vgId,
+                retIndex, TMSG_INFO(pMsg->msgType));
         return 1;
       } else {
-        sTrace("vgId:%d, propose optimized msg, return to normal, index:%" PRId64
-               " type:%s, "
-               "handle:%p",
-               pSyncNode->vgId, retIndex, TMSG_INFO(pMsg->msgType), pMsg->info.handle);
+        sGDebug(&pMsg->info.traceId,
+                "vgId:%d, index:%" PRId64 ", propose optimized msg, return to normal, type:%s, handle:%p",
+                pSyncNode->vgId, retIndex, TMSG_INFO(pMsg->msgType), pMsg->info.handle);
         return 0;
       }
     } else {
@@ -962,7 +961,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
   } else {
     SRespStub stub = {.createTime = taosGetTimestampMs(), .rpcMsg = *pMsg};
     uint64_t  seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
-    SRpcMsg   rpcMsg = {0};
+    SRpcMsg   rpcMsg = {.info.traceId = pMsg->info.traceId};
     int32_t   code = syncBuildClientRequest(&rpcMsg, pMsg, seqNum, isWeak, pSyncNode->vgId);
     if (code != 0) {
       sError("vgId:%d, failed to propose msg while serialize since %s", pSyncNode->vgId, terrstr());
@@ -970,7 +969,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
       TAOS_RETURN(code);
     }
 
-    sNTrace(pSyncNode, "propose msg, type:%s", TMSG_INFO(pMsg->msgType));
+    sGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, propose msg, type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
     code = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
       sWarn("vgId:%d, failed to propose msg while enqueue since %s", pSyncNode->vgId, terrstr());
@@ -1011,11 +1010,11 @@ static int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
     pData->logicClock = pSyncTimer->logicClock;
     pData->execTime = tsNow + pSyncTimer->timerMS;
 
-    sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:%" PRId64 " at %d", pSyncNode->vgId, pData->rid,
+    sTrace("vgId:%d, start hb timer, rid:%" PRId64 " addr:0x%" PRIx64 " at %d", pSyncNode->vgId, pData->rid,
            pData->destId.addr, pSyncTimer->timerMS);
 
-    bool stopped = taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid), syncEnv()->pTimerManager,
-                                &pSyncTimer->pTimer);
+    bool stopped = taosTmrResetPriority(pSyncTimer->timerCb, pSyncTimer->timerMS, (void*)(pData->rid),
+                                        syncEnv()->pTimerManager, &pSyncTimer->pTimer, 2);
     if (stopped) {
       sError("vgId:%d, failed to reset hb timer success", pSyncNode->vgId);
       return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -1080,7 +1079,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   if (!taosDirExist((char*)(pSyncInfo->path))) {
     if (taosMkDir(pSyncInfo->path) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       sError("vgId:%d, failed to create dir:%s since %s", pSyncInfo->vgId, pSyncInfo->path, terrstr());
       goto _error;
     }
@@ -1339,7 +1338,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   // init peer heartbeat timer
   for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {
     if ((code = syncHbTimerInit(pSyncNode, &(pSyncNode->peerHeartbeatTimerArr[i]), (pSyncNode->replicasId)[i])) != 0) {
-      errno = code;
+      terrno = code;
       goto _error;
     }
   }
@@ -1465,7 +1464,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
 
   if (lastVer != -1 && endIndex != lastVer + 1) {
     code = TSDB_CODE_WAL_LOG_INCOMPLETE;
-    sWarn("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64 "",
+    sWarn("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64,
           pSyncNode->vgId, terrstr(), endIndex - 1, lastVer);
     // TAOS_RETURN(code);
   }
@@ -1475,7 +1474,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   sInfo("vgId:%d, restore began, and keep syncing until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
   if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-      (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex)) < 0) {
+      (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex, NULL, "restore")) < 0) {
     TAOS_RETURN(code);
   }
 
@@ -1663,8 +1662,8 @@ ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode) { return pSyncNode->raftCfg
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   if (syncIsInit()) {
-    bool stopped = taosTmrReset(pSyncNode->FpPingTimerCB, pSyncNode->pingTimerMS, (void*)pSyncNode->rid,
-                                syncEnv()->pTimerManager, &pSyncNode->pPingTimer);
+    bool stopped = taosTmrResetPriority(pSyncNode->FpPingTimerCB, pSyncNode->pingTimerMS, (void*)pSyncNode->rid,
+                                        syncEnv()->pTimerManager, &pSyncNode->pPingTimer, 2);
     if (stopped) {
       sError("vgId:%d, failed to reset ping timer, ms:%d", pSyncNode->vgId, pSyncNode->pingTimerMS);
       return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -1709,7 +1708,7 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   (void)atomic_add_fetch_64(&pSyncNode->electTimerLogicClock, 1);
   bool stop = taosTmrStop(pSyncNode->pElectTimer);
-  sDebug("vgId:%d, stop elect timer, stop:%d", pSyncNode->vgId, stop);
+  sTrace("vgId:%d, stop elect timer, stop:%d", pSyncNode->vgId, stop);
   pSyncNode->pElectTimer = NULL;
 
   return code;
@@ -1822,7 +1821,7 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg
   }
 
   if (code < 0) {
-    sError("vgId:%d, failed to send sync msg since %s. epset:%p dnode:%d addr:%" PRId64, pNode->vgId, tstrerror(code),
+    sError("vgId:%d, failed to send sync msg since %s. epset:%p dnode:%d addr:0x%" PRIx64, pNode->vgId, tstrerror(code),
            epSet, DID(destRaftId), destRaftId->addr);
     rpcFreeCont(pMsg->pCont);
   }
@@ -2366,7 +2365,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
 
-  sInfo("vgId:%d, become leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64 "", pSyncNode->vgId,
+  sInfo("vgId:%d, become leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64, pSyncNode->vgId,
         raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, lastIndex);
 }
 
@@ -2421,6 +2420,7 @@ void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) 
     sError("vgId:%d, failed to vote for term, term:%" PRId64 ", storeTerm:%" PRId64, pSyncNode->vgId, term, storeTerm);
     return;
   }
+  sTrace("vgId:%d, begin hasVoted", pSyncNode->vgId);
   bool voted = raftStoreHasVoted(pSyncNode);
   if (voted) {
     sError("vgId:%d, failed to vote for term since not voted", pSyncNode->vgId);
@@ -2754,7 +2754,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
     return;
   }
 
-  sTrace("vgId:%d, peer hb timer execution, rid:%" PRId64 " addr:%" PRId64, pSyncNode->vgId, hbDataRid,
+  sTrace("vgId:%d, peer hb timer execution, rid:%" PRId64 " addr:0x%" PRIx64, pSyncNode->vgId, hbDataRid,
          pData->destId.addr);
 
   if (pSyncNode->totalReplicaNum > 1) {
@@ -2790,8 +2790,9 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
         // send msg
         TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
-        STraceId* trace = &(rpcMsg.info.traceId);
-        sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
+        TRACE_SET_ROOTID(&(rpcMsg.info.traceId), tGenIdPI64());
+        sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId,
+                DID(&(pSyncMsg->destId)));
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
         int ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
         if (ret != 0) {
@@ -2801,8 +2802,8 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
       if (syncIsInit()) {
         sTrace("vgId:%d, reset peer hb timer at %d", pSyncNode->vgId, pSyncTimer->timerMS);
-        bool stopped = taosTmrReset(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid,
-                                    syncEnv()->pTimerManager, &pSyncTimer->pTimer);
+        bool stopped = taosTmrResetPriority(syncNodeEqPeerHeartbeatTimer, pSyncTimer->timerMS, (void*)hbDataRid,
+                                            syncEnv()->pTimerManager, &pSyncTimer->pTimer, 2);
         if (stopped) sError("vgId:%d, reset peer hb timer error, %s", pSyncNode->vgId, tstrerror(code));
 
       } else {
@@ -2810,7 +2811,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
       }
 
     } else {
-      sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64 "", pSyncNode->vgId,
+      sTrace("vgId:%d, do not send hb, timerLogicClock:%" PRId64 ", msgLogicClock:%" PRId64, pSyncNode->vgId,
              timerLogicClock, msgLogicClock);
     }
   }
@@ -2924,12 +2925,12 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
         ths->vgId, str, ths->replicaNum, ths->peersNum, ths->raftCfg.lastConfigIndex, ths->raftCfg.cfg.changeVersion,
         ths->restoreFinish);
 
-  sInfo("vgId:%d, %s, myNodeInfo, clusterId:%" PRId64 ", nodeId:%d, Fqdn:%s, port:%d, role:%d", ths->vgId, str,
+  sInfo("vgId:%d, %s, myNodeInfo, clusterId:0x%" PRIx64 ", nodeId:%d, Fqdn:%s, port:%d, role:%d", ths->vgId, str,
         ths->myNodeInfo.clusterId, ths->myNodeInfo.nodeId, ths->myNodeInfo.nodeFqdn, ths->myNodeInfo.nodePort,
         ths->myNodeInfo.nodeRole);
 
   for (int32_t i = 0; i < ths->peersNum; ++i) {
-    sInfo("vgId:%d, %s, peersNodeInfo%d, clusterId:%" PRId64 ", nodeId:%d, Fqdn:%s, port:%d, role:%d", ths->vgId, str,
+    sInfo("vgId:%d, %s, peersNodeInfo%d, clusterId:0x%" PRIx64 ", nodeId:%d, Fqdn:%s, port:%d, role:%d", ths->vgId, str,
           i, ths->peersNodeInfo[i].clusterId, ths->peersNodeInfo[i].nodeId, ths->peersNodeInfo[i].nodeFqdn,
           ths->peersNodeInfo[i].nodePort, ths->peersNodeInfo[i].nodeRole);
   }
@@ -2949,18 +2950,18 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
   }
 
   for (int32_t i = 0; i < ths->peersNum; ++i) {
-    sInfo("vgId:%d, %s, peersId%d, addr:%" PRId64, ths->vgId, str, i, ths->peersId[i].addr);
+    sInfo("vgId:%d, %s, peersId%d, addr:0x%" PRIx64, ths->vgId, str, i, ths->peersId[i].addr);
   }
 
   for (int32_t i = 0; i < ths->raftCfg.cfg.totalReplicaNum; ++i) {
-    sInfo("vgId:%d, %s, nodeInfo%d, clusterId:%" PRId64 ", nodeId:%d, Fqdn:%s, port:%d, role:%d", ths->vgId, str, i,
+    sInfo("vgId:%d, %s, nodeInfo%d, clusterId:0x%" PRIx64 ", nodeId:%d, Fqdn:%s, port:%d, role:%d", ths->vgId, str, i,
           ths->raftCfg.cfg.nodeInfo[i].clusterId, ths->raftCfg.cfg.nodeInfo[i].nodeId,
           ths->raftCfg.cfg.nodeInfo[i].nodeFqdn, ths->raftCfg.cfg.nodeInfo[i].nodePort,
           ths->raftCfg.cfg.nodeInfo[i].nodeRole);
   }
 
   for (int32_t i = 0; i < ths->raftCfg.cfg.totalReplicaNum; ++i) {
-    sInfo("vgId:%d, %s, replicasId%d, addr:%" PRId64, ths->vgId, str, i, ths->replicasId[i].addr);
+    sInfo("vgId:%d, %s, replicasId%d, addr:0x%" PRIx64, ths->vgId, str, i, ths->replicasId[i].addr);
   }
 }
 
@@ -3198,7 +3199,7 @@ void syncNodeChangeToVoter(SSyncNode* ths) {
   ths->replicaNum = ths->raftCfg.cfg.replicaNum;
   sDebug("vgId:%d, totalReplicaNum:%d", ths->vgId, ths->totalReplicaNum);
   for (int32_t i = 0; i < ths->totalReplicaNum; ++i) {
-    sDebug("vgId:%d, i:%d, replicaId.addr:%" PRIx64, ths->vgId, i, ths->replicasId[i].addr);
+    sDebug("vgId:%d, i:%d, replicaId.addr:0x%" PRIx64, ths->vgId, i, ths->replicasId[i].addr);
   }
 
   // pMatchIndex, pNextIndex, only need to change replicaNum when 1->3
@@ -3403,12 +3404,12 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
   TAOS_RETURN(code);
 }
 
-int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
+int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
   int32_t code = -1;
   if (pEntry->dataLen < sizeof(SMsgHead)) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    sError("vgId:%d, cannot append an invalid client request with no msg head. type:%s, dataLen:%d", ths->vgId,
-           TMSG_INFO(pEntry->originalRpcType), pEntry->dataLen);
+    sError("vgId:%d, msg:%p, cannot append an invalid client request with no msg head, type:%s dataLen:%d", ths->vgId,
+           pMsg, TMSG_INFO(pEntry->originalRpcType), pEntry->dataLen);
     syncEntryDestroy(pEntry);
     pEntry = NULL;
     goto _out;
@@ -3416,10 +3417,10 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
 
   // append to log buffer
   if ((code = syncLogBufferAppend(ths->pLogBuf, ths, pEntry)) < 0) {
-    sError("vgId:%d, failed to enqueue sync log buffer, index:%" PRId64, ths->vgId, pEntry->index);
+    sError("vgId:%d, index:%" PRId64 ", failed to enqueue sync log buffer", ths->vgId, pEntry->index);
     int32_t ret = 0;
     if ((ret = syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno, false)) != 0) {
-      sError("vgId:%d, failed to execute fsm, since %s", ths->vgId, tstrerror(ret));
+      sError("vgId:%d, index:%" PRId64 ", failed to execute fsm since %s", ths->vgId, pEntry->index, tstrerror(ret));
     }
     syncEntryDestroy(pEntry);
     pEntry = NULL;
@@ -3429,21 +3430,25 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   code = 0;
 _out:;
   // proceed match index, with replicating on needed
-  SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append");
+  SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append", pMsg);
+  const STraceId* trace = pEntry ? &pEntry->originRpcTraceId : NULL;
 
-  if (pEntry != NULL)
-    sTrace("vgId:%d, append raft entry. index:%" PRId64 ", term:%" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
-           ", %" PRId64 ")",
-           ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
-           ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
+  if (pEntry != NULL) {
+    sGDebug(trace,
+            "vgId:%d, index:%" PRId64 ", raft entry appended, msg:%p term:%" PRId64 " buf:[%" PRId64 " %" PRId64
+            " %" PRId64 ", %" PRId64 ")",
+            ths->vgId, pEntry->index, pMsg, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
+            ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
+  }
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     int64_t index = syncNodeUpdateAssignedCommitIndex(ths, matchIndex);
-    sTrace("vgId:%d, update assigned commit index %" PRId64 "", ths->vgId, index);
+    sGTrace(trace, "vgId:%d, index:%" PRId64 ", update assigned commit, msg:%p", ths->vgId, index, pMsg);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-        syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex) < 0) {
-      sError("vgId:%d, failed to commit until commitIndex:%" PRId64 "", ths->vgId, ths->commitIndex);
+        syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex, trace, "append-entry") < 0) {
+      sGError(trace, "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64, ths->vgId, index,
+              pMsg, ths->commitIndex);
       code = TSDB_CODE_SYN_INTERNAL_ERROR;
     }
   }
@@ -3455,11 +3460,14 @@ _out:;
 
   // single replica
   SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, matchIndex);
-  sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
+  sGTrace(trace, "vgId:%d, index:%" PRId64 ", raft entry update commit, msg:%p return index:%" PRId64, ths->vgId,
+          matchIndex, pMsg, returnIndex);
 
   if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
-      (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex)) < 0) {
-    sError("vgId:%d, failed to commit until commitIndex:%" PRId64 "", ths->vgId, ths->commitIndex);
+      (code = syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, trace, "append-entry")) < 0) {
+    sGError(trace,
+            "vgId:%d, index:%" PRId64 ", failed to commit, msg:%p commit index:%" PRId64 " return index:%" PRId64,
+            ths->vgId, matchIndex, pMsg, ths->commitIndex, returnIndex);
   }
 
   TAOS_RETURN(code);
@@ -3521,7 +3529,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
     TAOS_RETURN(code);
   }
 
-  code = syncNodeAppend(ths, pEntry);
+  code = syncNodeAppend(ths, pEntry, NULL);
   TAOS_RETURN(code);
 }
 
@@ -3560,13 +3568,9 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
   bool           resetElect = false;
 
-  const STraceId* trace = &pRpcMsg->info.traceId;
-  char            tbuf[40] = {0};
-  TRACE_TO_STR(trace, tbuf);
-
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeat(ths, pMsg, timeDiff, tbuf);
+  syncLogRecvHeartbeat(ths, pMsg, timeDiff, &pRpcMsg->info.traceId);
 
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
     sWarn(
@@ -3578,7 +3582,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   SRpcMsg rpcMsg = {0};
   TAOS_CHECK_RETURN(syncBuildHeartbeatReply(&rpcMsg, ths->vgId));
-  SyncTerm currentTerm = raftStoreGetTerm(ths);
+  SyncTerm currentTerm = raftStoreTryGetTerm(ths);
 
   SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
   pMsgReply->destId = pMsg->srcId;
@@ -3587,9 +3591,20 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->privateTerm = 8864;  // magic number
   pMsgReply->startTime = ths->startTime;
   pMsgReply->timeStamp = tsMs;
+  rpcMsg.info.traceId = pRpcMsg->info.traceId;
 
-  sGTrace("vgId:%d, process sync-heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64,
-          ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
+  // reply
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+  sGDebug(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64,
+          ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp);
+
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
+
+  if (currentTerm == 0) currentTerm = raftStoreGetTerm(ths);
+  sGDebug(&rpcMsg.info.traceId,
+          "vgId:%d, process sync-heartbeat msg from dnode:%d, commit-index:%" PRId64 ", cluster:%d msgTerm:%" PRId64
+          " currentTerm:%" PRId64,
+          ths->vgId, DID(&(pMsg->srcId)), pMsg->commitIndex, CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
   if (pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
     raftStoreSetTerm(ths, pMsg->term);
@@ -3606,6 +3621,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER || ths->state == TAOS_SYNC_STATE_LEARNER) {
       SRpcMsg rpcMsgLocalCmd = {0};
       TAOS_CHECK_RETURN(syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId));
+      rpcMsgLocalCmd.info.traceId = rpcMsg.info.traceId;
 
       SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
       pSyncMsg->cmd =
@@ -3619,8 +3635,9 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           sError("vgId:%d, failed to enqueue commit msg from heartbeat since %s, code:%d", ths->vgId, terrstr(), code);
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
-          sTrace("vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
-                 pMsg->commitIndex, pMsg->term);
+          sGTrace(&rpcMsg.info.traceId,
+                  "vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
+                  pMsg->commitIndex, pMsg->term);
         }
       }
     }
@@ -3630,6 +3647,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER)) {
     SRpcMsg rpcMsgLocalCmd = {0};
     TAOS_CHECK_RETURN(syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId));
+    rpcMsgLocalCmd.info.traceId = rpcMsg.info.traceId;
 
     SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
     pSyncMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
@@ -3647,30 +3665,24 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
   }
 
-  // reply
-  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
-
   if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
 }
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
-  int32_t         code = 0;
-  const STraceId* trace = &pRpcMsg->info.traceId;
-  char            tbuf[40] = {0};
-  TRACE_TO_STR(trace, tbuf);
+  int32_t code = 0;
 
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
   SSyncLogReplMgr*    pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
   if (pMgr == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    sError("vgId:%d, failed to get log repl mgr for the peer at addr 0x016%" PRIx64 "", ths->vgId, pMsg->srcId.addr);
+    sError("vgId:%d, failed to get log repl mgr for the peer at addr 0x016%" PRIx64, ths->vgId, pMsg->srcId.addr);
     TAOS_RETURN(code);
   }
 
   int64_t tsMs = taosGetTimestampMs();
-  syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, tbuf);
+  syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId);
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
 
@@ -3681,13 +3693,9 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
 
-  const STraceId* trace = &pRpcMsg->info.traceId;
-  char            tbuf[40] = {0};
-  TRACE_TO_STR(trace, tbuf);
-
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, tbuf);
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, &pRpcMsg->info.traceId);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
@@ -3697,7 +3705,7 @@ int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncLocalCmd* pMsg = pRpcMsg->pCont;
-  syncLogRecvLocalCmd(ths, pMsg, "");
+  syncLogRecvLocalCmd(ths, pMsg, &pRpcMsg->info.traceId);
 
   if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
     SRaftId id = EMPTY_RAFT_ID;
@@ -3705,7 +3713,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT || pMsg->cmd == SYNC_LOCAL_CMD_LEARNER_CMT) {
     if (syncLogBufferIsEmpty(ths->pLogBuf)) {
-      sError("vgId:%d, sync log buffer is empty.", ths->vgId);
+      sError("vgId:%d, sync log buffer is empty", ths->vgId);
       return 0;
     }
     SyncTerm matchTerm = syncLogBufferGetLastMatchTerm(ths->pLogBuf);
@@ -3714,10 +3722,11 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
     if (pMsg->currentTerm == matchTerm) {
       SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
-      sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
+      sTrace("vgId:%d, raft entry update commit, return index:%" PRId64, ths->vgId, returnIndex);
     }
-    if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
-      sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64 "", ths->vgId, terrstr(),
+    if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
+        syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, &pRpcMsg->info.traceId, "heartbeat") < 0) {
+      sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64, ths->vgId, terrstr(),
              ths->commitIndex);
     }
   } else {
@@ -3739,21 +3748,20 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 //
 
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIndex) {
-  sNTrace(ths, "on client request");
-
+  sGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, process client request", ths->vgId, pMsg);
   int32_t code = 0;
 
   SyncIndex       index = syncLogBufferGetEndIndex(ths->pLogBuf);
   SyncTerm        term = raftStoreGetTerm(ths);
   SSyncRaftEntry* pEntry = NULL;
   if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-    pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index);
+    pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index, &pMsg->info.traceId);
   } else {
     pEntry = syncEntryBuildFromRpcMsg(pMsg, term, index);
   }
 
   if (pEntry == NULL) {
-    sError("vgId:%d, failed to process client request since %s.", ths->vgId, terrstr());
+    sGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process client request since %s", ths->vgId, pMsg, terrstr());
     return TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
@@ -3773,7 +3781,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
       int32_t code = syncNodeCheckChangeConfig(ths, pEntry);
       if (code < 0) {
-        sError("vgId:%d, failed to check change config since %s.", ths->vgId, terrstr());
+        sGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to check change config since %s", ths->vgId, pMsg, terrstr());
         syncEntryDestroy(pEntry);
         pEntry = NULL;
         TAOS_RETURN(code);
@@ -3782,8 +3790,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       if (code > 0) {
         SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
         int32_t num = syncRespMgrGetAndDel(ths->pSyncRespMgr, pEntry->seqNum, &rsp.info);
-        sDebug("vgId:%d, get response stub for config change, seqNum:%" PRIu64 ", num:%d", ths->vgId, pEntry->seqNum,
-               num);
+        sGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, get response stub for config change, seqNum:%" PRIu64 " num:%d",
+                ths->vgId, pMsg, pEntry->seqNum, num);
         if (rsp.info.handle != NULL) {
           tmsgSendRsp(&rsp);
         }
@@ -3793,7 +3801,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
       }
     }
 
-    code = syncNodeAppend(ths, pEntry);
+    code = syncNodeAppend(ths, pEntry, pMsg);
     return code;
   } else {
     syncEntryDestroy(pEntry);

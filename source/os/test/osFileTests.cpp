@@ -196,7 +196,7 @@ TEST(osFileTests, taosCopyFile) {
   retsize = taosReadFromCFile(NULL, 0, 0, NULL);
   EXPECT_EQ(retsize, 0);
 
-    taosRemoveFile(from);
+  taosRemoveFile(from);
 }
 
 TEST(osFileTests, taosCreateFile) {

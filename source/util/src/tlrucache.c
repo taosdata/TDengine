@@ -807,6 +807,8 @@ bool taosLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRe
 
 void *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle) { return ((SLRUEntry *)handle)->value; }
 
+void taosLRUCacheUpdate(SLRUCache *cache, LRUHandle *handle, void *value) { ((SLRUEntry *)handle)->value = value; }
+
 size_t taosLRUCacheGetUsage(SLRUCache *cache) {
   size_t usage = 0;
 

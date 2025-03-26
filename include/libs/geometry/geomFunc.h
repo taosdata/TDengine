@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#ifdef USE_GEOS
 #include "function.h"
 
 int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -33,6 +34,7 @@ int32_t touchesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 int32_t coversFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t containsProperlyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+#endif
 
 #ifdef __cplusplus
 }

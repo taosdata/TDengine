@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef TD_ASTRA_RPC
 #define _DEFAULT_SOURCE
 // clang-format off
-#include <uv.h>
 #include "zlib.h"
 #include "thttp.h"
+#include <uv.h>
 #include "taoserror.h"
 #include "transComm.h"
 
@@ -235,7 +236,7 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
   uint32_t ip = 0;
   int32_t  code = taosGetIpv4FromFqdn(server, &ip);
   if (code) {
-    tError("http-report failed to resolving domain names %s, reason: %s", server, tstrerror(code));
+    tError("http-report failed to resolving domain names %s, reason:%s", server, tstrerror(code));
     return TSDB_CODE_RPC_FQDN_ERROR;
   }
   char buf[TD_IP_LEN] = {0};
@@ -259,13 +260,13 @@ static int32_t httpCreateMsg(const char* server, const char* uri, uint16_t port,
                              EHttpCompFlag flag, int64_t chanId, const char* qid, SHttpMsg** httpMsg) {
   int64_t seqNum = atomic_fetch_add_64(&httpSeqNum, 1);
   if (server == NULL || uri == NULL) {
-    tError("http-report failed to report to invalid addr, chanId:%" PRId64 ", seq:%" PRId64 "", chanId, seqNum);
+    tError("http-report failed to report to invalid addr, chanId:%" PRId64 ", seq:%" PRId64, chanId, seqNum);
     *httpMsg = NULL;
     return TSDB_CODE_INVALID_PARA;
   }
 
   if (pCont == NULL || contLen == 0) {
-    tError("http-report failed to report empty packet, chanId:%" PRId64 ", seq:%" PRId64 "", chanId, seqNum);
+    tError("http-report failed to report empty packet, chanId:%" PRId64 ", seq:%" PRId64, chanId, seqNum);
     *httpMsg = NULL;
     return TSDB_CODE_INVALID_PARA;
   }
@@ -317,7 +318,7 @@ static void httpDestroyMsg(SHttpMsg* msg) {
 }
 static void httpDestroyMsgWrapper(void* cont, void* param) {
   SHttpMsg* pMsg = cont;
-  tWarn("http-report destroy msg, chanId:%" PRId64 ", seq:%" PRId64 "", pMsg->chanId, pMsg->seq);
+  tWarn("http-report destroy msg, chanId:%" PRId64 ", seq:%" PRId64, pMsg->chanId, pMsg->seq);
   httpDestroyMsg(pMsg);
 }
 
@@ -332,7 +333,7 @@ static void httpMayDiscardMsg(SHttpModule* http, SAsyncItem* item) {
     QUEUE_REMOVE(h);
     msg = QUEUE_DATA(h, SHttpMsg, q);
     if (!msg->quit) {
-      tError("http-report failed to report chanId:%" PRId64 ",seq:%" PRId64 ", reason: %s", msg->chanId, msg->seq,
+      tError("http-report failed to report chanId:%" PRId64 ", seq:%" PRId64 ", reason:%s", msg->chanId, msg->seq,
              tstrerror(TSDB_CODE_HTTP_MODULE_QUIT));
       httpDestroyMsg(msg);
     } else {
@@ -359,7 +360,7 @@ static void httpTrace(queue* q) {
   msg = QUEUE_DATA(h, SHttpMsg, q);
   endSeq = msg->seq;
 
-  tDebug("http-report process msg, start_seq:%" PRId64 ", end_seq:%" PRId64 ", max_seq:%" PRId64 "", startSeq, endSeq,
+  tDebug("http-report process msg, start_seq:%" PRId64 ", end_seq:%" PRId64 ", max_seq:%" PRId64, startSeq, endSeq,
          atomic_load_64(&httpSeqNum) - 1);
 }
 
@@ -437,9 +438,9 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
   STUB_RAND_NETWORK_ERR(nread);
   SHttpClient* cli = handle->data;
   if (nread < 0) {
-    tError("http-report recv error:%s, seq:%" PRId64 "", uv_strerror(nread), cli->seq);
+    tError("http-report recv error:%s, seq:%" PRId64, uv_strerror(nread), cli->seq);
   } else {
-    tTrace("http-report succ to recv %d bytes, seq:%" PRId64 "", (int32_t)nread, cli->seq);
+    tTrace("http-report succ to recv %d bytes, seq:%" PRId64, (int32_t)nread, cli->seq);
     if (cli->recvBufRid > 0) {
       SHttpRecvBuf* p = taosAcquireRef(httpRecvRefMgt, cli->recvBufRid);
       if (p != NULL) {
@@ -471,19 +472,19 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
   STUB_RAND_NETWORK_ERR(status);
   SHttpClient* cli = req->data;
   if (status != 0) {
-    tError("http-report failed to send data, reason: %s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 "",
+    tError("http-report failed to send data, reason:%s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64,
            uv_strerror(status), cli->addr, cli->port, cli->chanId, cli->seq);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     }
     return;
   } else {
-    tTrace("http-report succ to send data, chanId:%" PRId64 ", seq:%" PRId64 "", cli->chanId, cli->seq);
+    tTrace("http-report succ to send data, chanId:%" PRId64 ", seq:%" PRId64, cli->chanId, cli->seq);
   }
 
   status = uv_read_start((uv_stream_t*)&cli->tcp, clientAllocBuffCb, clientRecvCb);
   if (status != 0) {
-    tError("http-report failed to recv data,reason:%s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 "",
+    tError("http-report failed to recv data,reason:%s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64,
            uv_strerror(status), cli->addr, cli->port, cli->chanId, cli->seq);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
@@ -498,7 +499,7 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   SHttpModule* http = taosAcquireRef(httpRefMgt, chanId);
   if (status != 0) {
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
-    tError("http-report failed to conn to server, reason:%s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 "",
+    tError("http-report failed to conn to server, reason:%s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64,
            uv_strerror(status), cli->addr, cli->port, chanId, cli->seq);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
@@ -512,7 +513,7 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
 
   status = uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
   if (0 != status) {
-    tError("http-report failed to send data,reason:%s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 "",
+    tError("http-report failed to send data,reason:%s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64,
            uv_strerror(status), cli->addr, cli->port, chanId, cli->seq);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
@@ -560,7 +561,7 @@ static void httpHandleQuit(SHttpMsg* msg) {
   int64_t chanId = msg->chanId;
   taosMemoryFree(msg);
 
-  tDebug("http-report receive quit, chanId:%" PRId64 ", seq:%" PRId64 "", chanId, seq);
+  tDebug("http-report receive quit, chanId:%" PRId64 ", seq:%" PRId64, chanId, seq);
   SHttpModule* http = taosAcquireRef(httpRefMgt, chanId);
   if (http == NULL) return;
   uv_walk(http->loop, httpWalkCb, NULL);
@@ -725,7 +726,7 @@ static void httpHandleReq(SHttpMsg* msg) {
 
 END:
   if (ignore == false) {
-    tError("http-report failed to report to addr: %s:%d, chanId:%" PRId64 ",seq:%" PRId64 " reason:%s", msg->server,
+    tError("http-report failed to report to addr:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 " reason:%s", msg->server,
            msg->port, chanId, msg->seq, tstrerror(code));
   }
   httpDestroyMsg(msg);
@@ -777,7 +778,7 @@ static int32_t taosSendHttpReportImplByChan2(const char* server, const char* uri
     code = TSDB_CODE_HTTP_MODULE_QUIT;
     goto _ERROR;
   }
-  tDebug("http-report start to report, chanId:%" PRId64 ", seq:%" PRId64 "", chanId, msg->seq);
+  tDebug("http-report start to report, chanId:%" PRId64 ", seq:%" PRId64, chanId, msg->seq);
 
   code = transAsyncSend(load->asyncPool, &(msg->q));
   if (code != 0) {
@@ -789,7 +790,7 @@ static int32_t taosSendHttpReportImplByChan2(const char* server, const char* uri
 _ERROR:
 
   if (code != 0) {
-    tError("http-report failed to report reason:%s, chanId:%" PRId64 ", seq:%" PRId64 "", tstrerror(code), chanId,
+    tError("http-report failed to report reason:%s, chanId:%" PRId64 ", seq:%" PRId64, tstrerror(code), chanId,
            msg->seq);
   }
   httpDestroyMsg(msg);
@@ -815,7 +816,7 @@ static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri,
     code = TSDB_CODE_HTTP_MODULE_QUIT;
     goto _ERROR;
   }
-  tDebug("http-report start to report, chanId:%" PRId64 ", seq:%" PRId64 "", chanId, msg->seq);
+  tDebug("http-report start to report, chanId:%" PRId64 ", seq:%" PRId64, chanId, msg->seq);
 
   code = transAsyncSend(load->asyncPool, &(msg->q));
   if (code != 0) {
@@ -827,7 +828,7 @@ static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri,
 _ERROR:
 
   if (code != 0) {
-    tError("http-report failed to report reason:%s, chanId:%" PRId64 ", seq:%" PRId64 "", tstrerror(code), chanId,
+    tError("http-report failed to report reason:%s, chanId:%" PRId64 ", seq:%" PRId64, tstrerror(code), chanId,
            msg->seq);
   }
   httpDestroyMsg(msg);
@@ -917,7 +918,7 @@ int64_t transInitHttpChanImpl() {
 
   err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
   if (err != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _ERROR;
   }
 
@@ -937,12 +938,12 @@ int64_t taosInitHttpChan() {
 }
 
 void taosDestroyHttpChan(int64_t chanId) {
-  tDebug("http-report send quit, chanId: %" PRId64 "", chanId);
+  tDebug("http-report send quit, chanId:%" PRId64, chanId);
 
   int          ret = 0;
   SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
   if (load == NULL) {
-    tError("http-report failed to destroy chanId %" PRId64 ", reason:%s", chanId, tstrerror(terrno));
+    tError("http-report failed to destroy chanId:%" PRId64 ", reason:%s", chanId, tstrerror(terrno));
     ret = terrno;
     return;
   }
@@ -956,7 +957,7 @@ void taosDestroyHttpChan(int64_t chanId) {
   }
 
   if (taosThreadJoin(load->thread, NULL) != 0) {
-    tTrace("http-report failed to join thread, chanId %" PRId64 "", chanId);
+    tTrace("http-report failed to join thread, chanId %" PRId64, chanId);
   }
 
   httpModuleDestroy(load);
@@ -1119,3 +1120,26 @@ _end:
   }
   return code;
 }
+#else  // TD_ASTRA_RPC
+
+#include "thttp.h"
+
+int32_t taosTelemetryMgtInit(STelemAddrMgmt* mgt, char* defaultAddr) { return 0; }
+void    taosTelemetryDestroy(STelemAddrMgmt* mgt) { return; }
+
+// not safe for multi-thread, should be called in the same thread
+int32_t taosSendTelemReport(STelemAddrMgmt* mgt, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                            EHttpCompFlag flag) {
+  return 0;
+}
+
+int32_t taosSendRecvHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                      EHttpCompFlag flag, const char* qid, int64_t recvBufId) {
+  return 0;
+}
+
+int32_t taosSendHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                  EHttpCompFlag flag, const char* qid) {
+  return 0;
+}
+#endif

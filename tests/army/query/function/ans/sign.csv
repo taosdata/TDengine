@@ -164,7 +164,7 @@ taos> select sign(cast(1 as bigint unsigned))
 taos> select sign(cast(1 as float))
  sign(cast(1 as float)) |
 =========================
-          1.0000000e+00 |
+                      1 |
 
 taos> select sign(cast(1 as double))
   sign(cast(1 as double))  |
@@ -316,30 +316,30 @@ taos> select sign(current) from ts_4893.meters order by ts limit 10
 taos> select sign(cast(current as float)) from ts_4893.d0 order by ts limit 10
  sign(cast(current as float)) |
 ===============================
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
 
 taos> select sign(cast(current as float)) from ts_4893.meters order by ts limit 10
  sign(cast(current as float)) |
 ===============================
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
 
 taos> select sign(null)
       sign(null)       |

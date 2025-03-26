@@ -24,8 +24,8 @@ TEST(taosdump, toolsSys) {
   printf("ut function errorPrintReqArg3 ....................  [Passed]\n");
 
   // setConsoleEcho
-  setConsoleEcho(true);
   setConsoleEcho(false);
+  setConsoleEcho(true);
   printf("ut function setConsoleEcho .......................  [Passed]\n");
 }
 

@@ -66,6 +66,8 @@ int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode *
                             SNode **pOtherCond);
 int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res);
 EConditionType filterClassifyCondition(SNode *pNode);
+int32_t        filterGetCompFunc(__compar_fn_t *func, int32_t type, int32_t optr);
+bool           filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
 
 #ifdef __cplusplus
 }

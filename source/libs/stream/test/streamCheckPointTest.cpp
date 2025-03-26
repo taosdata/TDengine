@@ -33,8 +33,8 @@ TEST(streamCheckpointTest, StreamTaskProcessCheckpointTriggerRsp) {
     SStreamTask* pTask = NULL;
     int64_t uid = 1111111111111111;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -71,8 +71,8 @@ TEST(streamCheckpointTest, StreamTaskSetFailedCheckpointId) {
     SStreamTask* pTask = NULL;
     int64_t uid = 1111111111111111;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -102,8 +102,8 @@ TEST(UploadCheckpointDataTest, UploadSuccess) {
     SStreamTask* pTask = NULL;
     int64_t uid = 1111111111111111;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -142,8 +142,8 @@ TEST(UploadCheckpointDataTest, UploadDisabled) {
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -183,8 +183,8 @@ TEST(StreamTaskAlreadySendTriggerTest, AlreadySendTrigger) {
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -227,8 +227,8 @@ TEST(ChkptTriggerRecvMonitorHelperTest, chkptTriggerRecvMonitorHelper) {
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -298,8 +298,8 @@ TEST(StreamTaskSendCheckpointTriggerMsgTest, SendCheckpointTriggerMsgSuccessTest
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -322,8 +322,8 @@ TEST(streamTaskBuildCheckpointTest, streamTaskBuildCheckpointFnTest) {
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -356,8 +356,8 @@ TEST(sstreamTaskGetTriggerRecvStatusTest, streamTaskGetTriggerRecvStatusFnTest) 
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);
@@ -404,8 +404,8 @@ TEST(doCheckBeforeHandleChkptTriggerTest, doCheckBeforeHandleChkptTriggerFnTest)
     SStreamTask* pTask = NULL;
     int64_t uid = 2222222222222;
     SArray* array = taosArrayInit(4, POINTER_BYTES);
-    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, false, 0, 0, array,
-                                       false, 1, &pTask);
+    int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, NULL, STREAM_NORMAL_TASK, 0, 0, array,
+                                       false, 1, false, &pTask);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     initTaskLock(pTask);

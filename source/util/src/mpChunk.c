@@ -190,6 +190,8 @@ int32_t mpChunkNSAllocMem(SMemPool* pPool, SMPSession* pSession, int64_t size, u
   void* pRes = NULL;
   int64_t totalSize = size + sizeof(SMPMemHeader) + sizeof(SMPMemTailer) + alignment;
   
+
+  
   MP_ERR_JRET(mpChunkNewNS(pPool, &pChunk, totalSize));
   SMPMemHeader* pHeader = (SMPMemHeader*)pChunk->pMemStart;
   MP_INIT_MEM_HEADER(pHeader, size, false);

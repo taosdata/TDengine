@@ -288,7 +288,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
         TAOS_RETURN(terrno);
       }
       if (taosMulMkDir(s) != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         taosMemoryFree(s);
         TAOS_RETURN(code);
       }
@@ -692,7 +692,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
   while (1) {
     uint64_t ts;
     bool     hasMore = false;
-    code = qExecTaskOpt(taskInfo, pResList, &ts, &hasMore, NULL);
+    code = qExecTaskOpt(taskInfo, pResList, &ts, &hasMore, NULL, false);
     if (code == TSDB_CODE_QRY_IN_EXEC) {
       code = 0;
       break;
@@ -1017,20 +1017,20 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg,
 
   int32_t code = 0;
   if ((code = atomic_load_32(&SMA_RSMA_STAT(pSma)->execStat))) {
-    smaError("vgId:%d, failed to process rsma submit since invalid exec code: %s", SMA_VID(pSma), tstrerror(code));
+    smaError("vgId:%d, failed to process rsma submit since invalid exec code:%s", SMA_VID(pSma), tstrerror(code));
     goto _exit;
   }
 
   STbUidStore uidStore = {0};
 
   if ((code = tdFetchSubmitReqSuids(pReq, &uidStore)) < 0) {
-    smaError("vgId:%d, failed to process rsma submit fetch suid since: %s", SMA_VID(pSma), tstrerror(code));
+    smaError("vgId:%d, failed to process rsma submit fetch suid since %s", SMA_VID(pSma), tstrerror(code));
     goto _exit;
   }
 
   if (uidStore.suid != 0) {
     if ((code = tdExecuteRSmaAsync(pSma, version, pMsg, len, STREAM_INPUT__DATA_SUBMIT, uidStore.suid)) < 0) {
-      smaError("vgId:%d, failed to process rsma submit exec 1 since: %s", SMA_VID(pSma), tstrerror(code));
+      smaError("vgId:%d, failed to process rsma submit exec 1 since %s", SMA_VID(pSma), tstrerror(code));
       goto _exit;
     }
 
@@ -1054,13 +1054,13 @@ int32_t tdProcessRSmaDelete(SSma *pSma, int64_t version, void *pReq, void *pMsg,
 
   int32_t code = 0;
   if ((code = atomic_load_32(&SMA_RSMA_STAT(pSma)->execStat))) {
-    smaError("vgId:%d, failed to process rsma delete since invalid exec code: %s", SMA_VID(pSma), tstrerror(code));
+    smaError("vgId:%d, failed to process rsma delete since invalid exec code:%s", SMA_VID(pSma), tstrerror(code));
     goto _exit;
   }
 
   SDeleteRes *pDelRes = pReq;
   if ((code = tdExecuteRSmaAsync(pSma, version, pMsg, len, STREAM_INPUT__REF_DATA_BLOCK, pDelRes->suid)) < 0) {
-    smaError("vgId:%d, failed to process rsma submit exec 1 since: %s", SMA_VID(pSma), tstrerror(code));
+    smaError("vgId:%d, failed to process rsma submit exec 1 since %s", SMA_VID(pSma), tstrerror(code));
     goto _exit;
   }
 _exit:
@@ -1249,7 +1249,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
             if (streamFlushed) {
               pRSmaInfo->items[i].streamFlushed = 1;
               if (++nStreamFlushed >= nTaskInfo) {
-                smaInfo("vgId:%d, rsma commit, checkpoint ready, %d us consumed, received/total: %d/%d", TD_VID(pVnode),
+                smaInfo("vgId:%d, rsma commit, checkpoint ready, %d us consumed, received/total:%d/%d", TD_VID(pVnode),
                         nSleep * 10, nStreamFlushed, nTaskInfo);
                 taosHashCancelIterate(pInfoHash, infoHash);
                 goto _checkpoint;
@@ -1260,7 +1260,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
       }
       taosUsleep(10);
       ++nSleep;
-      smaDebug("vgId:%d, rsma commit, wait for checkpoint ready, %d us elapsed, received/total: %d/%d", TD_VID(pVnode),
+      smaDebug("vgId:%d, rsma commit, wait for checkpoint ready, %d us elapsed, received/total:%d/%d", TD_VID(pVnode),
                nSleep * 10, nStreamFlushed, nTaskInfo);
     }
   } while (0);
@@ -1302,7 +1302,7 @@ _checkpoint:
           }
 
           streamMetaWLock(pMeta);
-          if ((code = streamMetaSaveTask(pMeta, pTask)) != 0) {
+          if ((code = streamMetaSaveTaskInMeta(pMeta, pTask)) != 0) {
             streamMetaWUnLock(pMeta);
             taosHashCancelIterate(pInfoHash, infoHash);
             TSDB_CHECK_CODE(code, lino, _exit);

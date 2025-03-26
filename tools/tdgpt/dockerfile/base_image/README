@@ -1,0 +1,1 @@
+docker build -t "tdgpt_env:1.0" .

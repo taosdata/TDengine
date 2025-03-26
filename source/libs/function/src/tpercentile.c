@@ -143,7 +143,7 @@ int32_t findOnlyResult(tMemBucket *pMemBucket, double *result) {
         return TSDB_CODE_FUNC_PERCENTILE_ERROR;
       }
 
-      GET_TYPED_DATA(*result, double, pMemBucket->type, pPage->data);
+      GET_TYPED_DATA(*result, double, pMemBucket->type, pPage->data, pMemBucket->typeMod);
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -154,7 +154,7 @@ int32_t findOnlyResult(tMemBucket *pMemBucket, double *result) {
 
 int32_t tBucketIntHash(tMemBucket *pBucket, const void *value, int32_t *index) {
   int64_t v = 0;
-  GET_TYPED_DATA(v, int64_t, pBucket->type, value);
+  GET_TYPED_DATA(v, int64_t, pBucket->type, value, pBucket->typeMod);
 
   *index = -1;
 
@@ -186,7 +186,7 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value, int32_t *index) {
 
 int32_t tBucketUintHash(tMemBucket *pBucket, const void *value, int32_t *index) {
   int64_t v = 0;
-  GET_TYPED_DATA(v, uint64_t, pBucket->type, value);
+  GET_TYPED_DATA(v, uint64_t, pBucket->type, value, pBucket->typeMod);
 
   *index = -1;
 
@@ -268,7 +268,7 @@ static void resetSlotInfo(tMemBucket *pBucket) {
   }
 }
 
-int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup,
+int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, STypeMod typeMod, double minval, double maxval, bool hasWindowOrGroup,
                          tMemBucket **pBucket, int32_t numOfElements) {
   *pBucket = (tMemBucket *)taosMemoryCalloc(1, sizeof(tMemBucket));
   if (*pBucket == NULL) {
@@ -286,6 +286,7 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
   (*pBucket)->bytes = nElemSize;
   (*pBucket)->total = 0;
   (*pBucket)->times = 1;
+  (*pBucket)->typeMod = typeMod;
 
   (*pBucket)->maxCapacity = 200000;
   (*pBucket)->groupPagesMap = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -353,10 +354,11 @@ void tMemBucketDestroy(tMemBucket **pBucket) {
   taosMemoryFreeClear(*pBucket);
 }
 
-int32_t tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataType) {
+int32_t tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, tMemBucket* pBucket) {
+  int32_t dataType = pBucket->type;
   if (IS_SIGNED_NUMERIC_TYPE(dataType)) {
     int64_t v = 0;
-    GET_TYPED_DATA(v, int64_t, dataType, data);
+    GET_TYPED_DATA(v, int64_t, dataType, data, pBucket->typeMod);
 
     if (r->dMinVal > v) {
       r->dMinVal = v;
@@ -367,7 +369,7 @@ int32_t tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t da
     }
   } else if (IS_UNSIGNED_NUMERIC_TYPE(dataType)) {
     uint64_t v = 0;
-    GET_TYPED_DATA(v, uint64_t, dataType, data);
+    GET_TYPED_DATA(v, uint64_t, dataType, data, pBucket->typeMod);
 
     if (r->u64MinVal > v) {
       r->u64MinVal = v;
@@ -378,7 +380,7 @@ int32_t tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t da
     }
   } else if (IS_FLOAT_TYPE(dataType)) {
     double v = 0;
-    GET_TYPED_DATA(v, double, dataType, data);
+    GET_TYPED_DATA(v, double, dataType, data, pBucket->typeMod);
 
     if (r->dMinVal > v) {
       r->dMinVal = v;
@@ -415,7 +417,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
     count += 1;
 
     tMemBucketSlot *pSlot = &pBucket->pSlots[index];
-    code = tMemBucketUpdateBoundingBox(&pSlot->range, d, pBucket->type);
+    code = tMemBucketUpdateBoundingBox(&pSlot->range, d, pBucket);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -572,8 +574,8 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
         char *nextVal = thisVal + pMemBucket->bytes;
 
         double td = 1.0, nd = 1.0;
-        GET_TYPED_DATA(td, double, pMemBucket->type, thisVal);
-        GET_TYPED_DATA(nd, double, pMemBucket->type, nextVal);
+        GET_TYPED_DATA(td, double, pMemBucket->type, thisVal, pMemBucket->typeMod);
+        GET_TYPED_DATA(nd, double, pMemBucket->type, nextVal, pMemBucket->typeMod);
 
         *result = (1 - fraction) * td + fraction * nd;
         taosMemoryFreeClear(buffer);
@@ -586,7 +588,7 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
         }
         // try next round
         tMemBucket *tmpBucket = NULL;
-        int32_t code = tMemBucketCreate(pMemBucket->bytes, pMemBucket->type, pSlot->range.dMinVal, pSlot->range.dMaxVal,
+        int32_t code = tMemBucketCreate(pMemBucket->bytes, pMemBucket->type, pMemBucket->typeMod, pSlot->range.dMinVal, pSlot->range.dMaxVal,
                                             false, &tmpBucket, pSlot->info.size);
         if (TSDB_CODE_SUCCESS != code) {
           tMemBucketDestroy(&tmpBucket);

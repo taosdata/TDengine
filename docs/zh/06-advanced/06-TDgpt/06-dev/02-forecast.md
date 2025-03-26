@@ -8,6 +8,7 @@ sidebar_label: "预测算法"
 
 ### 输出约定及父类属性说明
 `execute` 方法执行完成后的返回一个如下字典对象， 预测返回结果如下：
+
 ```python
 return {
     "mse": mse, # 预测算法的拟合数据最小均方误差(minimum squared error)

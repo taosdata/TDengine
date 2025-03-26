@@ -15,21 +15,21 @@
 
 #include "streamInt.h"
 
-void streamMutexLock(TdThreadMutex *pMutex) {
+void streamMutexLock(TdThreadMutex* pMutex) {
   int32_t code = taosThreadMutexLock(pMutex);
   if (code) {
     stError("%p mutex lock failed, code:%s", pMutex, tstrerror(code));
   }
 }
 
-void streamMutexUnlock(TdThreadMutex *pMutex) {
+void streamMutexUnlock(TdThreadMutex* pMutex) {
   int32_t code = taosThreadMutexUnlock(pMutex);
   if (code) {
     stError("%p mutex unlock failed, code:%s", pMutex, tstrerror(code));
   }
 }
 
-void streamMutexDestroy(TdThreadMutex *pMutex) {
+void streamMutexDestroy(TdThreadMutex* pMutex) {
   int32_t code = taosThreadMutexDestroy(pMutex);
   if (code) {
     stError("%p mutex destroy, code:%s", pMutex, tstrerror(code));
@@ -37,7 +37,7 @@ void streamMutexDestroy(TdThreadMutex *pMutex) {
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {
-  //  stTrace("vgId:%d meta-rlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-rlock", pMeta->vgId);
   int32_t code = taosThreadRwlockRdlock(&pMeta->lock);
   if (code) {
     stError("vgId:%d meta-rlock failed, code:%s", pMeta->vgId, tstrerror(code));
@@ -45,7 +45,7 @@ void streamMetaRLock(SStreamMeta* pMeta) {
 }
 
 void streamMetaRUnLock(SStreamMeta* pMeta) {
-  //  stTrace("vgId:%d meta-runlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-runlock", pMeta->vgId);
   int32_t code = taosThreadRwlockUnlock(&pMeta->lock);
   if (code != TSDB_CODE_SUCCESS) {
     stError("vgId:%d meta-runlock failed, code:%s", pMeta->vgId, tstrerror(code));
@@ -54,8 +54,19 @@ void streamMetaRUnLock(SStreamMeta* pMeta) {
   }
 }
 
+int32_t streamMetaTryRlock(SStreamMeta* pMeta) {
+  int32_t code = taosThreadRwlockTryRdlock(&pMeta->lock);
+  if (code) {
+    if (code != TAOS_SYSTEM_ERROR(EBUSY)) {
+      stError("vgId:%d try meta-rlock failed, code:%s", pMeta->vgId, tstrerror(code));
+    }
+  }
+
+  return code;
+}
+
 void streamMetaWLock(SStreamMeta* pMeta) {
-  //  stTrace("vgId:%d meta-wlock", pMeta->vgId);
+//    stTrace("vgId:%d meta-wlock", pMeta->vgId);
   int32_t code = taosThreadRwlockWrlock(&pMeta->lock);
   if (code) {
     stError("vgId:%d failed to apply wlock, code:%s", pMeta->vgId, tstrerror(code));
@@ -63,7 +74,7 @@ void streamMetaWLock(SStreamMeta* pMeta) {
 }
 
 void streamMetaWUnLock(SStreamMeta* pMeta) {
-  //  stTrace("vgId:%d meta-wunlock", pMeta->vgId);
+//    stTrace("vgId:%d meta-wunlock", pMeta->vgId);
   int32_t code = taosThreadRwlockUnlock(&pMeta->lock);
   if (code) {
     stError("vgId:%d failed to apply wunlock, code:%s", pMeta->vgId, tstrerror(code));
@@ -85,5 +96,5 @@ void streamSetFatalError(SStreamMeta* pMeta, int32_t code, const char* funcName,
 }
 
 int32_t streamGetFatalError(const SStreamMeta* pMeta) {
-  return atomic_load_32((volatile int32_t*) &pMeta->fatalInfo.code);
+  return atomic_load_32((volatile int32_t*)&pMeta->fatalInfo.code);
 }

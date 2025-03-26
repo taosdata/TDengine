@@ -1,0 +1,25 @@
+name: Cancel Workflow on Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cancel-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Workflow if Merged or Closed
+        if: ${{ github.event.pull_request.merged || github.event.pull_request.state == 'closed' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "PR has been merged or closed, cancelling workflow..."
+          gh auth status
+          gh run list \
+            --repo ${{ github.repository }} \
+            --branch ${{ github.event.pull_request.head.ref }} \
+            --workflow "TDengine Test" \
+            --status in_progress \
+            --status queued \
+            --json databaseId --jq '.[].databaseId' | \
+            xargs -I {} gh run cancel --repo ${{ github.repository }} {}

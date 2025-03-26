@@ -2014,7 +2014,7 @@ TEST(columnTest, smallint_value_add_int_column) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
@@ -2058,7 +2058,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -2838,7 +2838,7 @@ TEST(ScalarFunctionTest, absFunction_constant) {
   code = absFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), val_double);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), val_double);
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2852,7 +2852,7 @@ TEST(ScalarFunctionTest, absFunction_constant) {
   code = absFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), -val_double);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), -val_double);
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -3051,7 +3051,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   code = absFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), val_double + i);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), val_double + i);
     PRINTF("double after ABS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3072,7 +3072,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   code = absFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), -(val_double + i));
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), -(val_double + i));
     PRINTF("double after ABS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3100,7 +3100,7 @@ TEST(ScalarFunctionTest, sinFunction_constant) {
   code = sinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after SIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3118,7 +3118,7 @@ TEST(ScalarFunctionTest, sinFunction_constant) {
   code = sinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after SIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3150,7 +3150,7 @@ TEST(ScalarFunctionTest, sinFunction_column) {
   code = sinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after SIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3172,7 +3172,7 @@ TEST(ScalarFunctionTest, sinFunction_column) {
   code = sinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after SIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3200,7 +3200,7 @@ TEST(ScalarFunctionTest, cosFunction_constant) {
   code = cosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after COS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3218,7 +3218,7 @@ TEST(ScalarFunctionTest, cosFunction_constant) {
   code = cosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after COS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3250,7 +3250,7 @@ TEST(ScalarFunctionTest, cosFunction_column) {
   code = cosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after COS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3272,7 +3272,7 @@ TEST(ScalarFunctionTest, cosFunction_column) {
   code = cosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after COS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3300,7 +3300,7 @@ TEST(ScalarFunctionTest, tanFunction_constant) {
   code = tanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after TAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3318,7 +3318,7 @@ TEST(ScalarFunctionTest, tanFunction_constant) {
   code = tanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after TAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3400,7 +3400,7 @@ TEST(ScalarFunctionTest, asinFunction_constant) {
   code = asinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after ASIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3418,7 +3418,7 @@ TEST(ScalarFunctionTest, asinFunction_constant) {
   code = asinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after ASIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3450,7 +3450,7 @@ TEST(ScalarFunctionTest, asinFunction_column) {
   code = asinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after ASIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3471,7 +3471,7 @@ TEST(ScalarFunctionTest, asinFunction_column) {
   code = asinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after ASIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3517,7 +3517,7 @@ TEST(ScalarFunctionTest, acosFunction_constant) {
   code = acosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after ACOS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3548,7 +3548,7 @@ TEST(ScalarFunctionTest, acosFunction_column) {
   code = acosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after ACOS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3569,7 +3569,7 @@ TEST(ScalarFunctionTest, acosFunction_column) {
   code = acosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after ACOS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3597,7 +3597,7 @@ TEST(ScalarFunctionTest, atanFunction_constant) {
   code = atanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after ATAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3615,7 +3615,7 @@ TEST(ScalarFunctionTest, atanFunction_constant) {
   code = atanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after ATAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3646,7 +3646,7 @@ TEST(ScalarFunctionTest, atanFunction_column) {
   code = atanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after ATAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3667,7 +3667,7 @@ TEST(ScalarFunctionTest, atanFunction_column) {
   code = atanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after ATAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3983,7 +3983,7 @@ TEST(ScalarFunctionTest, sqrtFunction_constant) {
   code = sqrtFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after SQRT:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -4001,7 +4001,7 @@ TEST(ScalarFunctionTest, sqrtFunction_constant) {
   code = sqrtFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after SQRT:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4032,7 +4032,7 @@ TEST(ScalarFunctionTest, sqrtFunction_column) {
   code = sqrtFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after SQRT:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -4053,7 +4053,7 @@ TEST(ScalarFunctionTest, sqrtFunction_column) {
   code = sqrtFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after SQRT:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4086,7 +4086,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4108,7 +4108,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4131,7 +4131,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int,float after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4170,7 +4170,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4196,7 +4196,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4228,7 +4228,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int,float after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4263,7 +4263,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4285,7 +4285,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4308,7 +4308,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int,float after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4347,7 +4347,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4374,7 +4374,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4406,7 +4406,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int,float after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 

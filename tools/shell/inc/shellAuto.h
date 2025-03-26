@@ -31,7 +31,7 @@ void pressTabKey(SShellCmd* cmd);
 void pressOtherKey(char c);
 
 // init shell auto function , shell start call once
-bool shellAutoInit();
+void shellAutoInit();
 
 // set conn
 void shellSetConn(TAOS* conn, bool runOnce);
@@ -51,9 +51,8 @@ void showAD(bool end);
 // show all commands help
 void showHelp();
 
-
 //
-//  for unit test 
+//  for unit test
 //
 bool fieldOptionsArea(char* p);
 bool isCreateFieldsArea(char* p);

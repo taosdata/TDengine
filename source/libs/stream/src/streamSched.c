@@ -29,21 +29,37 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
   int64_t*    pTaskRefId = NULL;
 
-  if (pTask->info.fillHistory == 1) {
+  if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
     return;
   }
 
-  // dynamic set the trigger & triggerParam for STREAM_TRIGGER_FORCE_WINDOW_CLOSE
-  if ((pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) && (pTask->info.taskLevel == TASK_LEVEL__SOURCE)) {
+  if ((pTask->info.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) && (pTask->info.taskLevel == TASK_LEVEL__SOURCE)) {
     int64_t     waterMark = 0;
     SInterval   interval = {0};
     STimeWindow lastTimeWindow = {0};
-    code = qGetStreamIntervalExecInfo(pTask->exec.pExecutor, &waterMark, &interval, &lastTimeWindow);
+    TSKEY       recInterval = 0;
+    code = qGetStreamIntervalExecInfo(pTask->exec.pExecutor, &waterMark, &interval, &lastTimeWindow, &recInterval);
     if (code) {
       stError("s-task:%s failed to init scheduler info, code:%s", id, tstrerror(code));
       return;
     }
 
+    pTask->info.delaySchedParam = 60000;//recInterval;
+    stInfo("s-task:%s cont-window-close extract re-calculate delay:%" PRId64, id, pTask->info.delaySchedParam);
+    delay = pTask->info.delaySchedParam;
+
+  } else if ((pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) && (pTask->info.taskLevel == TASK_LEVEL__SOURCE)) {
+    // dynamic set the trigger & triggerParam for STREAM_TRIGGER_FORCE_WINDOW_CLOSE
+
+    int64_t     waterMark = 0;
+    SInterval   interval = {0};
+    STimeWindow lastTimeWindow = {0};
+    TSKEY       recInterval = 0;
+    code = qGetStreamIntervalExecInfo(pTask->exec.pExecutor, &waterMark, &interval, &lastTimeWindow, &recInterval);
+    if (code) {
+      stError("s-task:%s failed to init scheduler info, code:%s", id, tstrerror(code));
+      return;
+    }
     pTask->info.delaySchedParam = interval.sliding;
     pTask->info.watermark = waterMark;
     pTask->info.interval = interval;
@@ -84,8 +100,7 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
 
   code = streamTaskAllocRefId(pTask, &pTaskRefId);
   if (code == 0) {
-    stDebug("s-task:%s refId:%" PRId64 " enable the scheduler trigger, delay:%" PRId64, pTask->id.idStr,
-            pTask->id.refId, delay);
+    stDebug("s-task:%s refId:%" PRId64 " enable the scheduler trigger, delay:%" PRId64, id, pTask->id.refId, delay);
 
     streamTmrStart(streamTaskSchedHelper, (int32_t)delay, pTaskRefId, streamTimer, &pTask->schedInfo.pDelayTimer,
                    pTask->pMeta->vgId, "sched-tmr");
@@ -93,17 +108,21 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
   }
 }
 
-int32_t streamTrySchedExec(SStreamTask* pTask) {
+int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
   if (streamTaskSetSchedStatusWait(pTask)) {
-    return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0);
+    return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
   } else {
-    stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+    if (chkptQueue) {
+      stWarn("s-task:%s not launch task in chkpt queue, may delay checkpoint procedure", pTask->id.idStr);
+    } else {
+      stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+    }
   }
 
   return 0;
 }
 
-int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType) {
+int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType, bool chkptExec) {
   int32_t code = 0;
   int32_t tlen = 0;
 
@@ -142,10 +161,18 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
     stDebug("vgId:%d create msg to exec, type:%d, %s", vgId, execType, streamTaskGetExecType(execType));
   }
 
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
-  code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
-  if (code) {
-    stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+  if (chkptExec) {
+    SRpcMsg msg = {.msgType = TDMT_STREAM_CHKPT_EXEC, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
+    code = tmsgPutToQueue(pMsgCb, STREAM_CHKPT_QUEUE, &msg);
+    if (code) {
+      stError("vgId:%d failed to put msg into stream chkpt queue, code:%s, %x", vgId, tstrerror(code), taskId);
+    }
+  } else {
+    SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
+    code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+    if (code) {
+      stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+    }
   }
   return code;
 }
@@ -191,12 +218,17 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
     return;
   }
 
-  code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK);
+  code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK,
+                             (p.state == TASK_STATUS__CK));
   if (code) {
     stError("s-task:%s sched task failed, code:%s", pId->idStr, tstrerror(code));
   } else {
-    stDebug("trigger to resume s-task:%s after idled for %dms", pId->idStr, pTask->status.schedIdleTime);
-
+    if (p.state == TASK_STATUS__CK) {
+      stDebug("trigger to resume s-task:%s in stream chkpt queue after idled for %dms", pId->idStr,
+              pTask->status.schedIdleTime);
+    } else {
+      stDebug("trigger to resume s-task:%s after idled for %dms", pId->idStr, pTask->status.schedIdleTime);
+    }
     // release the task ref count
     streamTaskClearSchedIdleInfo(pTask);
   }
@@ -264,9 +296,34 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
   }
 }
 
+int32_t streamCreateAddRecalculateEndBlock(SStreamTask* pTask) {
+  const char*       id = pTask->id.idStr;
+  SStreamDataBlock* pBlock = NULL;
+  int32_t           code = streamCreateRecalculateBlock(pTask, &pBlock, STREAM_RECALCULATE_END);
+  if (code) {
+    stError("s-task:%s failed to create recalculate end trigger, code:%s, try again in ms", id, tstrerror(code));
+    return code;
+  }
+
+  code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("s-task:%s failed to put recalculate end block into q, code:%s", pTask->id.idStr, tstrerror(code));
+  } else {
+    stDebug("s-task:%s add the recalculate end block in inputQ", pTask->id.idStr);
+  }
+
+  return code;
+}
+
 void streamTaskSchedHelper(void* param, void* tmrId) {
-  int32_t      code = 0;
-  int64_t      taskRefId = *(int64_t*)param;
+  int32_t     code = 0;
+  int64_t     taskRefId = *(int64_t*)param;
+  int32_t     trigger = 0;
+  int32_t     vgId = 0;
+  int32_t     nextTrigger = 0;
+  int32_t     level = 0;
+  const char* id = NULL;
+
   SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, taskRefId);
   if (pTask == NULL) {
     stError("invalid task rid:%" PRId64 " failed to acquired stream-task at %s", taskRefId, __func__);
@@ -276,13 +333,17 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
 
   stDebug("s-task:%s acquire task, refId:%" PRId64, pTask->id.idStr, pTask->id.refId);
 
-  const char* id = pTask->id.idStr;
-  int32_t     nextTrigger = (int32_t)pTask->info.delaySchedParam;
-  int32_t     vgId = pTask->pMeta->vgId;
+  id = pTask->id.idStr;
+  nextTrigger = (int32_t)pTask->info.delaySchedParam;
+  vgId = pTask->pMeta->vgId;
+  trigger = pTask->info.trigger;
+  level = pTask->info.taskLevel;
 
   int8_t status = atomic_load_8(&pTask->schedInfo.status);
 
-  if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+  if (trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE && level == TASK_LEVEL__SOURCE) {
+    stTrace("s-task:%s in scheduler to recalculate the update time window, trigger status:%d", id, status);
+  } else if (trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && level == TASK_LEVEL__SOURCE) {
     int32_t next = convertTimePrecision(nextTrigger, pTask->info.interval.precision, TSDB_TIME_PRECISION_MILLI);
     stTrace("s-task:%s in scheduler, trigger status:%d, next:%dms", id, status, next);
   } else {
@@ -297,33 +358,66 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
   }
 
   if (streamTaskShouldPause(pTask)) {
+    nextTrigger = TRIGGER_RECHECK_INTERVAL;  // retry in 5 sec
     stDebug("s-task:%s is paused, recheck in %.2fs", id, TRIGGER_RECHECK_INTERVAL / 1000.0);
-    streamTmrStart(streamTaskSchedHelper, TRIGGER_RECHECK_INTERVAL, param, streamTimer, &pTask->schedInfo.pDelayTimer,
-                   vgId, "sched-run-tmr");
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
+    goto _end;
   }
 
   if (pTask->status.downstreamReady == 0) {
+    nextTrigger = TRIGGER_RECHECK_INTERVAL;  // retry in 5 sec
     stDebug("s-task:%s downstream not ready, recheck in %.2fs", id, TRIGGER_RECHECK_INTERVAL / 1000.0);
-    streamTmrStart(streamTaskSchedHelper, TRIGGER_RECHECK_INTERVAL, param, streamTimer, &pTask->schedInfo.pDelayTimer,
-                   vgId, "sched-run-tmr");
-    streamMetaReleaseTask(pTask->pMeta, pTask);
-    return;
+    goto _end;
   }
 
   if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) {
-    nextTrigger = TRIGGER_RECHECK_INTERVAL;  // retry in 10 sec
+    nextTrigger = TRIGGER_RECHECK_INTERVAL;  // retry in 5 sec
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, TRIGGER_RECHECK_INTERVAL);
   } else {
-    if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    if (trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE && level == TASK_LEVEL__SOURCE) {
       code = doCreateForceWindowTrigger(pTask, &nextTrigger);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
+    } else if (trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE && level == TASK_LEVEL__SOURCE) {
+      // we need to make sure fill-history process is completed
+      STaskId hId = pTask->hTaskInfo.id;
+      {
+        SStreamTask* pHTask = NULL;
+        int32_t      ret = streamMetaAcquireTaskUnsafe(pTask->pMeta, &hId, &pHTask);
+
+        if (ret == 0 && pHTask != NULL) {
+          if (pHTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+            SStreamDataBlock* pTrigger = NULL;
+            code = streamCreateRecalculateBlock(pTask, &pTrigger, STREAM_RECALCULATE_START);
+            if (code) {
+              stError("s-task:%s failed to prepare recalculate data trigger, code:%s, try again in %dms", id,
+                      tstrerror(code), nextTrigger);
+              streamMetaReleaseTask(pTask->pMeta, pHTask);
+              goto _end;
+            }
+
+            atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
+            code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
+            if (code != TSDB_CODE_SUCCESS) {
+              stError("s-task:%s failed to put recalculate block into q, code:%s", pTask->id.idStr, tstrerror(code));
+              streamMetaReleaseTask(pTask->pMeta, pHTask);
+              goto _end;
+            } else {
+              stDebug("s-task:%s put recalculate block into inputQ", pTask->id.idStr);
+            }
+
+          } else {
+            stDebug("s-task:%s related task:0x%" PRIx64 " in fill-history model, not start the recalculate procedure",
+                    pTask->id.idStr, hId.taskId);
+          }
+
+          streamMetaReleaseTask(pTask->pMeta, pHTask);
+        }
+      }
+
     } else if (status == TASK_TRIGGER_STATUS__MAY_ACTIVE) {
       SStreamTrigger* pTrigger = NULL;
-      code = streamCreateSinkResTrigger(&pTrigger);
+      code = streamCreateTriggerBlock(&pTrigger, STREAM_INPUT__GET_RES, STREAM_GET_ALL);
       if (code) {
         stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, tstrerror(code),
                 nextTrigger);
@@ -334,12 +428,12 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
 
       code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
       if (code != TSDB_CODE_SUCCESS) {
-        stError("s-task:%s failed to put retrieve aggRes block into q, code:%s", pTask->id.idStr, tstrerror(code));
+        stError("s-task:%s failed to put retrieve data trigger into q, code:%s", pTask->id.idStr, tstrerror(code));
         goto _end;
       }
     }
 
-    code = streamTrySchedExec(pTask);
+    code = streamTrySchedExec(pTask, false);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to sched to run, wait for next time", pTask->id.idStr);
     }

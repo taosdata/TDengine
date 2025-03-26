@@ -169,7 +169,7 @@ int32_t dmInitVars(SDnode *pDnode) {
     return code;
   }
 
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   tsiEncryptAlgorithm = pData->encryptAlgorigthm;
   tsiEncryptScope = pData->encryptScope;
   /*

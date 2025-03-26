@@ -50,21 +50,21 @@ int32_t ctgMetaRentAdd(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size)
   if (NULL == slot->meta) {
     slot->meta = taosArrayInit(CTG_DEFAULT_RENT_SLOT_SIZE, size);
     if (NULL == slot->meta) {
-      qError("taosArrayInit %d failed, id:0x%" PRIx64 ", slot idx:%d, type:%d", CTG_DEFAULT_RENT_SLOT_SIZE, id, widx,
+      qError("id:0x%" PRIx64 ", taosArrayInit %d failed, slot idx:%d, type:%d", id, CTG_DEFAULT_RENT_SLOT_SIZE, widx,
              mgmt->type);
       CTG_ERR_JRET(terrno);
     }
   }
 
   if (NULL == taosArrayPush(slot->meta, meta)) {
-    qError("taosArrayPush meta to rent failed, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
+    qError("id:0x%" PRIx64 ", taosArrayPush meta to rent failed, slot idx:%d, type:%d", id, widx, mgmt->type);
     CTG_ERR_JRET(terrno);
   }
 
   mgmt->rentCacheSize += size;
   slot->needSort = true;
 
-  qDebug("add meta to rent, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
+  qDebug("id:0x%" PRIx64 ", add meta to rent, slot idx:%d, type:%d", id, widx, mgmt->type);
 
 _return:
 
@@ -81,36 +81,37 @@ int32_t ctgMetaRentUpdate(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t si
 
   CTG_LOCK(CTG_WRITE, &slot->lock);
   if (NULL == slot->meta) {
-    qDebug("empty meta slot, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
+    qDebug("id:0x%" PRIx64 ", empty meta slot, slot idx:%d, type:%d", id, widx, mgmt->type);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   if (slot->needSort) {
-    qDebug("meta slot before sorte, slot idx:%d, type:%d, size:%d", widx, mgmt->type,
+    qDebug("id:0x%" PRIx64 ", meta slot before sort, slot idx:%d, type:%d, size:%d", id, widx, mgmt->type,
            (int32_t)taosArrayGetSize(slot->meta));
     taosArraySort(slot->meta, sortCompare);
     slot->needSort = false;
-    qDebug("meta slot sorted, slot idx:%d, type:%d, size:%d", widx, mgmt->type, (int32_t)taosArrayGetSize(slot->meta));
+    qDebug("id:0x%" PRIx64 ", meta slot sorted, slot idx:%d, type:%d, size:%d", id, widx, mgmt->type,
+           (int32_t)taosArrayGetSize(slot->meta));
   }
 
   void *orig = taosArraySearch(slot->meta, &id, searchCompare, TD_EQ);
   if (NULL == orig) {
-    qDebug("meta not found in slot, id:0x%" PRIx64 ", slot idx:%d, type:%d, size:%d", id, widx, mgmt->type,
+    qDebug("id:0x%" PRIx64 ", meta not found in slot, slot idx:%d, type:%d, size:%d", id, widx, mgmt->type,
            (int32_t)taosArrayGetSize(slot->meta));
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   TAOS_MEMCPY(orig, meta, size);
 
-  qDebug("meta in rent updated, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
+  qDebug("id:0x%" PRIx64 ", meta in rent updated, slot idx:%d, type:%d", id, widx, mgmt->type);
 
 _return:
 
   CTG_UNLOCK(CTG_WRITE, &slot->lock);
 
   if (code) {
-    qDebug("meta in rent update failed, will try to add it, code:%x, id:0x%" PRIx64 ", slot idx:%d, type:%d", code, id,
-           widx, mgmt->type);
+    qDebug("id:0x%" PRIx64 ", meta in rent update failed, will try to add it, code:0x%x, slot idx:%d, type:%d", id,
+           code, widx, mgmt->type);
     CTG_RET(ctgMetaRentAdd(mgmt, meta, id, size));
   }
 
@@ -125,26 +126,26 @@ int32_t ctgMetaRentRemove(SCtgRentMgmt *mgmt, int64_t id, __compar_fn_t sortComp
 
   CTG_LOCK(CTG_WRITE, &slot->lock);
   if (NULL == slot->meta) {
-    qError("empty meta slot, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
+    qError("id:0x%" PRIx64 ", empty meta slot, slot idx:%d, type:%d", id, widx, mgmt->type);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   if (slot->needSort) {
     taosArraySort(slot->meta, sortCompare);
     slot->needSort = false;
-    qDebug("meta slot sorted, slot idx:%d, type:%d", widx, mgmt->type);
+    qDebug("id:0x%" PRIx64 ", meta slot sorted, slot idx:%d, type:%d", id, widx, mgmt->type);
   }
 
   int32_t idx = taosArraySearchIdx(slot->meta, &id, searchCompare, TD_EQ);
   if (idx < 0) {
-    qError("meta not found in slot, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
+    qError("id:0x%" PRIx64 ", meta not found in slot, slot idx:%d, type:%d", id, widx, mgmt->type);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   taosArrayRemove(slot->meta, idx);
   mgmt->rentCacheSize -= mgmt->metaSize;
 
-  qDebug("meta in rent removed, id:0x%" PRIx64 ", slot idx:%d, type:%d", id, widx, mgmt->type);
+  qDebug("id:0x%" PRIx64 ", meta in rent removed, slot idx:%d, type:%d", id, widx, mgmt->type);
 
 _return:
 
@@ -194,7 +195,7 @@ int32_t ctgMetaRentGetImpl(SCtgRentMgmt *mgmt, void **res, uint32_t *num, int32_
 
   *num = (uint32_t)metaNum;
 
-  qDebug("Got %d meta from rent, type:%d", (int32_t)metaNum, mgmt->type);
+  qDebug("get %d meta from rent, type:%d", (int32_t)metaNum, mgmt->type);
 
 _return:
 
@@ -231,15 +232,15 @@ void ctgRemoveStbRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
     return;
   }
 
-  int32_t code =  TSDB_CODE_SUCCESS;
-  void *pIter = taosHashIterate(dbCache->stbCache, NULL);
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *pIter = taosHashIterate(dbCache->stbCache, NULL);
   while (pIter) {
-    uint64_t *suid = NULL;
-    suid = taosHashGetKey(pIter, NULL);
+    uint64_t *pSuid = taosHashGetKey(pIter, NULL);
+    uint64_t  suid = taosGetUInt64Aligned(pSuid);
 
-    code = ctgMetaRentRemove(&pCtg->stbRent, *suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare);
+    code = ctgMetaRentRemove(&pCtg->stbRent, suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare);
     if (TSDB_CODE_SUCCESS == code) {
-      ctgDebug("stb removed from rent, suid:0x%" PRIx64, *suid);
+      ctgDebug("suid:0x%" PRIx64 ", stb removed from rent", suid);
     }
 
     pIter = taosHashIterate(dbCache->stbCache, pIter);
@@ -257,7 +258,7 @@ void ctgRemoveViewRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
 
     if (TSDB_CODE_SUCCESS ==
         ctgMetaRentRemove(&pCtg->viewRent, viewId, ctgViewVersionSortCompare, ctgViewVersionSearchCompare)) {
-      ctgDebug("view removed from rent, viewId:0x%" PRIx64, viewId);
+      ctgDebug("viewId:0x%" PRIx64 ", view removed from rent", viewId);
     }
 
     pIter = taosHashIterate(dbCache->viewCache, pIter);
@@ -276,7 +277,7 @@ void ctgRemoveTSMARent(SCatalog *pCtg, SCtgDBCache *dbCache) {
     for (int32_t i = 0; i < size; ++i) {
       STSMACache* pCache = taosArrayGetP(pCtgCache->pTsmas, i);
       if (TSDB_CODE_SUCCESS == ctgMetaRentRemove(&pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSortCompare, ctgTSMAVersionSearchCompare)) {
-        ctgDebug("tsma removed from rent, viewId: %" PRIx64 " name: %s.%s.%s", pCache->tsmaId, pCache->dbFName, pCache->tb, pCache->name);
+        ctgDebug("tsma:0x%" PRIx64 ", tsma removed from rent, name:%s.%s.%s", pCache->tsmaId, pCache->dbFName, pCache->tb, pCache->name);
       }
     }
     CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
@@ -303,8 +304,8 @@ int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uin
   CTG_ERR_RET(ctgMetaRentUpdate(&pCtg->stbRent, &metaRent, metaRent.suid, sizeof(SSTableVersion),
                                 ctgStbVersionSortCompare, ctgStbVersionSearchCompare));
 
-  ctgDebug("db %s,0x%" PRIx64 " stb %s,0x%" PRIx64 " sver %d tver %d smaVer %d updated to stbRent", dbFName, dbId,
-           tbName, suid, metaRent.sversion, metaRent.tversion, metaRent.smaVer);
+  ctgDebug("suid:0x%" PRIx64 ", db %s, dbId:0x%" PRIx64 ", stb:%s, sver:%d tver:%d smaVer:%d updated to stbRent", suid,
+           dbFName, dbId, tbName, metaRent.sversion, metaRent.tversion, metaRent.smaVer);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -321,7 +322,7 @@ int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, 
   CTG_ERR_RET(ctgMetaRentUpdate(&pCtg->viewRent, &metaRent, metaRent.viewId, sizeof(SViewVersion),
                                 ctgViewVersionSortCompare, ctgViewVersionSearchCompare));
 
-  ctgDebug("db %s,0x%" PRIx64 " view %s,0x%" PRIx64 " version %d updated to viewRent", dbFName, dbId, viewName, viewId, metaRent.version);
+  ctgDebug("viewId:0x%" PRIx64 ", db %s, dbId:0x%" PRIx64 ", view %s, version:%d updated to viewRent", viewId, dbFName, dbId, viewName, metaRent.version);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -332,12 +333,12 @@ int32_t ctgUpdateRentTSMAVersion(SCatalog *pCtg, char *dbFName, const STSMACache
   tstrncpy(tsmaRent.name, pTsmaInfo->name, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsmaRent.dbFName, dbFName, TSDB_DB_FNAME_LEN);
   tstrncpy(tsmaRent.tbName, pTsmaInfo->tb, TSDB_TABLE_NAME_LEN);
-  
+
   CTG_ERR_RET(ctgMetaRentUpdate(&pCtg->tsmaRent, &tsmaRent, tsmaRent.tsmaId, sizeof(STSMAVersion),
                                 ctgTSMAVersionSortCompare, ctgTSMAVersionSearchCompare));
-                                
-  ctgDebug("db %s, 0x%" PRIx64 " tsma %s, 0x%" PRIx64 "version %d updated to tsmaRent", dbFName, tsmaRent.dbId,
-           pTsmaInfo->name, pTsmaInfo->tsmaId, pTsmaInfo->version);
+
+  ctgDebug("tsma:0x%" PRIx64 ", db:%s, dbId:0x%" PRIx64 ", view:%s, version:%d updated to tsmaRent", pTsmaInfo->tsmaId,
+           dbFName, tsmaRent.dbId, pTsmaInfo->name, pTsmaInfo->version);
 
   return TSDB_CODE_SUCCESS;
 }

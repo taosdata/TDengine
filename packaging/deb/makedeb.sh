@@ -31,6 +31,7 @@ mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
 libfile="libtaos.so.${tdengine_ver}"
+nativelibfile="libtaosnative.so.${tdengine_ver}"
 wslibfile="libtaosws.so"
 
 # create install dir
@@ -103,7 +104,7 @@ sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${in
 
 
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/udfd                   ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosudf                 ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosBenchmark           ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path}/bin
 
@@ -120,11 +121,12 @@ fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
+cp ${compile_dir}/build/lib/${nativelibfile}        ${pkg_dir}${install_home_path}/driver
 [ -f ${compile_dir}/build/lib/${wslibfile} ] && cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver ||:
 cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/util/tdef.h       ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/../include/util/tdef.h            ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
 [ -f ${compile_dir}/build/include/taosws.h ] && cp ${compile_dir}/build/include/taosws.h            ${pkg_dir}${install_home_path}/include ||:
 cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples

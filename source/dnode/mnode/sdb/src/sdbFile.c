@@ -182,7 +182,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
     if (ret < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       TAOS_RETURN(code);
     }
     if (ret != sizeof(int64_t)) {
@@ -196,7 +196,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     int64_t ver = 0;
     ret = taosReadFile(pFile, &ver, sizeof(int64_t));
     if (ret < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       TAOS_RETURN(code);
     }
     if (ret != sizeof(int64_t)) {
@@ -556,7 +556,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
 
         int32_t cksum = taosCalcChecksum(0, (const uint8_t *)pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
         if (taosWriteFile(pFile, &cksum, sizeof(int32_t)) != sizeof(int32_t)) {
-          code = errno;
+          code = terrno;
           taosHashCancelIterate(hash, ppRow);
           sdbFreeRaw(pRaw);
           break;
@@ -576,7 +576,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
   if (code == 0) {
     code = taosFsyncFile(pFile);
     if (code != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       mError("failed to sync sdb file:%s since %s", tmpfile, tstrerror(code));
     }
   }
@@ -822,13 +822,13 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   }
 
   if (taosFsyncFile(pIter->file) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     mError("sdbiter:%p, failed to fasync file %s since %s", pIter, pIter->name, tstrerror(code));
     goto _OVER;
   }
 
   if (taosCloseFile(&pIter->file) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
   pIter->file = NULL;

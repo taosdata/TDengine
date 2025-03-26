@@ -10,17 +10,17 @@ description: 流式计算的相关 SQL 的详细语法
 ```sql
 CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
 stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE]
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE| CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
- FILL_HISTORY   [0|1]
+ FILL_HISTORY   [0|1] [ASYNC]
  IGNORE UPDATE  [0|1]
 }
 
 ```
 
-其中 subquery 是 select 普通查询语法的子集:
+其中 subquery 是 select 普通查询语法的子集。
 
 ```sql
 subquery: SELECT select_list
@@ -32,9 +32,9 @@ subquery: SELECT select_list
 
 支持会话窗口、状态窗口、滑动窗口、事件窗口和计数窗口。其中，状态窗口、事件窗口和计数窗口搭配超级表时必须与 partition by tbname 一起使用。对于数据源表是复合主键的流，不支持状态窗口、事件窗口、计数窗口的计算。
 
-stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的schema信息。详见 [写入已存在的超级表](#写入已存在的超级表) 。
+stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的 schema 信息。详见 [写入已存在的超级表](#写入已存在的超级表)。
 
-TAGS 子句定义了流计算中创建TAG的规则，可以为每个 partition 对应的子表生成自定义的TAG值，详见 [自定义 TAG](#自定义 TAG)
+TAGS 子句定义了流计算中创建TAG的规则，可以为每个 partition 对应的子表生成自定义的TAG值，详见 [自定义 TAG](#自定义-TAG)
 ```sql
 create_definition:
     col_name column_definition
@@ -42,7 +42,7 @@ column_definition:
     type_name [COMMENT 'string_value']
 ```
 
-subtable 子句定义了流式计算中创建的子表的命名规则，详见 [流式计算的 partition](#流式计算的 partition)。
+subtable 子句定义了流式计算中创建的子表的命名规则，详见 [流式计算的 partition](#流式计算的-partition)。
 
 ```sql
 window_clause: {
@@ -62,9 +62,9 @@ window_clause: {
 
 - INTERVAL 是时间窗口，又可分为滑动时间窗口和翻转时间窗口。INTERVAL 子句用于指定窗口相等时间周期，SLIDING 字句用于指定窗口向前滑动的时间。当 interval_val 与 sliding_val 相等的时候，时间窗口即为翻转时间窗口，否则为滑动时间窗口，注意：sliding_val 必须小于等于 interval_val。
 
-- EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。 start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+- EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
 
-- COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。 count_val 是常量，是正整数，必须大于等于2，小于2147483648。 count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val 。 sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
+- COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。count_val 是常量，是正整数，必须大于等于 2，小于 2147483648。count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING。
 
 窗口的定义与时序数据特色查询中的定义完全相同，详见 [TDengine 特色查询](../distinguished)
 
@@ -101,13 +101,13 @@ notification_definition 子句定义了窗口计算过程中，在窗口打开/�
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
 ```
 
-PARTITION 子句中，为 tbname 定义了一个别名 tname, 在 PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名（从 3.2.3.0 版本开始，为了避免 SUBTABLE 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 _stableName_groupId）。
+PARTITION 子句中，为 tbname 定义了一个别名 tname, 在 PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名（从 v3.2.3.0 开始，为了避免 SUBTABLE 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 _stableName_groupId）。
 
 注意，子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
 
 ## 流式计算读取历史数据
 
-正常情况下，流式计算不会处理创建前已经写入源表中的数据，若要处理已经写入的数据，可以在创建流时设置 fill_history 1 选项，这样创建的流式计算会自动处理创建前、创建中、创建后写入的数据。流计算处理历史数据的最大窗口数是 2000万，超过限制会报错。例如：
+正常情况下，流式计算不会处理创建前已经写入源表中的数据，若要处理已经写入的数据，可以在创建流时设置 fill_history 1 选项，这样创建的流式计算会自动处理创建前、创建中、创建后写入的数据。流计算处理历史数据的最大窗口数是 2000 万，超过限制会报错。例如：
 
 ```sql
 create stream if not exists s1 fill_history 1 into st1  as select count(*) from t1 interval(10s)
@@ -126,6 +126,13 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 ```
 
 如果该流任务已经彻底过期，并且您不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
+
+注意：
+- 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持） 语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
+
+- 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
+
+- 另外，不要同时异步创建多个流，可能由于事务冲突导致后面创建的流失败。
 
 ## 删除流式计算
 
@@ -151,14 +158,17 @@ SELECT * from information_schema.`ins_streams`;
 
 在创建流时，可以通过 TRIGGER 指令指定流式计算的触发模式。
 
-对于非窗口计算，流式计算的触发是实时的；对于窗口计算，目前提供 4 种触发模式，默认为 WINDOW_CLOSE：
+对于非窗口计算，流式计算的触发是实时的；对于窗口计算，目前提供 4 种触发模式，默认为 WINDOW_CLOSE。
 
 1. AT_ONCE：写入立即触发
 
 2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）
 
 3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
+
 4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（不支持滑动）；FILL_HISTORY 必须为 0，IGNORE EXPIRED 必须为 1，IGNORE UPDATE 必须为 1；FILL 只支持 PREV、NULL、NONE、VALUE。
+
+5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是 60 分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`
 
 由于窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，则事件时间无法更新，可能导致无法得到最新的计算结果。
 
@@ -283,7 +293,7 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 没有指定 IF EXISTS，如果该 stream 不存在，则报错，如果存在，则恢复流计算；指定了 IF EXISTS，如果 stream 不存在，则返回成功；如果存在，则恢复流计算。如果指定 IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
 
 ## 状态数据备份与同步
-流计算的中间结果成为计算的状态数据，需要在流计算整个生命周期中进行持久化保存。为了确保流计算中间状态能够在集群环境下在不同的节点间可靠地同步和迁移，从 3.3.2.1 版本开始，需要在运行环境中部署 rsync 软件，还需要增加以下的步骤：
+流计算的中间结果成为计算的状态数据，需要在流计算整个生命周期中进行持久化保存。为了确保流计算中间状态能够在集群环境下在不同的节点间可靠地同步和迁移，从 v3.3.2.1 开始，需要在运行环境中部署 rsync 软件，还需要增加以下的步骤：
 1. 在配置文件中配置 snode 的地址（IP + 端口）和状态数据备份目录（该目录系 snode 所在的物理节点的目录）。
 2. 然后创建 snode。
 完成上述两个步骤以后才能创建流。
@@ -300,7 +310,7 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 CREATE SNODE ON DNODE [id]
 ```
 其中的 id 是集群中的 dnode 的序号。请注意选择的dnode，流计算的中间状态将自动在其上进行备份。
-从 3.3.4.0 版本开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
+从 v3.3.4.0 开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
 
 ## 流式计算的事件通知
 
@@ -517,6 +527,24 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 #### 窗口失效相关字段
 
 因为流计算过程中会遇到数据乱序、更新、删除等情况，可能造成已生成的窗口被删除，或者结果需要重新计算。此时会向通知地址发送一条 WINDOW_INVALIDATION 的通知，说明哪些窗口已经被删除。
+
 这部分是 eventType 为 WINDOW_INVALIDATION 时，event 对象才有的字段。
 1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
 1. windowEnd: 长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+
+## 流式计算对虚拟表的支持
+
+从 v3.3.6.0 开始，流计算能够使用虚拟表（包括虚拟普通表、虚拟子表、虚拟超级表）作为数据源进行计算，语法和非虚拟表完全一致。
+
+但是虚拟表的行为与非虚拟表存在差异，所以目前在使用流计算对虚拟表进行计算时存在以下限制：
+
+1. 流计算中涉及的虚拟普通表/虚拟子表的 schema 不允许更改。
+1. 流计算过程中，如果修改虚拟表某一列对应的数据源，对流计算来说不生效。即：流计算仍只读取老的数据源。
+1. 流计算过程中，如果虚拟表某一列对应的原始表被删除，之后新建了同名的表和同名的列，流计算不会读取新表的数据。
+1. 流计算的 watermark 只能是 0，否则创建时就报错。
+1. 如果流计算的数据源是虚拟超级表，流计算任务启动后新增的子表不参与计算。
+1. 虚拟表的不同原始表的时间戳不完全一致，数据合并后可能会产生空值，暂不支持插值处理。
+1. 不处理数据的乱序、更新或删除。即：流创建时不能指定 `ignore update 0` 或者 `ignore expired 0`，否则报错。
+1. 不支持历史数据计算，即：流创建时不能指定 `fill_history 1`，否则报错。
+1. 不支持触发模式：MAX_DELAY, FORCE_WINDOW_CLOSE, CONTINUOUS_WINDOW_CLOSE。
+1. 不支持窗口类型：COUNT_WINDOW。

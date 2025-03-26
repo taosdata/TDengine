@@ -64,7 +64,7 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "dropped", pData->dropped, code);
   if (code < 0) return -1;
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   tjsonGetInt32ValueFromDouble(pJson, "encryptAlgor", pData->encryptAlgorigthm, code);
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "encryptScope", pData->encryptScope, code);
@@ -131,7 +131,7 @@ int32_t dmReadEps(SDnodeData *pData) {
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("dnode file:%s not exist", file);
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
     if (strlen(tsEncryptAlgorithm) > 0) {
       if (strcmp(tsEncryptAlgorithm, "sm4") == 0) {
         pData->encryptAlgorigthm = DND_CA_SM4;
@@ -289,7 +289,7 @@ static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
   if (tjsonAddIntegerToObject(pJson, "engineVer", pData->engineVer) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "clusterId", pData->clusterId) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "dropped", pData->dropped) < 0) return -1;
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (tjsonAddDoubleToObject(pJson, "encryptAlgor", pData->encryptAlgorigthm) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "encryptScope", pData->encryptScope) < 0) return -1;
 #endif
@@ -657,7 +657,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEpPair));
   if (pData->oldDnodeEps == NULL) {
     code = terrno;
-    dError("failed to calloc dnodeEp array since %s", strerror(errno));
+    dError("failed to calloc dnodeEp array since %s", strerror(ERRNO));
     goto _OVER;
   }
 

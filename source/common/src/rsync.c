@@ -6,7 +6,7 @@
 #include "tglobal.h"
 
 #define ERRNO_ERR_FORMAT "errno:%d,msg:%s"
-#define ERRNO_ERR_DATA   errno, strerror(errno)
+#define ERRNO_ERR_DATA   ERRNO, strerror(ERRNO)
 
 // deleteRsync function produce empty directories, traverse base directory to remove them
 static void removeEmptyDir() {
@@ -150,7 +150,7 @@ int32_t startRsync() {
   if (taosMulMkDir(tsCheckpointBackupDir) != 0) {
     uError("[rsync] build checkpoint backup dir failed, path:%s," ERRNO_ERR_FORMAT, tsCheckpointBackupDir,
            ERRNO_ERR_DATA);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     return code;
   }
 
@@ -170,10 +170,10 @@ int32_t startRsync() {
   code = system(cmd);
   if (code != 0) {
     uError("[rsync] cmd:%s start server failed, code:%d," ERRNO_ERR_FORMAT, cmd, code, ERRNO_ERR_DATA);
-    if (errno == 0) {
+    if (ERRNO == 0) {
       return 0;
     } else {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
     }
   } else {
     uInfo("[rsync] cmd:%s start server successful", cmd);
@@ -223,7 +223,7 @@ int32_t uploadByRsync(const char* id, const char* path, int64_t checkpointId) {
   if (code != 0) {
     uError("[rsync] s-task:%s prepare checkpoint dir in %s to %s failed, code:%d," ERRNO_ERR_FORMAT, id, path,
            tsSnodeAddress, code, ERRNO_ERR_DATA);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
   } else {
     int64_t el = (taosGetTimestampMs() - st);
     uDebug("[rsync] s-task:%s prepare checkpoint dir in:%s to %s successfully, elapsed time:%" PRId64 "ms", id, path,
@@ -267,7 +267,7 @@ int32_t uploadByRsync(const char* id, const char* path, int64_t checkpointId) {
   if (code != 0) {
     uError("[rsync] s-task:%s upload checkpoint data in %s to %s failed, code:%d," ERRNO_ERR_FORMAT, id, path,
            tsSnodeAddress, code, ERRNO_ERR_DATA);
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
   } else {
     int64_t el = (taosGetTimestampMs() - st);
     uDebug("[rsync] s-task:%s upload checkpoint data in:%s to %s successfully, elapsed time:%" PRId64 "ms", id, path,
@@ -355,7 +355,7 @@ int32_t deleteRsync(const char* id) {
   int32_t code = taosMkDir(tmp);
   if (code != 0) {
     uError("[rsync] make tmp dir failed. code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   char command[PATH_MAX] = {0};
@@ -367,7 +367,7 @@ int32_t deleteRsync(const char* id) {
   taosRemoveDir(tmp);
   if (code != 0) {
     uError("[rsync] get failed code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   uDebug("[rsync] delete data:%s successful", id);

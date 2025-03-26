@@ -34,7 +34,7 @@ static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
   if (!option.deploy) {
     *required = mmDeployRequired(pInput);
     if (*required) {
-      dInfo("deploy mnode required. dnodeId:%d<=0, clusterId:%" PRId64 "<=0, localEp:%s==firstEp",
+      dInfo("deploy mnode required. dnodeId:%d<=0, clusterId:0x%" PRIx64 "<=0, localEp:%s==firstEp",
             pInput->pData->dnodeId, pInput->pData->clusterId, tsLocalEp);
     }
   } else {

@@ -124,7 +124,39 @@ FLOOR(expr)
 ```
 
 **Function Description**: Gets the floor of the specified field.
- Other usage notes see CEIL function description.
+ Other usage notes see [CEIL](#ceil) function description.
+
+#### GREATEST
+```sql
+GREATEST(expr1, expr2[, expr]...)
+```
+
+**Function Description**: Get the maximum value of all input parameters. The minimum number of parameters for this function is 2.
+
+**Version**：ver-3.3.6.0
+
+**Return Type**：Refer to the comparison rules. The comparison type is the final return type.
+
+**Applicable Data Types**:
+- Numeric types: timestamp, bool, integer and floating point types
+- Strings types: nchar and varchar types.
+
+**Comparison rules**: The following rules describe the conversion method of the comparison operation:
+- If any parameter is NULL, the comparison result is NULL.
+- If all parameters in the comparison operation are string types, compare them as string types
+- If all parameters are numeric types, compare them as numeric types.
+- If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
+- In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
+
+**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+
+
+#### LEAST
+```sql
+LEAST(expr1, expr2[, expr]...)
+```
+
+**Function Description**：Get the minimum value of all input parameters. The rest of the description is the same as the [GREATEST](#greatest) function.
 
 #### LOG
 
@@ -1154,6 +1186,7 @@ CAST(expr AS type_name)
         1) Invalid character situations when converting string types to numeric types, e.g., "a" might convert to 0, but will not throw an error.
         2) When converting to numeric types, if the value exceeds the range that `type_name` can represent, it will overflow, but will not throw an error.
         3) When converting to string types, if the converted length exceeds the length specified in `type_name`, it will be truncated, but will not throw an error.
+- The DECIMAL type does not support conversion to or from JSON, VARBINARY, or GEOMETRY types.
 
 #### TO_ISO8601
 
@@ -1659,11 +1692,13 @@ AVG(expr)
 
 **Function Description**: Calculates the average value of the specified field.
 
-**Return Data Type**: DOUBLE.
+**Return Data Type**: DOUBLE, DECIMAL.
 
 **Applicable Data Types**: Numeric types.
 
 **Applicable to**: Tables and supertables.
+
+**Description**: When the input type is DECIMAL, the output type is also DECIMAL. The precision and scale of the output conform to the rules described in the data type section. The result type is obtained by dividing the SUM type by UINT64. If the SUM result causes a DECIMAL type overflow, a DECIMAL OVERFLOW error is reported.
 
 ### COUNT
 
@@ -1815,11 +1850,13 @@ SUM(expr)
 
 **Function Description**: Calculates the sum of a column in a table/supertable.
 
-**Return Data Type**: DOUBLE, BIGINT.
+**Return Data Type**: DOUBLE, BIGINT,DECIMAL.
 
 **Applicable Data Types**: Numeric types.
 
 **Applicable to**: Tables and supertables.
+
+**Description**: When the input type is DECIMAL, the output type is DECIMAL(38, scale), where precision is the maximum value currently supported, and scale is the scale of the input type. If the SUM result overflows, a DECIMAL OVERFLOW error is reported.
 
 ### HYPERLOGLOG
 
@@ -1932,42 +1969,6 @@ FIRST(expr)
 - If all values in a column in the result set are NULL, the return for that column is also NULL;
 - If all columns in the result set are NULL, no results are returned.
 - For tables with composite primary keys, if there are multiple entries with the smallest timestamp, only the data with the smallest composite primary key is returned.
-
-### INTERP
-
-```sql
-INTERP(expr [, ignore_null_values])
-
-ignore_null_values: {
-    0
-  | 1
-}
-```
-
-**Function Description**: Returns the record value or interpolated value of a specified column at a specified time slice. The ignore_null_values parameter can be 0 or 1, where 1 means to ignore NULL values, default is 0.
-
-**Return Data Type**: Same as the field type.
-
-**Applicable Data Types**: Numeric types.
-
-**Applicable to**: Tables and supertables.
-
-**Usage Instructions**
-
-- INTERP is used to obtain the record value of a specified column at a specified time slice. If there is no row data that meets the conditions at that time slice, interpolation will be performed according to the settings of the FILL parameter.
-- The input data for INTERP is the data of the specified column, which can be filtered through conditional statements (where clause). If no filtering condition is specified, the input is all data.
-- INTERP SQL queries need to be used together with the RANGE, EVERY, and FILL keywords; stream computing cannot use RANGE, needs EVERY and FILL keywords together.
-- The output time range for INTERP is specified by the RANGE(timestamp1, timestamp2) field, which must satisfy timestamp1 \<= timestamp2. Here, timestamp1 is the start value of the output time range, i.e., if the conditions for interpolation are met at timestamp1, then timestamp1 is the first record output, and timestamp2 is the end value of the output time range, i.e., the timestamp of the last record output cannot be greater than timestamp2.
-- INTERP determines the number of results within the output time range based on the EVERY(time_unit) field, starting from timestamp1 and interpolating at fixed intervals of time (time_unit value), where time_unit can be time units: 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). For example, EVERY(500a) will interpolate the specified data every 500 milliseconds.
-- INTERP determines how to interpolate at each time point that meets the output conditions based on the FILL field. For how to use the FILL clause, refer to [FILL Clause](../time-series-extensions/)
-- INTERP can interpolate at a single time point specified in the RANGE field, in which case the EVERY field can be omitted. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
-- When INTERP is applied to a supertable, it will sort all the subtable data under that supertable by primary key column and perform interpolation calculations, and can also be used with PARTITION BY tbname to force the results to a single timeline.
-- INTERP can be used with the pseudocolumn _irowts to return the timestamp corresponding to the interpolation point (supported from version 3.0.2.0).
-- INTERP can be used with the pseudocolumn _isfilled to display whether the return result is from the original record or generated by the interpolation algorithm (supported from version 3.0.3.0).
-- For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
-- INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in stream computing and window queries. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR).(Supported from version 3.3.4.9).
-- INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
-- INTERP `RANGE` clause supports the expansion of the time range (supported from version 3.3.4.9), For example, `RANGE('2023-01-01 00:00:00', 10s)` means that only data within 10s around the time point '2023-01-01 00:00:00' can be used for interpolation. `FILL PREV/NEXT/NEAR` respectively means to look for data forward/backward/around the time point. If there is no data around the time point, the default value specified by `FILL` is used for interpolation. Therefore the `FILL` clause must specify the default value at the same time. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1). Starting from the 3.3.6.0 version, the combination of time period and time range is supported. When interpolating for each point within the time period, the time range requirement must be met. Prior versions only supported single time point and its time range. The available values for time range are similar to `EVERY`, the unit cannot be year or month, the value must be greater than 0, and cannot be in quotes. When using this extension, `FILL` modes other than `PREV/NEXT/NEAR` are not supported.
 
 ### LAST
 
@@ -2233,6 +2234,36 @@ ignore_option: {
 - Can be used with associated columns. For example: select _rowts, DIFF() from.
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
 - When using composite primary keys, the timestamp and primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
+
+### INTERP
+
+```sql
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
+```
+
+**Function Description**: Returns the record value or interpolated value of a specified column at a specified time slice. The ignore_null_values parameter can be 0 or 1, where 1 means to ignore NULL values, default is 0.
+
+**Return Data Type**: Same as the field type.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**
+
+- INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](../query-data/#interp).
+- When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL](../time-series-extensions/#fill-clause) parameter.
+- When INTERP is applied to a supertable, it will sort all the subtable data under that supertable by primary key column and perform interpolation calculations, and can also be used with PARTITION BY tbname to force the results to a single timeline.
+- When using INTERP with FILL PREV/NEXT/NEAR modes, its behavior differs from window queries. If data exists at the slice, no FILL operation will be performed, even if the current value is NULL.
+- INTERP can be used with the pseudocolumn _irowts to return the timestamp corresponding to the interpolation point (supported from version 3.0.2.0).
+- INTERP can be used with the pseudocolumn _isfilled to display whether the return result is from the original record or generated by the interpolation algorithm (supported from version 3.0.3.0).
+- INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
+- For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
 
 ### IRATE
 

@@ -17,7 +17,6 @@
 #define TDENGINE_STREAMMSG_H
 
 #include "tmsg.h"
-//#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +40,7 @@ typedef struct SStreamUpstreamEpInfo {
   SEpSet  epSet;
   bool    dataAllowed;  // denote if the data from this upstream task is allowed to put into inputQ, not serialize it
   int64_t stage;  // upstream task stage value, to denote if the upstream node has restart/replica changed/transfer
+  int64_t lastMsgId;
 } SStreamUpstreamEpInfo;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo);
@@ -79,10 +79,12 @@ typedef struct SStreamTaskNodeUpdateMsg {
   int64_t streamId;
   int32_t taskId;
   SArray* pNodeList;  // SArray<SNodeUpdateInfo>
+  SArray* pTaskList;  // SArray<int32_t>, taskId list
 } SStreamTaskNodeUpdateMsg;
 
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
+void    tDestroyNodeUpdateMsg(SStreamTaskNodeUpdateMsg* pMsg);
 
 typedef struct {
   int64_t reqId;
@@ -241,6 +243,7 @@ typedef struct SRestoreCheckpointInfo {
   int32_t  transId;        // transaction id of the update the consensus-checkpointId transaction
   int32_t  taskId;
   int32_t  nodeId;
+  int32_t  term;
 } SRestoreCheckpointInfo;
 
 int32_t tEncodeRestoreCheckpointInfo(SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
@@ -255,6 +258,14 @@ typedef struct {
 
 int32_t tEncodeStreamTaskRunReq(SEncoder* pEncoder, const SStreamTaskRunReq* pReq);
 int32_t tDecodeStreamTaskRunReq(SDecoder* pDecoder, SStreamTaskRunReq* pReq);
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+} SStreamTaskStopReq;
+
+int32_t tEncodeStreamTaskStopReq(SEncoder* pEncoder, const SStreamTaskStopReq* pReq);
+int32_t tDecodeStreamTaskStopReq(SDecoder* pDecoder, SStreamTaskStopReq* pReq);
 
 #ifdef __cplusplus
 }

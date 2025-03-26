@@ -76,7 +76,7 @@ void        tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue);
 
 int32_t     tAutoQWorkerInit(SAutoQWorkerPool *pool);
 void        tAutoQWorkerCleanup(SAutoQWorkerPool *pool);
-STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem fp);
+STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem fp, int32_t minNum);
 void        tAutoQWorkerFreeQueue(SAutoQWorkerPool *pool, STaosQueue *queue);
 
 int32_t     tWWorkerInit(SWWorkerPool *pool);

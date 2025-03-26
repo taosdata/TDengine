@@ -37,23 +37,23 @@ taos> quit
 ### 基础参数
 可通过配置命令行参数来改变 TDengine CLI 的行为。以下为常用的几个命令行参数：
 
-- -h HOST: 要连接的 TDengine 服务端所在服务器的 FQDN, 默认值： 127.0.0.1 。
-- -P PORT: 指定服务端所用端口号，默认值：6030 。
-- -u USER: 连接时使用的用户名，默认值：root 。
-- -p PASSWORD: 连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理, 默认值：taosdata 。
-- -?, --help: 打印出所有命令行参数。
-- -s COMMAND: 以非交互模式执行的 SQL 命令。
+- -h HOST：要连接的 TDengine 服务端所在服务器的 FQDN, 默认值：127.0.0.1。
+- -P PORT：指定服务端所用端口号，默认值：6030。
+- -u USER：连接时使用的用户名，默认值：root。
+- -p PASSWORD：连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理, 默认值：taosdata。
+- -?, --help：打印出所有命令行参数。
+- -s COMMAND：以非交互模式执行的 SQL 命令。
 
     使用 `-s` 参数可进行非交互式执行 SQL，执行完成后退出，此模式适合在自动化脚本中使用。  
-    如以下命令连接到服务器 h1.taos.com, 执行 -s 指定的 SQL:
+    如以下命令连接到服务器 h1.taos.com, 执行 -s 指定的 SQL：
     ```bash
     taos -h my-server -s "use db; show tables;"
     ```
 
-- -c CONFIGDIR: 指定配置文件目录。
+- -c CONFIGDIR：指定配置文件目录。
  
-    Linux 环境下默认为 `/etc/taos`，该目录下的配置文件默认名称为 `taos.cfg` 。
-    使用 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc) 。  
+    Linux 环境下默认为 `/etc/taos`，该目录下的配置文件默认名称为 `taos.cfg`。
+    使用 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc)。  
     以下命令指定了 `taosc` 客户端加载 `/root/cfg/` 下的 `taos.cfg` 配置文件。
     ```bash
     taos -c /root/cfg/
@@ -61,30 +61,30 @@ taos> quit
 
 ### 高级参数
 
-- -a AUTHSTR: 连接服务端的授权信息。
-- -A: 通过用户名和密码计算授权信息。
-- -B: 设置 BI 工具显示模式，设置后所有输出都遵循 BI 工具的格式进行输出。
-- -C: 打印 -c 指定的目录中 `taos.cfg` 的配置参数。
-- -d DATABASE: 指定连接到服务端时使用的数据库。
-- -E dsn: 使用 WebSocket DSN 连接云服务或者提供 WebSocket 连接的服务端。
-- -f FILE: 以非交互模式执行 SQL 脚本文件。文件中一个 SQL 语句只能占一行。
-- -k: 测试服务端运行状态，0: unavailable，1: network ok，2: service ok，3: service degraded，4: exiting 。
-- -l PKTLEN: 网络测试时使用的测试包大小。
-- -n NETROLE: 网络连接测试时的测试范围，默认为 `client`, 可选值为 `client`、`server` 。
-- -N PKTNUM: 网络测试时使用的测试包数量。
-- -r: 将时间列转化为无符号 64 位整数类型输出(即 C 语言中 uint64_t) 。
-- -R: 使用 RESTful 模式连接服务端。
-- -t: 测试服务端启动状态，状态同 -k 。
-- -w DISPLAYWIDTH: 客户端列显示宽度。
-- -z TIMEZONE: 指定时区，默认为本地时区。
-- -V: 打印出当前版本号。
+- -a AUTHSTR：连接服务端的授权信息。
+- -A：通过用户名和密码计算授权信息。
+- -B：设置 BI 工具显示模式，设置后所有输出都遵循 BI 工具的格式进行输出。
+- -C：打印 -c 指定的目录中 `taos.cfg` 的配置参数。
+- -d DATABASE：指定连接到服务端时使用的数据库。
+- -E dsn：使用 WebSocket DSN 连接云服务或者提供 WebSocket 连接的服务端。
+- -f FILE：以非交互模式执行 SQL 脚本文件。文件中一个 SQL 语句只能占一行。
+- -k：测试服务端运行状态，0：unavailable、1：network ok、2：service ok、3：service degraded、4：exiting。
+- -l PKTLEN：网络测试时使用的测试包大小。
+- -n NETROLE：网络连接测试时的测试范围，默认为 `client`，可选值为 `client`、`server`。
+- -N PKTNUM：网络测试时使用的测试包数量。
+- -r：将时间列转化为无符号 64 位整数类型输出(即 C 语言中 uint64_t)。
+- -R：使用 RESTful 模式连接服务端。
+- -t：测试服务端启动状态，状态同 -k。
+- -w DISPLAYWIDTH：客户端列显示宽度。
+- -z TIMEZONE：指定时区，默认为本地时区。
+- -V：打印出当前版本号。
 
 
 ## 数据导出/导入
 
 ### 数据导出
 
-- 可以使用符号 “>>” 导出查询结果到某个文件中，语法为： sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 `select * from d0 >> ‘/root/d0.csv’;`  将把查询结果输出到 /root/d0.csv 中。
+- 可以使用符号 “>>” 导出查询结果到某个文件中，语法为：sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 `select * from d0 >> ‘/root/d0.csv’;`  将把查询结果输出到 /root/d0.csv 中。
 
 ### 数据导入
 
@@ -105,7 +105,7 @@ taos> source <filename>;
 - TAB 键前为空命令状态下按 TAB 键，会列出 TDengine CLI 支持的所有命令。
 - TAB 键前为空格状态下按 TAB 键，会显示此位置可以出现的所有命令词的第一个，再次按 TAB 键切为下一个。
 - TAB 键前为字符串，会搜索与此字符串前缀匹配的所有可出现命令词，并显示第一个，再次按 TAB 键切为下一个。
-- 输入反斜杠 `\` + TAB 键, 会自动补全为列显示模式命令词 `\G;` 。
+- 输入反斜杠 `\` + TAB 键, 会自动补全为列显示模式命令词 `\G;`。
 
 ### 设置字符列显示宽度
 
@@ -120,10 +120,10 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH 120;
 ### 其它
 
 - 可以使用上下光标键查看历史输入的指令。
-- 在 TDengine CLI 中使用 `alter user` 命令可以修改用户密码，缺省密码为 `taosdata` 。
+- 在 TDengine CLI 中使用 `alter user` 命令可以修改用户密码，缺省密码为 `taosdata`。
 - Ctrl+C 中止正在进行中的查询。
 - 执行 `RESET QUERY CACHE` 可清除本地表 Schema 的缓存。
-- 批量执行 SQL 语句。可以将一系列的 TDengine CLI 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 TDengine CLI 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句。
+- 批量执行 SQL 语句。可以将一系列的 TDengine CLI 命令（以英文 `;` 结尾，每个 SQL 语句为一行）按行存放在文件里，在 TDengine CLI 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句。
 
 ## 错误代码表
 在 TDengine 3.3.4.8 版本后 TDengine CLI 在返回错误信息中返回了具体错误码，用户可到 TDengine 官网错误码页面查找具体原因及解决措施，见：[错误码参考表](https://docs.taosdata.com/reference/error-code/)

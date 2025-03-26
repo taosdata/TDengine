@@ -4,7 +4,7 @@ sidebar_label: taosdump
 toc_max_heading_level: 4
 ---
 
-taosdump 是为开源用户提供的 TDengine 数据备份/恢复工具，备份数据文件采用标准 [ Apache AVRO ](https://avro.apache.org/) 格式，方便与外界生态交换数据。taosdump 提供多种数据备份及恢复选项来满足不同需求，可通过 --help 查看支持的全部选项。
+taosdump 是为开源用户提供的 TDengine 数据备份/恢复工具，备份数据文件采用标准 [Apache AVRO](https://avro.apache.org/) 格式，方便与外界生态交换数据。taosdump 提供多种数据备份及恢复选项来满足不同需求，可通过 --help 查看支持的全部选项。
 
 ## 工具获取
 

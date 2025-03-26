@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.0)
-
 # init
 SET(TD_LINUX FALSE)
 SET(TD_WINDOWS FALSE)

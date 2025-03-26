@@ -264,7 +264,6 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           }
           break;
         }
-        case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_BLOB:
         case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -295,7 +294,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
               }
 
               SValue sv = {.type = pCol->type};
-              TAOS_MEMCPY(&sv.val, var, tDataTypes[pCol->type].bytes);
+              valueSetDatum(&sv, sv.type, var, tDataTypes[pCol->type].bytes);
               SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
               if (NULL == taosArrayPush(pVals, &cv)) {
                 goto _end;
