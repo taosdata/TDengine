@@ -186,8 +186,8 @@ Write the data of the custom type into the sub-tables corresponding to the super
 </details>
 
 :::note
-- [ResultBean](docs/examples/flink/ResultBean.java)  is a custom inner class used to define the data type of the Source query results.
-- [ResultBeanSinkSerializer](docs/examples/flink/ResultBeanSinkSerializer.java) is a custom inner class that inherits TDengine RecordDesrialization and implements convert and getProducedType methods.
+- [ResultBean](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/test/java/com/taosdata/flink/entity/ResultBean.java)  is a custom inner class used to define the data type of the Source query results.
+- [ResultBeanSinkSerializer](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/test/java/com/taosdata/flink/entity/ResultBeanSinkSerializer.java) is a custom inner class that inherits TDengine RecordDesrialization and implements convert and getProducedType methods.
 :::
 
 ### Table Sink

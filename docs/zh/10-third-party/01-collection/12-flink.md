@@ -184,8 +184,8 @@ Properties 中配置参数如下：
 </details>
 
 :::note
-- [ResultBean](docs/examples/flink/ResultBean.java) 自定义的一个内部类，用于定义写入字段的数据类型。
-- [ResultBeanSinkSerializer](docs/examples/flink/ResultBeanSinkSerializer.java) 是自定义的一个内部类，通过继承 TDengineRecordDeserialization 并实现 serialize 方法完成序列化。
+- [ResultBean](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/test/java/com/taosdata/flink/entity/ResultBean.java) 自定义的一个内部类，用于定义写入字段的数据类型。
+- [ResultBeanSinkSerializer](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/test/java/com/taosdata/flink/entity/ResultBeanSinkSerializer.java) 是自定义的一个内部类，通过继承 TDengineRecordDeserialization 并实现 serialize 方法完成序列化。
 :::
 
 ### Table Sink
