@@ -15,9 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "tdataformat.h"
+#include "lz4.h"
 #include "tRealloc.h"
 #include "tdatablock.h"
 #include "tlog.h"
+#include "zlib.h"
 
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
@@ -409,6 +411,15 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
 
                 varlen += tPutU64(varlen, seq);
               }
+            } else {
+              if (hasBlob) {
+                uint64_t  seq = 0;
+                SBlobItem item = {.seqOffsetInRow = varlen - (*ppRow)->data,
+                                  .data = colValArray[colValIndex].value.pData,
+                                  .dataLen = colValArray[colValIndex].value.nData};
+                code = tBlobRowPush(pBlobRow, &item, &seq);
+                if (code != 0) return code;
+              }
             }
           } else {
             (void)memcpy(fixed + schema->columns[i].offset, &colValArray[colValIndex].value.val,
@@ -686,6 +697,16 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
                 // (void)memcpy(payload + payloadSize, &seq, sizeof(uint64_t));
                 // payloadSize += sizeof(uint64_t);
               }
+            } else {
+              if (hasBlob) {
+                uint64_t  seq = 0;
+                uint32_t  seqOffset = payloadSize + payload - (*ppRow)->data;
+                SBlobItem item = {.seqOffsetInRow = seqOffset,
+                                  .data = colValArray[colValIndex].value.pData,
+                                  .dataLen = colValArray[colValIndex].value.nData};
+                int32_t   code = tBlobRowPush(ppBlobRow, &item, &seq);
+                if (code != 0) return code;
+              }
             }
           } else {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
@@ -768,12 +789,12 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
   if (p == NULL) {
     return terrno;
   }
-  p->pSeqTable = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  p->pSeqTable = taosArrayInit(128, sizeof(SBlobValue));
   if (p->pSeqTable == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  p->data = taosMemCalloc(1, cap * sizeof(uint8_t));
+  p->data = taosMemCalloc(1024, cap * sizeof(uint8_t));
   if (p->data == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -785,7 +806,7 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
   *ppBlobRow = p;
 _exit:
   if (code != 0) {
-    taosHashCleanup(p->pSeqTable);
+    taosArrayDestroy(p->pSeqTable);
     taosMemFree(p->data);
     taosMemoryFree(p);
   }
@@ -802,9 +823,10 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq) {
   uint64_t tlen = pBlobRow->len + len;
   if (tlen > pBlobRow->cap) {
     int64_t cap = pBlobRow->cap;
-    while (tlen > cap) {
+    do {
       cap = cap * 2;
-    }
+    } while (tlen > cap);
+
     uint8_t *data = taosMemRealloc(pBlobRow->data, cap);
     if (data == NULL) {
       return terrno;
@@ -812,7 +834,9 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq) {
     pBlobRow->data = data;
     pBlobRow->cap = cap;
   }
-  (void)memcpy(pBlobRow->data + pBlobRow->len, data, len);
+  if (len > 0) {
+    (void)memcpy(pBlobRow->data + pBlobRow->len, data, len);
+  }
 
   offset = pBlobRow->len;
   pBlobRow->len += len;
@@ -821,8 +845,9 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq) {
   *seq = pBlobRow->seq;
 
   SBlobValue value = {.offset = offset, .len = len, .dataOffset = dataOffset};
-  code = taosHashPut(pBlobRow->pSeqTable, &pBlobRow->seq, sizeof(uint64_t), &value, sizeof(value));
-  TAOS_CHECK_EXIT(code);
+  if (taosArrayPush(pBlobRow->pSeqTable, &value) == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
 
 _exit:
 
@@ -830,13 +855,13 @@ _exit:
 }
 int32_t tBlobRowSize(SBlobRow2 *pBlobRow) {
   if (pBlobRow == NULL) return 0;
-  return taosHashGetSize(pBlobRow->pSeqTable);
+  return taosArrayGetSize(pBlobRow->pSeqTable);
 }
 
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow) {
   int32_t code = 0;
   taosMemFree(pBlowRow->data);
-  taosHashCleanup(pBlowRow->pSeqTable);
+  taosArrayDestroy(pBlowRow->pSeqTable);
   taosMemFree(pBlowRow);
   return code;
 }
@@ -4409,33 +4434,34 @@ int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow) {
 int32_t tEncodeBlobRow2(SEncoder *pEncoder, SBlobRow2 *pRow) {
   int32_t code = 0;
   int32_t lino = 0;
+  uint8_t compressed = 0;
+  int32_t compressSize = 0;
+  char   *p = NULL;
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRow->len));
 
-  int32_t nSeq = taosHashGetSize(pRow->pSeqTable);
-  tEncodeI32(pEncoder, nSeq);
+  int32_t nSeq = taosArrayGetSize(pRow->pSeqTable);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nSeq));
 
-  void *pIter = taosHashIterate(pRow->pSeqTable, NULL);
-  while (pIter) {
-    uint64_t   *key = (uint64_t *)taosHashGetKey(pIter, NULL);
-    SBlobValue *value = (SBlobValue *)(pIter);
-
-    TAOS_CHECK_EXIT(tEncodeU64(pEncoder, *key));
-    TAOS_CHECK_EXIT(tEncodeU64(pEncoder, value->offset));
-    TAOS_CHECK_EXIT(tEncodeU32(pEncoder, value->len));
-    TAOS_CHECK_EXIT(tEncodeU32(pEncoder, value->dataOffset));
-    pIter = taosHashIterate(pRow->pSeqTable, pIter);
+  for (int32_t i = 0; i < nSeq; i++) {
+    SBlobValue *p = taosArrayGet(pRow->pSeqTable, i);
+    TAOS_CHECK_EXIT(tEncodeU64(pEncoder, p->offset));
+    TAOS_CHECK_EXIT(tEncodeU32(pEncoder, p->len));
+    TAOS_CHECK_EXIT(tEncodeU32(pEncoder, p->dataOffset));
   }
+
   TAOS_CHECK_EXIT(tEncodeFixed(pEncoder, pRow->data, pRow->len));
+
 _exit:
   return code;
 }
 
 int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobRow2 **pBlobRow) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int32_t nSeq = 0;
-
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  int32_t    nSeq = 0;
+  uint8_t    compressd = 0;
+  int32_t    compressSize = 0;
   SBlobRow2 *pBlob = taosMemCalloc(1, sizeof(SBlobRow2));
   if (pBlob == NULL) {
     TAOS_CHECK_EXIT(terrno);
@@ -4444,36 +4470,35 @@ int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobRow2 **pBlobRow) {
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pBlob->len));
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nSeq));
-  pBlob->pSeqTable = taosHashInit(nSeq, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+
+  pBlob->pSeqTable = taosArrayInit(nSeq, sizeof(SBlobValue));
   if (pBlob->pSeqTable == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
 
   for (int32_t i = 0; i < nSeq; i++) {
-    uint64_t   k;
     SBlobValue value;
-    TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &k));
-
     TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &value.offset));
     TAOS_CHECK_EXIT(tDecodeU32(pDecoder, &value.len));
     TAOS_CHECK_EXIT(tDecodeU32(pDecoder, &value.dataOffset));
-    TAOS_CHECK_EXIT(taosHashPut(pBlob->pSeqTable, &k, sizeof(k), &value, sizeof(value)));
+    if (taosArrayPush(pBlob->pSeqTable, &value) == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
   }
 
   pBlob->data = taosMemCalloc(1, pBlob->len);
   if (pBlob->data == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
-  pBlob->cap = pBlob->len;
 
   TAOS_CHECK_EXIT(tDecodeFixed(pDecoder, pBlob->data, pBlob->len));
-
   *pBlobRow = pBlob;
+
 _exit:
   if (code != 0) {
     if (pBlob != NULL) {
       taosMemFree(pBlob->data);
-      taosHashCleanup(pBlob->pSeqTable);
+      taosArrayDestroy(pBlob->pSeqTable);
       taosMemFree(pBlob);
     }
   }

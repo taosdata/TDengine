@@ -1153,8 +1153,10 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
       colDataSetNULL(pColInfoData, rowIndex);
     } else {
       if (IS_STR_DATA_BLOB(pColVal->value.type)) {
-        code = doGetValueFromBseBySeq(pSup->args, pColVal->value.pData, sizeof(uint64_t), &pValue, &len);
-        // TSDB_CHECK_CODE(code, lino, _end);
+        if (pColVal->value.nData != 0) {
+          code = doGetValueFromBseBySeq(pSup->args, pColVal->value.pData, sizeof(uint64_t), &pValue, &len);
+          TSDB_CHECK_CODE(code, lino, _end);
+        }
 
         if (pColVal->value.type == TSDB_DATA_TYPE_BLOB || pColVal->value.type == TSDB_DATA_TYPE_MEDIUMBLOB) {
           code = doReallocBuf(pSup, colIndex, pColInfoData->info.bytes, len);

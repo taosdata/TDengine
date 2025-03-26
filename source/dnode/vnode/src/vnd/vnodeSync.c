@@ -260,15 +260,14 @@ static int32_t tEncodeSubSubmitAndUpdate(SVnode *pVnode, SEncoder *pEncoder, SSu
     int32_t    nr = 0;
     uint64_t   seq = 0;
     SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
-    void      *pIter = taosHashIterate(pSubmitTbData->pBlobRow->pSeqTable, NULL);
-    SRow     **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
-    while (pIter) {
-      SBlobValue *p = (SBlobValue *)pIter;
-      // code = bseAppend(pVnode->pBse, &seq, pBlobRow->data + p->offset, p->len);
-      memcpy(pRow[nr]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
 
-      pIter = taosHashIterate(pBlobRow->pSeqTable, pIter);
-      nr += 1;
+    SRow  **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+    int32_t sz = taosArrayGetSize(pBlobRow->pSeqTable);
+    for (int32_t i = 0; i < sz; i++) {
+      SBlobValue *p = taosArrayGet(pBlobRow->pSeqTable, i);
+
+      // code = bseAppend(pVnode->pBse, &seq, pBlobRow->data + p->offset, p->len);
+      memcpy(pRow[i]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
     }
   }
   int32_t nRow = taosArrayGetSize(pSubmitTbData->aRowP);
