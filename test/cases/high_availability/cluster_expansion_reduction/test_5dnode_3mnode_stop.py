@@ -55,7 +55,7 @@ class Test5dnode3mnodeStop:
     def test_five_dnode_three_mnode(self):
         """测试多节点集群缩扩容后mnode状态
 
-        5节点集群停止、启动各个dnode后，检查mnode状态
+        5节点集群停止、启动各个dnode后, 检查mnode状态
 
         Since: v3.3.0.0
 
