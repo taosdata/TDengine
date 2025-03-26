@@ -141,7 +141,7 @@ Properties 中配置参数如下：
 - TDengineConfigParams.PROPERTY_KEY_DBNAME：写入的数据库名称。
 - TDengineConfigParams.TD_SUPERTABLE_NAME：写入的超级表名称。写入的数据必须有 tbname 字段，确定写入那张子表。
 - TDengineConfigParams.TD_TABLE_NAME：写入子表或普通表的表名，此参数和TD_SUPERTABLE_NAME 仅需要设置一个即可。
-- TDengineConfigParams.VALUE_DESERIALIZER：接收结果集反序列化方法, 如果接收结果集类型是 Flink 的 `RowData`，仅需要设置为 `RowData`即可。也可继承 [TDengineSinkRecordSerializer](docs/examples/flink/ResultBeanSinkSerializer.java) 并实现 `serialize` 方法，根据 接收的数据类型自定义反序列化方式。
+- TDengineConfigParams.VALUE_DESERIALIZER：接收结果集反序列化方法, 如果接收结果集类型是 Flink 的 `RowData`，仅需要设置为 `RowData`即可。也可继承 [TDengineSinkRecordSerializer]([docs/examples/flink/ResultBeanSinkSerializer.java](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/main/java/com/taosdata/flink/sink/serializer/TDengineSinkRecordSerializer.java)) 并实现 `serialize` 方法，根据 接收的数据类型自定义反序列化方式。
 - TDengineConfigParams.TD_BATCH_SIZE：设置一次写入 `TDengine` 数据库的批大小 | 当到达批的数量后进行写入，或是一个 checkpoint 的时间也会触发写入数据库。
 - TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。true: 启用，false: 不启用。默认为 false。
