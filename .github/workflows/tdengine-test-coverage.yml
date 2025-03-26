@@ -4,6 +4,11 @@ name: TDengine Coverage
 
 on:
   workflow_dispatch:
+    inputs:
+      specified_test_branch:
+        description: 'Select the test branch name of TDengine'
+        required: true
+        type: string
   schedule:
     - cron: '0 06 * * *'
     - cron: '0 18 * * *'
