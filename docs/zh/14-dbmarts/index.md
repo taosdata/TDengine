@@ -15,4 +15,4 @@ TDengine Cloud 为所有客户提供一个数据库集市，客户可以查看�
 ```
 
 - 数据集详情请参考 [体验 TDgpt](../tdgpt/)
-- TDgpt 详情请参考 [TDgpt文档](https://docs.taosdata.com/advanced/TDgpt/introduction/)
+- TDgpt 详情请参考 [TDgpt 文档](https://docs.taosdata.com/advanced/TDgpt/)
