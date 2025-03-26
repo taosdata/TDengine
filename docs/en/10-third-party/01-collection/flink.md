@@ -88,11 +88,11 @@ TDengine currently supports timestamp, number, character, and boolean types, and
 
 ### Flink Semantic Selection Instructions
 
-The semantic reason for using At Least One (at least once) is:
+The semantic reason for using `At-Least-Once` is:
 
 - TDengine currently does not support transactions and cannot perform frequent checkpoint operations and complex transaction coordination.
 - Due to TDengine's use of timestamps as primary keys, downstream operators of duplicate data can perform filtering operations to avoid duplicate calculations.
-- Using At Least One (at least once) to ensure high data processing performance and low data latency, the setting method is as follows:
+- Using `At-Least-Once` to ensure high data processing performance and low data latency, the setting method is as follows:
 
 Instructions:
 
@@ -144,7 +144,7 @@ Sink Properties
 - TDengineConfigParams.TD_SUPERTABLE_NAME:The name of the super table. The received data must have a tbname field to determine which sub table to write to.
 - TDengineConfigParams.TD_TABLE_NAME: The table name of a sub table or a normal table. This parameter only needs to be set together with `TD_SUPERTABLE_NAME`.
 - TDengineConfigParams.VALUE_DESERIALIZER: The deserialization method for receiving result sets. If the type of the received result set is `RowData` of Flink, it only needs to be set to `RowData`. It is also possible to inherit [TDengineSinkRecordSerializer](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/main/java/com/taosdata/flink/sink/serializer/TDengineSinkRecordSerializer.java) and implement the `serialize` method, customizing the deserialization method based on the received data type.
-- TDengineConfigParams.TD_BATCH_SIZE: Set the batch size for writing to the `TDengine` database once | Writing will be triggered when the number of batches is reached, or when a checkpoint is set.
+- TDengineConfigParams.TD_BATCH_SIZE: Set the batch size for writing to the TDengine database once | Writing will be triggered when the number of batches is reached, or when a checkpoint is set.
 - TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: Message timeout time, in milliseconds, default value is 60000.
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION: Is compression enabled during the transmission process. true:  Enable, false:  Not enabled. The default is false.
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable automatic reconnection. true:  Enable, false:  Not enabled. The default is false.
@@ -165,7 +165,7 @@ Write the data of the RowData type into the sub-table corresponding to the super
 
 Usage example:
 
-Write the data of the RowData type into the sink_normal table in the power_sink database.
+Write the data of the `RowData` type into the `sink_normal` table in the `power_sink` database.
 
 <details>
 <summary>RowData Into Normal Table</summary>
@@ -210,7 +210,7 @@ Parameter configuration instructions:
 
 Usage example:
 
-Write data into the sub-tables corresponding to the super table sink_meters in the power_sink database via SQL statements.
+Write data into the sub-tables corresponding to the super table `sink_meters` in the `power_sink` database via SQL statements.
 
 <details>
 <summary>Table SQL Into Super Table </summary>
@@ -221,7 +221,7 @@ Write data into the sub-tables corresponding to the super table sink_meters in t
 
 Usage example:
 
-Write data into the sink_normal table in the power_sink database via SQL statements.
+Write data into the `sink_normal` table in the `power_sink` database via SQL statements.
 
 <details>
 <summary>Table SQL Into Normal Table </summary>
@@ -232,7 +232,7 @@ Write data into the sink_normal table in the power_sink database via SQL stateme
 
 Usage example:
 
-Write data of the Row type into the sub-tables corresponding to the super table sink_meters in the power_sink database.
+Write data of the `Row` type into the sub-tables corresponding to the super table `sink_meters` in the `power_sink` database.
 
 <details>
 <summary>Table Row To Sink </summary>

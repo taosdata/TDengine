@@ -127,7 +127,7 @@ URL 规范格式为：
 
 ### Sink 
 
-Sink 的核心功能在于高效且精准地将经过 `Flink` 处理的、源自不同数据源或算子的数据写入 `TDengine`。在这一过程中，`TDengine` 所具备的高效写入机制发挥了至关重要的作用，有力保障了数据的快速和稳定存储。
+Sink 的核心功能在于高效且精准地将经过 Flink 处理的、源自不同数据源或算子的数据写入 TDengine。在这一过程中 TDengine 所具备的高效写入机制发挥了至关重要的作用，有力保障了数据的快速和稳定存储。
 
 :::note
 - 写入的数据库必须已经创建。
@@ -136,23 +136,23 @@ Sink 的核心功能在于高效且精准地将经过 `Flink` 处理的、源自
 
 Properties 中配置参数如下：
 
-- TDengineConfigParams.PROPERTY_KEY_USER：登录 `TDengine` 用户名，默认值 'root'。
+- TDengineConfigParams.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 'root'。
 - TDengineConfigParams.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 'taosdata'。
 - TDengineConfigParams.PROPERTY_KEY_DBNAME：写入的数据库名称。
 - TDengineConfigParams.TD_SUPERTABLE_NAME：写入的超级表名称。写入的数据必须有 tbname 字段，确定写入那张子表。
 - TDengineConfigParams.TD_TABLE_NAME：写入子表或普通表的表名，此参数和TD_SUPERTABLE_NAME 仅需要设置一个即可。
 - TDengineConfigParams.VALUE_DESERIALIZER：接收结果集反序列化方法, 如果接收结果集类型是 Flink 的 `RowData`，仅需要设置为 `RowData`即可。也可继承 [TDengineSinkRecordSerializer](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/main/java/com/taosdata/flink/sink/serializer/TDengineSinkRecordSerializer.java) 并实现 `serialize` 方法，根据 接收的数据类型自定义反序列化方式。
-- TDengineConfigParams.TD_BATCH_SIZE：设置一次写入 `TDengine` 数据库的批大小 | 当到达批的数量后进行写入，或是一个 checkpoint 的时间也会触发写入数据库。
+- TDengineConfigParams.TD_BATCH_SIZE：设置一次写入 TDengine 数据库的批大小 | 当到达批的数量后进行写入，或是一个 checkpoint 的时间也会触发写入数据库。
 - TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。true: 启用，false: 不启用。默认为 false。
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。true: 启用，false: 不启用。默认为 false。
-- TDengineConfigParams.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TDengineConfigParams.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 true 时生效。
+- TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 true 时生效。
 - TDengineConfigParams.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: 关闭 SSL 证书验证 。true: 启用，false: 不启用。默认为 false。
 
 使用示例：
 
-将 RowData 类型的数据写入 power_sink 库的 sink_meters 超级表对应的子表中。
+将 `RowData` 类型的数据写入 `power_sink` 库的 `sink_meters` 超级表对应的子表中。
 
 <details>
 <summary>RowData Into Super Table</summary>
@@ -163,7 +163,7 @@ Properties 中配置参数如下：
 
 使用示例
 
-将 RowData 类型的数据写入 power_sink 库的 sink_normal 普通表表中。
+将 `RowData` 类型的数据写入 `power_sink` 库的 `sink_normal` 普通表表中。
 
 <details>
 <summary>RowData Into Normal Table</summary>
@@ -174,7 +174,7 @@ Properties 中配置参数如下：
 
 使用示例：
 
-将自定义类型的数据写入 power_sink 库的 sink_meters 超级表对应的子表中。
+将自定义类型的数据写入 `power_sink` 库的 `sink_meters` 超级表对应的子表中。
 
 <details>
 <summary>CustomType Into Super Table</summary>
@@ -207,7 +207,7 @@ Properties 中配置参数如下：
 
 使用示例：
 
-通过 Sql 语句写入 power_sink 库的 sink_meters 超级表对应的子表中。
+通过 SQL 语句写入 `power_sink` 库的 `sink_meters` 超级表对应的子表中。
 
 <details>
 <summary>Table SQL Into Super Table </summary>
@@ -218,7 +218,7 @@ Properties 中配置参数如下：
 
 使用示例：
 
-通过 Sql 语句写入 power_sink 库的 sink_normal 普通表中。
+通过 SQL 语句写入 `power_sink` 库的 `sink_normal` 普通表中。
 
 <details>
 <summary>Table SQL Into Normal Table </summary>
@@ -229,7 +229,7 @@ Properties 中配置参数如下：
 
 使用示例：
 
-将 Row 类型数据写入 power_sink 库的 sink_meters 超级表对应的子表中。
+将 `Row` 类型数据写入 `power_sink` 库的 `sink_meters` 超级表对应的子表中。
 
 <details>
 <summary>Table Row To Sink </summary>
