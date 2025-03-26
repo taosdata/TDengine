@@ -1,10 +1,10 @@
 ---
-title: "增加时序数据基础模型"
-sidebar_label: "增加时序数据基础模型"
+title: "预测分析"
+sidebar_label: "预测分析"
 ---
 
 ### 输入约定
-`execute` 是预测算法处理的核心方法。框架调用该方法之前，在对象属性参数 `self.list` 中已经设置完毕用于预测的历史时间序列数据。
+`execute` 是预测分析算法的核心方法。框架调用该方法之前，在对象属性参数 `self.list` 中已经设置完毕用于预测的历史时间序列数据。
 
 ### 输出约定及父类属性说明
 `execute` 方法执行完成后的返回一个如下字典对象， 预测返回结果如下：
@@ -88,7 +88,7 @@ SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
 FROM foo;
 ```
 
-如果是第一次启动该 Anode, 请按照 [TDgpt 安装部署](../../management/) 里的步骤先将该 Anode 添加到 TDengine 系统中。
+如果是第一次启动该 Anode, 请按照 [运维管理指南](../../03-management) 里的步骤先将该 Anode 添加到 TDengine 系统中。
 
 ### 单元测试
 

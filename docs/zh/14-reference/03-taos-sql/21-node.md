@@ -55,7 +55,7 @@ ALTER DNODE 1 'debugFlag' '143';
 ```
 
 ### 补充说明：
-配置参数在 dnode 中被分为全局配置参数与局部配置参数，您可以查看 SHOW VARIABLES 或 SHOW DNODE dnode_id VARIABLE 中的 category 字段来确认配置参数属于全局配置参数还是局部配置参数。
+配置参数在 dnode 中被分为全局配置参数与局部配置参数，您可以查看 SHOW VARIABLES 或 SHOW DNODE dnode_id VARIABLES 中的 category 字段来确认配置参数属于全局配置参数还是局部配置参数。
 1. 局部配置参数：您可以使用 ALTER DNODE 或 ALTER ALL DNODES 来更新某一个 dnode 或全部 dnodes 的局部配置参数。
 2. 全局配置参数：全局配置参数要求各个 dnode 保持一致，所以您只可以使用 ALTER ALL DNODES 来更新全部 dnodes 的全局配置参数。
 
@@ -64,7 +64,7 @@ ALTER DNODE 1 'debugFlag' '143';
 2. 支持动态修改，重启生效
 3. 不支持动态修改
 
-对于重启后生效的配置参数，您可以通过 `SHOW VARIABLES` 或 `SHOW DNODE dnode_id VARIABLE` 看到修改后的值，但是需要重启数据库服务才使其生效。
+对于重启后生效的配置参数，您可以通过 `SHOW VARIABLES` 或 `SHOW DNODE dnode_id VARIABLES` 看到修改后的值，但是需要重启数据库服务才使其生效。
 
 ## 添加管理节点
 

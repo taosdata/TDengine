@@ -1,6 +1,6 @@
 ---
-title: "运维管理指南"
-sidebar_label: "运维管理指南"
+title: "Anode 管理"
+sidebar_label: "Anode 管理"
 ---
 
 import PkgListV3 from "/components/PkgListV3";
@@ -12,6 +12,24 @@ import PkgListV3 from "/components/PkgListV3";
 systemctl start  taosanoded
 systemctl stop   taosanoded
 systemctl status taosanoded
+```
+
+### 启停时间序列基础模型服务
+考虑到时序基础模型服务，需要较大的资源。避免启动过程中资源不足导致的启动失败，暂不提供自动启动方式。如果您希望体验时序基础模型服务，需要手动执行如下命令
+```bash
+# 启动涛思时序数据基础模型
+start-tdtsfm
+
+# 启动 Time-MoE 基础模型
+start-timer-moe
+```
+
+```bash
+# 停止涛思时序数据基础模型
+stop-tdtsfm
+
+# 停止 Time-MoE 基础模型
+stop-timer-moe
 ```
 
 ### 目录及配置说明
@@ -82,14 +100,16 @@ Anode 运行配置主要是以下：
 
 ### Anode 基本操作
 对于 Anode 的管理，用户需要通过 TDengine 的命令行接口 taos 进行。因此下述介绍的管理命令都需要先打开 taos, 连接到 TDengine 运行实例。 
+
 #### 创建 Anode
 ```sql 
 CREATE ANODE {node_url}
 ```
-node_url 是提供服务的 Anode 的 IP 和 PORT组成的字符串, 例如：`create anode '127.0.0.1:6090'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串, 例如：`create anode '127.0.0.1:6090'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS`等属性。
+
 ```sql
 SHOW ANODES;
 
@@ -106,20 +126,39 @@ Query OK, 1 row(s) in set (0.037205s)
 ```SQL
 SHOW ANODES FULL;
 
-taos> show anodes full;
-     id      |            type            |              algo              |
-============================================================================
-           1 | anomaly-detection          | shesd                          |
-           1 | anomaly-detection          | iqr                            |
-           1 | anomaly-detection          | ksigma                         |
-           1 | anomaly-detection          | lof                            |
-           1 | anomaly-detection          | grubbs                         |
-           1 | anomaly-detection          | ad_encoder                     |
-           1 | forecast                   | holtwinters                    |
-           1 | forecast                   | arima                          |
-Query OK, 8 row(s) in set (0.008796s)
-
+taos> show anodes full;                                                      
+     id      |            type            |              algo              | 
+============================================================================ 
+           1 | anomaly-detection          | grubbs                         | 
+           1 | anomaly-detection          | lof                            | 
+           1 | anomaly-detection          | shesd                          | 
+           1 | anomaly-detection          | ksigma                         | 
+           1 | anomaly-detection          | iqr                            | 
+           1 | anomaly-detection          | sample_ad_model                | 
+           1 | forecast                   | arima                          | 
+           1 | forecast                   | holtwinters                    | 
+           1 | forecast                   | tdtsfm_1                       | 
+           1 | forecast                   | timemoe-fc                     | 
+Query OK, 10 row(s) in set (0.028750s)                                       
 ```
+
+列表中的算法分为两个部分，分别是异常检测算法集合，包含六个算法模型，四个预测算法集。算法模型如下：
+
+|类型    |模型名称|说明                |
+|--------|--------|--------------------|
+|异常检测 |grubbs |基于数学统计学检测模型|
+|异常检测 |lof    |基于密度的检测模型   |
+|异常检测 |shesd  |季节性 ESD 算法模型    |
+|异常检测 |ksigma |数学统计学检测模型   |
+|异常检测 |iqr    |数学统计学检测模型   |
+|预测分析 |sample_ad_model |基于自编码器的异常检测示例模型|
+|预测分析 |arima |移动平均自回归预测算法|
+|预测分析 |holtwinters |多次指数平滑预测算法|
+|预测分析 |tdtsfm_1 |涛思时序数据基础模型 v1.0 版本|
+|预测分析 |timemoe-fc |Time-MoE 时序基础模型的预测能力|
+
+相关算法的具体介绍和使用说明见后续章节。
+
 
 #### 刷新集群中的分析算法缓存
 ```SQL
