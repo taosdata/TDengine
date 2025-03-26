@@ -25,7 +25,6 @@ FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder')
 
 其中的 `algo` 设置为 `sample_ad_model` 为示例异常检测模型，`model` 指定加载模型文件的信息。需要注意的是，该模型只针对训练的数据集具有较好的检测效果，针对非训练相关数据集，可能无法得出合适的结果。
 
-
 后续添加机器（深度）学习异常检测算法
 
 - Isolation Forest
