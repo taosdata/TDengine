@@ -313,6 +313,10 @@ pub async fn get_metrics_arc_from_i64(task_id: Option<i64>) -> Arc<CoreMetrics> 
     get_metrics(task_id).await.expect("metrics not found")
 }
 
+pub async fn find_metrics_arc(task_id: Option<i64>) -> Option<Arc<CoreMetrics>> {
+    get_metrics(task_id.unwrap_or(-1)).await
+}
+
 /// Try to load metrics from persistence.
 pub fn load_metrics<T: TaskMetrics>(task_id: &str) -> Option<T> {
     let store = MetricsStore::new(task_id);
