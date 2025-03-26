@@ -51,9 +51,9 @@ ulimit -c unlimited
 
 docker run \
     --name taos_coverage \
-    -v $REP_MOUNT_PARAM \
-    -v $REP_MOUNT_DEBUG \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "bash ${CONTAINER_TESTDIR}/tests/run_workflow_coverage.sh -b ${branch_name_id}" 
+    -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
+    -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/debug \
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "bash ${CONTAINER_TESTDIR}/tests/run_workflow_coverage.sh -b ${branch_name_id} " 
 
 
 ret=$?
