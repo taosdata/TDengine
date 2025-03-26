@@ -91,13 +91,13 @@ if [[ -d ${WORKDIR}/debugRelease ]] ;then
 fi
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan|| true
-cd ${WORKDIR}/debugNoSan
-# 检查是否存在 .gcda 文件
-if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
-    echo ".gcda files found."
-else
-    echo "No .gcda files found. Continuing without errors."
-fi
+# cd ${WORKDIR}/debugNoSan
+# # 检查是否存在 .gcda 文件
+# if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
+#     echo ".gcda files found."
+# else
+#     echo "No .gcda files found. Continuing without errors."
+# fi
 
 # 始终返回成功退出码
 exit 0
