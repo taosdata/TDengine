@@ -38,7 +38,7 @@ jobs:
       - name: Build the chinese document
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
-          yarn ass local
+          yarn ass localCloud 
           yarn build
 
       - name: Build the english document
