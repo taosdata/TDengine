@@ -71,14 +71,14 @@ function lcovFunc {
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c' '*/debug/*' '*/tests/*'\
         '*/tsdbFile.c' '*/tsdbUpgrade.c' '*/tsdbFS.c' '*/tsdbReaderWriter.c' \ 
         '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'\
-         --rc lcov_branch_coverage=1  -o coverage.info
+        --rc lcov_branch_coverage=1  -o coverage.info
 
     # generate result
     echo "generate result"
     lcov -l --rc lcov_branch_coverage=1 coverage.info 
 
-    sed -i 's/\/home\/TDinternal\/community\/sql.c/\/home\/TDinternal/\community\/source\/libs\/parser\/inc\/sql.c/g' coverage.info
-    sed -i 's/\/home\/TDinternal\/community\/sql.y/\/home\/TDinternal/\community\/source\/libs\/parser\/inc\/sql.y/g' coverage.info
+    sed -i 's/\/home\/TDinternal\/sql.c/\/home\/TDinternal\/community\/source\/libs\/parser\/src\/sql.c/g' coverage.info
+    sed -i 's/\/home\/TDinternal\/sql.y/\/home\/TDinternal\/community\/source\/libs\/parser\/inc\/sql.y/g' coverage.info
 
     # push result to coveralls.io
     echo "push result to coveralls.io"
