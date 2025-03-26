@@ -26,7 +26,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -52,6 +52,7 @@ jobs:
         run: |
           git fetch origin gh-pages
           git checkout gh-pages || git checkout -b gh-pages
+          echo test/docs/$BRANCH_NAME
           mkdir -p test/docs/$BRANCH_NAME
           cp -r test/docs/$BRANCH_NAME ../test_docs_backup || true
           git checkout -
@@ -110,6 +111,7 @@ jobs:
         run: |
           git fetch origin gh-pages
           git checkout gh-pages || git checkout -b gh-pages
+          echo test/docs/$BRANCH_NAME
           mkdir -p test/docs/$BRANCH_NAME
           cp -r test/docs/case_list_docs test/docs/$BRANCH_NAME/
           # Check if there are any changes to commit
