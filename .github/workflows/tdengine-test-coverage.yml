@@ -5,7 +5,8 @@ name: TDengine Coverage
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 00 * * *'
+    - cron: '0 06 * * *'
+    - cron: '0 18 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.specified_test_branch || '3.0' }}-TDengine
