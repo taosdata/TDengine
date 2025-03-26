@@ -124,7 +124,7 @@ coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 
 docker run \
     -v $REP_MOUNT_PARAM \
-    -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/debug \
+    -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \
     -v $MOUNT_DIR \
     -v ${SOURCEDIR}:/usr/local/src/ \
