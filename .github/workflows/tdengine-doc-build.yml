@@ -46,3 +46,4 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass localCloud 
           yarn build
+          
