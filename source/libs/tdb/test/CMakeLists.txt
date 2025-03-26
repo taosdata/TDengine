@@ -31,7 +31,8 @@ target_link_libraries(tdbPageRecycleTest PRIVATE tdb)
 
 # page flush testing
 add_executable(tdbPageFlushTest "tdbPageFlushTest.cpp")
-target_link_libraries(tdbPageFlushTest tdb gtest_main)
+DEP_ext_gtest(tdbPageFlushTest)
+target_link_libraries(tdbPageFlushTest PRIVATE tdb)
 add_test(
     NAME tdbPageFlushTest
     COMMAND tdbPageFlushTest

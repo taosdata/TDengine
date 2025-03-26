@@ -5,6 +5,7 @@ SET(CMAKE_CXX_STANDARD 11)
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
 ADD_EXECUTABLE(decimalTest ${SOURCE_LIST})
+DEP_ext_gtest(decimalTest)
 
 TARGET_INCLUDE_DIRECTORIES(
         decimalTest
@@ -14,7 +15,7 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
         decimalTest
-        PUBLIC gtest taos os common
+        PUBLIC taos os common
 )
 
 add_test(

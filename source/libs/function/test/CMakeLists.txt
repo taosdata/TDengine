@@ -9,7 +9,6 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../inc")
 add_executable(runUdf runUdf.c)
 target_link_libraries(
     runUdf
-    PUBLIC uv_a
     PRIVATE os util common nodes function
 )
 

@@ -39,7 +39,7 @@ target_include_directories(
 
 target_link_libraries(
     util
-    PUBLIC os common
+    PUBLIC os common decimal
     PUBLIC api
     PUBLIC TSZ
 )
