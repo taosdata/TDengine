@@ -79,7 +79,7 @@ docker run \
     -v ${REP_REAL_PATH}/community/contrib/pcre2/:${REP_DIR}/community/contrib/pcre2 \
     -v ${REP_REAL_PATH}/community/contrib/zlib/:${REP_DIR}/community/contrib/zlib \
     -v ${REP_REAL_PATH}/community/contrib/zstd/:${REP_DIR}/community/contrib/zstd \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR; rm -rf debug; mkdir -p debug; cd debug; cmake .. -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_GEOS=true ; make -j ||  exit 1" || true
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR; rm -rf debug; mkdir -p debug; cd debug; cmake .. -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_GEOS=true  -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" -DCMAKE_CXX_FLAGS="-fprofile-arcs -ftest-coverage"; make -j ||  exit 1" || true
 
 
 if [[ -d ${WORKDIR}/debugNoSan  ]] ;then
