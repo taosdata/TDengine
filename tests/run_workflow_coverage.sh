@@ -58,7 +58,7 @@ function lcovFunc {
     cd $TDENGINE_DIR
 
     # collect data
-    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info  > /dev/null 2>&1
+    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info --quiet > /dev/null 2>&1
 
     # remove exclude paths 
     lcov --remove coverage.info \
@@ -71,8 +71,12 @@ function lcovFunc {
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c' '*/debug/*' '*/tests/*'\
         '*/tsdbFile.c' '*/tsdbUpgrade.c' '*/tsdbFS.c' '*/tsdbReaderWriter.c' \ 
         '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'\
-        --rc lcov_branch_coverage=1  -o coverage.info   > /dev/null 2>&1
+        --rc lcov_branch_coverage=1  -o coverage.info --quiet  > /dev/null 2>&1
 
+    # 过滤掉不需要的行
+    grep -v -E "^(TN:|SF:|FN:|FNDA:|FNF:|FNH:|DA:)" coverage.info > filtered_coverage.info
+    mv filtered_coverage.info coverage.info
+    
     # generate result
     echo "generate result"
     lcov -l --rc lcov_branch_coverage=1 coverage.info    > /dev/null 2>&1
