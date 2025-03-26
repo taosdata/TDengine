@@ -32,7 +32,7 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 
 :::note IMPORTANT
 1. 在执行下面样例代码的之前，您必须先在 [TDengine Cloud - 数据浏览器](https://cloud.taosdata.com/explorer) 页面创建一个名为 power 的数据库
-2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南-建立连接](../../programming/connect/)。
+2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南-建立连接](../../connect/)。
 :::
 
 ### 使用 TaosRestConnection 类
