@@ -135,6 +135,8 @@ class Test5dnode3mnodeStop:
         tdDnodes[2].starttaosd()
         clusterComCheck.checkMnodeStatus(3)
 
+
+
         tdDnodes[0].stoptaosd()
         clusterComCheck.check3mnodeoff(1,3)
         tdDnodes[0].starttaosd()
