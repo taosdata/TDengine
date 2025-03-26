@@ -469,9 +469,22 @@ async function getClusterAndDashboardUrl() {
       localStorage.setItem('native_url', res.cluster_native);
     }
 
-    if (res && res.dashboard) {
-      localStorage.setItem('local_grafana', res.dashboard);
+    if (res && res.grafana && res.grafana.dashboards) {
+      const grafana_dashboards = [];
+      for (const key in res.grafana.dashboards) {
+        grafana_dashboards.push({
+          key,
+          url: res.grafana.dashboards[key].replace(/^https?:\/\/[^/]+/, "")
+        });
+      }
+      if (grafana_dashboards.length > 0) {
+        localStorage.setItem("local_grafana", JSON.stringify(grafana_dashboards));
+      } else {
+        localStorage.removeItem("local_grafana");
+      }
     }
+
+
     if (res && res.grpc) {
       localStorage.setItem('local_endpoint', res.grpc);
     }
