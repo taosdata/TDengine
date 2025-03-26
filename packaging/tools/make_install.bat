@@ -66,7 +66,7 @@ copy %source_dir%\\include\\libs\\function\\taosudf.h %target_dir%\\include > nu
 copy %binary_dir%\\build\\lib\\taos.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos_static.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\bin\\taos.dll %target_dir%\\ > nul
-copy %binary_dir%\\build\\bin\\taosnative.dll %target_dir%\\driver > nul
+copy %binary_dir%\\build\\bin\\taosnative.dll %target_dir%\\ > nul
 copy %binary_dir%\\build\\bin\\pthreadVC3.dll %target_dir%\\ > nul
 copy %binary_dir%\\build\\lib\\taosnative.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taosnative_static.lib %target_dir%\\driver > nul
