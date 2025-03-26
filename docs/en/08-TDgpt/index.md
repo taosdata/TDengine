@@ -26,6 +26,6 @@ TDgpt integrates the prediction capabilities of time-series foundation models, a
     select _FROWTS, forecast(val, 'algo=timemoe-fc,start=1324915200000,rows=300') from forecast.electricity_demand_sub;
     ```
   
-3. After the query is complete, you can display the data graph by clicking the Draw button in the Chart section.
+3. After the query is complete, you can display the data graph by clicking the **Draw** button in the **Chart** section.
 
 Users can execute `show anodes full;` to query the list of pre-configured algorithms in the current system. For usage methods of each algorithm, please refer to the [TDgpt Document](https://docs.tdengine.com/advanced/TDgpt/introduction/)。
