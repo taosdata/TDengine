@@ -38,7 +38,7 @@ class TestClusterBasic:
 
         Labels: cluster
 
-        Jira: 
+        Jira: None
 
         History:
             - 2024-2-6 Feng Chao Created
@@ -73,7 +73,7 @@ class TestClusterBasic:
 
         Labels: cluster
 
-        Jira: 
+        Jira: None
 
         History:
             - 2024-2-6 Feng Chao Created

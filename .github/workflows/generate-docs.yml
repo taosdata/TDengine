@@ -1,0 +1,122 @@
+name: Deploy Case Docs
+
+on:
+  push:
+    branches:
+      - 'new_test_framework_docs'
+    paths:
+      - 'test/cases/**/*.py'
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+    types: [closed]  # trigger on PR close
+    paths:
+      - 'test/cases/**/*.py'
+
+jobs:
+  generate_and_deploy:
+    if: github.event.pull_request.merged == true || ${{ github.event_name }} == "push"  # Only run on PR close or push to new_test_framework_docs branch(for testing)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # Required to write to the repo
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for git diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Install MkDocs, Mike, and Dependencies
+        run: |
+          pip install mkdocs mkdocs-material mike mkdocstrings[python]
+
+      - name: Set Target Branch Name
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH_NAME="${{ github.event.pull_request.base.ref }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+          fi
+          BRANCH_NAME="main"
+          echo "Target branch is $BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Pull test/docs from gh-pages branch
+        run: |
+          git fetch origin gh-pages
+          git checkout gh-pages || git checkout -b gh-pages
+          mkdir -p test/docs/$BRANCH_NAME
+          cp -r test/docs/$BRANCH_NAME ../test_docs_backup || true
+          git checkout -
+          mkdir -p test/docs/$BRANCH_NAME
+          cp -r ../test_docs_backup/* test/docs/ || true
+          rm -rf ../test_docs_backup
+
+      - name: Get all changed case files
+        id: changed-case-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            test/cases/**/*.py
+
+      - name: Generate Markdown files
+        if: steps.changed-case-files.outputs.any_changed == 'true'
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-case-files.outputs.all_changed_files }}
+        run: |
+          mkdir -p test/docs/case_list_docs
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "Processing $file"
+            module_path=$(echo "$file" | sed 's|/|.|g' | sed 's|.py$||' | sed 's|^test.cases.||')
+            markdown_file="test/docs/case_list_docs/$(echo "${module_path}" | sed 's|\.[^\.]*$||' | sed 's|\.|/|g').md"
+            echo "module_path: $module_path"
+            mkdir -p "$(dirname "$markdown_file")"
+
+            if [ ! -f "$markdown_file" ]; then
+              echo "Generating $markdown_file"
+              echo "::: ${module_path}" > "$markdown_file"
+            else
+              echo "Appending to $markdown_file"
+              if ! grep -q "::: ${module_path}" "$markdown_file"; then
+                echo "::: ${module_path}" >> "$markdown_file"
+              else
+                echo "Content already exists in $markdown_file"
+              fi
+            fi
+            echo "End $file. markdown_file: $markdown_file"
+            cat $markdown_file
+          done
+        shell: bash
+
+      - name: Deploy Documentation with Mike
+        run: |
+          # Configure Git user information
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+          # Deploy the documentation for the current version
+          cd test
+          mike deploy --push --update-aliases $BRANCH_NAME latest --config-file mkdocs.yml --branch gh-pages --allow-empty
+          mike set-default --push --branch gh-pages latest --allow-empty
+
+      - name: Commit and Push Updated Docs to gh-pages
+        run: |
+          git fetch origin gh-pages
+          git checkout gh-pages || git checkout -b gh-pages
+          mkdir -p test/docs/$BRANCH_NAME
+          cp -r test/docs/case_list_docs test/docs/$BRANCH_NAME/
+          # Check if there are any changes to commit
+          if git diff --quiet; then
+            echo "No changes detected, skipping commit."
+          else
+            git add test/docs/$BRANCH_NAME
+            git commit -m "Update test/docs for branch $BRANCH_NAME"
+            git push origin gh-pages
+          fi
