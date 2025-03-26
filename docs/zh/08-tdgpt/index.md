@@ -14,16 +14,18 @@ TDgpt 是与 TDengine 主进程 taosd 适配的外置式时序数据分析智能
 
 TDgpt 集成了时序基础模型的预测能力，使用 SQL 语句可以轻松调用时序基础模型的预测能力。
 
-1. 通过以下 SQL 语句即可调用涛思时序基础模型预测数据。
+1. 通过如下 SQL 语句即可调用涛思时序基础模型预测数据。
 
-  ``` SQL
-  select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand_sub;
-  ```
+    ``` SQL
+    select _FROWTS, forecast(val, 'algo=tdtsfm_1,start=1324915200000,rows=300') from forecast.electricity_demand_sub;
+    ```
 
 2. 通过如下 SQL 可以调用 TimeMoE 时序基础模型预测数据。
 
-  ``` SQL
-  select forecast(val, 'algo=timemoe-fc') from forecast.electricity_demand_sub;
-  ```
+    ``` SQL
+    select _FROWTS, forecast(val, 'algo=timemoe-fc,start=1324915200000,rows=300') from forecast.electricity_demand_sub;
+    ```
+  
+3. 查询完成以后，可以通过点击**图表**里面的**绘图**按钮显示数据图形。
 
 用户可以执行 `show anodes full;` 查询当前系统预置的算法列表，各算法的使用方法可以参考 [TDgpt文档](https://docs.taosdata.com/advanced/TDgpt/introduction/)。

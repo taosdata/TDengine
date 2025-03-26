@@ -11,7 +11,7 @@ TDengine Cloud 为所有客户提供一个数据库集市，客户可以查看�
 如果想试用 TDgpt 的功能，请点击**时序数据预测分析数据集**公共数据库旁边的开关按钮，可以进入该数据库的数据浏览器，运行下面 SQL。
 
 ```SQL
-select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand_sub;
+  select _FROWTS, forecast(val, 'algo=tdtsfm_1,start=1324915200000,rows=300') from forecast.electricity_demand_sub;
 ```
 
 - 数据集详情请参考 [体验 TDgpt](../tdgpt/)
