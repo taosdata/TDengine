@@ -82,7 +82,7 @@ docker exec -it <container name> bash
 
 ## 注册云服务使用 TDgpt
 
-TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，登录云服务后，点击屏幕左下侧的“数据库集市”，请在数据库集市里面找到 **时序数据预测分析数据集** 数据库，点击启用就可以进入这个数据库。然后按照 TDgpt 的 SQL 操作手册来执行语句，比如 `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`。
+TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，登录云服务后，点击屏幕左下侧的 "数据库集市"，请在数据库集市里面找到 **时序数据预测分析数据集** 数据库，点击启用就可以进入这个数据库。然后按照 TDgpt 的 SQL 操作手册来执行语句，例如 `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`
 
 ## 通过安装包部署 TDgpt
 
@@ -94,7 +94,7 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 - TDengine：需使用 3.3.6.0 或以上版本。
 - C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
 
-可以使用以下的命令在 Ubuntu Linux 上安装 Python 3.10 环境，如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
+使用如下命令在 Ubuntu Linux 上安装 Python 3.10 环境。如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
 
 #### 安装 Python
 
@@ -116,6 +116,7 @@ curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
 ```
 
 将 `~/.local/bin` 路径添加到环境变量中 `~/.bashrc or ~/.bash_profile`。
+
 ```shell
 export PATH=$PATH:~/.local/bin
 ```
@@ -133,9 +134,10 @@ sudo apt install build-essential
 
    <PkgListV3 type={9}/>
 
-   TDgpt 的安装包中包含两个时序模型，分别是涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定规模的内存空间，请确保运行系统中有至少有 16GiB 可用内存空间。
+   安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
   
 2. 进入到安装包所在目录，使用 tar 解压安装包；
+   
 > 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
@@ -144,7 +146,7 @@ tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
 
 ### 执行安装脚本
 
-解压文件后，进入相应子目录，执行其中的 `install.sh` 安装脚本：
+解压文件后，进入相应解压文件目录，执行其中 `install.sh` 安装脚本：
 请将 `<version>` 替换为下载的安装包版本
 
 ```bash
@@ -152,7 +154,8 @@ cd TDengine-TDgpt-<version>
 ./install.sh
 ```
 
-为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要 Python 的虚拟环境，手动删除该目录即可。
+为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。
+> 为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要该 Python 虚拟环境，手动删除该目录即可。
 
 ### 激活虚拟环境
 
@@ -163,4 +166,3 @@ cd TDengine-TDgpt-<version>
 
 ### 卸载
 卸载 TDgpt，执行 `rmtaosanode` 即可。 
-> 安装过程中自动安装的虚拟环境不会被自动删除，用户确认不再需要的时候，需要手动删除该虚拟环境。
