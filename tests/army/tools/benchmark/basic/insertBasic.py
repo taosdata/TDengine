@@ -127,6 +127,11 @@ class TDTestCase(TBase):
         self.benchInsert("./tools/benchmark/basic/json/insertManyStb.json")
     
     def run(self):
+        # check env
+        cmd = f"pip3 list"
+        output, error, code = eos.run(cmd)
+        tdLog.info("output: >>>%s<<<" % output)
+
         benchmark = frame.etool.benchMarkFile()
 
         # vgroups
