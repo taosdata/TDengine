@@ -12,6 +12,7 @@ class TaosAdapter:
     def __init__(self, remote: Remote):
         self._remote: Remote = remote
         self._tmp_dir = "/tmp"
+        self.logger = remote._logger
         self._local_host = platform.node()
     def install(self, host, version):
         installFlag = False
@@ -50,7 +51,10 @@ class TaosAdapter:
 
     def configure_and_start(self, tmp_dir, nodeDict):
         config_dir, config_file = os.path.split(nodeDict["spec"]["config_file"])
+        
         dict2toml(tmp_dir, config_file, nodeDict["spec"]["adapter_config"])
+        self.logger.debug(f"nodeDict['spec']['adapter_config']: {nodeDict['spec']['adapter_config']}")
+        self.logger.debug(f"nodeDict['spec']: {nodeDict['spec']}")
         # dict2file(tmp_dir, "taos.cfg", nodeDict["spec"]["taos_config"])
         threads = []
         for i in nodeDict["fqdn"]:

@@ -17,10 +17,12 @@ from .util import cluster as cluster_pytest, ClusterDnodes as ClusterDnodes_pyte
 from .util import tdDnodes as tdDnodes_pytest
 from .util import tAdapter as tAdapter_pytest
 from .util import tdCom as tdCom_pytest
+from .util import taoskeeper as taoskeeper_pytest
 from .frame import cluster as cluster_army, ClusterDnodes as ClusterDnodes_army, clusterDnodes as clusterDnodes_army
 from .frame import tdDnodes as tdDnodes_army
 from .frame import tAdapter as tAdapter_army
 from .frame import tdCom as tdCom_army
+
 
 
 class BeforeTest:
@@ -294,12 +296,13 @@ class BeforeTest:
             adapter["taos_firstEP"] = "localhost:6030"
             adapter["taos_logDir"] = taos_log_dir
             request.session.adapter = adapter
-
+        if request.session.taoskeeper:
             # TODO:增加taoskeeper配置
-            taoskeeper_config_dir = os.path.join(ci_path, "dnode1", "cfg")
+            taoskeeper_config_dir = os.path.join(work_dir, "dnode1", "cfg")
             taoskeeper_config_file = os.path.join(taoskeeper_config_dir, "taoskeeper.toml")
-            taos_config_file = os.path.join(ci_path, "dnode1", "cfg", "taos.cfg")
-            taoskeeper_log_dir = os.path.join(ci_path, "dnode1", "log")
+            taos_config_file = os.path.join(work_dir, "dnode1", "cfg", "taos.cfg")
+            taoskeeper_log_dir = os.path.join(work_dir, "dnode1", "log")
+            taos_log_dir = os.path.join(work_dir, "dnode1", "log")
             taoskeeper_dict = {
                 "name": "taoskeeper",
                 "fqdn": ["localhost"],
@@ -317,13 +320,14 @@ class BeforeTest:
                         "rotationSize": "1GB",
                         "rotationCount": 30,
                         "taosConfigDir": "/etc/taos",
-                        "log":{"path": "/var/log/taos"},
+                        "log":{"path": f"{taoskeeper_log_dir}"},
                         "keepDays": 30
                 },
                     "taos_config": {
                         "firstEP": "localhost:6030",
                         "logDir": taos_log_dir
                     },
+                    "taoskeeperPath": os.path.join(request.session.taos_bin_path, "taoskeeper")
             }
                 
             }
@@ -340,6 +344,10 @@ class BeforeTest:
             taoskeeper["rotationCount"] = 30
             taoskeeper["keepDays"] = 30
             taoskeeper["reservedDiskSize"] = "0"
+            taoskeeper["log_path"] = taoskeeper_log_dir
+            taoskeeper["config_file"] = taoskeeper_config_file
+            taoskeeper["taos_logDir"] = taos_log_dir
+            taoskeeper["cfg_dir"] = taoskeeper_config_dir
             request.session.taoskeeper = taoskeeper
         request.session.yaml_data = yaml_data
         request.session.yaml_file = 'ci_default.yaml'
@@ -516,7 +524,11 @@ class BeforeTest:
     # TODO: 增加taoskeeper实例化
         if request.session.taoskeeper:
             taoskeeper_pytest.init("", master_ip)
-            taoskeeper_pytest.log_dir = request.session.taoskeeper["log_dir"]
+            taoskeeper_pytest.log_dir = request.session.taoskeeper["log_path"]
+            taoskeeper_pytest.cfg_dir = request.session.taoskeeper["cfg_dir"]
+            taoskeeper_pytest.cfg_path = request.session.taoskeeper["config_file"]
+            taoskeeper_pytest.deployed = 1
+            taoskeeper_pytest.running = 1
 
         # 实例化 tdCommon
         tdCom_pytest.init(request.session.taos_bin_path, request.session.cfg_path, request.session.work_dir)

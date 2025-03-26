@@ -3,6 +3,8 @@ import re
 import winrm
 from threading import Thread
 import platform
+
+from new_test_framework.utils.frame.log import tdLog
 from ..util.file import dict2toml, dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
@@ -11,6 +13,7 @@ from ..util.common import TDCom
 class TaosKeeper:
     def __init__(self, remote: Remote):
         self._remote: Remote = remote
+        self.logger = remote._logger
         self._tmp_dir = "/tmp"
         self._local_host = platform.node()
         self.taoskeeper_cfg_dict = {
@@ -19,7 +22,6 @@ class TaosKeeper:
             "gopoolsize": 50000,
             "RotationInterval": "15s",
             "host": "127.0.0.1"  ,
-            "port": 6041,
             "username": "root",
             "password": "taosdata",
             "usessl": "false",
@@ -53,12 +55,14 @@ class TaosKeeper:
     def _configure_and_start(self, node, tmp_dir, nodeDict, config_dir, config_file):
         self._remote.cmd(node, ["mkdir -p {}".format(config_dir)])
         self._remote.put(node, os.path.join(tmp_dir, config_file), config_dir)
-        taoskeeper_path = nodeDict["taoskeeperPath"] if "taoskeeperPath" in nodeDict else "/usr/bin/taoskeeper"
+        taoskeeper_path = nodeDict["spec"]["taoskeeperPath"] if "taoskeeperPath" in nodeDict["spec"] else "/usr/bin/taoskeeper"
         # self._remote.put(node, os.path.join(tmp_dir, "taos.cfg"), config_dir)
-        self._remote.cmd(node, [f"screen -d -m {taoskeeper_path} -c {nodeDict['config_dir']}  ", "sleep 5s"])
+        self._remote.cmd(node, [f"screen -d -m {taoskeeper_path} -c {nodeDict['spec']['config_file']}  ", "sleep 5s"])
         
     def configure_and_start(self, tmp_dir, nodeDict):
         config_dir, config_file = os.path.split(nodeDict["spec"]["config_file"])
+        self.logger.debug(f"nodeDict['spec']: {nodeDict['spec']}")
+        self.logger.debug(f"nodeDict['spec']['taoskeeper_config']: {nodeDict['spec']['taoskeeper_config']}")
         dict2toml(tmp_dir, config_file, nodeDict["spec"]["taoskeeper_config"])
         # dict2file(tmp_dir, "taos.cfg", nodeDict["spec"]["taos_config"])
         threads = []
@@ -166,5 +170,3 @@ class TaosKeeper:
             return cfg_dict
         else:
             return tmp_dict["spec"]
-
-taoskeeper = TaosKeeper(Remote())
