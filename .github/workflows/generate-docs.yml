@@ -44,7 +44,7 @@ jobs:
           else
             BRANCH_NAME="${{ github.ref_name }}"
           fi
-          BRANCH_NAME="main"
+          BRANCH_NAME="3.0" # For testing
           echo "Target branch is $BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
@@ -109,10 +109,7 @@ jobs:
           # Deploy the documentation for the current version
           cd test
           mike deploy --push --update-aliases $BRANCH_NAME latest --config-file mkdocs.yml --branch gh-pages --allow-empty
-          mike set-default --push --branch gh-pages latest --allow-empty
-
-      - name: Debug modified_flag
-        run: echo "modified_flag=$modified_flag"
+          #mike set-default --push --branch gh-pages latest --allow-empty
 
       - name: Commit and Push Updated Docs to gh-pages
         if: env.modified_flag == 'true'
