@@ -94,7 +94,20 @@ fi
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan|| true
 cd ${WORKDIR}/debugNoSan
 if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
-    echo ".gcda files found."
+    echo "old .gcda files found."
+else
+    echo "No .gcda files found. Continuing without errors."
+fi
+
+docker run \
+    --name taos_coverage \
+    -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
+    -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/debug \
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd /home/TDinternal/debug ; ctest  -E "cunit_test" -j$(nproc)" || true
+
+cd ${WORKDIR}/debugNoSan
+if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
+    echo "new .gcda files found."
 else
     echo "No .gcda files found. Continuing without errors."
 fi
