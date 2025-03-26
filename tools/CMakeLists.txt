@@ -48,10 +48,8 @@ IF(TD_WEBSOCKET)
         get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
         ExternalProject_Add(ext_taosws
             GIT_REPOSITORY ${_git_url}
-            # freemine: GIT_TAG 3.0           # freemine: better not use branch name!!!
-            # freemine: GIT_SHALLOW TRUE
-            GIT_TAG 76004da2573eb3e854657168834ea73723326177
-            GIT_SHALLOW FALSE
+            GIT_TAG ver-3.3.6.0
+            GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
@@ -227,10 +225,8 @@ ELSE()
         get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
         ExternalProject_Add(ext_taosadapter
             GIT_REPOSITORY ${_git_url}
-            # freemine: GIT_TAG main   # freemine: better not use branch name
-            # freemine: GIT_SHALLOW TRUE
-            GIT_TAG 4c4f7a911a9c933e8ff9f9519667d65bed696310
-            GIT_SHALLOW FALSE
+            GIT_TAG ver-3.3.6.0
+            GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_LIB}
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
