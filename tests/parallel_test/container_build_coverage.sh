@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e 
-set -x
 
 function usage() {
     echo "$0"
@@ -94,9 +93,9 @@ fi
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan|| true
 cd ${WORKDIR}/debugNoSan
 if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
-    echo "old .gcda files found."
+    echo "Old *gcda files found."
 else
-    echo "No .gcda files found. Continuing without errors."
+    echo "No old *gcda files found. Continuing without errors."
 fi
 
 docker run \
@@ -107,9 +106,9 @@ docker run \
 
 cd ${WORKDIR}/debugNoSan
 if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
-    echo "new .gcda files found."
+    echo "New *gcda files found."
 else
-    echo "No .gcda files found. Continuing without errors."
+    echo "No new *gcda files found. Continuing without errors."
 fi
 
 # 始终返回成功退出码
