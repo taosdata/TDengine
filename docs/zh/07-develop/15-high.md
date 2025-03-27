@@ -70,11 +70,20 @@ import TabItem from "@theme/TabItem";
 <TabItem label="Java" value="java">
 
 **JDBC 高效写入特性简介**
+
 JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写入特性，其配置参数请参考 [高效写入配置](../../reference/connector/java/#properties)。 JDBC 驱动高效写入特性有如下特点：
 - 支持 JDBC 标准参数绑定接口。
 - 在资源充分条件下，写入能力跟写入线程数配置线性相关。
 - 支持写入超时和连接断开重连后的重试次数和重试间隔配置。
 - 支持调用 executeUpdate 接口获取写入数据条数，若写入有异常，此时可捕获。
+
+**JDBC 高效写入使用说明**
+
+下面是一个简单的使用 JDBC 高效写入的例子，说明了高效写入相关的配置和接口。
+
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/WSHighVolumeDemo.java:efficient_writing}}
+```
 
 **程序清单**
 | 类名               | 功能说明                                                                                  |
@@ -94,7 +103,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 <details>
 <summary>FastWriteExample</summary>
 
-主程序命令行参数介绍：  
+**主程序命令行参数介绍：**  
 
 ```shell
    -b,--batchSizeByRow <arg>             指定高效写入的 batchSizeByRow 参数，默认 1000  
@@ -108,18 +117,19 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
    -w,--writeThreadPerReadThread <arg>   指定每工作线程对应写入线程数，默认 5  
 ```
 
-JDBC URL 和 Kafka 集群地址配置：
+**JDBC URL 和 Kafka 集群地址配置：**
+
 1. JDBC URL 通过环境变量配置，例如：`export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata"`
 2. Kafka 集群地址通过环境变量配置，例如： `KAFKA_BOOTSTRAP_SERVERS=localhost:9092`
 
-使用方式： 
+**使用方式：** 
 
 ```shell
 1. 采用模拟数据写入方式：java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 1000
 2. 采用 Kafka 订阅写入方式：java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 100 -K
 ```
 
-主程序负责：
+**主程序负责：**
 
 1. 解析命令行参数
 2. 创建子表

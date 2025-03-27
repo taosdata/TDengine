@@ -9,7 +9,7 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "../../assets/resources/_request_id.mdx";
 
-`taopsy` is the official connector provided by TDengine database for Python language, which provides multiple access interfaces for database writing, querying, subscribing, etc.
+`taopsy` is the official TDengine python connector, which provides multiple access interfaces for database writing, querying, subscribing, etc.
 
 The installation command is as follows:
 ``` bash
