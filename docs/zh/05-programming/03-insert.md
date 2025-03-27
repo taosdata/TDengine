@@ -42,13 +42,13 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 
 :::note IMPORTANT
 1. 在执行下面样例代码的之前，您必须先在 [TDengine Cloud - 数据浏览器](https://cloud.taosdata.com/explorer) 页面创建一个名为 power 的数据库
-2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南-建立连接](../../programming/connect/)。
+2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南-建立连接](../connect/)。
 
 :::
 <Tabs>
 <TabItem value="python" label="Python">
 
-这个例子中，我们使用 `execute` 方法来执行 SQL 和得到插入的行数。参数 `conn` 是类`taosrest.TaosRestConnection` 的一个实例，请参考[建立连接-Python](../../programming/connect/python#connect).
+这个例子中，我们使用 `execute` 方法来执行 SQL 和得到插入的行数。参数 `conn` 是类`taosrest.TaosRestConnection` 的一个实例，请参考[建立连接-Python](../connect/python#connect).
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:insert}}
