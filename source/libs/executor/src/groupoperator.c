@@ -1309,6 +1309,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   QUERY_CHECK_CONDITION((pDest->info.rows > 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
 _end:
+  qError("%s child_table_name %s, groupId:%"PRIu64, __func__, pDest->info.parTbName, pDest->info.id.groupId);
   if (code != TSDB_CODE_SUCCESS) {
     blockDataCleanup(pDest);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1351,7 +1352,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
         memcpy(tbName, varDataVal(pData), len);
         code = pAPI->streamStatePutParName(pState, groupId, tbName);
         QUERY_CHECK_CODE(code, lino, _end);
-        qError("%s child_table_name tbName:%s", __FUNCTION__, tbName);
+        qError("%s child_table_name tbName:%s, groupId%"PRIu64, __FUNCTION__, tbName, groupId);
       }
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
@@ -1379,7 +1380,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   } else {
     memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
   }
-  qError("%s child_table_name:%s", __FUNCTION__, pSrcBlock->info.parTbName);
+  qError("%s child_table_name:%s,groupId:%"PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, groupId);
   pAPI->streamStateFreeVal(pValue);
 
 _end:

@@ -2545,6 +2545,7 @@ static int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  qError("%s child_table_name:%s,groupId:%"PRIu64, __func__, pBlock->info.parTbName, pBlock->info.id.groupId);
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
