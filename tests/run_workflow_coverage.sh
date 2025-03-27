@@ -58,7 +58,7 @@ function lcovFunc {
     cd $TDENGINE_DIR
 
     # collect data
-    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info --quiet > /dev/null 2>&1
+    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info  > /dev/null 2>&1
 
     # remove exclude paths 
     lcov --remove coverage.info \
@@ -71,7 +71,7 @@ function lcovFunc {
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c' '*/debug/*' '*/tests/*'\
         '*/tsdbFile.c' '*/tsdbUpgrade.c' '*/tsdbFS.c' '*/tsdbReaderWriter.c' \ 
         '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'\
-        --rc lcov_branch_coverage=1  -o coverage.info --quiet  > /dev/null 2>&1
+        --rc lcov_branch_coverage=1  -o coverage.info  > /dev/null 2>&1
 
     # generate result
     echo "generate result"
@@ -82,7 +82,7 @@ function lcovFunc {
 
     # push result to coveralls.io
     echo "push result to coveralls.io"
-    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info > coverall.log 2>&1
+    #/usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info > coverall.log 2>&1
 }
 
 
