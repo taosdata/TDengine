@@ -6,12 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       specified_tdinternal_test_branch:
-        description: 'Enter the test branch name of TDinternal'
+        description: 'Enter the test branch of TDinternal'
         required: true
         type: string
         default: '3.0' # default value for TDinternal test branch
       specified_tdengine_test_branch:
-        description: 'Enter the test branch name of TDengine'
+        description: 'Enter the test branch of TDengine'
         required: true
         type: string
   schedule:
