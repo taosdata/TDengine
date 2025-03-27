@@ -98,6 +98,7 @@ class TaosKeeper:
         else:
             return True
     def deploy(self, *update_cfg_dict):
+        
         self.log_dir = os.path.join(self.path,"sim","dnode1","log")
         self.cfg_dir = os.path.join(self.path,"sim","dnode1","cfg")
         self.cfg_path = os.path.join(self.cfg_dir,"taoskeeper.toml")
@@ -119,6 +120,18 @@ class TaosKeeper:
         tdLog.debug(f"taoskeeper is deployed and configured by {self.cfg_path}")
     
     def start(self):
+        """
+        start taoskeeper process.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         bin_path = get_path(tool="taoskeeper")
 
         if (bin_path == ""):
