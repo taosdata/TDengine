@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "decimal.h"
 #include "pub.h"
 
 char resEncodingChunk[] = "Encoding: chunked";
@@ -212,7 +213,7 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
             "`%s`.%s", g_queryInfo.dbName,
             g_queryInfo.superQueryInfo.childTblName[tblIndex]);
 
-    tstrncpy(outSql, inSql, pos - inSql + 1);
+    TOOLS_STRNCPY(outSql, inSql, pos - inSql + 1);
     snprintf(outSql + (pos - inSql), TSDB_MAX_ALLOWED_SQL_LEN - 1,
              "%s%s", subTblName, pos + strlen(mark));
     return 0;         
@@ -501,6 +502,9 @@ char *convertDatatypeToString(int type) {
             return "varbinary";
         case TSDB_DATA_TYPE_GEOMETRY:
             return "geometry";
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
+            return "decimal";
         default:
             break;
     }
@@ -537,6 +541,12 @@ int convertTypeToLength(uint8_t type) {
         case TSDB_DATA_TYPE_JSON:
             ret = JSON_FIXED_LENGTH;
             break;
+        case TSDB_DATA_TYPE_DECIMAL:
+            ret = sizeof(Decimal128);
+            break;
+        case TSDB_DATA_TYPE_DECIMAL64:
+            ret = sizeof(Decimal64);
+            break;
         default:
             break;
     }
@@ -560,6 +570,8 @@ int64_t convertDatatypeToDefaultMin(uint8_t type) {
         case TSDB_DATA_TYPE_BIGINT:
         case TSDB_DATA_TYPE_FLOAT:
         case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             ret = -1 * (RAND_MAX >> 1);
             break;
         default:
@@ -591,6 +603,8 @@ int64_t convertDatatypeToDefaultMax(uint8_t type) {
         case TSDB_DATA_TYPE_BIGINT:
         case TSDB_DATA_TYPE_FLOAT:
         case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             ret = RAND_MAX >> 1;
             break;
         case TSDB_DATA_TYPE_UINT:
@@ -604,6 +618,121 @@ int64_t convertDatatypeToDefaultMax(uint8_t type) {
     return ret;
 }
 
+
+void doubleToDecimal64(double val, uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char buf[DECIMAL64_BUFF_LEN] = {0};
+    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
+    decimal64FromStr(buf, strlen(buf), precision, scale, dec);
+}
+
+
+void doubleToDecimal128(double val, uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char buf[DECIMAL_BUFF_LEN] = {0};
+    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
+    decimal128FromStr(buf, strlen(buf), precision, scale, dec);
+}
+
+
+void stringToDecimal64(const char* str, uint8_t precision, uint8_t scale, Decimal64* dec) {
+    decimal64FromStr(str, strlen(str), precision, scale, dec);
+}
+
+
+void stringToDecimal128(const char* str, uint8_t precision, uint8_t scale, Decimal128* dec) {
+    decimal128FromStr(str, strlen(str), precision, scale, dec);
+}
+
+
+int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
+    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL64, precision, scale, buf, size);
+}
+
+
+int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
+    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL, precision, scale, buf, size);
+}
+
+
+void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char maxStr[DECIMAL64_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL64_BUFF_LEN - 1);
+    for(int i = 0; i < precision; ++i) {
+        maxStr[i] = '9';
+    }
+    maxStr[precision] = '\0';
+    
+    stringToDecimal64(maxStr, precision, scale, dec);
+    return;
+}
+
+
+void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char minStr[DECIMAL64_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL64_BUFF_LEN - 2);
+    minStr[0] = '-';
+    for(int i = 1; i <= precision; ++i) {
+        minStr[i] = '9';
+    }
+    minStr[precision + 1] = '\0';
+    
+    stringToDecimal64(minStr, precision, scale, dec);
+    return;
+}
+
+
+void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char maxStr[DECIMAL_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL_BUFF_LEN - 1);
+    for(int i = 0; i < precision; ++i) {
+        maxStr[i] = '9';
+    }
+    maxStr[precision] = '\0';
+    
+    stringToDecimal128(maxStr, precision, scale, dec);
+    return;
+}
+
+
+void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char minStr[DECIMAL_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL_BUFF_LEN - 2);
+    minStr[0] = '-';
+    for(int i = 1; i <= precision; ++i) {
+        minStr[i] = '9';
+    }
+    minStr[precision + 1] = '\0';
+    
+    stringToDecimal128(minStr, precision, scale, dec);
+    return;
+}
+
+
+int decimal64BCompare(const Decimal64* a, const Decimal64* b) {
+    return DECIMAL64_GET_VALUE(a) < DECIMAL64_GET_VALUE(b) ? -1 : (DECIMAL64_GET_VALUE(a) > DECIMAL64_GET_VALUE(b));
+}
+
+
+int decimal128BCompare(const Decimal128* a, const Decimal128* b) {
+    const uint64_t sign_mask = (uint64_t)1 << 63;
+    int a_sign = (DECIMAL128_HIGH_WORD(a) & sign_mask) >> 63;
+    int b_sign = (DECIMAL128_HIGH_WORD(b) & sign_mask) >> 63;
+
+    if (a_sign != b_sign) {
+        return a_sign < b_sign ? 1 : -1;
+    }
+
+    if (DECIMAL128_HIGH_WORD(a) != DECIMAL128_HIGH_WORD(b)) {
+        return DECIMAL128_HIGH_WORD(a) < DECIMAL128_HIGH_WORD(b) ? -1 : 1;
+    } else {
+        return DECIMAL128_LOW_WORD(a) < DECIMAL128_LOW_WORD(b) ? -1 : (DECIMAL128_LOW_WORD(a) > DECIMAL128_LOW_WORD(b));
+    }
+}
+
+
 // compare str with length
 int32_t strCompareN(char *str1, char *str2, int length) {
     if (length == 0) {
@@ -613,7 +742,7 @@ int32_t strCompareN(char *str1, char *str2, int length) {
     }
 }
 
-int convertStringToDatatype(char *type, int length) {
+int convertStringToDatatype(char *type, int length, void* ctx) {
     // compare with length
     if (0 == strCompareN(type, "binary", length)) {
         return TSDB_DATA_TYPE_BINARY;
@@ -659,6 +788,12 @@ int convertStringToDatatype(char *type, int length) {
         return TSDB_DATA_TYPE_VARBINARY;
     } else if (0 == strCompareN(type, "geometry", length)) {
         return TSDB_DATA_TYPE_GEOMETRY;
+    } else if (0 == strCompareN(type, "decimal", length)) {
+        uint8_t precision = *(uint8_t*)ctx;
+        if (precision > TSDB_DECIMAL64_MAX_PRECISION)
+            return TSDB_DATA_TYPE_DECIMAL;
+        else
+            return TSDB_DATA_TYPE_DECIMAL64;
     } else {
         errorPrint("unknown data type: %s\n", type);
         exit(EXIT_FAILURE);
@@ -840,8 +975,8 @@ int32_t benchGetTotalMemory(int64_t *totalKB) {
   *totalKB = 0;
   return 0;
 #else
-  int64_t tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
-  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
+  int64_t pageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
+  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * pageSizeKB);
   return 0;
 #endif
 }
@@ -1126,7 +1261,6 @@ void freeSpecialQueryInfo() {
 #define KILLID_LEN  64
 
 void *queryKiller(void *arg) {
-
     while (true) {
         TAOS *taos = taos_connect(g_arguments->host, g_arguments->user,
                 g_arguments->password, NULL, g_arguments->port);
@@ -1155,12 +1289,12 @@ void *queryKiller(void *arg) {
 
                 if (execUSec > g_queryInfo.killQueryThreshold * 1000000) {
                     char sql[SHORT_1K_SQL_BUFF_LEN] = {0};
-                    tstrncpy(sql, (char*)row[2],
+                    TOOLS_STRNCPY(sql, (char*)row[2],
                              min(strlen((char*)row[2])+1,
                                  SHORT_1K_SQL_BUFF_LEN));
 
                     char killId[KILLID_LEN] = {0};
-                    tstrncpy(killId, (char*)row[0],
+                    TOOLS_STRNCPY(killId, (char*)row[0],
                             min(strlen((char*)row[0])+1, KILLID_LEN));
                     char killCommand[KILLID_LEN + 32] = {0};
                     snprintf(killCommand, sizeof(killCommand), "KILL QUERY '%s'", killId);

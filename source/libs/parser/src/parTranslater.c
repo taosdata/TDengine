@@ -17013,7 +17013,11 @@ static int32_t createSubTableFromFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt
     }
 
     if (TSDB_CODE_SUCCESS == code) {
-      pModifyStmt->fileProcessing = (sz == tsMaxInsertBatchRows);
+      if (sz > 0) {
+        pModifyStmt->fileProcessing = true;
+      } else {
+        pModifyStmt->fileProcessing = false;
+      }
     }
   }
 

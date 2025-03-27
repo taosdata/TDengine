@@ -1,6 +1,6 @@
 ---
 title: 异常检测
-description: 异常检测
+description: 介绍 TDgpt 内置时序数据异常检测模型
 ---
 
 import ad from '../pic/anomaly-detection.png';
@@ -42,11 +42,10 @@ algo=expr1
 
 ### 参数说明
 
-| 参数    | 含义                                       | 默认值 |
-| ------- | ------------------------------------------ | ------ |
-| algo    | 异常检测调用的算法                         | iqr    |
-| wncheck | 对输入数据列是否进行白噪声检查，取值为0或1 | 1      |
-
+| 参数      | 含义                     | 默认值 |
+| ------- | ---------------------- | --- |
+| algo    | 异常检测调用的算法              | iqr |
+| wncheck | 对输入数据列是否进行白噪声检查，取值为0或1 | 1   |
 
 ### 示例
 
@@ -109,10 +108,8 @@ lof={"algorithm":"auto", "n_neighbor": 3}
 | grubbs    | `{}`                                   | 100          | 100       | 2.811             |
 | lof       | `{"algorithm":"auto", "n_neighbor":3}` | 0            | 0         | 4.660             |
 
-
 如果设置了 `gen_figure` 为 `true`，比较程序会自动将每个参与比较的算法分析结果采用图片方式呈现出来（如下图所示为 ksigma 的异常检测结果标注）。
 
 <figure style={{textAlign: "center"}}>
 <img src={ad_result} alt="异常检测标注图"/>
 </figure>
-

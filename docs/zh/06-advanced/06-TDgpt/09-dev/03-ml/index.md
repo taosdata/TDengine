@@ -151,6 +151,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 ```
 
 ## 使用 SQL 调用模型
+
 该模型已经预置在系统中，您可通过 `show anodes full` 直接查看。一个新的算法适配完成以后，需要重新启动 taosanode，并执行命令 `update all anodes` 更新 mnode 的算法列表。
 
 - 通过设置参数 `algo=sample_ad_model`，告诉 TDgpt 调用自编码器算法训练的模型（该算法模型在可用算法列表中）。

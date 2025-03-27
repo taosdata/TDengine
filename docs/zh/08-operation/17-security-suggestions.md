@@ -29,7 +29,7 @@ TDengine 包含多个组件，有：
 
 ![TDengine 产品生态拓扑架构](./tdengine-topology.png)
 
-关于各组件的详细介绍，请参考 [组件介绍](./intro)。
+关于各组件的详细介绍，请参考 [组件介绍](../intro)。
 
 ## TDengine 安全设置
 
