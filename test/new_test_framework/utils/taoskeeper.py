@@ -1,4 +1,6 @@
 import requests
+import toml
+import os
 from fabric2 import Connection
 from .util.log import *
 from .util.common import *
@@ -70,15 +72,27 @@ class TaosKeeper:
     def update_cfg(self, update_dict :dict):
         if not isinstance(update_dict, dict):
             return
-        if "log" in update_dict and "path" in update_dict["log"]:
-            del update_dict["log"]["path"]
+        if ("log" in update_dict and "path" not in update_dict["log"]) or "log" not in update_dict:
+            self.taoskeeper_cfg_dict["log"]["path"] = os.path.join(self.path,"sim","dnode1","log")
+        # if "log" in update_dict and "path" in update_dict["log"]:
+        #     del update_dict["log"]["path"]
         for key, value in update_dict.items():
             if key in ["tdengine","log","metrics","metrics.database","metrics.database.options","enviornment"]:
-                if  isinstance(value, dict):
+                if isinstance(value, dict):
                     for k, v in value.items():
                         self.taoskeeper_cfg_dict[key][k] = v
             else:
                 self.taoskeeper_cfg_dict[key] = value
+        try:
+            with open(self.cfg_path, 'r') as f:
+                existing_data = toml.load(f)
+        except FileNotFoundError:
+            print(f"文件 {self.cfg_path} 不存在，将创建新文件。")
+            existing_data = {}
+        existing_data.update(self.taoskeeper_cfg_dict)
+        with open(self.cfg_path, 'w') as f:
+            toml.dump(existing_data, f)
+            print(f"TOML 文件已成功更新：{self.cfg_path}")   
     def cfg(self, option, value):
         cmd = f"echo {option} = {value} >> {self.cfg_path}"
         if os.system(cmd) != 0:
