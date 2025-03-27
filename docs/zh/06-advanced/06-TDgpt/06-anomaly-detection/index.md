@@ -1,12 +1,11 @@
 ---
 title: 异常检测
 description: 异常检测
+description: 介绍 TDgpt 内置时序数据异常检测模型
 ---
 
 import ad from '../pic/anomaly-detection.png';
 import ad_result from '../pic/ad-result.png';
-
-@
 
 TDengine 中定义了异常（状态）窗口来提供异常检测服务。异常窗口可以视为一种特殊的**事件窗口（Event Window）**，即异常检测算法确定的连续异常时间序列数据所在的时间窗口。与普通事件窗口区别在于，时间窗口的起始时间和结束时间均由分析算法识别确定，不通过用户给定的表达式进行判定。因此，在 `WHERE` 子句中使用 `ANOMALY_WINDOW` 关键词即可调用时序数据异常检测服务，同时窗口伪列（`_WSTART`、`_WEND`、`_WDURATION`）也能够像其他时间窗口一样用于描述异常窗口的起始时间(`_WSTART`)、结束时间(`_WEND`)、持续时间(`_WDURATION`)。例如：
 

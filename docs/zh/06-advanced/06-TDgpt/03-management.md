@@ -1,6 +1,7 @@
 ---
 title: "Anode 管理"
 sidebar_label: "Anode 管理"
+description: 介绍 Anode 管理指令
 ---
 
 import PkgListV3 from "/components/PkgListV3";
