@@ -38,7 +38,7 @@ class TestClusterBasic:
 
         Labels: cluster
 
-        Jira: 
+        Jira: None
 
         History:
             - 2024-2-6 Feng Chao Created
@@ -67,13 +67,13 @@ class TestClusterBasic:
     def test_check_cluster_with_db(self):
         """测试多节点集群扩容
 
-        5节点集群创建数据库，缩减集群到3节点后，cluster状态仍为alive
+        5节点集群创建数据库,缩减集群到3节点后,cluster状态仍为alive
 
         Since: v3.3.0.0
 
         Labels: cluster
 
-        Jira: 
+        Jira: None 
 
         History:
             - 2024-2-6 Feng Chao Created
