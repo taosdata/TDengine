@@ -34,6 +34,5 @@ jobs:
     uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
     with:
-      tdinternal: false
       specified_tdinternal_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_tdinternal_test_branch || '3.0' }}
       specified_tdengine_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_tdengine_test_branch || '3.0' }}
