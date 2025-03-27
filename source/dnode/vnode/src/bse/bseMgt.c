@@ -442,7 +442,7 @@ int32_t tableAppendData(STable *pTable, int64_t key, uint8_t *value, int32_t len
   code = blockAdd(&pTable->data, key, value, len, &offset);
 _error:
   if (code != 0) {
-    bseError("failed to append data since %s at line", tstrerror(code), line);
+    bseError("failed to append data since %s at line %d", tstrerror(code), line);
   }
   return code;
 }
@@ -476,7 +476,7 @@ int32_t tableAppendMeta(STable *pTable) {
   TSDB_CHECK_CODE(code, line, _err);
 
   SBlkData2 *pBlk = pTable->data.pData;
-  bseDebug("size: %d", taosArrayGetSize(pTable->pSeqToBlock));
+  bseDebug("size: %d", (int)taosArrayGetSize(pTable->pSeqToBlock));
   for (int32_t i = 0; i < taosArrayGetSize(pTable->pSeqToBlock); i++) {
     BlockInfo *pBlockInfo = taosArrayGet(pTable->pSeqToBlock, i);
     if (blockMetaShouldFlush(&pTable->data, pBlockInfo)) {
