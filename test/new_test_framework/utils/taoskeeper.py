@@ -17,7 +17,7 @@ class TaosKeeper:
                 "password": "taosdata",
                 },
                 "port": 6043,
-                "taosConfigDir": "/etc/taos",
+                "taosConfigDir": "",
                 "log":{
                     "path": "",
                     "level": "info",
