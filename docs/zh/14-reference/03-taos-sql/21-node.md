@@ -46,7 +46,7 @@ ALTER ALL DNODES dnode_option
 
 对于支持动态修改的配置参数，您可以使用 ALTER DNODE 或 ALTER ALL DNODES 语法修改 dnode 中配置参数的值，自 v3.3.4.0 后，修改的配置参数将自动持久化，即便数据库服务重启后仍然生效。
 
-对于一个配置参数是否支持动态修改，请您参考 [taosd 参考手册](../../components/taosd)
+对于一个配置参数是否支持动态修改，请您参考 [taosd 参考手册](https://docs.taosdata.com/reference/components/taosd)
 
 value 是参数的值，需要是字符格式。如修改 dnode 1 的日志输出级别为 debug。
 
@@ -135,7 +135,7 @@ ALTER LOCAL local_option
 
 您可以使用以上语法更该客户端的配置参数，并且不需要重启客户端，修改后立即生效。
 
-对于一个配置参数是否支持动态修改，请您参考以下页面：[taosc 参考手册](../../components/taosc)
+对于一个配置参数是否支持动态修改，请您参考以下页面：[taosc 参考手册](https://docs.taosdata.com/reference/components/taosc/)
 
 
 ## 查看客户端配置
