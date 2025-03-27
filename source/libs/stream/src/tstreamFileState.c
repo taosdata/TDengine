@@ -347,7 +347,7 @@ _end:
 }
 
 void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
-  n  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
   SListIter iter = {0};
   tdListInitIter(pFileState->usedBuffs, &iter, TD_LIST_FORWARD);
