@@ -25,9 +25,9 @@ class TDTestCase(TBase):
     def prepare_org_tables(self):
         tdLog.info(f"prepare org tables.")
 
-        tdSql.execute("drop database if exists test_vtable_select;")
-        tdSql.execute("create database test_vtable_select;")
-        tdSql.execute("use test_vtable_select;")
+        tdSql.execute("drop database if exists test_vtable_select_after_alter;")
+        tdSql.execute("create database test_vtable_select_after_alter;")
+        tdSql.execute("use test_vtable_select_after_alter;")
 
         tdLog.info(f"prepare org super table.")
         tdSql.execute("select database();")
@@ -212,68 +212,106 @@ class TDTestCase(TBase):
                       f"nchar_32_col from vtb_org_child_2.nchar_32_col)"
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
 
-    def test_normal_query(self, testCase):
-        # read sql from .sql file and execute
-        tdLog.info(f"test case : {testCase}.")
-        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
-        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.ans")
+    def check_row_and_col(self, table_name, rows, cols):
+        tdSql.query(f"select * from {table_name};")
+        tdSql.checkRows(rows)
+        tdSql.checkCols(cols)
 
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+    def test_virtual_stable_and_child_table(self):
+        tdSql.execute("use test_vtable_select_after_alter;")
+        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_empty", 0, 16)
+        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
+        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
 
 
-    def test_select_virtual_normal_table(self):
-        self.test_normal_query("test_vtable_select_test_projection")
-        self.test_normal_query("test_vtable_select_test_projection_filter")
-        self.test_normal_query("test_vtable_select_test_function")
+        tdSql.execute("alter stable vtb_virtual_stb drop column u_smallint_col;")
+        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 15)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 15)
+        self.check_row_and_col("vtb_virtual_ctb_empty", 0, 15)
+        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 15)
+        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 21)
 
-        self.test_normal_query("test_vtable_select_test_interval")
-        self.test_normal_query("test_vtable_select_test_state")
-        self.test_normal_query("test_vtable_select_test_session")
-        self.test_normal_query("test_vtable_select_test_event")
-        self.test_normal_query("test_vtable_select_test_count")
+        tdSql.execute("alter stable vtb_virtual_stb add column u_smallint_col smallint unsigned;")
+        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_empty", 0, 16)
+        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
+        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
 
-        self.test_normal_query("test_vtable_select_test_partition")
-        self.test_normal_query("test_vtable_select_test_group")
-        self.test_normal_query("test_vtable_select_test_orderby")
+        tdSql.execute("alter vtable vtb_virtual_ctb_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ctb_half_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ctb_mix alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
+        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_empty", 0, 16)
+        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
+        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
 
-    def test_select_virtual_child_table(self):
-        self.test_normal_query("test_vctable_select_test_projection")
-        self.test_normal_query("test_vctable_select_test_projection_filter")
-        self.test_normal_query("test_vctable_select_test_function")
+        tdSql.execute("alter stable vtb_virtual_stb add column u_smallint_col_new smallint unsigned;")
+        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ctb_empty", 0, 17)
+        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 17)
+        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 23)
 
-        self.test_normal_query("test_vctable_select_test_interval")
-        self.test_normal_query("test_vctable_select_test_state")
-        self.test_normal_query("test_vctable_select_test_session")
-        self.test_normal_query("test_vctable_select_test_event")
-        self.test_normal_query("test_vctable_select_test_count")
+        tdSql.execute("alter vtable vtb_virtual_ctb_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ctb_half_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ctb_mix alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
+        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ctb_empty", 0, 17)
+        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 17)
+        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 23)
 
-        self.test_normal_query("test_vctable_select_test_partition")
-        self.test_normal_query("test_vctable_select_test_group")
-        self.test_normal_query("test_vctable_select_test_orderby")
+    def test_virtual_normal_table(self):
+        tdSql.execute("use test_vtable_select_after_alter;")
+        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ntb_empty", 0, 16)
 
-    def test_select_virtual_super_table(self):
-        self.test_normal_query("test_vstable_select_test_projection")
-        self.test_normal_query("test_vstable_select_test_projection_filter")
-        #self.test_normal_query("test_vstable_select_test_function")
+        tdSql.execute("alter vtable vtb_virtual_ntb_full drop column u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_half_full drop column u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_empty drop column u_smallint_col;")
+        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 15)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 15)
+        self.check_row_and_col("vtb_virtual_ntb_empty", 0, 15)
 
-        self.test_normal_query("test_vstable_select_test_interval")
-        self.test_normal_query("test_vstable_select_test_state")
-        self.test_normal_query("test_vstable_select_test_session")
-        self.test_normal_query("test_vstable_select_test_event")
-        self.test_normal_query("test_vstable_select_test_count")
+        tdSql.execute("alter vtable vtb_virtual_ntb_full add column u_smallint_col smallint unsigned;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_half_full add column u_smallint_col smallint unsigned;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_empty add column u_smallint_col smallint unsigned;")
+        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ntb_empty", 0, 16)
 
-        self.test_normal_query("test_vstable_select_test_partition")
-        self.test_normal_query("test_vstable_select_test_group")
-        self.test_normal_query("test_vstable_select_test_orderby")
+        tdSql.execute("alter vtable vtb_virtual_ntb_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_half_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_empty alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
+        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ntb_empty", 10000, 16)
+
+        tdSql.execute("alter vtable vtb_virtual_ntb_full add column u_smallint_col_new smallint unsigned;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_half_full add column u_smallint_col_new smallint unsigned;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_empty add column u_smallint_col_new smallint unsigned;")
+        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ntb_empty", 10000, 17)
+
+        tdSql.execute("alter vtable vtb_virtual_ntb_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_half_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
+        tdSql.execute("alter vtable vtb_virtual_ntb_empty alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
+        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ntb_empty", 10000, 17)
 
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         self.prepare_org_tables()
-        self.test_select_virtual_normal_table()
-        self.test_select_virtual_child_table()
-        self.test_select_virtual_super_table()
-
+        self.test_virtual_stable_and_child_table()
+        self.test_virtual_normal_table()
 
         tdLog.success(f"{__file__} successfully executed")
 
