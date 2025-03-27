@@ -15,6 +15,8 @@ set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 message(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
 message(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
 
+add_subdirectory(enterprise/contrib)
+
 include(${TD_SUPPORT_DIR}/cmake.platform)
 include(${TD_ENTERPRISE_DIR}/cmake/cmake.options)
 include(${TD_ENTERPRISE_DIR}/cmake/cmake.define)
@@ -22,9 +24,7 @@ include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.version)
 include(${TD_SUPPORT_DIR}/cmake.install)
-
 add_subdirectory(community/contrib)
-add_subdirectory(enterprise/contrib)
 
 if(${BUILD_TEST})
   include(CTest)

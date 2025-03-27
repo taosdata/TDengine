@@ -3,20 +3,20 @@
 set -e
 # set -x
 
-# new_ver_release.sh  -b [develop | master] 
-#                     -c [aarch32 | aarch64 | x64 ...]  
+# new_ver_release.sh  -b [develop | master]
+#                     -c [aarch32 | aarch64 | x64 ...]
 #                     -n [2.1.*.* | 2.0.*.* ]
-#                     -l [full | lite] 
+#                     -l [full | lite]
 #                     -v [cluster, edge ,all] cluster is enterprise, edge is community
 #                     -V [stable | beta]
-#                     -d [isdocker ] 
+#                     -d [isdocker ]
 #                     -h help
 
 # set parameters by default value
 branchName=main   # -b [main | 3.0 ]
 cpuType=x64         # -c [aarch32 | aarch64 | x64 ...]
 version="3.0.0.0"   # -n [2.1.*.* | 2.0.*.* ]
-pagMode=full        # -l [full | lite] 
+pagMode=full        # -l [full | lite]
 verMode=cluster         # -v [cluster, edge ,all ] cluster is enterprise, edge is community
 verType=stable      # -V [stable, beta]
 versionComp=3.0.0.0
@@ -24,8 +24,10 @@ dockerMode="no"
 dockerProject="tdengine"
 grantValue=10
 skip=0
+modelDlUrl=""
+tdGpt=false
 
-while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:s:" arg
+while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:s:u:g:" arg
 do
   case $arg in
     c)
@@ -79,6 +81,12 @@ do
       #echo "skip=$OPTARG"
       skip=$(echo $OPTARG)
       ;;
+    u)
+      modelDlUrl=$(echo $OPTARG)
+      ;;
+    g)
+      tdGpt=$(echo $OPTARG)
+      ;;
     h)
       echo "Usage: `basename $0` -b [main | 3.0] "
       echo "                     -c [aarch32 | aarch64 | x64 ...] "
@@ -93,6 +101,8 @@ do
       echo "                     -D <harbor docker project>"
       echo "                     -G <grant days>"
       echo "                     -s [0, 1] skip some steps, 0: do not skip, 1: skip"
+      echo "                     -u <model download url>"
+      echo "                     -g [true | false] enable/disable TDgpt"
       exit 0
       ;;
     ?) #unknow option
@@ -126,6 +136,10 @@ elif [ "$verMode" == "cluster" ];then
   bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $skip $cusName $cusPrompt $cusEmail
 elif [ "$verMode" == "cloud" ];then
   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
+  if [ "$tdGpt" == "true" ];then
+    bash $communityDir/tools/tdgpt/script/release.sh -e enterprise -v $version
+    cp $communityDir/tools/tdgpt/release/TDengine-enterprise-TDgpt-$version-Linux-${cpuType}.tar.gz $communityDir/packaging/docker
+  fi
 else
   echo "please input right Specified para "
 fi
@@ -135,7 +149,11 @@ if [ "$dockerMode" == "build" ] || [ "$dockerMode" == "push" ];then
     cp -f $communityDir/release/TDengine-enterprise-server-*-Linux-x64.tar.gz $enterpriseDir/packaging/docker
     bash generate_docker_enterprise.sh     $version $branchName $verType $cpuType $verMode $dockerMode $dockerProject
   else
-    bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
+    if [ "$tdGpt" == "true" ];then
+      bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode $tdGpt $modelDlUrl
+    else
+      bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
+    fi
   fi
 fi
 

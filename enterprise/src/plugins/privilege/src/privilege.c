@@ -105,6 +105,8 @@ int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showTy
     case TSDB_MGMT_TABLE_APPS:
     case TSDB_MGMT_TABLE_TRANS:
     case TSDB_MGMT_TABLE_COL:
+    case TSDB_MGMT_TABLE_ANODE:
+    case TSDB_MGMT_TABLE_ANODE_FULL:
       break;
     default:
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
