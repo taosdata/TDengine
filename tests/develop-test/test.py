@@ -59,16 +59,18 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
+
 def get_local_classes_in_order(file_path):
     with open(file_path, "r", encoding="utf-8") as file:
         tree = ast.parse(file.read(), filename=file_path)
-    
+
     classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
     return classes
 
+
 def dynamicLoadModule(fileName):
     moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-    return importlib.import_module(moduleName, package='..')
+    return importlib.import_module(moduleName, package="..")
 
 
 if __name__ == "__main__":
@@ -346,7 +348,7 @@ if __name__ == "__main__":
 
             if queryPolicy != 1:
                 queryPolicy = int(queryPolicy)
-                if restful or taosAdapter:
+                if restful:
                     conn = taosrest.connect(url=f"http://{host}:6041")
                 else:
                     conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
@@ -405,7 +407,7 @@ if __name__ == "__main__":
                 print(r)
             if queryPolicy != 1:
                 queryPolicy = int(queryPolicy)
-                if restful or taosAdapter:
+                if restful:
                     conn = taosrest.connect(url=f"http://{host}:6041")
                 else:
                     conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
@@ -549,7 +551,7 @@ if __name__ == "__main__":
 
             if queryPolicy != 1:
                 queryPolicy = int(queryPolicy)
-                if restful or taosAdapter:
+                if restful:
                     conn = taosrest.connect(url=f"http://{host}:6041")
                 else:
                     conn = taos.connect(host, config=tdDnodes.getSimCfgPath())
