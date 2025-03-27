@@ -1380,7 +1380,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   } else {
     memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
   }
-  qError("%s child_table_name:%s,groupId:%"PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, groupId);
+  qError("%s child_table_name:%s, groupId:%"PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, groupId);
   pAPI->streamStateFreeVal(pValue);
 
 _end:
@@ -1414,6 +1414,8 @@ static int32_t buildStreamCreateTableResult(SOperatorInfo* pOperator) {
   }
 
 _end:
+  qError("%s failed at line %d taskId: %s", __func__, lino, GET_TASKID(pTask));
+
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
