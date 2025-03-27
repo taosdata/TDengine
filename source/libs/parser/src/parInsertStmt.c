@@ -198,8 +198,14 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
-          if (initCtxAsText() || checkWKB(bind[c].buffer, colLen)) {
-            code = buildSyntaxErrMsg(&pBuf, "invalid geometry tag", bind[c].buffer);
+          code = initCtxAsText();
+          if (code) {
+            qError("geometry init failed:%s", tstrerror(code));
+            goto end;
+          }
+          code = checkWKB(bind[c].buffer, colLen);
+          if (code) {
+            qError("stmt bind invalid geometry tag:%s, must be WKB format", (char*)bind[c].buffer);
             goto end;
           }
         }
@@ -562,8 +568,14 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
-          if (initCtxAsText() || checkWKB(bind[c].buffer, colLen)) {
-            code = buildSyntaxErrMsg(&pBuf, "invalid geometry tag", bind[c].buffer);
+          code = initCtxAsText();
+          if (code) {
+            qError("geometry init failed:%s", tstrerror(code));
+            goto end;
+          }
+          code = checkWKB(bind[c].buffer, colLen);
+          if (code) {
+            qError("stmt2 bind invalid geometry tag:%s, must be WKB format", (char*)bind[c].buffer);
             goto end;
           }
         }
@@ -759,9 +771,13 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
       }
       uint8_t* buf = bind[c].buffer;
       for (int j = 0; j < bind[c].num; j++) {
+        if (bind[c].is_null && bind[c].is_null[j]) {
+          continue;
+        }
         code = checkWKB(buf, bind[c].length[j]);
         if (code) {
-          qError("geometry data must be in WKB format");
+          qError("stmt2 interlace mode geometry data[%d]:{%s},length:%d must be in WKB format", c, buf,
+                 bind[c].length[j]);
           goto _return;
         }
         buf += bind[c].length[j];
@@ -1005,9 +1021,12 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, c
       }
       uint8_t *buf = bind[c].buffer;
       for (int j = 0; j < bind[c].num; j++) {
+        if (bind[c].is_null && bind[c].is_null[j]) {
+          continue;
+        }
         code = checkWKB(buf, bind[c].length[j]);
         if (code) {
-          qError("geometry data must be in WKB format");
+          qError("stmt2 row bind geometry data[%d]:{%s},length:%d must be in WKB format", c, buf, bind[c].length[j]);
           goto _return;
         }
         buf += bind[c].length[j];
