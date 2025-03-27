@@ -34,7 +34,7 @@ FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
 完整的调用SQL语句如下：
 
 ```SQL
-SELECT _frowts, FORECAST(i32, "algo=holtwinters, peroid=10,trend=mul,seasonal=mul") from foo
+SELECT _frowts, FORECAST(i32, "algo=holtwinters, period=10,trend=mul,seasonal=mul") from foo
 ```
 
 ```json5
@@ -42,7 +42,7 @@ SELECT _frowts, FORECAST(i32, "algo=holtwinters, peroid=10,trend=mul,seasonal=mu
 "rows": rows,         // 返回结果的行数
 "period": period,     // 返回结果的周期性，该结果与输入的周期性相同，如果没有周期性，该值为 0
 "algo": 'holtwinters' // 返回结果使用的计算模型
-"mse": mse,           // 最小均方误差（minmum square error）
+"mse": mse,           // 最小均方误差（minimum square error）
 "res": res            // 具体的结果，按照列形式返回的结果。一般意义上包含了两列 [timestamp][fc_results]。
 }
 ```
