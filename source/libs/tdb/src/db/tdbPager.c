@@ -853,6 +853,7 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
 
   *ppgno = 0;
 
+#if ENABLE_PAGE_RECYLING
   // Try to allocate from the free list of the pager
   ret = tdbPagerAllocFreePage(pPager, ppgno, pTxn);
   if (ret < 0) {
@@ -860,6 +861,7 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
   }
 
   if (*ppgno != 0) return 0;
+#endif
 
   // Allocate the page by extending the pager
   ret = tdbPagerAllocNewPage(pPager, ppgno);
