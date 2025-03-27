@@ -6,8 +6,7 @@ ARG pkgFile
 ARG dirName
 ARG cpuType
 
-# --build-arg BUILDKIT_SANDBOX_HOSTNAME=localhost
-ARG BUILDKIT_SANDBOX_HOSTNAME
+ARG BUILDKIT_SANDBOX_HOSTNAME=localhost
 RUN echo ${pkgFile} && echo ${dirName}
 
 COPY ${pkgFile} /root/
