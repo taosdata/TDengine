@@ -55,7 +55,7 @@ static char *bseFilexSuffix[] = {
     "data",
     "log",
 };
-static int32_t kBlockCap = 64 * 1024 * 1024;
+static int32_t kBlockCap = 16 * 1024 * 1024;
 
 typedef struct {
   int64_t seq;
@@ -319,13 +319,13 @@ int32_t tableOpen(const char *name, STable **ppTable, uint8_t openFile) {
   code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->data);
   TSDB_CHECK_CODE(code, line, _err);
 
+  code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->iData);
+  TSDB_CHECK_CODE(code, line, _err);
+
   BlockInfo info = {0};
   if (taosArrayPush(pTable->pSeqToBlock, &info) == NULL) {
     TSDB_CHECK_CODE(code = terrno, line, _err);
   }
-
-  code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->bufBlk);
-  TSDB_CHECK_CODE(code, line, _err);
 
   pTable->fileOpened = openFile;
   if (openFile) {
@@ -357,8 +357,8 @@ int32_t tableClear(STable *pTable) {
   pTable->commited = 0;
 
   taosHashClear(pTable->pCache);
-  memset((uint8_t *)pTable->bufBlk.pData, 0, kBlockCap);
   memset((uint8_t *)pTable->data.pData, 0, kBlockCap);
+  memset((uint8_t *)pTable->iData.pData, 0, kBlockCap);
   pTable->blockId = 0;
   pTable->initSeq = 0;
   taosHashClear(pTable->pCache);
@@ -392,7 +392,7 @@ int32_t tableClose(STable *pTable, uint8_t clear) {
   code = blockCleanup(&pTable->data);
   TSDB_CHECK_CODE(code, line, _err);
 
-  code = blockCleanup(&pTable->bufBlk);
+  code = blockCleanup(&pTable->iData);
   TSDB_CHECK_CODE(code, line, _err);
 
   taosHashCleanup(pTable->pCache);
@@ -514,10 +514,10 @@ int32_t tableGetByBlock(STable *pTable, BlockInfo *pInfo, int64_t key, uint8_t *
     code = blockSeekSeq(&pTable->data, key, pValue, len);
     TSDB_CHECK_CODE(code, lino, _err);
   } else {
-    code = tableLoadBlk(pTable, pInfo->blockId, &pTable->bufBlk);
+    code = tableLoadBlk(pTable, pInfo->blockId, &pTable->iData);
     TSDB_CHECK_CODE(code, lino, _err);
 
-    code = blockSeekSeq(&pTable->bufBlk, key, pValue, len);
+    code = blockSeekSeq(&pTable->iData, key, pValue, len);
     TSDB_CHECK_CODE(code, lino, _err);
   }
 
@@ -574,14 +574,18 @@ int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk) {
   int32_t code = 0;
   int32_t line = 0;
   int32_t offset = blockId * kBlockCap;
+  if (blk->inited == 1 && blk->blockId == blockId) {
+    return 0;
+  }
 
   int64_t n = taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
   if (n < 0) {
     code = terrno;
     return code;
   }
-
   SBlkData2 *pBlk = blk->pData;
+  blk->inited = 1;
+  blk->blockId = blockId;
 
   int64_t len = taosReadFile(pTable->pDataFile, (uint8_t *)pBlk, kBlockCap);
   if (len != kBlockCap) {
@@ -1072,7 +1076,6 @@ int32_t bsePutBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
   taosThreadMutexLock(&pBse->mutex);
   code = tableAppendBatch(pBse->pTable[pBse->inUse], pBatch);
-
   code = bseRecycleBatch(pBse, pBatch);
 
   taosThreadMutexUnlock(&pBse->mutex);
@@ -1270,6 +1273,7 @@ int32_t bseFileSetCmprFn(const void *p1, const void *p2) {
 int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t line = 0;
   int32_t code = 0;
+  int64_t ts = taosGetTimestampMs();
 
   taosThreadMutexLock(&pBse->mutex);
   if (seq >= pBse->pTable[pBse->inUse]->initSeq) {
@@ -1318,6 +1322,8 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
       TSDB_CHECK_CODE(code, line, _err);
     }
   }
+  int64_t cost = taosGetTimestampMs() - ts;
+  bseDebug("succ to get value by seq %" PRIu64 ", cost %" PRId64 " ms", seq, cost);
 
 _err:
   taosThreadMutexUnlock(&pBse->mutex);
@@ -1340,6 +1346,12 @@ int32_t bseMultiGet(SBse *pBse, SArray *pKey, SArray *ppValue) {
   int32_t code = 0;
   taosSort(pKey->pData, taosArrayGetSize(pKey), sizeof(int64_t), seqComparFunc);
 
+  taosThreadMutexLock(&pBse->mutex);
+  taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
+int32_t bseIterate(SBse *pBse, uint64_t start, uint64_t end, SArray *pValue) {
+  int32_t code = 0;
   taosThreadMutexLock(&pBse->mutex);
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
@@ -1443,9 +1455,6 @@ static int32_t readerTableOpen(const char *name, uint64_t lastSeq, SReaderTable 
   code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->data);
   TSDB_CHECK_CODE(code, line, _err);
 
-  code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->bufBlk);
-  TSDB_CHECK_CODE(code, line, _err);
-
   tstrncpy(pTable->name, name, TSDB_FILENAME_LEN);
   pTable->lastSeq = lastSeq;
   *ppTable = pTable;
@@ -1470,9 +1479,6 @@ static int32_t readerTableClose(SReaderTable *pTable) {
   code = blockCleanup(&pTable->data);
   TSDB_CHECK_CODE(code, line, _err);
 
-  code = blockCleanup(&pTable->bufBlk);
-  TSDB_CHECK_CODE(code, line, _err);
-
   taosHashCleanup(pTable->pCache);
 
   code = taosCloseFile(&pTable->pDataFile);
@@ -1495,10 +1501,10 @@ static int32_t readerTableGet(SReaderTable *pTable, int64_t key, uint8_t **pValu
   code = getBlockBySeq(pTable->pSeqToBlock, key, &p);
   TSDB_CHECK_CODE(code, line, _err);
 
-  code = tableLoadBlk((STable *)pTable, p->blockId, &pTable->bufBlk);
+  code = tableLoadBlk((STable *)pTable, p->blockId, &pTable->data);
   TSDB_CHECK_CODE(code, line, _err);
 
-  code = blockSeekSeq(&pTable->bufBlk, key, pValue, len);
+  code = blockSeekSeq(&pTable->data, key, pValue, len);
 _err:
   return code;
 }

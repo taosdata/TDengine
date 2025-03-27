@@ -68,6 +68,8 @@ typedef struct {
   uint32_t cap;
   uint8_t  flushed;
   uint32_t dataNum;
+  int32_t  blockId;
+  int8_t   inited;
 
   SBlkData2 *pData;
   // int8_t   type;   // content data
@@ -95,6 +97,7 @@ typedef struct {
   TdFilePtr    pDataFile;
   TdFilePtr    pIdxFile;
   SBlkData     data;
+  SBlkData     iData;
   SBlkData     bufBlk;
   STableFooter footer;
   SHashObj    *pCache;
@@ -111,7 +114,6 @@ typedef struct {
   TdFilePtr    pDataFile;
   TdFilePtr    pIdxFile;
   SBlkData     data;
-  SBlkData     bufBlk;
   STableFooter footer;
   SHashObj    *pCache;
   SArray      *pSeqToBlock;
