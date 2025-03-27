@@ -1,4 +1,5 @@
 import requests
+import toml
 from fabric2 import Connection
 from .log import *
 from .common import *
