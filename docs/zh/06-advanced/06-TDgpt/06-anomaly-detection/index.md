@@ -91,7 +91,7 @@ gen_figure = true
 # annotate the anomaly_detection result
 anno_res = [9]
 
-# algorithms list that is involved in the comparion
+# algorithms list that is involved in the comparison
 [ad.algos]
 ksigma={"k": 2}
 iqr={}
