@@ -2,8 +2,8 @@ import requests
 import toml
 import os
 from fabric2 import Connection
-from .util.log import *
-from .util.common import *
+from .frame.log import *
+from .frame.common import *
 
 
 class TaosKeeper:

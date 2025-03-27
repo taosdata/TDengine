@@ -1,5 +1,4 @@
 import requests
-import toml
 from fabric2 import Connection
 from .log import *
 from .common import *
@@ -101,8 +100,8 @@ class TAdapter:
     def update_cfg(self, update_dict :dict):
         if not isinstance(update_dict, dict):
             return
-        if ("log" in update_dict and "path" not in update_dict["log"]) or "log" not in update_dict:
-            self.taosadapter_cfg_dict["log"]["path"] = os.path.join(self.path,"sim","dnode1","log")
+        if "log" in update_dict and "path" in update_dict["log"]:
+            del update_dict["log"]["path"]
         for key, value in update_dict.items():
             if key in ["cors", "pool", "ssl", "log", "monitor", "opentsdb", "influxdb", "statsd", "collectd", "opentsdb_telnet", "node_exporter", "prometheus"]:
                 if  isinstance(value, dict):
@@ -110,16 +109,7 @@ class TAdapter:
                         self.taosadapter_cfg_dict[key][k] = v
             else:
                 self.taosadapter_cfg_dict[key] = value
-        try:
-            with open(self.cfg_path, 'r') as f:
-                existing_data = toml.load(f)
-        except FileNotFoundError:
-            print(f"文件 {self.cfg_path} 不存在，将创建新文件。")
-            existing_data = {}
-        existing_data.update(self.taosadapter_cfg_dict)
-        with open(self.cfg_path, 'w') as f:
-            toml.dump(existing_data, f)
-            print(f"TOML 文件已成功更新：{self.cfg_path}")
+
     def check_adapter(self):
         if get_path(tool="taosadapter"):
             return False
@@ -165,7 +155,7 @@ class TAdapter:
 
     def start(self):
         bin_path = get_path(tool="taosadapter")
-        print("taosadapter_bin_bath:",bin_path)
+
         if (bin_path == ""):
             tdLog.exit("taosadapter not found!")
         else:
@@ -208,7 +198,7 @@ class TAdapter:
             use this method, must deploy taosadapter
         """
         bin_path = get_path(tool="taosadapter")
-        print("taosadapter_bin_bath:",bin_path)
+
         if (bin_path == ""):
             tdLog.exit("taosadapter not found!")
         else:
