@@ -16,14 +16,17 @@ on:
         type: string
         default: '3.0' # default value for TDengine test branch
   schedule:
-    - cron: '0 06 * * *'
-    - cron: '0 18 * * *'
+    # - cron: '0 06 * * *'
+    # - cron: '0 18 * * *'
+    - cron: '0 */3 * * *'
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.specified_tdinternal_test_branch || '3.0' }}-${{ github.event.inputs.specified_tdengine_test_branch || '3.0' }}-TDengine
   cancel-in-progress: true
 
 env:
+  WK: '/var/lib/jenkins/workspace/TDinternal/'
   WKC: '/var/lib/jenkins/workspace/TDinternal/community'
 
 jobs:
