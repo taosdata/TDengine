@@ -252,7 +252,7 @@ def before_test_class(request):
         tdSql_pytest.close()
         tdSql_army.close()
         request.cls.conn.close()
-        # request.session.before_test.destroy(request.cls.yaml_file)
+        request.session.before_test.destroy(request.cls.yaml_file)
 
 @pytest.fixture(scope="class", autouse=True)
 def add_common_methods(request):

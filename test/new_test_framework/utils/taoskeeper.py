@@ -10,19 +10,37 @@ class TaosKeeper:
         self.deployed = 0
         self.remoteIP = ""
         self.taoskeeper_cfg_dict = {
-            "instanceID": 64,
-            "port": 6043,
-            "gopoolsize": 50000,
-            "RotationInterval": "15s",
-            "host": "127.0.0.1",
-            "username": "root",
-            "password": "taosdata",
-            "usessl": False,
-            "level": "info",
-            "rotationcount": 30,
-            "keepDays": 30,
-            "compress": False,
-            "reservedDiskSize": "1GB" 
+            "tdengine":{
+                "host": "localhost",
+                "port": 6041,
+                "username": "root",
+                "password": "taosdata",
+                },
+                "port": 6043,
+                "taosConfigDir": "/etc/taos",
+                "log":{
+                    "path": "",
+                    "level": "info",
+                    "RotationInterval": "15s",
+                    "keepDays": 30,
+                    "rotationSize": "1GB",
+                    "rotationCount": 30
+                        },
+                "metrics":{
+                    "prefix": "taos",
+                },
+                "metrics.database":{
+                    "name": "log",
+                },
+                "metrics.database.options":{
+                    "vgroups": 1,
+                    "buffer": 64,
+                    "keep": 90,
+                    "cachemodel": "both",
+                },
+                "enviornment":{
+                    "incgroup": "false",
+                } 
         }
     # TODO: add taosadapter env:
     # 1. init cfg.toml.dict ：OK
@@ -61,6 +79,10 @@ class TaosKeeper:
                         self.taoskeeper_cfg_dict[key][k] = v
             else:
                 self.taoskeeper_cfg_dict[key] = value
+    def cfg(self, option, value):
+        cmd = f"echo {option} = {value} >> {self.cfg_path}"
+        if os.system(cmd) != 0:
+            tdLog.exit(cmd)
     def remote_exec(self, updateCfgDict, execCmd):
         remoteCfgDict = copy.deepcopy(updateCfgDict)
         if "log" in remoteCfgDict and "path" in remoteCfgDict["log"]:
