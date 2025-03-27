@@ -1,0 +1,51 @@
+FROM tdengine/tdengine-cloud-tdgpt-base
+
+WORKDIR /root/
+
+ARG pkgFile
+ARG dirName
+ARG tdgptPkgFile
+ARG tdgptDirName
+ARG modelDlUrl
+
+# for timer-moe
+ADD ${modelDlUrl}/timer-moe.tar.gz /root/
+RUN tar -xzf timer-moe.tar.gz && rm -rf timer-moe.tar.gz
+
+# for tdtsfm
+ADD ${pkgFile} \
+    ${tdgptPkgFile} \
+    ${modelDlUrl}/taos.pth \
+    ${modelDlUrl}/taos_ts_server.py \
+    ${modelDlUrl}/fc_australia.sql \
+    /root/
+
+RUN echo ${pkgFile} && \
+    echo ${dirName} && \
+    echo ${tdgptPkgFile} && \
+    echo ${tdgptDirName} && \
+    cd ${tdgptDirName}/ && \
+    /bin/bash install.sh -e no && \
+    cd .. && \
+    rm -rf ${tdgptDirName} && \
+    cd ${dirName}/ && \
+    /bin/bash install.sh -e no && \
+    cd .. && \
+    rm -rf ${dirName} && \
+    locale-gen en_US.UTF-8
+
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
+    LC_CTYPE=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+ADD ./run.sh \
+    ./td_cluster_check \
+    ./bin/* \
+    /usr/bin/
+
+VOLUME [ "/var/lib/taos" ]
+
+EXPOSE 6090 8387 5000
+
+ENTRYPOINT exec /usr/bin/run.sh
