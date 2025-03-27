@@ -75,7 +75,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -L, --loose-mode           Using loose mode if the table name and column name
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
-  -Q, --dot-replace          Repalce dot character with underline character in
+  -Q, --dot-replace          Replace dot character with underline character in
                              the table name.(Version 2.5.3).
   -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is 8
   -W, --rename=RENAME-LIST   Rename database name with new name during

@@ -340,7 +340,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
                                  const char *lines,
                                  int len,
                                  int32_t *totalRows,
-                                 int protocal,
+                                 int protocol,
                                  int precision)`
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数lines指针和长度len来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `ws_connect()` 函数建立。
@@ -378,7 +378,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
                                             const char *lines,
                                             int len,
                                             int32_t *totalRows,
-                                            int protocal,
+                                            int protocol,
                                             int precision,
                                             uint64_t reqid)`
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数lines指针和长度len来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递参数reqid来跟踪整个的函数调用链情况。
@@ -396,7 +396,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
                                      const char *lines,
                                      int len,
                                      int32_t *totalRows,
-                                     int protocal,
+                                     int protocol,
                                      int precision,
                                      int ttl)`
   - **接口说明**：执行无模式的批量插入操作，将行协议的文本数据写入到 TDengine 中。通过传递的参数lines指针和长度len来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。通过传递ttl参数来控制建表的ttl到期时间。
@@ -414,7 +414,7 @@ TDengine 推荐数据库应用的每个线程都建立一个独立的连接，�
                                                 const char *lines,
                                                 int len,
                                                 int32_t *totalRows,
-                                                int protocal,
+                                                int protocol,
                                                 int precision,
                                                 int ttl,
                                                 uint64_t reqid)`
