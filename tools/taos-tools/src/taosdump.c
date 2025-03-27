@@ -2354,7 +2354,7 @@ static int dumpCreateTableClauseAvro(
     avro_value_iface_t *wface = prepareAvroWface(
             dumpFilename,
             jsonSchema, &schema, &recordSchema, &db);
-
+            
     avro_value_t record;
     avro_generic_value_new(wface, &record);
 
@@ -2918,19 +2918,18 @@ uint32_t getTbDesJsonSize(TableDes *tableDes, bool onlyColumn) {
     return size;
 }
 
-uint32_t colDesToJson(char *pstr, ColDes * colDes, uint32_t num, char * label) {
+uint32_t colDesToJson(char *pstr, ColDes * colDes, uint32_t num) {
     uint32_t size = 0;
-    char field[TSDB_COL_NAME_LEN + ITEM_SPACE] = "";
-
     for(int32_t i = 0; i < num; i++) {
-        // get field
-        sprintf(field, "{\"name\":\"%s\", \"type\":%d}", 
-            colDes[i].field, colDes[i].type);
+        if (i > 0) {
+            // append splite
+            size += sprintf(pstr + size, ",");
+        }
         
-        // pstr
+        // field
         size += sprintf(pstr + size, 
-            "\"%s%d\": %s",
-            label, i,  field);
+            "{\"name\":\"%s\", \"type\":%d}",
+            colDes[i].field, colDes[i].type);
     }
     return size;
 }
@@ -2941,31 +2940,33 @@ uint32_t addStbSchema(char * pstr, const char *stable, TableDes *tableDes, bool 
     uint32_t size = 0;
     // stbName
     size += sprintf(pstr + size,
-        "\"%s:\"{"
+        "\"%s\":{"
         "\"name\":\"%s\",",
         STB_SCHEMA_KEY,
         stable);
     
     // cols
     size += sprintf(pstr + size, 
-        "\"cols\": {");
-    size +=  colDesToJson(pstr + size,
-        tableDes->cols, tableDes->columns, "col");
+        "\"cols\": [");
+    size += colDesToJson(pstr + size,
+        tableDes->cols, tableDes->columns);
     size += sprintf(pstr + size, 
-        "},");
+        "]");
 
     // child data
     if (onlyColumn) {
+        // end
+        size += sprintf(pstr + size, "}");
         return size;
     }
-        
+
     // tags
     size += sprintf(pstr + size, 
-        "\"tags\": {");
-    size +=  colDesToJson(pstr + size,
-        tableDes->cols + tableDes->columns, tableDes->tags, "tag");
+        ",\"tags\": [");
+    size += colDesToJson(pstr + size,
+        tableDes->cols + tableDes->columns, tableDes->tags);
     size += sprintf(pstr + size, 
-        "}");
+        "]}");
 
     return size;
 }
@@ -8048,6 +8049,7 @@ static int dumpStableMeta(
             *taos_v, stable);
     // free json        
     tfree(jsonTagsSchema);
+        
 
     // query tag and values
     char sql[SQL_LEN] = {0};

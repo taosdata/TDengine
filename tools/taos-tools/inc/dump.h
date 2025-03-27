@@ -62,7 +62,7 @@
 #define VERSION_KEY     "version"
 #define NAME_KEY        "name"
 #define FIELDS_KEY      "fields"
-#define STB_SCHEMA_KEY  "stb_schema_for_db"
+#define STB_SCHEMA_KEY  "stb_schema"
 
 
 #define debugPrint(fmt, ...) \
