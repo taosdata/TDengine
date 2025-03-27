@@ -335,6 +335,7 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
   if (gMemPoolHandle && ctx->memPoolSession) {
     qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession, true);
+    ctx->memPoolSession = NULL;
   }
 }
 

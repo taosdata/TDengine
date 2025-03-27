@@ -218,6 +218,7 @@ _return:
   if (NULL != pJob) {
     if (TSDB_CODE_SUCCESS != code) {
       qwDestroySession(QW_FPARAMS(), pJob, *ppSession, sessionKeyInHash);
+      *ppSession = NULL;
     }
     
     taosHashRelease(gQueryMgmt.pJobInfo, pJob);
