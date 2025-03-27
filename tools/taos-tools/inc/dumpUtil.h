@@ -45,6 +45,15 @@ typedef struct SNode {
 // declare dump.h
 struct TableDes;
 
+//
+// -----------  util fun -------------
+//
+
+void print_json(json_t *root);
+json_t *load_json(char *jsonbuf);
+void print_json_aux(json_t *element, int indent);
+const char *json_plural(size_t count);
+
 // return true to do retry , false no retry , code is error code 
 bool canRetry(int32_t code, int8_t type);
 
