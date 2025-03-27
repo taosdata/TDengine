@@ -28,24 +28,32 @@ class TDTestCase(TBase):
         """
 
     def run(self):
-        binPath = etool.benchMarkFile()
-        cmd = "%s -g -t 1 -n 1 -y" % binPath
-        tdLog.info("%s" % cmd)
-        res = os.system("%s" % cmd)
+        # binPath = etool.benchMarkFile()
+        # cmd = "%s -g -t 1 -n 1 -y" % binPath
+        # tdLog.info("%s" % cmd)
+        # res = os.system("%s" % cmd)
 
-        print("binPath:", binPath)
-        print("cmd:", cmd)
-        print("res:", res)
+        cmd = " -g -t 1 -n 1 -y"
+        rlist = frame.etool.runBinFile("taosBenchmark", cmd, show=True, retFail=True)
+        print(rlist)
 
-        cmd = "%s -g -t 1 -n 10 -U -s 1600000000000 -y" % binPath
-        tdLog.info("%s" % cmd)
-        res = os.system("%s" % cmd)
+        # print("binPath:", binPath)
+        # print("cmd:", cmd)
+        # print("res:", res)
 
-        print("cmd:", cmd)
-        print("res:", res)
+        cmd = " -g -t 1 -n 10 -U -s 1600000000000 -y"
+        rlist = frame.etool.runBinFile("taosBenchmark", cmd, show=True, retFail=True)
+        print(rlist)
 
-        res = os.system("ldd %s" % binPath)
-        print("res:", res)
+        # cmd = "%s -g -t 1 -n 10 -U -s 1600000000000 -y" % binPath
+        # tdLog.info("%s" % cmd)
+        # res = os.system("%s" % cmd)
+
+        # print("cmd:", cmd)
+        # print("res:", res)
+
+        # res = os.system("ldd %s" % binPath)
+        # print("res:", res)
 
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 11)
