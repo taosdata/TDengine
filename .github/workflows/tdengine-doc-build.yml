@@ -35,13 +35,45 @@ jobs:
           git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
           git checkout -qf FETCH_HEAD
 
+      - name: Check document changes
+        id: changed-doc-files
+        uses: tj-actions/changed-files@823fcebdb31bb35fdf2229d9f769b400309430d0
+        with:
+          files: docs/**
+
+      - name: Check whether the chinese or english docment is built
+        id: check-doc-lang
+        env:
+          ALL_CHANGED_DOCS: ${{ steps.changed-doc-files.outputs.all_changed_files }}
+        run: |
+          zh_doc_changed=false
+          en_doc_changed=false
+          for file in $ALL_CHANGED_DOCS; do
+            case $file in
+              *docs/zh/*)
+                zh_doc_changed=true
+                ;;
+              *docs/en/*)
+                en_doc_changed=true
+                ;;
+              *docs/assets/* | *docs/doxgen/* | *docs/examples/*)
+                zh_doc_changed=true
+                en_doc_changed=true
+                ;;
+            esac
+          done
+          echo "zh_doc_changed=$zh_doc_changed" >> $GITHUB_OUTPUT
+          echo "en_doc_changed=$en_doc_changed" >> $GITHUB_OUTPUT
+
       - name: Build the chinese document
+        if: ${{ steps.check-doc-lang.outputs.zh_doc_changed == 'true'}}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
           yarn ass local
           yarn build
 
       - name: Build the english document
+        if: ${{ steps.check-doc-lang.outputs.en_doc_changed == 'true'}}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass local
