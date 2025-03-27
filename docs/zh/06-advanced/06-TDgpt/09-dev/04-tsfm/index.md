@@ -14,7 +14,7 @@ TDgpt 已经内置原生支持了两个时序基础模型涛思时序基础模�
 
 # 准备环境
 
-为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备 Python 环境，使用 PiPy 安装必要的依赖包：
+为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备 Python 环境，使用 `pip` 安装必要的依赖包：
 
 ```shell
 pip install torch==2.4.1+cpu -f https://download.pytorch.org/whl/torch_stable.html

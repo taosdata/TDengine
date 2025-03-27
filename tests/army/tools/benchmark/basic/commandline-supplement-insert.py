@@ -29,7 +29,7 @@ class TDTestCase(TBase):
 
     def run(self):
         binPath = etool.benchMarkFile()
-        cmd = "%s -t 1 -n 1 -y" % binPath
+        cmd = "%s -g -t 1 -n 1 -y" % binPath
         tdLog.info("%s" % cmd)
         res = os.system("%s" % cmd)
 
@@ -37,11 +37,14 @@ class TDTestCase(TBase):
         print("cmd:", cmd)
         print("res:", res)
 
-        cmd = "%s -t 1 -n 10 -U -s 1600000000000 -y" % binPath
+        cmd = "%s -g -t 1 -n 10 -U -s 1600000000000 -y" % binPath
         tdLog.info("%s" % cmd)
         res = os.system("%s" % cmd)
 
         print("cmd:", cmd)
+        print("res:", res)
+
+        res = os.system("ldd %s" % binPath)
         print("res:", res)
 
         tdSql.query("select count(*) from test.meters")
