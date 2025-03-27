@@ -27,17 +27,23 @@ class TDTestCase(TBase):
         [TD-19352] taosBenchmark supplement insert test cases
         """
 
-
-
     def run(self):
         binPath = etool.benchMarkFile()
         cmd = "%s -t 1 -n 1 -y" % binPath
         tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
+        res = os.system("%s" % cmd)
+
+        print("binPath:", binPath)
+        print("cmd:", cmd)
+        print("res:", res)
 
         cmd = "%s -t 1 -n 10 -U -s 1600000000000 -y" % binPath
         tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
+        res = os.system("%s" % cmd)
+
+        print("cmd:", cmd)
+        print("res:", res)
+
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 11)
         tdSql.query("select * from test.meters")
