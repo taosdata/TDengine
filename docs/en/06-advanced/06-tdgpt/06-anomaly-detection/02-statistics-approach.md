@@ -16,7 +16,7 @@ FROM foo
 ANOMALY_WINDOW(foo.i32, "algo=ksigma,k=2")
 ```
 
-- Interquartile range (IQR)<sup>[2]</sup>: IQR divides a rank-ordered dataset into even quartiles, Q1 through Q3. IQR=Q3=Q1, for *v*, Q1 - (1.5 x IQR) \<= v \<= Q3 + (1.5 x IQR) is normal. Data points outside this range are considered anomalous. This algorithm does not take any parameters.
+- Interquartile range (IQR)<sup>[2]</sup>: IQR divides a rank-ordered dataset into even quartiles, Q1 through Q3. IQR=Q3-Q1, for *v*, Q1 - (1.5 x IQR) \<= v \<= Q3 + (1.5 x IQR) is normal. Data points outside this range are considered anomalous. This algorithm does not take any parameters.
 
 ```SQL
 --- Use the IQR algorithm.
@@ -44,23 +44,20 @@ ANOMALY_WINDOW(foo.i32, "algo=grubbs")
 
 
 ```SQL
---- Use the SHESD algorithm in both direction with a maximum 5% of the data being anomalous
+--- Use the SHESD algorithm in both directions with a maximum 5% of the data being anomalous
 SELECT _WSTART, COUNT(*)
 FROM foo
 ANOMALY_WINDOW(foo.i32, "algo=shesd,direction=both,anoms=0.05")
 ```
 
 The following algorithms are in development:
-
 - Gaussian Process Regression
 
-Change point detection--based algorithms:
-
+Change point detection--based algorithms:  
 - CUSUM (Cumulative Sum Control Chart)
 - PELT (Pruned Exact Linear Time)
 
-## References
-
+### References
 1. [https://en.wikipedia.org/wiki/68–95–99.7 rule](https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)
 2. https://en.wikipedia.org/wiki/Interquartile_range
 3. Adikaram, K. K. L. B.; Hussein, M. A.; Effenberger, M.; Becker, T. (2015-01-14). "Data Transformation Technique to Improve the Outlier Detection Power of Grubbs's Test for Data Expected to Follow Linear Relation". Journal of Applied Mathematics. 2015: 1–9. doi:10.1155/2015/708948.
