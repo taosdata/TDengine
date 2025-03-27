@@ -749,6 +749,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     }
   } else {
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
+    stError("%s s-task:%s child_table_name parTbName:%s for group:%" PRId64 ", code:%s", __FUNCTION__, pTask->id.idStr, pDataBlock->info.parTbName, groupId,
+                tstrerror(code));
     if (pDataBlock->info.parTbName[0]) {
       if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(pDataBlock->info.parTbName) &&
           !alreadyAddGroupId(pDataBlock->info.parTbName, groupId) && groupId != 0) {
@@ -769,6 +771,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
         stError("s-task:%s failed to build child table name for group:%" PRId64 ", code:%s", pTask->id.idStr, groupId,
                 tstrerror(code));
       }
+      stError("%s s-task:%s child_table_name build child table name for group:%" PRId64 ", code:%s", __FUNCTION__, pTask->id.idStr, groupId,
+                tstrerror(code));
     }
 
     snprintf(ctbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
@@ -781,7 +785,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     bln.hashValue = hashValue;
     memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
 
-    stDebug("s-task:%s dst table:%s hashVal:0x%x groupId:%"PRId64, pTask->id.idStr, ctbName, hashValue, groupId);
+    stDebug("s-task:%s child_table_name dst table:%s hashVal:0x%x groupId:%"PRId64, pTask->id.idStr, ctbName, hashValue, groupId);
 
     // failed to put into name buffer, no need to do anything
     if (tSimpleHashGetSize(pTask->pNameMap) < MAX_BLOCK_NAME_NUM) {  // allow error, and do nothing
@@ -1118,7 +1122,7 @@ static void chkptReadyMsgSendMonitorFn(void* param, void* tmrId) {
   pActiveInfo = pTask->chkInfo.pActiveInfo;
   pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
 
-  stDebug("s-task:%s acquire task, refId:%" PRId64, id, taskRefId);
+  stTrace("s-task:%s acquire task, refId:%" PRId64, id, taskRefId);
 
   // check the status every 100ms
   if (streamTaskShouldStop(pTask)) {

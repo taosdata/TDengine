@@ -2929,7 +2929,7 @@ int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t grou
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    uError("%s failed at line %d since %s, ctbName:%s", __func__, lino, tstrerror(code), ctbName);
   }
   return code;
 }

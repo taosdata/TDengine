@@ -1351,6 +1351,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
         memcpy(tbName, varDataVal(pData), len);
         code = pAPI->streamStatePutParName(pState, groupId, tbName);
         QUERY_CHECK_CODE(code, lino, _end);
+        qError("%s child_table_name tbName:%s", __FUNCTION__, tbName);
       }
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
@@ -1378,6 +1379,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   } else {
     memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
   }
+  qError("%s child_table_name:%s", __FUNCTION__, pSrcBlock->info.parTbName);
   pAPI->streamStateFreeVal(pValue);
 
 _end:
