@@ -82,7 +82,7 @@ function lcovFunc {
 
     # push result to coveralls.io
     echo "push result to coveralls.io"
-    #/usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info > coverall.log 2>&1
+    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info > coverall.log 2>&1
 }
 
 
