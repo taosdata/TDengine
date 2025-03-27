@@ -44,14 +44,6 @@ class TaosKeeper:
                     "incgroup": "false",
                 } 
         }
-    # TODO: add taosadapter env:
-    # 1. init cfg.toml.dict ：OK
-    # 2. dump dict to toml ： OK
-    # 3. update cfg.toml.dict ：OK
-    # 4. check adapter exists ： OK
-    # 5. deploy adapter cfg ： OK
-    # 6. adapter start ：   OK
-    # 7. adapter stop
     def init(self, path, remoteIP=""):
         self.path = path
         self.remoteIP = remoteIP
