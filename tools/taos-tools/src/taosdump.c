@@ -970,28 +970,20 @@ static int getTableRecordInfoImplNative(
     }
     taos_free_result(res);
 
-    if (3 == g_majorVersionOfClient) {
-        if (tryStable) {
-            snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                    "SELECT STABLE_NAME FROM information_schema.ins_stables "
-                    "WHERE db_name='%s' AND stable_name='%s'",
-                    dbName, table);
-        } else {
-            snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                    "SELECT TABLE_NAME,STABLE_NAME FROM "
-                    "information_schema.ins_tables "
-                    "WHERE db_name='%s' AND table_name='%s'",
-                    dbName, table);
-        }
+    // check table is stb or child table
+    if (tryStable) {
+        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+                "SELECT STABLE_NAME FROM information_schema.ins_stables "
+                "WHERE db_name='%s' AND stable_name='%s'",
+                dbName, table);
     } else {
-        if (tryStable) {
-            snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                     "SHOW STABLES LIKE \'%s\'", table);
-        } else {
-            snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                     "SHOW TABLES LIKE \'%s\'", table);
-        }
+        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+                "SELECT TABLE_NAME,STABLE_NAME FROM "
+                "information_schema.ins_tables "
+                "WHERE db_name='%s' AND table_name='%s'",
+                dbName, table);
     }
+
 
     res = taosQuery(taos, command, &code);
     if (code != 0) {
@@ -1014,30 +1006,21 @@ static int getTableRecordInfoImplNative(
                     (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                     min(TSDB_TABLE_NAME_LEN,
                         lengths[TSDB_SHOW_TABLES_NAME_INDEX] + 1));
-            if (3 == g_majorVersionOfClient) {
-                if (row[1]) {
-                    if (strlen((char *)row[1]) > 0) {
-                        pTableRecordInfo->belongStb = true;
-                        strncpy(pTableRecordInfo->tableRecord.stable,
-                                (char *)row[1],
-                                min(TSDB_TABLE_NAME_LEN-1,
-                                    lengths[1]));
-                    } else {
-                        pTableRecordInfo->belongStb = false;
-                    }
+
+            // check child table or normal table
+            if (row[1]) {
+                if (strlen((char *)row[1]) > 0) { 
+                    // child table
+                    pTableRecordInfo->belongStb = true;
+                    strncpy(pTableRecordInfo->tableRecord.stable,
+                            (char *)row[1],
+                            min(TSDB_TABLE_NAME_LEN-1,
+                                lengths[1]));
                 } else {
                     pTableRecordInfo->belongStb = false;
                 }
             } else {
-                if (strlen((char *)row[TSDB_SHOW_TABLES_METRIC_INDEX]) > 0) {
-                    pTableRecordInfo->belongStb = true;
-                    strncpy(pTableRecordInfo->tableRecord.stable,
-                            (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
-                            min(TSDB_TABLE_NAME_LEN-1,
-                                lengths[TSDB_SHOW_TABLES_METRIC_INDEX]));
-                } else {
-                    pTableRecordInfo->belongStb = false;
-                }
+                pTableRecordInfo->belongStb = false;
             }
             isSet = true;
         }
@@ -2133,75 +2116,6 @@ static int32_t readJsonFields( json_t *value, RecordSchema *recordSchema) {
     return 0;
 }
 
-static int32_t readStbSchemaCols( json_t *element, ColDes *cols) {
-    const char *key   = NULL;
-    json_t     *value = NULL;
-    uint32_t   n      = 0;
-
-    // check valid
-    if (JSON_ARRAY != json_typeof(element)) {
-        warnPrint("%s() LN%d, stbSchema have no array\n",
-            __func__, __LINE__);
-        return  0;
-    }
-
-    // loop read
-    json_object_foreach(element, key, value) {
-        ColDes *col = cols + n;
-        if (0 == strcmp(key, "name")) {
-            strncpy(col->field, json_string_value(value), TSDB_COL_NAME_LEN - 1);
-        } else if (0 == strcmp(key, "type")) {
-            col->type = json_integer_value(value);
-        }
-
-        // move next
-        ++n;
-    }
-
-    return n;
-}
-
-
-// read stb schema
-static int32_t readJsonStbSchema( json_t *element, RecordSchema *recordSchema) {
-
-    const char *key   = NULL;
-    json_t     *value = NULL;
-    uint32_t   n      = 0;
-
-    // maloc tableDes
-    TableDes *tableDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
-    if (tableDes == NULL) {
-        errorPrint("%s() LN%d, malloc memory TableDes failed.\n", __func__, __LINE__);
-        return -1;
-    }
-
-    json_object_foreach(element, key, value) {
-        if (0 == strcmp(key, "name")) {
-            tstrncpy(recordSchema->stbName, json_string_value(value), RECORD_NAME_LEN - 1);
-        } else if (0 == strcmp(key, "tags")) {
-            tableDes->tags = readStbSchemaCols(value, tableDes->cols + n);
-            n += tableDes->tags;
-        } else if (0 == strcmp(key, "cols")) {
-            tableDes->columns = readStbSchemaCols(value, tableDes->cols + n);
-            n += tableDes->columns;
-        }
-    }
-
-    // check valid
-    if (tableDes->columns == 0) {
-        errorPrint("%s() LN%d, TableDes->columns is zero. stbName=%s\n", __func__, __LINE__, tableDes->name);
-        //return -1;
-    }
-
-    debugPrint("%s() LN%d, stbName=%s tags=%d columns=%d\n", __func__, __LINE__, tableDes->name, tableDes->tags, tableDes->columns);
-
-    // set
-    recordSchema->tableDes = tableDes;
-    return 0;
-
-}
-
 //
 // read avro json 
 //
@@ -2224,26 +2138,15 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
     json_t *value;
 
     json_object_foreach(element, key, value) {
-        // version
-        if (0 == strcmp(key, VERSION_KEY)) {
-            recordSchema->version = json_integer_value(value);
-        }
         // name
-        else if (0 == strcmp(key, NAME_KEY)) {
+        if (0 == strcmp(key, NAME_KEY)) {
             tstrncpy(recordSchema->name, json_string_value(value), RECORD_NAME_LEN - 1);
         // fields    
         } else if (0 == strcmp(key, FIELDS_KEY)) {
             if (readJsonFields(value, recordSchema)) {
                 free(recordSchema);
                 return NULL;
-            }
-        // stb_schema_for_db
-        } else if (0 == strcmp(key, STB_SCHEMA_KEY)) {
-            // read stb name
-            if (readJsonStbSchema(value, recordSchema)) {
-                free(recordSchema);
-                return NULL;
-            }            
+            }        
         }
     }
 
@@ -2892,8 +2795,8 @@ uint32_t getTbDesJsonSize(TableDes *tableDes, bool onlyColumn) {
         ITEM_SPACE +                    // version 1
         ITEM_SPACE +                    // type: record
         ITEM_SPACE + TSDB_DB_NAME_LEN + // namespace: dbname
-        ITEM_SPACE +                    // field : {}
-        ITEM_SPACE;                     // stb_schema_for_db: {} 
+        ITEM_SPACE;                     // field : {}
+
 
     //
     // fields
@@ -2903,17 +2806,6 @@ uint32_t getTbDesJsonSize(TableDes *tableDes, bool onlyColumn) {
         fieldCnt -= tableDes->tags;
     }
     size += (TSDB_COL_NAME_LEN + ITEM_SPACE) * fieldCnt;
-
-    //
-    // stable schema
-    //
-
-    // stbname
-    size += TSDB_TABLE_NAME_LEN + ITEM_SPACE;
-    // stb fields for db schema
-    if (!onlyColumn) {
-        size += (tableDes->columns + tableDes->tags) * (ITEM_SPACE + TSDB_COL_NAME_LEN);
-    } 
 
     return size;
 }
@@ -2931,43 +2823,6 @@ uint32_t colDesToJson(char *pstr, ColDes * colDes, uint32_t num) {
             "{\"name\":\"%s\", \"type\":%d}",
             colDes[i].field, colDes[i].type);
     }
-    return size;
-}
-
-// append stb schema
-uint32_t addStbSchema(char * pstr, const char *stable, TableDes *tableDes, bool onlyColumn) {
-    
-    uint32_t size = 0;
-    // stbName
-    size += sprintf(pstr + size,
-        "\"%s\":{"
-        "\"name\":\"%s\",",
-        STB_SCHEMA_KEY,
-        stable);
-    
-    // cols
-    size += sprintf(pstr + size, 
-        "\"cols\": [");
-    size += colDesToJson(pstr + size,
-        tableDes->cols, tableDes->columns);
-    size += sprintf(pstr + size, 
-        "]");
-
-    // child data
-    if (onlyColumn) {
-        // end
-        size += sprintf(pstr + size, "}");
-        return size;
-    }
-
-    // tags
-    size += sprintf(pstr + size, 
-        ",\"tags\": [");
-    size += colDesToJson(pstr + size,
-        tableDes->cols + tableDes->columns, tableDes->tags);
-    size += sprintf(pstr + size, 
-        "]}");
-
     return size;
 }
 
@@ -3043,13 +2898,7 @@ static int convertTbDesToJsonImpl(
     }
     
     // fields end
-    pstr += sprintf(pstr, "],");
-
-    // append new json stb_schema_for_db
-    pstr += addStbSchema(pstr, stable, tableDes, onlyColumn); 
-
-    // end
-    pstr += sprintf(pstr, "}");
+    pstr += sprintf(pstr, "]}");
 
     debugPrint("%s() LN%d, jsonSchema:\n %s\n",
             __func__, __LINE__, *jsonSchema);
@@ -5893,11 +5742,9 @@ static RecordSchema *getSchemaAndReaderFromFile(
 
     // base
     int buf_len = 
-        ITEM_SPACE +                    // version 1
         ITEM_SPACE +                    // type: record
         ITEM_SPACE + TSDB_DB_NAME_LEN + // namespace: dbname
-        ITEM_SPACE +                    // field : {}
-        ITEM_SPACE;                     // stb_schema_for_db: {} 
+        ITEM_SPACE;                     // field : {}
 
     switch (avroType) {
         case AVRO_TBTAGS:
@@ -5961,6 +5808,13 @@ static RecordSchema *getSchemaAndReaderFromFile(
         return NULL;
     }
     json_decref(json_root);
+
+    //
+    // read stb schema from avroFile + .m file
+    //
+    if (avroType == AVRO_TBTAGS) {
+        readStbSchema(avroFile, recordSchema);
+    }
 
     return recordSchema;
 }
@@ -6561,19 +6415,15 @@ static int64_t dumpTableDataAvroNative(
 }
 
 static int generateSubDirName(
-        const AVROTYPE avroType,
-        const SDbInfo *dbInfo, char *subDirName) {
-    switch (avroType) {
-        case AVRO_DATA:
-            snprintf(subDirName, MAX_FILE_NAME_LEN, "data%"PRIu64"",
-                    (g_countOfDataFile / g_maxFilesPerDir));
-            atomic_add_fetch_64(&g_countOfDataFile, 1);
-            break;
+        const SDbInfo *dbInfo, char *subDirName, const char *stable) {
 
-        default:
-            break;
-    }
 
+    // gen sub dir name 
+    snprintf(subDirName, MAX_FILE_NAME_LEN, "data%"PRIu64"",
+            (g_countOfDataFile / g_maxFilesPerDir));
+    atomic_add_fetch_64(&g_countOfDataFile, 1);
+
+    // create sub dir
     char dirToCreate[MAX_PATH_LEN] = {0};
     if (g_args.loose_mode) {
         snprintf(dirToCreate, MAX_PATH_LEN, "%s"CUS_PROMPT"dump.%s/%s",
@@ -6606,11 +6456,21 @@ static int generateSubDirName(
         }
     }
 
+    // 
+    // create stbname file
+    //
+    if (stable) {
+        strcat(dirToCreate, STBNAME_FILE);
+        if (writeFile(dirToCreate, stable)) {
+            warnPrint("create file stbname failed. stb:%s file:%s\n", stable, dirToCreate);
+        }
+    }
+
     return ret;
 }
 
 static int generateFilename(AVROTYPE avroType, char *fileName,
-        const SDbInfo *dbInfo, const char *tbName, const int64_t index) {
+        const SDbInfo *dbInfo, const char * stable, const char *tbName, const int64_t index) {
     int ret = 0;
     if (g_args.loose_mode) {
         switch (avroType) {
@@ -6631,7 +6491,7 @@ static int generateFilename(AVROTYPE avroType, char *fileName,
                 {
                     // to avoid buffer overflow
                     char subDirName[MAX_FILE_NAME_LEN - 39] = {0};
-                    if (0 != generateSubDirName(avroType, dbInfo, subDirName)) {
+                    if (0 != generateSubDirName(avroType, dbInfo, subDirName, stable)) {
                         return -1;
                     }
 
@@ -6674,7 +6534,7 @@ static int generateFilename(AVROTYPE avroType, char *fileName,
             case AVRO_DATA:
                 {
                     char subDirName[MAX_FILE_NAME_LEN] = {0};
-                    if (0 != generateSubDirName(avroType, dbInfo, subDirName)) {
+                    if (0 != generateSubDirName(avroType, dbInfo, subDirName, stable)) {
                         return -1;
                     }
 
@@ -6716,7 +6576,7 @@ static int64_t dumpTableDataAvro(
     char *tbName = tableDes->name;
     char dataFilename[MAX_PATH_LEN] = {0};
     if (0 != generateFilename(AVRO_DATA, dataFilename,
-                dbInfo, tbName, index)) {
+                dbInfo, stable, tbName, index)) {
         return -1;
     }
 
@@ -6850,14 +6710,14 @@ int64_t dumpNormalTable(
             if (belongStb) {
                 if (0 != generateFilename(AVRO_TBTAGS,
                         dumpFilename,
-                        dbInfo, tbName, 0)) {
+                        dbInfo, stable, tbName, 0)) {
                     return -1;
                 }
                 debugPrint("%s() LN%d dumpFilename: %s\n",
                         __func__, __LINE__, dumpFilename);
             } else {
                 if (0 != generateFilename(AVRO_NTB,
-                        dumpFilename, dbInfo, tbName, 0)) {
+                        dumpFilename, dbInfo, stable, tbName, 0)) {
                     return -1;
                 }
             }
@@ -6945,7 +6805,7 @@ int64_t dumpANormalTableNotBelong(
             return -1;
         }
         if (0 != generateFilename(AVRO_NTB,
-                dumpFilename, dbInfo, ntbName, index)) {
+                dumpFilename, dbInfo, NULL, ntbName, index)) {
             return -1;
         }
         count = dumpNormalTable(
@@ -6961,7 +6821,7 @@ int64_t dumpANormalTableNotBelong(
                 NULL);
     } else {
         if (0 != generateFilename(AVRO_UNKNOWN,
-                dumpFilename, dbInfo, ntbName, 0)) {
+                dumpFilename, dbInfo, NULL, ntbName, 0)) {
             return -1;
         }
 
@@ -7998,6 +7858,58 @@ int32_t readRow(void *res, int32_t idx, int32_t col, uint32_t *len, char **data)
   return 0;
 }
 
+// get stb schema size
+uint32_t getStbSchemaSize(TableDes *tableDes) {
+    //
+    // stable schema
+    //
+    uint32_t size = 
+        ITEM_SPACE +                      // version 1
+        ITEM_SPACE + TSDB_TABLE_NAME_LEN; // stbName
+
+    // stb fields for db schema
+    size += (tableDes->columns + tableDes->tags) * (ITEM_SPACE + TSDB_COL_NAME_LEN);
+
+    return size;
+}
+
+// append stb schema
+char* genStbSchema(TableDes *tableDes) {
+    char *p = calloc(1, getStbSchemaSize(tableDes));
+    if (pstr == NULL) {
+        errorPrint("calloc memory failed for StbSchema.");
+        return NULL;
+    }
+    
+    uint32_t size = 0;
+    char *pstr = p;
+    // stbName
+    size += sprintf(pstr + size,
+        "{"
+        "\"%s\":%d,"
+        "\"%s\":\"%s\",",
+        VERSION_KEY, VERSION_VAL,
+        STBNAME_KEY, tableDes->name);
+    
+    // cols
+    size += sprintf(pstr + size, 
+        "\"cols\": [");
+    size += colDesToJson(pstr + size,
+        tableDes->cols, tableDes->columns);
+    size += sprintf(pstr + size, 
+        "]");
+
+    // tags
+    size += sprintf(pstr + size, 
+        ",\"tags\": [");
+    size += colDesToJson(pstr + size,
+        tableDes->cols + tableDes->columns, tableDes->tags);
+    size += sprintf(pstr + size, 
+        "]}");
+
+    return p;
+}
+
 #define SQL_LEN 512
 static int dumpStableMeta(
         void **taos_v,
@@ -8015,7 +7927,7 @@ static int dumpStableMeta(
     // dump file name .avro-tbtags
     char dumpFilename[MAX_PATH_LEN] = {0};
     if (0 != generateFilename(AVRO_TBTAGS, dumpFilename,
-            dbInfo, stable, 0)) {
+            dbInfo, stable, stable, 0)) {
         return -1;
     }
     debugPrint("%s() LN%d dumpFilename: %s\n",
@@ -8101,7 +8013,22 @@ static int dumpStableMeta(
         tb++;
         infoPrint("connection %p is dumping out schema: %"PRId64" from %s.%s\n", *taos_v, tb, stable, tbDes->name);
     }
-    okPrint("total %"PRId64" table(s) of stable: %s schema dumped.\n", tb, stable);
+
+    //
+    // output stable meta file
+    //
+    int32_t ret = -1;
+    char *stbJson = genStbSchema(stbDes);
+    if (stbJson) {
+        strcat(dumpFilename, ".m");
+        ret = writeFile(dumpFilename, stbJson);
+        free(stbJson);
+        stbJson = NULL;
+    }
+
+    if (ret == 0) {
+        okPrint("total %"PRId64" table(s) of stable: %s schema dumped.\n", tb, stable);
+    }
 
     // free
     closeQuery(tagsRes);
@@ -8111,7 +8038,7 @@ static int dumpStableMeta(
     avro_schema_decref(schema);
     freeTbDes(tbDes, true);
 
-    return 0;
+    return ret;
 }
 
 static int64_t dumpANormalTableBelongStb(
@@ -8127,7 +8054,7 @@ static int64_t dumpANormalTableBelongStb(
 
     if (g_args.avro) {
         if (0 != generateFilename(AVRO_TBTAGS,
-                dumpFilename, dbInfo, stbName, 0)) {
+                dumpFilename, dbInfo, stbName, stbName, 0)) {
             return -1;
         }
         debugPrint("%s() LN%d dumpFilename: %s\n",
@@ -8146,7 +8073,7 @@ static int64_t dumpANormalTableBelongStb(
         }
     } else {
         if (0 != generateFilename(AVRO_UNKNOWN,
-                    dumpFilename, dbInfo, ntbName, 0)) {
+                    dumpFilename, dbInfo, NULL, ntbName, 0)) {
             return -1;
         }
         fp = fopen(dumpFilename, "w");
@@ -9149,7 +9076,7 @@ static void *dumpTablesOfStbThread(void *arg) {
 
     if (g_args.avro) {
         if (0 != generateFilename(AVRO_TBTAGS, dumpFilename,
-                pThreadInfo->dbInfo, pThreadInfo->stbName,
+                pThreadInfo->dbInfo, pThreadInfo->stbName, pThreadInfo->stbName,
                 pThreadInfo->threadIndex)) {
             return NULL;
         }
@@ -9157,7 +9084,7 @@ static void *dumpTablesOfStbThread(void *arg) {
                 __func__, __LINE__, dumpFilename);
     } else {
         if (0 != generateFilename(AVRO_UNKNOWN, dumpFilename,
-                pThreadInfo->dbInfo, pThreadInfo->stbName,
+                pThreadInfo->dbInfo, pThreadInfo->stbName, pThreadInfo->stbName,
                 pThreadInfo->threadIndex)) {
             return NULL;
         }
@@ -10193,6 +10120,7 @@ static int dumpOut() {
             }
 
             if (tableRecordInfo.isStb) {  // dump all table of this stable
+                // super table
                 ret = dumpStbAndChildTb(taos_v, g_dbInfos[0],
                         tableRecordInfo.tableRecord.stable,
                         (g_args.avro_codec == AVRO_CODEC_UNKNOWN)?fp:fpDbs);
@@ -10201,6 +10129,7 @@ static int dumpOut() {
                             __func__, __LINE__, g_args.arg_list[i]);
                 }
             } else if (tableRecordInfo.belongStb) {
+                // child table
                 uint64_t sizeOfTableDes =
                     (uint64_t)(sizeof(TableDes)
                             + sizeof(ColDes) * TSDB_MAX_COLUMNS);
@@ -10246,6 +10175,7 @@ static int dumpOut() {
                 }
                 freeTbDes(stbTableDes, true);
             } else {
+                // normal table
                 ret = dumpANormalTableNotBelong(
                         i,
                         taos_v, g_dbInfos[0], g_args.arg_list[i]);

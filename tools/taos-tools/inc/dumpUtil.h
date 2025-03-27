@@ -70,6 +70,15 @@ TAOS *taosConnect(const char *dbName);
 TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code);
 
 
+//
+//  ------------- file operator ----------------
+//
+
+// write file
+int32_t writeFile(char *filename, char *txt);
+// read file
+char * readFile(char *filename);
+
 
 //
 // ---------------- hash map -----------------
@@ -108,6 +117,9 @@ int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchem
 
 // find stbChange with stbName
 StbChange * findStbChange(DBChange *pDbChange, char *stbName);
+
+
+int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema);
 
 
 

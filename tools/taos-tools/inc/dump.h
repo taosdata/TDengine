@@ -58,11 +58,21 @@
 #define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
 
 
-// json schema key
+// stb schema KEY
 #define VERSION_KEY     "version"
+#define STBNAME_KEY      "name"
+
+#define VERSION_VAL      1
+
+
+
 #define NAME_KEY        "name"
 #define FIELDS_KEY      "fields"
-#define STB_SCHEMA_KEY  "stb_schema"
+
+
+// file
+#define MFILE_EXT       ".m"
+#define STBNAME_FILE    "/stbname"
 
 
 #define debugPrint(fmt, ...) \

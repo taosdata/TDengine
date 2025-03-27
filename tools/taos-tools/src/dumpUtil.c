@@ -97,6 +97,77 @@ void freeTbDes(TableDes *tableDes, bool self) {
 }
 
 //
+//  ------------- file operator ----------------
+//
+
+// write file
+int32_t writeFile(char *filename, char *txt) {
+    FILE * fp = fopen(filename, "w+");
+    if(fp == NULL) {
+        errorPrint("open file failed. file=%s error=%s\n", filename, strerror(errno));
+        return -1;
+    }
+
+    // write
+    if(fprintf(fp, txt) < 0) {
+        errorPrint("write file failed. file=%s error=%s context=%s\n", filename, strerror(errno), txt);
+        fclose(fp);
+        return -1;
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+long getFileSize(FILE *fp) {
+    // move end
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        return -1;
+    }
+    // get
+    return ftell(fp);
+}
+
+// read file context
+char * readFile(char *filename) {
+    // open
+    FILE * fp = fopen(filename, "r");
+    if(fp == NULL) {
+        errorPrint("open file failed. file=%s error=%s\n", filename, strerror(errno));
+        return NULL;
+    }
+
+    // size
+    long size = getFileSize(fp);
+    if (size <= 0) {
+        errorPrint("getFileSize failed size=%ld. file=%s error=%s\n", size, filename, strerror(errno));
+        fclose(fp)
+        return NULL;
+    }
+
+    // calloc
+    long bufLen= size + 10;
+    char * buf = calloc(bufLen + 10, 1);
+    if(buf == NULL) {
+        errorPrint("malloc memory size=%ld failed. file=%s error=%s\n", bufLen, filename, strerror(errno));
+        fclose(fp)
+        return NULL;
+    }
+
+    // read
+    size_t readLen = fread(buf, 1, size, fp);
+    if (readLen != size) {
+        errorPrint("read file failed. expect read=%ld real=%ld file=%s error=%s\n", size, readLen, filename, strerror(errno));
+        free(buf);
+        buf = NULL;
+    }
+
+    // succ
+    fclose(fp);
+    return buf;
+}
+
+//
 //  ---------------  db interface  ------------------
 //
 
@@ -569,4 +640,107 @@ StbChange * findStbChange(DBChange *pDbChange, char *stbName) {
 
     // find
     return (StbChange *)hashMapFind(&pDbChange->stbMap, stbName);
+}
+
+static int32_t readStbSchemaCols( json_t *element, ColDes *cols) {
+    const char *key   = NULL;
+    json_t     *value = NULL;
+    uint32_t   n      = 0;
+
+    // check valid
+    if (JSON_ARRAY != json_typeof(element)) {
+        warnPrint("%s() LN%d, stbSchema have no array\n",
+            __func__, __LINE__);
+        return  0;
+    }
+
+    // loop read
+    json_object_foreach(element, key, value) {
+        ColDes *col = cols + n;
+        if (0 == strcmp(key, "name")) {
+            strncpy(col->field, json_string_value(value), TSDB_COL_NAME_LEN - 1);
+        } else if (0 == strcmp(key, "type")) {
+            col->type = json_integer_value(value);
+        }
+
+        // move next
+        ++n;
+    }
+
+    return n;
+}
+
+// read stb schema
+static int32_t readJsonStbSchema( json_t *element, RecordSchema *recordSchema) {
+
+    const char *key   = NULL;
+    json_t     *value = NULL;
+    uint32_t   n      = 0;
+
+    // maloc tableDes
+    TableDes *tableDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+    if (tableDes == NULL) {
+        errorPrint("%s() LN%d, malloc memory TableDes failed.\n", __func__, __LINE__);
+        return -1;
+    }
+
+    json_object_foreach(element, key, value) {
+        if (0 == strcmp(key, "version")) {
+            recordSchema->version = json_integer_value(value);
+        } else if (0 == strcmp(key, "name")) {
+            tstrncpy(recordSchema->stbName, json_string_value(value), RECORD_NAME_LEN - 1);
+        } else if (0 == strcmp(key, "tags")) {
+            tableDes->tags = readStbSchemaCols(value, tableDes->cols + n);
+            n += tableDes->tags;
+        } else if (0 == strcmp(key, "cols")) {
+            tableDes->columns = readStbSchemaCols(value, tableDes->cols + n);
+            n += tableDes->columns;
+        }
+    }
+
+    // check valid
+    if (tableDes->columns == 0) {
+        errorPrint("%s() LN%d, TableDes->columns is zero. stbName=%s\n", __func__, __LINE__, tableDes->name);
+        //return -1;
+    }
+
+    debugPrint("%s() LN%d, stbName=%s tags=%d columns=%d\n", __func__, __LINE__, tableDes->name, tableDes->tags, tableDes->columns);
+
+    // set
+    recordSchema->tableDes = tableDes;
+    return 0;
+
+}
+
+// read
+int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema) {
+    int32_t ret;
+    char mFile[MAX_PATH_LEN];
+    strcpy(mFile, avroFile);
+    strcat(mFile, MFILE_EXT);
+
+    // read
+    char *json = readFile(mFile);
+    if (json == NULL) {
+        // old no this file
+        return 0;
+    }
+
+    // parse json
+    int32_t ret = -1;
+    json_t *json_root = load_json(json);
+    if (json_root) {
+        if (g_args.verbose_print) {
+            print_json(json_root);
+        }
+
+        ret = readJsonStbSchema(json_root, recordSchema);
+        json_decref(json_root);
+    } else {
+        errorPrint("json:\n%s\n can't be parsed by jansson file=%s\n", json, mFile);
+    }
+
+    // free
+    free(json);
+    return ret;
 }
