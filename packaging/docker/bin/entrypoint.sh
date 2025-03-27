@@ -16,7 +16,7 @@ unset TAOS_DISABLE_KEEPER
 DISABLE_EXPLORER=${TAOS_DISABLE_EXPLORER:-0}
 unset TAOS_DISABLE_EXPLORER
 
-# Get FQDN from taosd -C
+# Get DATA_DIR from taosd -C
 DATA_DIR=$(taosd -C | awk '/^(default|cfg_file)[[:space:]]+dataDir[[:space:]]+/ {print $NF; exit}' | sed 's|/*$||')
 DATA_DIR=${DATA_DIR:-/var/lib/taos}
 
