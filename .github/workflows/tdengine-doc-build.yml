@@ -5,6 +5,7 @@ on:
     branches:
       - 'main'
       - '3.0'
+      - 'docs-cloud'
     paths:
       - 'docs/**'
 

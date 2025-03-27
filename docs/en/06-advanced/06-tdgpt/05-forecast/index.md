@@ -1,6 +1,6 @@
 ---
-title: Forecasting Algorithms
-description: Forecasting Algorithms
+title: Time-Series Forecasting
+description: Time-Series Forecasting
 ---
 
 import Image from '@theme/IdealImage';
@@ -29,7 +29,7 @@ taos> select * from foo;
  2020-01-01 00:00:19.308 |          27 |
 ```
 
-## Syntax
+### Syntax
 
 ```SQL
 FORECAST(column_expr, option_expr)
@@ -48,7 +48,7 @@ algo=expr1
 1. `column_expr`: The time-series data column to forecast. Enter a column whose data type is numerical.
 2. `options`: The parameters for forecasting. Enter parameters in key=value format, separating multiple parameters with a comma (,). It is not necessary to use quotation marks or escape characters. Only ASCII characters are supported. The supported parameters are described as follows:
 
-## Parameter Description
+### Parameter Description
 
 |Parameter|Definition|Default|
 | ------- | ------------------------------------------ | ---------------------------------------------- |
@@ -59,14 +59,18 @@ algo=expr1
 |start|Starting timestamp for forecast data.|One sampling period after the final timestamp in the input data|
 |rows|Number of forecast rows to return.|10|
 
-1. Three pseudocolumns are used in forecasting:`_FROWTS`: the timestamp of the forecast data; `_FLOW`: the lower threshold of the confidence interval; and `_FHIGH`: the upper threshold of the confidence interval. For algorithms that do not include a confidence interval, the `_FLOW` and `_FHIGH` pseudocolumns contain the forecast results.
-2. You can specify the `START` parameter to modify the starting time of forecast results. This does not affect the forecast values, only the time range.
-3. The `EVERY` parameter can be lesser than or equal to the sampling period of the input data. However, it cannot be greater than the sampling period of the input data.
-4. If you specify a confidence interval for an algorithm that does not use it, the upper and lower thresholds of the confidence interval regress to a single point.
-5. The maximum value of rows is 1024. If you specify a higher value, only 1024 rows are returned.
-6. The maximum size of the input historical data is 40,000 rows. Note that some models may have stricter limitations.
+- Three pseudocolumns are used in forecasting:
+  - `_FROWTS`: the timestamp of the forecast data
+  - `_FLOW`: the lower threshold of the confidence interval
+  - `_FHIGH`: the upper threshold of the confidence interval. For algorithms that do not include a confidence interval, the `_FLOW` and `_FHIGH` pseudocolumns contain the forecast results.
+- You can specify the `START` parameter to modify the starting time of forecast results. This does not affect the forecast values, only the time range.
+- The `EVERY` parameter can be lesser than or equal to the sampling period of the input data. However, it cannot be greater than the sampling period of the input data.
+- If you specify a confidence interval for an algorithm that does not use it, the upper and lower thresholds of the confidence interval regress to a single point.
+- The maximum value of rows is 1024. If you specify a higher value, only 1024 rows are returned.
+- The maximum size of the input historical data is 40,000 rows. Note that some models may have stricter limitations.
 
-## Example
+
+### Example
 
 ```SQL
 --- ARIMA forecast, return 10 rows of results (default), perform white noise data check, with 95% confidence interval 
@@ -97,7 +101,7 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 ## Built-In Forecasting Algorithms
 
 - [ARIMA](./arima/)
-- [Holt-Winters](./holtwinters/)
+- [HoltWinters](./holtwinters/)
 - Complex exponential smoothing (CES) 
 - Theta
 - Prophet
@@ -142,57 +146,55 @@ gen_figure = true
 ```
 
 To use the tool, run `analytics_compare` in TDgpt's `misc` directory. Ensure that you run the tool on a machine with a Python environment installed. You can test the tool as follows:
-
 1. Configure your TDengine cluster information in the `analytics.ini` file:
+```ini
+[taosd]
+# taosd hostname
+host = 127.0.0.1
 
-   ```ini
-   [taosd]
-   # taosd hostname
-   host = 127.0.0.1
+# username
+user = root
 
-   # username
-   user = root
+# password
+password = taosdata
 
-   # password
-   password = taosdata
+# tdengine configuration file
+conf = /etc/taos/taos.cfg
 
-   # tdengine configuration file
-   conf = /etc/taos/taos.cfg
+[input_data]
+# database for testing forecasting algorithms
+db_name = test
 
-   [input_data]
-   # database for testing forecasting algorithms
-   db_name = test
+# table with test data
+table_name = passengers
 
-   # table with test data
-   table_name = passengers
+# columns with test data
+column_name = val, _c0   
+```
 
-   # columns with test data
-   column_name = val, _c0   
-   ```
+2. Prepare your data.
 
-2. Prepare your data. A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
-
-   ```shell
-   taos -f sample-fc.sql
-   ```
-
-   You can now begin the evaluation.
+A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
+```shell
+taos -f sample-fc.sql
+```
+You can now begin the evaluation.
 
 3. Ensure that the Python environment on the local machine is operational. Then run the following command:
    
-   ```shell
-   python3.10 ./analytics_compare.py forecast
-   ```
+```shell
+python3.10 ./analytics_compare.py forecast
+```
 
 4. The evaluation results are written to `fc_result.xlsx`. The first card shows the results, shown as follows, including the algorithm name, parameters, mean square error, and elapsed time.
 
-   | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
-   | ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
-   | holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
-   | arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
+| algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
+| ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
+| holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
+| arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
 
 If you set `gen_figure` to `true`, a chart is also generated, as displayed in the following figure.
 
-<figure>
+<figure> 
 <Image img={fcResult} alt="Forecasting comparison"/>
 </figure>
