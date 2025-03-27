@@ -476,6 +476,7 @@ int32_t tableAppendMeta(STable *pTable) {
   TSDB_CHECK_CODE(code, line, _err);
 
   SBlkData2 *pBlk = pTable->data.pData;
+  bseDebug("size: %d", taosArrayGetSize(pTable->pSeqToBlock));
   for (int32_t i = 0; i < taosArrayGetSize(pTable->pSeqToBlock); i++) {
     BlockInfo *pBlockInfo = taosArrayGet(pTable->pSeqToBlock, i);
     if (blockMetaShouldFlush(&pTable->data, pBlockInfo)) {
@@ -1104,6 +1105,7 @@ int32_t bseGetOrCreateBatch(SBse *pBse, SBseBatch **pBatch) {
 
 _error:
   if (code != 0) {
+    bseInfo("failed to get bse batch since %s at line %d", tstrerror(code), lino);
   }
   return code;
 }

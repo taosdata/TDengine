@@ -483,6 +483,7 @@ struct SVnode {
 
   // commit variables
   SVATaskID commitTask;
+  SVATaskID commitTask2;
 
   SMeta* pMeta;
   SSma*  pSma;
