@@ -1415,6 +1415,7 @@ cols_func(A) ::= COLS(B).                                                       
 cols_func_para_list(A) ::= function_expression(B) NK_COMMA cols_func_expression_list(C).    { A = createColsFuncParamNodeList(pCxt, B, C, NULL); }
 
 cols_func_expression(A) ::= expr_or_subquery(B).                                            { A = releaseRawExprNode(pCxt, B); }
+cols_func_expression(A) ::= NK_STAR(B).                                                     { A = createColumnNode(pCxt, NULL, &B); }
 cols_func_expression(A) ::= expr_or_subquery(B) column_alias(C).                            { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C);}
 cols_func_expression(A) ::= expr_or_subquery(B) AS column_alias(C).                         { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C);}
 

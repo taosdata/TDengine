@@ -5776,6 +5776,11 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       SNodeList* pCols = NULL;
       code = createAllColumns(pCxt, false, &pCols);
       if (TSDB_CODE_SUCCESS == code) {
+        SNode* tmp = NULL;
+        FOREACH(tmp, pCols) {
+          ((SExprNode*)tmp)->bindExprID = ((SExprNode*)pNode)->bindExprID;
+          ((SExprNode*)tmp)->relatedTo = ((SExprNode*)pNode)->relatedTo;
+        }
         INSERT_LIST(pSelect->pProjectionList, pCols);
         ERASE_NODE(pSelect->pProjectionList);
         continue;
@@ -8040,9 +8045,6 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
   SNodeList* pNewNodeList = NULL;
   SNode*  pNewNode = NULL;
   if (needRewrite) {
-    if (pCxt->createStream) {
-      return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
-    }
     code = nodesMakeList(&pNewNodeList);
     if (NULL == pNewNodeList) {
       return code;
