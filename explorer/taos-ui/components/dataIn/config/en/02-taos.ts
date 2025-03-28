@@ -69,14 +69,10 @@ export default {
       label: 'Authentication',
       description: 'Use username/password plain authentication.',
       field: 'authentication',
-      type: 'tabs',
-      valueField: 'currentTab',
-      defaultValue: 'plain',
-      multiple: false,
       children: [
         {
           label: 'Plain',
-          name: 'plain',
+          name: '',
           field: 'plain',
           children: [
             {
