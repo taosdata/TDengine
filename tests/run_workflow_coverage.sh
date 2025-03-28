@@ -73,6 +73,9 @@ function lcovFunc {
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c' '*/debug/*' '*/tests/*'\
         '*/tsdbFile.c' '*/tsdbUpgrade.c' '*/tsdbFS.c' '*/tsdbReaderWriter.c' \ 
         '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'\
+        '*/streamsessionnonblockoperator.c' '*/streameventnonblockoperator.c' '*/streamstatenonblockoperator.c' '*/streamfillnonblockoperator.c' \
+        '*/streamclient.c' '*/cos_cp.c' '*/cos.c' '*/trow.c' '*/trow.h' '*/tsdbSnapshot.c' '*/smaTimeRange.c' \
+        '*/metaSma.c' '*/mndDump.c' '*/td_block_blob_client.cpp' \
         --rc lcov_branch_coverage=1  -o coverage.info
 
     # generate result
