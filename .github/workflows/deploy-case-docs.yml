@@ -3,9 +3,10 @@ name: Deploy Case Docs
 on:
   push:
     branches:
-      - 'new_test_framework'
+      - 'new_test_framework_docs'
     paths:
       - 'test/cases/**/*.py'
+      - 'test/new_test_framework/utils/*.py'
   pull_request:
     branches:
       - 'main'
@@ -13,6 +14,7 @@ on:
     types: [closed]  # trigger on PR close
     paths:
       - 'test/cases/**/*.py'
+      - 'test/new_test_framework/utils/*.py'
 
 jobs:
   generate_and_deploy:
@@ -67,14 +69,21 @@ jobs:
           files: |
             test/cases/**/*.py
 
+      - name: Get all changed utils files
+        id: changed-utils-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            test/new_test_framework/utils/*.py
+
       - name: Generate Markdown files
         if: steps.changed-case-files.outputs.any_changed == 'true'
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-case-files.outputs.all_changed_files }}
+          ALL_CHANGED_CASE_FILES: ${{ steps.changed-case-files.outputs.all_changed_files }}
         run: |
           modified_flag=false
           mkdir -p test/docs/case_list_docs
-          for file in ${ALL_CHANGED_FILES}; do
+          for file in ${ALL_CHANGED_CASE_FILES}; do
             echo "Processing $file"
             module_path=$(echo "$file" | sed 's|/|.|g' | sed 's|.py$||' | sed 's|^test.cases.||')
             markdown_file="test/docs/case_list_docs/$(echo "${module_path}" | sed 's|\.[^\.]*$||' | sed 's|\.|/|g').md"
@@ -100,6 +109,37 @@ jobs:
           echo "modified_flag=$modified_flag" >> $GITHUB_ENV
         shell: bash
 
+      - name: Generate Markdown files for utils
+        if: steps.changed-utils-files.outputs.any_changed == 'true'
+        env:
+          ALL_CHANGED_UTIL_FILES: ${{ steps.changed-utils-files.outputs.all_changed_files }}
+        run: |
+          modified_util=false
+          mkdir -p test/docs/util_funcs_docs
+          for file in ${ALL_CHANGED_UTIL_FILES}; do
+            echo "Processing $file"
+            file_name=$(basename "$file" .py)
+            markdown_file="test/docs/utils_func_docs/util.md"
+            mkdir -p "$(dirname "$markdown_file")"
+
+            if [ ! -f "$markdown_file" ]; then
+              echo "Generating $markdown_file"
+              echo "::: ${file_name}" > "$markdown_file"
+              modified_util=true
+            else
+              echo "Appending to $markdown_file"
+              if ! grep -q "::: ${file_name}" "$markdown_file"; then
+                echo "::: ${file_name}" >> "$markdown_file"
+                modified_util=true
+              else
+                echo "Content already exists in $markdown_file"
+              fi
+            fi
+            cat $markdown_file
+          done
+          echo "modified_util=$modified_util" >> $GITHUB_ENV
+        shell: bash
+
       - name: Deploy Documentation with Mike
         run: |
           # Configure Git user information
@@ -112,13 +152,19 @@ jobs:
           #mike set-default --push --branch gh-pages latest --allow-empty
 
       - name: Commit and Push Updated Docs to gh-pages
-        if: env.modified_flag == 'true'
+        if: env.modified_flag == 'true' || env.modified_util == 'true'
         run: |
           git fetch origin gh-pages
           git checkout gh-pages || git checkout -b gh-pages
           echo test/docs/$BRANCH_NAME
           mkdir -p test/docs/$BRANCH_NAME
-          cp -r test/docs/case_list_docs test/docs/$BRANCH_NAME/
-          git add test/docs/$BRANCH_NAME
+          if env.modified_flag == 'true'; then
+            cp -r test/docs/case_list_docs test/docs/$BRANCH_NAME/
+            git add test/docs/$BRANCH_NAME/case_list_docs
+          fi
+          if env.modified_util == 'true'; then
+            cp -r test/docs/util_funcs_docs test/docs/$BRANCH_NAME/
+            git add test/docs/$BRANCH_NAME/util_funcs_docs
+          fi
           git commit -m "Update test/docs for branch $BRANCH_NAME"
           git push origin gh-pages

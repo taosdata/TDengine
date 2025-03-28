@@ -46,7 +46,7 @@
               class="doc doc-heading",
               toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
                         (
-                          function.docstring.value.split("\n", 1)[0] if "cases" in function.relative_filepath|string and function.docstring.value else
+                          function.docstring.value.split("\n", 1)[0] if "cases/" in function.relative_filepath|string and function.docstring.value else
                           function.name
                         ),
             ) %}
@@ -109,7 +109,7 @@
                 id=html_id,
                 toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
                           (
-                            function.docstring.value.split("\n", 1)[0] if "cases" in function.relative_filepath|string and function.docstring.value else
+                            function.docstring.value.split("\n", 1)[0] if "cases/" in function.relative_filepath|string and function.docstring.value else
                             function.name 
                           ),
                 hidden=True,
