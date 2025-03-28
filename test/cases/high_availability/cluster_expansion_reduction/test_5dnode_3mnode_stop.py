@@ -49,7 +49,6 @@ class Test5dnode3mnodeStop:
                     break
         return buildPath
 
-
     @pytest.mark.cluster
     @pytest.mark.ci
     def test_five_dnode_three_mnode(self):
