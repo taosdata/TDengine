@@ -37,6 +37,25 @@ mod scheduler;
 mod verify;
 // mod tasks;
 
+/// Represents a record in information_schema.ins_tables.
+///
+/// Contains only `table_name`, `stable_name`, and `vgroup_id` fields.
+///
+/// ```sql
+/// taos> select * from information_schema.ins_tables where db_name = 'a1';
+///  table_name | db_name |       create_time       | columns | stable_name |        uid          | vgroup_id | ttl | table_comment | type        |
+/// ===============================================================================================================================================
+///  d0         | a1      | 2025-03-27 18:17:11.709 |     4   | meters      | 4392167910738503122 |        8  |  0  | NULL          | CHILD_TABLE |
+/// Query OK, 1 row(s) in set (0.003607s)
+/// ```
+
+#[derive(Debug, Deserialize)]
+struct TableInfo {
+    table_name: String,
+    stable_name: Option<String>,
+    vgroup_id: Option<u32>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TableOpts {
     /// A retrospective duration to sync.
@@ -2769,19 +2788,27 @@ pub async fn update_todo_list(
 
                 // Ordinary tables
                 let mut set = taos
-                    .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                    .query(format!("select * from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
                     .await
                     .context("Get stable list from source error")?;
-                let mut stream = set
-                    .deserialize::<(u32, Option<String>, String)>()
-                    .try_filter_map(|(vgroup_id, stable, table)| {
-                        let filter = if stable.is_some() {
+                let mut stream = set.deserialize::<TableInfo>().try_filter_map(
+                    |TableInfo {
+                         vgroup_id,
+                         stable_name,
+                         table_name,
+                     }| {
+                        let filter = if stable_name.is_some() {
                             None
                         } else {
-                            Some(LegacyTableItem::new(vgroup_id, None, Arc::new(table)))
+                            Some(LegacyTableItem::new(
+                                vgroup_id.unwrap_or_default(),
+                                None,
+                                Arc::new(table_name),
+                            ))
                         };
                         futures::future::ready(Ok(filter))
-                    });
+                    },
+                );
                 while let Some(table) = stream
                     .try_next()
                     .await
@@ -2795,27 +2822,36 @@ pub async fn update_todo_list(
             } else {
                 // get stable list.
                 let mut res = taos
-                    .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                    .query(format!("select * from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
                     .await
                     .context("Get stable list from source error")?;
-                let mut records = res.deserialize::<(u32, Option<String>, String)>();
-                while let Some((vgroup_id, stable, table)) = records
+                let mut records = res.deserialize::<TableInfo>();
+                while let Some(TableInfo {
+                    vgroup_id,
+                    stable_name,
+                    table_name,
+                }) = records
                     .try_next()
                     .await
                     .context("Deserialize stable list from source error")?
                 {
-                    let table = if let Some(stable_name) = stable {
+                    let vgroup_id = vgroup_id.unwrap_or_default();
+                    let table = if let Some(stable_name) = stable_name {
                         if let Some(stable) =
                             todo.stables.read_async(&stable_name, Clone::clone).await
                         {
-                            LegacyTableItem::new(vgroup_id, Some(stable.clone()), Arc::new(table))
+                            LegacyTableItem::new(
+                                vgroup_id,
+                                Some(stable.clone()),
+                                Arc::new(table_name),
+                            )
                         } else {
                             let stable = Arc::new(stable_name.clone());
                             let _ = todo.stables.insert_async(stable.clone()).await;
-                            LegacyTableItem::new(vgroup_id, Some(stable), Arc::new(table))
+                            LegacyTableItem::new(vgroup_id, Some(stable), Arc::new(table_name))
                         }
                     } else {
-                        LegacyTableItem::new(vgroup_id, None, Arc::new(table))
+                        LegacyTableItem::new(vgroup_id, None, Arc::new(table_name))
                     };
                     if !todo.tables.contains_async(&table).await {
                         tables.push(table.clone());
