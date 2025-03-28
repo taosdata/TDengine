@@ -2,8 +2,8 @@ import requests
 import toml
 import os
 from fabric2 import Connection
-from .frame.log import *
-from .frame.common import *
+from .log import *
+from .common import *
 
 
 class TaosKeeper:
@@ -64,11 +64,14 @@ class TaosKeeper:
     def update_cfg(self, update_dict :dict):
         '''
         update taoskeeper cfg file
+        
         Args:
             update_dict: dict, update dict
                 example: {"log": {"path": "/var/log/taos"}}
+                
         Returns:
             None
+            
         Raises:
             None
         '''
@@ -98,6 +101,7 @@ class TaosKeeper:
     def cfg(self, option, value):
         '''
         add param option and value to cfg file
+        
         Args:
             option: str, param name
             value: str, param value
@@ -197,10 +201,8 @@ class TaosKeeper:
             except Exception:
                     tdLog.info(f"the taoskeeper do not started!!!")
                     time.sleep(1)
+                    
     def start_taoskeeper(self):
-        """
-            use this method, must deploy taoskeeper first
-        """
         bin_path = get_path(tool="taoskeeper")
 
         if (bin_path == ""):
@@ -226,6 +228,7 @@ class TaosKeeper:
             tdLog.debug(f"taoskeeper is running with {cmd} " )
 
             time.sleep(0.1)
+            
     def stop(self, force_kill=False):
         """
         stop taoskeeper process.
