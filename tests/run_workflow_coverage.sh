@@ -17,45 +17,15 @@ function printHelp() {
     echo "Usage: $(basename $0) [options]"
     echo
     echo "Options:"
-    echo "    -d [Project dir]            Project directory (default: outermost project directory)"
+    echo "    -d [TDengine dir]           Project directory (default: outermost project directory)"
     echo "                                    e.g., -d /home/TDinternal/community"
     echo "    -f [Capture gcda dir]       Capture gcda directory (default: <project dir>/debug)"
     echo "    -b [Coverage branch]        Covevrage branch (default:3.0)"
     exit 0
 }
 
-# Find the project/tdengine/build/capture directory 
-function get_DIR() {
-    today=`date +"%Y%m%d"`
-    if [ -z "$PROJECT_DIR" ]; then
-        CODE_DIR=$(dirname $0)
-        cd $CODE_DIR
-        CODE_DIR=$(pwd)
-        if [[ "$CODE_DIR" == *"/community/"*  ]]; then
-            PROJECT_DIR=$(realpath ../..)
-            TDENGINE_DIR="$PROJECT_DIR"
-            BUILD_DIR="$PROJECT_DIR/debug"
-            CAPTURE_GCDA_DIR="$BUILD_DIR"
-        else
-            PROJECT_DIR=$(realpath ..)
-            TDENGINE_DIR="$PROJECT_DIR"
-            BUILD_DIR="$PROJECT_DIR/debug"
-            CAPTURE_GCDA_DIR="$BUILD_DIR"
-        fi
-    elif [[ "$PROJECT_DIR" == *"/TDinternal" ]]; then
-        TDENGINE_DIR="$PROJECT_DIR/community"
-        BUILD_DIR="$PROJECT_DIR/debug"
-        CAPTURE_GCDA_DIR="$BUILD_DIR"
-    elif [[ "$PROJECT_DIR" == *"/TDengine" ]]; then
-        TDENGINE_DIR="$PROJECT_DIR"
-        BUILD_DIR="$PROJECT_DIR/debug"
-        CAPTURE_GCDA_DIR="$BUILD_DIR"
-    fi
-}
-
 function lcovFunc {
     echo "collect data by lcov"
-    TDENGINE_DIR=/home/TDinternal/community
     cd $TDENGINE_DIR
 
     # collect data
@@ -96,15 +66,16 @@ function lcovFunc {
 ######################
 
 # Initialization parameter
-PROJECT_DIR=""
-CAPTURE_GCDA_DIR=""
+TDINTRENAL_DIR="/home/TDinternal"
+TDENGINE_DIR="/home/TDinternal/community"
+CAPTURE_GCDA_DIR="/home/TDinternal/community/debug"
 BRANCH=""
 
 # Parse command line parameters
 while getopts "hd:b:f:" arg; do
   case $arg in
     d)
-      PROJECT_DIR=$OPTARG
+      TDINTRENAL_DIR=$OPTARG
       ;;
     b)
       BRANCH=$OPTARG
@@ -124,10 +95,9 @@ done
 
 # Show all parameters
 print_color "$GREEN" "Run coverage test on workflow!"
-get_DIR
-echo "PROJECT_DIR = $PROJECT_DIR"
+
+echo "TDINTRENAL_DIR = $TDINTRENAL_DIR"
 echo "TDENGINE_DIR = $TDENGINE_DIR"
-echo "BUILD_DIR = $BUILD_DIR"
 echo "CAPTURE_GCDA_DIR = $CAPTURE_GCDA_DIR"
 
 lcovFunc
