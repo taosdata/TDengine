@@ -424,41 +424,6 @@ function build_taosx() {
     fi
 }
 
-# function build_taoskeeper() {
-#     echo "build taoskeeper"
-
-#     # skip build taoskeeper for enterprise version on Mac
-#     if [ "${os_type}" == "Darwin" ] && [ "$versionType" == "enterprise" ]; then
-#         return
-#     fi
-    
-#     platform="${os_type}-${os_arch}"
-#     dateinfo=`date +"%F %T %:z"`
-#     buildinfo="${platform} ${dateinfo}"    
-
-#     if [ "$versionType" != "community" ];then
-#         keeper_url="github.com/taosdata/taoskeeperinternal"
-#     else
-#         keeper_url="github.com/taosdata/taoskeeper"
-#     fi
-    
-#     cd $keeperDir
-#     rm -rf taoskeeper || :
-#     git_pull $keeperDir ${branch} ver-${version}
-#     gitinfo=`git rev-parse HEAD`
-
-#     go build -ldflags="-s -w -X '${keeper_url}/version.Version=$version' -X '${keeper_url}/version.Gitinfo=$gitinfo' -X '${keeper_url}/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
-    
-#     if [ -f taoskeeper ]; then
-#         echo "build taoskeeper success"
-#     else
-#         echo "build taoskeeper failed"
-#         exit 1
-#     fi
-
-#     verify_commit_id $keeperDir taoskeeper $keeperDir
-# }
-
 download_plugin() {
     local version=$1
     local zip_file="tdengine-datasource-$version.zip"
@@ -541,14 +506,63 @@ function update_connectors() {
     fi
 }
 
+function prepare_taosinspect() {
+    if [ "$os_arch" != "x64" ] && [ "$os_arch" != "arm64" ]; then
+        echo "Error: Unsupported architecture $os_arch"
+        return
+    fi
+
+    # check if env var GITHUB_TOKEN is set
+    if [ -z "$GITHUB_TOKEN" ]; then
+        echo "Error: GITHUB_TOKEN is not set. Please set the GITHUB_TOKEN environment variable."
+        exit 1
+    fi
+
+    cd ${baseDir}/${branch}
+
+    # Repository information
+    REPO_OWNER="taosdata"
+    REPO_NAME="operation"
+
+    latest_release=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+        "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest")
+
+    pkg_name="taosinspect_$os_arch.tar.gz"
+    asset_id=$(echo "$latest_release" | jq -r ".assets[] | select(.name == \"${pkg_name}\") | .id")
+    # Check if asset ID was found
+    if [ -z "$asset_id" ]; then
+        echo "Error: ${pkg_name} not found in the latest release."
+        exit 1
+    fi
+
+    # Download the asset using the asset ID
+    curl -L -o ${pkg_name} \
+        -H "Accept: application/octet-stream" \
+        -H "Authorization: Bearer $GITHUB_TOKEN" \
+        "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/assets/$asset_id"
+    echo "${pkg_name} has been downloaded successfully."
+
+    tar -xvf ${pkg_name} 
+    echo "${pkg_name} has been extracted successfully."
+}
+
 function preparepkg() {
     header_files="${communityDir}/include/client/taos.h ${communityDir}/include/common/taosdef.h ${communityDir}/include/util/taoserror.h ${communityDir}/include/util/tdef.h ${communityDir}/include/libs/function/taosudf.h"
     wsheader_files="${debugDir}/build/include/taosws.h"
 
-    cd ${baseDir}/${branch}    
-    rm -rf ${install_dir}/*
-    mkdir -p ${install_dir}/bin ${install_dir}/cfg ${install_dir}/inc ${install_dir}/init.d
+    prepare_taosinspect
+    cd ${baseDir}/${branch}
+    rm -rf ${install_dir}/* 
 
+    mkdir -p ${install_dir}/bin ${install_dir}/cfg ${install_dir}/inc ${install_dir}/init.d ${install_dir}/taosinspect_tool
+
+    # copy taosinspect
+    if ! cp taosinspect_tool/* ${install_dir}/taosinspect_tool ; then
+        echo "copy taosinspect_tool failed"
+        exit 1
+    fi
+    rm -rf taosinspect_tool
+    
     # copy bin files
     serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}keeper ${prefix}Benchmark ${prefix}dump taosudf)
 
@@ -694,7 +708,7 @@ function preparepkg() {
         cusDomain=`echo "${productEmail}" | sed 's/^[^@]*@//'`
         sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" ${install_dir}/install.sh
 
-        sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh
+        sed -i 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh
         sed -i "s/PREFIX=\"taos\"/PREFIX=\"${prefix}\"/g" ${install_dir}/bin/remove.sh
         sed -i "s/productName=\"TDengine\"/productName=\"${productName}\"/g" ${install_dir}/bin/remove.sh
 
@@ -759,12 +773,20 @@ function make_linux_pkg() {
             cp -r jemalloc/ ${install_dir}/${serverPackageName}
         fi
 
+        # cp taosinspect_tool in server package
+        if [ "${versionType}" != "community" ]; then
+            echo "copy taosinspect_tool to ${serverPackageName} in server package"
+            cp taosinspect_tool/taosinspect  ${install_dir}/${serverPackageName}/bin/
+            cp taosinspect_tool/inspect.cfg ${install_dir}/${serverPackageName}/cfg/
+        fi
+        
         cd ${serverPackageName}
         tar -zcv -f package.tar.gz * --remove-files ||:
 
         cd ${install_dir}
         cp -r connector/ driver/ examples/ ${serverPackageName}/ || :
         if [ "${versionType}" != "community" ]; then
+            echo "copy taosx to ${serverPackageName}"
             cp -r taosx/ ${serverPackageName}/
         fi
         cp start-all.sh stop-all.sh install.sh README.md ${serverPackageName}/
@@ -795,6 +817,13 @@ function make_linux_pkg() {
         # cp jemalloc
         if [ "${versionType}" != "community" ] && [ "$allocator" == "jemalloc" ] ; then
             cp -r jemalloc/ ${install_dir}/${serverPackageName}
+        fi
+
+        # copy taosinspect in client package
+        if [ "${versionType}" != "community" ]; then
+            echo "copy taosinspect_tool to ${clientPackageName} in client package"
+            cp taosinspect_tool/taosinspect  ${install_dir}/${clientPackageName}/bin/
+            cp taosinspect_tool/inspect.cfg ${install_dir}/${clientPackageName}/cfg/
         fi
 
         cd ${clientPackageName}
@@ -1064,12 +1093,13 @@ function makepkg() {
     fi
 }
 
+# main
 build_TDengine &
 pid1=$!
 build_taosx &
 pid2=$!
 update_connectors &
-pid4=$!
+pid3=$!
 
 wait $pid1
 if [ $? -ne 0 ]; then
@@ -1083,13 +1113,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# wait $pid3
-# if [ $? -ne 0 ]; then
-#     echo "build taoskeeper failed"
-#     exit 1
-# fi
-
-wait $pid4
+wait $pid3
 if [ $? -ne 0 ]; then
     echo "update connectors failed"
     exit 1
