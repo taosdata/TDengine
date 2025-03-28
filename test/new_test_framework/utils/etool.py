@@ -53,6 +53,9 @@ def benchMarkFile():
 # taosAdapter
 def taosAdapterFile():
     """Get the path to the `taosAdapter` binary file.
+    
+    Args:
+        None
 
     Returns:
         str: The full path to the `taosAdapter` binary file, with `.exe` appended if on Windows.
