@@ -10,7 +10,8 @@ try:
     import taos
 except:
     pass
-from ..components import TaosPy, TaosD, TaosAdapter, TaosBenchmark, PrometheusServer, Container, Agent, CreateTableTool
+from ..components import TaosPy, TaosD, TaosAdapter, TaosBenchmark, PrometheusServer, Container, Agent, CreateTableTool, TaosKeeper
+
 from ..util.remote import Remote
 
 
@@ -29,6 +30,7 @@ class EnvManager:
         else:
             self.taosd = TaosD(self._remote)
         self.adapter = TaosAdapter(self._remote)
+        self.taoskeeper = TaosKeeper(self._remote)
         self.taospy = TaosPy(self._remote)
         self.benchmark = TaosBenchmark(self._remote)
         self.prometheus = PrometheusServer(self._remote)
@@ -66,6 +68,8 @@ class EnvManager:
             self.benchmark.destroy(nodeDict)
         elif name == "prometheus":
             self.prometheus.destroy(nodeDict)
+        elif name == "taoskeeper":
+            self.taoskeeper.destroy(nodeDict)
         else:
             pass
 
@@ -119,6 +123,8 @@ class EnvManager:
             self.taosd.setup(self._tmp_dir, nodeDict)
         elif name == "taosAdapter":
             self.adapter.setup(self._tmp_dir, nodeDict)
+        elif name == "taoskeeper":
+            self.taoskeeper.setup(self._tmp_dir, nodeDict)
         elif name == "taosBenchmark":
             self.benchmark.setup(self._tmp_dir, nodeDict)
         elif name == "prometheus":
@@ -137,6 +143,8 @@ class EnvManager:
             self.taosd.launch(self._tmp_dir, nodeDict)
         elif name == "taosAdapter":
             self.adapter.launch(self._tmp_dir, nodeDict)
+        elif name == "taoskeeper":
+            self.taoskeeper.launch(self._tmp_dir, nodeDict)
         else:
             pass
 

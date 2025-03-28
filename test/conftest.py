@@ -29,6 +29,8 @@ def pytest_addoption(parser):
                     help="set queryPolicy in one dnode")
     parser.addoption("-D", action="store",
                     help="set disk number on each level. range 1 ~ 10")
+    parser.addoption("-K", action="store_true",
+                    help="taoskeeper realization form")
     parser.addoption("-L", action="store",
                     help="set multiple level number. range 1 ~ 3")
     parser.addoption("-C", action="store",
@@ -126,6 +128,10 @@ def before_test_session(request):
             request.session.restful = True
         else:
             request.session.restful = False
+        if request.config.getoption("-K"):
+            request.session.taoskeeper = True
+        else:
+            request.session.taoskeeper = False
         if request.config.getoption("-Q"):   
             request.session.query_policy = int(request.config.getoption("-Q"))
         else:
@@ -175,6 +181,7 @@ def before_test_class(request):
     request.cls.dnode_nums = request.session.denodes_num
     request.cls.mnode_nums = request.session.mnodes_num
     request.cls.restful = request.session.restful
+    request.cls.taoskeeper = request.session.taoskeeper
     request.cls.query_policy = request.session.query_policy
     request.cls.replicaVar = request.session.replicaVar
     request.cls.tsim_file = request.session.tsim_file
@@ -642,6 +649,19 @@ def pytest_collection_modifyitems(config, items):
                 item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{tsim_name}"  # 有效，名称可以修改
                 testLog.debug(item.name)
                 testLog.debug(item._nodeid)
+                params = {'params': tsim_name}  # 你的参数组合
+                param_ids = [tsim_name]  # 自定义参数ID
+                
+                # 创建参数化标记
+                marker = pytest.mark.parametrize(
+                    argnames='params',
+                    argvalues=[tsim_name],
+                    ids=param_ids
+                )
+                item.add_marker(marker)
+                
+                # 确保Allure能识别新参数
+                item.callspec = type('CallSpec', (), {'params': params, 'id': param_ids[0]})
     else:
         name_suffix = ""
         if config.getoption('-N'):
@@ -670,3 +690,16 @@ def pytest_collection_modifyitems(config, items):
                 item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{item.name}"  # 有效，名称可以修改
                 testLog.debug(item.name)
                 testLog.debug(item._nodeid)
+                params = {'params': name_suffix}  # 你的参数组合
+                param_ids = [name_suffix]  # 自定义参数ID
+                
+                # 创建参数化标记
+                marker = pytest.mark.parametrize(
+                    argnames='params',
+                    argvalues=[name_suffix],
+                    ids=param_ids
+                )
+                item.add_marker(marker)
+                
+                # 确保Allure能识别新参数
+                item.callspec = type('CallSpec', (), {'params': params, 'id': param_ids[0]})
