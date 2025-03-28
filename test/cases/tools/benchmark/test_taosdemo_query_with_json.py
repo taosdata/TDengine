@@ -17,12 +17,7 @@ import re
 
 # from assertpy import assert_that
 import subprocess
-import new_test_framework.utils.frame.log as tdLog
-import new_test_framework.utils.frame.etool as etool
-from new_test_framework.utils.frame.cases import *
-from new_test_framework.utils.frame.sql import *
-from new_test_framework.utils.frame.caseBase import *
-from new_test_framework.utils.frame import *
+from new_test_framework.utils import tdLog, etool, tdSql
 
 
 class TestTaosdemoQueryWithJson:

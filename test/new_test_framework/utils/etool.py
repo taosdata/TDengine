@@ -75,7 +75,7 @@ def benchMark(command = "", json = "") :
 
     # run
     if command != "":
-        exe(bmFile + " " + command)
+        exe(bmFile + " " + command + " -y")
     if json != "":
         cmd = f"{bmFile} -f {json}"
         print(cmd)

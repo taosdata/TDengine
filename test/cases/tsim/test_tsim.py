@@ -2,7 +2,7 @@ import pytest
 import subprocess
 import os
 import shutil
-from new_test_framework import tdLog
+from new_test_framework.utils import tdLog
 
 
 class TestTsim:

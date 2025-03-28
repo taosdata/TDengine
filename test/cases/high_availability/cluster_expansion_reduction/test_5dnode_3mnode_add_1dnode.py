@@ -6,12 +6,12 @@ import sys
 import time
 import os
 
-from new_test_framework.utils.util.log import *
-from new_test_framework.utils.util.sql import *
-from new_test_framework.utils.util.cases import *
-from new_test_framework.utils.util.dnodes import TDDnodes
-from new_test_framework.utils.util.dnodes import TDDnode
-from new_test_framework.utils.util.cluster import *
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, cluster
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from clusterCommonCreate import *
+from clusterCommonCheck import clusterComCheck
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from clusterCommonCreate import *
 from clusterCommonCheck import clusterComCheck

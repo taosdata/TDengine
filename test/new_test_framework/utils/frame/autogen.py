@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from .log import *
-from .cases import *
-from .sql import *
+from ..log import *
+from ..sql import *
 import threading
 import random
 import string
@@ -251,7 +250,7 @@ class AutoGen:
             tdSql.execute(sql)
             values = ""
 
-        tdLog.info(f" insert child data {child_name} finished, insert rows={cnt}")
+        tdLog.debug(f" insert child data {child_name} finished, insert rows={cnt}")
         return ts
 
     def insert_data(self, cnt, bContinue=False):
@@ -264,7 +263,7 @@ class AutoGen:
             currTs = self.insert_data_child(name, cnt, self.batch_size, self.step)
 
         self.ts = currTs
-        tdLog.info(f" insert data ok, child table={self.child_cnt} insert rows={cnt}")
+        tdLog.debug(f" insert data ok, child table={self.child_cnt} insert rows={cnt}")
 
     # insert same timestamp to all childs
     def insert_samets(self, cnt):

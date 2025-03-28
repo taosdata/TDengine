@@ -6,10 +6,11 @@ import datetime
 from taos.tmq import Consumer
 from taos.error import TmqError
 
-from new_test_framework.utils.frame.log import tdLog
-from new_test_framework.utils.frame.sql import tdSql
-from new_test_framework.utils.frame import etool
-from new_test_framework.utils.frame.common import tdCom
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+#from new_test_framework.utils.frame.log import tdLog
+#from new_test_framework.utils.frame.sql import tdSql
+#from new_test_framework.utils.frame import etool
+#from new_test_framework.utils.frame.common import tdCom
 
 
 class TaosConsumer:

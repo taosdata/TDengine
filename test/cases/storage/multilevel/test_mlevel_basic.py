@@ -15,13 +15,8 @@ import sys
 import time
 
 import taos
-import new_test_framework.utils.frame.etool
+from new_test_framework.utils import tdLog, tdSql, etool
 
-from new_test_framework.utils.frame.log import *
-from new_test_framework.utils.frame.cases import *
-from new_test_framework.utils.frame.sql import *
-from new_test_framework.utils.frame.caseBase import *
-from new_test_framework.utils.frame import *
 
 
 class TestMlevelBasic:

@@ -11,22 +11,14 @@
 
 # -*- coding: utf-8 -*-
 import pytest
-import logging
-logger = logging.getLogger(__name__)
 import sys
 import time
 import random
 
 import taos
-#import frame
-#import frame.etool
 
 
-#from frame.log import *
-#from frame.cases import *
-#from frame.sql import *
-#from frame.caseBase import *
-#from frame import *
+from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.frame.autogen import *
 
 
@@ -78,12 +70,12 @@ class TestCompressBasic:
     ]
 
     def setup_class(cls):
-        logger.debug(f"start to excute {__file__}")
+        tdLog.debug(f"start to excute {__file__}")
 
         # create db and stable
         cls.autoGen = AutoGen(step = 10, genDataMode = "fillts")
         cls.autoGen.create_db(cls.db, 2, 3)
-        cls.tdSql.execute(f"use {cls.db}")
+        tdSql.execute(f"use {cls.db}")
         cls.colCnt = 17
         cls.autoGen.create_stable(cls.stb, 5, cls.colCnt, 32, 32)
         cls.childCnt = 4
@@ -212,11 +204,11 @@ class TestCompressBasic:
         # alter encode 4
         comp = "delta-i"
         sql = f"alter table {tbname} modify column c7 ENCODE '{comp}';"
-        self.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, 8, 4, comp)
         self.writeData(1000)
         sql = f"alter table {tbname} modify column c8 ENCODE '{comp}';"
-        self.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, 9, 4, comp)
         self.writeData(1000)
 
@@ -230,11 +222,11 @@ class TestCompressBasic:
         # alter float(c9) double(c10) to tsz
         comp = "tsz"
         sql = f"alter table {tbname} modify column c9 COMPRESS '{comp}';"
-        self.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, 10, 5, comp)
         self.writeData(10000)
         sql = f"alter table {tbname} modify column c10 COMPRESS '{comp}';"
-        self.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, 11, 5, comp)
         self.writeData(10000)
 
@@ -243,7 +235,7 @@ class TestCompressBasic:
             for i in range(self.colCnt - 1):
                 col = f"c{i}"
                 sql = f"alter table {tbname} modify column {col} LEVEL '{level}';"
-                self.tdSql.execute(sql, show=True)
+                tdSql.execute(sql, show=True)
                 self.checkDataDesc(tbname, i + 1, 6, level)
                 self.writeData(1000)
 
@@ -254,7 +246,7 @@ class TestCompressBasic:
         encode   = "delta-d"
         compress = "zlib"
         sql = f"alter table {tbname} modify column c{i} ENCODE '{encode}' COMPRESS '{compress}';"
-        self.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, i + 1, 4, encode)
         self.checkDataDesc(tbname, i + 1, 5, compress)
         
@@ -262,7 +254,7 @@ class TestCompressBasic:
         encode = "delta-d"
         level  = "high"
         sql = f"alter table {tbname} modify column c{i} ENCODE '{encode}' LEVEL '{level}';"
-        self.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, i + 1, 4, encode)
         self.checkDataDesc(tbname, i + 1, 6, level)
 
@@ -270,7 +262,7 @@ class TestCompressBasic:
         compress = "zlib"
         level    = "high"
         sql = f"alter table {tbname} modify column c{i} COMPRESS '{compress}' LEVEL '{level}';"
-        self.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, i + 1, 5, compress)
         self.checkDataDesc(tbname, i + 1, 6, level)
 
@@ -280,7 +272,7 @@ class TestCompressBasic:
         compress = "zstd"
         level    = "medium"
         sql = f"alter table {tbname} modify column c{i} ENCODE '{encode}' COMPRESS '{compress}' LEVEL '{level}';"
-        self.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         self.checkDataDesc(tbname, i + 1, 4, encode)
         self.checkDataDesc(tbname, i + 1, 5, compress)
         self.checkDataDesc(tbname, i + 1, 6, level)
@@ -300,7 +292,7 @@ class TestCompressBasic:
         c = 0
         tbname = f"{self.db}.tbadd"
         sql = f"create table {tbname}(ts timestamp, c0 int) tags(area int);"
-        self.tdSql.execute(sql)
+        tdSql.execute(sql)
     
         # loop append sqls
         for lines in self.encodes:
@@ -310,7 +302,7 @@ class TestCompressBasic:
                         for level in self.levels:
                             if self.combineValid(datatype, encode, compress):
                                 sql = f"alter table {tbname} add column col{c} {datatype} ENCODE '{encode}' COMPRESS '{compress}' LEVEL '{level}';"
-                                self.tdSql.execute(sql, 3, True)
+                                tdSql.execute(sql, 3, True)
                                 c += 1
 
         # alter error 
@@ -327,11 +319,11 @@ class TestCompressBasic:
             f"alter table {tbname} add column a4 BINARY(12) ENCODE 'simple8b' LEVEL 'high2';",
             f"alter table {tbname} add column a5 VARCHAR(16) ENCODE 'simple8b' COMPRESS 'gzip' LEVEL 'high3';"
         ]
-        self.tdSql.errors(sqls)
+        tdSql.errors(sqls)
 
     def validCreate(self):
         sqls = self.genAllSqls(self.stb, 50)
-        self.tdSql.executes(sqls, show=True)
+        tdSql.executes(sqls, show=True)
     
     # sql syntax
     def checkSqlSyntax(self):
@@ -364,7 +356,7 @@ class TestCompressBasic:
             sql = f"select * from {tbname} limit {step} offset {offset}"
             tdLog.info(sql)
             tdSql.query(sql)
-            self.autoGen.dataCorrect(tdSql.res, tdSql.getRows(), step)
+            self.autoGen.dataCorrect(tdSql.queryResult, tdSql.getRows(), step)
             offset += step
             tdLog.info(f"check data correct rows={offset}")
 
@@ -383,4 +375,4 @@ class TestCompressBasic:
 
         # check corrent
         self.checkCorrect()
-        logger.info(f"{__file__} successfully executed")
+        tdLog.info(f"{__file__} successfully executed")
