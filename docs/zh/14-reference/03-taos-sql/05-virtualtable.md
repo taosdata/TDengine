@@ -16,7 +16,7 @@ description: 对虚拟表的各种管理操作
 ```sql
 CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
     ts_col_name timestamp, 
-    (create_defination[ ,create_defination] ...) 
+    (create_definition[ ,create_definition] ...) 
      
   create_definition:
     vtb_col_name column_definition
@@ -29,7 +29,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 ### 创建虚拟子表
 ```sql
 CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
-    (create_defination[ ,create_defination] ...) 
+    (create_definition[ ,create_definition] ...) 
     USING [db_name.]stb_name 
     [(tag_name [, tag_name] ...)] 
     TAGS (tag_value [, tag_value] ...)

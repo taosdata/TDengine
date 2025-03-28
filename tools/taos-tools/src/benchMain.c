@@ -56,10 +56,6 @@ int checkArgumentValid() {
         g_arguments->reqPerReq = g_arguments->prepared_rand;
     }
 
-    if(g_arguments->host == NULL) {
-        g_arguments->host = DEFAULT_HOST;
-    }
-
     // check batch query
     if (g_arguments->test_mode == QUERY_TEST) {
         if (g_queryInfo.specifiedQueryInfo.batchQuery) {

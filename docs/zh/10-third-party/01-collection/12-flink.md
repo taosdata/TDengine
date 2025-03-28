@@ -199,7 +199,7 @@ Properties 中配置参数如下：
 | ----------------------- | :-----: | ------------ |
 | connector  | string | 连接器标识，设置 `tdengine-connector` 。|
 | td.jdbc.url| string | 连接的 url 。| 
-| td.jdbc.mode | strng | 连接器类型, 设置 `sink`。|
+| td.jdbc.mode | string | 连接器类型, 设置 `sink`。|
 | sink.db.name|string| 目标数据库名称。|
 | sink.batch.size | integer | 写入的批大小。|
 | sink.supertable.name|string |写入的超级表名称。|
