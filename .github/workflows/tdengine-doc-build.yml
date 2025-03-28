@@ -33,9 +33,9 @@ jobs:
           git clean -f
           git remote prune origin
           git fetch
-          git checkout ${{ github.event.pull_request.base.ref }}
+          git checkout wl/doc/main 
           git pull >/dev/null
-          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
+          git fetch origin +refs/pull/30527/merge
           git checkout -qf FETCH_HEAD
 
       - name: Check document changes
