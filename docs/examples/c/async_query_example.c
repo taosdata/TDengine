@@ -8,7 +8,6 @@
 #include <sys/time.h>
 #include <taos.h>
 
-
 typedef uint16_t VarDataLenT;
 
 #define TSDB_NCHAR_SIZE sizeof(int32_t)
