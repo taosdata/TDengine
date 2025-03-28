@@ -1099,18 +1099,13 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
  *  chkpInUse is doing translation, cannot del until
  *  replication is finished
  */
-int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
+int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path, SArray* pDroppedList) {
   int32_t         code = 0;
   STaskDbWrapper* pBackend = arg;
-  SArray *        chkpDel = NULL, *chkpDup = NULL;
+  SArray *        /*chkpDel = NULL, */chkpDup = NULL;
   TAOS_UNUSED(taosThreadRwlockWrlock(&pBackend->chkpDirLock));
 
   if (taosArrayPush(pBackend->chkpSaved, &chkpId) == NULL) {
-    TAOS_CHECK_GOTO(terrno, NULL, _exception);
-  }
-
-  chkpDel = taosArrayInit(8, sizeof(int64_t));
-  if (chkpDel == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
@@ -1130,7 +1125,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       } else {
-        if (taosArrayPush(chkpDel, &id) == NULL) {
+        if (taosArrayPush(pDroppedList, &id) == NULL) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       }
@@ -1141,7 +1136,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
 
     for (int i = 0; i < dsz; i++) {
       int64_t id = *(int64_t*)taosArrayGet(pBackend->chkpSaved, i);
-      if (taosArrayPush(chkpDel, &id) == NULL) {
+      if (taosArrayPush(pDroppedList, &id) == NULL) {
         TAOS_CHECK_GOTO(terrno, NULL, _exception);
       }
     }
@@ -1159,24 +1154,24 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
 
   TAOS_UNUSED(taosThreadRwlockUnlock(&pBackend->chkpDirLock));
 
-  for (int i = 0; i < taosArrayGetSize(chkpDel); i++) {
-    int64_t id = *(int64_t*)taosArrayGet(chkpDel, i);
+  for (int i = 0; i < taosArrayGetSize(pDroppedList); i++) {
+    int64_t id = *(int64_t*)taosArrayGet(pDroppedList, i);
     char    tbuf[256] = {0};
     if (snprintf(tbuf, sizeof(tbuf), "%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, id) >= sizeof(tbuf)) {
       code = TSDB_CODE_OUT_OF_RANGE;
       TAOS_CHECK_GOTO(code, NULL, _exception);
     }
 
-    stInfo("backend remove obsolete checkpoint: %s", tbuf);
+    stInfo("backend remove expired checkpoint: %s, remaining:%d", tbuf, pBackend->chkpCap);
     if (taosIsDir(tbuf)) {
       taosRemoveDir(tbuf);
     }
   }
-  taosArrayDestroy(chkpDel);
+
   return 0;
+
 _exception:
   taosArrayDestroy(chkpDup);
-  taosArrayDestroy(chkpDel);
   TAOS_UNUSED(taosThreadRwlockUnlock(&pBackend->chkpDirLock));
   return code;
 }
@@ -1366,10 +1361,10 @@ _EXIT:
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
   // vnode task->db
   SStreamMeta* pMeta = arg;
+  int32_t      code = 0;
 
   streamMutexLock(&pMeta->backendMutex);
   void*   pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
-  int32_t code = 0;
 
   while (pIter) {
     STaskDbWrapper* pTaskDb = *(STaskDbWrapper**)pIter;
@@ -1384,15 +1379,22 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
     // add chkpId to in-use-ckpkIdSet
     taskDbRefChkp(pTaskDb, pTaskDb->chkpId);
 
-    code = taskDbDoCheckpoint(pTaskDb, pTaskDb->chkpId, ((SStreamTask*)pTaskDb->pTask)->chkInfo.processedVer);
-    if (code != 0) {
-      // remove chkpId from in-use-ckpkIdSet
+    SArray* pList = taosArrayInit(4, sizeof(int64_t));
+    if (pList == NULL) {
+      stError("vgId:%d failed to prepare list during build snap, code:%s", pMeta->vgId, tstrerror(code));
+      continue;
+    }
+
+    SStreamTask* pTask = pTaskDb->pTask;
+    code = taskDbDoCheckpoint(pTaskDb, pTaskDb->chkpId, pTask->chkInfo.processedVer, pList);
+    taosArrayDestroy(pList);
+
+    if (code != 0) { // remove chkpId from in-use-ckpkIdSet
       taskDbUnRefChkp(pTaskDb, pTaskDb->chkpId);
       taskDbRemoveRef(pTaskDb);
       break;
     }
 
-    SStreamTask*    pTask = pTaskDb->pTask;
     SStreamTaskSnap snap = {.streamId = pTask->id.streamId,
                             .taskId = pTask->id.taskId,
                             .chkpId = pTaskDb->chkpId,
@@ -1603,19 +1605,20 @@ _EXIT:
   taosMemoryFree(pDst);
   return code;
 }
-int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId) {
+
+int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processedVer, SArray *pList) {
   STaskDbWrapper* pTaskDb = arg;
   int64_t         st = taosGetTimestampMs();
   int32_t         code = 0;
   int64_t         refId = pTaskDb->refId;
+  char*           pChkpDir = NULL;
+  char*           pChkpIdDir = NULL;
 
   if (taosAcquireRef(taskDbWrapperId, refId) == NULL) {
     code = terrno;
     return code;
   }
 
-  char* pChkpDir = NULL;
-  char* pChkpIdDir = NULL;
   if ((code = chkpPreBuildDir(pTaskDb->path, chkpId, &pChkpDir, &pChkpIdDir)) < 0) {
     goto _EXIT;
   }
@@ -1646,13 +1649,13 @@ int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId) {
   }
 
   // add extra info to checkpoint
-  if ((code = chkpAddExtraInfo(pChkpIdDir, chkpId, processId)) != 0) {
+  if ((code = chkpAddExtraInfo(pChkpIdDir, chkpId, processedVer)) != 0) {
     stError("stream backend:%p failed to add extra info to checkpoint at:%s", pTaskDb, pChkpIdDir);
     goto _EXIT;
   }
 
   // delete ttl checkpoint
-  code = chkpMayDelObsolete(pTaskDb, chkpId, pChkpDir);
+  code = chkpMayDelObsolete(pTaskDb, chkpId, pChkpDir, pList);
   if (code < 0) {
     goto _EXIT;
   }
@@ -1676,8 +1679,8 @@ _EXIT:
   return code;
 }
 
-int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId, int64_t processVer) {
-  return taskDbDoCheckpoint(arg, chkpId, processVer);
+int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId, int64_t processVer, SArray* pList) {
+  return taskDbDoCheckpoint(arg, chkpId, processVer, pList);
 }
 
 SListNode* streamBackendAddCompare(void* backend, void* arg) {

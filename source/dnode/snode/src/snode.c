@@ -100,6 +100,7 @@ int32_t sndInit(SSnode *pSnode) {
 
 void sndClose(SSnode *pSnode) {
   stopRsync();
+
   streamMetaNotifyClose(pSnode->pMeta);
   if (streamMetaCommit(pSnode->pMeta) != 0) {
     sndError("failed to commit stream meta");
@@ -175,5 +176,4 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     default:
       return TSDB_CODE_INVALID_MSG;
   }
-  return 0;
 }
