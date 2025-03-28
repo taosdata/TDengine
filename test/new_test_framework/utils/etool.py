@@ -38,6 +38,9 @@ def taosDumpFile():
 # taosBenchmark
 def benchMarkFile():
     """Get the path to the `taosBenchmark` binary file.
+    
+    Args:
+        None
 
     Returns:
         str: The full path to the `taosBenchmark` binary file, with `.exe` appended if on Windows.
