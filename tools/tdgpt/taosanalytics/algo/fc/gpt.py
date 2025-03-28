@@ -11,14 +11,19 @@ from taosanalytics.service import AbstractForecastService
 
 class _GPTService(AbstractForecastService):
     name = 'tdtsfm_1'
-    desc = "internal gpt forecast model based on transformer"
+    desc = "Time-Series Foundation Model based on transformer by TAOS DATA"
 
     def __init__(self):
         super().__init__()
 
         self.table_name = None
-        self.service_host = 'http://127.0.0.1:5000/tdtsfm'
         self.headers = {'Content-Type': 'application/json'}
+
+        service_host = conf.get_tsfm_service("tdtsfm_1")
+        if  service_host is not None:
+            self.service_host = service_host
+        else:
+            self.service_host = 'http://127.0.0.1:5000/tdtsfm'
 
 
     def execute(self):

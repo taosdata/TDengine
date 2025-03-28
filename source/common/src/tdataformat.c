@@ -3087,7 +3087,10 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
           code = cgeos((char *)pBind->buffer + pBind->buffer_length * i, (size_t)pBind->length[i]);
-          if (code) goto _exit;
+          if (code) {
+            uError("stmt col[%d] bind geometry wrong format", i);
+            goto _exit;
+          }
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
             pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
@@ -3176,7 +3179,10 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
           code = cgeos(buf, pBind->length[i]);
-          if (code) goto _exit;
+          if (code) {
+            uError("stmt2 col[%d] bind geometry wrong format", i);
+            goto _exit;
+          }
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
         buf += pBind->length[i];
