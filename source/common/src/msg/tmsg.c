@@ -4708,6 +4708,135 @@ void tDestroySVSubTablesRsp(void* rsp) {
   taosArrayDestroyEx(pRsp->pTables, tFreeSVCTableRefCols);
 }
 
+int32_t tSerializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->suid));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->suid));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVStbRefDbsRspImpl(SEncoder* pEncoder, SVStbRefDbsRsp *pRsp) {
+  int32_t  code = 0;
+  int32_t  lino;
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->vgId));
+  int32_t numOfDbs = taosArrayGetSize(pRsp->pDbs);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numOfDbs));
+  for (int32_t i = 0; i < numOfDbs; ++i) {
+    char *pDbName = (char *)taosArrayGetP(pRsp->pDbs, i);
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pDbName));
+  }
+
+_exit:
+
+  return code;
+}
+
+int32_t tSerializeSVStbRefDbsRsp(void *buf, int32_t bufLen, SVStbRefDbsRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tSerializeSVStbRefDbsRspImpl(&encoder, pRsp));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVStbRefDbsRspImpl(SDecoder* pDecoder, SVStbRefDbsRsp *pRsp) {
+  int32_t  code = 0;
+  int32_t  lino;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->vgId));
+  int32_t numOfDbs = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfDbs));
+  if (numOfDbs > 0) {
+    pRsp->pDbs = taosArrayInit(numOfDbs, sizeof(void *));
+    if (NULL == pRsp->pDbs) {
+      code = terrno;
+      return code;
+    }
+
+    for (int32_t i = 0; i < numOfDbs; ++i) {
+      char *tbName;
+      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &tbName));
+      if (taosArrayPush(pRsp->pDbs, &tbName) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+  }
+
+_exit:
+
+  return code;
+}
+
+int32_t tDeserializeSVStbRefDbsRsp(void *buf, int32_t bufLen, SVStbRefDbsRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDeserializeSVStbRefDbsRspImpl(&decoder, pRsp));
+
+  tEndDecode(&decoder);
+
+_exit:
+
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tDestroySVStbRefDbsRsp(void* rsp) {
+  if (NULL == rsp) {
+    return;
+  }
+
+  SVStbRefDbsRsp *pRsp = (SVStbRefDbsRsp*)rsp;
+
+  taosArrayDestroyP(pRsp->pDbs, NULL);
+  pRsp->pDbs = NULL;
+}
+
 int32_t tSerializeSQnodeListReq(void *buf, int32_t bufLen, SQnodeListReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

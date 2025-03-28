@@ -873,6 +873,7 @@ int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
 #endif
 
   TSWAP(pCatalogReq->pVSubTable, pMetaCache->pVSubTables);
+  TSWAP(pCatalogReq->pVStbRefDbs, pMetaCache->pVStbRefDbs);
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   pCatalogReq->forceFetchViewMeta = pMetaCache->forceFetchViewMeta;
   return code;
@@ -1037,7 +1038,10 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData,
 
   pMetaCache->pVSubTables = pMetaData->pVSubTables;
   pMetaData->pVSubTables = NULL;
-  
+
+  pMetaCache->pVStbRefDbs = pMetaData->pVStbRefDbs;
+  pMetaData->pVStbRefDbs = NULL;
+
   pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
 }
@@ -1392,7 +1396,26 @@ int32_t reserveVSubTableInCache(int32_t acctId, const char* pDb, const char* pTa
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t reserveVStbRefDbsInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t line = 0;
+  SName   fullName = {0};
+  toName(acctId, pDb, pTable, &fullName);
 
+  if (NULL == pMetaCache->pVStbRefDbs) {
+    pMetaCache->pVStbRefDbs = taosArrayInit(1, sizeof(fullName));
+    QUERY_CHECK_NULL(pMetaCache->pVStbRefDbs, code, line, _return, terrno);
+  }
+
+  QUERY_CHECK_NULL(taosArrayPush(pMetaCache->pVStbRefDbs, &fullName), code, line, _return, terrno);
+  return code;
+
+_return:
+  if (code) {
+    qError("%s failed, code:%d", __func__, code);
+  }
+  return code;
+}
 
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
   char    fullName[TSDB_TABLE_FNAME_LEN];
@@ -1575,6 +1598,7 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
   taosHashCleanup(pMetaCache->pTableCfg);
   taosHashCleanup(pMetaCache->pTableTSMAs);
   taosArrayDestroyEx(pMetaCache->pVSubTables, tDestroySVSubTablesRsp);
+  taosArrayDestroyEx(pMetaCache->pVStbRefDbs, tDestroySVStbRefDbsRsp);
 }
 
 int64_t int64SafeSub(int64_t a, int64_t b) {
