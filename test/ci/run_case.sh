@@ -86,6 +86,7 @@ md5sum /home/TDinternal/debug/build/lib/libtaos.so
 #get python connector and update: taospy 2.7.16 taos-ws-py 0.3.5
 pip3 install taospy==2.7.23
 pip3 install taos-ws-py==0.3.8
+pip3 install pytest-timeout
 $TIMEOUT_CMD $cmd
 RET=$?
 echo "cmd exit code: $RET"
