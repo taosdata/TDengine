@@ -1,13 +1,11 @@
 import pytest
 import sys
 import time
+import os
 import threading
 from taos.tmq import Consumer
-from new_test_framework.utils.util.log import *
-from new_test_framework.utils.util.sql import *
-from new_test_framework.utils.util.cases import *
-from new_test_framework.utils.util.dnodes import *
-from new_test_framework.utils.util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from tmqCommon import *
 

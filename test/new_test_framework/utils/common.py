@@ -23,7 +23,6 @@ from .boundary import DataBoundary
 import taos
 from .log import *
 from .sql import *
-from .cases import *
 from .server.dnodes import *
 from .common import *
 from .constant import *

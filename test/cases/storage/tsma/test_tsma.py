@@ -1,13 +1,14 @@
 import pytest
+import random
+import os
+import sys
+import string
 from random import randrange
 import time
 import threading
 import secrets
-from new_test_framework.utils.util.log import *
-from new_test_framework.utils.util.sql import *
-from new_test_framework.utils.util.cases import *
-from new_test_framework.utils.util.dnodes import *
-from new_test_framework.utils.util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom, List
+
 # from tmqCommon import *
 
 ROUND = 1000
@@ -157,9 +158,9 @@ class TSMAQCBuilder:
 
 
 class TSMATester:
-    def __init__(self, tdSql: TDSql) -> None:
+    def __init__(self, tdSql) -> None:
         self.tsmas = []
-        self.tdSql: TDSql = tdSql
+        self.tdSql = tdSql
 
     def explain_sql(self, sql: str):
         tdSql.execute("alter local 'querySmaOptimize' '1'")

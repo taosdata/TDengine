@@ -16,10 +16,8 @@ import time
 import random
 import taos
 
-from new_test_framework.utils.frame.log import *
-from new_test_framework.utils.frame.sql import *
-from new_test_framework.utils.frame.srvCtl import *
-from new_test_framework.utils.frame.clusterCommonCheck import clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
+
 
 class TestClusterBasic:
     def setup_class(cls):

@@ -7,7 +7,6 @@ import  socket
 
 from ..log import *
 from ..sql import *
-from ..cases import *
 from .dnodes import *
 from ..common import *
 

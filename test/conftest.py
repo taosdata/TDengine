@@ -4,14 +4,9 @@ import sys
 import os
 from new_test_framework import taostest
 import logging
-from new_test_framework import tdSql, etool, testLog
-from new_test_framework import BeforeTest
+from new_test_framework.utils import tdSql, etool, testLog, BeforeTest, eutil
 
-from new_test_framework.utils.util import tdSql as tdSql_pytest
-from new_test_framework.utils.frame import tdSql as tdSql_army
-#from utils.taos_components import run_taosbenchMark
 import taos
-import taosrest
 import taosws
 import yaml
 
@@ -200,22 +195,23 @@ def before_test_class(request):
    
         # 建立连接
         request.cls.conn = request.session.before_test.get_taos_conn(request)
-        request.cls.tdSql = request.session.before_test.get_tdsql(request.cls.conn)
+        tdSql.init(request.cls.conn.cursor())
+        testLog.info(tdSql.query(f"show dnodes", row_tag=True))
 
         # 为兼容老用例，初始化原框架连接
-        tdSql_pytest.init(request.cls.conn.cursor())
-        tdSql_army.init(request.cls.conn.cursor())
+        #tdSql_pytest.init(request.cls.conn.cursor())
+        #tdSql_army.init(request.cls.conn.cursor())
 
         # 处理-C参数，如果-C参数小于denodes_num，则drop多余的dnode
         if request.session.create_dnode_num < request.session.denodes_num: 
             for i in range(request.session.create_dnode_num + 1, request.session.denodes_num + 1):
-                request.cls.tdSql.execute(f"drop dnode {i}")
+                tdSql.execute(f"drop dnode {i}")
 
         # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
         if request.session.query_policy != 1:
-            request.cls.tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
-            request.cls.tdSql.execute("create qnode on dnode 1")
-            request.cls.tdSql.execute("show local variables")
+            tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
+            tdSql.execute("create qnode on dnode 1")
+            tdSql.execute("show local variables")
     
         # 为老用例兼容，初始化老框架部分实例
         request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
@@ -248,9 +244,10 @@ def before_test_class(request):
 
     # 测试结束后断开连接，清理环境
     if not request.session.skip_deploy:
-        request.cls.tdSql.close()
-        tdSql_pytest.close()
-        tdSql_army.close()
+        #tdSql.close()
+        #tdSql_pytest.close()
+        #tdSql_army.close()
+        tdSql.close()
         request.cls.conn.close()
         request.session.before_test.destroy(request.cls.yaml_file)
 
@@ -259,38 +256,38 @@ def add_common_methods(request):
     # 兼容原老框架，添加CaseBase方法
 
     def stop(self):
-        request.cls.tdSql.close()
+        tdSql.close()
     
     request.cls.stop = stop
 
     def createDb(self, options=""):
         sql = f"create database {self.db} {options}"
-        request.cls.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
     
     request.cls.createDb = createDb
 
     def trimDb(self, show = False):
-        request.cls.tdSql.execute(f"trim database {self.db}", show = show)
+        tdSql.execute(f"trim database {self.db}", show = show)
     
     request.cls.trimDb = trimDb
 
     def compactDb(self, show = False):
-        request.cls.tdSql.execute(f"compact database {self.db}", show = show)
+        tdSql.execute(f"compact database {self.db}", show = show)
     
     request.cls.compactDb = compactDb
 
     def flushDb(self, show = False):
-        request.cls.tdSql.execute(f"flush database {self.db}", show = show)
+        tdSql.execute(f"flush database {self.db}", show = show)
 
     request.cls.flushDb = flushDb
 
     def dropDb(self, show = False):
-        request.cls.tdSql.execute(f"drop database {self.db}", show = show)
+        tdSql.execute(f"drop database {self.db}", show = show)
 
     request.cls.dropDb = dropDb
 
     def dropStream(self, sname, show = False):
-        request.cls.tdSql.execute(f"drop stream {sname}", show = show)
+        tdSql.execute(f"drop stream {sname}", show = show)
 
     request.cls.dropStream = dropStream
 
@@ -298,7 +295,7 @@ def add_common_methods(request):
         vgids = self.getVGroup(self.db)
         selid = random.choice(vgids)
         sql = f"split vgroup {selid}"
-        request.cls.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
@@ -308,7 +305,7 @@ def add_common_methods(request):
 
     def alterReplica(self, replica):
         sql = f"alter database {self.db} replica {replica}"
-        request.cls.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
             logger.exit(f"{sql} transaction not finished")
             return False
@@ -318,7 +315,7 @@ def add_common_methods(request):
 
     def balanceVGroup(self):
         sql = f"balance vgroup"
-        request.cls.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
             logger.exit(f"{sql} transaction not finished")
             return False
@@ -328,7 +325,7 @@ def add_common_methods(request):
     
     def balanceVGroupLeader(self):
         sql = f"balance vgroup leader"
-        request.cls.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
             logger.exit(f"{sql} transaction not finished")
             return False
@@ -337,7 +334,7 @@ def add_common_methods(request):
     request.cls.balanceVGroupLeader = balanceVGroupLeader
     def balanceVGroupLeaderOn(self, vgId):
         sql = f"balance vgroup leader on {vgId}"
-        request.cls.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
             logger.exit(f"{sql} transaction not finished")
             return False
@@ -347,7 +344,7 @@ def add_common_methods(request):
 
     def balanceVGroupLeaderOn(self, vgId):
         sql = f"balance vgroup leader on {vgId}"
-        request.cls.tdSql.execute(sql, show=True)
+        tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
             logger.exit(f"{sql} transaction not finished")
             return False
@@ -361,62 +358,62 @@ def add_common_methods(request):
     def checkInsertCorrect(self, difCnt = 0):
         # check count
         sql = f"select count(*) from {self.stb}"
-        request.cls.tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
+        tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
 
         # check child table count
         sql = f" select count(*) from (select count(*) as cnt , tbname from {self.stb} group by tbname) where cnt = {self.insert_rows} "
-        request.cls.tdSql.checkAgg(sql, self.childtable_count)
+        tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
         sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
-        request.cls.tdSql.checkAgg(sql, difCnt)
+        tdSql.checkAgg(sql, difCnt)
 
     request.cls.checkInsertCorrect = checkInsertCorrect
     # save agg result
     def snapshotAgg(self):        
-        self.sum =  request.cls.tdSql.getFirstValue(self.sqlSum)
-        self.avg =  request.cls.tdSql.getFirstValue(self.sqlAvg)
-        self.min =  request.cls.tdSql.getFirstValue(self.sqlMin)
-        self.max =  request.cls.tdSql.getFirstValue(self.sqlMax)
-        self.first = request.cls.tdSql.getFirstValue(self.sqlFirst)
-        self.last  = request.cls.tdSql.getFirstValue(self.sqlLast)
+        self.sum =  tdSql.getFirstValue(self.sqlSum)
+        self.avg =  tdSql.getFirstValue(self.sqlAvg)
+        self.min =  tdSql.getFirstValue(self.sqlMin)
+        self.max =  tdSql.getFirstValue(self.sqlMax)
+        self.first = tdSql.getFirstValue(self.sqlFirst)
+        self.last  = tdSql.getFirstValue(self.sqlLast)
 
     request.cls.snapshotAgg = snapshotAgg
     # check agg 
     def checkAggCorrect(self):
-        request.cls.tdSql.checkAgg(self.sqlSum, self.sum)
-        request.cls.tdSql.checkAgg(self.sqlAvg, self.avg)
-        request.cls.tdSql.checkAgg(self.sqlMin, self.min)
-        request.cls.tdSql.checkAgg(self.sqlMax, self.max)
-        request.cls.tdSql.checkAgg(self.sqlFirst, self.first)
-        request.cls.tdSql.checkAgg(self.sqlLast,  self.last)
+        tdSql.checkAgg(self.sqlSum, self.sum)
+        tdSql.checkAgg(self.sqlAvg, self.avg)
+        tdSql.checkAgg(self.sqlMin, self.min)
+        tdSql.checkAgg(self.sqlMax, self.max)
+        tdSql.checkAgg(self.sqlFirst, self.first)
+        tdSql.checkAgg(self.sqlLast,  self.last)
 
     request.cls.checkAggCorrect = checkAggCorrect
     # self check 
     def checkConsistency(self, col):
         # top with max
         sql = f"select max({col}) from {self.stb}"
-        expect = request.cls.tdSql.getFirstValue(sql)
+        expect = tdSql.getFirstValue(sql)
         sql = f"select top({col}, 5) from {self.stb}"
-        request.cls.tdSql.checkFirstValue(sql, expect)
+        tdSql.checkFirstValue(sql, expect)
 
         #bottom with min
         sql = f"select min({col}) from {self.stb}"
-        expect = request.cls.tdSql.getFirstValue(sql)
+        expect = tdSql.getFirstValue(sql)
         sql = f"select bottom({col}, 5) from {self.stb}"
-        request.cls.tdSql.checkFirstValue(sql, expect)
+        tdSql.checkFirstValue(sql, expect)
 
         # order by asc limit 1 with first
         sql = f"select last({col}) from {self.stb}"
-        expect = request.cls.tdSql.getFirstValue(sql)
+        expect = tdSql.getFirstValue(sql)
         sql = f"select {col} from {self.stb} order by _c0 desc limit 1"
-        request.cls.tdSql.checkFirstValue(sql, expect)
+        tdSql.checkFirstValue(sql, expect)
 
         # order by desc limit 1 with last
         sql = f"select first({col}) from {self.stb}"
-        expect = request.cls.tdSql.getFirstValue(sql)
+        expect = tdSql.getFirstValue(sql)
         sql = f"select {col} from {self.stb} order by _c0 asc limit 1"
-        request.cls.tdSql.checkFirstValue(sql, expect)
+        tdSql.checkFirstValue(sql, expect)
     
     request.cls.checkConsistency = checkConsistency
 
@@ -427,11 +424,11 @@ def add_common_methods(request):
         logger.info("compare sql1 same with sql2 ...")
 
         # sql
-        rows1 = request.cls.tdSql.query(sql1,queryTimes=2)
-        res1 = copy.deepcopy(request.cls.tdSql.res)
+        rows1 = tdSql.query(sql1,queryTimes=2)
+        res1 = copy.deepcopy(tdSql.res)
 
-        request.cls.tdSql.query(sql2,queryTimes=2)
-        res2 = request.cls.tdSql.res
+        tdSql.query(sql2,queryTimes=2)
+        res2 = tdSql.res
 
         rowlen1 = len(res1)
         rowlen2 = len(res2)
@@ -468,7 +465,7 @@ def add_common_methods(request):
     def getVGroup(self, dbName):
         vgidList = []
         sql = f"select vgroup_id from information_schema.ins_vgroups where db_name='{dbName}'"
-        res = request.cls.tdSql.getResult(sql)
+        res = tdSql.getResult(sql)
         rows = len(res)
         for i in range(rows):
             vgidList.append(res[i][0])
@@ -480,11 +477,11 @@ def add_common_methods(request):
     # get distributed rows
     def getDistributed(self, tbName):
         sql = f"show table distributed {tbName}"
-        request.cls.tdSql.query(sql)
+        tdSql.query(sql)
         dics = {}
         i = 0
-        for i in range(request.cls.tdSql.getRows()):
-            row = request.cls.tdSql.getData(i, 0)
+        for i in range(tdSql.getRows()):
+            row = tdSql.getData(i, 0)
             #print(row)
             row = row.replace('[', '').replace(']', '')
             #print(row)
@@ -512,7 +509,7 @@ def add_common_methods(request):
         # wait end
         for i in range(seconds):
             sql ="show transactions;"
-            rows = request.cls.tdSql.query(sql)
+            rows = tdSql.query(sql)
             if rows == 0:
                 logger.info("transaction count became zero.")
                 return True
@@ -526,7 +523,7 @@ def add_common_methods(request):
         # wait end
         for i in range(seconds):
             sql ="show compacts;"
-            rows = request.cls.tdSql.query(sql)
+            rows = tdSql.query(sql)
             if rows == 0:
                 logger.info("compacts count became zero.")
                 return True
@@ -610,28 +607,28 @@ def add_common_methods(request):
         
         # all count insert_rows * child_table_count
         sql = f"select * from {db}.{stb}"
-        request.cls.tdSql.query(sql)
-        request.cls.tdSql.checkRows(child_count * insert_rows)
+        tdSql.query(sql)
+        tdSql.checkRows(child_count * insert_rows)
 
         # timestamp step
         if checkStep:
             sql = f"select * from (select diff(ts) as dif from {db}.{stb} partition by tbname) where dif != {timestamp_step};"
-            request.cls.tdSql.query(sql)
-            request.cls.tdSql.checkRows(0)
+            tdSql.query(sql)
+            tdSql.checkRows(0)
 
         if drop.lower() == "yes":
             # check database optins 
             sql = f"select `vgroups`,`cachemodel` from information_schema.ins_databases where name='{db}';"
-            request.cls.tdSql.query(sql)
+            tdSql.query(sql)
 
             if cachemode != None:
                 
-                value = frame.eutil.removeQuota(cachemode)                
+                value = eutil.removeQuota(cachemode)                
                 logger.info(f" deal both origin={cachemode} after={value}")
-                request.cls.tdSql.checkData(0, 1, value)
+                tdSql.checkData(0, 1, value)
 
             if vgroups != None:
-                request.cls.tdSql.checkData(0, 0, vgroups)
+                tdSql.checkData(0, 0, vgroups)
 
         return db, stb,child_count, insert_rows
 

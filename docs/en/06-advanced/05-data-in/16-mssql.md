@@ -14,6 +14,10 @@ import imgStep06 from '../../assets/sql-server-06.png';
 import imgStep07 from '../../assets/sql-server-07.png';
 import imgStep08 from '../../assets/sql-server-08.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, migrating data from Microsoft SQL Server to the current TDengine cluster.
 
 ## Feature Overview

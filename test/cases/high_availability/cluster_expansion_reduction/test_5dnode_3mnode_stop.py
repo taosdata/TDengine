@@ -11,18 +11,11 @@
 
 # -*- coding: utf-8 -*-
 import pytest
-import logging
 import taos
 import sys
 import time
 import os
-from new_test_framework.utils.util.sql import tdSql
-from new_test_framework.utils.util.log import tdLog
-from new_test_framework.utils.util.dnodes import *
-from new_test_framework.utils.util.dnodes import TDDnodes
-from new_test_framework.utils.util.dnodes import TDDnode
-from new_test_framework.utils.util.cluster import *
-# from test import tdDnodes
+from new_test_framework.utils import tdSql, tdLog, cluster
 
 from clusterCommonCheck import *
 
@@ -72,7 +65,7 @@ class Test5dnode3mnodeStop:
         mnodeNums = self.mnode_nums
         restartNumber = 1
         clusterComCheck.init(self.conn)
-        logger.info("======== test case 1: ")
+        tdLog.info("======== test case 1: ")
         paraDict = {'dbName':     'db',
                     'dropFlag':   1,
                     'event':      '',
@@ -95,7 +88,7 @@ class Test5dnode3mnodeStop:
         mnodeNums=int(mnodeNums)
         dbNumbers = int(dnodenumbers * restartNumber)
 
-        logger.info("first check dnode and mnode")
+        tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)

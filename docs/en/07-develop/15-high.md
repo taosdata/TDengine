@@ -77,7 +77,15 @@ Starting from version 3.6.0, the JDBC driver provides efficient writing features
 - Supports the JDBC standard parameter binding interface.
 - When resources are sufficient, writing capacity is linearly correlated with the configuration of write threads.
 - Supports configuration of write timeout, number of retries, and retry interval after connection disconnection and reconnection.
-- Supports invoking the executeUpdate interface to obtain the number of written data records, and exceptions during writing can be caught.
+- Supports invoking the `executeUpdate` interface to obtain the number of written data records, and exceptions during writing can be caught.
+
+**JDBC Efficient Writing User Guide**
+
+The following is a simple example of efficient writing using JDBC, which illustrates the relevant configurations and interfaces for efficient writing.
+
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/WSHighVolumeDemo.java:efficient_writing}}
+```
 
 **Program Listing**
 
@@ -98,9 +106,6 @@ Below are the complete codes and more detailed function descriptions for each cl
 
 <details>
 <summary>FastWriteExample</summary>
-
-
-
 
 **Introduction to Main Program Command-Line Arguments:**  
 

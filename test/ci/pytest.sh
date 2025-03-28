@@ -19,7 +19,7 @@ fi
 
 UNAME_BIN=$(which uname)
 OS_TYPE=$($UNAME_BIN)
-
+export ASAN_OPTIONS=detect_odr_violation=0
 cd .
 
 # Get responsible directories

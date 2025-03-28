@@ -118,8 +118,7 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
 
   VTS_ERR_JRET(blockDataCheck(pRes));
   if ((pRes)) {
-    qInfo("load from downstream, blockId:%d", pCtx->blockId);
-    //printDataBlock(pRes, "load from downstream", "task");
+    qDebug("%s load from downstream, blockId:%d", __func__, pCtx->blockId);
     (pRes)->info.id.blockId = pCtx->blockId;
     getTimeWindowOfBlock(pRes, pCtx->tsSlotId, &pCtx->window.skey, &pCtx->window.ekey);
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));

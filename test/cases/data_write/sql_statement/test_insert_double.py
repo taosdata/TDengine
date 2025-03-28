@@ -1,7 +1,5 @@
 import pytest
-from new_test_framework.utils.util.log import *
-from new_test_framework.utils.util.sql import *
-from new_test_framework.utils.util.cases import *
+from new_test_framework.utils import tdLog, tdSql
 
 
 class TestInsertDouble:
@@ -137,4 +135,4 @@ class TestInsertDouble:
         self.run_tags("t_small", "smallint", 16)
         self.run_tags("t_tiny", "tinyint", 8)
         tdLog.printNoPrefix("==========end case2 run ...............")
-        logger.info(f"{__file__} successfully executed")
+        tdLog.info(f"{__file__} successfully executed")
