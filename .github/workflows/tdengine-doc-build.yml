@@ -56,6 +56,7 @@ jobs:
         run: |
           zh_doc_changed=false
           en_doc_changed=false
+          echo "ALL_CHANGED_DOCS=${ALL_CHANGED_DOCS}"
           for file in $ALL_CHANGED_DOCS; do
             case $file in
               *docs/zh/*)
@@ -70,6 +71,8 @@ jobs:
                 ;;
             esac
           done
+          echo "zh_doc_changed=$zh_doc_changed"
+          echo "en_doc_changed=$en_doc_changed"
           echo "zh_doc_changed=$zh_doc_changed" >> $GITHUB_OUTPUT
           echo "en_doc_changed=$en_doc_changed" >> $GITHUB_OUTPUT
 
