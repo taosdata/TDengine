@@ -131,7 +131,7 @@ class TBase:
 
 
 #
-#  check db correct 
+#  check db correct
 #                
 
     # basic

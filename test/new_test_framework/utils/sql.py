@@ -37,6 +37,12 @@ def _parse_ns_timestamp(timestr):
 def _parse_datetime(timestr):
     """
     Parse a string to a datetime object. The string can be in one of the following formats:
+    
+    Args:
+        timestr (str): The string to be parsed.
+    
+    Returns:
+        datetime.datetime: The datetime object parsed from the string.
     """
     formats = [
         '%Y-%m-%d %H:%M:%S.%f%z',  # 包含微秒和时区偏移
