@@ -22,16 +22,21 @@ pub fn qid_db_init() -> anyhow::Result<()> {
     }
 
     // TS-5631: Use the qid file lock to ensure that multiple taosx services do not access the same data directory.
-    let db = sled::open(&db_path).context("qid db file has been locked")?;
+    // 这里只抛出数据库文件锁定的错误，其他错误忽略，使用内存的计数器
+    let db = match sled::open(&db_path) {
+        Ok(db) => db,
+        Err(sled::Error::Io(e))
+            if e.kind() == std::io::ErrorKind::Other
+                && e.to_string().starts_with("could not acquire lock on") =>
+        {
+            anyhow::bail!("qid db file has been locked")
+        }
+        Err(e) => {
+            tracing::error!("open qid database error: {e:#}");
+            return Ok(());
+        }
+    };
     QID_DB.get_or_init(|| db);
-    // match sled::open(&db_path) {
-    //     Ok(db) => {
-    //         QID_DB.get_or_init(|| db);
-    //     }
-    //     Err(e) => {
-    //         tracing::warn!("open sled db {} error: {e}", db_path.display());
-    //     }
-    // };
     Ok(())
 }
 
