@@ -506,8 +506,10 @@ class TDCom:
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
+        if "community"  in selfPath:
             projPath = selfPath[:selfPath.find("community")]
+        elif "TDengine" in selfPath:
+            projPath = selfPath[:selfPath.find("TDengine")]
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
