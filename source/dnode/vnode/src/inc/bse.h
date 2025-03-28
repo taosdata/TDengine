@@ -48,11 +48,6 @@ typedef struct {
 } SValueInfo;
 
 typedef struct {
-  uint64_t offset;
-  uint64_t size;
-} SBlkHandle;
-
-typedef struct {
   uint8_t  head[4];
   uint32_t id;
   uint32_t len;
@@ -89,37 +84,34 @@ typedef struct {
 } SBlkHeader;
 
 typedef struct {
-  SBlkHandle metaHandle[1];
-  SBlkHandle indexHandle[1];
-} STableFooter;
-typedef struct {
-  char         name[TSDB_FILENAME_LEN];
-  TdFilePtr    pDataFile;
-  TdFilePtr    pIdxFile;
-  SBlkData     data;
-  SBlkData     iData;
-  SBlkData     bufBlk;
-  STableFooter footer;
-  SHashObj    *pCache;
-  SArray      *pSeqToBlock;
-  int32_t      blockId;
-  uint64_t     initSeq;
-  uint8_t      commited;
-  uint8_t      fileOpened;
-  int64_t      seq;
+  char      name[TSDB_FILENAME_LEN];
+  TdFilePtr pDataFile;
+  TdFilePtr pIdxFile;
+  SBlkData  data;
+  SBlkData  iData;
+  SBlkData  bufBlk;
+  // STableFooter footer;
+  SHashObj *pCache;
+  SArray   *pSeqToBlock;
+  int32_t   blockId;
+  uint64_t  initSeq;
+  uint8_t   commited;
+  uint8_t   fileOpened;
+  int64_t   seq;
+  void     *bse;
 } STable;
 
 typedef struct {
-  char         name[TSDB_FILENAME_LEN];
-  TdFilePtr    pDataFile;
-  TdFilePtr    pIdxFile;
-  SBlkData     data;
-  STableFooter footer;
-  SHashObj    *pCache;
-  SArray      *pSeqToBlock;
-  int32_t      blockId;
-  uint64_t     initSeq;
-  uint64_t     lastSeq;
+  char      name[TSDB_FILENAME_LEN];
+  TdFilePtr pDataFile;
+  TdFilePtr pIdxFile;
+  SBlkData  data;
+  // STableFooter footer;
+  SHashObj *pCache;
+  SArray   *pSeqToBlock;
+  int32_t   blockId;
+  uint64_t  initSeq;
+  uint64_t  lastSeq;
 } SReaderTable;
 
 typedef struct {
@@ -137,6 +129,7 @@ typedef struct {
   int32_t encryptAlgorithm;
   char    encryptKey[ENCRYPT_KEY_LEN + 1];
   int8_t  clearFiles;
+  int8_t  compress;
 } SBseCfg;
 
 typedef struct {

@@ -1261,7 +1261,7 @@ int32_t tsDecompressFloatImp(const char *const input, int32_t ninput, const int3
   // use AVX2 implementation when allowed and the compression ratio is not high
   double compressRatio = 1.0 * nelements * FLOAT_BYTES / ninput;
   if (tsSIMDEnable && tsAVX2Supported && compressRatio < 2) {
-    int32_t cnt =  tsDecompressFloatImpAvx2(input + 1, nelements, output);
+    int32_t cnt = tsDecompressFloatImpAvx2(input + 1, nelements, output);
     if (cnt >= 0) {
       return cnt;
     }

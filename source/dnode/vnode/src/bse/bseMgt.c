@@ -15,6 +15,7 @@
 
 #include "bse.h"
 #include "cJSON.h"
+#include "lz4.h"
 #include "os.h"
 #include "tchecksum.h"
 #include "tcompare.h"
@@ -91,71 +92,10 @@ static int32_t readerTableLoadMeta(SReaderTable *pTable);
 static int32_t blockInit(int32_t blockId, int32_t cap, int8_t type, SBlkData *blk);
 static int32_t blockCleanup(SBlkData *data);
 // static int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset);
-static int8_t  blockShouldFlush(SBlkData *data, int32_t len);
+static int8_t  blockMayShouldFlush(SBlkData *data, int32_t len);
 static int32_t blockReset(SBlkData *data, uint8_t type, int32_t blkId);
 static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t *pValue, int32_t *len);
 static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
-
-// block handle func
-static int32_t blkHandleEncode(SBlkHandle *pHandle, char *buf);
-static int32_t blkHandleDecode(SBlkHandle *pHandle, char *buf);
-
-// table footer func
-static int32_t footerEncode(STableFooter *pFooter, char *buf);
-static int32_t footerDecode(STableFooter *pFooter, char *buf);
-
-// table footer func
-static int32_t footerEncode(STableFooter *pFooter, char *buf);
-static int32_t footerDecode(STableFooter *pFooter, char *buf);
-
-int32_t blkHandleEncode(SBlkHandle *pHandle, char *buf) {
-  char   *p = buf;
-  int32_t tlen = 0;
-  tlen += taosEncodeVariantU64((void **)&p, pHandle->offset);
-  tlen += taosEncodeVariantU64((void **)&p, pHandle->size);
-  return tlen;
-}
-int32_t blkHandleDecode(SBlkHandle *pHandle, char *buf) {
-  char *p = buf;
-  p = taosDecodeVariantU64(p, &pHandle->offset);
-  p = taosDecodeVariantU64(p, &pHandle->size);
-  return p - buf;
-}
-
-int32_t footerEncode(STableFooter *pFooter, char *buf) {
-  char   *p = buf;
-  int32_t len = 0;
-  len += blkHandleEncode(pFooter->metaHandle, p + len);
-  len += blkHandleEncode(pFooter->indexHandle, p + len);
-  p = p + len;
-  taosEncodeFixedU32((void **)&p, kMagicNum);
-  taosEncodeFixedU32((void **)&p, kMagicNum);
-  return 0;
-}
-int32_t footerDecode(STableFooter *pFooter, char *buf) {
-  int32_t  code = 0;
-  char    *p = buf;
-  char    *mp = p + strlen(p) - kEncodeLen - 8;
-  uint32_t ml, mh;
-  taosDecodeFixedU32(mp, &ml);
-  taosDecodeFixedU32(mp + 4, &mh);
-
-  if (ml != kMagicNum || mh != kMagicNum) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  int32_t len = blkHandleDecode(pFooter->metaHandle, buf);
-  if (len < 0) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  len = blkHandleDecode(pFooter->indexHandle, buf + len);
-  if (len < 0) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  return code;
-}
 
 int32_t blockInit(int32_t id, int32_t cap, int8_t type, SBlkData *blk) {
   blk->type = type;
@@ -198,7 +138,7 @@ int32_t blockAddMeta(SBlkData *blk, BlockInfo *pInfo) {
 }
 
 // 0 not flush,1 flush
-// int8_t blockShouldFlush(SBlkData *data, int32_t len) {
+// int8_t blockMayShouldFlush(SBlkData *data, int32_t len) {
 //   //
 //   SBlkData2 *pBlkData = data->pData;
 //   int32_t    estimite = taosEncodeVariantU64(NULL, sizeof(UINT64_MAX));
@@ -207,9 +147,9 @@ int32_t blockAddMeta(SBlkData *blk, BlockInfo *pInfo) {
 //   return (estimite + sizeof(SBlkData2) + pBlkData->len + sizeof(TSCKSUM)) > data->cap;
 // }
 
-int8_t blockShouldFlush(SBlkData *data, int32_t len) {
+int8_t blockMayShouldFlush(SBlkData *data, int32_t len) {
   SBlkData2 *pBlkData = data->pData;
-  return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) > data->cap;
+  return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) + sizeof(int32_t) > data->cap;
 }
 // int8_t blockMetaShouldFlush(SBlkData *data, int32_t len) {
 //   //
@@ -223,7 +163,7 @@ int8_t blockMetaShouldFlush(SBlkData *data, BlockInfo *pInfo) {
   int32_t    len = taosEncodeVariantI64(NULL, pInfo->seq);
   len += taosEncodeVariantI32(NULL, pInfo->len);
   len += taosEncodeVariantI32(NULL, pInfo->blockId);
-  return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) > data->cap;
+  return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) + sizeof(int32_t) > data->cap;
 }
 
 int32_t blockReset(SBlkData *data, uint8_t type, int32_t blockId) {
@@ -423,7 +363,7 @@ int32_t tableAppendData(STable *pTable, int64_t key, uint8_t *value, int32_t len
     pInfo->seq = pTable->initSeq;
   }
 
-  if (blockShouldFlush(&pTable->data, len)) {
+  if (blockMayShouldFlush(&pTable->data, len)) {
     pInfo->blockId = pTable->blockId;
     pInfo->len = pTable->data.len;
 
@@ -532,14 +472,17 @@ _err:
 int32_t tableFlushBlock(STable *pTable) {
   /// do write to file
   // Do CRC and write to table
-  int32_t    code = 0;
-  int32_t    line = 0;
+  int32_t code = 0;
+  int32_t line = 0;
+
+  SBse    *pBse = pTable->bse;
+  SBseCfg *pCfg = &pBse->cfg;
+
   SBlkData  *pData = &pTable->data;
   SBlkData2 *pBlk = pData->pData;
   if (pBlk->len == 0) {
     return 0;
   }
-
   code = taosCalcChecksumAppend(0, (uint8_t *)pBlk, kBlockCap);
 
   TSDB_CHECK_CODE(code, line, _err);
@@ -562,6 +505,33 @@ _err:
   return code;
 }
 
+int32_t tableCompressData(STable *pTable) {
+  int32_t  code = 0;
+  int32_t  line = 0;
+  int32_t  compressed = 0;
+  SBse    *pBse = pTable->bse;
+  SBseCfg *pCfg = &pBse->cfg;
+
+  SBlkData  *pData = &pTable->data;
+  SBlkData2 *pBlk = pData->pData;
+
+  SBlkData  *piData = &pTable->data;
+  SBlkData2 *piBlk = pData->pData;
+
+  if (pBlk->len == 0) {
+    return 0;
+  }
+  int32_t compressSize = LZ4_compress_default((char *)pBlk->data, (char *)piBlk->data, pBlk->len, piData->cap);
+  if (compressSize <= 0 || compressSize >= pBlk->len) {
+  } else {
+    piBlk->len = compressSize;
+    compressed = 1;
+  }
+  if (compressed) {
+  }
+
+  return code;
+}
 int32_t tableCommit(STable *pTable) {
   // Generate static info and footer info;
   if (pTable->commited) {
