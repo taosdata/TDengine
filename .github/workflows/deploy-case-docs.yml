@@ -158,11 +158,11 @@ jobs:
           git checkout gh-pages || git checkout -b gh-pages
           echo test/docs/$BRANCH_NAME
           mkdir -p test/docs/$BRANCH_NAME
-          if $modified_flag == 'true'; then
+          if [ "$modified_flag" == "true" ]; then
             cp -r test/docs/case_list_docs test/docs/$BRANCH_NAME/
             git add test/docs/$BRANCH_NAME/case_list_docs
           fi
-          if $modified_util == 'true'; then
+          if [ "$modified_util" == "true" ]; then
             cp -r test/docs/util_funcs_docs test/docs/$BRANCH_NAME/
             git add test/docs/$BRANCH_NAME/util_funcs_docs
           fi

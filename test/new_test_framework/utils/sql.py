@@ -37,6 +37,11 @@ def _parse_ns_timestamp(timestr):
 def _parse_datetime(timestr):
     """
     Parse a string to a datetime object. The string can be in one of the following formats:
+    The string can be in one of the following formats:
+    - '%Y-%m-%d %H:%M:%S.%f%z': Contains microseconds and timezone offset.
+    - '%Y-%m-%d %H:%M:%S%z': Contains no microseconds but contains timezone offset.
+    - '%Y-%m-%d %H:%M:%S.%f': Contains microseconds but no timezone offset.
+    - '%Y-%m-%d %H:%M:%S': Contains no microseconds and no timezone offset.
     
     Args:
         timestr (str): The string to be parsed.
