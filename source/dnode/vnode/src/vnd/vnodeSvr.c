@@ -602,6 +602,43 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
+static int32_t vnodeProcessImportFileReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t code = 0;
+
+  // Missing response initialization
+  pRsp->msgType = TDMT_VND_IMPORT_FILE_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  SVImportFileReq req = {0};
+  SDecoder        decoder = {0};
+
+  tDecoderInit(&decoder, (uint8_t *)pReq, len);
+
+  // Decode the request
+  if (tDecodeVImportFileReq(&decoder, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    pRsp->code = code;  // Set error code in response
+    tDecoderClear(&decoder);
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  // Process the request
+  code = tsdbImportFile(pVnode->pTsdb, req.fileName);
+  if (code) {
+    pRsp->code = code;  // Set error code in response
+    tDecoderClear(&decoder);
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  pRsp->code = 0;
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg *pRsp) {
   int32_t code = 0;
   void   *ptr = NULL;
@@ -802,6 +839,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     /* ARB */
     case TDMT_VND_ARB_CHECK_SYNC:
       vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
+      break;
+    case TDMT_VND_IMPORT_FILE:
+      vnodeProcessImportFileReq(pVnode, ver, pReq, len, pRsp);
       break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);

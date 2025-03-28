@@ -4978,6 +4978,18 @@ void tFreeFetchTtlExpiredTbsRsp(void* p);
 void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
+typedef struct {
+  const char* fileName;
+} SVImportFileReq;
+
+int32_t tEncodeVImportFileReq(SEncoder* pCoder, const SVImportFileReq* pReq);
+int32_t tDecodeVImportFileReq(SDecoder* pCoder, SVImportFileReq* pReq);
+
+typedef struct {
+  int32_t code;
+  // TODO
+} SVImportFileRsp;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
