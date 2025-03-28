@@ -5288,7 +5288,7 @@ static int64_t dumpInAvroDataImpl(
             debugPrint("%s() LN%d table: %s parsed from file:%s\n",
                     __func__, __LINE__, tbName, fileName);
 
-            const int escapedTbNameLen = TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 3;
+            const int escapedTbNameLen = TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 10;
             char *escapedTbName = calloc(1, escapedTbNameLen);
             if (NULL == escapedTbName) {
                 errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
@@ -5302,25 +5302,29 @@ static int64_t dumpInAvroDataImpl(
                 return -1;
             }
 
-            snprintf(escapedTbName, escapedTbNameLen, "%s%s%s",
-                    g_escapeChar, tbName, g_escapeChar);
+            snprintf(escapedTbName, escapedTbNameLen, "%s%s%s.%s%s%s",
+                    g_escapeChar, namespace, g_escapeChar,
+                    g_escapeChar, tbName,    g_escapeChar);
 
             debugPrint("%s() LN%d escaped table: %s\n",
                     __func__, __LINE__, escapedTbName);
 
 
             // prepare
-            if (stmtPrepare(stmt, tbName, stbChange, recordSchema, nBindCols)) {
+            if (stmtPrepare(stmt, escapedTbName, stbChange, recordSchema, nBindCols)) {
                 // failed
                 free(bindArray);
                 if (mallocDes) {
                     freeTbDes(mallocDes, true);
                 }          
                 tfree(tbName);
+                free(escapedTbName);
                 taos_stmt_close(stmt);
                 return -1;                
             }
-                    
+            free(escapedTbName);
+            escapedTbName = NULL;
+
             // get table des
             if ((0 == strlen(tableDes->name))
                     || (0 != strcmp(tableDes->name, tbName))) {
