@@ -1,6 +1,9 @@
 name: TDengine Doc Build
 
 on:
+  push:
+    branches:
+      - 'wl/doc/main'
   pull_request:
     branches:
       - 'main'
