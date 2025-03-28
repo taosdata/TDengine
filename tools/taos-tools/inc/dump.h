@@ -193,6 +193,7 @@ typedef struct {
     char note[COL_NOTE_LEN];
     char value[COL_VALUEBUF_LEN];
     char *var_value;
+    int16_t idx;
 } ColDes;
 
 typedef struct {
@@ -367,8 +368,6 @@ typedef struct FieldStruct_S {
     bool nullable;
     bool is_array;
     int array_type;
-    // support stbChange
-    int db_type; // tinyint smallint ...
 } FieldStruct;
 
 typedef struct InspectStruct_S {

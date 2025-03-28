@@ -542,15 +542,21 @@ void freeStbChange(StbChange *stbChange) {
 
 // generate part string
 char * genPartStr(ColDes *colDes, int from , int num) {
-    // TODO
+    // check valid
+    if (colDes == 0 || num == 0) {
+        return NULL;
+    }
+    
     int32_t size  = 50 + num * (TSDB_COL_NAME_LEN + 2);
     char *partStr = calloc(1, size);
     int32_t pos   = 0;
     for (int32_t i = 0; i < num; i++) {
         pos += sprintf(partStr + pos, 
-                i == 0 ? "%s" : ",%s",
+                i == 0 ? "(%s" : ",%s",
                 colDes[i].field);
     }
+    // end
+    strcat(partStr, ")");
 
     return partStr;
 }
@@ -587,6 +593,9 @@ bool schemaNoChanged(RecordSchema *recordSchema, TableDes *tableDesSrv) {
             infoPrint("i=%d stb=%s field name same but type changed. %s local:%d server:%d \n", i, stb, local->field, local->type, srv->type);
             return false;    
         }
+
+        // save local col idx
+        srv->idx = local->idx;
     }
 
     return true;
@@ -598,6 +607,8 @@ bool findFieldInLocal(ColDes *colDes, TableDes * tableDes) {
         if (strcmp(colDes->field,  tableDes->cols[i].field) == 0 &&
                    colDes->type == tableDes->cols[i].type ) {
             debugPrint("%s i=%d found fields:%s type=%d\n", __func__, i, colDes->field, colDes->type);
+            // set local col idx
+            colDes->idx = tableDes->cols[i].idx;
             return true;
         }
     }
@@ -759,7 +770,6 @@ StbChange * findStbChange(DBChange *pDbChange, char *stbName) {
 static int32_t readStbSchemaCols( json_t *elements, ColDes *cols) {
     const char *key   = NULL;
     json_t     *value = NULL;
-    uint32_t   n      = 0;
 
     // check valid
     if (JSON_ARRAY != json_typeof(elements)) {
@@ -772,20 +782,22 @@ static int32_t readStbSchemaCols( json_t *elements, ColDes *cols) {
 
     for (size_t i = 0; i < size; i++) {
         json_t *element = json_array_get(elements, i);
+        
         // loop read
+        ColDes *col = cols + i;
         json_object_foreach(element, key, value) {
-            ColDes *col = cols + n;
             if (0 == strcmp(key, "name")) {
                 strncpy(col->field, json_string_value(value), TSDB_COL_NAME_LEN - 1);
             } else if (0 == strcmp(key, "type")) {
                 col->type = json_integer_value(value);
             }
         }
-        // move next
-        ++n;
+
+        // set idx
+        col->idx = i;
     }
 
-    return n;
+    return size;
 }
 
 // read stb schema
@@ -862,6 +874,27 @@ int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema) {
     return ret;
 }
 
+
+// found 
+bool idxInBindList(int16_t idx, TableDes* tableDes) {
+    // check valid
+    if (idx < 0 || tableDes == NULL) {
+        return false;
+    }
+
+    // find in list
+    for (int32_t i = 0 ; i < tableDes->columns; i++) {
+        if (tableDes->cols[i].idx == idx) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+/*
+
 // found 
 bool fieldInBindList(char *field, TableDes* tableDes) {
     // check valid
@@ -879,7 +912,7 @@ bool fieldInBindList(char *field, TableDes* tableDes) {
     return false;
 }
 
-/*
+
 // truncate filename
 void removeFileName(char *path) {
     int len = strlen(path);

@@ -5365,13 +5365,13 @@ static int64_t dumpInAvroDataImpl(
             bind = (TAOS_MULTI_BIND *)((char *)bindArray + (sizeof(TAOS_MULTI_BIND) * i));
             avro_value_t field_value;
 
-            FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct)*(i+colAdj));
+            FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct)*(i + colAdj));
 
             //
             //  check  avro fields need filter
             //
             if (stbChange && stbChange->schemaChanged) {
-                if(!fieldInBindList(field->name, stbChange->tableDes)) {
+                if(!idxInBindList(i, stbChange->tableDes)) {
                     // remove col not exist on server
                     debugPrint("avro field:%s not found on server.\n", field->name);
                     continue;

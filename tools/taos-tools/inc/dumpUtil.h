@@ -132,7 +132,8 @@ StbChange * findStbChange(DBChange *pDbChange, char *stbName);
 int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema);
 
 
-bool fieldInBindList(char *field, TableDes* tableDes);
+bool idxInBindList(int16_t idx, TableDes* tableDes);
+//bool fieldInBindList(char *field, TableDes* tableDes);
 
 StbChange* readFolderStbName(char *folder, DBChange *pDbChange);
 
