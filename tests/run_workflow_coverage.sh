@@ -26,11 +26,11 @@ function printHelp() {
 
 function lcovFunc {
     echo "collect data by lcov"
-    cd $TDENGINE_DIR
+    cd $TDINTRENAL_DIR
 
     # collect data
     #lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
-    lcov -d . --capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
+    lcov -d . --capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDINTRENAL_DIR -o coverage.info 
 
     # remove exclude paths 
     lcov --remove coverage.info \
@@ -57,7 +57,7 @@ function lcovFunc {
 
     # push result to coveralls.io
     echo "push result to coveralls.io"
-    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info 
+    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDINTRENAL_DIR/coverage.info 
 }
 
 
