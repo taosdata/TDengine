@@ -642,6 +642,19 @@ def pytest_collection_modifyitems(config, items):
                 item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{tsim_name}"  # 有效，名称可以修改
                 testLog.debug(item.name)
                 testLog.debug(item._nodeid)
+                params = {'params': tsim_name}  # 你的参数组合
+                param_ids = [tsim_name]  # 自定义参数ID
+                
+                # 创建参数化标记
+                marker = pytest.mark.parametrize(
+                    argnames='params',
+                    argvalues=[tsim_name],
+                    ids=param_ids
+                )
+                item.add_marker(marker)
+                
+                # 确保Allure能识别新参数
+                item.callspec = type('CallSpec', (), {'params': params, 'id': param_ids[0]})
     else:
         name_suffix = ""
         if config.getoption('-N'):
@@ -670,3 +683,16 @@ def pytest_collection_modifyitems(config, items):
                 item._nodeid = "::".join(item._nodeid.split('::')[:-1]) + f"::{item.name}"  # 有效，名称可以修改
                 testLog.debug(item.name)
                 testLog.debug(item._nodeid)
+                params = {'params': name_suffix}  # 你的参数组合
+                param_ids = [name_suffix]  # 自定义参数ID
+                
+                # 创建参数化标记
+                marker = pytest.mark.parametrize(
+                    argnames='params',
+                    argvalues=[name_suffix],
+                    ids=param_ids
+                )
+                item.add_marker(marker)
+                
+                # 确保Allure能识别新参数
+                item.callspec = type('CallSpec', (), {'params': params, 'id': param_ids[0]})

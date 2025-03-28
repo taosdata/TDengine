@@ -534,7 +534,7 @@ else
     exit 1
 fi
 
-echo "Test report: http://platform.tdengine.net:8090/reports/$branch/report"
+echo "Test report: https://platform.tdengine.net:8090/reports/$branch/report"
 
 echo "${log_dir}" >&2
 date
