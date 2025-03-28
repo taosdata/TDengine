@@ -601,6 +601,7 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
   uint64_t seq = 0;
   int32_t  nr = 0;
 
+  int64_t    st = taosGetTimestampUs();
   SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
   int32_t    sz = taosArrayGetSize(pBlobRow->pSeqTable);
 
@@ -621,6 +622,11 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
   code = bsePutBatch(pVnode->pBse, pBatch);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  int64_t cost = taosGetTimestampUs() - st;
+  if (cost >= 500) {
+    bseDebug("vgId:%d, %s, cost:%" PRId64 "us, rows:%d, size:%" PRId64 "", TD_VID(pVnode), __func__, cost, sz,
+             pBlobRow->len);
+  }
 _exit:
   if (code != 0) {
     vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
