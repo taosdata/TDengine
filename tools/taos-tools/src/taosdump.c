@@ -6443,16 +6443,15 @@ static int generateFilename(AVROTYPE avroType, char *fileName,
                 break;
         }
     } else {
-        uint32_t uidStb = 0;
         switch (avroType) {
             case AVRO_TBTAGS: 
-            {
-                uint32_t uidStb = bkdrHash(stable);
+                {
+                uidStb = bkdrHash(stable);
                 snprintf(fileName, MAX_PATH_LEN,
                          "%s"CUS_PROMPT"dump.%"PRIu64"/%s.%X.avro-tbtags",
                         g_args.outpath, dbInfo->uniqueID, dbInfo->name,
                         uidStb);
-            }
+                }
                 break;
 
             case AVRO_NTB:
