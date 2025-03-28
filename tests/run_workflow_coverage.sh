@@ -99,6 +99,7 @@ print_color "$GREEN" "Run coverage test on workflow!"
 echo "TDINTRENAL_DIR = $TDINTRENAL_DIR"
 echo "TDENGINE_DIR = $TDENGINE_DIR"
 echo "CAPTURE_GCDA_DIR = $CAPTURE_GCDA_DIR"
+echo "BRANCH = $BRANCH"
 
 lcovFunc
 print_color "$GREEN" "End of coverage test on workflow!"
