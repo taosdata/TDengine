@@ -62,6 +62,16 @@ class TaosKeeper:
             except Exception as e:
                 tdLog.notice(e)
     def update_cfg(self, update_dict :dict):
+        '''
+        update taoskeeper cfg file
+        Args:
+            update_dict: dict, update dict
+                example: {"log": {"path": "/var/log/taos"}}
+        Returns:
+            None
+        Raises:
+            None
+        '''
         if not isinstance(update_dict, dict):
             return
         if ("log" in update_dict and "path" not in update_dict["log"]) or "log" not in update_dict:
@@ -86,6 +96,18 @@ class TaosKeeper:
             toml.dump(existing_data, f)
             print(f"TOML 文件已成功更新：{self.cfg_path}")   
     def cfg(self, option, value):
+        '''
+        add param option and value to cfg file
+        Args:
+            option: str, param name
+            value: str, param value
+
+        Returns:
+            None
+
+        Raises:
+            None
+        '''
         cmd = f"echo {option} = {value} >> {self.cfg_path}"
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -205,6 +227,21 @@ class TaosKeeper:
 
             time.sleep(0.1)
     def stop(self, force_kill=False):
+        """
+        stop taoskeeper process.
+
+        Args:
+            force_kill: bool, whether to force kill the process
+                default: False
+                if True, use kill -9
+                if False, use kill -15
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         signal = "-9" if force_kill else "-15"
         if  self.remoteIP:
             self.remote_exec(self.taoskeeper_cfg_dict, "taoskeeper.running=1\ntaoskeeper.stop()")

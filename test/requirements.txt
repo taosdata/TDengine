@@ -47,6 +47,7 @@ pyparsing==3.2.1
 pyspnego==0.11.2
 pytest==8.3.5
 pytest-cov==4.1.0
+pytest-timeout==2.3.1
 pytest-xdist==3.6.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
