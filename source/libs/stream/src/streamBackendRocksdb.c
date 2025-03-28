@@ -3134,7 +3134,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
       taosMemoryFree(err);                                                                                           \
       code = TSDB_CODE_THIRDPARTY_ERROR;                                                                             \
     } else {                                                                                                         \
-      stTrace("[InternalERR] write streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d, %p", toString, \
+      stTrace("[StreamInternal] write streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d, %p", toString, \
              funcname, vLen, ttlVLen, wrapper);                                                                      \
     }                                                                                                                \
     taosMemoryFree(ttlV);                                                                                            \
@@ -3237,7 +3237,7 @@ int32_t streamStatePut_rocksdb(SStreamState* pState, const SWinKey* key, const v
     taosMemoryFree(dst);
   }
 
-  stTrace("[InternalERR] user len:%d, rocks len:%zu", vLen, size);
+  stTrace("[StreamInternal] user len:%d, rocks len:%zu", vLen, size);
   return code;
 }
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
@@ -3617,7 +3617,7 @@ int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* k
     return code;
   }
 
-  stTrace("[InternalERR] raw len:%d to rocks len:%zu", vLen, size);
+  stTrace("[StreamInternal] raw len:%d to rocks len:%zu", vLen, size);
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &sKey, dst, (int32_t)size);
   taosMemoryFree(dst);
 
@@ -3944,7 +3944,7 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamState* pState, SStreamStateC
   if (pVLen != NULL) *pVLen = (int32_t)tVlen;
 
   *pKey = pKTmp->key;
-  qTrace("[InternalERR]: rocsks val len:%d to user_val_len:%zu", len, tVlen);
+  qTrace("[StreamInternal]: rocsks val len:%d to user_val_len:%zu", len, tVlen);
 
   return 0;
 }
@@ -4298,7 +4298,7 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
 
 _end:
   if (res == 0 && valSize > *pVLen){
-    stError("[InternalERR] [skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],valSize:%d bigger than get rocksdb len:%d", key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
+    stError("[StreamInternal] [skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],valSize:%d bigger than get rocksdb len:%d", key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
   }
   streamStateFreeCur(pCur);
   return res;
@@ -4599,7 +4599,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   int32_t klen = ginitDict[cfIdx].enFunc((void*)key, buf);
 
   ginitDict[cfIdx].toStrFunc((void*)key, toString);
-  stTrace("[InternalERR] write cfIdx:%d key:%s user len:%d, rocks len:%zu", cfIdx, toString, vlen, size);
+  stTrace("[StreamInternal] write cfIdx:%d key:%s user len:%d, rocks len:%zu", cfIdx, toString, vlen, size);
 
   char*   ttlV = tmpBuf;
   int32_t ttlVLen = ginitDict[cfIdx].enValueFunc(dst, size, ttl, &ttlV);

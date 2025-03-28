@@ -153,7 +153,7 @@ int32_t getResultRowFromBuf(SExprSupp* pSup, const char* inBuf, size_t inBufSize
     *outBufSize += leftLen;
   }
 
-  qTrace("[InternalERR] get result inBufSize:%zu, outBufSize:%zu", inBufSize, *outBufSize);
+  qTrace("[StreamInternal] get result inBufSize:%zu, outBufSize:%zu", inBufSize, *outBufSize);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -205,7 +205,7 @@ int32_t putResultRowToBuf(SExprSupp* pSup, const char* inBuf, size_t inBufSize, 
     pBuf += leftLen;
   }
 
-  qTrace("[InternalERR] put result inBufSize:%zu, outBufSize:%zu", inBufSize, *outBufSize);
+  qTrace("[StreamInternal] put result inBufSize:%zu, outBufSize:%zu", inBufSize, *outBufSize);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3059,7 +3059,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     qInfo("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
     return;
   }
-  if (qDebugFlag & DEBUG_INFO) {
+  if (qDebugFlag & DEBUG_DEBUG) {
     char*   pBuf = NULL;
     int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
     if (code == 0) {
@@ -3079,7 +3079,7 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
            pBlock->info.version);
     return;
   }
-  if (qDebugFlag & DEBUG_INFO) {
+  if (qDebugFlag & DEBUG_DEBUG) {
     char* pBuf = NULL;
     char  flagBuf[64];
     snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
