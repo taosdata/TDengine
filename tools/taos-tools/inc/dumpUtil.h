@@ -93,7 +93,8 @@ char * readFile(char *filename);
 // ---------------- hash map -----------------
 //
 
-
+// hash
+uint32_t bkdrHash(const char *str);
 
 // Initialize the hash table
 HashMap* hashMapCreate();
@@ -133,6 +134,6 @@ int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema);
 
 bool fieldInBindList(char *field, TableDes* tableDes);
 
-StbChange* avroFolderChanged(char *avroFile, char *lastFile, DBChange *pDbChange);
+StbChange* readFolderStbName(char *folder, DBChange *pDbChange);
 
 #endif  // INC_DUMPUTIL_H_

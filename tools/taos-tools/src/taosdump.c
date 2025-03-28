@@ -5829,13 +5829,13 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
     //
     //  stb name
     //
-    char lastFolder[MAX_PATH_LEN] = {0};
     StbChange *stbChange        = NULL;
 
     char **fileList = NULL;
     switch (pThreadInfo->avroType) {
         case AVRO_DATA:
             fileList = g_tsDumpInAvroFiles;
+            stbChange = readFolderStbName(pThreadInfo->dbPath, pThreadInfo->pDbChange);
             break;
 
         case AVRO_TBTAGS:
@@ -5863,13 +5863,6 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
         }
 
         char *avroFile = fileList[pThreadInfo->from + i];
-        // if avro folder changed, need have new stbChange*
-        StbChange *stbChangeNew = avroFolderChanged(avroFile, lastFolder, pThreadInfo->pDbChange);
-        if (stbChangeNew) {
-            debugPrint("stbChange swith to %s, folder=%s\n", stbChangeNew->tableDes->name, lastFolder);
-            stbChange = stbChangeNew;
-        }
-
         int64_t rows = dumpInOneAvroFile(
                 pThreadInfo->dbPath,
                 pThreadInfo->avroType,
@@ -5878,14 +5871,13 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
                 pThreadInfo->pDbChange,
                 stbChange);
         if (rows < 0) {
-            errorPrint("%s() LN%d, failed to dump file: %s\n", __func__, __LINE__,
-                                fileList[pThreadInfo->from +i]);
+            errorPrint("%s() LN%d, failed to dump file: %s\n", __func__, __LINE__, avroFile);
             switch (pThreadInfo->avroType) {
                 case AVRO_DATA:
                     atomic_add_fetch_64(&g_totalDumpInRecFailed, rows);
                     warnPrint("[%d] %"PRId64" row(s) of file(%s) failed to dumped in!\n",
                                         pThreadInfo->threadIndex, rows,
-                                        fileList[pThreadInfo->from + i]);
+                                        avroFile);
                     break;
 
                 case AVRO_TBTAGS:
@@ -5893,7 +5885,7 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
                     errorPrint("[%d] %"PRId64""
                                         " table(s) belong stb from the file(%s) failed to dumped in!\n",
                                         pThreadInfo->threadIndex, rows,
-                                        fileList[pThreadInfo->from + i]);
+                                        avroFile);
                     break;
 
                 case AVRO_NTB:
@@ -5901,7 +5893,7 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
                     errorPrint("[%d] %"PRId64" "
                                         " normal tables from (%s) failed to dumped in!\n",
                                         pThreadInfo->threadIndex, rows,
-                                        fileList[pThreadInfo->from + i]);
+                                        avroFile);
                     break;
 
                 default:
@@ -5915,7 +5907,7 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
                     atomic_add_fetch_64(&g_totalDumpInRecSuccess, rows);
                     okPrint("[%d] %"PRId64" row(s) of file(%s) be successfully dumped in!\n",
                                          pThreadInfo->threadIndex, rows,
-                                         fileList[pThreadInfo->from + i]);
+                                         avroFile);
                     break;
 
                 case AVRO_TBTAGS:
@@ -5923,7 +5915,7 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
                     okPrint("[%d] %"PRId64""
                                          "table(s) belong stb from the file(%s) be successfully dumped in!\n",
                                          pThreadInfo->threadIndex, rows,
-                                         fileList[pThreadInfo->from + i]);
+                                         avroFile);
                     break;
 
                 case AVRO_NTB:
@@ -5931,7 +5923,7 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
                     okPrint("[%d] %"PRId64" "
                                          "normal table(s) from (%s) be successfully dumped in!\n",
                                          pThreadInfo->threadIndex, rows,
-                                         fileList[pThreadInfo->from + i]);
+                                         avroFile);
                     break;
 
                 default:
@@ -6342,10 +6334,11 @@ static int64_t dumpTableDataAvroNative(
 static int generateSubDirName(
         const SDbInfo *dbInfo, char *subDirName, const char *stable) {
 
+    uint32_t uidStb = bkdrHash(stable);
 
     // gen sub dir name 
-    snprintf(subDirName, MAX_FILE_NAME_LEN, "data%"PRIu64"",
-            (g_countOfDataFile / g_maxFilesPerDir));
+    snprintf(subDirName, MAX_FILE_NAME_LEN, "data%"PRIu64"-%X",
+            (g_countOfDataFile / g_maxFilesPerDir), uidStb);
     atomic_add_fetch_64(&g_countOfDataFile, 1);
 
     // create sub dir
@@ -6443,10 +6436,11 @@ static int generateFilename(AVROTYPE avroType, char *fileName,
     } else {
         switch (avroType) {
             case AVRO_TBTAGS:
+                uint32_t uidStb = bkdrHash(stable);
                 snprintf(fileName, MAX_PATH_LEN,
-                         "%s"CUS_PROMPT"dump.%"PRIu64"/%s.%"PRIu64".avro-tbtags",
+                         "%s"CUS_PROMPT"dump.%"PRIu64"/%s.%X.avro-tbtags",
                         g_args.outpath, dbInfo->uniqueID, dbInfo->name,
-                        getUniqueIDFromEpoch());
+                        uidStb);
                 break;
 
             case AVRO_NTB:

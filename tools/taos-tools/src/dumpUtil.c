@@ -422,6 +422,9 @@ void engineError(char * module, char * fun, int32_t code) {
 
 // BKDR hash algorithm
 uint32_t bkdrHash(const char *str) {
+    if (str == NULL) {
+        return 0;
+    }
     uint32_t seed = 131;
     uint32_t hash = 0;
     while (*str) {
@@ -876,6 +879,7 @@ bool fieldInBindList(char *field, TableDes* tableDes) {
     return false;
 }
 
+/*
 // truncate filename
 void removeFileName(char *path) {
     int len = strlen(path);
@@ -886,32 +890,27 @@ void removeFileName(char *path) {
         }
     }
 }
+*/
 
 //
 // if avro folder changed, need have new stbChange*
 //
-StbChange* avroFolderChanged(char *avroFile, char *lastFolder, DBChange *pDbChange) {
+StbChange* readFolderStbName(char *folder, DBChange *pDbChange) {
     // compare avro file 
-    char avroFolder[MAX_PATH_LEN]          = {0};
+    char stbFile[MAX_PATH_LEN] = {0};
 
     if (pDbChange == NULL) {
         return NULL;
     }
 
-    // avro folder
-    strcpy(avroFolder, avroFile);
-    removeFileName(avroFolder);
-
-    if (strcmp(avroFolder, lastFolder) == 0) {
-        // same, avro folder no changed
-        return NULL;
-    }
+    // combine file
+    strcpy(stbFile, folder);
+    strcat(stbFile, STBNAME_FILE);
 
     // folder changed
-    strcat(avroFolder, STBNAME_FILE);
-    char *stbName = readFile(avroFolder);
+    char *stbName = readFile(stbFile);
     if(stbName == NULL) {
-        debugPrint("read stbname failed. %s\n", avroFolder);
+        debugPrint("read stbname failed. %s\n", stbFile);
         return NULL;
     }
 
