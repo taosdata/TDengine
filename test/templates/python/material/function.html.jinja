@@ -44,7 +44,11 @@
               role="function",
               id=html_id,
               class="doc doc-heading",
-              toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + function.docstring.value.split("\n", 1)[0] if function.docstring.value.split("\n", 1)[0] else function.name,
+              toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
+                        (
+                          function.docstring.value.split("\n", 1)[0] if "cases" in function.relative_filepath|string and function.docstring.value else
+                          function.name
+                        ),
             ) %}
     
             {% block heading scoped %}
@@ -103,7 +107,11 @@
                 heading_level,
                 role="function",
                 id=html_id,
-                toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + (config.toc_label if config.toc_label and root else function.name),
+                toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
+                          (
+                            function.docstring.value.split("\n", 1)[0] if "cases" in function.relative_filepath|string and function.docstring.value else
+                            function.name 
+                          ),
                 hidden=True,
               ) %}
             {% endfilter %}
