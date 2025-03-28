@@ -858,12 +858,67 @@ int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema) {
     free(json);
     return ret;
 }
-/*
+
 // found 
 bool fieldInBindList(char *field, TableDes* tableDes) {
-    if(field )
+    // check valid
+    if (field == NULL || tableDes == NULL) {
+        return false;
+    }
 
-    
+    // find in list
+    for (int32_t i = 0 ; i < tableDes->columns; i++) {
+        if (strcmp(tableDes->cols[i].field, field) == 0) {
+            return true;
+        }
+    }
+
+    return false;
 }
-    
-*/
+
+// truncate filename
+void removeFileName(char *path) {
+    int len = strlen(path);
+    for (int i = len - 1; i >= 0; i--) {
+        if (path[i] == '/' || path[i] == '\\') {
+            path[i] = '\0';
+            break;
+        }
+    }
+}
+
+//
+// if avro folder changed, need have new stbChange*
+//
+StbChange* avroFolderChanged(char *avroFile, char *lastFolder, DBChange *pDbChange) {
+    // compare avro file 
+    char avroFolder[MAX_PATH_LEN]          = {0};
+
+    if (pDbChange == NULL) {
+        return NULL;
+    }
+
+    // avro folder
+    strcpy(avroFolder, avroFile);
+    removeFileName(avroFolder);
+
+    if (strcmp(avroFolder, lastFolder) == 0) {
+        // same, avro folder no changed
+        return NULL;
+    }
+
+    // folder changed
+    strcat(avroFolder, STBNAME_FILE);
+    char *stbName = readFile(avroFolder);
+    if(stbName == NULL) {
+        debugPrint("read stbname failed. %s\n", avroFolder);
+        return NULL;
+    }
+
+    // find stbChange with stbName
+    StbChange *stbChange = hashMapFind(&pDbChange->stbMap, stbName);
+
+    debugPrint("hashmapfind stb:%s stbchange=%p \n", stbName, stbChange);
+    free(stbName);
+    return stbChange;
+}

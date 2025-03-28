@@ -131,5 +131,8 @@ StbChange * findStbChange(DBChange *pDbChange, char *stbName);
 int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema);
 
 
+bool fieldInBindList(char *field, TableDes* tableDes);
+
+StbChange* avroFolderChanged(char *avroFile, char *lastFile, DBChange *pDbChange);
 
 #endif  // INC_DUMPUTIL_H_

@@ -5188,7 +5188,7 @@ static int64_t dumpInAvroDataImpl(
         avro_schema_t schema,
         avro_file_reader_t reader,
         RecordSchema *recordSchema,
-        DBChange* pDbChange,
+        StbChange *stbChange,
         char *fileName) {
     
     // init stmt
@@ -5207,14 +5207,10 @@ static int64_t dumpInAvroDataImpl(
     // table des
     TableDes  *tableDes   = NULL;
     TableDes  *mallocDes  = NULL;
-    StbChange *stbChange = NULL;
-    if (pDbChange) {
-        // get stbChange with schema record stbName
-        stbChange = findStbChange(pDbChange, recordSchema->stbName);
-        if(stbChange) {
-            // use super table des
-            tableDes = stbChange->tableDes;
-        }
+
+    if(stbChange) {
+        // use super table des
+        tableDes = stbChange->tableDes;
     }
 
     if(tableDes == NULL) {
@@ -5365,14 +5361,13 @@ static int64_t dumpInAvroDataImpl(
             //
             //  check  avro fields need filter
             //
-            /*
             if (stbChange && stbChange->schemaChanged) {
-                if(fieldNotInBindList(field->name, stbChange->tableDes)) {
-                    debugPrintf("avro field:%s not found on server.\n", field->name);
+                if(!fieldInBindList(field->name, stbChange->tableDes)) {
+                    // remove col not exist on server
+                    debugPrint("avro field:%s not found on server.\n", field->name);
                     continue;
                 }
             }
-            */
 
             bind->is_null = NULL;
             bind->num = 1;
@@ -5738,9 +5733,10 @@ static void closeTaosConnWrapper(void *taos) {
 static int64_t dumpInOneAvroFile(
         const char *dbPath,
         const AVROTYPE avroType,
-        char* fcharset,
+        char *fcharset,
         char *fileName,
-        DBChange *pDbChange) {
+        DBChange *pDbChange,
+        StbChange* stbChange) {
     char avroFile[MAX_PATH_LEN];
     snprintf(avroFile, MAX_PATH_LEN, "%s/%s", dbPath, fileName);
 
@@ -5784,7 +5780,7 @@ static int64_t dumpInOneAvroFile(
             retExec = dumpInAvroDataImpl(taos_v,
                     (char *)namespace,
                     schema, reader, recordSchema,
-                    pDbChange, fileName);
+                    stbChange, fileName);
             break;
 
         case AVRO_TBTAGS:
@@ -5829,6 +5825,13 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
                     pThreadInfo->threadIndex, pThreadInfo->count,
                     pThreadInfo->from);
 
+    
+    //
+    //  stb name
+    //
+    char lastFolder[MAX_PATH_LEN] = {0};
+    StbChange *stbChange        = NULL;
+
     char **fileList = NULL;
     switch (pThreadInfo->avroType) {
         case AVRO_DATA:
@@ -5859,12 +5862,21 @@ static void* dumpInAvroWorkThreadFp(void *arg) {
                     fileList[pThreadInfo->from + i]);
         }
 
+        char *avroFile = fileList[pThreadInfo->from + i];
+        // if avro folder changed, need have new stbChange*
+        StbChange *stbChangeNew = avroFolderChanged(avroFile, lastFolder, pThreadInfo->pDbChange);
+        if (stbChangeNew) {
+            debugPrint("stbChange swith to %s, folder=%s\n", stbChangeNew->tableDes->name, lastFolder);
+            stbChange = stbChangeNew;
+        }
+
         int64_t rows = dumpInOneAvroFile(
                 pThreadInfo->dbPath,
                 pThreadInfo->avroType,
                 g_dumpInCharset,
-                fileList[pThreadInfo->from + i],
-                pThreadInfo->pDbChange);
+                avroFile,
+                pThreadInfo->pDbChange,
+                stbChange);
         if (rows < 0) {
             errorPrint("%s() LN%d, failed to dump file: %s\n", __func__, __LINE__,
                                 fileList[pThreadInfo->from +i]);
