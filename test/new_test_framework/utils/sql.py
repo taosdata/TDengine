@@ -193,6 +193,7 @@ class TDSql:
             row_tag (optional): If provided, the method will return the fetched results. Defaults to None.
             queryTimes (int, optional): The number of times to attempt the query in case of failure. Defaults to 10.
             count_expected_res (optional): If provided, the method will repeatedly execute the query until the first result matches this value or the queryTimes limit is reached. Defaults to None.
+            show (bool, optional): If True, the SQL statement will be logged before execution. Defaults to False.
 
         Returns:
             int: The number of rows fetched if row_tag is not provided.

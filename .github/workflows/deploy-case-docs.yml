@@ -119,7 +119,7 @@ jobs:
           for file in ${ALL_CHANGED_UTIL_FILES}; do
             echo "Processing $file"
             file_name=$(basename "$file" .py)
-            markdown_file="test/docs/utils_func_docs/new_test_framework/utils.md"
+            markdown_file="test/docs/util_funcs_docs/new_test_framework/utils.md"
             mkdir -p "$(dirname "$markdown_file")"
 
             if [ ! -f "$markdown_file" ]; then
