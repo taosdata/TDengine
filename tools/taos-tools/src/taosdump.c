@@ -5365,12 +5365,14 @@ static int64_t dumpInAvroDataImpl(
             //
             //  check  avro fields need filter
             //
+            /*
             if (stbChange && stbChange->schemaChanged) {
                 if(fieldNotInBindList(field->name, stbChange->tableDes)) {
                     debugPrintf("avro field:%s not found on server.\n", field->name);
                     continue;
                 }
             }
+            */
 
             bind->is_null = NULL;
             bind->num = 1;

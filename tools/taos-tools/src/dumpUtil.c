@@ -858,10 +858,12 @@ int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema) {
     free(json);
     return ret;
 }
-
+/*
 // found 
 bool fieldInBindList(char *field, TableDes* tableDes) {
     if(field )
 
     
 }
+    
+*/
