@@ -1,14 +1,12 @@
 ---
-title: Forecasting Algorithms
-sidebar_label: Forecasting Algorithms
+title: Time-Series Forecasting
+sidebar_label: Time-Series Forecasting
 ---
 
-## Input Limitations
-
+### Input Limitations
 `execute` is the core method of forecasting algorithms. Before calling this method, the framework configures the historical time-series data used for forecasting in the `self.list` object attribute.
 
-## Output Limitations and Parent Class Attributes
-
+### Output Limitations and Parent Class Attributes
 Running the `execute` method generates the following dictionary objects:
 
 ```python
@@ -17,6 +15,7 @@ return {
     "res": res  # Result groups [timestamp, forecast results, lower boundary of confidence interval, upper boundary of confidence interval]
 }
 ```
+
 
 The parent class `AbstractForecastService` of forecasting algorithms includes the following object attributes.
 
@@ -29,8 +28,9 @@ The parent class `AbstractForecastService` of forecasting algorithms includes th
 |return_conf|Specify 1 to include a confidence interval in the forecast results or 0 to not include a confidence interval in the results. If you specify 0, the mean is returned as the upper and lower boundaries.|1|	
 |conf|Specify a confidence interval quantile.|95|
 
-## Sample Code
 
+
+### Sample Code
 The following code is an sample algorithm that always returns 1 as the forecast results.
 
 ```python
@@ -88,9 +88,9 @@ SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
 FROM foo;
 ```
 
-If you have never started the anode, see [Installation](../../management/) to add the anode to your TDengine cluster.
+If you have never started the anode, see [Operations & Maintenance](../../../management/) to add the anode to your TDengine cluster.
 
-## Unit Testing
+### Unit Testing
 
 You can add unit test cases to the `forecase_test.py` file in the `taosanalytics/test` directory or create a file for unit tests. Unit tests have a depency on the Python unittest module.
 

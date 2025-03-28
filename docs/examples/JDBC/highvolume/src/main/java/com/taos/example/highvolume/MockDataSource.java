@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Generate test data
@@ -18,7 +19,6 @@ class MockDataSource implements Iterator<Meters> {
 
     long currentMs = System.currentTimeMillis();
     private int index = 0;
-    private Random random;
 
     // mock values
 
@@ -47,7 +47,7 @@ class MockDataSource implements Iterator<Meters> {
         meters.setTableName(Util.getTableNamePrefix() + currentTbId);
         meters.setTs(new java.sql.Timestamp(currentMs));
         meters.setCurrent((float) (Math.random() * 100));
-        meters.setVoltage(random.nextInt());
+        meters.setVoltage(ThreadLocalRandom.current().nextInt());
         meters.setPhase((float) (Math.random() * 100));
 
         index ++;

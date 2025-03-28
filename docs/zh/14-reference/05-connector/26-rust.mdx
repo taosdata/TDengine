@@ -312,7 +312,7 @@ ResultSet 结构体提供了结果集的一些方法，可以用来获取结果�
 
 - `fn fields(&self) -> &[Field]`
 
-  - **接口说明**：获取字段信息。见下文 Feild 结构体描述。
+  - **接口说明**：获取字段信息。见下文 Field 结构体描述。
   - **返回值**：字段信息数组的引用。
 
 - `fn summary(&self) -> (usize, usize)`
@@ -346,9 +346,9 @@ ResultSet 结构体提供了结果集的一些方法，可以用来获取结果�
   - **接口说明**：将结果集转换为值的二维向量。
   - **返回值**：成功时返回值的二维向量，失败时返回错误，类型为 `Result<Vec<Vec<Value>>, Error>`。
 
-#### Feild
+#### Field
 
-Feild 结构体提供了字段信息的一些方法。
+Field 结构体提供了字段信息的一些方法。
 
 - `pub const fn empty() -> Field`
 

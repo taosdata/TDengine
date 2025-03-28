@@ -36,7 +36,7 @@ sample-ad-autoencoder.info   模型附加参数文件，采用了 joblib 格式�
 ## 添加模型适配代码
 
 需要在 taosanalytics 目录下添加加载该模型并进行适配的 Python 代码。适配并行运行的代码见 [autoencoder.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/ad/autoencoder.py)。
-为了便于方便，我们已经将该文件保存在该目录，所以您在执行 `show anodes full` 命令时候，能够看见该算法模型。
+为了方便使用，我们已经将该文件保存在该目录，所以您在执行 `show anodes full` 命令时候，能够看见该算法模型。
 
 下面详细说明该代码的逻辑。
 
@@ -151,6 +151,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 ```
 
 ## 使用 SQL 调用模型
+
 该模型已经预置在系统中，您可通过 `show anodes full` 直接查看。一个新的算法适配完成以后，需要重新启动 taosanode，并执行命令 `update all anodes` 更新 mnode 的算法列表。
 
 - 通过设置参数 `algo=sample_ad_model`，告诉 TDgpt 调用自编码器算法训练的模型（该算法模型在可用算法列表中）。

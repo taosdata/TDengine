@@ -51,7 +51,7 @@ database_option: {
   - us 表示微秒。
   - ns 表示纳秒。
 - REPLICA：表示数据库副本数，取值为 1、2 或 3，默认为 1; 2 仅在企业版 3.3.0.0 及以后版本中可用。在集群中使用时，副本数必须小于或等于 DNODE 的数目。且使用时存在以下限制：
-  - 暂不支持对双副本数据库相关 Vgroup 进行 SPLITE VGROUP 或 REDISTRIBUTE VGROUP 操作
+  - 暂不支持对双副本数据库相关 Vgroup 进行 SPLIT VGROUP 或 REDISTRIBUTE VGROUP 操作
   - 单副本数据库可变更为双副本数据库，但不支持从双副本变更为其它副本数，也不支持从三副本变更为双副本。
 - BUFFER：一个 vnode 写入内存池大小，单位为 MB，默认为 256，最小为 3，最大为 16384。
 - PAGES：一个 vnode 中元数据存储引擎的缓存页个数，默认为 256，最小 64。一个 vnode 元数据存储占用 PAGESIZE \* PAGES，默认情况下为 1MB 内存。
