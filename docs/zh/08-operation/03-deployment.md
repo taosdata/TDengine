@@ -115,7 +115,7 @@ create mnode on dnode <dnodeId>
 
 1. 安装
 
-TDengine Enterprise 安装完成后，即可使用 taosAdapter。如果想在不同的服务器上分别部署 taosAdapter，需要在这些服务器上都安装 TDengine Enterprise。
+TDengine 安装完成后，即可使用 taosAdapter。如果想在不同的服务器上分别部署 taosAdapter，需要在这些服务器上都安装 TDengine。
 
 2. 单一实例部署
 

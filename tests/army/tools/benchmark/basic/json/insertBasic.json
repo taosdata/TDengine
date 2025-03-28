@@ -40,7 +40,9 @@
                         { "type": "uint",        "name": "ui",  "max": 1000, "min": 0 },
                         { "type": "ubigint",     "name": "ubi", "max": 10000, "min": 0 },
                         { "type": "binary",      "name": "bin", "len": 4},
-                        { "type": "nchar",       "name": "nch", "len": 8}
+                        { "type": "nchar",       "name": "nch", "len": 8},
+                        { "type": "decimal", "name": "dec64", "precision": 10, "scale": 6, "dec_max": "1234.456789", "dec_min": "-4321.987654"},
+                        { "type": "decimal", "name": "dec128", "precision": 20, "scale": 8, "dec_max": "1234.56", "dec_min": "-999999999999.99999999"}
                     ],
                     "tags": [
                         { "type": "bool",        "name": "tbc"},
