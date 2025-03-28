@@ -114,9 +114,9 @@ mod tests {
         let pool = TaosBuilder::from_dsn("taos://")?.pool()?;
         let conn = pool.get().await?;
 
+        let _ = conn.exec("DROP USER `_xTest`").await;
         let _ = conn
             .exec_many([
-                "DROP USER IF EXISTS `_xTest`",
                 "DROP TOPIC IF EXISTS `_xTopicT1`",
                 "DROP TOPIC IF EXISTS `_xTopicT2`",
                 "DROP DATABASE IF EXISTS `_xTest`",

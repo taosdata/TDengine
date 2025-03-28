@@ -37,6 +37,25 @@ mod scheduler;
 mod verify;
 // mod tasks;
 
+/// Represents a record in information_schema.ins_tables.
+///
+/// Contains only `table_name`, `stable_name`, and `vgroup_id` fields.
+///
+/// ```sql
+/// taos> select * from information_schema.ins_tables where db_name = 'a1';
+///  table_name | db_name |       create_time       | columns | stable_name |        uid          | vgroup_id | ttl | table_comment | type        |
+/// ===============================================================================================================================================
+///  d0         | a1      | 2025-03-27 18:17:11.709 |     4   | meters      | 4392167910738503122 |        8  |  0  | NULL          | CHILD_TABLE |
+/// Query OK, 1 row(s) in set (0.003607s)
+/// ```
+
+#[derive(Debug, Deserialize)]
+struct TableInfo {
+    table_name: String,
+    stable_name: Option<String>,
+    vgroup_id: Option<u32>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TableOpts {
     /// A retrospective duration to sync.
@@ -621,16 +640,14 @@ async fn sync_single_table_partial(
     target_is_v3: bool,
     with_precision: Option<Precision>,
     metrics_arc: &Arc<CoreMetrics>,
+    cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     tracing::debug!("Syncing table {table} with range: {}", opts.time_range);
-
-    let cancel = CancellationToken::new();
-
     let metrics = metrics_arc.legacy();
     let (table, sql) = if opts.select_from_stable {
         if let Some(stable) = stable {
             let stable_schema = utils::sql::describe_table_with_connection_retries(
-                &source, from, stable, 5, &cancel,
+                &source, from, stable, 5, cancel,
             )
             .await
             .context(format!("stable: {}", stable))
@@ -664,7 +681,7 @@ async fn sync_single_table_partial(
         (table, sql)
     };
 
-    let mut res = utils::sql::query_sql_with_connection_retries(&source, from, &sql, 5, &cancel)
+    let mut res = utils::sql::query_sql_with_connection_retries(&source, from, &sql, 5, cancel)
         .await
         .context(format!("SQL: {sql}"))
         .context("query from source error")?;
@@ -2771,19 +2788,27 @@ pub async fn update_todo_list(
 
                 // Ordinary tables
                 let mut set = taos
-                    .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                    .query(format!("select * from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
                     .await
                     .context("Get stable list from source error")?;
-                let mut stream = set
-                    .deserialize::<(u32, Option<String>, String)>()
-                    .try_filter_map(|(vgroup_id, stable, table)| {
-                        let filter = if stable.is_some() {
+                let mut stream = set.deserialize::<TableInfo>().try_filter_map(
+                    |TableInfo {
+                         vgroup_id,
+                         stable_name,
+                         table_name,
+                     }| {
+                        let filter = if stable_name.is_some() {
                             None
                         } else {
-                            Some(LegacyTableItem::new(vgroup_id, None, Arc::new(table)))
+                            Some(LegacyTableItem::new(
+                                vgroup_id.unwrap_or_default(),
+                                None,
+                                Arc::new(table_name),
+                            ))
                         };
                         futures::future::ready(Ok(filter))
-                    });
+                    },
+                );
                 while let Some(table) = stream
                     .try_next()
                     .await
@@ -2797,27 +2822,36 @@ pub async fn update_todo_list(
             } else {
                 // get stable list.
                 let mut res = taos
-                    .query(format!("select vgroup_id, stable_name, table_name from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
+                    .query(format!("select * from information_schema.ins_tables where db_name = '{database}' order by stable_name, table_name"))
                     .await
                     .context("Get stable list from source error")?;
-                let mut records = res.deserialize::<(u32, Option<String>, String)>();
-                while let Some((vgroup_id, stable, table)) = records
+                let mut records = res.deserialize::<TableInfo>();
+                while let Some(TableInfo {
+                    vgroup_id,
+                    stable_name,
+                    table_name,
+                }) = records
                     .try_next()
                     .await
                     .context("Deserialize stable list from source error")?
                 {
-                    let table = if let Some(stable_name) = stable {
+                    let vgroup_id = vgroup_id.unwrap_or_default();
+                    let table = if let Some(stable_name) = stable_name {
                         if let Some(stable) =
                             todo.stables.read_async(&stable_name, Clone::clone).await
                         {
-                            LegacyTableItem::new(vgroup_id, Some(stable.clone()), Arc::new(table))
+                            LegacyTableItem::new(
+                                vgroup_id,
+                                Some(stable.clone()),
+                                Arc::new(table_name),
+                            )
                         } else {
                             let stable = Arc::new(stable_name.clone());
                             let _ = todo.stables.insert_async(stable.clone()).await;
-                            LegacyTableItem::new(vgroup_id, Some(stable), Arc::new(table))
+                            LegacyTableItem::new(vgroup_id, Some(stable), Arc::new(table_name))
                         }
                     } else {
-                        LegacyTableItem::new(vgroup_id, None, Arc::new(table))
+                        LegacyTableItem::new(vgroup_id, None, Arc::new(table_name))
                     };
                     if !todo.tables.contains_async(&table).await {
                         tables.push(table.clone());
@@ -3218,24 +3252,6 @@ pub async fn legacy_to_taos(
     .await;
     let scheduler = Arc::new(scheduler);
 
-    let scheduler_clone = scheduler.clone();
-    let cancel_clone = cancel.clone();
-    tokio::spawn(
-        async move {
-            tokio::select! {
-                _ = cancel_clone.cancelled() => {
-                    tracing::debug!("Abort scheduler task by cancellation");
-                    scheduler_clone.abort();
-                }
-                _ = scheduler_clone.wait() => {
-                    tracing::debug!("Scheduler workers finished, stop task manager");
-                    cancel_clone.cancel();
-                }
-            }
-        }
-        .in_current_span(),
-    );
-
     let metrics_arc_clone = metrics_arc.clone();
     let cancel_clone = cancel.clone();
     tokio::spawn(
@@ -3266,156 +3282,166 @@ pub async fn legacy_to_taos(
         .in_current_span(),
     );
 
-    if !matches!(source_opts.schema, SchemaMode::None) {
-        const BREAKPOINT_KEY_SCHEMA: &str = "...schema...";
-        let mut schema_synced = false;
-        // Step A: check breakpoints for schema
-        if let Some(breakpoints) = scheduler.breakpoints_ref() {
-            if let Some(v) = breakpoints
-                .get(BREAKPOINT_KEY_SCHEMA)
-                .await
-                .ok()
-                .and_then(|v| v)
-            {
-                tracing::info!("Schema is synced at {v}, skipped");
-                schema_synced = true;
+    let scheduler_clone = scheduler.clone();
+    let cancel_clone = cancel.clone();
+    let metrics_arc = metrics_arc.clone();
+    let run = async {
+        if !matches!(source_opts.schema, SchemaMode::None) {
+            const BREAKPOINT_KEY_SCHEMA: &str = "...schema...";
+            let mut schema_synced = false;
+            // Step A: check breakpoints for schema
+            if let Some(breakpoints) = scheduler.breakpoints_ref() {
+                if let Some(v) = breakpoints
+                    .get(BREAKPOINT_KEY_SCHEMA)
+                    .await
+                    .ok()
+                    .and_then(|v| v)
+                {
+                    tracing::info!("Schema is synced at {v}, skipped");
+                    schema_synced = true;
+                }
+            }
+
+            if !schema_synced {
+                tracing::info!("synchronize schemas");
+                let future = sync_schema(&scheduler, &todo, source_opts.workers as _);
+                tokio::select! {
+                    _ = future => {}
+                    _ = cancel.cancelled() => {
+                        tracing::debug!("Schema task queue cancelled");
+                    }
+                };
+            }
+
+            if let Some(breakpoints) = scheduler.breakpoints_ref() {
+                if let Err(err) = breakpoints
+                    .set(BREAKPOINT_KEY_SCHEMA, &chrono::Utc::now().to_string())
+                    .await
+                {
+                    tracing::warn!("Set schema breakpoint error: {err:#}");
+                }
             }
         }
 
-        if !schema_synced {
-            tracing::info!("synchronize schemas");
-            let future = sync_schema(&scheduler, &todo, source_opts.workers as _);
+        if matches!(source_opts.schema, SchemaMode::Only) {
+            println!("{}", metrics);
+            return Ok(());
+        }
+
+        let restro_mark = std::time::Instant::now();
+
+        tracing::info!("monitoring for schema changes");
+        let now = Utc::now();
+        let schema_polling_scheduler = scheduler.clone();
+        let schema_polling_todo = todo.clone();
+        let schema_polling_source_opts = source_opts.clone();
+        let schema_polling_target_opts = target_opts.clone();
+        let schema_polling_pool = from_pool.clone();
+        let schema_polling_task_id = task_id;
+        let schema_polling_metrics = metrics_arc.clone();
+        let schema_polling_cancellation = cancel.clone();
+        let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
+            let todo_non_changed = Arc::new(todo.as_ref().clone());
+            let schema_polling_task = tokio::spawn(
+                async move {
+                    let handle = async move {
+                        let mut interval = tokio::time::interval(
+                            schema_polling_source_opts.schema_polling_interval,
+                        );
+                        loop {
+                            interval.tick().await;
+                            let updates = update_todo_list(
+                                &schema_polling_pool,
+                                &schema_polling_source_opts,
+                                schema_polling_todo.clone(),
+                            )
+                            .await?;
+                            if updates.stables.is_empty() && updates.tables.is_empty() {
+                                continue;
+                            }
+                            let updates = Arc::new(updates);
+                            let _ = async {
+                                tracing::info!(
+                                    "Schema updated, spawning sync schema task for {} tables",
+                                    updates.tables.len()
+                                );
+                                schema_polling_metrics
+                                    .as_ref()
+                                    .legacy()
+                                    .total_tables
+                                    .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
+
+                                if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
+                                    // sync schema of the updated stables.
+                                    sync_schema(&schema_polling_scheduler, &updates, concurrent)
+                                        .await
+                                        .context(
+                                            "Spawn schema syncing of the updated stables error",
+                                        )?;
+                                }
+                                if updates.tables.is_empty() {
+                                    return Ok::<_, anyhow::Error>(());
+                                }
+                                // sync data of the updated tables.
+                                sync_specified_tables_with_workers(
+                                    &schema_polling_scheduler,
+                                    &schema_polling_pool,
+                                    schema_polling_source_opts.query,
+                                    &updates,
+                                    schema_polling_target_opts.clone(),
+                                    schema_polling_source_opts.workers as _,
+                                    schema_polling_task_id,
+                                )
+                                .await
+                                .context("Spawn data syncing of the updated tables error")?;
+                                Ok::<_, anyhow::Error>(())
+                            }
+                            .await
+                            .inspect_err(|err| {
+                                tracing::warn!(
+                                    error = format!("{err:#}"),
+                                    "Sync updated tables error"
+                                );
+                            });
+                        }
+                        #[allow(unreachable_code)]
+                        anyhow::Ok(())
+                    };
+                    tokio::select! {
+                        _ = schema_polling_cancellation.cancelled() => {
+                            tracing::debug!("schema polling task cancelled");
+                        }
+                        res = handle => {
+                            res?;
+                        }
+                    }
+                    anyhow::Ok(())
+                }
+                .in_current_span(),
+            );
+
+            tracing::info!("synchronize all tables");
+
+            // sync all tables
+            let future = sync_specified_tables_with_workers(
+                &scheduler,
+                &from_pool,
+                source_opts.query,
+                &todo_non_changed,
+                target_opts,
+                source_opts.workers as _,
+                task_id,
+            );
             tokio::select! {
                 _ = future => {}
                 _ = cancel.cancelled() => {
-                    tracing::debug!("Schema task queue cancelled");
+                    tracing::debug!("Scheduler task queue cancelled");
                 }
             };
-        }
 
-        if let Some(breakpoints) = scheduler.breakpoints_ref() {
-            if let Err(err) = breakpoints
-                .set(BREAKPOINT_KEY_SCHEMA, &chrono::Utc::now().to_string())
-                .await
-            {
-                tracing::warn!("Set schema breakpoint error: {err:#}");
-            }
-        }
-    }
-
-    if matches!(source_opts.schema, SchemaMode::Only) {
-        println!("{}", metrics);
-        return Ok(());
-    }
-
-    let restro_mark = std::time::Instant::now();
-
-    tracing::info!("monitoring for schema changes");
-    let now = Utc::now();
-    let schema_polling_scheduler = scheduler.clone();
-    let schema_polling_todo = todo.clone();
-    let schema_polling_source_opts = source_opts.clone();
-    let schema_polling_target_opts = target_opts.clone();
-    let schema_polling_pool = from_pool.clone();
-    let schema_polling_task_id = task_id;
-    let schema_polling_metrics = metrics_arc.clone();
-    let schema_polling_cancellation = cancel.clone();
-    let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
-        let todo_non_changed = Arc::new(todo.as_ref().clone());
-        let schema_polling_task = tokio::spawn(
-            async move {
-                let handle = async move {
-                    let mut interval =
-                        tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
-                    loop {
-                        interval.tick().await;
-                        let updates = update_todo_list(
-                            &schema_polling_pool,
-                            &schema_polling_source_opts,
-                            schema_polling_todo.clone(),
-                        )
-                        .await?;
-                        if updates.stables.is_empty() && updates.tables.is_empty() {
-                            continue;
-                        }
-                        let updates = Arc::new(updates);
-                        let _ = async {
-                            tracing::info!(
-                                "Schema updated, spawning sync schema task for {} tables",
-                                updates.tables.len()
-                            );
-                            schema_polling_metrics
-                                .as_ref()
-                                .legacy()
-                                .total_tables
-                                .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
-
-                            if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
-                                // sync schema of the updated stables.
-                                sync_schema(&schema_polling_scheduler, &updates, concurrent)
-                                    .await
-                                    .context("Spawn schema syncing of the updated stables error")?;
-                            }
-                            if updates.tables.is_empty() {
-                                return Ok::<_, anyhow::Error>(());
-                            }
-                            // sync data of the updated tables.
-                            sync_specified_tables_with_workers(
-                                &schema_polling_scheduler,
-                                &schema_polling_pool,
-                                schema_polling_source_opts.query,
-                                &updates,
-                                schema_polling_target_opts.clone(),
-                                schema_polling_source_opts.workers as _,
-                                schema_polling_task_id,
-                            )
-                            .await
-                            .context("Spawn data syncing of the updated tables error")?;
-                            Ok::<_, anyhow::Error>(())
-                        }
-                        .await
-                        .inspect_err(|err| {
-                            tracing::warn!(error = format!("{err:#}"), "Sync updated tables error");
-                        });
-                    }
-                    #[allow(unreachable_code)]
-                    anyhow::Ok(())
-                };
-                tokio::select! {
-                    _ = schema_polling_cancellation.cancelled() => {
-                        tracing::debug!("schema polling task cancelled");
-                    }
-                    res = handle => {
-                        res?;
-                    }
-                }
-                anyhow::Ok(())
-            }
-            .in_current_span(),
-        );
-
-        tracing::info!("synchronize all tables");
-
-        // sync all tables
-        let future = sync_specified_tables_with_workers(
-            &scheduler,
-            &from_pool,
-            source_opts.query,
-            &todo_non_changed,
-            target_opts,
-            source_opts.workers as _,
-            task_id,
-        );
-        tokio::select! {
-            _ = future => {}
-            _ = cancel.cancelled() => {
-                tracing::debug!("Scheduler task queue cancelled");
-            }
-        };
-
-        schema_polling_task
-    } else {
-        tokio::spawn(async move {
+            schema_polling_task
+        } else {
+            tokio::spawn(async move {
             let handle = async move {
                 let mut interval =
                     tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
@@ -3485,46 +3511,64 @@ pub async fn legacy_to_taos(
             }
             anyhow::Ok(())
         }.in_current_span())
+        };
+
+        if matches!(source_opts.mode, SyncMode::All | SyncMode::Realtime) {
+            if source_opts.table.restro.is_zero() {
+                source_opts.table.restro = restro_mark.elapsed();
+                tracing::info!(
+                    "Override restro duration to {:?} for historical data sync",
+                    source_opts.table.restro
+                );
+            };
+            tracing::info!("monitoring for data changes");
+            let future = realtime(
+                &scheduler,
+                now,
+                &source_taos,
+                &target_taos,
+                &source_opts.table,
+                source_is_v3,
+                target_is_v3,
+                &todo,
+            )
+            .in_current_span();
+            tokio::select! {
+                _ = future => {}
+                _ = cancel.cancelled() => {
+                    tracing::debug!("Realtime task queue cancelled");
+                }
+            };
+        }
+
+        tracing::info!("close schema monitoring task");
+        if let Some(duration) = source_opts.schema_polling_wait_before_end {
+            tokio::time::sleep(duration).await;
+        }
+        drop(guard);
+        schema_polling_task.await??;
+
+        info!("syncing done, wait to release resources");
+        println!("{}", metrics);
+        Ok(())
     };
 
-    if matches!(source_opts.mode, SyncMode::All | SyncMode::Realtime) {
-        if source_opts.table.restro.is_zero() {
-            source_opts.table.restro = restro_mark.elapsed();
-            tracing::info!(
-                "Override restro duration to {:?} for historical data sync",
-                source_opts.table.restro
-            );
-        };
-        tracing::info!("monitoring for data changes");
-        let future = realtime(
-            &scheduler,
-            now,
-            &source_taos,
-            &target_taos,
-            &source_opts.table,
-            source_is_v3,
-            target_is_v3,
-            &todo,
-        )
-        .in_current_span();
-        tokio::select! {
-            _ = future => {}
-            _ = cancel.cancelled() => {
-                tracing::debug!("Realtime task queue cancelled");
-            }
-        };
+    tokio::select! {
+        _ = cancel_clone.cancelled() => {
+            tracing::debug!("Abort scheduler task by cancellation");
+            scheduler_clone.abort();
+            Ok(())
+        }
+        err = scheduler_clone.wait() => {
+            tracing::debug!("Scheduler workers finished, stop task manager");
+            cancel_clone.cancel();
+            err
+        }
+        res = run => {
+            tracing::debug!("Task manager finished");
+            res
+        }
     }
-
-    tracing::info!("close schema monitoring task");
-    if let Some(duration) = source_opts.schema_polling_wait_before_end {
-        tokio::time::sleep(duration).await;
-    }
-    drop(guard);
-    schema_polling_task.await??;
-
-    info!("syncing done, wait to release resources");
-    println!("{}", metrics);
-    Ok(())
 }
 
 fn database_options_2to3(options: &str) -> Option<String> {

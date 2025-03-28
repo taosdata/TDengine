@@ -920,7 +920,9 @@ fn main() -> Result<()> {
     );
 
     // init qid batch id db
-    trace::qid_db_init()?;
+    if let Err(err) = trace::qid_db_init() {
+        tracing::error!("{err:#}");
+    }
 
     let worker_threads = args.global.jobs;
     let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;

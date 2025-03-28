@@ -86,7 +86,7 @@ const currentFavoriteComponent = computed(() =>
 
 function exportAll() {
   if (!sqlStr.value.toLowerCase().trim().startsWith('select')) {
-    ElMessageBox.alert(
+    ElMessage.warning(
       t(
         'explorer.exportError',
         t('status.error', {
