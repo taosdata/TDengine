@@ -38,6 +38,13 @@ jobs:
           git fetch origin +refs/pull/30527/merge
           git checkout -qf FETCH_HEAD
 
+      - name: Check tj-actions repo
+        uses: actions/checkout@v4
+        with:
+          repository: 'tj-actions/changed-files'
+          ref: 'v46'
+          fetch-depth: 0
+
       - name: Check document changes
         id: changed-doc-files
         uses: tj-actions/changed-files@v46
