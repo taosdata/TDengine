@@ -668,6 +668,8 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
       cfgAddInt32(pCfg, "stDebugFlag", stDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "sndDebugFlag", sndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "xndDebugFlag", xndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1308,6 +1310,9 @@ static int32_t taosSetServerLogCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sndDebugFlag");
   sndDebugFlag = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "xndDebugFlag");
+  xndDebugFlag = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2527,7 +2532,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
         {"uDebugFlag", &uDebugFlag},       {"smaDebugFlag", &smaDebugFlag},
         {"rpcDebugFlag", &rpcDebugFlag},   {"qDebugFlag", &qDebugFlag},
         {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},
-        {"sndDebugFlag", &sndDebugFlag},   {"tqClientDebugFlag", &tqClientDebugFlag},
+        {"sndDebugFlag", &sndDebugFlag},   {"xndDebugFlag", &xndDebugFlag},
+        {"tqClientDebugFlag", &tqClientDebugFlag},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
@@ -2963,6 +2969,7 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosCheckAndSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&xndDebugFlag, "xndDebugFlag", flag, noNeedToSetVars);
 
   taosArrayClear(noNeedToSetVars);  // reset array
 
