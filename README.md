@@ -271,8 +271,115 @@ Work in Progress.
 
 <summary>Install required tools on Windows</summary>
 
-Work in Progress.
+List the software and tools required to work on the project.
 
+- go 1.20+ (for taosadapter and taosx)
+- cargo 1.82.0+ (for taosx)
+- jdk 11~17, maven 3.8.0+ (for taosx plugin influxDB & openTSDB)
+- node 16.20.2 (for taos-explorer)
+- python 3.10.12+ (for test)
+
+If your system has installed Winget,you can run the script to set up the prerequisite software:
+
+```cmd
+Work in Progress.
+```
+
+You can also set up the prerequisite software by following the step-by-step instructions.
+
+### 3.1.1 Install the required package
+
+Download Visual Studio from the following link:
+
+```cmd
+https://visualstudio.microsoft.com/zh-hans/downloads
+```
+
+Download Microsoft Visual C++ 2015-2022 Redistributable (x64) from the following link:
+
+```cmd
+https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170
+```
+
+### 3.1.2 Install Go
+
+Update the installation package to version 1.23.3.
+
+```cmd
+curl -o go1.23.3.windows-amd64.msi https://golang.org/dl/go1.20.3.windows-amd64.msi
+msiexec /i go1.23.3.windows-amd64.msi
+```
+
+### 3.1.3 Install Cargo
+
+Better start it from [rustup](https://rustup.rs/)(the installer for Rust).
+
+```cmd
+curl -o rustup-init.exe https://win.rustup.rs/
+rustup-init.exe
+```
+
+### 3.1.4 Install Jdk & maven
+
+Visit the following link to download openjdk17 and maven.
+
+```cmd
+https://adoptium.net/temurin/releases/?os=windows&package=jdk&version=17
+https://maven.apache.org/download.cgi
+```
+
+install jdk and maven
+
+```cmd
+msiexec /i openjdk-17_windows-x64_bin.msi
+mkdir "C:\Program Files\Apache\Maven"
+powershell -Command "Expand-Archive -Path 'apache-maven-3.9.5-bin.zip' -DestinationPath 'C:\Program Files\Apache\Maven'"
+setx PATH "%PATH%;C:\Program Files\Apache\Maven\apache-maven-3.9.5\bin"
+```
+
+
+
+### 3.1.5 Install node
+
+Visit the following link to download node using nvm.
+
+```cmd
+https://nodejs.org/en/download
+```
+
+Install node
+
+```cmd
+msiexec /i node-v18.17.1-x64.msi
+```
+
+### 3.1.6 Install Python-connector
+
+Install Python3.
+```cmd
+curl -o python-3.12.0.exe https://www.python.org/ftp/python/3.12.0/python-3.12.0.exe
+python-3.12.0.exe
+```
+
+Install Pip3 
+
+```cmd
+python3 -m pip install
+
+```
+
+Install the dependent Python components.
+
+```cmd
+pip3 install pandas psutil fabric2 requests faker simplejson toml \
+     pexpect tzlocal distro decorator loguru hyperloglog toml
+```
+
+Install the Python connector for TDengine.
+
+```cmd
+pip3 install taospy taos-ws-py
+```
 </details>
 
 # 4. Building
@@ -377,8 +484,35 @@ cmake .. && cmake --build .
 
 <summary>Detailed steps to build on Windows</summary>
 
-Work in Progress.
+If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
+Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
 
+```cmd
+mkdir debug && cd debug
+"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
+cmake .. -G "NMake Makefiles"
+nmake
+```
+
+If you use the Visual Studio 2019 or 2017:
+
+please open a command window by executing "cmd.exe".
+Please specify "x64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
+
+```cmd
+mkdir debug && cd debug
+"c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
+cmake .. -G "NMake Makefiles"
+nmake
+```
+
+Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
+
+```cmd
+mkdir debug && cd debug
+cmake .. -G "NMake Makefiles"
+nmake
+```
 </details>
 
 # 5. Packaging
