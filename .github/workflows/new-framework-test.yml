@@ -5,6 +5,7 @@ on:
     branches:
       - 'main'
       - '3.0'
+      - 'new_test_framework'
     paths:
       - 'test/cases/**'
       - 'test/new_test_framework/**'
