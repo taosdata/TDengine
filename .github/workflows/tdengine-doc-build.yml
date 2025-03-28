@@ -1,9 +1,6 @@
 name: TDengine Doc Build
 
 on:
-  push:
-    branches:
-      - 'wl/doc/main'
   pull_request:
     branches:
       - 'main'
@@ -33,9 +30,9 @@ jobs:
           git clean -f
           git remote prune origin
           git fetch
-          git checkout wl/doc/main 
+          git checkout ${{ github.event.pull_request.base.ref }}
           git pull >/dev/null
-          git fetch origin +refs/pull/30527/merge
+          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
           git checkout -qf FETCH_HEAD
 
       - name: Check tj-actions repo
@@ -57,13 +54,6 @@ jobs:
           base_sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
-      - name: Debug changed files
-        run: |
-          echo "All changed files: ${{ steps.changed-doc-files.outputs.all_changed_files }}"
-          echo "Added files: ${{ steps.changed-doc-files.outputs.added_files }}"
-          echo "Modified files: ${{ steps.changed-doc-files.outputs.modified_files }}"
-          echo "Deleted files: ${{ steps.changed-doc-files.outputs.deleted_files }}"
-
       - name: Check whether the chinese or english docment is built
         id: check-doc-lang
         env:
@@ -71,7 +61,10 @@ jobs:
         run: |
           zh_doc_changed=false
           en_doc_changed=false
-          echo "ALL_CHANGED_DOCS=${ALL_CHANGED_DOCS}"
+          echo "All changed files: ${{ steps.changed-doc-files.outputs.all_changed_files }}"
+          echo "Added files: ${{ steps.changed-doc-files.outputs.added_files }}"
+          echo "Modified files: ${{ steps.changed-doc-files.outputs.modified_files }}"
+          echo "Deleted files: ${{ steps.changed-doc-files.outputs.deleted_files }}"
           for file in $ALL_CHANGED_DOCS; do
             case $file in
               *docs/zh/*)
