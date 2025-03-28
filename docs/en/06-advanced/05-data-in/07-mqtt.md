@@ -19,6 +19,10 @@ import imgStep12 from '../../assets/mqtt-12.png';
 import imgStep13 from '../../assets/mqtt-13.png';
 import imgStep14 from '../../assets/mqtt-14.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, migrating data from MQTT to the current TDengine cluster.
 
 ## Overview

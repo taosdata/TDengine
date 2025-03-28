@@ -3,6 +3,10 @@ title: Advanced Security Options
 slug: /operations-and-maintenance/advanced-security-options
 ---
 
+import Enterprise from '../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 In addition to traditional user and permission management, TDengine also offers other security strategies such as IP whitelisting, audit logs, data encryption, etc., which are unique features of TDengine Enterprise. The whitelisting feature was first released in version 3.2.0.0, audit logs in version 3.1.1.0, and database encryption in version 3.3.0.0. It is recommended to use the latest version.
 
 ## IP Whitelisting
