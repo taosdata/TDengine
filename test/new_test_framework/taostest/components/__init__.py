@@ -6,3 +6,4 @@ from .taospy import TaosPy
 from .container import Container
 from .agent import Agent
 from .create_table_tool import CreateTableTool
+from .taoskeeper import TaosKeeper
