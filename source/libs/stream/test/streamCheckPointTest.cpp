@@ -126,7 +126,8 @@ TEST(UploadCheckpointDataTest, UploadSuccess) {
 
     pTask->pBackend = pState->pTdbState->pOwner->pBackend;
 
-    code = taskDbDoCheckpoint(pTask->pBackend, checkpointId, 0);
+    SArray* pList = taosArrayInit(4, sizeof(int64_t));
+    code = taskDbDoCheckpoint(pTask->pBackend, checkpointId, 0, pList);
     ASSERT(code == 0);
 
     int32_t result = uploadCheckpointData(pTask, checkpointId, dbRefId, type);
@@ -165,8 +166,10 @@ TEST(UploadCheckpointDataTest, UploadDisabled) {
 
     pTask->pBackend = pState->pTdbState->pOwner->pBackend;
 
-    code = taskDbDoCheckpoint(pTask->pBackend, checkpointId, 0);
+    taosArrayClear(pList);
+    code = taskDbDoCheckpoint(pTask->pBackend, checkpointId, 0, pList);
     ASSERT(code == 0);
+    taosArrayDestroy(pList);
 
     ECHECKPOINT_BACKUP_TYPE type = DATA_UPLOAD_DISABLE;
 
