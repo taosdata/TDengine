@@ -122,7 +122,7 @@ void freeStbChange(StbChange *stbChange);
 
 
 // add stb recordSchema to dbChange
-int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchema, StbChange **ppStbChange);
+int32_t AddStbChanged(DBChange *pDbChange, const char* dbName, TAOS *taos, RecordSchema *recordSchema, StbChange **ppStbChange);
 
 // find stbChange with stbName
 StbChange * findStbChange(DBChange *pDbChange, char *stbName);

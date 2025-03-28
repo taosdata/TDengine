@@ -311,7 +311,6 @@ typedef struct DBChange {
     int16_t version;
     // record all stb
     HashMap  stbMap;
-    char     dbName[TSDB_DB_NAME_LEN];
     const char *dbPath;
 } DBChange;
 

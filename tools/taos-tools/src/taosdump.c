@@ -4192,7 +4192,7 @@ static int64_t dumpInAvroTbTagsImpl(
     //
     StbChange * pStbChange = NULL;
     // if recordSchema->version == 0, pStbChange return NULL
-    int32_t code = AddStbChanged(pDbChange, *taos_v, recordSchema, &pStbChange);
+    int32_t code = AddStbChanged(pDbChange, namespace, *taos_v, recordSchema, &pStbChange);
     if (code) {
         return code;
     }
@@ -5149,7 +5149,7 @@ static void countFailureAndFree(char *bindArray,
 }
 
 // stmt prepare
-int32_t stmtPrepare(TAOS_STMT *stmt, char *tbName, StbChange *stbChange, RecordSchema *recordSchema) {
+static int32_t stmtPrepare(TAOS_STMT *stmt, char *tbName, StbChange *stbChange, RecordSchema *recordSchema, int32_t nBindCols) {
     // part cols
     char *partCols = "";
     if (stbChange && stbChange->strCols) {
@@ -5162,18 +5162,10 @@ int32_t stmtPrepare(TAOS_STMT *stmt, char *tbName, StbChange *stbChange, RecordS
         return -1;
     }    
 
-    // tags number
-    int32_t tagsNum = 0;
-    if (stbChange && stbChange->tableDes) {
-        tagsNum = stbChange->tableDes->tags;
-    } else {
-        tagsNum = recordSchema->num_fields - g_dumpInLooseModeFlag?0:1;
-    }
-
     char *pstr = stmtBuffer;
     pstr += snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN, "INSERT INTO %s %s VALUES(?", tbName, partCols);
 
-    for (int i = 1; i < tagsNum; i++) {
+    for (int i = 1; i < nBindCols; i++) {
         pstr += sprintf(pstr, ",?");
     }
     pstr += sprintf(pstr, ")");
@@ -5242,9 +5234,16 @@ static int64_t dumpInAvroDataImpl(
     avro_value_t value;
     avro_generic_value_new(value_class, &value);
 
-    // calc onlyCol
-    int32_t onlyCol = recordSchema->num_fields;
-    char *bindArray = calloc(1, sizeof(TAOS_MULTI_BIND) * onlyCol);
+    // calc bind cols count
+    int32_t colAdj    = g_dumpInLooseModeFlag ? 0 : 1;
+    int32_t nBindCols = recordSchema->num_fields - colAdj;
+    if (stbChange && stbChange->schemaChanged) {
+        // need part columns bind
+        infoPrint("Full fields:%d bind part fields:%d stb:%s\n", nBindCols, stbChange->tableDes->columns, stbChange->tableDes->name);
+        nBindCols = stbChange->tableDes->columns;
+    }
+
+    char *bindArray = calloc(1, sizeof(TAOS_MULTI_BIND) * nBindCols);
     if (NULL == bindArray) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
         if (mallocDes) {
@@ -5259,11 +5258,13 @@ static int64_t dumpInAvroDataImpl(
     int64_t count = 0;
     int64_t countTSOutOfRange = 0;
     char    *tbName = NULL;
-    int     colAdj = g_dumpInLooseModeFlag ? 0 : 1;
+    
 
     bool printDot = true;
     while (!avro_file_reader_read_value(reader, &value)) {
-        // setTBName
+        //
+        // get tbName from avro
+        //
         if(tbName == NULL) {
             // get tb name
             avro_value_t tbname_value, tbname_branch;
@@ -5313,7 +5314,7 @@ static int64_t dumpInAvroDataImpl(
 
 
             // prepare
-            if (stmtPrepare(stmt, tbName, stbChange, recordSchema)) {
+            if (stmtPrepare(stmt, tbName, stbChange, recordSchema, nBindCols)) {
                 // failed
                 free(bindArray);
                 if (mallocDes) {
@@ -5354,15 +5355,22 @@ static int64_t dumpInAvroDataImpl(
         int64_t ts_debug = -1;
 
         // cols loop
-        for (int i = 0; i < recordSchema->num_fields-colAdj; i++) {
-            bind = (TAOS_MULTI_BIND *)((char *)bindArray
-                    + (sizeof(TAOS_MULTI_BIND) * i));
+        for (int i = 0; i < recordSchema->num_fields - colAdj; i++) {
 
+            bind = (TAOS_MULTI_BIND *)((char *)bindArray + (sizeof(TAOS_MULTI_BIND) * i));
             avro_value_t field_value;
 
-            FieldStruct *field =
-                (FieldStruct *)(recordSchema->fields
-                        + sizeof(FieldStruct)*(i+colAdj));
+            FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct)*(i+colAdj));
+
+            //
+            //  check  avro fields need filter
+            //
+            if (stbChange && stbChange->schemaChanged) {
+                if(fieldNotInBindList(field->name, stbChange->tableDes)) {
+                    debugPrintf("avro field:%s not found on server.\n", field->name);
+                    continue;
+                }
+            }
 
             bind->is_null = NULL;
             bind->num = 1;
@@ -5567,7 +5575,7 @@ static int64_t dumpInAvroDataImpl(
             errorPrint("%s() LN%d stmt_bind_param_batch() failed! "
                         "reason: %s\n",
                         __func__, __LINE__, taos_stmt_errstr(stmt));
-            countFailureAndFree(bindArray, onlyCol, &failed, tbName);
+            countFailureAndFree(bindArray, nBindCols, &failed, tbName);
             continue;
         }
 
@@ -5575,7 +5583,7 @@ static int64_t dumpInAvroDataImpl(
         if (0 != (code = taos_stmt_add_batch(stmt))) {
             errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
-            countFailureAndFree(bindArray, onlyCol, &failed, tbName);
+            countFailureAndFree(bindArray, nBindCols, &failed, tbName);
             continue;
         }
 
@@ -5590,7 +5598,7 @@ static int64_t dumpInAvroDataImpl(
                         __func__, __LINE__,
                         code, taos_stmt_errstr(stmt), ts_debug);
                 }
-                countFailureAndFree(bindArray, onlyCol, &failed, tbName);
+                countFailureAndFree(bindArray, nBindCols, &failed, tbName);
                 continue;
             } else {
                 success += g_args.data_batch;
@@ -5598,7 +5606,7 @@ static int64_t dumpInAvroDataImpl(
                             count, success, failed);
             }
         }
-        freeBindArray(bindArray, onlyCol);
+        freeBindArray(bindArray, nBindCols);
     }
 
     // last batch execute
@@ -5747,6 +5755,7 @@ static int64_t dumpInOneAvroFile(
         return -1;
     }
 
+    // get db name
     const char *namespace = avro_schema_namespace((const avro_schema_t)schema);
     if(g_args.renameHead) {
         char* newDbName = findNewName((char *)namespace);

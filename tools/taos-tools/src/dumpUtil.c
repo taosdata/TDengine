@@ -228,12 +228,15 @@ int32_t writeFile(char *filename, char *txt) {
 }
 
 long getFileSize(FILE *fp) {
+    long cur = ftell(fp);
     // move end
     if (fseek(fp, 0, SEEK_END) != 0) {
         return -1;
     }
     // get
-    return ftell(fp);
+    long size = ftell(fp);
+    fseek(fp, cur, SEEK_SET);
+    return size;
 }
 
 // read file context
@@ -680,7 +683,7 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
 
 
 // add stb recordSchema to dbChange
-int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchema, StbChange **ppStbChange) {
+int32_t AddStbChanged(DBChange *pDbChange, const char* dbName, TAOS *taos, RecordSchema *recordSchema, StbChange **ppStbChange) {
     // check old json schema
     if (recordSchema->version == 0) {
         debugPrint("%s is old schema json.\n", recordSchema->name);
@@ -703,8 +706,8 @@ int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchem
     }
 
     // get from server
-    if (getTableDes(taos, pDbChange->dbName, stbName, tableDesSrv, false) < 0) {
-        errorPrint("%s() LN%d getTableDes failed, db:%s stb:%s !\n", __func__, __LINE__, pDbChange->dbName, stbName);
+    if (getTableDes(taos, dbName, stbName, tableDesSrv, false) < 0) {
+        errorPrint("%s() LN%d getTableDes failed, db:%s stb:%s !\n", __func__, __LINE__, dbName, stbName);
         return -1;
     }
 
@@ -715,7 +718,7 @@ int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchem
     // compare local & server and auto calc 
     //
     if (localCrossServer(pDbChange, pStbChange, recordSchema, tableDesSrv)) {
-        errorPrint("%s() LN%d localCrossServer failed, db:%s stb:%s !\n", __func__, __LINE__, pDbChange->dbName, stbName);
+        errorPrint("%s() LN%d localCrossServer failed, db:%s stb:%s !\n", __func__, __LINE__, dbName, stbName);
         free(pStbChange);
         freeTbDes(tableDesSrv, true);
         return -1;
@@ -728,7 +731,7 @@ int32_t AddStbChanged(DBChange *pDbChange, TAOS *taos, RecordSchema *recordSchem
 
     // add to DbChange hashMap
     if (!hashMapInsert(&pDbChange->stbMap, stbName, pStbChange)) {
-        errorPrint("%s() LN%d add hashMap failed, db:%s stb:%s !\n", __func__, __LINE__, pDbChange->dbName, stbName);
+        errorPrint("%s() LN%d add hashMap failed, db:%s stb:%s !\n", __func__, __LINE__, dbName, stbName);
         free(pStbChange);
         freeTbDes(tableDesSrv, true);
         return -1;
@@ -750,27 +753,31 @@ StbChange * findStbChange(DBChange *pDbChange, char *stbName) {
     return (StbChange *)hashMapFind(&pDbChange->stbMap, stbName);
 }
 
-static int32_t readStbSchemaCols( json_t *element, ColDes *cols) {
+static int32_t readStbSchemaCols( json_t *elements, ColDes *cols) {
     const char *key   = NULL;
     json_t     *value = NULL;
     uint32_t   n      = 0;
 
     // check valid
-    if (JSON_ARRAY != json_typeof(element)) {
+    if (JSON_ARRAY != json_typeof(elements)) {
         warnPrint("%s() LN%d, stbSchema have no array\n",
             __func__, __LINE__);
         return  0;
     }
 
-    // loop read
-    json_object_foreach(element, key, value) {
-        ColDes *col = cols + n;
-        if (0 == strcmp(key, "name")) {
-            strncpy(col->field, json_string_value(value), TSDB_COL_NAME_LEN - 1);
-        } else if (0 == strcmp(key, "type")) {
-            col->type = json_integer_value(value);
-        }
+    size_t size = json_array_size(elements);
 
+    for (size_t i = 0; i < size; i++) {
+        json_t *element = json_array_get(elements, i);
+        // loop read
+        json_object_foreach(element, key, value) {
+            ColDes *col = cols + n;
+            if (0 == strcmp(key, "name")) {
+                strncpy(col->field, json_string_value(value), TSDB_COL_NAME_LEN - 1);
+            } else if (0 == strcmp(key, "type")) {
+                col->type = json_integer_value(value);
+            }
+        }
         // move next
         ++n;
     }
@@ -850,4 +857,11 @@ int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema) {
     // free
     free(json);
     return ret;
+}
+
+// found 
+bool fieldInBindList(char *field, TableDes* tableDes) {
+    if(field )
+
+    
 }
