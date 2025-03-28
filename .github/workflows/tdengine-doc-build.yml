@@ -40,7 +40,7 @@ jobs:
 
       - name: Check document changes
         id: changed-doc-files
-        uses: tj-actions/changed-files@823fcebdb31bb35fdf2229d9f769b400309430d0
+        uses: tj-actions/changed-files@v45
         with:
           files: docs/**
 
