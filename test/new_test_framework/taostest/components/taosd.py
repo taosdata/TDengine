@@ -115,9 +115,13 @@ class TaosD:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
             else:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
+        # self._remote.cmd(cfg["fqdn"],
+        #                  ["ulimit -n 1048576",
+        #                   start_cmd,
+        #                   "sleep 0.1",
+        #                   "taos -c {0} -s \"{1}\";".format(dnode["config_dir"], createDnode)])
         self._remote.cmd(cfg["fqdn"],
-                         ["ulimit -n 1048576",
-                          start_cmd,
+                         [start_cmd,
                           "sleep 0.1",
                           "taos -c {0} -s \"{1}\";".format(dnode["config_dir"], createDnode)])
         
@@ -372,9 +376,10 @@ class TaosD:
         config_dir = dnode["config_dir"]
         killCmd = "ps ef | grep %s | grep -v grep | awk '{print $1}' | xargs kill -9 " % config_dir
         sleepCmd = "sleep %s" % sleep_seconds
-        ulimitCmd = "ulimit -n 1048576"
+        # ulimitCmd = "ulimit -n 1048576"
         startCmd = f"screen -L -d -m {taosd_path} -c {config_dir}"
-        self._remote.cmd(fqdn, [killCmd, sleepCmd, ulimitCmd, startCmd])
+        # self._remote.cmd(fqdn, [killCmd, sleepCmd, ulimitCmd, startCmd])
+        self._remote.cmd(fqdn, [killCmd, sleepCmd, startCmd])
 
     def restart(self, dnode, sleep_seconds=1):
         """
@@ -385,9 +390,10 @@ class TaosD:
         config_dir = dnode["config_dir"]
         killCmd = "ps ef | grep %s | grep -v grep | awk '{print $1}' | xargs kill -9 " % config_dir
         sleepCmd = "sleep %s" % sleep_seconds
-        ulimitCmd = "ulimit -n 1048576"
+        # ulimitCmd = "ulimit -n 1048576"
         startCmd = f"screen -L -d -m {taosd_path} -c {config_dir}"
-        self._remote.cmd(fqdn, [killCmd, sleepCmd, ulimitCmd, startCmd])
+        # self._remote.cmd(fqdn, [killCmd, sleepCmd, ulimitCmd, startCmd])
+        self._remote.cmd(fqdn, [killCmd, sleepCmd, startCmd])
 
     def kill_by_config_dir(self, dnode):
         """
@@ -413,9 +419,10 @@ class TaosD:
         fqdn, _ = dnode["endpoint"].split(":")
         taosd_path = dnode["taosdPath"] if "taosdPath" in dnode else "/usr/bin/taosd"
         config_dir = dnode["config_dir"]
-        ulimitCmd = "ulimit -n 1048576"
+        # ulimitCmd = "ulimit -n 1048576"
         startCmd = f"screen -L -d -m {taosd_path} -c {config_dir}"
-        self._remote.cmd(fqdn, [ulimitCmd, startCmd])
+        # self._remote.cmd(fqdn, [ulimitCmd, startCmd])
+        self._remote.cmd(fqdn, [startCmd])
 
     def _install(self, host, version, pkg):
         if pkg is None:
@@ -475,8 +482,10 @@ class TaosD:
                     killCmd = "ps -ef|grep -wi %s | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1" % (
                         dnode["config_dir"])
                     self._remote.cmd(cfg["fqdn"], [killCmd])
+                    # self._remote.cmd(
+                    #     cfg["fqdn"], ["ulimit -n 1048576", f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}"])
                     self._remote.cmd(
-                        cfg["fqdn"], ["ulimit -n 1048576", f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}"])
+                        cfg["fqdn"], [f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}"])
                     taosd_process_count = self._remote.cmd(cfg["fqdn"], [f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"])
                     if int(taosd_process_count) > 0:
                         ready_count = self._remote.cmd(cfg["fqdn"], [f'taos -s "show dnodes" | grep {cfg["firstEP"]} | grep ready | wc -l'])
