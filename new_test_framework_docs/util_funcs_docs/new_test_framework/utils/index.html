@@ -818,6 +818,84 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#etool" class="md-nav__link">
+    <span class="md-ellipsis">
+      etool
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="etool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etool.benchMark" class="md-nav__link">
+    <span class="md-ellipsis">
+      benchMark
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.benchMarkFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      benchMarkFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.curFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      curFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.exeBinFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      exeBinFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.runBinFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      runBinFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.taosAdapterFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      taosAdapterFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.taosDumpFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      taosDumpFile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1273,6 +1351,84 @@
   <a href="#sql._parse_datetime" class="md-nav__link">
     <span class="md-ellipsis">
       _parse_datetime
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#etool" class="md-nav__link">
+    <span class="md-ellipsis">
+      etool
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="etool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etool.benchMark" class="md-nav__link">
+    <span class="md-ellipsis">
+      benchMark
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.benchMarkFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      benchMarkFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.curFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      curFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.exeBinFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      exeBinFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.runBinFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      runBinFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.taosAdapterFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      taosAdapterFile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etool.taosDumpFile" class="md-nav__link">
+    <span class="md-ellipsis">
+      taosDumpFile
     </span>
   </a>
   
@@ -5753,6 +5909,561 @@ The string can be in one of the following formats:
             <td>
               <div class="doc-md-description">
                 <p>datetime.datetime: The datetime object parsed from the string.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+    
+        </div>
+    
+    </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="etool" class="doc doc-heading">
+            <code>etool</code>
+
+
+<a href="#etool" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h3 id="etool.benchMark" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">benchMark</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span></code>    
+    
+<a href="#etool.benchMark" class="headerlink" title="Permanent link">&para;</a></h3>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>Run the <code>taosBenchmark</code> binary with a command or JSON file.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>command</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The command to execute. Defaults to an empty string.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>json</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The path to a JSON file for execution. Defaults to an empty string.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="SystemExit">SystemExit</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the execution of the JSON file fails.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+    
+        </div>
+    
+    </div>
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h3 id="etool.benchMarkFile" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">benchMarkFile</span><span class="p">()</span></code>    
+    
+<a href="#etool.benchMarkFile" class="headerlink" title="Permanent link">&para;</a></h3>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>Get the path to the <code>taosBenchmark</code> binary file.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The full path to the <code>taosBenchmark</code> binary file, with <code>.exe</code> appended if on Windows.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+    
+        </div>
+    
+    </div>
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h3 id="etool.curFile" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">curFile</span><span class="p">(</span><span class="n">fullPath</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span></code>    
+    
+<a href="#etool.curFile" class="headerlink" title="Permanent link">&para;</a></h3>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>Get the full path to a file in the current directory.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>fullPath</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The full path to the current directory.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>filename</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The name of the file.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The full path to the file in the current directory.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+    
+        </div>
+    
+    </div>
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h3 id="etool.exeBinFile" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">exeBinFile</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">command</span><span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>    
+    
+<a href="#etool.exeBinFile" class="headerlink" title="Permanent link">&para;</a></h3>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>Execute a binary file with the specified command.</p>
+<p>This method uses <code>utils.army.frame.eos.exe</code> or <code>utils.army.frame.eos.exeNoWait</code> 
+to execute the binary file. The <code>exe</code> function waits for the command to finish, 
+while <code>exeNoWait</code> runs the command in the background and returns immediately.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>fname</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The name of the binary file.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>command</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The command to execute.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>wait</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to wait for the command to finish. Defaults to True.
+- If True, uses <code>utils.army.frame.eos.exe</code>.
+- If False, uses <code>utils.army.frame.eos.exeNoWait</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>show</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to log the command. Defaults to True.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>int</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The exit status of the command execution. A return value of <code>0</code> indicates success, 
+ while a non-zero value indicates failure.
+ - If <code>wait</code> is False, the return value is the exit status of the <code>nohup</code> or <code>mintty</code> command.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+    
+        </div>
+    
+    </div>
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h3 id="etool.runBinFile" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">runBinFile</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">command</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>    
+    
+<a href="#etool.runBinFile" class="headerlink" title="Permanent link">&para;</a></h3>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>Run a binary file with the specified command.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>fname</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The name of the binary file.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>command</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The command to execute.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>show</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to log the command. Defaults to True.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>list</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The output of the command as a list of strings.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+    
+        </div>
+    
+    </div>
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h3 id="etool.taosAdapterFile" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">taosAdapterFile</span><span class="p">()</span></code>    
+    
+<a href="#etool.taosAdapterFile" class="headerlink" title="Permanent link">&para;</a></h3>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>Get the path to the <code>taosAdapter</code> binary file.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The full path to the <code>taosAdapter</code> binary file, with <code>.exe</code> appended if on Windows.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+    
+        </div>
+    
+    </div>
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h3 id="etool.taosDumpFile" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">taosDumpFile</span><span class="p">()</span></code>    
+    
+<a href="#etool.taosDumpFile" class="headerlink" title="Permanent link">&para;</a></h3>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>Get the path to the <code>taosdump</code> binary file.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The full path to the <code>taosdump</code> binary file, with <code>.exe</code> appended if on Windows.</p>
               </div>
             </td>
           </tr>
