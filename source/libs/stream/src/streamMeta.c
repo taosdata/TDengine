@@ -1137,20 +1137,27 @@ static void dropHistoryTaskIfNoStreamTask(SStreamMeta* pMeta, SArray*  pRecycleL
   int32_t i = 0;
   while (i < taosArrayGetSize(pMeta->pTaskList)) {
     SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
-    SStreamTask* p = taosAcquireRef(streamTaskRefPool, pTaskId->refId);
-    if (p != NULL && p->info.fillHistory == 1) {
-      if (taosHashGet(pMeta->pTasksMap, &p->streamTaskId, sizeof(STaskId)) == NULL &&
-        p->status.taskStatus != TASK_STATUS__DROPPING) {
-        STaskId id = streamTaskGetTaskId(p);
+    if (pTaskId == NULL) {
+      i++;
+      continue;
+    }
+    SStreamTask* task = taosAcquireRef(streamTaskRefPool, pTaskId->refId);
+    if (task != NULL && task->info.fillHistory == 1) {
+      if (taosHashGet(pMeta->pTasksMap, &task->streamTaskId, sizeof(STaskId)) == NULL &&
+        task->status.taskStatus != TASK_STATUS__DROPPING) {
+        STaskId id = streamTaskGetTaskId(task);
         if (taosArrayPush(pRecycleList, &id) == NULL) {
-          stError("%s s-task:0x%x failed to add into pRecycleList list due to:%d", __FUNCTION__, p->id.taskId, terrno);
+          stError("%s s-task:0x%x failed to add into pRecycleList list due to:%d", __FUNCTION__, task->id.taskId, terrno);
         }
         if (taosReleaseRef(streamTaskRefPool, pTaskId->refId) != 0) {
-          stError("%s s-task:0x%x failed to release refId:%" PRId64, __FUNCTION__, p->id.taskId, pTaskId->refId);
+          stError("%s s-task:0x%x failed to release refId:%" PRId64, __FUNCTION__, task->id.taskId, pTaskId->refId);
         }
         taosArrayRemove(pMeta->pTaskList, i);
         continue;
       }
+    }
+    if (task != NULL && taosReleaseRef(streamTaskRefPool, pTaskId->refId) != 0) {
+      stError("%s s-task:0x%x failed to release refId:%" PRId64, __FUNCTION__, task->id.taskId, pTaskId->refId);
     }
     i++;
   }
