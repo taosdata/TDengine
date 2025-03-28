@@ -3,17 +3,19 @@ name: New Framework Test
 on:
   pull_request:
     branches:
-      - new_test_framework
+      - 'main'
+      - '3.0'
     paths:
-      - 'test/**'
+      - 'test/cases/**'
+      - 'test/new_test_framework/**'
+      - 'test/ci/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-TDengineNewFramework
   cancel-in-progress: true
 
-
 jobs:
   test-new-cases:
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@new_test_framework
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
     with:
       tdinternal: false
