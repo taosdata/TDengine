@@ -1148,11 +1148,20 @@ static void dropHistoryTaskIfNoStreamTask(SStreamMeta* pMeta, SArray*  pRecycleL
         STaskId id = streamTaskGetTaskId(task);
         if (taosArrayPush(pRecycleList, &id) == NULL) {
           stError("%s s-task:0x%x failed to add into pRecycleList list due to:%d", __FUNCTION__, task->id.taskId, terrno);
+        } else {
+          int32_t total = taosArrayGetSize(pRecycleList);
+          stInfo("%s s-task:0x%x is already dropped, add into recycle list, total:%d", __FUNCTION__, task->id.taskId, total);
+        }
+        int32_t code = taosHashRemove(pMeta->pTasksMap, &id, sizeof(STaskId));
+        if (code == 0) {
+          taosArrayRemove(pMeta->pTaskList, i);
+        } else {
+          i++;
+          stError("%s s-task:0x%x failed to remove task from taskmap, code:%d", __FUNCTION__, task->id.taskId, code);
         }
         if (taosReleaseRef(streamTaskRefPool, pTaskId->refId) != 0) {
           stError("%s s-task:0x%x failed to release refId:%" PRId64, __FUNCTION__, task->id.taskId, pTaskId->refId);
         }
-        taosArrayRemove(pMeta->pTaskList, i);
         continue;
       }
     }
