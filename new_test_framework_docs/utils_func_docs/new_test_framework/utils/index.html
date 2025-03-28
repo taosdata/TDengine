@@ -5683,7 +5683,12 @@ or if the sql result does not match the expected data from CSV file.</p>
     
         <div class="doc doc-contents ">
 
-        <p>Parse a string to a datetime object. The string can be in one of the following formats:</p>
+        <p>Parse a string to a datetime object. The string can be in one of the following formats:
+The string can be in one of the following formats:
+- '%Y-%m-%d %H:%M:%S.%f%z': Contains microseconds and timezone offset.
+- '%Y-%m-%d %H:%M:%S%z': Contains no microseconds but contains timezone offset.
+- '%Y-%m-%d %H:%M:%S.%f': Contains microseconds but no timezone offset.
+- '%Y-%m-%d %H:%M:%S': Contains no microseconds and no timezone offset.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
