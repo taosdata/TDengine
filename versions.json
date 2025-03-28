@@ -2,6 +2,11 @@
   {
     "version": "new_test_framework",
     "title": "new_test_framework",
+    "aliases": []
+  },
+  {
+    "version": "new_test_framework_docs",
+    "title": "new_test_framework_docs",
     "aliases": [
       "latest"
     ]
