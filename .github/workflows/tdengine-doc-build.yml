@@ -48,6 +48,8 @@ jobs:
       - name: Check document changes
         id: changed-doc-files
         uses: tj-actions/changed-files@v46
+        with:
+          files: 'docs/**'
 
       - name: Check whether the chinese or english docment is built
         id: check-doc-lang

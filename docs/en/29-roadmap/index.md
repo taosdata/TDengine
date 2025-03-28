@@ -5,7 +5,6 @@ title: Product Roadmap
 The 2025 roadmap for TDengine OSS is described in the following table.
 
 
-
 |  Quarter   |  Feature  |
 | :----- | :----- |
 | 2025Q1 | <ol><li>Virtual tables</li><li>Query engine: conditional expressions in <code>REGEXP</code>, <code>GREATEST</code>, <code>LEAST</code>, and <code>CAST</code> functions; improvements in single-row selection functions; time range interpolation with <code>INTERP</code></li><li>Storage engine: support for writing query results into supertables; <code>KEEP</code> parameter for supertables; performance improvements for the parameter binding interface</li><li>Stream processing: support for virtual tables; decreased compute resource usage; new mechanism for event notification; faster stream creation</li><li>Data types: support for the decimal data type</li><li>High availability: faster recovery from downtime; improved client failover</li><li>Stability: LTS release TDengine 3.3.6.x</li><li>JDBC driver: more efficient data ingestion</li><li>Ecosystem: integration with Microsoft Excel</li></ol> |
