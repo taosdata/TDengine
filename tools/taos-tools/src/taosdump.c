@@ -1931,6 +1931,11 @@ void freeRecordSchema(RecordSchema *recordSchema) {
         if (recordSchema->fields) {
             free(recordSchema->fields);
         }
+
+        if (recordSchema->tableDes) {
+            freeTbDes(recordSchema->tableDes, true);
+        }
+
         free(recordSchema);
     }
 }
