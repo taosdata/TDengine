@@ -7,8 +7,6 @@ slug: /basic-features/data-model
 import Image from '@theme/IdealImage';
 import dataModel from '../assets/data-model-01.png';
 
-
-
 To clearly explain the concepts of time-series data and facilitate the writing of example programs, the TDengine documentation uses smart meters as an example. These example smart meters can collect three metrics: current, voltage, and phase. In addition, each smart meter also has two static attributes: location and group ID. The data collected by these smart meters is shown in the table below.
 
 |Device ID| Timestamp | Current | Voltage | Phase | Location | Group ID |
