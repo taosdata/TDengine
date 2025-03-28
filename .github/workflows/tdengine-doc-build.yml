@@ -47,9 +47,22 @@ jobs:
 
       - name: Check document changes
         id: changed-doc-files
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@v46
         with:
           files: 'docs/**'
+          path: ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
+          # settings for push event
+          since_last_remote_commit: ${{ github.event_name == 'push' }}
+          # settings for pull request event
+          base_sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Debug changed files
+        run: |
+          echo "All changed files: ${{ steps.changed-doc-files.outputs.all_changed_files }}"
+          echo "Added files: ${{ steps.changed-doc-files.outputs.added_files }}"
+          echo "Modified files: ${{ steps.changed-doc-files.outputs.modified_files }}"
+          echo "Deleted files: ${{ steps.changed-doc-files.outputs.deleted_files }}"
 
       - name: Check whether the chinese or english docment is built
         id: check-doc-lang
