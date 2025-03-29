@@ -4236,7 +4236,7 @@ static int64_t dumpInAvroTbTagsImpl(
     avro_value_t value;
     avro_generic_value_new(value_class, &value);
 
-    int tagAdjExt = g_dumpInLooseModeFlag?0:1;
+    int tagAdjExt = g_dumpInLooseModeFlag ? 0 : 1;
 
     // loop read each child table 
     while (!avro_file_reader_read_value(reader, &value)) {
@@ -4306,17 +4306,24 @@ static int64_t dumpInAvroTbTagsImpl(
                 // combine sql with stbName and tbName
                 curr_sqlstr_len = snprintf(sqlstr, TSDB_MAX_ALLOWED_SQL_LEN,
                         g_args.db_escape_char
-                        ? "CREATE TABLE `%s`.%s%s%s%s USING `%s`.%s%s%s TAGS("
-                        : "CREATE TABLE %s.%s%s%s%s USING %s.%s%s%s TAGS(",
-                        namespace, g_escapeChar, tbName, g_escapeChar, partTags,
-                        namespace, g_escapeChar, stbName, g_escapeChar);
+                        ? "CREATE TABLE IF NOT EXISTS `%s`.%s%s%s  USING `%s`.%s%s%s%s TAGS("
+                        : "CREATE TABLE IF NOT EXISTS %s.%s%s%s    USING  %s.%s%s%s%s  TAGS(",
+                        namespace, g_escapeChar, tbName, g_escapeChar,
+                        namespace, g_escapeChar, stbName, g_escapeChar, partTags);
 
                 debugPrint("%s() LN%d, pre sql: %s\n",
                         __func__, __LINE__, sqlstr);
             } else {
                 // not first
                 FieldStruct *field = (FieldStruct *)
-                    (recordSchema->fields + sizeof(FieldStruct)*(i + tagAdjExt));
+                    (recordSchema->fields + sizeof(FieldStruct) * (i + tagAdjExt));
+                
+                // check filter
+                int16_t idx = i - 1;
+                if (!idxInBindTags(idx, tableDes)) {
+                    debugPrint("tag idx:%d field:%s not in server, ignore.\n", idx, field->name);
+                    continue;
+                }
 
                 // get tag value
                 if (0 == avro_value_get_by_name(
@@ -5358,11 +5365,12 @@ static int64_t dumpInAvroDataImpl(
 
         char is_null = 1;
         int64_t ts_debug = -1;
+        int32_t n = 0; // tableDes index
 
         // cols loop
         for (int i = 0; i < recordSchema->num_fields - colAdj; i++) {
 
-            bind = (TAOS_MULTI_BIND *)((char *)bindArray + (sizeof(TAOS_MULTI_BIND) * i));
+            bind = (TAOS_MULTI_BIND *)((char *)bindArray + (sizeof(TAOS_MULTI_BIND) * n));
             avro_value_t field_value;
 
             FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct)*(i + colAdj));
@@ -5371,10 +5379,12 @@ static int64_t dumpInAvroDataImpl(
             //  check  avro fields need filter
             //
             if (stbChange && stbChange->schemaChanged) {
-                if(!idxInBindList(i, stbChange->tableDes)) {
+                if(!idxInBindCols(i, stbChange->tableDes)) {
                     // remove col not exist on server
-                    debugPrint("avro field:%s not found on server.\n", field->name);
+                    debugPrint("col idx:%d field:%s not in server, ignore.\n", i, field->name);
                     continue;
+                } else {
+                    debugPrint("col idx:%d field:%s in server.\n", i, field->name);
                 }
             }
 
@@ -5419,7 +5429,7 @@ static int64_t dumpInAvroDataImpl(
                         &value, field->name, &field_value, NULL)) {
 
                 // switch type read col value
-                switch (tableDes->cols[i].type) {
+                switch (tableDes->cols[n].type) {
                     case TSDB_DATA_TYPE_INT:
                         if (field->type != TSDB_DATA_TYPE_INT) {
                             warnPrint("field[%d] type is not int!\n", i);
@@ -5568,12 +5578,16 @@ static int64_t dumpInAvroDataImpl(
                                 typeToStr(field->type));
                         break;
                 }
-                bind->buffer_type = tableDes->cols[i].type;
+                bind->buffer_type = tableDes->cols[n].type;
                 bind->length = (int32_t *)&bind->buffer_length;
             }
             bind->num = 1;
+
+            // tableDes index
+            n ++;
         } // cols loop end
         debugPrint2("%s", "\n");
+        assert (n == nBindCols);
 
         // bind batch
         if (0 != (code = taos_stmt_bind_param_batch(stmt,

@@ -553,7 +553,7 @@ char * genPartStr(ColDes *colDes, int from , int num) {
     for (int32_t i = 0; i < num; i++) {
         pos += sprintf(partStr + pos, 
                 i == 0 ? "(%s" : ",%s",
-                colDes[i].field);
+                colDes[from + i].field);
     }
     // end
     strcat(partStr, ")");
@@ -652,13 +652,13 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
         if (i < oldc) {
             // col
             if (findFieldInLocal(colDes, recordSchema->tableDes)) {
-                moveColDes(tableDesSrv->cols, i, newc);
+                moveColDes(tableDesSrv->cols, newc, i);
                 ++newc;
             }
         } else {
             // tag
             if (findFieldInLocal(colDes, recordSchema->tableDes)) {
-                moveColDes(tableDesSrv->cols, i,  newc + newt);
+                moveColDes(tableDesSrv->cols, newc + newt, i);
                 ++newt;
             }
         }
@@ -875,9 +875,25 @@ int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema) {
     return ret;
 }
 
+// found 
+bool idxInBindTags(int16_t idx, TableDes* tableDes) {
+    // check valid
+    if (idx < 0 || tableDes == NULL) {
+        return false;
+    }
+
+    // find in list
+    for (int32_t i = tableDes->columns ; i < tableDes->columns + tableDes->tags; i++) {
+        if (tableDes->cols[i].idx == idx) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 // found 
-bool idxInBindList(int16_t idx, TableDes* tableDes) {
+bool idxInBindCols(int16_t idx, TableDes* tableDes) {
     // check valid
     if (idx < 0 || tableDes == NULL) {
         return false;
