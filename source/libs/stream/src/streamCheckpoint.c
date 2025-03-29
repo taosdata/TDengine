@@ -1006,6 +1006,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
          pMeta->vgId, pTask->info.taskLevel, ckId, pTask->chkInfo.checkpointVer, el,
          (code == TSDB_CODE_SUCCESS) ? "succ" : "failed");
 
+  taosArrayDestroy(pList);
   return code;
 }
 
