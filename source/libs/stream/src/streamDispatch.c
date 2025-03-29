@@ -807,7 +807,7 @@ void streamStartMonitorDispatchData(SStreamTask* pTask, int64_t waitDuration) {
 }
 
 static int32_t doAddDispatchBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock,
-                                  SArray* vgInfo, uint32_t hashValue, int64_t now, bool* pFound) {
+                                  SArray* vgInfo, uint32_t hashValue, int64_t now, bool* pFound, int64_t groupId) {
   size_t  numOfVgroups = taosArrayGetSize(vgInfo);
   int32_t code = 0;
 
@@ -820,8 +820,9 @@ static int32_t doAddDispatchBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs,
     }
 
     if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
-      stDebug("s-task:%s dst table hashVal:0x%x assign to vgId:%d range[0x%x, 0x%x]", pTask->id.idStr, hashValue,
-              pVgInfo->vgId, pVgInfo->hashBegin, pVgInfo->hashEnd);
+      stDebug("s-task:%s dst table:%s groupId:%" PRId64 " hashVal:0x%x assign to vgId:%d range[0x%x, 0x%x]",
+              pTask->id.idStr, pDataBlock->info.parTbName, groupId, hashValue, pVgInfo->vgId, pVgInfo->hashBegin,
+              pVgInfo->hashEnd);
 
       if ((code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j], false)) < 0) {
         stError("s-task:%s failed to add dispatch block, code:%s", pTask->id.idStr, tstrerror(terrno));
@@ -890,6 +891,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
       if (code) {
         stError("s-task:%s failed to build child table name for group:%" PRId64 ", code:%s", pTask->id.idStr, groupId,
                 tstrerror(code));
+      } else {
+        stDebug("s-task:%s create default table name:%s, groupId:%" PRId64, pTask->id.idStr,
+                pDataBlock->info.parTbName, groupId);
       }
     }
 
@@ -909,7 +913,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   }
 
   streamMutexLock(&pTask->msgInfo.lock);
-  code = doAddDispatchBlock(pTask, pReqs, pDataBlock, vgInfo, hashValue, now, &found);
+  code = doAddDispatchBlock(pTask, pReqs, pDataBlock, vgInfo, hashValue, now, &found, groupId);
   streamMutexUnlock(&pTask->msgInfo.lock);
 
   if (code) {
@@ -917,7 +921,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   }
 
   if (!found) {
-    stError("s-task:%s not found req hash value:%u, failed to add dispatch block", pTask->id.idStr, hashValue);
+    stError("s-task:%s not found req hash value:%u, tbname:%s, groupId:%" PRId64 " failed to add dispatch block",
+            pTask->id.idStr, hashValue, pDataBlock->info.parTbName, groupId);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   } else {
     return 0;
