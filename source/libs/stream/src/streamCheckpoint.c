@@ -855,7 +855,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
 
     for (int i = 0; i < num; i++) {
       char* pName = taosArrayGetP(toDelFiles, i);
-      code = deleteRemoteCheckpointBackupFile(idStr, pName);
+      code = deleteCheckpointRemoteBackup(idStr, pName);
       if (code != 0) {
         stDebug("s-task:%s failed to remove file: %s", idStr, pName);
         break;
@@ -1590,7 +1590,7 @@ int32_t deleteRemoteCheckpointBackup(const char* pTaskId, int64_t checkpointId) 
   return 0;
 }
 
-int32_t deleteRemoteCheckpointBackupFile(const char* id, const char* name) {
+int32_t deleteCheckpointRemoteBackup(const char* id, const char* name) {
   char object[128] = {0};
 
   int32_t nBytes = snprintf(object, sizeof(object), "%s/%s", id, name);

@@ -256,7 +256,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
 int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList);
 int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
 int32_t uploadCheckpointToS3(const char* id, const char* path);
-int32_t deleteRemoteCheckpointBackupFile(const char* id, const char* name);
+int32_t deleteCheckpointRemoteBackup(const char* id, const char* name);
 int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
                                         int32_t transId);
 

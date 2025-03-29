@@ -1102,7 +1102,7 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
 int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path, SArray* pDroppedList) {
   int32_t         code = 0;
   STaskDbWrapper* pBackend = arg;
-  SArray *        /*chkpDel = NULL, */chkpDup = NULL;
+  SArray*         chkpDup = NULL;
   TAOS_UNUSED(taosThreadRwlockWrlock(&pBackend->chkpDirLock));
 
   if (taosArrayPush(pBackend->chkpSaved, &chkpId) == NULL) {
