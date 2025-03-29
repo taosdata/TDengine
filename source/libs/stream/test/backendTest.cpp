@@ -403,8 +403,11 @@ TEST_F(BackendEnv, checkOpen) {
     ASSERT(code == 0);
     streamStateDestroyBatch(pBatch);
   }
+
+  SArray* pList = taosArrayInit(3, sizeof(int64_t));
+
   // do checkpoint 2
-  int32_t code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 2, 0);
+  int32_t code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 2, 0, pList);
   ASSERT(code == 0);
 
   {
@@ -426,7 +429,9 @@ TEST_F(BackendEnv, checkOpen) {
     streamStateDestroyBatch(pBatch);
   }
 
-  code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 3, 0);
+  taosArrayClear(pList);
+
+  code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 3, 0, pList);
   ASSERT(code == 0);
 
   const char *path = "/tmp/backend/stream";
@@ -439,9 +444,11 @@ TEST_F(BackendEnv, checkOpen) {
   SArray *result = taosArrayInit(4, sizeof(void *));
   bkdMgtGetDelta(mgt, p->pTdbState->idstr, 3, result, (char *)dump);
 
-  code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 4, 0);
+  taosArrayClear(pList);
+  code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 4, 0, pList);
   ASSERT(code == 0);
 
+  taosArrayDestroy(pList);
   taosArrayClear(result);
   code = bkdMgtGetDelta(mgt, p->pTdbState->idstr, 4, result, (char *)dump);
   ASSERT(code == 0);

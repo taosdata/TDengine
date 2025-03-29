@@ -126,10 +126,13 @@ TEST(UploadCheckpointDataTest, UploadSuccess) {
 
     pTask->pBackend = pState->pTdbState->pOwner->pBackend;
 
-    code = taskDbDoCheckpoint(pTask->pBackend, checkpointId, 0);
+    SArray* pList = taosArrayInit(4, sizeof(int64_t));
+    code = taskDbDoCheckpoint(pTask->pBackend, checkpointId, 0, pList);
     ASSERT(code == 0);
 
-    int32_t result = uploadCheckpointData(pTask, checkpointId, dbRefId, type);
+    char* pDir = NULL;
+    int32_t result = uploadCheckpointData(pTask, checkpointId, dbRefId, type, &pDir);
+    taosMemoryFree(pDir);
 
     EXPECT_EQ(result, TSDB_CODE_SUCCESS) << "uploadCheckpointData should return 0 on success";
     tFreeStreamTask(pTask);
@@ -165,12 +168,15 @@ TEST(UploadCheckpointDataTest, UploadDisabled) {
 
     pTask->pBackend = pState->pTdbState->pOwner->pBackend;
 
-    code = taskDbDoCheckpoint(pTask->pBackend, checkpointId, 0);
+    SArray* pList = taosArrayInit(4, sizeof(int64_t));
+    code = taskDbDoCheckpoint(pTask->pBackend, checkpointId, 0, pList);
     ASSERT(code == 0);
+    taosArrayDestroy(pList);
 
     ECHECKPOINT_BACKUP_TYPE type = DATA_UPLOAD_DISABLE;
-
-    int32_t result = uploadCheckpointData(pTask, checkpointId, dbRefId, type);
+    char* pDir = NULL;
+    int32_t result = uploadCheckpointData(pTask, checkpointId, dbRefId, type, &pDir);
+    taosMemoryFree(pDir);
 
     EXPECT_NE(result, TSDB_CODE_SUCCESS) << "uploadCheckpointData should return 0 when backup type is disabled";
 
@@ -396,7 +402,7 @@ TEST(sstreamTaskGetTriggerRecvStatusTest, streamTaskGetTriggerRecvStatusFnTest) 
     code = downloadCheckpointByNameS3("123", "/root/download", "");
     EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
 
-    code = deleteCheckpointFile("aaa123", "bbb");
+    code = deleteCheckpointRemoteBackup("aaa123", "bbb");
     EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
 }
 
