@@ -58,6 +58,23 @@
 #define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
 
 
+// stb schema KEY
+#define VERSION_KEY     "version"
+#define STBNAME_KEY      "name"
+
+#define VERSION_VAL      1
+
+
+
+#define NAME_KEY        "name"
+#define FIELDS_KEY      "fields"
+
+
+// file
+#define MFILE_EXT       ".m"
+#define STBNAME_FILE    "/stbname"
+
+
 #define debugPrint(fmt, ...) \
     do { if (g_args.debug_print || g_args.verbose_print) { \
       fprintf(stdout, "DEBG: "fmt, __VA_ARGS__); } } while (0)
@@ -176,6 +193,7 @@ typedef struct {
     char note[COL_NOTE_LEN];
     char value[COL_VALUEBUF_LEN];
     char *var_value;
+    int16_t idx;
 } ColDes;
 
 typedef struct {
@@ -253,6 +271,51 @@ enum enAVROTYPE {
     AVRO_INVALID
 };
 
+//
+// ------------------ hash map struct -----------------------
+//
+
+// Define the maximum number of buckets
+#define HASH32_MAP_MAX_BUCKETS 1024
+
+// Define the key-value pair structure
+typedef struct HashMapEntry {
+    char *key;
+    void *value;
+    struct HashMapEntry *next;
+} HashMapEntry;
+
+// Define the hash table structure
+typedef struct HashMap {
+    HashMapEntry *buckets[HASH32_MAP_MAX_BUCKETS];
+    pthread_mutex_t lock;
+} HashMap;
+
+
+//
+// --------------------- db changed struct ------------------------
+//
+
+// record db table schema changed
+typedef struct StbChange {
+    // main
+    TableDes *tableDes;
+    
+    // bellow create by tableDes
+    char *strTags;
+    char *strCols;
+    bool schemaChanged; // col or tag have changed is True else false
+} StbChange;
+
+// record db table schema changed
+typedef struct DBChange {
+    int16_t version;
+    // record all stb
+    HashMap  stbMap;
+    const char *dbPath;
+} DBChange;
+
+
 typedef enum enAVROTYPE AVROTYPE;
 
 typedef struct {
@@ -274,6 +337,7 @@ typedef struct {
     int64_t   recFailed;
     AVROTYPE  avroType;
     char      dbPath[MAX_DIR_LEN];
+    DBChange  *pDbChange;
 } threadInfo;
 
 typedef struct {
@@ -315,9 +379,14 @@ typedef struct InspectStruct_S {
 } InspectStruct;
 
 typedef struct RecordSchema_S {
+    int version;
     char name[RECORD_NAME_LEN];
     char *fields;
     int  num_fields;
+
+    // read stb_schema_for_db
+    char stbName[TSDB_TABLE_NAME_LEN]; 
+    TableDes *tableDes;    
 } RecordSchema;
 
 /* avro section end */
@@ -447,10 +516,6 @@ int processResultValue(
         const void *value,
         uint32_t len);
 
-int convertTbDesToJsonWrap(
-        const char *dbName, const char *tbName,
-        TableDes *tableDes, int colCount,
-        char **jsonSchema);
 int64_t dumpNormalTable(
         const int64_t index,
         void  **taos,
@@ -475,6 +540,7 @@ void closeQuery(void* res);
 int32_t readRow(void *res, int32_t idx, int32_t col, uint32_t *len, char **data);
 void engineError(char * module, char * fun, int32_t code);
 
+int getTableDes(TAOS *taos, const char* dbName, const char *table, TableDes *tableDes, const bool colOnly);
 
 extern struct arguments g_args;
 
@@ -487,4 +553,6 @@ extern char      g_dbName[TSDB_DB_NAME_LEN];
 extern char      g_stbName[TSDB_TABLE_NAME_LEN];
 extern int64_t g_totalDumpOutRows;
 extern SDbInfo **g_dbInfos;
+
+
 #endif  // INC_DUMP_H_
