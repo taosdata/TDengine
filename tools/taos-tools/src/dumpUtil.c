@@ -722,6 +722,7 @@ int32_t AddStbChanged(DBChange *pDbChange, const char* dbName, TAOS *taos, Recor
     // get from server
     if (getTableDes(taos, dbName, stbName, tableDesSrv, false) < 0) {
         errorPrint("%s() LN%d getTableDes failed, db:%s stb:%s !\n", __func__, __LINE__, dbName, stbName);
+        freeTbDes(tableDesSrv, true);
         return -1;
     }
 
