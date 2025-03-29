@@ -567,7 +567,7 @@ TAN(expr)
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
-##### TRUNCATE
+#### TRUNCATE
 
 ```sql
 TRUNCATE(expr, digits)
