@@ -16,8 +16,6 @@
 #include "tcommon.h"
 #include "tq.h"
 
-#define IS_NEW_SUBTB_RULE(_t) (((_t)->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) && ((_t)->subtableWithoutMd5 != 1))
-
 typedef struct STableSinkInfo {
   uint64_t uid;
   tstr     name;
@@ -828,7 +826,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
             }
           } else {
             SValue sv = {.type = pCol->type};
-            memcpy(&sv.val, colData, tDataTypes[pCol->type].bytes);
+            valueSetDatum(&sv, pCol->type, colData, tDataTypes[pCol->type].bytes);
             SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             void* p = taosArrayPush(pVals, &cv);
             if (p == NULL) {
@@ -864,7 +862,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
   int32_t     vgId = TD_VID(pVnode);
   int64_t     suid = pTask->outputInfo.tbSink.stbUid;
   const char* id = pTask->id.idStr;
-  int32_t     timeout = 300;  // 5min
+  int32_t     timeout = 60;  // 1min
   int64_t     start = taosGetTimestampSec();
 
   while (pTableSinkInfo->uid == 0) {
@@ -987,6 +985,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       if (code) {
         tqDebug("s-task:%s failed to build auto create table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
         return code;
+      } else {
+        tqDebug("s-task:%s no table name given, generated sub-table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
       }
     } else {
       if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&
@@ -994,7 +994,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
         if (pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
           code = buildCtbNameAddGroupId(NULL, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
-        } else if (pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER && stbFullName) {
+        } else if (pTask->ver >= SSTREAM_TASK_APPEND_STABLE_NAME_VER && stbFullName) {
           code = buildCtbNameAddGroupId(stbFullName, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
         }
         if (code != TSDB_CODE_SUCCESS) {
@@ -1161,6 +1161,12 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
     return;
   }
 
+  code = tqSendAllNotifyEvents(pBlocks, pTask, pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("vgId: %d, s-task:%s failed to send all event notifications", vgId, id);
+    // continue processing even if notification fails
+  }
+
   bool onlySubmitData = hasOnlySubmitData(pBlocks, numOfBlocks);
   if (!onlySubmitData || pTask->subtableWithoutMd5 == 1) {
     tqDebug("vgId:%d, s-task:%s write %d stream resBlock(s) into table, has other type block, submit one-by-one", vgId,
@@ -1184,6 +1190,8 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         continue;
       } else if (pDataBlock->info.type == STREAM_DROP_CHILD_TABLE && pTask->subtableWithoutMd5) {
         code = doBuildAndSendDropTableMsg(pVnode, stbFullName, pDataBlock, pTask, suid);
+      } else if (pDataBlock->info.type == STREAM_NOTIFY_EVENT) {
+        continue;
       } else {
         code = handleResultBlockMsg(pTask, pDataBlock, i, pVnode, earlyTs);
       }
@@ -1325,6 +1333,10 @@ void rebuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVno
     }
 
     if (pDataBlock->info.type == STREAM_CHECKPOINT) {
+      continue;
+    }
+
+    if (pDataBlock->info.type == STREAM_NOTIFY_EVENT) {
       continue;
     }
 

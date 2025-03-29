@@ -12,7 +12,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 - TDengine 3.3.4.0 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - 从 TDengine 官网下载最新的 Windows 操作系统 X64 客户端驱动程序并进行安装，详细参考 [安装 ODBC 驱动](../../../reference/connector/odbc/#安装)。
-- 安装完成 Power BI Desktop 软件并运行（如未安装，请从其官方地址下载最新的Windows操作系统 32/64 位版本）。
+- 安装完成 Power BI Desktop 软件并运行（如未安装，请从其官方地址下载最新的 Windows 操作系统 32/64 位版本）。
 
 ## 配置数据源
 
@@ -72,7 +72,7 @@ select _wstart date, count(*) from test.meters interval(1d) having count(*)>0
 
 **第 5 步**，建立维度和度量的关联关系。打开模型视图，建立表 tags 和 data 的关联关系，将 tbname 设置为关联数据列。
 
-**第 6 步**，建立日期和度量的关联关系。打开模型视图，建立数据集 date 和 data 的关联关系，关联的数据列为 date 和 datatime。
+**第 6 步**，建立日期和度量的关联关系。打开模型视图，建立数据集 date 和 data 的关联关系，关联的数据列为 date 和 datetime。
 
 **第 7 步**，制作报告。在柱状图、饼图等控件中使用这些数据。  
 

@@ -1,25 +1,14 @@
 ---
 sidebar_label: TDgpt
 title: TDgpt
+description: 时序数据分析智能体
 ---
 
-import TDgpt from './pic/data-analysis.png';
+本章主要介绍如何安装部署、使用时序数据分析智能体 TDgpt 以及向 TDgpt 添加算法模型，协同 taosd 提供分析服务。
 
+```mdx-code-block
+import DocCardList from '@theme/DocCardList';
+import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
-TDgpt 是 TDengine Enterprise 中针对时序数据提供高级分析功能的企业级组件，通过内置接口向 TDengine 提供运行时动态扩展的时序数据分析服务。TDgpt 能够独立于 TDengine 主进程部署和运行，因此可避免消耗占用 TDengine 集群的主进程资源。
-TDgpt 具有服务无状态、功能易扩展、快速弹性部署、应用轻量化、高安全性等优势。
-TDgpt 运行在集群中的 AI Node (Anode)中，集群中可以部署若干个 Anode 节点，不同的 Anode 节点之间无同步依赖或协同的要求。Anode 注册到 TDengine 集群以后，立即就可以提供服务。TDgpt 提供的高级时序数据分析服务可分为时序数据异常检测和时序数据预测分析两大类。
-
-下图是部署 TDgpt 的 TDengine 集群示意图。
-<img src={TDgpt} width="560" alt="TDgpt架构图" />
-
-在查询处理过程中，Vnode中运行的查询引擎会根据查询处理物理执行计划，按需向 Anode 请求高级时序数据分析服务。因此用户可通过 SQL 语句与 Anode 节点交互并使用其提供的全部分析服务。需要注意的是 Anode 不直接接受用户的数据分析请求。同时 Anode 具备分析算法动态注册机制，其算法扩展过程完全不影响 TDengine 集群的服务，仅在非常小的（秒级）时间窗口内影响涉及高级分析的查询服务。
-
-目前 TDgpt 提供如下的高级分析服务：
-- 时序数据异常检测。TDengine 中定义了新的时间窗口——异常（状态）窗口——来提供异常检测服务。异常窗口可以视为一种特殊的**事件窗口（Event Window）**，即异常检测算法确定的连续异常时间序列数据所在的时间窗口。与普通事件窗口区别在于——时间窗口的起始时间和结束时间均是分析算法确定，不是用户指定的表达式判定。异常窗口使用方式与其他类型的时间窗口（例如状态窗口、会话窗口等）类似。因此时间窗口内可使用的查询操作均可应用在异常窗口上。
-- 时序数据预测。定义了一个新函数`FORECAST`，基于输入的（历史）时间序列数据调用指定（或默认）预测算法给出输入时序数据后续时间序列的**预测**数据。
-
-TDgpt 还为算法开发者提供了一 SDK。任何开发者只需要按照[算法开发者指南](./dev)的步骤，就可以将自己独有的时序数据预测或时序数据异常检测算法无缝集成到 TDgpt, 这样 TDengine 用户就可以通过一条 SQL 获得时序数据预测结果或是异常窗口了, 大幅降低了用户使用新的时序数据分析算法的门槛，而且让 TDengine 成为一开放的系统。
-
-
-
+<DocCardList items={useCurrentSidebarCategory().items}/>
+```

@@ -30,10 +30,19 @@ extern "C" {
 // clang-format off
 #define wFatal(...) { if (wDebugFlag & DEBUG_FATAL) { taosPrintLog("WAL FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
 #define wError(...) { if (wDebugFlag & DEBUG_ERROR) { taosPrintLog("WAL ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
-#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN ",  DEBUG_WARN, 255,         __VA_ARGS__); }}
-#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL ",       DEBUG_INFO, 255,         __VA_ARGS__); }}
-#define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL ",       DEBUG_DEBUG, wDebugFlag, __VA_ARGS__); }}
-#define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ",       DEBUG_TRACE, wDebugFlag, __VA_ARGS__); }}
+#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN  ", DEBUG_WARN,  255,        __VA_ARGS__); }}
+#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL INFO  ", DEBUG_INFO,  255,        __VA_ARGS__); }}
+#define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL DEBUG ", DEBUG_DEBUG, wDebugFlag, __VA_ARGS__); }}
+#define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL TRACE ", DEBUG_TRACE, wDebugFlag, __VA_ARGS__); }}
+
+#define wGTrace(trace, param, ...) do { if (wDebugFlag & DEBUG_TRACE) { wTrace(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define wGFatal(trace, param, ...) do { if (wDebugFlag & DEBUG_FATAL) { wFatal(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define wGError(trace, param, ...) do { if (wDebugFlag & DEBUG_ERROR) { wError(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define wGWarn(trace, param, ...)  do { if (wDebugFlag & DEBUG_WARN)  { wWarn(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define wGInfo(trace, param, ...)  do { if (wDebugFlag & DEBUG_INFO)  { wInfo(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define wGDebug(trace, param, ...) do { if (wDebugFlag & DEBUG_DEBUG) { wDebug(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+
+
 // clang-format on
 
 // meta section begin
@@ -114,11 +123,11 @@ static inline SWalFileInfo* walGetCurFileInfo(SWal* pWal) {
 }
 
 static inline void walBuildLogName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, fileFirstVer));
+  TAOS_UNUSED(sprintf(buf, "%s%s%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
 }
 
 static inline void walBuildIdxName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer));
+  TAOS_UNUSED(sprintf(buf, "%s%s%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
 }
 
 static inline int walValidHeadCksum(SWalCkHead* pHead) {
@@ -156,9 +165,11 @@ static inline void walResetVer(SWalVer* pVer) {
 int32_t walLoadMeta(SWal* pWal);
 int32_t walSaveMeta(SWal* pWal);
 int32_t walRemoveMeta(SWal* pWal);
+int32_t walRollImpl(SWal* pWal);
 int32_t walRollFileInfo(SWal* pWal);
 int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer);
 int32_t walCheckAndRepairMeta(SWal* pWal);
+int64_t walChangeWrite(SWal* pWal, int64_t ver);
 
 int32_t walCheckAndRepairIdx(SWal* pWal);
 

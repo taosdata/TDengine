@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "functionMgt.h"
 #include "querynodes.h"
 
 #define COMPARE_SCALAR_FIELD(fldname)           \
@@ -137,6 +138,15 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
   COMPARE_STRING_FIELD(functionName);
   COMPARE_NODE_LIST_FIELD(pParameterList);
+  if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
+    if ((a->node.relatedTo != b->node.relatedTo)) return false;
+  } else {
+    // select cols(cols(first(c0), ts),  first(c0) from meters;
+    if ((a->node.bindExprID != b->node.bindExprID)) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -190,6 +200,7 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeEqual((const SGroupingSetNode*)a, (const SGroupingSetNode*)b);
     case QUERY_NODE_REAL_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
     case QUERY_NODE_ORDER_BY_EXPR:

@@ -45,7 +45,8 @@ TDengine 支持 `UNION ALL` 和 `UNION` 操作符。UNION ALL 将查询返回的
 | 9   |       LIKE        | BINARY、NCHAR 和 VARCHAR                                             | 通配符匹配所指定的模式串          |
 | 10   |      NOT LIKE        | BINARY、NCHAR 和 VARCHAR                                             | 通配符不匹配所指定的模式串           |
 | 11   |   MATCH, NMATCH   | BINARY、NCHAR 和 VARCHAR                                             | 正则表达式匹配       |
-| 12  |     CONTAINS      | JSON                                                                 | JSON 中是否存在某键  |
+| 12   |   REGEXP, NOT REGEXP   | BINARY、NCHAR 和 VARCHAR                                          | 正则表达式匹配       |
+| 13  |     CONTAINS      | JSON                                                                 | JSON 中是否存在某键  |
 
 LIKE 条件使用通配符字符串进行匹配检查，规则如下：
 
@@ -53,10 +54,10 @@ LIKE 条件使用通配符字符串进行匹配检查，规则如下：
 - 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 \_，即加一个反斜线来进行转义。
 - 通配符字符串最长不能超过 100 字节。不建议使用太长的通配符字符串，否则将有可能严重影响 LIKE 操作的执行性能。
 
-MATCH 条件和 NMATCH 条件使用正则表达式进行匹配，规则如下：
+MATCH/REGEXP 条件和 NMATCH/NOT REGEXP 条件使用正则表达式进行匹配，规则如下：
 
 - 支持符合 POSIX 规范的正则表达式，具体规范内容可参见 Regular Expressions。
-- MATCH 和正则表达式匹配时, 返回 TURE.  NMATCH 和正则表达式不匹配时, 返回 TRUE. 
+- MATCH 和正则表达式匹配时，返回 TRUE。NMATCH 和正则表达式不匹配时，返回 TRUE. 
 - 只能针对子表名（即 tbname）、字符串类型的标签值进行正则表达式过滤，不支持普通列的过滤。
 - 正则匹配字符串长度不能超过 128 字节。可以通过参数 maxRegexStringLen 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启客户端才能生效
 
@@ -64,7 +65,7 @@ MATCH 条件和 NMATCH 条件使用正则表达式进行匹配，规则如下：
 
 | #   | **运算符** | **支持的类型** | **说明**                                                                    |
 | --- | :--------: | -------------- | --------------------------------------------------------------------------- |
-| 1   |    AND     | BOOL           | 逻辑与，如果两个条件均为 TRUE， 则返回 TRUE。如果任一为 FALSE，则返回 FALSE |
-| 2   |     OR     | BOOL           | 逻辑或，如果任一条件为 TRUE， 则返回 TRUE。如果两者都是 FALSE，则返回 FALSE |
+| 1   |    AND     | BOOL           | 逻辑与，如果两个条件均为 TRUE，则返回 TRUE。如果任一为 FALSE，则返回 FALSE |
+| 2   |     OR     | BOOL           | 逻辑或，如果任一条件为 TRUE，则返回 TRUE。如果两者都是 FALSE，则返回 FALSE |
 
 TDengine 在计算逻辑条件时，会进行短路径优化，即对于 AND，第一个条件为 FALSE，则不再计算第二个条件，直接返回 FALSE；对于 OR，第一个条件为 TRUE，则不再计算第二个条件，直接返回 TRUE。

@@ -134,6 +134,12 @@ typedef enum {
 } ETrnExec;
 
 typedef enum {
+  TRN_KILL_MODE_SKIP = 0,
+  TRN_KILL_MODE_INTERUPT = 1,
+  // TRN_KILL_MODE_ROLLBACK = 2,
+} ETrnKillMode;
+
+typedef enum {
   DND_REASON_ONLINE = 0,
   DND_REASON_STATUS_MSG_TIMEOUT,
   DND_REASON_STATUS_NOT_RECEIVED,
@@ -201,6 +207,8 @@ typedef struct {
   SRWLatch      lockRpcArray;
   int64_t       mTraceId;
   TdThreadMutex mutex;
+  bool          ableToBeKilled;
+  ETrnKillMode  killMode;
 } STrans;
 
 typedef struct {
@@ -308,6 +316,8 @@ typedef struct {
   int64_t            dbUid;
   SArbGroupMember    members[TSDB_ARB_GROUP_MEMBER_NUM];
   int8_t             isSync;
+  int32_t            code;
+  int64_t            updateTimeMs;
   SArbAssignedLeader assignedLeader;
   int64_t            version;
 
@@ -468,6 +478,10 @@ typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   int64_t    syncTerm;
+  int64_t    syncAppliedIndex;
+  int64_t    lastSyncAppliedIndexUpdateTime;
+  double     appliedRate;
+  int64_t    syncCommitIndex;
   bool       syncRestore;
   bool       syncCanRead;
   int64_t    roleTimeMs;
@@ -547,6 +561,7 @@ typedef struct {
   col_id_t colId;
   int32_t  cmprAlg;
 } SCmprObj;
+
 typedef struct {
   char      name[TSDB_TABLE_FNAME_LEN];
   char      db[TSDB_DB_FNAME_LEN];
@@ -576,6 +591,9 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+  int64_t   keep;
+  SExtSchema* pExtSchemas;
+  int8_t    virtualStb;
 } SStbObj;
 
 typedef struct {
@@ -770,6 +788,7 @@ typedef struct SStreamConf {
   int64_t watermark;
 } SStreamConf;
 
+
 typedef struct {
   char     name[TSDB_STREAM_FNAME_LEN];
   SRWLatch lock;
@@ -800,10 +819,10 @@ typedef struct {
   char*   sql;
   char*   ast;
   char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTask>>
 
-  SArray* pHTasksList;  // generate the results for already stored ts data
-  int64_t hTaskUid;     // stream task for history ts data
+  SArray* pTaskList;       // SArray<SArray<SStreamTask>>
+  SArray* pHTaskList;     // generate the results for already stored ts data
+  int64_t hTaskUid;        // stream task for history ts data
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
@@ -819,8 +838,10 @@ typedef struct {
 
   int32_t indexForMultiAggBalance;
   int8_t  subTableWithoutMd5;
-  char    reserve[256];
+  char    reserve[TSDB_RESERVE_VALUE_LEN];
 
+  SSHashObj*  pVTableMap;  // do not serialize
+  SQueryPlan* pPlan;  // do not serialize
 } SStreamObj;
 
 typedef struct SStreamSeq {

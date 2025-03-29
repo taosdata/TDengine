@@ -204,6 +204,18 @@ static void mndStreamCheckNode(SMnode *pMnode) {
   }
 }
 
+static void mndStreamCheckStatus(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_CHECK_STREAM_TIMER, .pCont = pReq, .contLen = contLen};
+    // TODO check return value
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
 static void mndStreamConsensusChkpt(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
@@ -375,6 +387,7 @@ static int32_t minCronTime() {
 }
 void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   int32_t code = 0;
+#ifndef TD_ASTRA  
   if (sec % tsTtlPushIntervalSec == 0) {
     mndPullupTtl(pMnode);
   }
@@ -382,11 +395,12 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsTrimVDbIntervalSec == 0) {
     mndPullupTrimDb(pMnode);
   }
-
+#endif
+#ifdef USE_S3
   if (tsS3MigrateEnabled && sec % tsS3MigrateIntervalSec == 0) {
     mndPullupS3MigrateDb(pMnode);
   }
-
+#endif
   if (sec % tsTransPullupInterval == 0) {
     mndPullupTrans(pMnode);
   }
@@ -394,11 +408,12 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsCompactPullupInterval == 0) {
     mndPullupCompacts(pMnode);
   }
-
+#ifdef USE_TOPIC
   if (sec % tsMqRebalanceInterval == 0) {
     mndCalMqRebalance(pMnode);
   }
-
+#endif
+#ifdef USE_STREAM
   if (sec % 30 == 0) {  // send the checkpoint info every 30 sec
     mndStreamCheckpointTimer(pMnode);
   }
@@ -407,22 +422,27 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndStreamCheckNode(pMnode);
   }
 
+  if (sec % (tsStreamFailedTimeout/1000) == 0) {
+    mndStreamCheckStatus(pMnode);
+  }
+
   if (sec % 5 == 0) {
     mndStreamConsensusChkpt(pMnode);
   }
 
-  if (sec % tsTelemInterval == (TMIN(86400, (tsTelemInterval - 1)))) {
+  if (tsTelemInterval > 0 && sec % tsTelemInterval == 0) {
     mndPullupTelem(pMnode);
   }
-
+#endif
+#ifndef TD_ASTRA
   if (sec % tsGrantHBInterval == 0) {
     mndPullupGrant(pMnode);
   }
-
+#endif
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
   }
-
+#ifndef TD_ASTRA
   if (sec % (tsArbHeartBeatIntervalSec) == 0) {
     if ((code = mndPullupArbHeartbeat(pMnode)) != 0) {
       mError("failed to pullup arb heartbeat, since:%s", tstrerror(code));
@@ -434,6 +454,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
       mError("failed to pullup arb check sync, since:%s", tstrerror(code));
     }
   }
+#endif
 }
 void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
   if (sec % (tsStatusInterval * 5) == 0) {
@@ -475,6 +496,9 @@ static int32_t mndInitTimer(SMnode *pMnode) {
   TdThreadAttr thAttr;
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
   if ((code = taosThreadCreate(&pMnode->thread, &thAttr, mndThreadFp, pMnode)) != 0) {
     mError("failed to create timer thread since %s", tstrerror(code));
     TAOS_RETURN(code);
@@ -523,7 +547,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .encryptAlgorithm = 0,
                  .encryptKey = {0}};
 
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
     cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
     if (tsEncryptKey[0] == '\0') {
@@ -830,11 +854,11 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   const STraceId *trace = &pMsg->info.traceId;
-  mGTrace("vgId:1, sync msg:%p will be processed, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  mGTrace("vgId:1, process sync msg:%p, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t code = syncProcessMsg(pMgmt->sync, pMsg);
   if (code != 0) {
-    mGError("vgId:1, failed to process sync msg:%p type:%s, reason: %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
+    mGError("vgId:1, failed to process sync msg:%p type:%s since %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
             tstrerror(code), code);
   }
 
@@ -896,7 +920,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_COMPACT_TIMER || pMsg->msgType == TDMT_MND_NODECHECK_TIMER ||
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
       pMsg->msgType == TDMT_MND_S3MIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
-      pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER) {
+      pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);

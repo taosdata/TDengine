@@ -222,6 +222,7 @@ static tools_cJSON_bool parse_number(tools_cJSON * const item, parse_buffer * co
     unsigned char number_c_string[64];
     unsigned char decimal_point = get_decimal_point();
     size_t i = 0;
+    int isFloat = 0;
 
     if ((input_buffer == NULL) || (input_buffer->content == NULL))
     {
@@ -245,14 +246,18 @@ static tools_cJSON_bool parse_number(tools_cJSON * const item, parse_buffer * co
             case '7':
             case '8':
             case '9':
+                number_c_string[i] = buffer_at_offset(input_buffer)[i];
+                break;
             case '+':
             case '-':
             case 'e':
             case 'E':
+                isFloat = 1;
                 number_c_string[i] = buffer_at_offset(input_buffer)[i];
                 break;
 
             case '.':
+                isFloat = 1;
                 number_c_string[i] = decimal_point;
                 break;
 
@@ -272,7 +277,7 @@ loop_end:
     item->valuedouble = number;
 
     /* use saturation in case of overflow */
-    if (number >= LLONG_MAX)
+    if (number >= (double)LLONG_MAX)
     {
         item->valueint = LLONG_MAX;
     }
@@ -282,7 +287,10 @@ loop_end:
     }
     else
     {
-        item->valueint = (int64_t)number;
+        if(isFloat)
+            item->valueint = (int64_t)number;
+        else
+            item->valueint = strtoll((const char*)number_c_string, (char**)&after_end, 10);
     }
 
     item->type = tools_cJSON_Number;
@@ -295,7 +303,7 @@ loop_end:
 /* don't ask me, but the original tools_cJSON_SetNumberValue returns an integer or double */
 CJSON_PUBLIC(double) tools_cJSON_SetNumberHelper(tools_cJSON *object, double number)
 {
-    if (number >= LLONG_MAX)
+    if (number >= (double)LLONG_MAX)
     {
         object->valueint = LLONG_MAX;
     }
@@ -2096,7 +2104,7 @@ CJSON_PUBLIC(tools_cJSON *) tools_cJSON_CreateNumber(double num)
         item->valuedouble = num;
 
         /* use saturation in case of overflow */
-        if (num >= LLONG_MAX)
+        if (num >= (double)LLONG_MAX)
         {
             item->valueint = LLONG_MAX;
         }

@@ -18,6 +18,7 @@
 #include "tRealloc.h"
 #include "tdatablock.h"
 #include "tlog.h"
+#include "decimal.h"
 
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
@@ -152,10 +153,10 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     return TSDB_CODE_INVALID_PARA;
   }
   if (!(colValArray[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
   if (!(colValArray[0].value.type == TSDB_DATA_TYPE_TIMESTAMP)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;;
   }
 
   *sinfo = (SRowBuildScanInfo){
@@ -277,7 +278,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   (*ppRow)->numOfPKs = sinfo->numOfPKs;
   (*ppRow)->sver = schema->version;
   (*ppRow)->len = sinfo->tupleRowSize;
-  (*ppRow)->ts = colValArray[0].value.val;
+  (*ppRow)->ts = VALUE_GET_TRIVIAL_DATUM(&colValArray[0].value);
 
   if (sinfo->tupleFlag == HAS_NONE || sinfo->tupleFlag == HAS_NULL) {
     return 0;
@@ -315,7 +316,8 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
               varlen += colValArray[colValIndex].value.nData;
             }
           } else {
-            (void)memcpy(fixed + schema->columns[i].offset, &colValArray[colValIndex].value.val,
+            (void)memcpy(fixed + schema->columns[i].offset,
+                         VALUE_GET_DATUM(&colValArray[colValIndex].value, schema->columns[i].type),
                          tDataTypes[schema->columns[i].type].bytes);
           }
         } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {  // NULL
@@ -360,7 +362,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
   (*ppRow)->numOfPKs = sinfo->numOfPKs;
   (*ppRow)->sver = schema->version;
   (*ppRow)->len = sinfo->kvRowSize;
-  (*ppRow)->ts = colValArray[0].value.val;
+  (*ppRow)->ts = VALUE_GET_TRIVIAL_DATUM(&colValArray[0].value);
 
   if (!(sinfo->flag != HAS_NONE && sinfo->flag != HAS_NULL)) {
     return TSDB_CODE_INVALID_PARA;
@@ -397,7 +399,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
             payloadSize += colValArray[colValIndex].value.nData;
           } else {
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
-            (void)memcpy(payload + payloadSize, &colValArray[colValIndex].value.val,
+            (void)memcpy(payload + payloadSize, VALUE_GET_DATUM(&colValArray[colValIndex].value, schema->columns[i].type),
                          tDataTypes[schema->columns[i].type].bytes);
             payloadSize += tDataTypes[schema->columns[i].type].bytes;
           }
@@ -490,8 +492,9 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
           }
           value.pData = (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow;
         } else {
-          (void)memcpy(&value.val, (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,
-                       infos[iInfo].bind->buffer_length);
+          valueSetDatum(&value, infos[iInfo].type,
+                        (uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,
+                        infos[iInfo].bind->buffer_length);
         }
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
@@ -517,11 +520,12 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
         *pOrdered = true;
         *pDupTs = false;
       } else {
-        // no more compare if we already get disordered or duplicate rows
-        if (*pOrdered && !*pDupTs) {
-          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
-          *pOrdered = (code >= 0);
-          *pDupTs = (code == 0);
+        if (*pOrdered) {
+          int32_t res = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (res >= 0);
+          if (!*pDupTs) {
+            *pDupTs = (res == 0);
+          }
         }
       }
       lastRowKey = rowKey;
@@ -543,7 +547,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
     pColVal->cid = pTColumn->colId;
     pColVal->value.type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
-    (void)memcpy(&pColVal->value.val, &pRow->ts, sizeof(TSKEY));
+    VALUE_SET_TRIVIAL_DATUM(&pColVal->value, pRow->ts);
     return 0;
   }
 
@@ -607,7 +611,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
               pColVal->value.pData = NULL;
             }
           } else {
-            (void)memcpy(&pColVal->value.val, pData, pTColumn->bytes);
+            valueSetDatum(&pColVal->value, pTColumn->type, pData, pTColumn->bytes);
           }
         }
         return 0;
@@ -658,7 +662,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
       pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
       pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
     } else {
-      (void)memcpy(&pColVal->value.val, fixed + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
+      valueSetDatum(&pColVal->value, pTColumn->type, fixed + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
     }
   }
 
@@ -902,7 +906,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
     pIter->cv.cid = pTColumn->colId;
     pIter->cv.value.type = pTColumn->type;
     pIter->cv.flag = CV_FLAG_VALUE;
-    (void)memcpy(&pIter->cv.value.val, &pIter->pRow->ts, sizeof(TSKEY));
+    VALUE_SET_TRIVIAL_DATUM(&pIter->cv.value, pIter->pRow->ts);
     goto _exit;
   }
 
@@ -947,7 +951,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
               pIter->cv.value.pData = NULL;
             }
           } else {
-            (void)memcpy(&pIter->cv.value.val, pData, pTColumn->bytes);
+            valueSetDatum(&pIter->cv.value, pTColumn->type, pData, pTColumn->bytes);
           }
         }
 
@@ -1006,7 +1010,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
         pIter->cv.value.pData = NULL;
       }
     } else {
-      (void)memcpy(&pIter->cv.value.val, pIter->pf + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
+      valueSetDatum(&pIter->cv.value, pTColumn->type, pIter->pf + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
     }
     goto _exit;
   }
@@ -1326,7 +1330,7 @@ void tRowGetPrimaryKey(SRow *row, SRowKey *key) {
       key->pks[i].pData = tdata;
       key->pks[i].pData += tGetU32v(key->pks[i].pData, &key->pks[i].nData);
     } else {
-      (void)memcpy(&key->pks[i].val, tdata, tDataTypes[indices[i].type].bytes);
+      valueSetDatum(key->pks + i, indices[i].type, tdata, tDataTypes[indices[i].type].bytes);
     }
   }
 }
@@ -1346,33 +1350,33 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
   switch (tv1->type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
-      T_COMPARE_SCALAR_VALUE(int8_t, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(int8_t, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_SMALLINT:
-      T_COMPARE_SCALAR_VALUE(int16_t, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(int16_t, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_INT:
-      T_COMPARE_SCALAR_VALUE(int32_t, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(int32_t, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      T_COMPARE_SCALAR_VALUE(int64_t, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(int64_t, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_FLOAT:
-      T_COMPARE_SCALAR_VALUE(float, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(float, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_DOUBLE:
-      T_COMPARE_SCALAR_VALUE(double, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(double, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_UTINYINT:
-      T_COMPARE_SCALAR_VALUE(uint8_t, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(uint8_t, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_USMALLINT:
-      T_COMPARE_SCALAR_VALUE(uint16_t, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(uint16_t, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_UINT:
-      T_COMPARE_SCALAR_VALUE(uint32_t, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(uint32_t, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_UBIGINT:
-      T_COMPARE_SCALAR_VALUE(uint64_t, &tv1->val, &tv2->val);
+      T_COMPARE_SCALAR_VALUE(uint64_t, &VALUE_GET_TRIVIAL_DATUM(tv1), &VALUE_GET_TRIVIAL_DATUM(tv2));
     case TSDB_DATA_TYPE_GEOMETRY:
     case TSDB_DATA_TYPE_BINARY: {
       int32_t ret = strncmp((const char *)tv1->pData, (const char *)tv2->pData, TMIN(tv1->nData, tv2->nData));
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
     case TSDB_DATA_TYPE_NCHAR: {
-      int32_t ret = tasoUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
+      int32_t ret = taosUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
                                     tv1->nData < tv2->nData ? tv1->nData : tv2->nData);
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
@@ -1420,12 +1424,7 @@ void tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc) {
       SValue *pVal = &pDst->pks[i];
       pVal->type = pSrc->pks[i].type;
 
-      if (IS_NUMERIC_TYPE(pVal->type)) {
-        pVal->val = pSrc->pks[i].val;
-      } else {
-        pVal->nData = pSrc->pks[i].nData;
-        (void)memcpy(pVal->pData, pSrc->pks[i].pData, pVal->nData);
-      }
+      valueCloneDatum(pVal, pSrc->pks + i, pVal->type);
     }
   }
 }
@@ -2267,8 +2266,7 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
     return TSDB_CODE_INVALID_PARA;
   }
   return tColDataAppendValueImpl[pColData->flag][pColVal->flag](
-      pColData, IS_VAR_DATA_TYPE(pColData->type) ? pColVal->value.pData : (uint8_t *)&pColVal->value.val,
-      pColVal->value.nData);
+      pColData, VALUE_GET_DATUM(&pColVal->value, pColData->type), pColVal->value.nData);
 }
 
 static FORCE_INLINE int32_t tColDataUpdateValue10(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
@@ -2581,8 +2579,7 @@ int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward) 
   if (tColDataUpdateValueImpl[pColData->flag][pColVal->flag] == NULL) return 0;
 
   return tColDataUpdateValueImpl[pColData->flag][pColVal->flag](
-      pColData, IS_VAR_DATA_TYPE(pColData->type) ? pColVal->value.pData : (uint8_t *)&pColVal->value.val,
-      pColVal->value.nData, forward);
+      pColData, VALUE_GET_DATUM(&pColVal->value, pColData->type), pColVal->value.nData, forward);
 }
 
 static FORCE_INLINE void tColDataGetValue1(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NONE
@@ -2614,8 +2611,8 @@ static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SCo
     }
     value.pData = pColData->pData + pColData->aOffset[iVal];
   } else {
-    (void)memcpy(&value.val, pColData->pData + tDataTypes[pColData->type].bytes * iVal,
-                 tDataTypes[pColData->type].bytes);
+    valueSetDatum(&value, pColData->type, pColData->pData + tDataTypes[pColData->type].bytes * iVal,
+                  tDataTypes[pColData->type].bytes);
   }
   *pColVal = COL_VAL_VALUE(pColData->cid, value);
 }
@@ -3090,7 +3087,10 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
           code = cgeos((char *)pBind->buffer + pBind->buffer_length * i, (size_t)pBind->length[i]);
-          if (code) goto _exit;
+          if (code) {
+            uError("stmt col[%d] bind geometry wrong format", i);
+            goto _exit;
+          }
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
             pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
@@ -3179,7 +3179,10 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
           code = cgeos(buf, pBind->length[i]);
-          if (code) goto _exit;
+          if (code) {
+            uError("stmt2 col[%d] bind geometry wrong format", i);
+            goto _exit;
+          }
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
         buf += pBind->length[i];
@@ -3269,7 +3272,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
   }
 
   if (!infoSorted) {
-    taosqsort_r(infos, numOfInfos, sizeof(SBindInfo), NULL, tBindInfoCompare);
+    taosqsort_r(infos, numOfInfos, sizeof(SBindInfo2), NULL, tBindInfoCompare);
   }
 
   int32_t code = 0;
@@ -3299,6 +3302,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
       if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
         if (infos[iInfo].bind->is_null[iRow] == 1) {
+          if(iInfo == 0) {
+            code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+            goto _exit;
+          }
           colVal = COL_VAL_NULL(infos[iInfo].columnId, infos[iInfo].type);
         } else {
           colVal = COL_VAL_NONE(infos[iInfo].columnId, infos[iInfo].type);
@@ -3323,9 +3330,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
           if (TSDB_DATA_TYPE_BOOL == value.type && *val > 1) {
             *val = 1;
           }
-          (void)memcpy(&value.val, val,
-                       /*(uint8_t *)infos[iInfo].bind->buffer + infos[iInfo].bind->buffer_length * iRow,*/
-                       infos[iInfo].bytes /*bind->buffer_length*/);
+          valueSetDatum(&value, infos[iInfo].type, val, infos[iInfo].bytes);
         }
         colVal = COL_VAL_VALUE(infos[iInfo].columnId, value);
       }
@@ -3351,17 +3356,17 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
         *pOrdered = true;
         *pDupTs = false;
       } else {
-        // no more compare if we already get disordered or duplicate rows
-        if (*pOrdered && !*pDupTs) {
-          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
-          *pOrdered = (code >= 0);
-          *pDupTs = (code == 0);
+        if (*pOrdered) {
+          int32_t res = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (res >= 0);
+          if (!*pDupTs) {
+            *pDupTs = (res == 0);
+          }
         }
+        lastRowKey = rowKey;
       }
-      lastRowKey = rowKey;
     }
   }
-
 _exit:
   taosArrayDestroy(colValArray);
   taosArrayDestroy(bufArray);
@@ -3627,13 +3632,13 @@ int32_t tColDataSortMerge(SArray **arr) {
   SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
 
   if (!(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
   if (!(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
   if (!(aColData[0].flag == HAS_VALUE)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
   }
 
   if (aColData[0].nVal <= 1) goto _exit;
@@ -3839,8 +3844,9 @@ int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow) {
     if ((MIN) > (VAL)) (MIN) = (VAL);        \
   } while (0)
 
-static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                             int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t*numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = 0;
   *min = 1;
@@ -3870,8 +3876,9 @@ static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, i
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = INT8_MIN;
   *min = INT8_MAX;
@@ -3901,8 +3908,9 @@ static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                     int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = INT16_MIN;
   *min = INT16_MAX;
@@ -3932,8 +3940,9 @@ static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                            int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = INT32_MIN;
   *min = INT32_MAX;
@@ -3963,8 +3972,9 @@ static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, in
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                               int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = INT64_MIN;
   *min = INT64_MAX;
@@ -3994,8 +4004,9 @@ static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum,
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                              int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(double *)sum = 0;
   *(double *)max = -FLT_MAX;
   *(double *)min = FLT_MAX;
@@ -4025,8 +4036,9 @@ static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, 
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                               int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(double *)sum = 0;
   *(double *)max = -DBL_MAX;
   *(double *)min = DBL_MAX;
@@ -4056,8 +4068,9 @@ static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum,
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                 int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = UINT8_MAX;
@@ -4087,8 +4100,9 @@ static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *su
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                      int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = UINT16_MAX;
@@ -4118,8 +4132,9 @@ static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                             int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = UINT32_MAX;
@@ -4149,8 +4164,9 @@ static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, i
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = UINT64_MAX;
@@ -4180,8 +4196,9 @@ static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = 0;
@@ -4216,7 +4233,90 @@ static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, int64_t *sum
   }
 }
 
-void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull) = {
+#define CALC_DECIMAL_SUM_MAX_MIN(TYPE, pSumOp, pCompOp, pColData, pSum, pMax, pMin)           \
+  do {                                                                                        \
+    if (decimal128AddCheckOverflow((Decimal *)pSum, pVal, DECIMAL_WORD_NUM(TYPE))) *pOverflow = true; \
+    pSumOp->add(pSum, pVal, DECIMAL_WORD_NUM(TYPE));                                                  \
+    if (pCompOp->gt(pVal, pMax, DECIMAL_WORD_NUM(TYPE))) {                                            \
+      *(pMax) = *pVal;                                                                        \
+    }                                                                                         \
+    if (pCompOp->lt(pVal, pMin, DECIMAL_WORD_NUM(TYPE))) {                                            \
+      *(pMin) = *pVal;                                                                        \
+    }                                                                                         \
+  } while (0)
+
+static FORCE_INLINE void tColDataCalcSMADecimal64Type(SColData* pColData, SColumnDataAgg* pAggs) {
+  Decimal128 *pSum = (Decimal128 *)pAggs->decimal128Sum;
+  Decimal64  *pMax = (Decimal64 *)pAggs->decimal128Max, *pMin = (Decimal64 *)pAggs->decimal128Min;
+  uint8_t *pOverflow = &pAggs->overflow;
+  *pSum = DECIMAL128_ZERO;
+  *pMax = DECIMAL64_MIN;
+  *pMin = DECIMAL64_MAX;
+  pAggs->numOfNull = 0;
+  pAggs->colId |= DECIMAL_AGG_FLAG;
+
+  Decimal64   *pVal = NULL;
+  const SDecimalOps *pSumOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  const SDecimalOps *pCompOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
+      pVal = ((Decimal64*)pColData->pData) + iVal;
+      CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pSumOps, pCompOps, pColData, pSum, pMax, pMin);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          pAggs->numOfNull++;
+          break;
+        case 2:
+          pVal = ((Decimal64 *)pColData->pData) + iVal;
+          CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pSumOps, pCompOps, pColData, pSum, pMax, pMin);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMADecimal128Type(SColData* pColData, SColumnDataAgg* pAggs) {
+  Decimal128 *pSum = (Decimal128 *)pAggs->decimal128Sum, *pMax = (Decimal128 *)pAggs->decimal128Max,
+             *pMin = (Decimal128 *)pAggs->decimal128Min;
+  uint8_t *pOverflow = &pAggs->overflow;
+  *pSum = DECIMAL128_ZERO;
+  *pMax = DECIMAL128_MIN;
+  *pMin = DECIMAL128_MAX;
+  pAggs->numOfNull = 0;
+  pAggs->colId |= DECIMAL_AGG_FLAG;
+
+  Decimal128        *pVal = NULL;
+  const SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
+      pVal = ((Decimal128*)pColData->pData) + iVal;
+      CALC_DECIMAL_SUM_MAX_MIN(Decimal128, pOps, pOps, pColData, pSum, pMax, pMin);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          pAggs->numOfNull++;
+          break;
+        case 2:
+          pVal = ((Decimal128*)pColData->pData) + iVal;
+          CALC_DECIMAL_SUM_MAX_MIN(Decimal128, pOps, pOps, pColData, pSum, pMax, pMin);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}
+
+void (*tColDataCalcSMA[])(SColData *pColData, SColumnDataAgg* pAggs) = {
     NULL,
     tColDataCalcSMABool,           // TSDB_DATA_TYPE_BOOL
     tColDataCalcSMATinyInt,        // TSDB_DATA_TYPE_TINYINT
@@ -4234,10 +4334,11 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     tColDataCalcSMAUBigInt,        // TSDB_DATA_TYPE_UBIGINT
     tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_JSON
     tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_VARBINARY
-    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_DECIMAL
+    tColDataCalcSMADecimal128Type, // TSDB_DATA_TYPE_DECIMAL
     tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_BLOB
     NULL,                          // TSDB_DATA_TYPE_MEDIUMBLOB
-    tColDataCalcSMAVarType         // TSDB_DATA_TYPE_GEOMETRY
+    tColDataCalcSMAVarType,         // TSDB_DATA_TYPE_GEOMETRY
+    tColDataCalcSMADecimal64Type,  // TSDB_DATA_TYPE_DECIMAL64
 };
 
 // SValueColumn ================================
@@ -4284,7 +4385,7 @@ int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value) {
       return code;
     }
   } else {
-    code = tBufferPut(&valCol->data, &value->val, tDataTypes[value->type].bytes);
+    code = tBufferPut(&valCol->data, VALUE_GET_DATUM(value, value->type), tDataTypes[value->type].bytes);
     if (code) return code;
   }
   valCol->numOfValues++;
@@ -4317,7 +4418,7 @@ int32_t tValueColumnUpdate(SValueColumn *valCol, int32_t idx, const SValue *valu
     }
     return tBufferPutAt(&valCol->data, offsets[idx], value->pData, value->nData);
   } else {
-    return tBufferPutAt(&valCol->data, idx * tDataTypes[valCol->type].bytes, &value->val,
+    return tBufferPutAt(&valCol->data, idx * tDataTypes[valCol->type].bytes, VALUE_GET_DATUM(value, valCol->type),
                         tDataTypes[valCol->type].bytes);
   }
   return 0;
@@ -4343,7 +4444,7 @@ int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value) {
     value->pData = (uint8_t *)tBufferGetDataAt(&valCol->data, offset);
   } else {
     SBufferReader reader = BUFFER_READER_INITIALIZER(idx * tDataTypes[value->type].bytes, &valCol->data);
-    TAOS_CHECK_RETURN(tBufferGet(&reader, tDataTypes[value->type].bytes, &value->val));
+    TAOS_CHECK_RETURN(tBufferGet(&reader, tDataTypes[value->type].bytes, VALUE_GET_DATUM(value, value->type)));
   }
   return 0;
 }
@@ -4676,4 +4777,46 @@ int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *outpu
 
   output->size += info->originalSize;
   return 0;
+}
+
+// handle all types, including var data
+void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len) {
+  if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) {
+    pVal->pData = pDatum;
+    pVal->nData = len;
+  } else {
+    switch (len) {
+      case sizeof(uint8_t):
+        pVal->val = *(uint8_t *)pDatum;
+        break;
+      case sizeof(uint16_t):
+        pVal->val = *(uint16_t *)pDatum;
+        break;
+      case sizeof(uint32_t):
+        pVal->val = *(uint32_t *)pDatum;
+        break;
+      case sizeof(uint64_t):
+        pVal->val = *(uint64_t *)pDatum;
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+void valueCloneDatum(SValue *pDst, const SValue *pSrc, int8_t type) {
+  if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) {
+    memcpy(pDst->pData, pSrc->pData, pSrc->nData);
+    pDst->nData = pSrc->nData;
+  } else {
+    pDst->val = pSrc->val;
+  }
+}
+void valueClearDatum(SValue *pVal, int8_t type) {
+  if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) {
+    taosMemoryFreeClear(pVal->pData);
+    pVal->nData = 0;
+  } else {
+    pVal->val = 0;
+  }
 }

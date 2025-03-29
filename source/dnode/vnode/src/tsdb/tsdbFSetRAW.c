@@ -17,7 +17,7 @@
 #include "tsdbFS2.h"
 
 // SFSetRAWWriter ==================================================
-typedef struct SFSetRAWWriter {
+struct SFSetRAWWriter {
   SFSetRAWWriterConfig config[1];
 
   struct {
@@ -28,7 +28,7 @@ typedef struct SFSetRAWWriter {
 
   // writer
   SDataFileRAWWriter *dataWriter;
-} SFSetRAWWriter;
+};
 
 int32_t tsdbFSetRAWWriterOpen(SFSetRAWWriterConfig *config, SFSetRAWWriter **writer) {
   int32_t code = 0;
@@ -74,11 +74,14 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
   int32_t code = 0;
   int32_t lino = 0;
 
+  SDiskID diskID = {0};
+  code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(bHdr->file.type), writer->config->expLevel, &diskID);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   SDataFileRAWWriterConfig config = {
       .tsdb = writer->config->tsdb,
       .szPage = writer->config->szPage,
       .fid = bHdr->file.fid,
-      .did = writer->config->did,
       .cid = bHdr->file.cid,
       .level = writer->config->level,
 
@@ -86,7 +89,7 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
           {
               .type = bHdr->file.type,
               .fid = bHdr->file.fid,
-              .did = writer->config->did,
+              .did = diskID,
               .cid = bHdr->file.cid,
               .size = bHdr->file.size,
               .minVer = bHdr->file.minVer,

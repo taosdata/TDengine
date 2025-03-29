@@ -43,7 +43,8 @@ TDengine supports `UNION ALL` and `UNION` operators. UNION ALL combines the resu
 | 9   |       LIKE          | BINARY, NCHAR, and VARCHAR                                               | Matches the specified pattern string with wildcard |
 | 10  |      NOT LIKE       | BINARY, NCHAR, and VARCHAR                                               | Does not match the specified pattern string with wildcard |
 | 11  |   MATCH, NMATCH     | BINARY, NCHAR, and VARCHAR                                               | Regular expression match   |
-| 12  |     CONTAINS        | JSON                                                                     | Whether a key exists in JSON |
+| 12  |   REGEXP, NOT REGEXP     | BINARY, NCHAR, and VARCHAR                                               | Regular expression match   |
+| 13  |     CONTAINS        | JSON                                                                     | Whether a key exists in JSON |
 
 LIKE conditions use wildcard strings for matching checks, with the following rules:
 
@@ -51,7 +52,7 @@ LIKE conditions use wildcard strings for matching checks, with the following rul
 - If you want to match an underscore character that is originally in the string, you can write it as \_ in the wildcard string, i.e., add a backslash to escape it.
 - The wildcard string cannot exceed 100 bytes in length. It is not recommended to use too long wildcard strings, as it may severely affect the performance of the LIKE operation.
 
-MATCH and NMATCH conditions use regular expressions for matching, with the following rules:
+MATCH/REGEXP and NMATCH/NOT REGEXP conditions use regular expressions for matching, with the following rules:
 
 - Supports regular expressions that comply with the POSIX standard, see Regular Expressions for specific standards.
 - When MATCH matches a regular expression, it returns TRUE. When NMATCH does not match a regular expression, it returns TRUE.

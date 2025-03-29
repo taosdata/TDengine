@@ -18,9 +18,9 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#include "executorInt.h"
+  #endif
+  
+  #include "executorInt.h"
 
 #define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
@@ -59,18 +59,25 @@ typedef struct STaskStopInfo {
 } STaskStopInfo;
 
 typedef struct {
-  STqOffsetVal         currentOffset;  // for tmq
-  SMqBatchMetaRsp      btMetaRsp;      // for tmq fetching meta
-  int8_t               sourceExcluded;
-  int64_t              snapshotVer;
-  SSchemaWrapper*      schema;
-  char                 tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
-  int8_t               recoverStep;
-  int8_t               recoverScanFinished;
-  SQueryTableDataCond  tableCond;
-  SVersionRange        fillHistoryVer;
-  STimeWindow          fillHistoryWindow;
-  SStreamState*        pState;
+  STqOffsetVal          currentOffset;  // for tmq
+  SMqBatchMetaRsp       btMetaRsp;      // for tmq fetching meta
+  int8_t                sourceExcluded;
+  int64_t               snapshotVer;
+  SSchemaWrapper*       schema;
+  char                  tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
+  int8_t                recoverStep;
+  int8_t                recoverScanFinished;
+  SQueryTableDataCond   tableCond;
+  SVersionRange         fillHistoryVer;
+  STimeWindow           fillHistoryWindow;
+  SStreamState*         pState;
+  SStreamState*         pOtherState;
+  int32_t               eventTypes;          // event types to notify
+  SSchemaWrapper*       notifyResultSchema;  // agg result to notify
+  char*                 stbFullName;         // used to generate dest child table name
+  bool                  newSubTableRule;     // used to generate dest child table name
+  STaskNotifyEventStat* pNotifyEventStat;    // used to store notify event statistics
+  SArray              * pVTables;            // used to store merge info for merge task, SArray<SVCTableMergeInfo>
 } SStreamTaskInfo;
 
 struct SExecTaskInfo {

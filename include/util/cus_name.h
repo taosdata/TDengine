@@ -20,7 +20,7 @@
 // support OEM
 //
 #ifndef TD_PRODUCT_NAME
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
 #define TD_PRODUCT_NAME "TDengine Enterprise Edition"
 #else
 #define TD_PRODUCT_NAME "TDengine Community Edition"

@@ -50,19 +50,19 @@ bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
 
 int32_t shellCheckIntSize() {
   if (sizeof(int8_t) != 1) {
-    printf("int8 size is %d(!= 1)", (int)sizeof(int8_t));
+    printf("int8 size is %d(!= 1)\r\n", (int)sizeof(int8_t));
     return -1;
   }
   if (sizeof(int16_t) != 2) {
-    printf("int16 size is %d(!= 2)", (int)sizeof(int16_t));
+    printf("int16 size is %d(!= 2)\r\n", (int)sizeof(int16_t));
     return -1;
   }
   if (sizeof(int32_t) != 4) {
-    printf("int32 size is %d(!= 4)", (int)sizeof(int32_t));
+    printf("int32 size is %d(!= 4)\r\n", (int)sizeof(int32_t));
     return -1;
   }
   if (sizeof(int64_t) != 8) {
-    printf("int64 size is %d(!= 8)", (int)sizeof(int64_t));
+    printf("int64 size is %d(!= 8)\r\n", (int)sizeof(int64_t));
     return -1;
   }
   return 0;
@@ -78,12 +78,15 @@ void shellGenerateAuth() {
 }
 
 void shellDumpConfig() {
-  SConfig *pCfg = taosGetCfg();
-  if (pCfg == NULL) {
-    printf("read global config failed!\r\n");
-  } else {
-    cfgDumpCfg(pCfg, 1, true);
+  (void)osDefaultInit();
+
+  if (taosInitCfg(configDirShell, NULL, NULL, NULL, NULL, 1) != 0) {
+    fprintf(stderr, "failed to load cfg since %s [0x%08X]\n", terrstr(), terrno);
+    return;
   }
+
+  cfgDumpCfg(taosGetCfg(), 1, true);
+
   fflush(stdout);
 }
 
@@ -121,46 +124,6 @@ void shellCheckServerStatus() {
     }
   } while (1);
 }
-#ifdef WEBSOCKET
-void shellCheckConnectMode() {
-	if (shell.args.dsn) {
-		shell.args.cloud = true;
-		shell.args.restful = false;
-		return;
-	}
-	if (shell.args.cloud) {
-		shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
-		if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
-			shell.args.cloud = true;
-      shell.args.local = false;
-			shell.args.restful = false;
-			return;
-		}
-
-    shell.args.dsn = getenv("TDENGINE_DSN");
-		if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
-			shell.args.cloud = true;
-      shell.args.local = true;
-			shell.args.restful = false;
-			return;
-		}
-
-		if (shell.args.restful) {
-			if (!shell.args.host) {
-				shell.args.host = "localhost";
-			}
-			if (!shell.args.port) {
-				shell.args.port = 6041;
-			}
-			shell.args.dsn = taosMemoryCalloc(1, 1024);
-			snprintf(shell.args.dsn, 1024, "ws://%s:%d",
-					shell.args.host, shell.args.port);
-		}
-		shell.args.cloud = false;
-		return;
-	}
-}
-#endif
 
 void shellExit() {
   if (shell.conn != NULL) {

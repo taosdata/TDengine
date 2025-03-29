@@ -40,7 +40,7 @@ int32_t createStreamTaskIter(SStreamObj *pStream, SStreamTaskIter **pIter) {
   (*pIter)->level = -1;
   (*pIter)->ordinalIndex = 0;
   (*pIter)->pStream = pStream;
-  (*pIter)->totalLevel = taosArrayGetSize(pStream->tasks);
+  (*pIter)->totalLevel = taosArrayGetSize(pStream->pTaskList);
   (*pIter)->pTask = NULL;
 
   return 0;
@@ -57,7 +57,7 @@ bool streamTaskIterNextTask(SStreamTaskIter *pIter) {
   }
 
   while (pIter->level < pIter->totalLevel) {
-    SArray *pList = taosArrayGetP(pIter->pStream->tasks, pIter->level);
+    SArray *pList = taosArrayGetP(pIter->pStream->pTaskList, pIter->level);
     if (pIter->ordinalIndex >= taosArrayGetSize(pList)) {
       pIter->level += 1;
       pIter->ordinalIndex = 0;
@@ -402,8 +402,8 @@ int32_t mndGetStreamTask(STaskId *pId, SStreamObj *pStream, SStreamTask **pTask)
 
 int32_t mndGetNumOfStreamTasks(const SStreamObj *pStream) {
   int32_t num = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pStream->tasks); ++i) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pStream->pTaskList); ++i) {
+    SArray *pLevel = taosArrayGetP(pStream->pTaskList, i);
     num += taosArrayGetSize(pLevel);
   }
 
@@ -1008,6 +1008,8 @@ static void mndShowStreamStatus(char *dst, int8_t status) {
     tstrncpy(dst, "recover", MND_STREAM_TRIGGER_NAME_SIZE);
   } else if (status == STREAM_STATUS__PAUSE) {
     tstrncpy(dst, "paused", MND_STREAM_TRIGGER_NAME_SIZE);
+  } else if (status == STREAM_STATUS__INIT) {
+    tstrncpy(dst, "init", MND_STREAM_TRIGGER_NAME_SIZE);
   }
 }
 
@@ -1121,7 +1123,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
   TSDB_CHECK_CODE(code, lino, _end);
 
   int8_t streamStatus = atomic_load_8(&pStream->status);
-  if (isPaused) {
+  if (isPaused && pStream->pTaskList != NULL) {
     streamStatus = STREAM_STATUS__PAUSE;
   }
   mndShowStreamStatus(status2, streamStatus);
@@ -1220,6 +1222,17 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
 
   code = colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  char msg[TSDB_RESERVE_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+  if (streamStatus == STREAM_STATUS__FAILED){
+    STR_TO_VARSTR(msg, pStream->reserve)
+  } else {
+    STR_TO_VARSTR(msg, " ")
+  }
+  code = colDataSetVal(pColInfo, numOfRows, (const char *)msg, false);
 
 _end:
   if (code) {
@@ -1294,6 +1307,8 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
     STR_WITH_SIZE_TO_VARSTR(level, "agg", 3);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     STR_WITH_SIZE_TO_VARSTR(level, "sink", 4);
+  } else if (pTask->info.taskLevel == TASK_LEVEL__MERGE) {
+    STR_WITH_SIZE_TO_VARSTR(level, "merge", 5);
   }
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1323,8 +1338,8 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
   TSDB_CHECK_CODE(code, lino, _end);
 
   // input queue
-  char        vbuf[40] = {0};
-  char        buf[38] = {0};
+  char        vbuf[TSDB_STREAM_NOTIFY_STAT_LEN + 2] = {0};
+  char        buf[TSDB_STREAM_NOTIFY_STAT_LEN] = {0};
   const char *queueInfoStr = "%4.2f MiB (%6.2f%)";
   snprintf(buf, tListLen(buf), queueInfoStr, pe->inputQUsed, pe->inputRate);
   STR_TO_VARSTR(vbuf, buf);
@@ -1516,6 +1531,47 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
 
   code = colDataSetVal(pColInfo, numOfRows, 0, true);
   TSDB_CHECK_CODE(code, lino, _end);
+
+  // notify_event_stat
+  int32_t offset =0;
+  if (pe->notifyEventStat.notifyEventAddTimes > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "Add %" PRId64 "x, %" PRId64 " elems in %lfs; ",
+                        pe->notifyEventStat.notifyEventAddTimes, pe->notifyEventStat.notifyEventAddElems,
+                        pe->notifyEventStat.notifyEventAddCostSec);
+  }
+  if (pe->notifyEventStat.notifyEventPushTimes > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "Push %" PRId64 "x, %" PRId64 " elems in %lfs; ",
+                        pe->notifyEventStat.notifyEventPushTimes, pe->notifyEventStat.notifyEventPushElems,
+                        pe->notifyEventStat.notifyEventPushCostSec);
+  }
+  if (pe->notifyEventStat.notifyEventPackTimes > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "Pack %" PRId64 "x, %" PRId64 " elems in %lfs; ",
+                        pe->notifyEventStat.notifyEventPackTimes, pe->notifyEventStat.notifyEventPackElems,
+                        pe->notifyEventStat.notifyEventPackCostSec);
+  }
+  if (pe->notifyEventStat.notifyEventSendTimes > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "Send %" PRId64 "x, %" PRId64 " elems in %lfs; ",
+                        pe->notifyEventStat.notifyEventSendTimes, pe->notifyEventStat.notifyEventSendElems,
+                        pe->notifyEventStat.notifyEventSendCostSec);
+  }
+  if (pe->notifyEventStat.notifyEventHoldElems > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "[Hold %" PRId64 " elems] ",
+                        pe->notifyEventStat.notifyEventHoldElems);
+  }
+  TSDB_CHECK_CONDITION(offset < sizeof(buf), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  buf[offset] = '\0';
+
+  STR_TO_VARSTR(vbuf, buf);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+
+  if (offset == 0) {
+    colDataSetNULL(pColInfo, numOfRows);
+  } else {
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
 
 _end:
   if (code) {

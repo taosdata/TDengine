@@ -35,7 +35,7 @@ int32_t schedulerInit() {
   schMgmt.cfg.schPolicy = SCHEDULE_DEFAULT_POLICY;
   schMgmt.cfg.enableReSchedule = false;
 
-  qDebug("schedule init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
+  qInfo("scheduler init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
     schMgmt.cfg.schPolicy, schMgmt.cfg.maxNodeTableNum, schMgmt.cfg.enableReSchedule);
 
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
@@ -56,13 +56,13 @@ int32_t schedulerInit() {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  qInfo("scheduler 0x%" PRIx64 " initialized, maxJob:%u", getClientId(), schMgmt.cfg.maxJobNum);
+  qInfo("scheduler initialized, maxJob:%u, clientId:0x%" PRIx64, schMgmt.cfg.maxJobNum, getClientId());
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
-  qDebug("scheduler %s exec job start", pReq->syncReq ? "SYNC" : "ASYNC");
+  qDebug("QID:0x%" PRIx64 ", scheduler job will start, exec:%s", pReq->pConn->requestId, pReq->syncReq ? "SYNC" : "ASYNC");
 
   int32_t  code = 0;
   SSchJob *pJob = NULL;
@@ -111,7 +111,7 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
       SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
       if (NULL == pTask) {
-        qError("failed to get task %d, total: %d", m, pLevel->taskNum);
+        qError("failed to get task %d, total:%d", m, pLevel->taskNum);
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
 
@@ -120,7 +120,7 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
       TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
 
       if (NULL == taosArrayPush(pSub, &subDesc)) {
-        qError("taosArrayPush task %d failed, error: %x, ", m, terrno);
+        qError("taosArrayPush task %d failed, error:0x%x", m, terrno);
         SCH_ERR_JRET(terrno);
       }
     }
@@ -168,11 +168,11 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
   SSchJob *pJob = NULL;
   (void)schAcquireJob(*jobId, &pJob);
   if (NULL == pJob) {
-    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
+    qTrace("jobId:0x%" PRIx64 ", acquire sch job failed, may be dropped", *jobId);
     return;
   }
 
-  SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", code:%s", *jobId, tstrerror(errCode));
+  SCH_JOB_TLOG("jobId:0x%" PRIx64 ", start to free, code:%s", *jobId, tstrerror(errCode));
   (void)schHandleJobDrop(pJob, errCode); // ignore any error
 
   int32_t released = false;
@@ -225,7 +225,7 @@ int32_t schedulerValidatePlan(SQueryPlan* pPlan) {
   int32_t code = TSDB_CODE_SUCCESS;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
-    qError("QID:0x%" PRIx64 " calloc %d failed", pPlan->queryId, (int32_t)sizeof(SSchJob));
+    qError("QID:0x%" PRIx64 ", calloc %d failed", pPlan->queryId, (int32_t)sizeof(SSchJob));
     SCH_ERR_RET(terrno);
   }
 

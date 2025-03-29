@@ -72,6 +72,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2
 #define TD_FILE_ACCESS_WRITE_OK 0x4
+#define TD_FILE_ACCESS_EXEC_OK  0x8
 
 #define TD_TMP_FILE_PREFIX "tdengine-"
 
@@ -129,7 +130,8 @@ size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *strea
 int    taosCloseCFile(FILE *);
 int    taosSetAutoDelFile(char *path);
 
-bool lastErrorIsFileNotExist();
+FILE   *taosOpenFileForStream(const char *path, int32_t tdFileOptions);
+bool    lastErrorIsFileNotExist();
 
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \

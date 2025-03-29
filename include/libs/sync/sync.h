@@ -293,8 +293,9 @@ int32_t   syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg);
 int32_t syncUpdateArbTerm(int64_t rid, SyncTerm arbTerm);
 
 SSyncState  syncGetState(int64_t rid);
+void        syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex);
 int32_t     syncGetArbToken(int64_t rid, char* outToken);
-int32_t     syncGetAssignedLogSynced(int64_t rid);
+int32_t     syncCheckSynced(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 const char* syncStr(ESyncState state);
 

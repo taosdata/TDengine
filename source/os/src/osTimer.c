@@ -75,7 +75,9 @@ void taos_block_sigalrm(void) {
 }
 
 #else
+#ifndef TD_ASTRA
 #include <sys/syscall.h>
+#endif
 #include <unistd.h>
 
 static void taosDeleteTimer(void *tharg) {
@@ -87,6 +89,8 @@ static TdThread      timerThread;
 static timer_t       timerId;
 static volatile bool stopTimer = false;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 static void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
@@ -102,6 +106,8 @@ static void *taosProcessAlarmSignal(void *tharg) {
 #ifdef _ALPINE
   sevent.sigev_notify = SIGEV_THREAD_ID;
   sevent.sigev_notify_thread_id = syscall(__NR_gettid);
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  sevent.sigev_notify = SIGEV_THREAD;
 #else
   sevent.sigev_notify = SIGEV_THREAD_ID;
   sevent._sigev_un._tid = syscall(__NR_gettid);
@@ -110,8 +116,8 @@ static void *taosProcessAlarmSignal(void *tharg) {
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-     terrno = TAOS_SYSTEM_ERROR(errno);
-     return NULL;
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return NULL;
   }
 
   taosThreadCleanupPush(taosDeleteTimer, &timerId);
@@ -124,11 +130,11 @@ static void *taosProcessAlarmSignal(void *tharg) {
     ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
 
     if (-1 == timer_settime(timerId, 0, &ts, NULL)) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       break;
     }
 
-    int signo;
+    int     signo;
     int32_t code = 0;
     while (!stopTimer) {
       code = sigwait(&sigset, &signo);
@@ -145,6 +151,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
 
   return NULL;
 }
+#pragma GCC diagnostic pop
 #endif
 
 int taosInitTimer(void (*callback)(int), int ms) {

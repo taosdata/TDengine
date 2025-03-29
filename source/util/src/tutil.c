@@ -278,7 +278,7 @@ char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   return string;
 }
 
-int64_t strnatoi(char *num, int32_t len) {
+int64_t strnatoi(const char *num, int32_t len) {
   int64_t ret = 0, i, dig, base = 1;
 
   if (len > (int32_t)strlen(num)) {
@@ -488,9 +488,9 @@ size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rs
 int32_t parseCfgReal(const char *str, float *out) {
   float val;
   char  *endPtr;
-  errno = 0;
+  SET_ERRNO(0);
   val = taosStr2Float(str, &endPtr);
-  if (str == endPtr || errno == ERANGE || isnan(val)) {
+  if (str == endPtr || ERRNO == ERANGE || isnan(val)) {
     return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;

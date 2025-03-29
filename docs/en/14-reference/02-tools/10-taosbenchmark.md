@@ -188,8 +188,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 The parameters listed in this section apply to all functional modes.
 
-- **filetype**: The function to test, possible values are `insert`, `query`, and `subscribe`. Corresponding to insert, query, and subscribe functions. Only one can be specified in each configuration file.
+- **filetype**: The function to test, possible values are `insert`, `query`, `subscribe` and `csvfile`. Corresponding to insert, query, subscribe and generate csv file functions. Only one can be specified in each configuration file.
+
 - **cfgdir**: Directory where the TDengine client configuration file is located, default path is /etc/taos.
+
+- **output_dir**: The directory specified for output files. When the feature category is csvfile, it refers to the directory where the generated csv files will be saved. The default value is ./output/.
 
 - **host**: Specifies the FQDN of the TDengine server to connect to, default value is localhost.
 
@@ -283,6 +286,27 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **repeat_ts_max** : Numeric type, when composite primary key is enabled, specifies the maximum number of records with the same timestamp to be generated
 - **sqls** : Array of strings type, specifies the array of sql to be executed after the supertable is successfully created, the table name specified in sql must be prefixed with the database name, otherwise an unspecified database error will occur
 
+- **csv_file_prefix**: String type, sets the prefix for the names of the generated csv files. Default value is "data".
+
+- **csv_ts_format**: String type, sets the format of the time string in the names of the generated csv files, following the `strftime` format standard. If not set, files will not be split by time intervals. Supported patterns include:
+  - %Y: Year as a four-digit number (e.g., 2025)
+  - %m: Month as a two-digit number (01 to 12)
+  - %d: Day of the month as a two-digit number (01 to 31)
+  - %H: Hour in 24-hour format as a two-digit number (00 to 23)
+  - %M: Minute as a two-digit number (00 to 59)
+  - %S: Second as a two-digit number (00 to 59)
+
+- **csv_ts_interval**: String type, sets the time interval for splitting generated csv file names. Supports daily, hourly, minute, and second intervals such as 1d/2h/30m/40s. The default value is "1d".
+
+- **csv_output_header**: String type, sets whether the generated csv files should contain column header descriptions. The default value is "yes".
+
+- **csv_tbname_alias**: String type, sets the alias for the tbname field in the column header descriptions of csv files. The default value is "device_id".
+
+- **csv_compress_level**: String type, sets the compression level for generating csv-encoded data and automatically compressing it into gzip file. This process directly encodes and compresses the data, rather than first generating a csv file and then compressing it. Possible values are:
+  - none: No compression
+  - fast: gzip level 1 compression
+  - balance: gzip level 6 compression
+  - best: gzip level 9 compression
 
 #### Tag and Data Columns
 
@@ -297,11 +321,17 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **name**: The name of the column, if used with count, for example "name": "current", "count":3, then the names of the 3 columns are current, current_2, current_3 respectively.
 
-- **min**: The minimum value for the data type of the column/tag. Generated values will be greater than or equal to the minimum value.
+- **min**: Float type, the minimum value for the data type of the column/tag. Generated values will be greater than or equal to the minimum value.
 
-- **max**: The maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
+- **max**: Float type, the maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
 
-- **scalingFactor**: Floating-point precision enhancement factor, only effective when the data type is float/double, valid values range from 1 to 1000000 positive integers. Used to enhance the precision of generated floating points, especially when min or max values are small. This attribute enhances the precision after the decimal point by powers of 10: a scalingFactor of 10 means enhancing the precision by 1 decimal place, 100 means 2 places, and so on.
+- **dec_min**: String type, specifies the minimum value for a column of the DECIMAL data type. This field is used when min cannot express sufficient precision. The generated values will be greater than or equal to the minimum value.
+
+- **dec_max**: String type, specifies the maximum value for a column of the DECIMAL data type. This field is used when max cannot express sufficient precision. The generated values will be less than the maximum value.
+
+- **precision**: The total number of digits (including digits before and after the DECIMAL point), applicable only to the DECIMAL type, with a valid range of 0 to 38. 
+
+- **scale**: The number of digits to the right of the decimal point. For the FLOAT type, the scale's valid range is 0 to 6; for the DOUBLE type, the range is 0 to 15; and for the DECIMAL type, the scale's valid range is 0 to its precision value.
 
 - **fun**: This column data is filled with functions, currently only supports sin and cos functions, input parameters are converted from timestamps to angle values, conversion formula: angle x = input time column ts value % 360. Also supports coefficient adjustment, random fluctuation factor adjustment, displayed in a fixed format expression, such as fun="10*sin(x)+100*random(5)", x represents the angle, ranging from 0 ~ 360 degrees, the increment step is consistent with the time column step. 10 represents the multiplication coefficient, 100 represents the addition or subtraction coefficient, 5 represents the fluctuation amplitude within a 5% random range. Currently supports int, bigint, float, double four data types. Note: The expression is in a fixed pattern and cannot be reversed.
 
@@ -355,6 +385,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 `query_times` specifies the number of times to run the query, numeric type.
 
+**Note: from version 3.3.5.6 and beyond, simultaneous configuration for `specified_table_query` and `super_table_query` in a JSON file is no longer supported **
 
 For other common parameters, see [General Configuration Parameters](#general-configuration-parameters)
 
@@ -455,6 +486,7 @@ For the following parameters, see the description of [Subscription](../../../adv
 | 16  |  VARBINARY         |    varbinary
 | 17  |  GEOMETRY          |    geometry
 | 18  |  JSON              |    json
+| 19  |  DECIMAL           |    decimal
 
 Note: Data types in the taosBenchmark configuration file must be in lowercase to be recognized.
 
@@ -484,6 +516,15 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
+<details>
+<summary>queryStb.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
+```
+
+</details>
+
 #### Subscription Example
 
 <details>
@@ -491,6 +532,17 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/tmq.json}}
+```
+
+</details>
+
+### Export CSV File Example
+
+<details>
+<summary>csv-export.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

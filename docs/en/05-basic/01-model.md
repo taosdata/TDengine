@@ -79,6 +79,19 @@ To better understand the relationship between metrics, tags, supertables, and su
 <figcaption>Figure 1. The TDengine data model</figcaption>
 </figure>
 
+### Virtual Tables
+
+The design of "one table per data collection point" and "supertables" addresses most challenges in time-series data management and analysis for industrial and IoT scenarios. However, in real-world scenarios, a single device often has multiple sensors with varying collection frequencies. For example, a wind turbine may have electrical parameters, environmental parameters, and mechanical parameters, each collected by different sensors at different intervals. This makes it difficult to describe a device with a single table, often requiring multiple tables. When analyzing data across multiple sensors, multi-level join queries become necessary, which can lead to usability and performance issues. From a user perspective, "one table per device" is more intuitive. However, directly implementing this model would result in excessive NULL values at each timestamp due to varying collection frequencies, reducing storage and query efficiency.
+
+To resolve this, TDengine introduces **Virtual Tables** (VTables). A virtual table is a logical entity that does not store physical data but enables analytical computations by dynamically combining columns from multiple source tables (subtables or regular tables). Like physical tables, virtual tables can be categorized into **virtual supertables**, **virtual subtables**, and **virtual regular tables**. A virtual supertable can represent a complete dataset for a device or group of devices, while each virtual subtable can flexibly reference columns from different sources. This allows users to define custom data views tailored to specific analytical needs, achieving a "personalized schema per user" effect. Virtual tables cannot be written to or deleted from but are queried like physical tables. The key distinction is that virtual table data is dynamically generated during queries—only columns referenced in a query are merged into the virtual table. Thus, the same virtual table may present entirely different datasets across different queries.
+
+**Key Features of Virtual Supertables:**
+1. **Column Selection & Merging**: Users can select specific columns from multiple source tables and combine them into a unified view.
+2. **Timestamp-Based Alignment**: Data is aligned by timestamp. If multiple tables have data at the same timestamp, their column values are merged into a single row. Missing values are filled with NULL.
+3. **Dynamic Updates**: Virtual tables automatically reflect changes in source tables, ensuring real-time data without physical storage.
+
+By introducing virtual tables, TDengine simplifies the management of complex device data. Regardless of how individual collection points are modeled (single-column or multi-column) or distributed across databases/tables, users can freely define data sources through virtual supertables. This enables cross-collection-point aggregation and analysis, making "one table per device" a practical reality.
+
 ### Database
 
 A database in TDengine is used to manage a collection of tables. TDengine allows a running instance to contain multiple databases, and each database can be configured with different storage strategies. Since different types of data collection points usually have different data characteristics, such as data collection frequency, data retention period, number of replicas, data block size, etc., it is recommended to create supertables with different data characteristics in different databases.
@@ -226,3 +239,301 @@ TDengine supports flexible data model designs, including multi-column and single
 Although TDengine recommends using the multi-column model because it generally offers better writing and storage efficiency, the single-column model might be more suitable in certain specific scenarios. For example, if the types of quantities collected at a data collection point frequently change, using a multi-column model would require frequent modifications to the supertable's structural definition, increasing the complexity of the application. In such cases, using a single-column model can simplify the design and management of the application, as it allows independent management and expansion of each physical quantity's supertable.
 
 Overall, TDengine offers flexible data model options, allowing users to choose the most suitable model based on actual needs and scenarios to optimize performance and manage complexity.
+
+### Creating Virtual Tables
+
+Whether using single-column or multi-column models, TDengine enables cross-table operations through virtual tables. Using smart meters as an example, here we introduce two typical use cases for virtual tables:
+
+1. Single-Source Multi-Dimensional Time-Series Aggregation
+2. Cross-Source Metric Comparative Analysis
+
+---
+
+#### 1. Single-Source Multi-Dimensional Time-Series Aggregation
+In this scenario, "single-source" refers to multiple **single-column time-series tables** from the **same data collection point**. While these tables are physically split due to business requirements or constraints, they maintain logical consistency through device tags and timestamps. Virtual tables restore "vertically" split data into a complete "horizontal" view of the collection point.
+For example, Suppose three supertables are created for current, voltage, and phase measurements using a single-column model. Virtual tables can aggregate these three measurements into one unified view.
+
+The SQL statement for creating a supertable in the single-column model is as follows:
+
+```sql
+
+CREATE STABLE current_stb (
+    ts timestamp, 
+    current float
+) TAGS (
+    device_id varchar(64),
+    location varchar(64), 
+    group_id int
+);
+
+CREATE STABLE voltage_stb (
+    ts timestamp, 
+    voltage int
+) TAGS (
+    device_id varchar(64),
+    location varchar(64), 
+    group_id int
+);
+ 
+CREATE STABLE phase_stb (
+    ts timestamp, 
+    phase float
+) TAGS (
+    device_id varchar(64),
+    location varchar(64), 
+    group_id int
+);
+```
+
+Assume there are four devices: d1001, d1002, d1003, and d1004. To create subtables for their current, voltage, and phase measurements, use the following SQL statements:
+
+```sql
+create table current_d1001 using current_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table current_d1002 using current_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table current_d1003 using current_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table current_d1004 using current_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+
+create table voltage_d1001 using voltage_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table voltage_d1002 using voltage_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table voltage_d1003 using voltage_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table voltage_d1004 using voltage_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+
+create table phase_d1001 using phase_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table phase_d1002 using phase_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table phase_d1003 using phase_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table phase_d1004 using phase_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+```
+
+A virtual supertable can be used to aggregate these three types of measurements into a single table. The SQL statement to create the virtual supertable is as follows:
+
+```sql
+CREATE STABLE meters_v (
+    ts timestamp, 
+    current float, 
+    voltage int, 
+    phase float
+) TAGS (
+    location varchar(64), 
+    group_id int
+) VIRTUAL 1;
+```
+
+For the four devices d1001, d1002, d1003, and d1004, create virtual subtables with the following SQL statements:
+
+```sql
+CREATE VTABLE d1001_v (
+    current from current_d1001.current,
+    voltage from voltage_d1001.voltage, 
+    phase from phase_d1001.phase
+) 
+USING meters_v 
+TAGS (
+    "California.SanFrancisco", 
+    2
+);
+       
+CREATE VTABLE d1002_v (
+    current from current_d1002.current,
+    voltage from voltage_d1002.voltage, 
+    phase from phase_d1002.phase
+) 
+USING meters_v 
+TAGS (
+    "California.SanFrancisco", 
+    3
+);
+       
+CREATE VTABLE d1003_v (
+    current from current_d1003.current,
+    voltage from voltage_d1003.voltage, 
+    phase from phase_d1003.phase
+) 
+USING meters_v 
+TAGS (
+    "California.LosAngeles", 
+    3
+);
+       
+CREATE VTABLE d1004_v (
+    current from current_d1004.current,
+    voltage from voltage_d1004.voltage, 
+    phase from phase_d1004.phase
+) 
+USING meters_v 
+TAGS (
+    "California.LosAngeles", 
+    2
+);
+```
+
+Taking device d1001 as an example, assume that the current, voltage, and phase data of device d1001 are as follows:
+
+<table>
+    <tr>
+        <th colspan="2" align="center">current_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">voltage_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">phase_d1001</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Voltage</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Phase</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">219</td>
+        <td align="center">1538548685000</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">218</td>
+        <td align="center">1538548695000</td>
+        <td align="center">0.33</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">221</td>
+        <td align="center">1538548696800</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697100</td>
+        <td align="center">220</td>
+        <td align="center">1538548697200</td>
+        <td align="center">0.32</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697800</td>
+        <td align="center">222</td>
+        <td align="center">1538548697800</td>
+        <td align="center">0.33</td>
+    </tr>
+</table>
+
+| Timestamp         | Current | Voltage | Phase |
+|-------------------|---------|---------|-------|
+| 1538548685000     | 10.3    | 219     | 0.31  |
+| 1538548695000     | 12.6    | 218     | 0.33  |
+| 1538548696800     | 12.3    | 221     | 0.31  |
+| 1538548697100     | 12.1    | 220     | NULL  |
+| 1538548697200     | NULL    | NULL    | 0.32  |
+| 1538548697700     | 11.8    | NULL    | NULL  |
+| 1538548697800     | NULL    | 222     | 0.33  |
+
+---
+
+#### 2. Cross-Source Metric Comparative Analysis
+In this scenario, "cross-source" refers to data from **different data collection points**. Virtual tables align and merge semantically comparable measurements from multiple devices for comparative analysis.
+For example, Compare current measurements across devices `d1001`, `d1002`, `d1003`, and `d1004`. The SQL statement to create the virtual table is as follows:
+
+```sql
+CREATE VTABLE current_v (
+    ts TIMESTAMP,
+    d1001_current FLOAT FROM current_d1001.current,
+    d1002_current FLOAT FROM current_d1002.current, 
+    d1003_current FLOAT FROM current_d1003.current,
+    d1004_current FLOAT FROM current_d1004.current
+);
+```
+
+Assume that the current data of devices d1001, d1002, d1003, and d1004 are as follows:
+
+<table>
+    <tr>
+        <th colspan="2" align="center">d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1002</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1003</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1004</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.7</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.2</td>
+        <td align="center">1538548685000</td>
+        <td align="center">12.4</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.9</td>
+        <td align="center">1538548695000</td>
+        <td align="center">10.8</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.3</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.4</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">10.1</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">12.2</td>
+        <td align="center">1538548697100</td>
+        <td align="center">11.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">11.7</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697700</td>
+        <td align="center">11.4</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.6</td>
+    </tr>
+</table>
+
+The virtual table `current_v` aligns current data by timestamp:
+
+| Timestamp         | d1001_current | d1002_current | d1003_current | d1004_current |
+|-------------------|---------------|---------------|---------------|---------------|
+| 1538548685000     | 10.3          | 11.7          | 11.2          | 12.4          |
+| 1538548695000     | 12.6          | 11.9          | 10.8          | 11.3          |
+| 1538548696800     | 12.3          | 12.4          | 12.3          | 10.1          |
+| 1538548697100     | 12.1          | NULL          | 11.1          | NULL          |
+| 1538548697200     | NULL          | 12.2          | NULL          | 11.7          |
+| 1538548697700     | 11.8          | 11.4          | NULL          | NULL          |
+| 1538548697800     | NULL          | NULL          | 12.1          | 12.6          |

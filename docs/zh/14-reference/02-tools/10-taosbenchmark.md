@@ -25,7 +25,7 @@ taosBenchmark
 ```
 
 在无参数运行时，taosBenchmark 默认连接 `/etc/taos/taos.cfg` 中指定的 TDengine 集群。 
-连接成功后，会默认创建智能电表示例数据库 test，创建超级表 meters, 创建子表 1 万，每子写入数据 1 万条，若 test 库已存在，默认会先删再建。 
+连接成功后，会默认创建智能电表示例数据库 test，创建超级表 meters，创建子表 1 万，每子写入数据 1 万条，若 test 库已存在，默认会先删再建。 
 
 ### 命令行模式
 
@@ -58,22 +58,22 @@ taosBenchmark -f <json file>
 | -p/--password \<passwd>      | 用于连接 TDengine 服务端的密码，默认值为 taosdata |
 | -o/--output \<file>          | 结果输出文件的路径，默认值为 ./output.txt |
 | -T/--thread \<threadNum>     | 插入数据的线程数量，默认为 8  |
-| -B/--interlace-rows \<rowNum>        |启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入 |
+| -B/--interlace-rows \<rowNum>        |启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入 |
 | -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用 |意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
 | -r/--rec-per-req \<rowNum>           | 每次向 TDengine 请求写入的数据行数，默认值为 30000  |
 | -t/--tables \<tableNum>              | 指定子表的数量，默认为 10000  |
 | -S/--timestampstep \<stepLength>     | 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1 |
 | -n/--records \<recordNum>            | 每个子表插入的记录数，默认值为 10000  |
 | -d/--database \<dbName>              | 所使用的数据库的名称，默认值为 test  |
-| -b/--data-type \<colType>            | 指定超级表普通列数据类型, 多个使用逗号分隔，默认值："FLOAT,INT,FLOAT" 如：`taosBenchmark -b "FLOAT,BINARY(8),NCHAR(16)"`|
+| -b/--data-type \<colType>            | 指定超级表普通列数据类型，多个使用逗号分隔，默认值："FLOAT,INT,FLOAT" 如：`taosBenchmark -b "FLOAT,BINARY(8),NCHAR(16)"`|
 | -A/--tag-type  \<tagType>            | 指定超级表标签列数据类型，多个使用逗号分隔，默认值："INT,BINARY(24)"  如：`taosBenchmark -A "INT,BINARY(8),NCHAR(8)"`|
-| -l/--columns \<colNum>               | 超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如：`-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`  |
+| -l/--columns \<colNum>               | 超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT，例如  `-l 5 -b float,double`，那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如：`-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT`  |
 | -L/--partial-col-num \<colNum>       | 指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据 |
 | -w/--binwidth \<length>          | nchar 和 binary 类型的默认长度，默认值为 64 |
 | -m/--table-prefix \<tablePrefix> | 子表名称的前缀，默认值为 "d" |
 | -E/--escape-character            | 开关参数，指定在超级表和子表名称中是否使用转义字符。默认值为不使用 |
 | -C/--chinese                     | 开关参数，指定 nchar 和 binary 是否使用 Unicode 中文字符。默认值为不使用 |
-| -N/--normal-table                | 开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc, stmt, rest 模式下可以使用 |
+| -N/--normal-table                | 开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc、stmt、rest 模式下可以使用 |
 | -M/--random                      | 开关参数，插入数据为生成的随机值。默认值为 false。若配置此参数，则随机生成要插入的数据。对于数值类型的 标签列/数据列，其值为该类型取值范围内的随机值。对于 NCHAR 和 BINARY 类型的 标签列/数据列，其值为指定长度范围内的随机字符串 |
 | -x/--aggr-func                   | 开关参数，指示插入后查询聚合函数。默认值为 false |
 | -y/--answer-yes                  | 开关参数，要求用户在提示后确认才能继续 |默认值为 false 。
@@ -93,14 +93,17 @@ taosBenchmark -f <json file>
 
 本节所列参数适用于所有功能模式。
 
-- **filetype**：功能分类，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
+- **filetype**：功能分类，可选值为 `insert`、`query`、`subscribe` 和 `csvfile`。分别对应插入、查询、订阅和生成 csv 文件功能。每个配置文件中只能指定其中之一。
+
 - **cfgdir**：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
+
+- **output_dir**：指定输出文件的目录，当功能分类是 `csvfile` 时，指生成的 csv 文件的保存目录，默认值为 ./output/ 。
 
 - **host**：指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost 。
 
 - **port**：要连接的 TDengine 服务器的端口号，默认值为 6030 。
 
-- **user**：用于连接 TDengine 服务端的用户名，默认为 root 。
+- **user**：用于连接 TDengine 服务端的用户名，默认值为 root 。
 
 - **password**：用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
@@ -115,9 +118,9 @@ taosBenchmark -f <json file>
  
 - **continue_if_fail**：允许用户定义失败后行为。
 
-  “continue_if_fail”：“no”, 失败 taosBenchmark 自动退出，默认行为。
-  “continue_if_fail”：“yes”, 失败 taosBenchmark 警告用户，并继续写入。
-  “continue_if_fail”：“smart”, 如果子表不存在失败，taosBenchmark 会建立子表并继续写入。
+  “continue_if_fail”：“no”，失败 taosBenchmark 自动退出，默认行为。
+  “continue_if_fail”：“yes”，失败 taosBenchmark 警告用户，并继续写入。
+  “continue_if_fail”：“smart”，如果子表不存在失败，taosBenchmark 会建立子表并继续写入。
 
 #### 数据库相关
 
@@ -125,7 +128,7 @@ taosBenchmark -f <json file>
 
 - **name**：数据库名。
 
-- **drop**：数据库已存在时是否删除，可选项为 "yes" 或 "no", 默认为 “yes” 。
+- **drop**：数据库已存在时是否删除，可选项为 "yes" 或 "no"，默认为 “yes” 。
 
 #### 超级表相关
 
@@ -141,17 +144,17 @@ taosBenchmark -f <json file>
 
 - **escape_character**：超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no" 。
 
-- **auto_create_table**：仅当 insert_mode 为 taosc, rest, stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
+- **auto_create_table**：仅当 insert_mode 为 taosc、rest、stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num**：创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
 - **data_source**：数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"。为 "sample" 时使用 sample_file 参数指定的文件内的数据。
 
-- **insert_mode**：插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc 。
+- **insert_mode**：插入模式，可选项有 taosc、rest、stmt、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc 。
 
 - **non_stop_mode**：指定是否持续写入，若为 "yes" 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。默认值为 "no"，即写入指定数量的记录后停止。注：即使在持续写入模式下 insert_rows 失效，但其也必须被配置为一个非零正整数。
 
-- **line_protocol**：使用行协议插入数据，仅当 insert_mode 为 sml 或 sml-rest 时生效，可选项为 line, telnet, json 。
+- **line_protocol**：使用行协议插入数据，仅当 insert_mode 为 sml 或 sml-rest 时生效，可选项为 line、telnet、json 。
 
 - **tcp_transfer**：telnet 模式下的通信协议，仅当 insert_mode 为 sml-rest 并且 line_protocol 为 telnet 时生效。如果不配置，则默认为 http 协议。
 
@@ -161,11 +164,11 @@ taosBenchmark -f <json file>
 
 - **childtable_limit**：仅当 child_table_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
 
-- **interlace_rows**：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
+- **interlace_rows**：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入。
 
 - **insert_interval**：指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
 
-- **partial_col_num**：若该值为正数 n 时， 则仅向前 n 列写入，仅当 insert_mode 为 taosc 和 rest 时生效，如果 n 为 0 则是向全部列写入。
+- **partial_col_num**：若该值为正数 n 时，则仅向前 n 列写入，仅当 insert_mode 为 taosc 和 rest 时生效，如果 n 为 0 则是向全部列写入。
 
 - **disorder_ratio**：指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
@@ -179,15 +182,39 @@ taosBenchmark -f <json file>
 
 - **sample_file**：指定 csv 格式的文件作为数据源，仅当 data_source 为 sample 时生效。若 csv 文件内的数据行数小于等于 prepared_rand，那么会循环读取 csv 文件数据直到与 prepared_rand 相同；否则则会只读取 prepared_rand 个数的行的数据。也即最终生成的数据行数为二者取小。
 
-- **use_sample_ts**：仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。若设置为 yes， 则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
+- **use_sample_ts**：仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。若设置为 yes，则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
 
-- **tags_file**：仅当 insert_mode 为 taosc, rest 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
+- **tags_file**：仅当 insert_mode 为 taosc，rest 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
 
-- **primary_key**：指定超级表是否有复合主键，取值 1 和 0， 复合主键列只能是超级表的第二列，指定生成复合主键后要确保第二列符合复合主键的数据类型，否则会报错。
-- **repeat_ts_min**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最小个数，生成相同时间戳记录的个数是在范围[repeat_ts_min, repeat_ts_max] 内的随机值, 最小值等于最大值时为固定个数。
+- **primary_key**：指定超级表是否有复合主键，取值 1 和 0，复合主键列只能是超级表的第二列，指定生成复合主键后要确保第二列符合复合主键的数据类型，否则会报错。
+
+- **repeat_ts_min**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最小个数，生成相同时间戳记录的个数是在范围[repeat_ts_min, repeat_ts_max] 内的随机值，最小值等于最大值时为固定个数。
+
 - **repeat_ts_max**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最大个数。
+
 - **sqls**：字符串数组类型，指定超级表创建成功后要执行的 sql 数组，sql 中指定表名前面要带数据库名，否则会报未指定数据库错误。
 
+- **csv_file_prefix**：字符串类型，设置生成的 csv 文件名称的前缀，默认值为 data 。
+
+- **csv_ts_format**：字符串类型，设置生成的 csv 文件名称中时间字符串的格式，格式遵循 `strftime` 格式标准，如果没有设置表示不按照时间段切分文件。支持的模式有：
+  - %Y: 年份，四位数表示（例如：2025）
+  - %m: 月份，两位数表示（01到12）
+  - %d: 一个月中的日子，两位数表示（01到31）
+  - %H: 小时，24小时制，两位数表示（00到23）
+  - %M: 分钟，两位数表示（00到59）
+  - %S: 秒，两位数表示（00到59）
+
+- **csv_ts_interval**：字符串类型，设置生成的 csv 文件名称中时间段间隔，支持天、小时、分钟、秒级间隔，如 1d/2h/30m/40s，默认值为 1d 。
+
+- **csv_output_header**：字符串类型，设置生成的 csv 文件是否包含列头描述，默认值为 yes 。
+
+- **csv_tbname_alias**：字符串类型，设置 csv 文件列头描述中 tbname 字段的别名，默认值为 device_id 。
+
+- **csv_compress_level**：字符串类型，设置生成 csv 编码数据并自动压缩成 gzip 格式文件的压缩等级。此过程直接编码并压缩，而非先生成 csv 文件再压缩。可选值为：
+  - none：不压缩
+  - fast：gzip 1级压缩
+  - balance：gzip 6级压缩
+  - best：gzip 9级压缩
 
 #### 标签列与数据列
 
@@ -196,19 +223,25 @@ taosBenchmark -f <json file>
 - **type**：指定列类型，可选值请参考 TDengine 支持的数据类型。
   注：JSON 数据类型比较特殊，只能用于标签，当使用 JSON 类型作为 tag 时有且只能有这一个标签，此时 count 和 len 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
 
-- **len**：指定该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效。如果对其他数据类型配置了该参数，若为 0， 则代表该列始终都是以 null 值写入；如果不为 0 则被忽略。
+- **len**：指定该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效。如果对其他数据类型配置了该参数，若为 0，则代表该列始终都是以 null 值写入；如果不为 0 则被忽略。
 
 - **count**：指定该类型列连续出现的数量，例如 "count"：4096 即可生成 4096 个指定类型的列。
 
-- **name**：列的名字，若与 count 同时使用，比如 "name"："current", "count"：3, 则 3 个列的名字分别为 current、current_2、current_3。
+- **name**：列的名字，若与 count 同时使用，比如 "name"："current"，"count"：3，则 3 个列的名字分别为 current、current_2、current_3。
 
-- **min**：数据类型的 列/标签 的最小值。生成的值将大于或等于最小值。
+- **min**：浮点数类型，数据类型的 列/标签 的最小值。生成的值将大于或等于最小值。
 
-- **max**：数据类型的 列/标签 的最大值。生成的值将小于最大值。
+- **max**：浮点数类型，数据类型的 列/标签 的最大值。生成的值将小于最大值。
 
-- **scalingFactor**：浮点数精度增强因子，仅当数据类型是 float/double 时生效，有效值范围为 1 至 1000000 的正整数。用于增强生成浮点数的精度，特别是在 min 或 max 值较小的情况下。此属性按 10 的幂次增强小数点后的精度：scalingFactor 为 10 表示增强 1 位小数精度，100 表示增强 2 位，依此类推。
+- **dec_min**：字符串类型，指定 DECIMAL 数据类型的列的最小值。当 min 无法表达足够的精度时，使用此字段。生成的值将大于或等于最小值。
 
-- **fun**：此列数据以函数填充，目前只支持 sin 和 cos 两函数，输入参数为时间戳换算成角度值，换算公式：角度 x = 输入的时间列ts值 % 360。同时支持系数调节，随机波动因子调节，以固定格式的表达式展现，如 fun=“10\*sin(x)+100\*random(5)” , x 表示角度，取值 0 ~ 360度，增长步长与时间列步长一致。10 表示乘的系数，100 表示加或减的系数，5 表示波动幅度在 5% 的随机范围内。目前支持的数据类型为 int, bigint, float, double 四种数据类型。注意：表达式为固定模式，不可前后颠倒。
+- **dec_max**：字符串类型，指定 DECIMAL 数据类型的列的最大值。当 max 无法表达足够的精度时，使用此字段。生成的值将小于最大值。
+
+- **precision**：数字的总位数（包括小数点前后的所有数字），仅适用于 DECIMAL 类型，其有效值范围为 0 至 38。。
+
+- **scale**：小数点右边的数字位数。对于 FLOAT 类型，scale 的有效范围是 0 至 6；对于 DOUBLE 类型，该范围是 0 至 15；而对于 DECIMAL 类型，scale 的有效范围是 0 至其 precision 值。
+
+- **fun**：此列数据以函数填充，目前只支持 sin 和 cos 两函数，输入参数为时间戳换算成角度值，换算公式：角度 x = 输入的时间列ts值 % 360。同时支持系数调节，随机波动因子调节，以固定格式的表达式展现，如 fun=“10\*sin(x)+100\*random(5)” , x 表示角度，取值 0 ~ 360度，增长步长与时间列步长一致。10 表示乘的系数，100 表示加或减的系数，5 表示波动幅度在 5% 的随机范围内。目前支持的数据类型为 int、bigint、float、double 四种数据类型。注意：表达式为固定模式，不可前后颠倒。
 
 - **values**：nchar/binary 列/标签的值域，将从值中随机选择。
 
@@ -220,23 +253,23 @@ taosBenchmark -f <json file>
 
 - **level**：字符串类型，指定此列两级压缩中的第二级加密算法的压缩率高低，详细参见创建超级表。
 
-- **gen**：字符串类型，指定此列生成数据的方式，不指定为随机，若指定为 “order”, 会按自然数顺序增长。
+- **gen**：字符串类型，指定此列生成数据的方式，不指定为随机，若指定为 “order”，会按自然数顺序增长。
 
-- **fillNull**：字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false", 只有当 generate_row_rule 为 2 时有效。
+- **fillNull**：字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false"，只有当 generate_row_rule 为 2 时有效。
 
 #### 写入行为相关
 
 - **thread_count**：插入数据的线程数量，默认为 8。
 
-- **thread_bind_vgroup**：写入时 vgroup 是否和写入线程绑定，绑定后可提升写入速度, 取值为 "yes" 或 "no"，默认值为 “no”, 设置为 “no” 后与原来行为一致。当设为 “yes” 时，如果 thread_count 大于写入数据库 vgroups 数量， thread_count 自动调整为 vgroups 数量；如果 thread_count 小于 vgroups 数量，写入线程数量不做调整，一个线程写完一个 vgroup 数据后再写下一个，同时保持一个 vgroup 同时只能由一个线程写入的规则。
+- **thread_bind_vgroup**：写入时 vgroup 是否和写入线程绑定，绑定后可提升写入速度，取值为 "yes" 或 "no"，默认值为 “no”，设置为 “no” 后与原来行为一致。当设为 “yes” 时，如果 thread_count 大于写入数据库 vgroups 数量，thread_count 自动调整为 vgroups 数量；如果 thread_count 小于 vgroups 数量，写入线程数量不做调整，一个线程写完一个 vgroup 数据后再写下一个，同时保持一个 vgroup 同时只能由一个线程写入的规则。
 
 - **create_table_thread_count**：建表的线程数量，默认为 8。
 
 - **result_file**：结果输出文件的路径，默认值为 ./output.txt 。
 
-- **confirm_parameter_prompt**：开关参数，要求用户在提示后确认才能继续， 可取值 "yes" or "no"。默认值为 "no" 。
+- **confirm_parameter_prompt**：开关参数，要求用户在提示后确认才能继续，可取值 "yes" or "no"。默认值为 "no" 。
 
-- **interlace_rows**：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
+- **interlace_rows**：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入。
   在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
 
 - **insert_interval**：
@@ -262,6 +295,8 @@ taosBenchmark -f <json file>
 
 
 其它通用参数详见 [通用配置参数](#通用配置参数)。
+
+**说明：从 v3.3.5.6 及以上版本不再支持 json 文件中同时配置 `specified_table_query` 和  `super_table_query`**
 
 #### 执行指定查询语句
 
@@ -321,11 +356,11 @@ taosBenchmark -f <json file>
 订阅配置参数在 `tmq_info` 项下设置，参数如下：
 
 - **concurrent**：消费订阅的消费者数量，或称并发消费数量，默认值：1。
-- **create_mode**：创建消费者模式，可取值 sequential：顺序创建， parallel：并发同时创建，必填项，无默认值。
-- **group_mode**：生成消费者 groupId 模式，可取值 share：所有消费者只生成一个 groupId， independent：每个消费者生成一个独立的 groupId，如果 `group.id` 未设置，此项为必填项，无默认值。
+- **create_mode**：创建消费者模式，可取值 sequential：顺序创建，parallel：并发同时创建，必填项，无默认值。
+- **group_mode**：生成消费者 groupId 模式，可取值 share：所有消费者只生成一个 groupId，independent：每个消费者生成一个独立的 groupId，如果 `group.id` 未设置，此项为必填项，无默认值。
 - **poll_delay**：调用 tmq_consumer_poll 传入的轮询超时时间，单位为毫秒，负数表示默认超时 1 秒。
-- **enable.manual.commit**：是否允许手动提交，可取值 true：允许手动提交，每次消费完消息后手动调用 tmq_commit_sync 完成提交， false：不进行提交，默认值：false。
-- **rows_file**：存储消费数据的文件，可以为全路径或相对路径，带文件名。实际保存的文件会在后面加上消费者序号，如 rows_file 为 result, 实际文件名为 result_1（消费者 1） result_2（消费者 2） ...
+- **enable.manual.commit**：是否允许手动提交，可取值 true：允许手动提交，每次消费完消息后手动调用 tmq_commit_sync 完成提交，false：不进行提交，默认值：false。
+- **rows_file**：存储消费数据的文件，可以为全路径或相对路径，带文件名。实际保存的文件会在后面加上消费者序号，如 rows_file 为 result，实际文件名为 result_1（消费者 1） result_2（消费者 2） ...
 - **expect_rows**：期望每个消费者消费的行数，数据类型，当消费达到这个数，消费会退出，不设置会一直消费。
 - **topic_list**：指定消费的 topic 列表，数组类型。topic 列表格式示例：`{"name": "topic1", "sql": "select * from test.meters;"}`，name：指定 topic 名，sql：指定创建 topic 的 sql 语句，需保证 sql 正确，框架会自动创建出 topic。
 
@@ -360,6 +395,7 @@ taosBenchmark -f <json file>
 | 16  |  VARBINARY         |    varbinary
 | 17  |  GEOMETRY          |    geometry
 | 18  |  JSON              |    json
+| 19  |  DECIMAL           |    decimal
 
 注意：taosBenchmark 配置文件中数据类型必须小写方可识别。
 
@@ -389,6 +425,15 @@ taosBenchmark -f <json file>
 
 </details>
 
+<details>
+<summary>queryStb.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
+```
+
+</details>
+
 ### 订阅 JSON 示例 
 
 <details>
@@ -396,6 +441,17 @@ taosBenchmark -f <json file>
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/tmq.json}}
+```
+
+</details>
+
+### 生成 CSV 文件 JSON 示例
+
+<details>
+<summary>csv-export.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>
@@ -416,7 +472,7 @@ SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.187
  - real：写入总耗时（调用引擎），此耗时已抛去测试框架准备数据时间，纯统计在引擎调用上花费的时间，示例为 8.117379 秒，8.527298 - 8.117379 = 0.409919 秒则为测试框架准备数据消耗时间
  - rows：写入总行数，为 1000 万条数据。
  - threads：写入线程数，这里是 8 个线程同时写入。
- - records/second 写入速度 = `写入总耗时`/ `写入总行数`， 括号中 `real` 同前，表示纯引擎写入速度。
+ - records/second 写入速度 = `写入总耗时`/ `写入总行数`，括号中 `real` 同前，表示纯引擎写入速度。
 第二行单个写入延时统计：
  - min：写入最小延时。
  - avg：写入平时延时。
@@ -428,7 +484,7 @@ SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.187
 
 #### 查询指标 
 
-查询性能测试主要输出查询请求速度 QPS 指标, 输出格式如下：
+查询性能测试主要输出查询请求速度 QPS 指标，输出格式如下：
 ``` bash
 complete query with 3 threads and 10000 query delay avg: 	0.002686s min: 	0.001182s max: 	0.012189s p90: 	0.002977s p95: 	0.003493s p99: 	0.004645s SQL command: select ...
 INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all threads:   1113.049
@@ -453,4 +509,4 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 ```
 - 1 ~ 3 行实时输出每个消费者当前的消费速度，`msgs/s` 表示消费消息个数，每个消息中包含多行数据，`rows/s` 表示按行数统计的消费速度。 
 - 4 ~ 6 行是测试完成后每个消费者总体统计，统计共消费了多少条消息，共计多少行。 
-- 第 7 行所有消费者总体统计，`msgs` 表示共消费了多少条消息， `rows` 表示共消费了多少行数据。
+- 第 7 行所有消费者总体统计，`msgs` 表示共消费了多少条消息，`rows` 表示共消费了多少行数据。
