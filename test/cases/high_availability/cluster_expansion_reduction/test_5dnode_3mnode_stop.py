@@ -42,7 +42,6 @@ class Test5dnode3mnodeStop:
                     break
         return buildPath
 
-
     @pytest.mark.cluster
     @pytest.mark.ci
     def test_five_dnode_three_mnode(self):
@@ -127,6 +126,8 @@ class Test5dnode3mnodeStop:
         clusterComCheck.check3mnodeoff(3,3)
         tdDnodes[2].starttaosd()
         clusterComCheck.checkMnodeStatus(3)
+
+
 
         tdDnodes[0].stoptaosd()
         clusterComCheck.check3mnodeoff(1,3)

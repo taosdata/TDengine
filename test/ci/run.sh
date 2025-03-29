@@ -531,7 +531,6 @@ if [ -f "$report_dir/index.html" ]; then
     echo "Allure report generated successfully at $report_dir."
 else
     echo "Error: Failed to generate Allure report."
-    exit 1
 fi
 
 echo "Test report: https://platform.tdengine.net:8090/reports/$branch/report"
