@@ -670,7 +670,7 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
         errorPrint("%s() LN%d, new column zero failed! oldc=%d\n", __func__, __LINE__, oldc);
         return -1;
     }
-    if (newt == 0) {
+    if (newt == 0 && oldt > 0) {
         // tag must not zero
         errorPrint("%s() LN%d, new tag zero failed! oldt=%d\n", __func__, __LINE__, oldt);
         return -1;
@@ -1088,4 +1088,20 @@ int32_t createNTableMFile(char * metaFileName, TableDes* tableDes) {
     }
 
     return ret;
+}
+
+// check dbPath is normal table folder
+bool normalTableFolder(const char* dbPath) {
+    if (dbPath == NULL || dbPath[0] == 0) {
+        return false;
+    }
+    size_t len = strlen(dbPath);
+    if (len <= strlen(NTABLE_FOLDER)) {
+        return false;
+    }
+
+    if (strcmp(dbPath + len - sizeof(NTABLE_FOLDER) + 1, NTABLE_FOLDER) == 0) {
+        return true;
+    }
+    return false;
 }

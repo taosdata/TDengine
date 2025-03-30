@@ -4434,6 +4434,17 @@ static int64_t dumpInAvroNtbImpl(
     int64_t success = 0;
     int64_t failed = 0;
 
+    //
+    // Add normal table schema to hashmap
+    //
+    int32_t code = AddStbChanged(pDbChange, namespace, *taos_v, recordSchema, NULL);
+    if (code) {
+        return code;
+    }
+
+    //
+    // create normal table sql
+    //
     avro_value_iface_t *value_class = avro_generic_class_from_schema(schema);
     avro_value_t value;
     avro_generic_value_new(value_class, &value);
@@ -4463,7 +4474,6 @@ static int64_t dumpInAvroNtbImpl(
                 buf = newBuf;
             }
 
-            int32_t code = -1;
             TAOS_RES *res = taosQuery(*taos_v, buf, &code);
             if (0 != code) {
                 errorPrint("%s() LN%d,"
@@ -5162,7 +5172,9 @@ static int64_t dumpInAvroDataImpl(
         avro_schema_t schema,
         avro_file_reader_t reader,
         RecordSchema *recordSchema,
-        StbChange *stbChange,
+        DBChange     *pDbChange,
+        StbChange    *stbChange,
+        const char   *dbPath,
         char *fileName) {
     
     // init stmt
@@ -5187,19 +5199,6 @@ static int64_t dumpInAvroDataImpl(
         tableDes = stbChange->tableDes;
     }
 
-    if(tableDes == NULL) {
-        // old data format no super table des
-        mallocDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
-        if (NULL == mallocDes) {
-            errorPrint("%s() LN%d, mallocDes memory allocation failed!\n", __func__, __LINE__);
-            taos_stmt_close(stmt);
-            return -1;
-        }
-        // set 
-        tableDes = mallocDes;
-    }
-
-
     avro_value_iface_t *value_class = avro_generic_class_from_schema(schema);
     avro_value_t value;
     avro_generic_value_new(value_class, &value);
@@ -5216,9 +5215,6 @@ static int64_t dumpInAvroDataImpl(
     char *bindArray = calloc(1, sizeof(TAOS_MULTI_BIND) * nBindCols);
     if (NULL == bindArray) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-        if (mallocDes) {
-            free(mallocDes);
-        }        
         taos_stmt_close(stmt);
         return -1;
     }
@@ -5262,27 +5258,55 @@ static int64_t dumpInAvroDataImpl(
             debugPrint("%s() LN%d table: %s parsed from file:%s\n",
                     __func__, __LINE__, tbName, fileName);
 
+            
+            // read normal table stbChange
+            if (stbChange == NULL) {
+                if (normalTableFolder(dbPath)) {
+                    stbChange = findStbChange(pDbChange, tbName);
+                    if (stbChange) {
+                        // bind 
+                        nBindCols = stbChange->tableDes->columns;
+                        // tableDes
+                        tableDes = stbChange->tableDes;
+                    }
+                }
+            }
+
+            // malloc table des
+            if(tableDes == NULL) {
+                // old data format no super table des
+                mallocDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+                if (NULL == mallocDes) {
+                    errorPrint("%s() LN%d, mallocDes memory allocation failed!\n", __func__, __LINE__);
+                    free(bindArray);
+                    tfree(tbName);
+                    taos_stmt_close(stmt);
+                    return -1;
+                }
+                // set 
+                tableDes = mallocDes;
+            }
+        
+
+            // escapedTbName
             const int escapedTbNameLen = TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 10;
             char *escapedTbName = calloc(1, escapedTbNameLen);
             if (NULL == escapedTbName) {
                 errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-
                 free(bindArray);
                 if (mallocDes) {
                     freeTbDes(mallocDes, true);
-                }          
+                }
                 tfree(tbName);
                 taos_stmt_close(stmt);
                 return -1;
             }
-
             snprintf(escapedTbName, escapedTbNameLen, "%s%s%s.%s%s%s",
-                    g_escapeChar, namespace, g_escapeChar,
-                    g_escapeChar, tbName,    g_escapeChar);
+                g_escapeChar, namespace, g_escapeChar,
+                g_escapeChar, tbName,    g_escapeChar);
 
             debugPrint("%s() LN%d escaped table: %s\n",
                     __func__, __LINE__, escapedTbName);
-
 
             // prepare
             if (stmtPrepare(stmt, escapedTbName, stbChange, recordSchema, nBindCols)) {
@@ -5315,7 +5339,7 @@ static int64_t dumpInAvroDataImpl(
                         return -1;
                     }
                 }
-            }        
+            } 
         } // tbName
 
         debugPrint("%s() LN%d, count: %"PRId64"\n",
@@ -5765,7 +5789,10 @@ static int64_t dumpInOneAvroFile(
             retExec = dumpInAvroDataImpl(taos_v,
                     (char *)namespace,
                     schema, reader, recordSchema,
-                    stbChange, fileName);
+                    pDbChange,
+                    stbChange, 
+                    dbPath,
+                    fileName);
             break;
 
         case AVRO_TBTAGS:
@@ -8806,14 +8833,14 @@ static int dumpInWithDbPath(const char *dbPath) {
     DBChange *pDbChange = createDbChange(dbPath);
 
     if (g_args.avro) {
-        // create DBChange if table schema changed
+        // super table meta
         ret = dumpInAvroWorkThreads(dbPath, "avro-tbtags", pDbChange);
         if (0 == ret) {
-            // dump in with DBChange
+            // normal table meta
             ret = dumpInAvroWorkThreads(dbPath, "avro-ntb", pDbChange);
 
             if (0 == ret) {
-                // main folder
+                // main folder for super and normal table data
                 ret = dumpInAvroWorkThreads(dbPath, "avro", pDbChange);
                 // sub folder
                 ret = dumpInAvroWorkThreadsSub(dbPath, "avro", pDbChange);

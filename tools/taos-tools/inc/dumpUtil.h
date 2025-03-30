@@ -149,4 +149,6 @@ int32_t createNTableMFile(char * metaFileName, TableDes* tableDes);
 
 uint32_t getTbDesJsonSize(TableDes *tableDes, bool onlyColumn);
 
+bool normalTableFolder(const char* dbPath);
+
 #endif  // INC_DUMPUTIL_H_

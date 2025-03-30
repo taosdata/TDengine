@@ -48,15 +48,17 @@
 
 
 // use 256 as normal buffer length
-#define BUFFER_LEN              256
+#define BUFFER_LEN                 256
 
-#define VALUE_BUF_LEN           4096
-#define MAX_RECORDS_PER_REQ     32766
-#define NEED_CALC_COUNT         UINT64_MAX
-#define HUMAN_TIME_LEN      28
-#define DUMP_DIR_LEN        (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
+#define VALUE_BUF_LEN              4096
+#define MAX_RECORDS_PER_REQ        32766
+#define NEED_CALC_COUNT            UINT64_MAX
+#define HUMAN_TIME_LEN             28
+#define DUMP_DIR_LEN               (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
 #define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
-#define ITEM_SPACE 50 
+#define ITEM_SPACE                 50
+#define NTABLE_FOLDER              "data0-0"
+
 
 
 // stb schema KEY
