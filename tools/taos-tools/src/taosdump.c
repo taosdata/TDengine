@@ -2772,48 +2772,6 @@ static int convertTbDesToJsonImplMore(
     return ret;
 }
 
-// reserve json item space 70 bytes
-#define ITEM_SPACE 50 
-uint32_t getTbDesJsonSize(TableDes *tableDes, bool onlyColumn) {
-
-    //
-    // public
-    //
-    uint32_t size = 
-        ITEM_SPACE +                    // version 1
-        ITEM_SPACE +                    // type: record
-        ITEM_SPACE + TSDB_DB_NAME_LEN + // namespace: dbname
-        ITEM_SPACE;                     // field : {}
-
-
-    //
-    // fields
-    //
-    int fieldCnt = tableDes->columns + tableDes->tags + 2; // +2 is tbname and stbname
-    if(onlyColumn) {
-        fieldCnt -= tableDes->tags;
-    }
-    size += (TSDB_COL_NAME_LEN + ITEM_SPACE) * fieldCnt;
-
-    return size;
-}
-
-uint32_t colDesToJson(char *pstr, ColDes * colDes, uint32_t num) {
-    uint32_t size = 0;
-    for(int32_t i = 0; i < num; i++) {
-        if (i > 0) {
-            // append splite
-            size += sprintf(pstr + size, ",");
-        }
-        
-        // field
-        size += sprintf(pstr + size, 
-            "{\"name\":\"%s\", \"type\":%d}",
-            colDes[i].field, colDes[i].type);
-    }
-    return size;
-}
-
 
 static int convertTbDesToJsonImpl(
         const char *namespace,
@@ -3359,7 +3317,7 @@ int processValueToAvro(
     return 0;
 }
 
-static int64_t writeResultToAvroNative(
+static int64_t writeResultToAvro(
         const char *avroFilename,
         const char *dbName,
         const char *tbName,
@@ -3426,14 +3384,17 @@ static int64_t writeResultToAvroNative(
         int32_t countInBatch = 0;
         TAOS_ROW row;
 
+        // loop row
         while (NULL != (row = taos_fetch_row(res))) {
             int32_t *lengths = taos_fetch_lengths(res);
 
             avro_value_t record;
             avro_generic_value_new(wface, &record);
 
+            // avro_value is key , branch is value
             avro_value_t avro_value, branch;
 
+            // set tbname none loose mode
             if (!g_args.loose_mode) {
                 if (0 != avro_value_get_by_name(
                             &record, "tbname", &avro_value, NULL)) {
@@ -3446,6 +3407,7 @@ static int64_t writeResultToAvroNative(
                 avro_value_set_string(&branch, outName);
             }
 
+            // loop col for row
             for (int32_t col = 0; col < numFields; col++) {
                 processValueToAvro(col,
                         record,
@@ -5742,8 +5704,8 @@ static RecordSchema *getSchemaAndReaderFromFile(
     //
     // read stb schema from avroFile + .m file
     //
-    if (avroType == AVRO_TBTAGS) {
-        readStbSchema(avroFile, recordSchema);
+    if (avroType == AVRO_TBTAGS || avroType == AVRO_NTB) {
+        mFileToRecordSchema(avroFile, recordSchema);
     }
 
     return recordSchema;
@@ -6311,7 +6273,7 @@ TAOS_RES *queryDbForDumpOutNative(TAOS *taos,
 }
 
 
-static int64_t dumpTableDataAvroNative(
+static int64_t dumpTableDataAvroTsRange(
         char *dataFilename,
         int64_t index,
         const char *stable,
@@ -6344,7 +6306,7 @@ static int64_t dumpTableDataAvroNative(
         return -1;
     }
 
-    int64_t totalRows = writeResultToAvroNative(
+    int64_t totalRows = writeResultToAvro(
             dataFilename, dbName, tbName, jsonSchema, &taos, precision,
             start_time, end_time);
 
@@ -6506,6 +6468,9 @@ static int generateFilename(AVROTYPE avroType, char *fileName,
     return ret;
 }
 
+//
+// dump table data with tableDes
+//
 static int64_t dumpTableDataAvro(
         const int64_t index,
         const char *stable,
@@ -6528,13 +6493,13 @@ static int64_t dumpTableDataAvro(
         return -1;
     }
 
-    int64_t rows = dumpTableDataAvroNative(dataFilename, index, stable, tbName,
+    int64_t rows = dumpTableDataAvroTsRange(dataFilename, index, stable, tbName,
                 belongStb, dbInfo->name, precision, colCount, tableDes,
                 start_time, end_time);
     return rows;
 }
 
-static int64_t dumpTableDataNative(
+static int64_t dumpTableDataDebugTsRange(
         const int64_t index,
         FILE *fp,
         const char *tbName,
@@ -6560,7 +6525,7 @@ static int64_t dumpTableDataNative(
     return totalRows;
 }
 
-static int64_t dumpTableData(
+static int64_t dumpTableDataDebug(
         const int64_t index,
         FILE *fp,
         const char *tbName,
@@ -6576,12 +6541,13 @@ static int64_t dumpTableData(
     }
 
     
-    int64_t rows = dumpTableDataNative(index, fp, tbName, dbInfo->name,
+    int64_t rows = dumpTableDataDebugTsRange(index, fp, tbName, dbInfo->name,
                 precision, tableDes, start_time, end_time);
     return rows;
 }
 
-int64_t dumpNormalTable(
+// dump table (stable/child table/normal table) meta and data
+int64_t dumpTable(
         const int64_t index,
         void  **taos_v,
         const SDbInfo *dbInfo,
@@ -6600,9 +6566,13 @@ int64_t dumpNormalTable(
     int numColsAndTags = 0;
     TableDes *tableDes = NULL;
 
+    //
+    // dump table meta (stable or child table or normal table)
+    //
+
     // dump table schema which is created by using super table
     if (stable != NULL && stable[0] != '\0') {
-        // create child-table using super-table
+        // super table
         if (!g_args.avro) {
             tableDes = (TableDes *)calloc(1, sizeof(TableDes)
                     + sizeof(ColDes) * TSDB_MAX_COLUMNS);
@@ -6627,7 +6597,8 @@ int64_t dumpNormalTable(
             dumpCreateMTableClause(dbInfo->name,
                     stable, tableDes, numColsAndTags, fp);
         }
-    } else {  // dump table definition
+    } else {
+        // child table or normal table
         tableDes = (TableDes *)calloc(1, sizeof(TableDes)
                 + sizeof(ColDes) * TSDB_MAX_COLUMNS);
         if (NULL == tableDes) {
@@ -6647,9 +6618,10 @@ int64_t dumpNormalTable(
             return -1;
         }
 
-        // create normal-table
         if (g_args.avro) {
+            // avro
             if (belongStb) {
+                // child table
                 if (0 != generateFilename(AVRO_TBTAGS,
                         dumpFilename,
                         dbInfo, stable, tbName, 0)) {
@@ -6658,8 +6630,14 @@ int64_t dumpNormalTable(
                 debugPrint("%s() LN%d dumpFilename: %s\n",
                         __func__, __LINE__, dumpFilename);
             } else {
+                // normal-table
                 if (0 != generateFilename(AVRO_NTB,
                         dumpFilename, dbInfo, stable, tbName, 0)) {
+                    return -1;
+                }
+
+                // create mfile for normal table
+                if( 0 != createNTableMFile(dumpFilename, tableDes)) {
                     return -1;
                 }
             }
@@ -6718,7 +6696,7 @@ int64_t dumpNormalTable(
                     dbInfo, precision,
                     numColsAndTags, tableDes);
         } else {
-            totalRows = dumpTableData(
+            totalRows = dumpTableDataDebug(
                     index,
                     fp, tbName,
                     dbInfo, precision,
@@ -6732,7 +6710,7 @@ int64_t dumpNormalTable(
     return totalRows;
 }
 
-int64_t dumpANormalTableNotBelong(
+int64_t dumpTableNotBelong(
         int64_t index,
         void **taos_v, SDbInfo *dbInfo, char *ntbName) {
     int64_t count = 0;
@@ -6746,11 +6724,12 @@ int64_t dumpANormalTableNotBelong(
                     __func__, __LINE__);
             return -1;
         }
+        // gen meta file name
         if (0 != generateFilename(AVRO_NTB,
                 dumpFilename, dbInfo, NULL, ntbName, index)) {
             return -1;
         }
-        count = dumpNormalTable(
+        count = dumpTable(
                 index,
                 taos_v,
                 dbInfo,
@@ -6762,6 +6741,7 @@ int64_t dumpANormalTableNotBelong(
                 dumpFilename,
                 NULL);
     } else {
+        // AVRO_UNKNOWN is save with sql clause
         if (0 != generateFilename(AVRO_UNKNOWN,
                 dumpFilename, dbInfo, NULL, ntbName, 0)) {
             return -1;
@@ -6780,7 +6760,7 @@ int64_t dumpANormalTableNotBelong(
             fclose(fp);
             return -1;
         }
-        count = dumpNormalTable(
+        count = dumpTable(
                 index,
                 taos_v,
                 dbInfo,
@@ -7800,53 +7780,6 @@ int32_t readRow(void *res, int32_t idx, int32_t col, uint32_t *len, char **data)
   return 0;
 }
 
-// get stb schema size
-uint32_t getStbSchemaSize(TableDes *tableDes) {
-    //
-    // stable schema
-    //
-    uint32_t size = 
-        ITEM_SPACE +                      // version 1
-        ITEM_SPACE + TSDB_TABLE_NAME_LEN; // stbName
-
-    // stb fields for db schema
-    size += (tableDes->columns + tableDes->tags) * (ITEM_SPACE + TSDB_COL_NAME_LEN);
-
-    return size;
-}
-
-// append stb schema
-char* genStbSchema(TableDes *tableDes) {
-    // calloc
-    char *p = calloc(1, getStbSchemaSize(tableDes));    
-    uint32_t size = 0;
-    char *pstr = p;
-    // stbName
-    size += sprintf(pstr + size,
-        "{"
-        "\"%s\":%d,"
-        "\"%s\":\"%s\",",
-        VERSION_KEY, VERSION_VAL,
-        STBNAME_KEY, tableDes->name);
-    
-    // cols
-    size += sprintf(pstr + size, 
-        "\"cols\": [");
-    size += colDesToJson(pstr + size,
-        tableDes->cols, tableDes->columns);
-    size += sprintf(pstr + size, 
-        "]");
-
-    // tags
-    size += sprintf(pstr + size, 
-        ",\"tags\": [");
-    size += colDesToJson(pstr + size,
-        tableDes->cols + tableDes->columns, tableDes->tags);
-    size += sprintf(pstr + size, 
-        "]}");
-
-    return p;
-}
 
 #define SQL_LEN 512
 static int dumpStableMeta(
@@ -7956,9 +7889,9 @@ static int dumpStableMeta(
     // output stable meta file
     //
     ret = -1;
-    char *stbJson = genStbSchema(stbDes);
+    char *stbJson = tableDesToJson(stbDes);
     if (stbJson) {
-        strcat(dumpFilename, ".m");
+        strcat(dumpFilename, MFILE_EXT);
         ret = writeFile(dumpFilename, stbJson);
         free(stbJson);
         stbJson = NULL;
@@ -7979,7 +7912,7 @@ static int dumpStableMeta(
     return ret;
 }
 
-static int64_t dumpANormalTableBelongStb(
+static int64_t dumpTableBelongStb(
         int64_t index,
         TAOS **taos_v,
         SDbInfo *dbInfo, char *stbName,
@@ -8031,7 +7964,7 @@ static int64_t dumpANormalTableBelongStb(
         }
         return -1;
     }
-    count = dumpNormalTable(
+    count = dumpTable(
             index,
             taos_v,
             dbInfo,
@@ -8965,7 +8898,7 @@ static void dumpTablesOfStbNative(
 
         int64_t count;
         if (g_args.avro) {
-            count = dumpNormalTable(
+            count = dumpTable(
                     i,
                     &pThreadInfo->taos,
                     pThreadInfo->dbInfo,
@@ -8977,7 +8910,7 @@ static void dumpTablesOfStbNative(
                     dumpFilename,
                     NULL);
         } else {
-            count = dumpNormalTable(
+            count = dumpTable(
                     i,
                     &pThreadInfo->taos,
                     pThreadInfo->dbInfo,
@@ -9338,7 +9271,7 @@ static int64_t dumpNTablesOfDb(TAOS **taos_v, SDbInfo *dbInfo) {
         strncpy(ntable,
                 (char *)row[0],
                 lengths[0]);
-        ret = dumpANormalTableNotBelong(
+        ret = dumpTableNotBelong(
                 count,
                 taos_v, dbInfo, ntable);
         if (0 == ret) {
@@ -10011,6 +9944,7 @@ static int dumpOut() {
 
     // case: taosdump --databases dbx,dby ...   OR  taosdump --all-databases
     if (g_args.databases || g_args.all_databases) {
+        // -A option for all database
         for (int i = 0; i < dbCount; i++) {
             int64_t records = 0;
             records = dumpWholeDatabase(taos_v, g_dbInfos[i], fp);
@@ -10021,6 +9955,7 @@ static int dumpOut() {
         }
     } else {
         if (1 == g_args.arg_list_len) {
+            // -D option specify database
             int64_t records = dumpWholeDatabase(taos_v, g_dbInfos[0], fp);
             if (records >= 0) {
                 okPrint("Database %s dumped\n", g_dbInfos[0]->name);
@@ -10043,6 +9978,7 @@ static int dumpOut() {
         }
 
         int superTblCnt = 0;
+        // specify table 
         for (int64_t i = 1; g_args.arg_list[i]; i++) {
             if (0 == strlen(g_args.arg_list[i])) {
                 continue;
@@ -10080,6 +10016,7 @@ static int dumpOut() {
                     exit(-1);
                 }
 
+                // child table's super table meta
                 ret = dumpStableClasuse(
                         taos_v,
                         g_dbInfos[0],
@@ -10093,7 +10030,8 @@ static int dumpOut() {
                             __func__, __LINE__,
                             tableRecordInfo.tableRecord.stable);
                 }
-                ret = dumpANormalTableBelongStb(
+                // child table data
+                ret = dumpTableBelongStb(
                         i,
                         taos_v,
                         g_dbInfos[0],
@@ -10102,19 +10040,19 @@ static int dumpOut() {
                         g_args.arg_list[i]);
                 if (ret >= 0) {
                     okPrint("%s() LN%d, "
-                            "dumpANormalTableBelongStb(%s) success\n",
+                            "dumpTableBelongStb(%s) success\n",
                             __func__, __LINE__,
                             tableRecordInfo.tableRecord.stable);
                 } else {
                     errorPrint("%s() LN%d, "
-                               "dumpANormalTableBelongStb(%s) failed\n",
+                               "dumpTableBelongStb(%s) failed\n",
                             __func__, __LINE__,
                             tableRecordInfo.tableRecord.stable);
                 }
                 freeTbDes(stbTableDes, true);
             } else {
                 // normal table
-                ret = dumpANormalTableNotBelong(
+                ret = dumpTableNotBelong(
                         i,
                         taos_v, g_dbInfos[0], g_args.arg_list[i]);
             }

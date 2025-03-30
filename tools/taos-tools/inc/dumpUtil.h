@@ -128,8 +128,8 @@ int32_t AddStbChanged(DBChange *pDbChange, const char* dbName, TAOS *taos, Recor
 // find stbChange with stbName
 StbChange * findStbChange(DBChange *pDbChange, char *stbName);
 
-
-int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema);
+// read mfile schema save to RecordSchema struct
+int32_t mFileToRecordSchema(char *avroFile, RecordSchema* recordSchema);
 
 // find cols
 bool idxInBindCols(int16_t idx, TableDes* tableDes);
@@ -140,5 +140,13 @@ bool idxInBindTags(int16_t idx, TableDes* tableDes);
 //bool fieldInBindList(char *field, TableDes* tableDes);
 
 StbChange* readFolderStbName(char *folder, DBChange *pDbChange);
+
+// covert tableDes to json
+char* tableDesToJson(TableDes *tableDes);
+
+// create normal table .m file with meta
+int32_t createNTableMFile(char * metaFileName, TableDes* tableDes);
+
+uint32_t getTbDesJsonSize(TableDes *tableDes, bool onlyColumn);
 
 #endif  // INC_DUMPUTIL_H_

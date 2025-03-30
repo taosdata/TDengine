@@ -56,6 +56,7 @@
 #define HUMAN_TIME_LEN      28
 #define DUMP_DIR_LEN        (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
 #define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
+#define ITEM_SPACE 50 
 
 
 // stb schema KEY
@@ -516,7 +517,8 @@ int processResultValue(
         const void *value,
         uint32_t len);
 
-int64_t dumpNormalTable(
+// dump table (stable/child table/normal table) meta and data
+int64_t dumpTable(
         const int64_t index,
         void  **taos,
         const SDbInfo *dbInfo,
@@ -530,7 +532,7 @@ int64_t dumpNormalTable(
         );
 int64_t dumpStbAndChildTb(
         void **taos_v, SDbInfo *dbInfo, const char *stable, FILE *fpDbs);
-int64_t dumpANormalTableNotBelong(
+int64_t dumpNormalTable(
         int64_t index,
         void **taos_v, SDbInfo *dbInfo, char *ntbName);
 

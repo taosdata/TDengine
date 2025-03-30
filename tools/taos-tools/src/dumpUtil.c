@@ -844,7 +844,7 @@ static int32_t readJsonStbSchema( json_t *element, RecordSchema *recordSchema) {
 }
 
 // read
-int32_t readStbSchema(char *avroFile, RecordSchema* recordSchema) {
+int32_t mFileToRecordSchema(char *avroFile, RecordSchema* recordSchema) {
     char mFile[MAX_PATH_LEN];
     strcpy(mFile, avroFile);
     strcat(mFile, MFILE_EXT);
@@ -970,4 +970,122 @@ StbChange* readFolderStbName(char *folder, DBChange *pDbChange) {
     debugPrint("hashmapfind stb:%s stbchange=%p \n", stbName, stbChange);
     free(stbName);
     return stbChange;
+}
+
+// reserve json item space 70 bytes
+uint32_t getTbDesJsonSize(TableDes *tableDes, bool onlyColumn) {
+
+    //
+    // public
+    //
+    uint32_t size = 
+        ITEM_SPACE +                    // version 1
+        ITEM_SPACE +                    // type: record
+        ITEM_SPACE + TSDB_DB_NAME_LEN + // namespace: dbname
+        ITEM_SPACE;                     // field : {}
+
+
+    //
+    // fields
+    //
+    int fieldCnt = tableDes->columns + tableDes->tags + 2; // +2 is tbname and stbname
+    if(onlyColumn) {
+        fieldCnt -= tableDes->tags;
+    }
+    size += (TSDB_COL_NAME_LEN + ITEM_SPACE) * fieldCnt;
+
+    return size;
+}
+
+
+// get stb schema size
+uint32_t getStbSchemaSize(TableDes *tableDes) {
+    //
+    // stable schema
+    //
+    uint32_t size = 
+        ITEM_SPACE +                      // version 1
+        ITEM_SPACE + TSDB_TABLE_NAME_LEN; // stbName
+
+    // stb fields for db schema
+    size += (tableDes->columns + tableDes->tags) * (ITEM_SPACE + TSDB_COL_NAME_LEN);
+
+    return size;
+}
+
+
+uint32_t colDesToJson(char *pstr, ColDes * colDes, uint32_t num) {
+    uint32_t size = 0;
+    for(int32_t i = 0; i < num; i++) {
+        if (i > 0) {
+            // append splite
+            size += sprintf(pstr + size, ",");
+        }
+        
+        // field
+        size += sprintf(pstr + size, 
+            "{\"name\":\"%s\", \"type\":%d}",
+            colDes[i].field, colDes[i].type);
+    }
+    return size;
+}
+
+
+// covert tableDes to json 
+char* tableDesToJson(TableDes *tableDes) {
+    // calloc
+    char *p = calloc(1, getStbSchemaSize(tableDes));    
+    uint32_t size = 0;
+    char *pstr = p;
+    // stbName
+    size += sprintf(pstr + size,
+        "{"
+        "\"%s\":%d,"
+        "\"%s\":\"%s\",",
+        VERSION_KEY, VERSION_VAL,
+        STBNAME_KEY, tableDes->name);
+    
+    // cols
+    size += sprintf(pstr + size, 
+        "\"cols\": [");
+    size += colDesToJson(pstr + size,
+        tableDes->cols, tableDes->columns);
+    size += sprintf(pstr + size, 
+        "]");
+
+    // tags
+    if (tableDes->tags > 0) {
+        size += sprintf(pstr + size, 
+            ",\"tags\": [");
+        size += colDesToJson(pstr + size,
+            tableDes->cols + tableDes->columns, tableDes->tags);
+        size += sprintf(pstr + size, 
+            "]");
+    }
+
+    // end
+    size += sprintf(pstr + size, 
+        "}");
+
+    return p;
+}
+
+// create normal table .m file with meta
+int32_t createNTableMFile(char * metaFileName, TableDes* tableDes) {
+    char mfile[MAX_PATH_LEN] = {0};
+    strcpy(mfile, metaFileName);
+    strcat(mfile, MFILE_EXT);
+
+    // create
+    int32_t ret = -1;
+    char *ntbJson = tableDesToJson(tableDes);
+    if (ntbJson) {
+        ret = writeFile(mfile, ntbJson);
+        if(ret) {
+            errorPrint("failed to write normal table mfile:%s\n", mfile);
+        }
+        free(ntbJson);
+    }
+
+    return ret;
 }
