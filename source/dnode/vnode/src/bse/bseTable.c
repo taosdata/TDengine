@@ -348,6 +348,7 @@ int32_t tableBuildCommit(STableBuilder *p) {
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableBuildFlush(p, BSE_TABLE_META_TYPE);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableBuildAddFooter(p);
 _error:
@@ -498,6 +499,7 @@ _error:
 int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t     code = 0;
   SBlkHandle *pHandle = NULL;
+  // opt later
   for (int32_t i = 0; i < taosArrayGetSize(p->pMetaHandle); i++) {
     pHandle = taosArrayGet(p->pMetaHandle, i);
     if (seq <= pHandle->seq) {
@@ -514,14 +516,11 @@ int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *le
   return code;
 }
 
-int32_t tableReadLoad(STableReader *p, SBlkHandle *pHandle) {
+int32_t tableMayResizeLoadBuf(STableReader *p, int32_t size) {
   int32_t code = 0;
-  int32_t lino = 0;
-
-  (void)taosLSeekFile(p->pDataFile, pHandle->offset, SEEK_SET);
-  if (p->blockCap < pHandle->size) {
+  if (p->blockCap < size) {
     int32_t cap = p->blockCap;
-    while (cap < pHandle->size) {
+    while (cap < size) {
       cap = cap * 2;
     }
     (void)blockDestroy(p->pData);
@@ -532,8 +531,18 @@ int32_t tableReadLoad(STableReader *p, SBlkHandle *pHandle) {
 
     p->blockCap = cap;
   }
-  SBlock *pBlk = p->pData;
+  return code;
+}
+int32_t tableReadLoad(STableReader *p, SBlkHandle *pHandle) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
+  code = tableMayResizeLoadBuf(p, pHandle->size);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  (void)taosLSeekFile(p->pDataFile, pHandle->offset, SEEK_SET);
+
+  SBlock *pBlk = p->pData;
   int32_t nr = taosReadFile(p->pDataFile, p->pData, pHandle->size);
   if (nr != pHandle->size) {
     TSDB_CHECK_CODE(TSDB_CODE_FILE_CORRUPTED, lino, _error);
@@ -638,9 +647,12 @@ static int32_t blockFillData(SBlock *p, SBlkHandle *pInfo) {
 }
 
 static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len) {
-  int8_t   found = 0;
-  int32_t  code = 0;
-  int32_t  offset = 0;
+  int8_t  found = 0;
+  int32_t code = 0;
+  int32_t offset = 0;
+  // 1. seq + len + value
+  // opt read later
+
   uint8_t *p1 = (uint8_t *)p->data;
   uint8_t *p2 = p1;
   while (p2 - p1 < p->len) {
