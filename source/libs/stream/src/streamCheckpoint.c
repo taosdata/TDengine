@@ -906,7 +906,7 @@ int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointI
   taskReleaseDb(dbRefId);
 
   if (code != 0) {
-    if (strlen(pChkptDir) != 0) {  // failed, drop the latest checkpoint data in local directory
+    if ((pChkptDir != NULL) && strlen(pChkptDir) != 0) {  // failed, drop the latest checkpoint data in local directory
       stError("s-task:%s upload checkpoint data failed, generated checkpointId:%" PRId64
               " failed, remove local checkpoint data:%s",
               pTask->id.idStr, checkpointId, pChkptDir);
@@ -924,7 +924,6 @@ int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointI
     }
   }
 
-  taosArrayDestroy(pList);
   taosMemoryFree(pChkptDir);
   return code;
 }

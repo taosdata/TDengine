@@ -62,6 +62,7 @@ void *backendOpen() {
   // default/state/fill/sess/func/parname/partag
   int32_t              size = 100;
   std::vector<int64_t> tsArray;
+
   for (int32_t i = 0; i < size; i++) {
     int64_t ts = taosGetTimestampMs();
     SWinKey key;  // = {.groupId = (uint64_t)(i), .ts = ts};
@@ -139,7 +140,7 @@ void *backendOpen() {
   winkey.groupId = 0;
   winkey.ts = tsArray[0];
   char   *val = NULL;
-  int32_t len = 0;
+//  int32_t len = 0;
 
   pCurr = streamStateSeekKeyNext_rocksdb(p, &winkey);
   ASSERT(pCurr != NULL);
@@ -243,11 +244,12 @@ void *backendOpen() {
     ASSERT(vlen == strlen("Value"));
     ASSERT(key.groupId == 0 && key.win.skey == tsArray[tsArray.size() - 1]);
 
-    ASSERT(0 == streamStateSessionAddIfNotExist_rocksdb(p, &key, 10, (void **)&val, &len));
+    ASSERT(0 == streamStateSessionAddIfNotExist_rocksdb(p, &key, 10, (void **)&val, &vlen));
 
     ASSERT(0 ==
-           streamStateStateAddIfNotExist_rocksdb(p, &key, (char *)"key", strlen("key"), NULL, (void **)&val, &len));
+           streamStateStateAddIfNotExist_rocksdb(p, &key, (char *)"key", strlen("key"), NULL, (void **)&val, &vlen));
   }
+
   for (int i = 0; i < size; i++) {
     SSessionKey key = {0};  //{.win = {.skey = tsArray[i], .ekey = tsArray[i]}, .groupId = (uint64_t)(0)};
     key.win.skey = tsArray[i];

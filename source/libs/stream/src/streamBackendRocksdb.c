@@ -4681,8 +4681,12 @@ void hashTableToDebug(SHashObj* pTbl, char** buf) {
       pIter = taosHashIterate(pTbl, pIter);
       continue;
     }
+
+    char* pTmp = taosStrndup(name, len);
     int32_t left = cap - strlen(p);
-    int32_t nBytes = snprintf(p + total, left, "%s,", name);
+    int32_t nBytes = snprintf(p + total, left, "%s,", pTmp);
+    taosMemoryFree(pTmp);
+
     if (nBytes <= 0 || nBytes >= left) {
       stError("failed to debug snapshot info since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
       taosMemoryFree(p);
