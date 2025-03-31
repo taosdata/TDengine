@@ -264,19 +264,20 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
   mInfo("xnode:%d, start to create", createReq.dnodeId);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_XNODE), NULL, _OVER);
 
-  //  pObj = mndAcquireXnode(pMnode, createReq.dnodeId);
-  //  if (pObj != NULL) {
-  //    terrno = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
-  //    goto _OVER;
-  //  } else if (terrno != TSDB_CODE_MND_XNODE_NOT_EXIST) {
-  //    goto _OVER;
-  //  }
-
+  pObj = mndAcquireXnode(pMnode, createReq.dnodeId);
+  if (pObj != NULL) {
+    code = terrno = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
+    goto _OVER;
+  } else if (terrno != TSDB_CODE_MND_XNODE_NOT_EXIST) {
+    code = terrno;
+    goto _OVER;
+  }
+  /*
   if (sdbGetSize(pMnode->pSdb, SDB_XNODE) >= 1) {
     code = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
     goto _OVER;
   }
-
+  */
   pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
   if (pDnode == NULL) {
     code = TSDB_CODE_MND_DNODE_NOT_EXIST;
@@ -391,6 +392,7 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
   SXnodeObj     *pObj = NULL;
+  SDnodeObj     *pDnode = NULL;
   SMDropXnodeReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -400,6 +402,12 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
 
   if (dropReq.dnodeId <= 0) {
     code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
+  if (pDnode == NULL) {
+    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
     goto _OVER;
   }
 
@@ -430,6 +438,7 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SXnodeObj *pObj = NULL;
+  char       buf[TSDB_EP_LEN + VARSTR_HEADER_SIZE];
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_XNODE, pShow->pIter, (void **)&pObj);
@@ -444,6 +453,11 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)ep, false), pSdb, pObj);
+
+    const char *protocol_str = "mqtt";
+    STR_TO_VARSTR(buf, protocol_str);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)buf, false), pSdb, pObj);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false), pSdb,
@@ -470,8 +484,8 @@ SEpSet mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pXnode) {
   return epSet;
 }
 
-SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t xnodeId) {
-  SXnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_XNODE, &xnodeId);
+SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t dnodeId) {
+  SXnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_XNODE, &dnodeId);
   if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_XNODE_NOT_EXIST;
   }
