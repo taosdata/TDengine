@@ -730,6 +730,7 @@ class TDTestCase:
             tdSql.checkData(1, 0, 1)
             tdSql.checkData(1, 1, 'c2')
             self.condition_check(t1 != "", 1, 2, 'st2')
+            tdSql.error(f'select count(1), cols(last({col_name}),*) {t1}  from {from_table} group by tbname order by cols(last({col_name}), *)') 
             
             #tdSql.query(f'select count(1), cols(last({col_name}),c2) {t1}  from {from_table} group by tbname order by cols(last({col_name}), *)')  
 
@@ -1327,6 +1328,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(0, 4, 'c2')
         tdSql.checkData(0, 5, True)
+        tdSql.error(f'select tbname, cols(last(ts), *) from test.meters group by tbname having cols(last(ts), *) = 1734574929000')
 
         
     def test_null2(self):
