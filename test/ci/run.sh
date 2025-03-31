@@ -386,6 +386,10 @@ function run_thread() {
             fi
         fi
         # save allure report results
+        local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        if [ -z "${passwords[index]}" ]; then
+            scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        fi
         local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
         cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
         $cmd
