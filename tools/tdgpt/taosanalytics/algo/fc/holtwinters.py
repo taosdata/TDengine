@@ -40,7 +40,7 @@ class _HoltWintersService(AbstractForecastService):
 
     def __do_forecast_helper(self, source_data, fc_rows):
         """ do holt winters impl """
-        if self.trend_option is None:
+        if self.trend_option is None and self.seasonal_option is None:
             fitted_model = SimpleExpSmoothing(source_data).fit()
         else:
             if self.period == 0 or self.seasonal_option is None:
