@@ -1,0 +1,30 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database
+sql create database test
+
+print =============== create super table and child table
+sql use test
+
+sql CREATE STABLE st (day timestamp, c2 int) TAGS (vin binary(32))
+
+sql insert into test.g using st TAGS ("TAG1") values("2023-05-03 00:00:00.000", 1)
+sql insert into test.t using st TAGS ("TAG1") values("2023-05-03 00:00:00.000", 1)
+sql insert into test.tg using st TAGS ("TAG1") values("2023-05-03 00:00:00.000", 1)
+
+sql select sum(case when t.c2 is NULL then 0 else 1 end + case when t.c2 is NULL then 0 else 1 end), sum(case when t.c2 is NULL then 0 else 1 end + case when t.c2 is NULL then 0 else 1 end + case when t.c2 is NULL then 0 else 1 end) from test.t t, test.g g, test.tg tg where t.day = g.day and t.day = tg.day and t.day between '2021-05-03' and '2023-05-04' and t.vin = 'TAG1' and t.vin = g.vin and t.vin = tg.vin group by t.day;
+
+print $rows $data00 $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+
+if $data01 != 3.000000000 then
+  return -1
+endi

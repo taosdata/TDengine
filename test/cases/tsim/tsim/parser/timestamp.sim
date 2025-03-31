@@ -1,0 +1,61 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = ts_db
+$tbPrefix = ts_tb
+$stbPrefix = ts_stb
+$tbNum = 10
+$rowNum = 300
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== timestamp.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database if exists $db
+sql create database $db maxrows 200
+print ====== create tables
+sql use $db
+sql create table $stb (ts timestamp, c1 timestamp, c2 int) tags(t1 binary(20))
+
+$i = 0
+$ts = $ts0
+$halfNum = $tbNum / 2
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $t1 = ' . $tb
+  $t1 = $t1 . '
+  sql create table $tb using $stb tags( $t1 )
+
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+    $binary = binary . $c
+    $nchar = '涛思nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values ( $ts , $ts , $c )
+    $x = $x + 1
+  endw
+  $ts = $ts + $delta
+  sql insert into $tb values ( $ts , NULL, NULL )
+  $i = $i + 1
+endw
+print ====== $db tables created
+
+run tsim/parser/timestamp_query.sim
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+
+run tsim/parser/timestamp_query.sim

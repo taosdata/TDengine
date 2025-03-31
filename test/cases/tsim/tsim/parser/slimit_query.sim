@@ -1,0 +1,228 @@
+sql connect
+
+$dbPrefix = slm_db
+$tbPrefix = slm_tb
+$stbPrefix = slm_stb
+$tbNum = 10
+$rowNum = 300
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== slimit_stb.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+print ====== use db
+sql use $db
+
+$tsu = $rowNum * $delta
+$tsu = $tsu - $delta
+$tsu = $tsu + $ts0
+
+##### select from supertable
+
+### illegal operations
+#sql_error select max(c1) from $stb where ts >= $ts0 and ts <= $tsu slimit 5 limit 1
+#sql_error select max(c1) from $stb where ts >= $ts0 and ts <= $tsu soffset 5
+#sql_error select max(c1) from $stb where ts >= $ts0 and ts <= $tsu limit 5 soffset 1
+#sql_error select max(c1) from $stb where ts >= $ts0 and ts <= $tsu slimit 5 offset 1
+#sql_error select top(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu slimit 5 offset 1
+#sql_error select bottom(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu slimit 5 offset 1
+
+### select from stb + partition by + slimit offset
+sql select t1, max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1
+if $rows != 10 then
+  return -1
+endi
+if $data(slm_tb0)[1] != 9 then
+  return -1
+endi
+if $data(slm_tb0)[1] != 9 then
+  return -1
+endi
+if $data(slm_tb0)[2] != 0 then
+  return -1
+endi
+if $data(slm_tb0)[3] != 4.500000000 then
+  return -1
+endi
+
+#sql reset query cache
+sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1  slimit 5
+if $rows != 5 then
+  return -1
+endi
+
+## asc
+sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1  slimit 4 soffset 1
+if $rows != 4 then
+  return -1
+endi
+
+## desc
+sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1 slimit 4 soffset 1
+if $rows != 4 then
+  return -1
+endi
+
+### limit + slimit
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1  slimit 4 soffset 1 limit 0
+if $rows != 0 then
+  return -1
+endi
+
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1  slimit 4 soffset 1 limit 2 offset 1
+if $rows != 0 then
+  return -1
+endi
+
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1,t2  slimit 4 soffset 1 limit 1 offset 0
+if $rows != 4 then
+  return -1
+endi
+
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb partition by t1,t2 slimit 4 soffset 1 limit 1 offset 0
+if $rows != 4 then
+  return -1
+endi
+
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 5 partition by t1,t2,t3  slimit 3 soffset 1 limit 1 offset 0
+if $rows != 3 then
+  return -1
+endi
+
+### slimit + fill
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 5 partition by t1 interval(5m) fill(linear) slimit 4 soffset 4 limit 0 offset 0
+if $rows != 0 then
+  return -1
+endi
+
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9  partition by t1 interval(5m) fill(linear) slimit 4 soffset 4 limit 2 offset 0
+print select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1 interval(5m) fill(linear)  slimit 4 soffset 4 limit 2 offset 0
+print $rows $data00 $data01 $data02 $data03
+if $rows != 8 then
+  return -1
+endi
+
+# desc
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1 interval(5m) fill(linear) slimit 4 soffset 4 limit 2 offset 0
+if $rows != 8 then
+  return -1
+endi
+
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1  interval(5m) fill(linear) slimit 4 soffset 4 limit 2 offset 598
+if $rows != 4 then
+  return -1
+endi
+
+sql select count(ts) from $stb partition by t1,t2,t3,t4,t5,t6 order by t1 desc
+if $rows != $tbNum then
+  return -1
+endi
+
+sql select count(c1) from $stb partition by t1,t2,t3,t4,t5,t6 order by t1 desc
+if $rows != 10 then
+  return -1
+endi
+
+## [TBASE-604]
+#sql_error select count(tbname) from slm_stb0 partition by t1
+#sql select * from information_schema.ins_databases
+
+## [TBASE-605]
+sql select * from slm_stb0 where t2 >= 2 and t3 <= 9 partition by tbname slimit 40 limit 1;
+
+##################################################
+# slm_db1 is a database that contains the exactly the same
+# schema as slm_db0, but all records in slm_db1 contains
+# only NULL values.
+$db = $dbPrefix . 1
+sql use $db
+
+###
+sql reset query cache
+sql select count(*) from $stb
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $totalNum then
+  return -1
+endi
+
+sql select count(c1) from $stb
+print $data00
+if $data00 != 0 then
+  return -1
+endi
+
+sql select t1,t2,t3,t4,t5,t6,count(ts) from $stb partition by t1,t2,t3,t4,t5,t6
+if $rows != $tbNum then
+  return -1
+endi
+
+if $data(slm_tb1)[6] != $rowNum then
+  return -1
+endi
+if $data(slm_tb2)[6] != $rowNum then
+  return -1
+endi
+if $data(slm_tb3)[0] != slm_tb3 then
+  return -1
+endi
+if $data(slm_tb4)[1] != 4 then
+  return -1
+endi
+if $data(slm_tb5)[2] != 5 then
+  return -1
+endi
+if $data(slm_tb6)[3] != 涛思slm_tb6 then
+  return -1
+endi
+if $data(slm_tb7)[4] != 7.000000000 then
+  return -1
+endi
+if $data(slm_tb8)[5] != 1 then
+  return -1
+endi
+
+sql select count(ts),t1,t2,t3,t4,t5,t6  from $stb partition by t1,t2,t3,t4,t5,t6 order by t1 desc
+if $rows != $tbNum then
+  return -1
+endi
+if $data00 != $rowNum then
+  return -1
+endi
+if $data90 != $rowNum then
+  return -1
+endi
+if $data01 != slm_tb9 then
+  return -1
+endi
+if $data12 != 8 then
+  return -1
+endi
+if $data23 != 7 then
+  return -1
+endi
+if $data34 != 涛思slm_tb6 then
+  return -1
+endi
+if $data45 != 5.000000000 then
+  return -1
+endi
+if $data56 != 1 then
+  return -1
+endi
+if $data60 != $rowNum then
+  return -1
+endi
+if $data71 != slm_tb2 then
+  return -1
+endi
+
+sql select count(c1) from $stb partition by t1,t2,t3,t4,t5,t6 order by t1 desc
+if $rows != 10 then
+  return -1
+endi
+

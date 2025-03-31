@@ -1,0 +1,72 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_cv_db
+$tbPrefix = lm_cv_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+
+sql create table $tb (ts timestamp, speed int, v1 binary(100), v2 binary(100), v3 binary(100), v4 binary(100), v5 binary(100)) 
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+sql insert into $tb values(now, 1, '1', '2', '3', '4', '5')
+sql insert into $tb values(now+1a, 1, '1', '2', '3', '4', '5')
+sql select * from $tb
+if $rows != 2 then 
+  return -1
+endi
+sql drop table $tb
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step2
+sql create table  $tb (ts timestamp, speed bigint, v1 binary(1500), v2 binary(1500), v3 binary(1500), v4 binary(500), v5 binary(500))
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+sql drop table $tb
+
+print =============== step3
+sql create table $tb (ts timestamp, speed float, v1 binary(100), v2 binary(100), v3 binary(100), v4 binary(100), v5 binary(100)) 
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+sql insert into $tb values(now+2a, 1, '1', '2', '3', '4', '5')
+sql insert into $tb values(now+3a, 1, '1', '2', '3', '4', '5')
+sql select * from $tb
+if $rows != 2 then 
+  return -1
+endi
+sql drop table $tb
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step4
+sql create table  $tb (ts timestamp, speed double, v1 binary(1500), v2 binary(1500), v3 binary(1500), v4 binary(500), v5 binary(500)) 
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

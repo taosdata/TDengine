@@ -1,0 +1,266 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_la_db
+$tbPrefix = m_la_tb
+$mtPrefix = m_la_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select last_row(tbcol) from $tb
+print ===> $data00
+if $data00 != 19 then
+  return -1
+endi
+
+print =============== step3
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+print select last_row(tbcol) from $tb where ts <= $ms
+sql select last_row(tbcol) from $tb where ts <= $ms
+print ===> $data00
+if $data00 != 4 then
+  return -1
+endi
+
+print =============== step4
+sql select last_row(tbcol) as b from $tb
+print ===> $data00
+if $data00 != 19 then
+  return -1
+endi
+
+print =============== step7
+sql select last_row(tbcol) from $mt
+print ===> $data00
+if $data00 != 19 then
+  return -1
+endi
+
+print =============== step8
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select last_row(tbcol) as c from $mt where ts <= $ms
+print ===> $data00
+if $data00 != 4 then
+  return -1
+endi
+
+sql select last_row(tbcol) as c from $mt where tgcol < 5
+print ===> $data00
+if $data00 != 19 then
+  return -1
+endi
+
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select last_row(tbcol) as c from $mt where tgcol < 5 and ts <= $ms
+print ===> $data00
+if $data00 != 4 then
+  return -1
+endi
+
+print =============== step10
+sql select last_row(tbcol) as b from $mt group by tgcol
+print ===> $data00
+if $data00 != 19 then
+  return -1
+endi
+
+if $rows != $tbNum then
+  return -1
+endi
+
+print =============== step11
+
+$cc = 1 * 3600000
+$ms = 1601481600000 + $cc
+sql insert into $tb values( $ms , 10)
+
+$cc = 3 * 3600000
+$ms = 1601481600000 + $cc
+sql insert into $tb values( $ms , null)
+
+$cc = 5 * 3600000
+$ms = 1601481600000 + $cc
+
+sql insert into $tb values( $ms , -1)
+
+$cc = 7 * 3600000
+$ms = 1601481600000 + $cc
+
+sql insert into $tb values( $ms , null)
+
+## for super table
+$cc = 6 * 3600000
+$ms = 1601481600000 + $cc
+
+sql select last_row(*) from $mt where ts < $ms
+if $data01 != -1 then
+  return -1
+endi
+
+$cc = 8 * 3600000
+$ms = 1601481600000 + $cc
+
+sql select last_row(*) from $mt where ts < $ms
+if $data01 != NULL then
+  return -1
+endi
+
+sql select last_row(*) from $mt
+if $data01 != NULL then
+  return -1
+endi
+
+$cc = 4 * 3600000
+$ms = 1601481600000 + $cc
+
+sql select last_row(*) from $mt where ts < $ms
+if $data01 != NULL then
+  return -1
+endi
+
+$cc = 1 * 3600000
+$ms1 = 1601481600000 + $cc
+$cc = 4 * 3600000
+$ms2 = 1601481600000 + $cc
+
+sql select last_row(*) from $mt where ts > $ms1 and ts <= $ms2
+if $data01 != NULL then
+  return -1
+endi
+
+## for table
+$cc = 6 * 3600000
+$ms = 1601481600000 + $cc
+
+sql select last_row(*) from $tb where ts <= $ms
+if $data01 != -1 then
+  return -1
+endi
+
+$cc = 8 * 3600000
+$ms = 1601481600000 + $cc
+
+sql select last_row(*) from $tb where ts <= $ms
+if $data01 != NULL then
+  return -1
+endi
+
+sql select last_row(*) from $tb
+if $data01 != NULL then
+  return -1
+endi
+
+$cc = 4 * 3600000
+$ms = 1601481600000 + $cc
+
+sql select last_row(*) from $tb where ts <= $ms
+if $data01 != NULL then
+  return -1
+endi
+
+$cc = 1 * 3600000
+$ms1 = 1601481600000 + $cc
+$cc = 4 * 3600000
+$ms2 = 1601481600000 + $cc
+
+sql select last_row(*) from $tb where ts > $ms1 and ts <= $ms2
+if $data01 != NULL then
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+print =======================> regresss bug in last_row query
+sql drop database if exists db;
+sql create database if not exists db vgroups 1 cachemodel 'both';
+sql create table db.stb (ts timestamp, c0 bigint) tags(t1 int);
+sql insert into db.stb_0 using db.stb tags(1) values ('2023-11-23 19:06:40.000', 491173569);
+sql insert into db.stb_2 using db.stb tags(3) values ('2023-11-25 19:30:00.000', 2080726142);
+sql insert into db.stb_3 using db.stb tags(4) values ('2023-11-26 06:48:20.000', 1907405128);
+sql insert into db.stb_4 using db.stb tags(5) values ('2023-11-24 22:56:40.000', 220783803);
+
+sql create table db.stb_1 using db.stb tags(2);
+sql insert into db.stb_1 (ts) values('2023-11-26 13:11:40.000');
+sql insert into db.stb_1 (ts, c0) values('2023-11-26 13:11:39.000', 11);
+
+sql select tbname,ts,last_row(c0) from db.stb;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @stb_1@ then
+  return -1
+endi
+
+if $data01 != @23-11-26 13:11:40.000@  then
+  return -1
+endi
+
+if $data02 != NULL then
+  return -1
+endi
+
+sql alter database db cachemodel 'none';
+sql reset query cache;
+sql select tbname,last_row(c0, ts) from db.stb;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @stb_1@ then
+  return -1
+endi
+
+if $data02 != @23-11-26 13:11:40.000@  then
+  return -1
+endi
+
+if $data01 != NULL then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

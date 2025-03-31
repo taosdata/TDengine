@@ -1,0 +1,54 @@
+sql connect
+
+$dbPrefix = ts_db
+$tbPrefix = ts_tb
+$stbPrefix = ts_stb
+$tbNum = 10
+$rowNum = 300
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== timestamp_query.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+print ====== use db
+sql use $db
+
+$tsu = $rowNum * $delta
+$tsu = $tsu - $delta
+$tsu = $tsu + $ts0
+
+print ==================>issue #3481, normal column not allowed,
+sql select ts,c1,min(c2) from ts_stb0
+
+print ==================>issue #4681, not equal operator on primary timestamp not allowed
+sql select * from ts_stb0 where ts <> $ts0
+
+##### select from supertable
+$tb = $tbPrefix . 0
+sql select _wstart, first(c1), last(c1), (1537325400 - 1537146000)/(5*60) v from $tb where ts >= $ts0 and ts < $tsu interval(5m) fill(value, -1, -1)
+$res = $rowNum * 2
+$n = $res - 2
+print ============>$n
+if $rows != $n then
+  print expect $n, actual $rows
+  return -1
+endi
+
+if $data03 != 598.000000000 then
+  print expect 598.000000000, actual $data03
+  return -1
+endi
+
+if $data13 != 598.000000000 then
+  print expect 598.000000000, actual $data03
+  return -1
+endi
+
+sql select _wstart, first(c1), last(c1), (1537325400 - 1537146000)/(5*60) v from $tb where ts >= $ts0 and ts < $tsu interval(5m) fill(value, NULL, NULL)
+if $data13 != 598.000000000 then
+  print expect 598.000000000, actual $data03
+  return -1
+endi

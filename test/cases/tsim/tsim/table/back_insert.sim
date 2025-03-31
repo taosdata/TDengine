@@ -1,0 +1,8 @@
+sql connect
+$x = 1
+begin:
+  sql insert into db.tb values(now, $x ) -x begin  
+  #print ===> insert successed $x 
+  sleep 100
+  $x = $x + 1   
+goto begin
