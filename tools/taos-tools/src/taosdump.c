@@ -1925,6 +1925,50 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     return csql;
 }
 
+static void print_json_object(json_t *element, int indent);
+static void print_json_array(json_t *element, int indent);
+static void print_json_string(json_t *element, int indent);
+
+static void print_json_aux(json_t *element, int indent) {
+    switch (json_typeof(element)) {
+        case JSON_OBJECT:
+            print_json_object(element, indent);
+            break;
+
+        case JSON_ARRAY:
+            print_json_array(element, indent);
+            break;
+
+        case JSON_STRING:
+            print_json_string(element, indent);
+            break;
+/* not used so far
+        case JSON_INTEGER:
+            print_json_integer(element, indent);
+            break;
+
+        case JSON_REAL:
+            print_json_real(element, indent);
+            break;
+
+        case JSON_TRUE:
+            print_json_true(element, indent);
+            break;
+
+        case JSON_FALSE:
+            print_json_false(element, indent);
+            break;
+
+        case JSON_NULL:
+            print_json_null(element, indent);
+            break;
+*/
+
+        default:
+            errorPrint("Unrecognized JSON type %d\n", json_typeof(element));
+    }
+}
+
 static void print_json(json_t *root) { print_json_aux(root, 0); }
 
 static json_t *dump_load_json(char *jsonbuf) {
@@ -1956,6 +2000,84 @@ void freeRecordSchema(RecordSchema *recordSchema) {
         free(recordSchema);
     }
 }
+
+
+static int32_t readStbSchemaCols( json_t *elements, ColDes *cols) {
+    const char *key   = NULL;
+    json_t     *value = NULL;
+
+    // check valid
+    if (JSON_ARRAY != json_typeof(elements)) {
+        warnPrint("%s() LN%d, stbSchema have no array\n",
+            __func__, __LINE__);
+        return  0;
+    }
+
+    size_t size = json_array_size(elements);
+
+    for (size_t i = 0; i < size; i++) {
+        json_t *element = json_array_get(elements, i);
+        
+        // loop read
+        ColDes *col = cols + i;
+        json_object_foreach(element, key, value) {
+            if (0 == strcmp(key, "name")) {
+                strncpy(col->field, json_string_value(value), TSDB_COL_NAME_LEN - 1);
+            } else if (0 == strcmp(key, "type")) {
+                col->type = json_integer_value(value);
+            }
+        }
+
+        // set idx
+        col->idx = i;
+    }
+
+    return size;
+}
+
+// read stb schema
+static int32_t readJsonStbSchema( json_t *element, RecordSchema *recordSchema) {
+
+    const char *key   = NULL;
+    json_t     *value = NULL;
+    uint32_t   n      = 0;
+
+    // maloc tableDes
+    TableDes *tableDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
+    if (tableDes == NULL) {
+        errorPrint("%s() LN%d, malloc memory TableDes failed.\n", __func__, __LINE__);
+        return -1;
+    }
+
+    json_object_foreach(element, key, value) {
+        if (0 == strcmp(key, "version")) {
+            recordSchema->version = json_integer_value(value);
+        } else if (0 == strcmp(key, "name")) {
+            tstrncpy(recordSchema->stbName, json_string_value(value), RECORD_NAME_LEN - 1);
+        } else if (0 == strcmp(key, "tags")) {
+            tableDes->tags = readStbSchemaCols(value, tableDes->cols + n);
+            n += tableDes->tags;
+        } else if (0 == strcmp(key, "cols")) {
+            tableDes->columns = readStbSchemaCols(value, tableDes->cols + n);
+            n += tableDes->columns;
+        }
+    }
+
+    // check valid
+    if (tableDes->columns == 0) {
+        errorPrint("%s() LN%d, TableDes->columns is zero. stbName=%s\n", __func__, __LINE__, tableDes->name);
+        //return -1;
+    }
+
+    debugPrint("%s() LN%d, stbName=%s tags=%d columns=%d\n", __func__, __LINE__, tableDes->name, tableDes->tags, tableDes->columns);
+
+    // set
+    recordSchema->tableDes = tableDes;
+    return 0;
+
+}
+
+
 
 // read
 int32_t mFileToRecordSchema(char *avroFile, RecordSchema* recordSchema) {
@@ -3041,45 +3163,7 @@ static void print_json_null(json_t *element, int indent) {
 }
 */
 
-static void print_json_aux(json_t *element, int indent) {
-    switch (json_typeof(element)) {
-        case JSON_OBJECT:
-            print_json_object(element, indent);
-            break;
 
-        case JSON_ARRAY:
-            print_json_array(element, indent);
-            break;
-
-        case JSON_STRING:
-            print_json_string(element, indent);
-            break;
-/* not used so far
-        case JSON_INTEGER:
-            print_json_integer(element, indent);
-            break;
-
-        case JSON_REAL:
-            print_json_real(element, indent);
-            break;
-
-        case JSON_TRUE:
-            print_json_true(element, indent);
-            break;
-
-        case JSON_FALSE:
-            print_json_false(element, indent);
-            break;
-
-        case JSON_NULL:
-            print_json_null(element, indent);
-            break;
-*/
-
-        default:
-            errorPrint("Unrecognized JSON type %d\n", json_typeof(element));
-    }
-}
 
 
 void printDotOrX(int64_t count, bool *printDot) {
@@ -10613,7 +10697,7 @@ int inspectAvroFile(char *filename) {
         print_json(json_root);
     }
 
-    if (NULL == json_root) {ƒ
+    if (NULL == json_root) {
         errorPrint("%s() LN%d, cannot read valid schema from %s\n",
                 __func__, __LINE__, filename);
         avro_writer_free(jsonwriter);
