@@ -364,7 +364,6 @@ function run_thread() {
             $cmd
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
-            local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
             local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             if [ -z "${passwords[index]}" ]; then
                 scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
@@ -373,9 +372,7 @@ function run_thread() {
             $cmd
             cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
             $cmd
-            # save allure report results
-            cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
-            $cmd
+            
             # backup source code (disabled)
             source_tar_dir=$log_dir/TDengine_${hosts[index]}
             source_tar_file=TDengine.tar.gz
@@ -388,6 +385,11 @@ function run_thread() {
                 cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
             fi
         fi
+        # save allure report results
+        local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
+        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
+        $cmd
+        echo "Save allure report results to $log_dir/allure-results/ from $allure_report_results with cmd: $cmd"
     done
 }
 
