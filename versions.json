@@ -2,14 +2,14 @@
   {
     "version": "new_test_framework",
     "title": "new_test_framework",
-    "aliases": [
-      "latest"
-    ]
+    "aliases": []
   },
   {
     "version": "main",
     "title": "main",
-    "aliases": []
+    "aliases": [
+      "latest"
+    ]
   },
   {
     "version": "3.0",
