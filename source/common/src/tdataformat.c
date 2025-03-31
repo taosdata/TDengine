@@ -4785,7 +4785,7 @@ void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len) {
         pVal->val = *(uint32_t *)pDatum;
         break;
       case sizeof(uint64_t):
-        pVal->val = *(uint64_t *)pDatum;
+        taosSetUInt64Aligned(&pVal->val, (uint64_t *)pDatum);
         break;
       default:
         break;

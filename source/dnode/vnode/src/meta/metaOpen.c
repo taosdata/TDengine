@@ -683,11 +683,11 @@ int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
 
   // both null or tag values are equal, then continue to compare uids
   if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
-    uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
-    uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
+    uid1 = taosGetInt64Aligned((tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data)));
+    uid2 = taosGetInt64Aligned((tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data)));
   } else {
-    uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
-    uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
+    uid1 = taosGetInt64Aligned((tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes));
+    uid2 = taosGetInt64Aligned((tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes));
   }
 
   // compare uid

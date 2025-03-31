@@ -70,7 +70,7 @@ static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size
 #endif
 
 #ifdef NO_UNALIGNED_ACCESS
-#define CHECK_ALIGNMENT
+#undef CHECK_ALIGNMENT
 static FORCE_INLINE int64_t taosGetInt64Aligned(int64_t *pVal) {
 #ifdef CHECK_ALIGNMENT
   if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
@@ -147,6 +147,26 @@ static FORCE_INLINE void taosSetPFloatAligned(float *to, float *from) {
   memcpy(to, from, sizeof(float));
 }
 
+static FORCE_INLINE void taosSetFloatAligned(float *to, float from) {
+#ifdef CHECK_ALIGNMENT
+  if (((uintptr_t)to & 7) == 0) {
+    *to = from;
+    return;
+  }
+#endif
+  memcpy(to, &from, sizeof(float));
+}
+
+static FORCE_INLINE void taosSetDoubleAligned(double *to, double from) {
+#ifdef CHECK_ALIGNMENT
+  if (((uintptr_t)to & 7) == 0) {
+    *to = from;
+    return;
+  }
+#endif
+  memcpy(to, &from, sizeof(double));
+}
+
 static FORCE_INLINE void taosSetPDoubleAligned(double *to, double *from) {
 #ifdef CHECK_ALIGNMENT
   if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
@@ -177,7 +197,9 @@ static FORCE_INLINE double   taosGetDoubleAligned(double *pVal) { return *pVal; 
 static FORCE_INLINE void     taosSetInt64Aligned(int64_t *p, int64_t val) { *p = val; }
 static FORCE_INLINE void     taosSetUInt64Aligned(uint64_t *p, uint64_t val) { *p = val; }
 static FORCE_INLINE void     taosSetPInt64Aligned(int64_t *to, int64_t *from) { *to = *from; }
+static FORCE_INLINE void     taosSetFloatAligned(float *to, float from) { *to = from; }
 static FORCE_INLINE void     taosSetPFloatAligned(float *to, float *from) { *to = *from; }
+static FORCE_INLINE void     taosSetDoubleAligned(double *to, double from) { *to = from; }
 static FORCE_INLINE void     taosSetPDoubleAligned(double *to, double *from) { *to = *from; }
 static FORCE_INLINE void     taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) { *to = *from; }
 #define TAOS_SET_OBJ_ALIGNED(pTo, vFrom)  *(pTo) = (vFrom)

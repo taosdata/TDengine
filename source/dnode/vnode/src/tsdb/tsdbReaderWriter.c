@@ -142,7 +142,11 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
 
   if (!pFD->pFD) {
     code = tsdbOpenFileImpl(pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    if (code != 0) {
+      __asm("bkpt #0");
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    // TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (pFD->pgno > 0) {
