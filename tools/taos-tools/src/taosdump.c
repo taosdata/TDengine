@@ -7248,6 +7248,7 @@ static int createMTableAvroHeadSpecified(
                 stbTableDes,
                 specifiedTb, db, wface);
     }
+    
 
     avro_value_iface_decref(wface);
     freeRecordSchema(recordSchema);
@@ -7255,9 +7256,19 @@ static int createMTableAvroHeadSpecified(
     avro_schema_decref(schema);
 
     tfree(jsonTagsSchema);
+
+    ret = -1;
+    char *stbJson = tableDesToJson(stbTableDes);
+    if (stbJson) {
+        strcat(dumpFilename, MFILE_EXT);
+        ret = writeFile(dumpFilename, stbJson);
+        free(stbJson);
+        stbJson = NULL;
+    }
+
     freeTbDes(stbTableDes, true);
 
-    return 0;
+    return ret;
 }
 
 static int64_t fillTbNameArrNative(
