@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../../tsim/">
+        <link rel="prev" href="../compress/">
       
       
-        <link rel="next" href="../../high_availability/cluster_expansion_reduction/">
+        <link rel="next" href="../tsma/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -20,7 +20,7 @@
     
     
       
-        <title>Sql statement - TDengine Case List</title>
+        <title>Multilevel - TDengine Case List</title>
       
     
     
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#data_write.sql_statement.test_insert_double" class="md-skip">
+        <a href="#storage.multilevel.test_mlevel_basic" class="md-skip">
           Skip to content
         </a>
       
@@ -102,7 +102,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Sql statement
+              Multilevel
             
           </span>
         </div>
@@ -434,8 +434,6 @@
                 
   
   
-    
-  
   
   
     
@@ -446,11 +444,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" >
         
           
           <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
@@ -466,7 +464,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2_5">
             <span class="md-nav__icon md-icon"></span>
             Data write
@@ -477,30 +475,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Sql statement
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../data_write/sql_statement/" class="md-nav__link">
         
   
   
@@ -511,63 +489,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double" class="md-nav__link">
-    <span class="md-ellipsis">
-      test_insert_double
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="test_insert_double">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double.TestInsertDouble" class="md-nav__link">
-    <span class="md-ellipsis">
-      TestInsertDouble
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="TestInsertDouble">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double.TestInsertDouble.test_insert_double" class="md-nav__link">
-    <span class="md-ellipsis">
-      测试插入各种double值
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -729,6 +650,8 @@
                 
   
   
+    
+  
   
   
     
@@ -739,11 +662,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_8" checked>
         
           
           <label class="md-nav__link" for="__nav_2_8" id="__nav_2_8_label" tabindex="0">
@@ -759,7 +682,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_8_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_8_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2_8">
             <span class="md-nav__icon md-icon"></span>
             Storage
@@ -773,7 +696,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../storage/compress/" class="md-nav__link">
+      <a href="../compress/" class="md-nav__link">
         
   
   
@@ -793,10 +716,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../storage/multilevel/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Multilevel
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -807,6 +750,33 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#storage.multilevel.test_mlevel_basic" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_mlevel_basic
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -819,7 +789,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../storage/tsma/" class="md-nav__link">
+      <a href="../tsma/" class="md-nav__link">
         
   
   
@@ -1067,41 +1037,11 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double" class="md-nav__link">
+  <a href="#storage.multilevel.test_mlevel_basic" class="md-nav__link">
     <span class="md-ellipsis">
-      test_insert_double
+      test_mlevel_basic
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="test_insert_double">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double.TestInsertDouble" class="md-nav__link">
-    <span class="md-ellipsis">
-      TestInsertDouble
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="TestInsertDouble">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double.TestInsertDouble.test_insert_double" class="md-nav__link">
-    <span class="md-ellipsis">
-      测试插入各种double值
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1121,17 +1061,17 @@
 
 
 
-  <h1>Sql statement</h1>
+  <h1>Multilevel</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<h2 id="data_write.sql_statement.test_insert_double" class="doc doc-heading">
-            <code>data_write.sql_statement.test_insert_double</code>
+<h2 id="storage.multilevel.test_mlevel_basic" class="doc doc-heading">
+            <code>storage.multilevel.test_mlevel_basic</code>
 
 
-<a href="#data_write.sql_statement.test_insert_double" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#storage.multilevel.test_mlevel_basic" class="headerlink" title="Permanent link">&para;</a></h2>
 
     <div class="doc doc-contents first">
 
@@ -1151,76 +1091,6 @@
 
 
 
-
-<div class="doc doc-object doc-class">
-
-
-
-<h3 id="data_write.sql_statement.test_insert_double.TestInsertDouble" class="doc doc-heading">
-            <code>TestInsertDouble</code>
-
-
-<a href="#data_write.sql_statement.test_insert_double.TestInsertDouble" class="headerlink" title="Permanent link">&para;</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-
-    
-<div class="doc doc-object doc-function">
-    
-    
-<h4 id="data_write.sql_statement.test_insert_double.TestInsertDouble.test_insert_double" class="doc doc-heading">    
-                <code class="highlight language-python"><span class="n">test_insert_double</span><span class="p">()</span></code>    
-    
-<a href="#data_write.sql_statement.test_insert_double.TestInsertDouble.test_insert_double" class="headerlink" title="Permanent link">&para;</a></h4>    
-    
-    
-        <div class="doc doc-contents ">
-
-        <p>测试插入各种double值</p>
-<p>插入各种double值包括正负值、科学计数法、十六进制、二进制、字符串</p>
-<p>Since: v3.0.0.0</p>
-<p>Labels: common,ci</p>
-<p>Jira: None</p>
-
-
-<details class="history" open>
-  <summary>History</summary>
-  <ul>
-<li>2024-2-6 Feng Chao Created</li>
-<li>2025-2-26 Huo Hong Migrated to new test framework</li>
-</ul>
-</details>    
-        </div>
-    
-    </div>
-
-
-
-  </div>
-
-    </div>
-
-</div>
 
 
 

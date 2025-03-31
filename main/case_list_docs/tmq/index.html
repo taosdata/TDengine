@@ -9,22 +9,22 @@
       
       
       
-        <link rel="prev" href="../../tsim/">
+        <link rel="prev" href="../stream/">
       
       
-        <link rel="next" href="../../high_availability/cluster_expansion_reduction/">
+        <link rel="next" href="../tsim/">
       
       
-      <link rel="icon" href="../../../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.10">
     
     
       
-        <title>Sql statement - TDengine Case List</title>
+        <title>Tmq - TDengine Case List</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.4af4bdda.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.4af4bdda.min.css">
       
       
 
@@ -43,9 +43,9 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#data_write.sql_statement.test_insert_double" class="md-skip">
+        <a href="#tmq.test_drop_lost_comsumers" class="md-skip">
           Skip to content
         </a>
       
@@ -82,7 +82,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="TDengine Case List" class="md-header__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+    <a href="../.." title="TDengine Case List" class="md-header__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -102,7 +102,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Sql statement
+              Tmq
             
           </span>
         </div>
@@ -172,7 +172,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../.." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -195,7 +195,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../demo/" class="md-tabs__link">
+        <a href="../demo/" class="md-tabs__link">
           
   
   
@@ -222,7 +222,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-tabs__link">
+        <a href="../../util_funcs_docs/new_test_framework/utils/" class="md-tabs__link">
           
   
   
@@ -259,7 +259,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="TDengine Case List" class="md-nav__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+    <a href="../.." title="TDengine Case List" class="md-nav__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -277,7 +277,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../.." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -345,7 +345,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../demo/" class="md-nav__link">
+      <a href="../demo/" class="md-nav__link">
         
   
   
@@ -368,7 +368,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../stream/" class="md-nav__link">
+      <a href="../stream/" class="md-nav__link">
         
   
   
@@ -383,95 +383,6 @@
   
 
               
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../tmq/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Tmq
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../tsim/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Tsim
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    Data write
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2_5">
-            <span class="md-nav__icon md-icon"></span>
-            Data write
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -492,7 +403,7 @@
   
   
   <span class="md-ellipsis">
-    Sql statement
+    Tmq
     
   </span>
   
@@ -505,7 +416,7 @@
   
   
   <span class="md-ellipsis">
-    Sql statement
+    Tmq
     
   </span>
   
@@ -526,29 +437,47 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double" class="md-nav__link">
+  <a href="#tmq.test_drop_lost_comsumers" class="md-nav__link">
     <span class="md-ellipsis">
-      test_insert_double
+      test_drop_lost_comsumers
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="test_insert_double">
+    <nav class="md-nav" aria-label="test_drop_lost_comsumers">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double.TestInsertDouble" class="md-nav__link">
+  <a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers" class="md-nav__link">
     <span class="md-ellipsis">
-      TestInsertDouble
+      TestDropLostConsumers
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="TestInsertDouble">
+    <nav class="md-nav" aria-label="TestDropLostConsumers">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double.TestInsertDouble.test_insert_double" class="md-nav__link">
+  <a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.caseDescription" class="md-nav__link">
     <span class="md-ellipsis">
-      测试插入各种double值
+      drop_lost_consmuers<hrchen>:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.case_session_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      TEST CASE: verifying that the boundary and valid values of session_timeout_ms are in effect
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.test_case_max_poll_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      session_timeout_ms 和 max_poll_interval_ms 到期后consumer关闭
     </span>
   </a>
   
@@ -561,6 +490,15 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tmq.test_tmq_params" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tmq_params
+    </span>
+  </a>
   
 </li>
       
@@ -568,6 +506,93 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tsim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tsim
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Data write
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            Data write
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data_write/sql_statement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Sql statement
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -629,7 +654,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../high_availability/cluster_expansion_reduction/" class="md-nav__link">
+      <a href="../high_availability/cluster_expansion_reduction/" class="md-nav__link">
         
   
   
@@ -701,7 +726,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../metadata/db/" class="md-nav__link">
+      <a href="../metadata/db/" class="md-nav__link">
         
   
   
@@ -773,7 +798,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../storage/compress/" class="md-nav__link">
+      <a href="../storage/compress/" class="md-nav__link">
         
   
   
@@ -796,7 +821,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../storage/multilevel/" class="md-nav__link">
+      <a href="../storage/multilevel/" class="md-nav__link">
         
   
   
@@ -819,7 +844,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../storage/tsma/" class="md-nav__link">
+      <a href="../storage/tsma/" class="md-nav__link">
         
   
   
@@ -891,7 +916,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tools/benchmark/" class="md-nav__link">
+      <a href="../tools/benchmark/" class="md-nav__link">
         
   
   
@@ -1011,7 +1036,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">
+      <a href="../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">
         
   
   
@@ -1067,29 +1092,47 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double" class="md-nav__link">
+  <a href="#tmq.test_drop_lost_comsumers" class="md-nav__link">
     <span class="md-ellipsis">
-      test_insert_double
+      test_drop_lost_comsumers
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="test_insert_double">
+    <nav class="md-nav" aria-label="test_drop_lost_comsumers">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double.TestInsertDouble" class="md-nav__link">
+  <a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers" class="md-nav__link">
     <span class="md-ellipsis">
-      TestInsertDouble
+      TestDropLostConsumers
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="TestInsertDouble">
+    <nav class="md-nav" aria-label="TestDropLostConsumers">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#data_write.sql_statement.test_insert_double.TestInsertDouble.test_insert_double" class="md-nav__link">
+  <a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.caseDescription" class="md-nav__link">
     <span class="md-ellipsis">
-      测试插入各种double值
+      drop_lost_consmuers<hrchen>:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.case_session_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      TEST CASE: verifying that the boundary and valid values of session_timeout_ms are in effect
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.test_case_max_poll_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      session_timeout_ms 和 max_poll_interval_ms 到期后consumer关闭
     </span>
   </a>
   
@@ -1102,6 +1145,15 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tmq.test_tmq_params" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_tmq_params
+    </span>
+  </a>
   
 </li>
       
@@ -1121,17 +1173,17 @@
 
 
 
-  <h1>Sql statement</h1>
+  <h1>Tmq</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<h2 id="data_write.sql_statement.test_insert_double" class="doc doc-heading">
-            <code>data_write.sql_statement.test_insert_double</code>
+<h2 id="tmq.test_drop_lost_comsumers" class="doc doc-heading">
+            <code>tmq.test_drop_lost_comsumers</code>
 
 
-<a href="#data_write.sql_statement.test_insert_double" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#tmq.test_drop_lost_comsumers" class="headerlink" title="Permanent link">&para;</a></h2>
 
     <div class="doc doc-contents first">
 
@@ -1156,11 +1208,11 @@
 
 
 
-<h3 id="data_write.sql_statement.test_insert_double.TestInsertDouble" class="doc doc-heading">
-            <code>TestInsertDouble</code>
+<h3 id="tmq.test_drop_lost_comsumers.TestDropLostConsumers" class="doc doc-heading">
+            <code>TestDropLostConsumers</code>
 
 
-<a href="#data_write.sql_statement.test_insert_double.TestInsertDouble" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers" class="headerlink" title="Permanent link">&para;</a></h3>
 
 
     <div class="doc doc-contents ">
@@ -1188,19 +1240,56 @@
 <div class="doc doc-object doc-function">
     
     
-<h4 id="data_write.sql_statement.test_insert_double.TestInsertDouble.test_insert_double" class="doc doc-heading">    
-                <code class="highlight language-python"><span class="n">test_insert_double</span><span class="p">()</span></code>    
+<h4 id="tmq.test_drop_lost_comsumers.TestDropLostConsumers.caseDescription" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">caseDescription</span><span class="p">()</span></code>    
     
-<a href="#data_write.sql_statement.test_insert_double.TestInsertDouble.test_insert_double" class="headerlink" title="Permanent link">&para;</a></h4>    
+<a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.caseDescription" class="headerlink" title="Permanent link">&para;</a></h4>    
     
     
         <div class="doc doc-contents ">
 
-        <p>测试插入各种double值</p>
-<p>插入各种double值包括正负值、科学计数法、十六进制、二进制、字符串</p>
-<p>Since: v3.0.0.0</p>
+        <p>drop_lost_consmuers<hrchen>:
+1. verifying that the boundary and valid values of session_timeout_ms are in effect
+2. verifying that the boundary and valid values of max_poll_interval_ms are in effect
+3. verifying that consumer will be closed when the session_timeout_ms and max_poll_interval_ms is expired</p>
+    
+        </div>
+    
+    </div>
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h4 id="tmq.test_drop_lost_comsumers.TestDropLostConsumers.case_session_timeout" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">case_session_timeout</span><span class="p">()</span></code>    
+    
+<a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.case_session_timeout" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>TEST CASE: verifying that the boundary and valid values of session_timeout_ms are in effect</p>
+    
+        </div>
+    
+    </div>
+    
+<div class="doc doc-object doc-function">
+    
+    
+<h4 id="tmq.test_drop_lost_comsumers.TestDropLostConsumers.test_case_max_poll_timeout" class="doc doc-heading">    
+                <code class="highlight language-python"><span class="n">test_case_max_poll_timeout</span><span class="p">()</span></code>    
+    
+<a href="#tmq.test_drop_lost_comsumers.TestDropLostConsumers.test_case_max_poll_timeout" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+    
+        <div class="doc doc-contents ">
+
+        <p>session_timeout_ms 和 max_poll_interval_ms 到期后consumer关闭</p>
+<p>session_timeout_ms 和 max_poll_interval_ms 到期后consumer关闭</p>
+<p>Since: v3.3.0.0</p>
 <p>Labels: common,ci</p>
-<p>Jira: None</p>
+<p>Jira: TD-12345,TS-1234</p>
 
 
 <details class="history" open>
@@ -1221,6 +1310,44 @@
     </div>
 
 </div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="tmq.test_tmq_params" class="doc doc-heading">
+            <code>tmq.test_tmq_params</code>
+
+
+<a href="#tmq.test_tmq_params" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
 
 
 
@@ -1284,10 +1411,10 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.f8cc74c7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c8b220af.min.js"></script>
       
     
   </body>
