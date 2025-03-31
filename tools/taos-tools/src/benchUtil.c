@@ -1153,69 +1153,6 @@ int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt) {
     return groupCnt - 1;
 }
 
-// windows no export MurmurHash3_32 function from engine
-#ifdef WINDOWS
-// define
-#define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
-#define FMIX32(h)      \
-  do {                 \
-    (h) ^= (h) >> 16;  \
-    (h) *= 0x85ebca6b; \
-    (h) ^= (h) >> 13;  \
-    (h) *= 0xc2b2ae35; \
-    (h) ^= (h) >> 16;  \
-  } while (0)
-
-// impl MurmurHash3_32
-uint32_t MurmurHash3_32(const char *key, uint32_t len) {
-  const uint8_t *data = (const uint8_t *)key;
-  const int32_t  nblocks = len >> 2u;
-
-  uint32_t h1 = 0x12345678;
-
-  const uint32_t c1 = 0xcc9e2d51;
-  const uint32_t c2 = 0x1b873593;
-
-  const uint32_t *blocks = (const uint32_t *)(data + nblocks * 4);
-
-  for (int32_t i = -nblocks; i; i++) {
-    uint32_t k1 = blocks[i];
-
-    k1 *= c1;
-    k1 = ROTL32(k1, 15u);
-    k1 *= c2;
-
-    h1 ^= k1;
-    h1 = ROTL32(h1, 13u);
-    h1 = h1 * 5 + 0xe6546b64;
-  }
-
-  const uint8_t *tail = (data + nblocks * 4);
-
-  uint32_t k1 = 0;
-
-  switch (len & 3u) {
-    case 3:
-      k1 ^= tail[2] << 16;
-    case 2:
-      k1 ^= tail[1] << 8;
-    case 1:
-      k1 ^= tail[0];
-      k1 *= c1;
-      k1 = ROTL32(k1, 15u);
-      k1 *= c2;
-      h1 ^= k1;
-  };
-
-  h1 ^= len;
-
-  FMIX32(h1);
-
-  return h1;
-}
-#endif
-
-
 //
 // ---------------- benchQuery util ----------------------
 //
