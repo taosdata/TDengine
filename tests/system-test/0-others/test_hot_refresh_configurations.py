@@ -38,8 +38,8 @@ class TDTestCase:
                 },
                 {
                     "name": "logKeepDays",
-                    "values": [-365000, 2000, 365000],
-                    "except_values": [-365001, 365001]
+                    "values": [0, 2000, 365000],
+                    "except_values": [-1, 365001]
                 }
             ],
             "svr": [
@@ -155,8 +155,8 @@ class TDTestCase:
                 {
                     "name": "logKeepDays",
                     "alias": "tsLogKeepDays",
-                    "values": [-365000, 10, 365000],
-                    "except_values": [-365001, 365001]
+                    "values": [0, 10, 365000],
+                    "except_values": [-1, 365001]
                 },
                 {
                     "name": "syncLogBufferMemoryAllowed",
