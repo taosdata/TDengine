@@ -77,6 +77,7 @@ Options:
 - `-N <num>`: start dnodes numbers in clusters
 - `-M <num>`: create mnode numbers in clusters
 - `-R`: restful realization form
+- `-A`: address sanitizer mode
 - `-Q`: set queryPolicy in one dnode
 - `-D <num>`: set disk number on each level. range 1 ~ 10
 - `-L <num>`: set multiple level number. range 1 ~ 3
@@ -111,26 +112,20 @@ test_file_path:
 Here are some examples of using pytest to execute test cases:
 
 ```bash
-# 1. Run all test cases
-pytest
-
-# 2. Run all test cases in a specific test file
+# 1. Run a specific test file
 pytest cases/data_write/sql_statement/test_insert_double.py
 
-# 3. Run a specific test case
+# 2. Run a specific test case
 pytest cases/data_write/sql_statement/test_insert_double.py::TestInsertDouble::test_value
 
-# 4. Run test cases with a specific marker
+# 3. Run test cases with a specific marker
 pytest -m ci
 
-# 5. Set the log level for the tests
+# 4. Set the log level for the tests
 pytest --log-level=DEBUG
 
-# 6. Generate Allure report
-pytest --alluredir=allure-results
-
-# 7. Run tests with a specific YAML configuration file
-pytest --yaml_file=ci_default.yaml
+# 5. Run test with a specific YAML configuration file
+pytest --yaml_file=ci_default.yaml cases/data_write/sql_statement/test_insert_double.py
 
 ```
 
@@ -168,6 +163,6 @@ To add a new test case to the CI pipeline, include the case run command in the `
 
 ```text
 # test/parallel_test/cases.task
-,,y,.,pytest cases/demo/test_demo.py -N 3 -M 2
+,,y,.,./ci/pytest.sh pytest cases/storage/tsma/test_tsma.py
 ```
 
