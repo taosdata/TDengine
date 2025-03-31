@@ -852,6 +852,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   int32_t  code = 0;
   SArray*  vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
+  int8_t type = pTask->msgInfo.dispatchMsgType;
+
   if (pTask->pNameMap == NULL) {
     pTask->pNameMap = tSimpleHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     if (pTask->pNameMap == NULL) {
@@ -867,8 +869,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     if (!pDataBlock->info.parTbName[0]) {
       memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
       memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
-      stDebug("s-task:%s cached table name:%s, groupId:%" PRId64 " hashVal:0x%x", pTask->id.idStr, pBln->parTbName,
-              groupId, hashValue);
+      stDebug("s-task:%s cached table name:%s, blockdata type:%d, groupId:%" PRId64 " hashVal:0x%x", pTask->id.idStr, pBln->parTbName,
+              type, groupId, hashValue);
     }
   } else {
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -892,8 +894,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
         stError("s-task:%s failed to build child table name for group:%" PRId64 ", code:%s", pTask->id.idStr, groupId,
                 tstrerror(code));
       } else {
-        stDebug("s-task:%s create default table name:%s, groupId:%" PRId64, pTask->id.idStr,
-                pDataBlock->info.parTbName, groupId);
+        stDebug("s-task:%s create default table name:%s, blockdata type:%d, groupId:%" PRId64, pTask->id.idStr,
+                pDataBlock->info.parTbName, type, groupId);
       }
     }
 
@@ -907,7 +909,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     bln.hashValue = hashValue;
     memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
 
-    stDebug("s-task:%s dst table:%s hashVal:0x%x groupId:%"PRId64, pTask->id.idStr, ctbName, hashValue, groupId);
+    stDebug("s-task:%s dst table:%s hashVal:0x%x , blockdata type:%d, groupId:%"PRId64, pTask->id.idStr, ctbName, hashValue, type, groupId);
     code = tSimpleHashPut(pTask->pNameMap, &groupId, sizeof(int64_t), &bln, sizeof(SBlockName));
     if (code) return code;
   }
@@ -1269,7 +1271,7 @@ static void chkptReadyMsgSendMonitorFn(void* param, void* tmrId) {
   pActiveInfo = pTask->chkInfo.pActiveInfo;
   pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
 
-  stDebug("s-task:%s acquire task, refId:%" PRId64, id, taskRefId);
+  stTrace("s-task:%s acquire task, refId:%" PRId64, id, taskRefId);
 
   // check the status every 100ms
   if (streamTaskShouldStop(pTask)) {
