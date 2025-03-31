@@ -1925,6 +1925,23 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     return csql;
 }
 
+static void print_json(json_t *root) { print_json_aux(root, 0); }
+
+static json_t *dump_load_json(char *jsonbuf) {
+    json_t *root;
+    json_error_t error;
+
+    root = json_loads(jsonbuf, 0, &error);
+
+    if (root) {
+        return root;
+    } else {
+        errorPrint("JSON error on line %d: %s\n", error.line, error.text);
+        return NULL;
+    }
+}
+
+const char *json_plural(size_t count) { return count == 1 ? "" : "s"; }
 
 void freeRecordSchema(RecordSchema *recordSchema) {
     if (recordSchema) {
@@ -1939,6 +1956,39 @@ void freeRecordSchema(RecordSchema *recordSchema) {
         free(recordSchema);
     }
 }
+
+// read
+int32_t mFileToRecordSchema(char *avroFile, RecordSchema* recordSchema) {
+    char mFile[MAX_PATH_LEN];
+    strcpy(mFile, avroFile);
+    strcat(mFile, MFILE_EXT);
+
+    // read
+    char *json = readFile(mFile);
+    if (json == NULL) {
+        // old no this file
+        return 0;
+    }
+
+    // parse json
+    int32_t ret = -1;
+    json_t *json_root = dump_load_json(json);
+    if (json_root) {
+        if (g_args.verbose_print) {
+            print_json(json_root);
+        }
+
+        ret = readJsonStbSchema(json_root, recordSchema);
+        json_decref(json_root);
+    } else {
+        errorPrint("json:\n%s\n can't be parsed by jansson file=%s\n", json, mFile);
+    }
+
+    // free
+    free(json);
+    return ret;
+}
+
 
 //
 //   -------------  read schema json -------------
@@ -2920,6 +2970,47 @@ static int convertTbDesToJson(
 }
 
 
+static void print_json_indent(int indent) {
+    int i;
+    for (i = 0; i < indent; i++) {
+        putchar(' ');
+    }
+}
+
+static void print_json_object(json_t *element, int indent) {
+    size_t size;
+    const char *key;
+    json_t *value;
+
+    print_json_indent(indent);
+    size = json_object_size(element);
+
+    printf("JSON Object of %zu pair: %s\n",
+            size, json_plural(size));
+    json_object_foreach(element, key, value) {
+        print_json_indent(indent + 2);
+        printf("JSON Key: \"%s\"\n", key);
+        print_json_aux(value, indent + 2);
+    }
+}
+
+static void print_json_array(json_t *element, int indent) {
+    size_t i;
+    size_t size = json_array_size(element);
+    print_json_indent(indent);
+
+    printf("JSON Array of %zu element: %s\n", size,
+            json_plural(size));
+    for (i = 0; i < size; i++) {
+        print_json_aux(json_array_get(element, i), indent + 2);
+    }
+}
+
+static void print_json_string(json_t *element, int indent) {
+    print_json_indent(indent);
+    printf("JSON String: \"%s\"\n", json_string_value(element));
+}
+
 /* not used so far
 static void print_json_integer(json_t *element, int indent) {
     print_json_indent(indent);
@@ -2949,6 +3040,47 @@ static void print_json_null(json_t *element, int indent) {
     printf("JSON Null\n");
 }
 */
+
+static void print_json_aux(json_t *element, int indent) {
+    switch (json_typeof(element)) {
+        case JSON_OBJECT:
+            print_json_object(element, indent);
+            break;
+
+        case JSON_ARRAY:
+            print_json_array(element, indent);
+            break;
+
+        case JSON_STRING:
+            print_json_string(element, indent);
+            break;
+/* not used so far
+        case JSON_INTEGER:
+            print_json_integer(element, indent);
+            break;
+
+        case JSON_REAL:
+            print_json_real(element, indent);
+            break;
+
+        case JSON_TRUE:
+            print_json_true(element, indent);
+            break;
+
+        case JSON_FALSE:
+            print_json_false(element, indent);
+            break;
+
+        case JSON_NULL:
+            print_json_null(element, indent);
+            break;
+*/
+
+        default:
+            errorPrint("Unrecognized JSON type %d\n", json_typeof(element));
+    }
+}
+
 
 void printDotOrX(int64_t count, bool *printDot) {
     if (0 == (count % g_args.data_batch)) {
@@ -10481,7 +10613,7 @@ int inspectAvroFile(char *filename) {
         print_json(json_root);
     }
 
-    if (NULL == json_root) {
+    if (NULL == json_root) {ƒ
         errorPrint("%s() LN%d, cannot read valid schema from %s\n",
                 __func__, __LINE__, filename);
         avro_writer_free(jsonwriter);
