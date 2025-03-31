@@ -50,7 +50,7 @@ struct TableDes;
 //
 
 void print_json(json_t *root);
-json_t *load_json(char *jsonbuf);
+json_t *dump_load_json(char *jsonbuf);
 void print_json_aux(json_t *element, int indent);
 const char *json_plural(size_t count);
 

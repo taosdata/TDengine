@@ -14,7 +14,6 @@
  */
 
 
-#include <jansson.h>
 #include <taos.h>
 #include "pub.h"
 #include "dump.h"
@@ -191,7 +190,7 @@ void print_json(json_t *root) {
     print_json_aux(root, 0); 
 }
 
-json_t *load_json(char *jsonbuf) {
+json_t *dump_dump_load_json(char *jsonbuf) {
     json_t *root;
     json_error_t error;
 
@@ -861,7 +860,7 @@ int32_t mFileToRecordSchema(char *avroFile, RecordSchema* recordSchema) {
 
     // parse json
     int32_t ret = -1;
-    json_t *json_root = load_json(json);
+    json_t *json_root = dump_load_json(json);
     if (json_root) {
         if (g_args.verbose_print) {
             print_json(json_root);

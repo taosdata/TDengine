@@ -2155,7 +2155,7 @@ avro_value_iface_t* prepareAvroWface(
         exit(EXIT_FAILURE);
     }
 
-    json_t *json_root = load_json(jsonSchema);
+    json_t *json_root = dump_load_json(jsonSchema);
     verbosePrint("\n%s() LN%d\n === Schema parsed:\n", __func__, __LINE__);
 
     if (json_root) {
@@ -5704,7 +5704,7 @@ static RecordSchema *getSchemaAndReaderFromFile(
     }
     verbosePrint("Schema:\n  %s\n", jsonbuf);
 
-    json_t *json_root = load_json(jsonbuf);
+    json_t *json_root = dump_load_json(jsonbuf);
     verbosePrint("\n%s() LN%d\n === Schema parsed:\n", __func__, __LINE__);
     if (g_args.verbose_print) {
         print_json(json_root);
@@ -10475,7 +10475,7 @@ int inspectAvroFile(char *filename) {
     }
     printf("Schema:\n  %s\n", jsonbuf);
 
-    json_t *json_root = load_json(jsonbuf);
+    json_t *json_root = dump_load_json(jsonbuf);
     verbosePrint("\n%s() LN%d\n === Schema parsed:\n", __func__, __LINE__);
     if (g_args.verbose_print) {
         print_json(json_root);
