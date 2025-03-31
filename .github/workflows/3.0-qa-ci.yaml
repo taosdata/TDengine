@@ -448,7 +448,7 @@ jobs:
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
           本次测试执行未通过用例数为 $FAILED_CASES 个\n
-          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
       
       - name: Send Feishu Message to Platform Alert Group
@@ -476,7 +476,7 @@ jobs:
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
           本次测试执行未通过用例数为 $FAILED_CASES 个\n
-          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
 
       - name: Send Feishu Message to Platform Notifications Group
@@ -503,13 +503,13 @@ jobs:
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
           本次测试执行未通过用例数为 $FAILED_CASES 个\n
-          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
 
   failed_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test,set_env,build_rust_run_unit_test,generate_report]
-    if: ${{ (needs.run_e2e_test.result == 'failure' || needs.build_rust_run_unit_test.result == 'failure') && needs.generate_report.result == 'success'}}
+    if: ${{ always() && (needs.run_e2e_test.result == 'failure' || needs.build_rust_run_unit_test.result == 'failure') && needs.generate_report.result == 'success'}}
     steps: 
       - name: Identify failed jobs
         run: |
