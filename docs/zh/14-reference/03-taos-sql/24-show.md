@@ -313,7 +313,7 @@ SHOW TOPICS;
 
 ```sql
 SHOW TRANSACTIONS;
-SHOW TRANSACTION [tranaction_id];
+SHOW TRANSACTION [transaction_id];
 ```
 
 显示当前系统中正在执行的所有或者某一个事务的信息(该事务仅针对除普通表以外的元数据级别)。

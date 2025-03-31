@@ -1,6 +1,6 @@
 ---
 title: 预测分析
-description: 预测分析
+description: 介绍 TDgpt 内置时序数据预测模型
 ---
 
 import fc_result from '../pic/fc-result.png';

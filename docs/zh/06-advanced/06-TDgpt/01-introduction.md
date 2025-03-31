@@ -1,6 +1,7 @@
 ---
 sidebar_label: 简介
-title: 简介
+title: 简介 
+description: 简要介绍 TDgpt 时序数据分析智能体
 ---
 
 import TDgpt from './pic/data-analysis.png';

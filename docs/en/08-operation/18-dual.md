@@ -6,11 +6,9 @@ slug: /operations-and-maintenance/active-active-deployment
 import Image from '@theme/IdealImage';
 import imgDual from '../assets/active-standby-deployment-01.png';
 
-:::info[Version Note]
+import Enterprise from '../assets/resources/_enterprise.mdx';
 
-This feature is available only in TDengine Enterprise 3.3.0.0 and later.
-
-:::
+<Enterprise/>
 
 You can deploy TDengine in active-active mode to achieve high availability and reliability with limited resources. Active-active mode is also used in disaster recovery strategies to maintain offsite replicas of the database.
 

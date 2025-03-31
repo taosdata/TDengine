@@ -469,7 +469,7 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
       if (!pos->pRowBuff) {
         goto _end;
       }
-      code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
+      code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, getFileStateRowSize(pState->pFileState));
       QUERY_CHECK_CODE(code, lino, _end);
 
       streamStateReleaseBuf(pState, pos, true);

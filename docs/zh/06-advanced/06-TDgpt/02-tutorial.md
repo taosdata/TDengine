@@ -1,6 +1,7 @@
 ---
 title: "安装部署"
 sidebar_label: "安装部署"
+description: 使用 docker、云服务、安装包体验 TDgpt
 ---
 
 import PkgListV3 from "/components/PkgListV3";
