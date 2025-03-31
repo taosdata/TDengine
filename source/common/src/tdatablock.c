@@ -1789,6 +1789,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
   dst->info.capacity = cap;
+  uInfo("%s,parName:%s, groupId:%"PRIu64, __FUNCTION__, dst->info.parTbName, dst->info.id.groupId)
   return code;
 }
 
