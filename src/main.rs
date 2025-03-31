@@ -919,11 +919,6 @@ fn main() -> Result<()> {
         config_file.display()
     );
 
-    // init qid batch id db
-    if let Err(err) = trace::qid_db_init() {
-        tracing::error!("{err:#}");
-    }
-
     let worker_threads = args.global.jobs;
     let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
@@ -960,6 +955,8 @@ fn main() -> Result<()> {
         Commands::Privileges(privileges) => runtime.block_on(privileges.run(args.opt_args)),
         Commands::Replica(replica) => runtime.block_on(replica.run(args.opt_args)),
         Commands::Serve(serve) => {
+            trace::qid_db_init()?;
+
             Timeout::set_default_timeout(serve.request_timeout);
 
             let serve = || {

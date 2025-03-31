@@ -171,12 +171,12 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [build_rust_run_unit_test, build_go_run_unit_test, build_java_run_unit_test,set_env]
     steps:
-      # 部署前先把已经启动的进程都关闭，确保运行正常
-      # - name: Stop taosx-agent & taosx
-      #   shell: bash {0}
-      #   run: |
-      #     pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
-      #     pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
+      #部署前先把已经启动的进程都关闭，确保运行正常
+      - name: Stop taosx-agent & taosx
+        shell: bash {0}
+        run: |
+          pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
+          pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
       
       - name: Deploy taosx
         run: |
@@ -205,11 +205,6 @@ jobs:
     needs: [deploy_taosx_plugins,set_env]
     
     steps:
-      - name: Stop taosx-agent & taosx
-        shell: bash {0}
-        run: |
-          pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
-          pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
       - name: Restart taos-explorer & taosadapter
         run: |
           systemctl restart taos-explorer
@@ -221,13 +216,7 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
           cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not user_migration_test.py"
-      #运行测试后不再关闭进程，目的是为了查看结果
-      # - name: Stop taosx-agent & taosx
-      #   shell: bash {0}
-      #   run: |
-      #     pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
-      #     pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
-
+  
   stop_taosx:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test]
@@ -245,6 +234,8 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: allure report
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run: |
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_report/ --clean
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/allure_report/"
@@ -311,7 +302,7 @@ jobs:
           COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run: |
           cp -r $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/
-          echo "see report at $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/"
+          echo "see report at $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/"
   feishu_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [generate_report,set_env,run_e2e_test]
@@ -457,7 +448,7 @@ jobs:
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
           本次测试执行未通过用例数为 $FAILED_CASES 个\n
-          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
       
       - name: Send Feishu Message to Platform Alert Group
@@ -485,7 +476,7 @@ jobs:
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
           本次测试执行未通过用例数为 $FAILED_CASES 个\n
-          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
 
       - name: Send Feishu Message to Platform Notifications Group
@@ -512,13 +503,13 @@ jobs:
           OpenTSDB Connector 覆盖率${result_array[2]}\n
           OPC Connector 覆盖率${result_array[3]}\n
           本次测试执行未通过用例数为 $FAILED_CASES 个\n
-          未通过的测试用例见测试报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
 
   failed_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
-    needs: [run_e2e_test,set_env,build_rust_run_unit_test]
-    if: failure()
+    needs: [run_e2e_test,set_env,build_rust_run_unit_test,generate_report]
+    if: ${{ always() && (needs.run_e2e_test.result == 'failure' || needs.build_rust_run_unit_test.result == 'failure') && needs.generate_report.result == 'success'}}
     steps: 
       - name: Identify failed jobs
         run: |
@@ -575,6 +566,7 @@ jobs:
           }
           
           PR_INFO="taosX 仓库代码的测试覆盖率\n
-          本次测试执行失败，失败的job为 $failed_jobs\n"
-          执行的workflow见：https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          本次测试执行失败，失败的job为 $failed_jobs\n
+          执行的workflow见：https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n"
+
           post_to_feishu "$PR_INFO"
