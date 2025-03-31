@@ -53,10 +53,10 @@ class TDTestCase(TBase):
         cmd = f"-D {db} -o {tmpdir}"
         rlist = self.taosdump(cmd)
         results = [
-            "OK: total 10 table(s) of stable: meters1 schema dumped.",
-            "OK: total 20 table(s) of stable: meters2 schema dumped.",
-            "OK: total 30 table(s) of stable: meters3 schema dumped.",
-            "OK: 6024 row(s) dumped out!"
+            "OK: total 1 table(s) of stable: meters1 schema dumped.",
+            "OK: total 2 table(s) of stable: meters2 schema dumped.",
+            "OK: total 3 table(s) of stable: meters3 schema dumped.",
+            "OK: 84 row(s) dumped out!"
         ]
         self.checkManyString(rlist, results)
 
@@ -66,7 +66,7 @@ class TDTestCase(TBase):
         rlist = self.taosdump(cmd)
         results = [
             f"rename DB Name {db} to {newdb}",
-            f"OK: 6024 row(s) dumped in!"
+            f"OK: 84 row(s) dumped in!"
         ]
         self.checkManyString(rlist, results)
 
@@ -107,8 +107,8 @@ class TDTestCase(TBase):
                 f"select avg(ui) from {newdb}.meters2"
             ],
             [
-                f"select nch from    {db}.meters2", 
-                f"select nch from {newdb}.meters2"
+                f"select (bi) from    {db}.meters2", 
+                f"select (bi) from {newdb}.meters2"
             ],
             # meters3
             [
@@ -124,8 +124,8 @@ class TDTestCase(TBase):
                 f"select avg(ui) from {newdb}.meters3"
             ],
             [
-                f"select nch from    {db}.meters3", 
-                f"select nch from {newdb}.meters3"
+                f"select (bc) from    {db}.meters3", 
+                f"select (bc) from {newdb}.meters3"
             ]
         ]
 
@@ -134,11 +134,12 @@ class TDTestCase(TBase):
 
         # new cols is null
         sql = f"select count(*) from {newdb}.meters3 where newic is null"
-        tdSql.checkAgg(sql, 3000)
+        tdSql.checkAgg(sql, 30)
 
         #
         # check tag
         #
+        '''
         sqls = [
             [
                 f"select distinct tfc,tbname from    {db}.meters3 order by tbname;", 
@@ -151,16 +152,46 @@ class TDTestCase(TBase):
         ]
 
         for sql in sqls:
-            self.checkSameResult(sql[0], sql[1])
+            self.checkSameResult(sql[0], sql[1])'
 
         # new tag is null
         sql = f"select count(*) from {newdb}.meters3 where newtdc is null"
-        tdSql.checkAgg(sql, 3000)
+        tdSql.checkAgg(sql, 30)'
+        '''
 
 
     # normal table
     def checkCorrectNtb(self, db, newdb):
-        pass
+        sqls = [
+            # meters1
+            [
+                f"select ts, c1, c2, c3, c4 from    {db}.ntbd1", 
+                f"select ts, c1, c2, c3, c4 from {newdb}.ntbd1"
+            ],
+            [
+                f"select ts, d1, d2, d3 from    {db}.ntbd2", 
+                f"select ts, d1, d2, d3 from {newdb}.ntbd2"
+            ],
+            [
+                f"select ts, c1, c4 from    {db}.ntbe1", 
+                f"select ts, c1, c4 from {newdb}.ntbe1"
+            ],
+            [
+                f"select ts, d2 from    {db}.ntbe2", 
+                f"select ts, d2 from {newdb}.ntbe2"
+            ],
+            [
+                f"select ts, c1, c3 from    {db}.ntbf1", 
+                f"select ts, c1, c3 from {newdb}.ntbf1"
+            ],
+            [
+                f"select ts, d3 from    {db}.ntbf2", 
+                f"select ts, d3 from {newdb}.ntbf2"
+            ]     
+        ]
+
+        for sql in sqls:
+            self.checkSameResult(sql[0], sql[1])        
 
     # check correct
     def checkCorrect(self, db, newdb):

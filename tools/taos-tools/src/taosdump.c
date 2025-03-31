@@ -3843,9 +3843,9 @@ static int32_t dumpInAvroTagUnsignedTinyInt(FieldStruct *field,
                                      sqlstr+curr_sqlstr_len, "%u,",
                                      (uint32_t)array_u8);
             } else {
-                errorPrint("%s() LN%d mix type %s with int array",
-                                        __func__, __LINE__,
-                typeToStr(field->array_type));
+                errorPrint("%s() LN%d mix type %s(%d) with int array.\n",
+                    __func__, __LINE__,
+                    typeToStr(field->array_type), field->array_type);
             }
         }
     } else {
@@ -3876,9 +3876,9 @@ static int32_t dumpInAvroTagUnsignedTinyInt(FieldStruct *field,
                                  (uint32_t)array_u8);
             }
         } else {
-            errorPrint("%s() LN%d mix type %s with int array",
-                            __func__, __LINE__,
-            typeToStr(field->array_type));
+            errorPrint("%s() LN%d mix type %s(%d) with int array\n",
+                __func__, __LINE__,
+                typeToStr(field->array_type), field->array_type);
         }
     }
     return curr_sqlstr_len;

@@ -188,6 +188,7 @@
 
 
 # taosdump 43 cases
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpCompa.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbStb.py
