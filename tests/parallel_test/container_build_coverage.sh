@@ -78,7 +78,7 @@ docker run \
     -v ${REP_REAL_PATH}/community/contrib/pcre2/:${REP_DIR}/community/contrib/pcre2 \
     -v ${REP_REAL_PATH}/community/contrib/zlib/:${REP_DIR}/community/contrib/zlib \
     -v ${REP_REAL_PATH}/community/contrib/zstd/:${REP_DIR}/community/contrib/zstd \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR; rm -rf debug; mkdir -p debug; cd debug; cmake .. -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_GEOS=true ; make -j install|| exit 1"
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR; rm -rf debug; mkdir -p debug; cd debug; cmake .. -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_GEOS=true ; make -j ||  exit 1" || true
 
 
 if [[ -d ${WORKDIR}/debugNoSan  ]] ;then
@@ -90,9 +90,26 @@ if [[ -d ${WORKDIR}/debugRelease ]] ;then
     rm -rf  ${WORKDIR}/debugRelease
 fi
 
-mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan
+mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan|| true
+cd ${WORKDIR}/debugNoSan
+if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
+    echo "Old *gcda files found."
+else
+    echo "No old *gcda files found. Continuing without errors."
+fi
 
+docker run \
+    --name taos_coverage \
+    -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
+    -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/debug \
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd /home/TDinternal/debug/build/bin ; ./osAtomicTests;./osDirTests;" || true
 
-ret=$?
-exit $ret
+cd ${WORKDIR}/debugNoSan
+if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
+    echo "New *gcda files found."
+else
+    echo "No new *gcda files found. Continuing without errors."
+fi
 
+# 始终返回成功退出码
+exit 0

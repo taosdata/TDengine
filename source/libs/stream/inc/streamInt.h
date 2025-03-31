@@ -32,7 +32,6 @@ extern "C" {
 #define WAIT_FOR_MINIMAL_INTERVAL          100.00
 #define MAX_RETRY_LAUNCH_HISTORY_TASK      40
 #define RETRY_LAUNCH_INTERVAL_INC_RATE     1.2
-#define MAX_BLOCK_NAME_NUM                 1024
 #define DISPATCH_RETRY_INTERVAL_MS         300
 #define META_HB_CHECK_INTERVAL             200
 #define META_HB_SEND_IDLE_COUNTER          25  // send hb every 5 sec

@@ -1,6 +1,7 @@
 ---
 title: "常见问题"
 sidebar_label: "常见问题"
+description: 常见问题
 ---
 
 ### 1. 安装过程中编译 uWSGI 失败，如何处理

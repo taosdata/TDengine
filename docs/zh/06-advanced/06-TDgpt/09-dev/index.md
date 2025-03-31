@@ -1,5 +1,4 @@
 ---
-
 title: 开发者指南
 sidebar_label: 开发者指南
 description: 如何将统计分析、机器学习、时序大模型添加到 TDgpt
