@@ -22,18 +22,18 @@ class EMSEdge(TDCase):
     def cleanup(self) -> None:
         pass
 
-    def set_mqtt_datain_payload(self,hostname='localhost',target_dbname='mqtt_datain'):
+    def set_mqtt_datain_payload(self, hostname='localhost', target_dbname='mqtt_datain'):
         task_list = []
-        case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/ems/config.yaml')
+        case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/env/config.yaml')
         case_data_from = case_data_org["from"]
-        mqtt_parser = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/ems/parser.yaml')
+        mqtt_parser = file.read_yaml(f'{os.environ["TEST_ROOT"]}/env/parser.yaml')
         for topic_id,topic_name in case_data_from["topics"].items():
             task_data = {}
-            mqtt_parser[topic_id]["parser"]["s_model"]["name"] = f'site_{topic_id}_{hostname.replace("-", "_")}'
+            mqtt_parser[topic_id]["parser"]["s_model"]["name"] = f'site_{topic_id}_mqtt_{hostname.replace("-", "_")}'
             child_table_model = mqtt_parser[topic_id]["parser"]["model"]["name"]
-            mqtt_parser[topic_id]["parser"]["model"]["using"] = f'site_{topic_id}_{hostname.replace("-", "_")}'
+            mqtt_parser[topic_id]["parser"]["model"]["using"] = f'site_{topic_id}_mqtt_{hostname.replace("-", "_")}'
             mqtt_parser[topic_id]["parser"]["model"]["name"] = f"{child_table_model}_{hostname.replace('-', '_')}"
-            cliend_id = self.tdCom.get_long_name(4,mode="numbers")
+            cliend_id = self.tdCom.get_long_name(4, mode="numbers")
             task_data["from"] = f'''mqtt://{hostname}:1883?version=5.0&client_id={cliend_id}&char_encoding=UTF_8&keep_alive=60&clean_session=true&topics={case_data_from["topics"][topic_id]}::0&topic_pattern={case_data_from["topic_patterns"][topic_id]}'''
             # mqtt_payload
             task_data["parser"] = mqtt_parser[topic_id]
@@ -44,7 +44,7 @@ class EMSEdge(TDCase):
     def run(self):
         headers = {"Content-Type": "application/json"}
         task_list = []
-        cases_data = self.set_mqtt_datain_payload(hostname=self.host,target_dbname=self.target_dbname)
+        cases_data = self.set_mqtt_datain_payload(hostname=self.host, target_dbname=self.target_dbname)
         # 在edge侧创建数据库 mqtt_datain
         self.tdCom.createDb(self.target_dbname,self.db_config)
         # 创建4个mqtt datain任务
