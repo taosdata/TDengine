@@ -192,11 +192,12 @@ void print_json(json_t *root) {
 }
 
 json_t *load_json(char *jsonbuf) {
-    json_t *root;
+    json_t *root = NULL;
     json_error_t error;
 
-    root = json_loads(jsonbuf, 0, &error);
-
+#ifndef WINDOWS
+    root = json_loads_impl(jsonbuf, 0, &error);
+#endif
     if (root) {
         return root;
     } else {
