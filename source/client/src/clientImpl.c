@@ -2949,7 +2949,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
     return;
   }
 
-  tscDebugL("conn:0x%" PRIx64 ", taos_query execute, sql:%s", connId, sql);
+  tscDebug("conn:0x%" PRIx64 ", taos_query execute, sql:%s", connId, sql);
 
   SRequestObj* pRequest = NULL;
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, 0);
@@ -2984,7 +2984,7 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
     return;
   }
 
-  tscDebugL("conn:0x%" PRIx64 ", taos_query execute, QID:0x%" PRIx64 ", sql:%s", connId, reqid, sql);
+  tscDebug("conn:0x%" PRIx64 ", taos_query execute, QID:0x%" PRIx64 ", sql:%s", connId, reqid, sql);
 
   SRequestObj* pRequest = NULL;
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, reqid);

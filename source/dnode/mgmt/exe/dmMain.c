@@ -473,7 +473,7 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return code;
   }
-  
+
   if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
     dError("failed to init memPool, error:0x%x", code);
     taosCloseLog();
