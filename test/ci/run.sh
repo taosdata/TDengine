@@ -517,9 +517,13 @@ fi
 
 # copy results to server
 cp -r "$log_dir/allure-results/"* "$results_dir"
+cp_status=$?
+echo "Copying allure results to $results_dir, status: $cp_status"
 
 # generate the test report for pr
 allure generate "$results_dir" -o "$report_dir" --clean
+generate_status=$?
+echo "Generating allure report, status: $generate_status"
 
 # check report is generated successfully
 if [ -f "$report_dir/index.html" ]; then
