@@ -24,22 +24,14 @@
 extern "C" {
 #endif
 
-// clang-format off
-#define bseFatal(...) do { if (bseDebugFlag & DEBUG_FATAL) { taosPrintLog("BSE FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define bseError(...) do { if (bseDebugFlag & DEBUG_ERROR) { taosPrintLog("BSE ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define bseWarn(...)  do { if (bseDebugFlag & DEBUG_WARN)  { taosPrintLog("BSE WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define bseInfo(...)  do { if (bseDebugFlag & DEBUG_INFO)  { taosPrintLog("BSE ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define bseDebug(...) do { if (bseDebugFlag & DEBUG_DEBUG) { taosPrintLog("BSE ", DEBUG_DEBUG, bseDebugFlag, __VA_ARGS__); }}    while(0)
-#define bseTrace(...) do { if (bseDebugFlag & DEBUG_TRACE) { taosPrintLog("BSE ", DEBUG_TRACE, bseDebugFlag, __VA_ARGS__); }}    while(0)
+typedef enum {
+  kNoCompres = 0,
+  kLZ4Compres = 1,
+  kZSTDCompres = 2,
+  kZLibCompres = 4,
+  kZxCompress = 8,
+} SBseCompress;
 
-#define bseGTrace(param, ...) do { if (bseDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseTrace(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGFatal(param, ...) do { if (bseDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseFatal(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGError(param, ...) do { if (bseDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseError(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGWarn(param, ...)  do { if (bseDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseWarn(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGInfo(param, ...)  do { if (bseDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseInfo(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGDebug(param, ...) do { if (bseDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseDebug(param ",QID:%s", __VA_ARGS__, buf);}}    while(0)
-
-// clang-format on
 typedef struct {
   uint64_t offset;
   int32_t  size;
@@ -102,22 +94,12 @@ typedef struct {
 } STable;
 
 typedef struct {
-  char      name[TSDB_FILENAME_LEN];
-  TdFilePtr pDataFile;
-  TdFilePtr pIdxFile;
-  SBlkData  data;
-  // STableFooter footer;
-  SHashObj *pCache;
-  SArray   *pSeqToBlock;
-  int32_t   blockId;
-  uint64_t  initSeq;
-  uint64_t  lastSeq;
-} SReaderTable;
-
-typedef struct {
-  SReaderTable *pTable;
-} SReaderTableWrapper;
-
+  int32_t vgId;
+  int64_t commitVer;
+  int64_t lastVer;
+  int64_t lastSeq;
+  SArray *pFileList;
+} SBseCommitInfo;
 typedef struct {
   int32_t vgId;
   int32_t fsyncPeriod;
@@ -133,20 +115,17 @@ typedef struct {
 } SBseCfg;
 
 typedef struct {
-  char    path[TSDB_FILENAME_LEN];
-  int64_t ver;
-  STable *pTable[2];
-  uint8_t inUse;
+  char path[TSDB_FILENAME_LEN];
 
-  TdThreadMutex  mutex;
-  TdThreadRwlock rwlock;
+  int64_t        ver;
   uint64_t       seq;
-  uint64_t       commitSeq;
-  SHashObj      *pSeqOffsetCache;
   SBseCfg        cfg;
-  SArray        *fileSet;
-  SHashObj      *pTableCache;
+  TdThreadRwlock rwlock;
+  TdThreadMutex  mutex;
+
   SArray        *pBatchList;
+  void          *pTableMgt;
+  SBseCommitInfo commitInfo;
 } SBse;
 
 typedef struct {
@@ -156,6 +135,7 @@ typedef struct {
   int32_t  cap;
   int64_t  seq;
   SArray  *pSeq;
+  void    *pBse;
 } SBseBatch;
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
@@ -168,15 +148,12 @@ int32_t bseEndSnapshot(SBse *pBse);
 int32_t bseStopSnapshot(SBse *pBse);
 void    bseClose(SBse *pBse);
 
-int32_t bsePutBatch(SBse *pBse, SBseBatch *pBatch);
-int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
-int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
+int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch);
 int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
+
 int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t len);
-int32_t bseBatchGet(SBseBatch *pBatch, uint64_t seq, uint8_t **pValue, int32_t *len);
+int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *size);
 int32_t bseBatchDestroy(SBseBatch *pBatch);
-int32_t bseBatchClear(SBseBatch *pBatch);
-int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
 
 #ifdef __cplusplus
 }

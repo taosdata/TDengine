@@ -1,0 +1,72 @@
+
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+#ifndef _TD_BSE_TABLE_MANAGER_H_
+#define _TD_BSE_TABLE_MANAGER_H_
+
+#include "bse.h"
+#include "bseTable.h"
+#include "bseUtil.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+  int32_t cap;
+} SBlockCacheMgt;
+
+typedef struct {
+  int32_t cap;
+} STableCacheMgt;
+
+typedef struct {
+  int64_t sseq;
+  int64_t eseq;
+} SSeqRange;
+
+typedef struct {
+  int8_t inUse;
+
+  SSeqRange      range[2];
+  STableBuilder *p[2];
+
+} STableBuilderMgt;
+
+typedef struct {
+  char  path[TSDB_FILENAME_LEN];
+  void *pBse;
+
+  SArray *pFileList;
+
+  STableBuilderMgt manager[1];
+
+  STableCacheMgt *pTableCache;
+  SBlockCacheMgt *pBatchCache;
+  TdThreadMutex   mutex;
+} STableMgt;
+
+int32_t bseTableMgtInit(SBse *pBse, void **pMgt);
+
+int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len);
+
+int32_t bseTableMgtCleanup(void *p);
+
+int32_t bseTableMgtCommit(STableMgt *pMgt);
+#ifdef __cplusplus
+}
+#endif
+
+#endif

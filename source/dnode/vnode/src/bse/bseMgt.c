@@ -14,6 +14,9 @@
  */
 
 #include "bse.h"
+#include "bseTable.h"
+#include "bseTableMgt.h"
+#include "bseUtil.h"
 #include "cJSON.h"
 #include "lz4.h"
 #include "os.h"
@@ -22,12 +25,6 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "tutil.h"
-
-#define kMaxEncodeLen 20
-#define kEncodeLen    (2 * (kMaxEncodeLen) + 8)
-
-#define kMagicNumber 0xdb4775248b80fb57ull;
-#define kMagicNum    0x123456
 
 #define BSE_FILE_FULL_LEN TSDB_FILENAME_LEN
 
@@ -71,22 +68,12 @@ static void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
 static int32_t bseFindCurrMetaVer(SBse *pBse);
 
 static int32_t bseRecover(SBse *pBse);
+static int32_t bseGenCommitInfo(SBse *pBse, SArray *pInfo);
 
-static int32_t tableOpen(const char *name, STable **pTable, uint8_t openFile);
-static int32_t tableClose(STable *pTable, uint8_t clear);
-// static int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len);
-static int32_t tableGet(STable *pTable, uint64_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
-static int32_t tableFlushBlock(STable *pTable);
-static int32_t tableCommit(STable *pTable);
-static int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk);
-static int32_t tableRebuild(STable *pTable);
-
-static int32_t readerTableOpen(const char *name, uint64_t ver, SReaderTable **pTable);
-static int32_t readerTableClose(SReaderTable *pTable);
-// static int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len);
-static int32_t readerTableGet(SReaderTable *pTable, int64_t key, uint8_t **pValue, int32_t *len);
-// static int32_t readerTableLoadBlk(SReaderTable *pTable, uint32_t blockId, SBlkData *blk);
-static int32_t readerTableLoadMeta(SReaderTable *pTable);
+static int32_t bseBatchClear(SBseBatch *pBatch);
+static int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
+static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
+static int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
 
 // data block func
 static int32_t blockInit(int32_t blockId, int32_t cap, int8_t type, SBlkData *blk);
@@ -94,9 +81,23 @@ static int32_t blockCleanup(SBlkData *data);
 // static int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset);
 static int8_t  blockMayShouldFlush(SBlkData *data, int32_t len);
 static int32_t blockReset(SBlkData *data, uint8_t type, int32_t blkId);
-static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t *pValue, int32_t *len);
+// static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t *pValue, int32_t *len);
 static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
 
+/*
+ vgId: 0,
+ commitVer: 0,
+ lastVer: 0,
+ lastSeq: 0,
+ fileSet: [{startSeq: 0, endSeq: 0, size:xx, level:xxx,name:xxx},...],
+*/
+
+static int32_t bseUpdateCommitInfo(SBseCommitInfo *pCommit, STableLiveFileInfo *pInfo) {
+  if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
+    return terrno;
+  }
+  return 0;
+}
 int32_t blockInit(int32_t id, int32_t cap, int8_t type, SBlkData *blk) {
   blk->type = type;
   blk->len = 0;
@@ -108,7 +109,6 @@ int32_t blockInit(int32_t id, int32_t cap, int8_t type, SBlkData *blk) {
   blk->pData->id = id;
   blk->pData->len = 0;
   blk->pData->head[3] = type;
-
   return 0;
 }
 
@@ -137,27 +137,11 @@ int32_t blockAddMeta(SBlkData *blk, BlockInfo *pInfo) {
   return 0;
 }
 
-// 0 not flush,1 flush
-// int8_t blockMayShouldFlush(SBlkData *data, int32_t len) {
-//   //
-//   SBlkData2 *pBlkData = data->pData;
-//   int32_t    estimite = taosEncodeVariantU64(NULL, sizeof(UINT64_MAX));
-//   estimite += taosEncodeVariantI32(NULL, len);
-//   estimite += len;
-//   return (estimite + sizeof(SBlkData2) + pBlkData->len + sizeof(TSCKSUM)) > data->cap;
-// }
-
 int8_t blockMayShouldFlush(SBlkData *data, int32_t len) {
   SBlkData2 *pBlkData = data->pData;
   return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) + sizeof(int32_t) > data->cap;
 }
-// int8_t blockMetaShouldFlush(SBlkData *data, int32_t len) {
-//   //
-//   SBlkData2 *pBlkData = data->pData;
-//   int32_t    estimite = taosEncodeVariantU64(NULL, sizeof(UINT64_MAX));
-//   estimite += taosEncodeVariantU64(NULL, len);
-//   return (estimite + sizeof(SBlkData2) + pBlkData->len + sizeof(TSCKSUM)) > data->cap;
-// }
+
 int8_t blockMetaShouldFlush(SBlkData *data, BlockInfo *pInfo) {
   SBlkData2 *pBlkData = data->pData;
   int32_t    len = taosEncodeVariantI64(NULL, pInfo->seq);
@@ -185,40 +169,6 @@ int32_t blockCleanup(SBlkData *data) {
   return 0;
 }
 
-static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t *pValue, int32_t *len) {
-  int32_t code = 0;
-
-  return code;
-}
-
-static int32_t blockSeekSeq(SBlkData *data, int64_t seq, uint8_t **pValue, int32_t *len) {
-  int32_t    code = 0;
-  int32_t    tlen = 0;
-  int64_t    tkey = 0;
-  int8_t     found = 0;
-  SBlkData2 *pBlkData = data->pData;
-  uint8_t   *pos = (uint8_t *)pBlkData->data;
-  uint8_t   *start = (uint8_t *)pBlkData->data;
-  do {
-    pos = taosDecodeVariantI64(pos, &tkey);
-    if (tkey == seq) {
-      pos = taosDecodeVariantI32(pos, &tlen);
-      pos = taosDecodeBinary(pos, (void **)pValue, tlen);
-      found = 1;
-      break;
-    }
-    pos = taosDecodeVariantI32(pos, &tlen);
-    pos += tlen;
-  } while ((pos - start) <= pBlkData->len);
-
-  if (found) {
-    *len = tlen;
-  } else {
-    code = TSDB_CODE_NOT_FOUND;
-  }
-  return code;
-}
-
 static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *buf) {
   // build data file name
   // snprintf(name, strlen(name), "%s/%s020"."BSE_DATA_SUFFIX, ver, pBse->path);
@@ -233,382 +183,14 @@ static void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *buf) {
 static void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf) {
   TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." BSE_LOG_SUFFIX, pBse->path, ver));
 }
-
-// 0 not flush,1 flush
-
-int32_t tableOpen(const char *name, STable **ppTable, uint8_t openFile) {
-  int32_t line = 0;
-  int32_t code = 0;
-
-  STable *pTable = taosMemoryCalloc(1, sizeof(STable));
-  if (pTable == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  pTable->pCache = taosHashInit(4096 * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
-  if (pTable->pCache == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  pTable->pSeqToBlock = taosArrayInit(4096, sizeof(BlockInfo));
-  if (pTable->pSeqToBlock == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  pTable->blockId = 0;
-  code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->data);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->iData);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  BlockInfo info = {0};
-  if (taosArrayPush(pTable->pSeqToBlock, &info) == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  pTable->fileOpened = openFile;
-  if (openFile) {
-    pTable->pDataFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
-  }
-
-  tstrncpy(pTable->name, name, TSDB_FILENAME_LEN);
-  *ppTable = pTable;
-
-_err:
-  if (code != 0) {
-    bseError("failed to open table %s at line %d since %s", pTable->name, line, tstrerror(code));
-    if (pTable != NULL) {
-      tableClose(pTable, 1);
-    }
-  } else {
-    bseDebug("bse table file %s succ to be opened", pTable->name);
-  }
-
-  return code;
+static void bseBuildCurrentMetaName(SBse *pBse, char *name) {
+  snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-current.meta", pBse->path, TD_DIRSEP);
 }
 
-int32_t tableSetSeq(STable *pTable, int64_t seq) {
-  pTable->initSeq = seq;
-  return 0;
-}
-int32_t tableClear(STable *pTable) {
-  int32_t code = 0;
-  pTable->commited = 0;
-
-  taosHashClear(pTable->pCache);
-  memset((uint8_t *)pTable->data.pData, 0, kBlockCap);
-  memset((uint8_t *)pTable->iData.pData, 0, kBlockCap);
-  pTable->blockId = 0;
-  pTable->initSeq = 0;
-  taosHashClear(pTable->pCache);
-  taosArrayClear(pTable->pSeqToBlock);
-
-  pTable->pDataFile = NULL;
-  pTable->pIdxFile = NULL;
-  pTable->fileOpened = 0;
-  return code;
-}
-int32_t tableOpenFile(STable *pTable, char *name) {
-  int32_t code = 0;
-  pTable->pDataFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
-  if (pTable->pDataFile == NULL) {
-    return terrno;
-  }
-
-  memcpy(pTable->name, name, strlen(name));
-  pTable->fileOpened = 1;
-  return code;
-}
-int32_t tableClose(STable *pTable, uint8_t clear) {
-  int32_t line = 0;
-  int32_t code = 0;
-  if (pTable == NULL) {
-    return code;
-  }
-
-  // tableCommit(pTable);
-  pTable->commited = 1;
-  code = blockCleanup(&pTable->data);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  code = blockCleanup(&pTable->iData);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  taosHashCleanup(pTable->pCache);
-  taosArrayDestroy(pTable->pSeqToBlock);
-
-  code = taosCloseFile(&pTable->pDataFile);
-  TSDB_CHECK_CODE(code, line, _err);
-  pTable->fileOpened = 0;
-
-  taosMemFree(pTable);
-_err:
-  if (code != 0) {
-    bseError("bse file %s failed to close table since %s", pTable->name, tstrerror(code));
-  }
-  return code;
+static void bseBuildTempCurrentMetaName(SBse *pBse, char *name) {
+  snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-current.meta.temp", pBse->path, TD_DIRSEP);
 }
 
-int32_t tableAppendData(STable *pTable, int64_t key, uint8_t *value, int32_t len) {
-  int32_t  line = 0;
-  int32_t  code;
-  uint32_t offset;
-
-  BlockInfo *pInfo = taosArrayGetLast(pTable->pSeqToBlock);
-  if (pInfo == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (pInfo->seq == 0) {
-    pInfo->seq = pTable->initSeq;
-  }
-
-  if (blockMayShouldFlush(&pTable->data, len)) {
-    pInfo->blockId = pTable->blockId;
-    pInfo->len = pTable->data.len;
-
-    code = tableFlushBlock(pTable);
-    TSDB_CHECK_CODE(code, line, _error);
-
-    pTable->blockId++;
-
-    code = blockReset(&pTable->data, BSE_DATA_TYPE, pTable->blockId);
-    TSDB_CHECK_CODE(code, line, _error);
-
-    BlockInfo info = {.seq = key, .blockId = pTable->blockId, .len = 0};
-    pInfo = taosArrayPush(pTable->pSeqToBlock, &info);
-  }
-  pInfo->len += len;
-  code = blockAdd(&pTable->data, key, value, len, &offset);
-_error:
-  if (code != 0) {
-    bseError("failed to append data since %s at line %d", tstrerror(code), line);
-  }
-  return code;
-}
-
-int32_t tableAppendBatch(STable *pTable, SBseBatch *pBatch) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  uint32_t offset = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pBatch->pSeq); i++) {
-    SValueInfo *pInfo = taosArrayGet(pBatch->pSeq, i);
-    code = tableAppendData(pTable, pInfo->seq, pBatch->buf + pInfo->offset, pInfo->size);
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
-_error:
-  if (code != 0) {
-    bseError("failed to append batch since %s at line %d", tstrerror(code), lino);
-  }
-  return code;
-}
-
-int32_t tableAppendMeta(STable *pTable) {
-  int32_t  line = 0;
-  int32_t  code = 0;
-  uint64_t key, offset;
-
-  pTable->blockId++;
-  code = tableFlushBlock(pTable);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  code = blockReset(&pTable->data, BSE_META_TYPE, pTable->blockId);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  SBlkData2 *pBlk = pTable->data.pData;
-  bseDebug("size: %d", (int)taosArrayGetSize(pTable->pSeqToBlock));
-  for (int32_t i = 0; i < taosArrayGetSize(pTable->pSeqToBlock); i++) {
-    BlockInfo *pBlockInfo = taosArrayGet(pTable->pSeqToBlock, i);
-    if (blockMetaShouldFlush(&pTable->data, pBlockInfo)) {
-      code = tableFlushBlock(pTable);
-      TSDB_CHECK_CODE(code, line, _err);
-
-      code = blockReset(&pTable->data, BSE_META_TYPE, pTable->blockId);
-      TSDB_CHECK_CODE(code, line, _err);
-    }
-    code = blockAddMeta(&pTable->data, pBlockInfo);
-  }
-  code = tableFlushBlock(pTable);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  code = blockReset(&pTable->data, BSE_DATA_TYPE, pTable->blockId);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  taosArrayClear(pTable->pSeqToBlock);
-  taosCloseFile(&pTable->pDataFile);
-_err:
-  if (code != 0) {
-    bseError("bse file %s failed to append meta since %s", pTable->name, tstrerror(code));
-  }
-  return code;
-}
-
-int32_t tableGetByBlock(STable *pTable, BlockInfo *pInfo, int64_t key, uint8_t **pValue, int32_t *len) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  if (pInfo == NULL) {
-    return TSDB_CODE_NOT_FOUND;
-  }
-
-  if (pTable->data.id == pInfo->blockId) {
-    code = blockSeekSeq(&pTable->data, key, pValue, len);
-    TSDB_CHECK_CODE(code, lino, _err);
-  } else {
-    code = tableLoadBlk(pTable, pInfo->blockId, &pTable->iData);
-    TSDB_CHECK_CODE(code, lino, _err);
-
-    code = blockSeekSeq(&pTable->iData, key, pValue, len);
-    TSDB_CHECK_CODE(code, lino, _err);
-  }
-
-_err:
-  if (code != 0) {
-    bseError("failed to load block since %s at line %d", tstrerror(code), lino);
-  }
-  return code;
-}
-
-int32_t tableFlushBlock(STable *pTable) {
-  /// do write to file
-  // Do CRC and write to table
-  int32_t code = 0;
-  int32_t line = 0;
-
-  SBse    *pBse = pTable->bse;
-  SBseCfg *pCfg = &pBse->cfg;
-
-  SBlkData  *pData = &pTable->data;
-  SBlkData2 *pBlk = pData->pData;
-  if (pBlk->len == 0) {
-    return 0;
-  }
-  code = taosCalcChecksumAppend(0, (uint8_t *)pBlk, kBlockCap);
-
-  TSDB_CHECK_CODE(code, line, _err);
-
-  code = taosLSeekFile(pTable->pDataFile, pBlk->id * kBlockCap, SEEK_SET);
-  if (code < 0) {
-    TSDB_CHECK_CODE(code, line, _err);
-  }
-
-  code = 0;
-  int64_t nwrite = taosWriteFile(pTable->pDataFile, (uint8_t *)pBlk, (int64_t)kBlockCap);
-  if (nwrite != kBlockCap) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, line, _err);
-  }
-_err:
-  if (code != 0) {
-    bseError("table file %s failed to flush table since %s", pTable->name, tstrerror(code));
-  }
-  return code;
-}
-
-int32_t tableCompressData(STable *pTable) {
-  int32_t  code = 0;
-  int32_t  line = 0;
-  int32_t  compressed = 0;
-  SBse    *pBse = pTable->bse;
-  SBseCfg *pCfg = &pBse->cfg;
-
-  SBlkData  *pData = &pTable->data;
-  SBlkData2 *pBlk = pData->pData;
-
-  SBlkData  *piData = &pTable->data;
-  SBlkData2 *piBlk = pData->pData;
-
-  if (pBlk->len == 0) {
-    return 0;
-  }
-  int32_t compressSize = LZ4_compress_default((char *)pBlk->data, (char *)piBlk->data, pBlk->len, piData->cap);
-  if (compressSize <= 0 || compressSize >= pBlk->len) {
-  } else {
-    piBlk->len = compressSize;
-    compressed = 1;
-  }
-  if (compressed) {
-  }
-
-  return code;
-}
-int32_t tableCommit(STable *pTable) {
-  // Generate static info and footer info;
-  if (pTable->commited) {
-    return 0;
-  }
-  pTable->commited = 1;
-  return tableAppendMeta(pTable);
-}
-
-int32_t tableLoadBlk(STable *pTable, uint32_t blockId, SBlkData *blk) {
-  int32_t code = 0;
-  int32_t line = 0;
-  int32_t offset = blockId * kBlockCap;
-  if (blk->inited == 1 && blk->blockId == blockId) {
-    return 0;
-  }
-
-  int64_t n = taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
-  if (n < 0) {
-    code = terrno;
-    return code;
-  }
-  SBlkData2 *pBlk = blk->pData;
-  blk->inited = 1;
-  blk->blockId = blockId;
-
-  int64_t len = taosReadFile(pTable->pDataFile, (uint8_t *)pBlk, kBlockCap);
-  if (len != kBlockCap) {
-    code = terrno;
-    return code;
-  }
-  if (taosCheckChecksumWhole((uint8_t *)pBlk, kBlockCap) != 1) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-  }
-  return code;
-}
-static int32_t getBlockBySeq(SArray *pSeqToBlock, int64_t key, BlockInfo **ppInfo) {
-  int32_t    code = 0;
-  BlockInfo *p = NULL;
-
-  for (int32_t i = 0; i < taosArrayGetSize(pSeqToBlock); i++) {
-    BlockInfo *pInfo = taosArrayGet(pSeqToBlock, i);
-    if (pInfo->seq <= key) {
-      if ((i + 1) >= taosArrayGetSize(pSeqToBlock)) {
-        terrno = 0;
-        p = pInfo;
-        break;
-      } else {
-        BlockInfo *pNext = taosArrayGet(pSeqToBlock, i + 1);
-        if (pNext->seq > key) {
-          p = pInfo;
-          break;
-        }
-      }
-    }
-  }
-  if (p == NULL) {
-    code = TSDB_CODE_NOT_FOUND;
-  } else {
-    *ppInfo = p;
-  }
-  return code;
-}
-static int32_t tableLoadBySeq(STable *pTable, uint64_t key, uint8_t **pValue, int32_t *len) {
-  BlockInfo *p = NULL;
-
-  int32_t code = getBlockBySeq(pTable->pSeqToBlock, key, &p);
-  if (code != 0) {
-    return code;
-  }
-  return tableGetByBlock(pTable, p, key, pValue, len);
-}
-
-int32_t bseLoadMeta(SBse *pBse) {
-  int32_t code = 0;
-  return code;
-}
 static FORCE_INLINE int32_t bseBuildMetaName(SBse *pBse, int ver, char *name) {
   return snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver%d", pBse->path, TD_DIRSEP, ver);
 }
@@ -616,319 +198,183 @@ static FORCE_INLINE int32_t bseBuildTempMetaName(SBse *pBse, char *name) {
   return snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver.tmp", pBse->path, TD_DIRSEP);
 }
 
-static int32_t bseMetaSerialize(SBse *pBse, char **pBuf, int32_t *len) {
+static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
   int32_t code = 0;
+  // int32_t code = 0;
   int32_t line = 0;
-  char    buf[128] = {0};
 
-  int32_t sz = taosArrayGetSize(pBse->fileSet);
-  cJSON  *pRoot = cJSON_CreateObject();
-  cJSON  *pMeta = cJSON_CreateObject();
-  cJSON  *pFiles = cJSON_CreateArray();
-  cJSON  *pField;
-  if (pRoot == NULL || pMeta == NULL || pFiles == NULL) {
+  cJSON *pRoot = cJSON_CreateObject();
+  cJSON *pFileSet = cJSON_CreateArray();
+  if (pRoot == NULL || pFileSet == NULL) {
     code = terrno;
     TSDB_CHECK_CODE(code, line, _err);
   }
 
-  int64_t firstVer = -1;
-  int64_t snapshotVer = -1;
-  int64_t commitVer = -1;
-  int64_t lastVer = -1;
+  cJSON_AddNumberToObject(pRoot, "vgId", pBse->cfg.vgId);
+  cJSON_AddNumberToObject(pRoot, "commitVer", pBse->commitInfo.commitVer);
+  cJSON_AddNumberToObject(pRoot, "lastVer", pBse->commitInfo.lastVer);
+  cJSON_AddNumberToObject(pRoot, "lastSeq", pBse->commitInfo.lastSeq);
+  cJSON_AddItemToObject(pRoot, "fileSet", pFileSet);
 
-  if (!cJSON_AddItemToObject(pRoot, "meta", pMeta)) goto _err;
-  snprintf(buf, sizeof(buf), "%" PRId64, firstVer);
-  if (cJSON_AddStringToObject(pMeta, "firstVer", buf) == NULL) goto _err;
-  (void)snprintf(buf, sizeof(buf), "%" PRId64, snapshotVer);
-  if (cJSON_AddStringToObject(pMeta, "snapshotVer", buf) == NULL) goto _err;
-  (void)snprintf(buf, sizeof(buf), "%" PRId64, commitVer);
-  if (cJSON_AddStringToObject(pMeta, "commitVer", buf) == NULL) goto _err;
-  (void)snprintf(buf, sizeof(buf), "%" PRId64, lastVer);
-  if (cJSON_AddStringToObject(pMeta, "lastVer", buf) == NULL) goto _err;
-  for (int i = 0; i < taosArrayGetSize(pBse->fileSet); i++) {
-    SBseFileInfo *pInfo = taosArrayGet(pBse->fileSet, i);
-    if (!cJSON_AddItemToArray(pFiles, pField = cJSON_CreateObject())) {
-      bseInfo("vgId:%d, failed to add field to files", pBse->cfg.vgId);
-    }
-    if (pField == NULL) {
-      cJSON_Delete(pRoot);
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
-    }
-    // cjson only support int32_t or double
-    // string are used to prohibit the loss of precision
-    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->firstVer);
-    if (cJSON_AddStringToObject(pField, "firstVer", buf) == NULL) goto _err;
-    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->lastVer);
-    if (cJSON_AddStringToObject(pField, "lastVer", buf) == NULL) goto _err;
-    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->createTs);
-    if (cJSON_AddStringToObject(pField, "createTs", buf) == NULL) goto _err;
-    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->closeTs);
-    if (cJSON_AddStringToObject(pField, "closeTs", buf) == NULL) goto _err;
-    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->fileSize);
-    if (cJSON_AddStringToObject(pField, "fileSize", buf) == NULL) goto _err;
+  for (int32_t i = 0; i < taosArrayGetSize(fileSet); i++) {
+    STableLiveFileInfo *pInfo = taosArrayGet(fileSet, i);
+    cJSON              *pField = cJSON_CreateObject();
+    cJSON_AddNumberToObject(pField, "startSeq", pInfo->sseq);
+    cJSON_AddNumberToObject(pField, "endSeq", pInfo->eseq);
+    cJSON_AddNumberToObject(pField, "size", pInfo->size);
+    cJSON_AddNumberToObject(pField, "level", pInfo->level);
+    cJSON_AddStringToObject(pField, "name", pInfo->name);
+    cJSON_AddItemToArray(pFileSet, pField);
   }
-  char *pSerialized = cJSON_Print(pRoot);
+
+  char   *pSerialized = cJSON_PrintUnformatted(pRoot);
+  int32_t sz = strlen(pSerialized);
   cJSON_Delete(pRoot);
 
-  *pBuf = pSerialized;
-  *len = strlen(pSerialized);
-  return code;
 _err:
   bseError("vgId:%d, %s failed at line %d since %s", pBse->cfg.vgId, __func__, line, tstrerror(code));
   cJSON_Delete(pRoot);
-  cJSON_Delete(pMeta);
-  cJSON_Delete(pFiles);
+  cJSON_Delete(pFileSet);
   return code;
 }
 
-int32_t bseSaveMeta(SBse *pBse) {
-  int32_t code = 0, line = 0;
-  char    fNameStr[BSE_FILE_FULL_LEN] = {0};
-  char    tNameStr[BSE_FILE_FULL_LEN] = {0};
-  int32_t nBytes = 0;
-  int32_t ver = bseFindCurrMetaVer(pBse);
+static int32_t bseReadCurrent(SBse *pBse, char **p, int64_t *len) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  TdFilePtr fd = NULL;
+  int64_t   sz = 0;
+  char      name[TSDB_FILENAME_LEN] = {0};
 
-  int32_t n = bseBuildTempMetaName(pBse, tNameStr);
-  if (n >= sizeof(tNameStr)) {
-    return TSDB_CODE_INVALID_PARA;
-  }
+  char *pCurrent = NULL;
 
-  TdFilePtr pMetaFile = taosOpenFile(tNameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pMetaFile == NULL) {
-    bseError("vgId:%d, failed to open file due to %s. file:%s", pBse->cfg.vgId, strerror(errno), tNameStr);
-    TAOS_RETURN(terrno);
-  }
-  char   *buf = NULL;
-  int32_t len = 0;
-  code = bseMetaSerialize(pBse, &buf, &len);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  nBytes = taosWriteFile(pMetaFile, buf, len);
-  if (nBytes != len) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  code = taosFsyncFile(pMetaFile);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  if (taosCloseFile(&pMetaFile) < 0) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  n = bseBuildMetaName(pBse, ver + 1, fNameStr);
-  if (n >= sizeof(fNameStr)) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
-  }
-
-  if (taosRenameFile(tNameStr, fNameStr) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), line, _err);
-  }
-
-  if (ver > -1) {
-    n = bseBuildMetaName(pBse, ver, fNameStr);
-    if (n >= sizeof(fNameStr)) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_CFG, line, _err);
-    }
-    code = taosRemoveFile(fNameStr);
-    if (code) {
-      bseError("vgId:%d, failed to remove file due to %s. file:%s", pBse->cfg.vgId, strerror(errno), fNameStr);
-    } else {
-      bseDebug("vgId:%d, remove old meta file: %s", pBse->cfg.vgId, fNameStr);
-    }
-  }
-  taosMemoryFree(buf);
-  return code;
-_err:
-  bseError("vgId:%d, %s failed at line %d since %s", pBse->cfg.vgId, __func__, line, tstrerror(code));
-  (void)taosCloseFile(&pMetaFile);
-  taosMemoryFree(buf);
-  return code;
-}
-
-static inline int32_t cmprBseFileInfo(const void *pLeft, const void *pRight) {
-  SBseFileInfo *pInfoLeft = (SBseFileInfo *)pLeft;
-  SBseFileInfo *pInfoRight = (SBseFileInfo *)pRight;
-  return compareInt64Val(&pInfoLeft->firstVer, &pInfoRight->firstVer);
-}
-
-static inline int32_t recoverDataFile(SBse *pBse, int64_t fileVer, int8_t *next) {
-  int32_t  code = 0;
-  int32_t  line = 0;
-  int64_t  size = 0;
-  char     path[TSDB_FILENAME_LEN] = {0};
-  uint8_t *blockBuf = NULL;
-  bseBuildDataFullName(pBse, fileVer, path);
-
-  code = taosStatFile(path, &size, NULL, NULL);
-  if (size == 0) {
-    *next = 0;
+  bseBuildCurrentMetaName(pBse, name);
+  if (taosCheckExistFile(name) == 0) {
+    bseInfo("vgId:%d, no current meta file found, skip recover", pBse->cfg.vgId);
     return 0;
   }
-  TSDB_CHECK_CODE(code, line, _err);
+  code = taosStatFile(name, &sz, NULL, NULL);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-  TdFilePtr fd = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
-  int64_t   offset = size > kBlockCap ? (size / kBlockCap - 1) * kBlockCap : 0;
-  taosLSeekFile(fd, offset, SEEK_SET);
-
-  blockBuf = taosMemCalloc(1, kBlockCap);
-  if (taosReadFile(fd, blockBuf, kBlockCap) == kBlockCap) {
-    if (taosCheckChecksumWhole(blockBuf, kBlockCap) == 0) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      TSDB_CHECK_CODE(code, line, _err);
-    }
-    SBlkData2 *pBlk = (SBlkData2 *)blockBuf;
-    if (pBlk->head[3] == BSE_META_TYPE) {
-      *next = 1;
-      // recover meta
-    } else {
-      *next = 0;
-      // recover data
-    }
-    // check crc
-  } else {
-    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_MSG, line, _err);
+  fd = taosOpenFile(name, TD_FILE_READ);
+  if (fd == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
-_err:
+  pCurrent = (char *)taosMemoryCalloc(1, sz + 1);
+  if (pCurrent == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  int64_t nread = taosReadFile(fd, pCurrent, sz);
+  if (nread != sz) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  *p = pCurrent;
+  *len = sz;
+
+_error:
   if (code != 0) {
-    bseError("bse table file %s failed to recover at line %d since %s", path, line, tstrerror(code));
+    bseError("vgId:%d, failed to read current since %s at line %d", pBse->cfg.vgId, tstrerror(code), lino);
+    taosCloseFile(&fd);
+    taosMemFree(pCurrent);
   }
-  taosCloseFile(&fd);
-  taosMemFree(blockBuf);
+  return code;
+}
+
+static int32_t bseInitCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  cJSON  *pRoot = cJSON_Parse(pCurrent);
+  if (pRoot == NULL) {
+    bseError("vgId:%d, failed to parse current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+  cJSON *item = cJSON_GetObjectItem(pRoot, "vgId");
+  if (item == NULL) {
+    bseError("vgId:%d, failed to get vgId from current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _error;
+  }
+  pInfo->vgId = item->valuedouble;
+
+  item = cJSON_GetObjectItem(pRoot, "commitVer");
+  if (item == NULL) {
+    bseError("vgId:%d, failed to get commitVer from current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _error;
+  }
+  pInfo->commitVer = item->valuedouble;
+
+  item = cJSON_GetObjectItem(pRoot, "lastVer");
+  if (item == NULL) {
+    bseError("vgId:%d, failed to get lastVer from current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _error;
+  }
+  pInfo->lastVer = item->valuedouble;
+
+  item = cJSON_GetObjectItem(pRoot, "lastSeq");
+  if (item == NULL) {
+    bseError("vgId:%d, failed to get lastSeq from current meta", pBse->cfg.vgId);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _error;
+  }
+  pInfo->lastSeq = item->valuedouble;
+
+  cJSON *pFiles = cJSON_GetObjectItem(pRoot, "fileSet");
+  cJSON *pField = NULL;
+  cJSON_ArrayForEach(pField, pFiles) {
+    cJSON *pStartSeq = cJSON_GetObjectItem(pField, "startSeq");
+    cJSON *pEndSeq = cJSON_GetObjectItem(pField, "endSeq");
+    cJSON *pFileSize = cJSON_GetObjectItem(pField, "size");
+    cJSON *pLevel = cJSON_GetObjectItem(pField, "level");
+    cJSON *pName = cJSON_GetObjectItem(pField, "name");
+    if (pStartSeq == NULL || pEndSeq == NULL || pFileSize == NULL || pLevel == NULL || pName == NULL) {
+      bseError("vgId:%d, failed to get field from files", pBse->cfg.vgId);
+      code = TSDB_CODE_FILE_CORRUPTED;
+      goto _error;
+    }
+    STableLiveFileInfo info = {0};
+    info.sseq = pStartSeq->valuedouble;
+    info.eseq = pEndSeq->valuedouble;
+    info.size = pFileSize->valuedouble;
+    info.level = pLevel->valuedouble;
+    strncpy(info.name, pName->valuestring, sizeof(info.name));
+
+    if (taosArrayPush(pInfo->pFileList, &info) == NULL) {
+      code = terrno;
+      goto _error;
+    }
+  }
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to get commit info from current meta since %s", BSE_VGID(pBse), tstrerror(code));
+  }
   return code;
 }
 static int32_t bseRecover(SBse *pBse) {
-  int32_t     code = 0;
-  int32_t     line = 0;
-  const char *logPattern = "^[0-9]+.log$";
-  const char *idxPattern = "^[0-9]+.idx$";
-  const char *dataPattern = "^[0-9]+.data$";
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  char          *pCurrent = NULL;
+  int64_t        len = 0;
+  SBseCommitInfo info = {0};
 
-  regex_t  logRegPattern, idxRegPattern, dataRegPattern;
-  TdDirPtr pDir = NULL;
-  SArray  *logs = NULL;
+  code = bseReadCurrent(pBse, &pCurrent, &len);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-  bseInfo("vgId:%d, begin to repair meta, bse path:%s, firstVer:%d, lastVer:%d, snapshotVer:%d", pBse->cfg.vgId,
-          pBse->path, 0, 0, 0);
+  if (len == 0) {
+    bseInfo("vgId:%d, no current meta file found, no need to recover", BSE_VGID(pBse));
+    return 0;
+  }
+  code = bseInitCommitInfo(pBse, pCurrent, &info);
 
-  code = regcomp(&logRegPattern, logPattern, REG_EXTENDED);
+_error:
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, line, _err);
+    bseError("vgId:%d, failed to recover since %s", pBse->cfg.vgId, tstrerror(code));
   }
-
-  code = regcomp(&idxRegPattern, idxPattern, REG_EXTENDED);
-  if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, line, _err);
-  }
-
-  code = regcomp(&dataRegPattern, dataPattern, REG_EXTENDED);
-  if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, line, _err);
-  }
-
-  logs = taosArrayInit(4, sizeof(SBseFileInfo));
-  if (logs == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-  pBse->fileSet = logs;
-
-  pDir = taosOpenDir(pBse->path);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  TdDirEntryPtr pDirEntry;
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
-    char *name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
-    int   code = regexec(&dataRegPattern, name, 0, NULL, 0);
-    if (code == 0) {
-      SBseFileInfo fileInfo;
-      (void)memset(&fileInfo, -1, sizeof(SBseFileInfo));
-      (void)sscanf(name, "%" PRId64 ".data", &fileInfo.firstVer);
-      if (taosArrayPush(logs, &fileInfo) == NULL) {
-        code = terrno;
-        TSDB_CHECK_CODE(code, line, _err);
-      }
-    }
-  }
-  taosCloseDir(&pDir);
-
-  char fNameStr[TSDB_FILENAME_LEN] = {0};
-  taosArraySort(logs, cmprBseFileInfo);
-  int32_t fileIdx = taosArrayGetSize(logs);
-  if (fileIdx > 0) {
-    while (--fileIdx) {
-      int8_t        next = 0;
-      SBseFileInfo *pFileInfo = taosArrayGet(pBse->fileSet, fileIdx);
-      code = recoverDataFile(pBse, pFileInfo->firstVer, &next);
-      if (code == 0) {
-        if (next == 1) {
-          SBseFileInfo info = {.firstVer = pFileInfo->firstVer + 1};
-          if (taosArrayPush(pBse->fileSet, &info) == NULL) {
-            code = terrno;
-            TSDB_CHECK_CODE(code, line, _err);
-          }
-        } else {
-          //
-        }
-        break;
-      }
-    }
-  } else {
-    SBseFileInfo info = {.firstVer = 0};
-    bseBuildDataFullName(pBse, info.firstVer, fNameStr);
-    if (taosArrayPush(pBse->fileSet, &info) == NULL) {
-      code = terrno;
-      TSDB_CHECK_CODE(code, line, _err);
-    }
-  }
-_err:
-  if (code != 0) {
-    bseError("vgId:%d, failed to repair meta since %s", pBse->cfg.vgId, tstrerror(code));
-  }
-  // taosArrayDestroy(logs);
-  regfree(&logRegPattern);
-  regfree(&idxRegPattern);
-  regfree(&dataRegPattern);
+  taosMemFree(pCurrent);
   return code;
-}
-static int32_t bseFindCurrMetaVer(SBse *pBse) {
-  int32_t     code = 0;
-  const char *pattern = "^bse-ver[0-9]+$";
-
-  regex_t bseMetaRegexPattern;
-  if (regcomp(&bseMetaRegexPattern, pattern, REG_EXTENDED) != 0) {
-    bseError("failed to compile bse faile pattern, error %s", tstrerror(terrno));
-    return terrno;
-  }
-  TdDirPtr pDir = taosOpenDir(pBse->path);
-  if (pDir == NULL) {
-    bseError("vgId:%d, path:%s, failed to open since %s", pBse->cfg.vgId, pBse->path, tstrerror(terrno));
-    regfree(&bseMetaRegexPattern);
-    return terrno;
-  }
-
-  TdDirEntryPtr pDirEntry;
-
-  // find existing bse-ver[x].json
-  int bseVer = -1;
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
-    char *name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
-    int   code = regexec(&bseMetaRegexPattern, name, 0, NULL, 0);
-    if (code == 0) {
-      (void)sscanf(name, "meta-ver%d", &bseVer);
-      bseDebug("vgId:%d, bse find current meta: %s is the meta file, ver %d", pBse->cfg.vgId, name, bseVer);
-      break;
-    }
-    bseDebug("vgId:%d, bse find current meta: %s is not meta file", pBse->cfg.vgId, name);
-  }
-  if (taosCloseDir(&pDir) != 0) {
-    bseError("failed to close dir, ret:%s", tstrerror(terrno));
-    regfree(&bseMetaRegexPattern);
-    return terrno;
-  }
-  regfree(&bseMetaRegexPattern);
-  return bseVer;
 }
 int32_t bseInitLock(SBse *pBse) {
   TdThreadRwlockAttr attr;
@@ -936,6 +382,33 @@ int32_t bseInitLock(SBse *pBse) {
   (void)taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
   (void)taosThreadRwlockInit(&pBse->rwlock, &attr);
   (void)taosThreadRwlockAttrDestroy(&attr);
+  return 0;
+}
+
+static int32_t bseInitEnv(SBse *p) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = bseInitLock(p);
+  TSDB_CHECK_CODE(code, lino, _err);
+
+  code = taosMkDir(p->path);
+  TSDB_CHECK_CODE(code, lino, _err);
+_err:
+  if (code != 0) {
+    bseError("failed to init bse env at line %d since %s", lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t bseCreateTableManager(SBse *p) { return bseTableMgtInit(p, (void **)&p->pTableMgt); }
+
+static int32_t bseCreateCommitInfo(SBse *pBse) {
+  SBseCommitInfo *pCommit = &pBse->commitInfo;
+  pCommit->pFileList = taosArrayInit(64, sizeof(STableLiveFileInfo));
+  if (pCommit->pFileList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   return 0;
 }
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
@@ -948,105 +421,45 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
     TSDB_CHECK_CODE(code, lino, _err);
   }
   p->cfg = *pCfg;
-  // init lock
   tstrncpy(p->path, path, sizeof(p->path));
 
-  code = taosMkDir(p->path);
+  code = bseInitEnv(p);
   TSDB_CHECK_CODE(code, lino, _err);
 
-  // init table
+  code = bseCreateTableManager(p);
+  TSDB_CHECK_CODE(code, lino, _err);
+
+  code = bseCreateCommitInfo(p);
+  TSDB_CHECK_CODE(code, lino, _err);
+
   code = bseRecover(p);
   TSDB_CHECK_CODE(code, lino, _err);
 
-  code = bseInitLock(p);
-  TSDB_CHECK_CODE(code, lino, _err);
-
-  p->inUse = 0;
-
-  SBseFileInfo *pInfo = taosArrayGetLast(p->fileSet);
-  p->seq = pInfo->firstVer + 1;
-
-  char buf[TSDB_FILENAME_LEN] = {0};
-  bseBuildDataFullName(p, p->seq, buf);
-
-  code = tableOpen(buf, &p->pTable[p->inUse], 1);
-  TSDB_CHECK_CODE(code, lino, _err);
-
-  tableSetSeq(p->pTable[p->inUse], p->seq);
-  TSDB_CHECK_CODE(code, lino, _err);
-
-  bseBuildDataFullName(p, p->seq + 1, buf);
-  code = tableOpen(buf, &p->pTable[1 - p->inUse], 0);
-  TSDB_CHECK_CODE(code, lino, _err);
-
-  tableSetSeq(p->pTable[1 - p->inUse], p->seq + 1);
-  TSDB_CHECK_CODE(code, lino, _err);
-
-  // init other mutex
-  taosThreadMutexInit(&p->mutex, NULL);
-
-  p->pTableCache = taosHashInit(4096 * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
-  if (p->pTableCache == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _err);
-  }
-  p->pBatchList = taosArrayInit(4, sizeof(void *));
-  if (p->pBatchList == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _err);
-  }
-
-  SBseBatch *pBatch = NULL;
-  code = bseBatchCreate(&pBatch, 1024);
-  TSDB_CHECK_CODE(code, lino, _err);
-
-  if (taosArrayPush(p->pBatchList, &pBatch) == NULL) {
-    bseBatchDestroy(pBatch);
-    TSDB_CHECK_CODE(code = terrno, lino, _err);
-  }
-
-  *pBse = p;
-
 _err:
   if (code != 0) {
-    bseClose(p);
-    bseError("failed to open bse since %s", tstrerror(code));
+    bseError("vgId:%d failed to open bse at line %d since %s", BSE_VGID(p), lino, tstrerror(code));
   }
   return code;
 }
 
 void bseClose(SBse *pBse) {
+  int32_t code;
   if (pBse == NULL) {
     return;
   }
-  bseInfo("start to close bse");
-  // bseCommit(pBse);
 
-  tableClose(pBse->pTable[1 - pBse->inUse], 1);
-  tableClose(pBse->pTable[pBse->inUse], 1);
-  taosArrayDestroy(pBse->fileSet);
-  taosThreadMutexDestroy(&pBse->mutex);
-  taosThreadRwlockDestroy(&pBse->rwlock);
-
-  void *pIter = taosHashIterate(pBse->pTableCache, NULL);
-  while (pIter != NULL) {
-    SReaderTableWrapper *p = pIter;
-    readerTableClose(p->pTable);
-
-    pIter = taosHashIterate(pBse->pTableCache, pIter);
-  }
-  taosHashCleanup(pBse->pTableCache);
-
-  for (int32_t i = 0; i < taosArrayGetSize(pBse->pBatchList); i++) {
-    SBseBatch **pBatch = taosArrayGet(pBse->pBatchList, i);
-    bseBatchDestroy(*pBatch);
-  }
-  taosArrayDestroy(pBse->pBatchList);
-  taosMemoryFree(pBse);
+  return;
+}
+int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
+  int32_t line = 0;
+  int32_t code = 0;
+  return code;
 }
 
-int32_t bsePutBatch(SBse *pBse, SBseBatch *pBatch) {
+int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
   taosThreadMutexLock(&pBse->mutex);
-  code = tableAppendBatch(pBse->pTable[pBse->inUse], pBatch);
+  code = 0;  // tableAppendBatch(pBse->pTable[pBse->inUse], pBatch);
   code = bseRecycleBatch(pBse, pBatch);
 
   taosThreadMutexUnlock(&pBse->mutex);
@@ -1075,7 +488,7 @@ int32_t bseGetOrCreateBatch(SBse *pBse, SBseBatch **pBatch) {
 
 _error:
   if (code != 0) {
-    bseInfo("failed to get bse batch since %s at line %d", tstrerror(code), lino);
+    bseInfo("vgId:%d failed to get bse batch since %s at line %d", BSE_VGID(pBse), tstrerror(code), lino);
   }
   return code;
 }
@@ -1141,12 +554,14 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
 
   code = bseBatchSetParam(p, sseq, nKeys);
 
+  p->pBse = pBse;
+
   TSDB_CHECK_CODE(code, lino, _error);
 
   *pBatch = p;
 _error:
   if (code != 0) {
-    bseError("failed to build batch since %s", tstrerror(code));
+    bseError("vgId:%d failed to build batch since %s", BSE_VGID((SBse *)p->pBse), tstrerror(code));
     bseBatchDestroy(p);
   }
   return code;
@@ -1181,8 +596,18 @@ int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t le
 
 _error:
   if (code != 0) {
-    bseError("failed to put value by seq %" PRId64 " since %s at lino %d", lseq, tstrerror(code), lino);
+    bseError("vgId:%d failed to put value by seq %" PRId64 " since %s at lino %d", BSE_VGID((SBse *)pBatch->pBse), lseq,
+             tstrerror(code), lino);
   }
+  return code;
+}
+
+int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *sz) {
+  int32_t code = 0;
+
+  if (pBatch == NULL) return TSDB_CODE_INVALID_MSG;
+  *sz = pBatch->len;
+
   return code;
 }
 
@@ -1242,69 +667,6 @@ int32_t bseFileSetCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
-  int32_t line = 0;
-  int32_t code = 0;
-  int64_t ts = taosGetTimestampMs();
-
-  taosThreadMutexLock(&pBse->mutex);
-  if (seq >= pBse->pTable[pBse->inUse]->initSeq) {
-    code = tableLoadBySeq(pBse->pTable[pBse->inUse], seq, pValue, len);
-    goto _err;
-  } else {
-    SBseFileInfo  key = {.firstVer = seq};
-    SBseFileInfo *p = NULL;
-    for (int32_t i = 0; i < taosArrayGetSize(pBse->fileSet); i++) {
-      SBseFileInfo *pInfo = taosArrayGet(pBse->fileSet, i);
-      bseDebug("firstVer:%" PRId64, pInfo->firstVer);
-      if (pInfo->firstVer >= seq) {
-        if ((i + 1) >= taosArrayGetSize(pBse->fileSet)) {
-          p = pInfo;
-          break;
-        } else {
-          SBseFileInfo *pNext = taosArrayGet(pBse->fileSet, i + 1);
-          if (pNext->firstVer > seq) {
-            p = pInfo;
-            break;
-          }
-        }
-      }
-    }
-
-    if (p == NULL) {
-      TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, line, _err);
-    } else {
-      SReaderTableWrapper *pTableWraper = taosHashGet(pBse->pTableCache, &p->firstVer, sizeof(p->firstVer));
-      if (pTableWraper == NULL) {
-        char buf[TSDB_FILENAME_LEN] = {0};
-        bseBuildDataFullName(pBse, p->firstVer, buf);
-
-        SReaderTable *pTable = NULL;
-        code = readerTableOpen(buf, p->firstVer, &pTable);
-        TSDB_CHECK_CODE(code, line, _err);
-
-        SReaderTableWrapper tableWraper = {.pTable = pTable};
-        code = taosHashPut(pBse->pTableCache, &p->firstVer, sizeof(p->firstVer), &tableWraper,
-                           sizeof(SReaderTableWrapper));
-        TSDB_CHECK_CODE(code, line, _err);
-
-        pTableWraper = taosHashGet(pBse->pTableCache, &p->firstVer, sizeof(p->firstVer));
-      }
-      code = readerTableGet(pTableWraper->pTable, seq, pValue, len);
-      TSDB_CHECK_CODE(code, line, _err);
-    }
-  }
-  int64_t cost = taosGetTimestampMs() - ts;
-  bseDebug("succ to get value by seq %" PRIu64 ", cost %" PRId64 " ms", seq, cost);
-
-_err:
-  taosThreadMutexUnlock(&pBse->mutex);
-  if (code != 0) {
-    bseError("failed to get value by seq %" PRIu64 " since %s at line %d", seq, tstrerror(code), line);
-  }
-  return code;
-}
-
 int32_t seqComparFunc(const void *p1, const void *p2) {
   uint64_t pu1 = *(const uint64_t *)p1;
   uint64_t pu2 = *(const uint64_t *)p2;
@@ -1329,54 +691,75 @@ int32_t bseIterate(SBse *pBse, uint64_t start, uint64_t end, SArray *pValue) {
   return code;
 }
 
+static int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  char      buf[TSDB_FILENAME_LEN] = {0};
+  char     *pBuf = NULL;
+  int32_t   len = 0;
+  TdFilePtr fd = NULL;
+  code = bseSerailCommitInfo(pBse, pFileSet, &pBuf, &len);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  bseBuildTempCurrentMetaName(pBse, buf);
+
+  fd = taosOpenFile(buf, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (fd == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  int64_t nwrite = taosWriteFile(fd, pBuf, len);
+  if (nwrite != len) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  code = taosFsyncFile(fd);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to gen commit info since %s", BSE_VGID(pBse), tstrerror(code));
+  }
+  taosMemFree(pBuf);
+
+  taosCloseFile(&fd);
+  return code;
+}
+
+int32_t bseCommitFinish(SBse *pBse) {
+  int32_t code = 0;
+  return code;
+
+  char buf[TSDB_FILENAME_LEN] = {0};
+  char tbuf[TSDB_FILENAME_LEN] = {0};
+
+  bseBuildCurrentMetaName(pBse, buf);
+  bseBuildTempMetaName(pBse, tbuf);
+
+  code = taosRenameFile(tbuf, buf);
+  return code;
+}
 int32_t bseCommit(SBse *pBse) {
   // Generate static info and footer info;
+  int64_t st = taosGetTimestampMs();
+  int64_t cost = 0;
   int32_t code = 0;
   int32_t line = 0;
-  char    buf[TSDB_FILENAME_LEN] = {0};
-  char    tbuf[TSDB_FILENAME_LEN] = {0};
 
-  int64_t start = taosGetTimestampMs();
+  code = bseTableMgtCommit(pBse->pTableMgt);
+  TSDB_CHECK_CODE(code, line, _error);
 
-  uint64_t oldSeq = 0, newSeq = 0;
-  taosThreadMutexLock(&pBse->mutex);
-  oldSeq = pBse->seq;
-  newSeq = ++pBse->seq;
+  code = bseGenCommitInfo(pBse, ((STableMgt *)pBse->pTableMgt)->pFileList);
+  TSDB_CHECK_CODE(code, line, _error);
 
-  pBse->inUse = 1 - pBse->inUse;
-  pBse->pTable[pBse->inUse]->initSeq = pBse->seq;
+  bseCommitFinish(pBse);
 
-  bseBuildDataFullName(pBse, newSeq, buf);
-  if (pBse->pTable[pBse->inUse]->fileOpened == 0) {
-    tableOpenFile(pBse->pTable[pBse->inUse], buf);
-  }
-  taosArrayClear(pBse->pTable[pBse->inUse]->pSeqToBlock);
-
-  BlockInfo info = {0};
-  taosArrayPush(pBse->pTable[pBse->inUse]->pSeqToBlock, &info);
-
-  taosThreadMutexUnlock(&pBse->mutex);
-
-  code = tableCommit(pBse->pTable[1 - pBse->inUse]);
-  tableClear(pBse->pTable[1 - pBse->inUse]);
-
-  SBseFileInfo finfo = {.firstVer = oldSeq};
-  if (taosArrayPush(pBse->fileSet, &finfo) == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
+_error:
+  cost = taosGetTimestampMs() - st;
+  if (cost > 100) {
+    bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_VGID(pBse), cost);
   }
 
-  taosArraySort(pBse->fileSet, cmprBseFileInfo);
-
-  memset(buf, 0, sizeof(buf));
-  bseBuildDataFullName(pBse, oldSeq, buf);
-  taosRenameFile(pBse->pTable[1 - pBse->inUse]->name, buf);
-
-_err:
-  if (code != 0) {
-    bseError("bse failed to commit at line %d since %s", line, tstrerror(code));
-  } else {
-    bseInfo("bse succ to commit, cost %" PRId64 " ms", taosGetTimestampMs() - start);
-  }
   return code;
 }
 
@@ -1403,154 +786,4 @@ int32_t bseEndSnapshot(SBse *pBse) {
 int32_t bseStopSnapshot(SBse *pBse) {
   // TODO
   return 0;
-}
-static int32_t readerTableOpen(const char *name, uint64_t lastSeq, SReaderTable **ppTable) {
-  int32_t line = 0;
-  int32_t code = 0;
-
-  SReaderTable *pTable = taosMemoryCalloc(1, sizeof(SReaderTable));
-  if (pTable == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  pTable->pCache = taosHashInit(4096 * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
-  if (pTable->pCache == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  pTable->pSeqToBlock = taosArrayInit(64, sizeof(BlockInfo));
-  if (pTable->pSeqToBlock == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  pTable->blockId = 0;
-  code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->data);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  tstrncpy(pTable->name, name, TSDB_FILENAME_LEN);
-  pTable->lastSeq = lastSeq;
-  *ppTable = pTable;
-
-  code = readerTableLoadMeta(pTable);
-_err:
-  if (code != 0) {
-    bseError("failed to open table %s at line %d since %s", pTable->name, line, tstrerror(code));
-    if (pTable != NULL) {
-      readerTableClose(pTable);
-    }
-  } else {
-    bseInfo("bse table file %s succ to be opened", pTable->name);
-  }
-
-  return code;
-}
-static int32_t readerTableClose(SReaderTable *pTable) {
-  int32_t line = 0;
-  int32_t code = 0;
-
-  code = blockCleanup(&pTable->data);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  taosHashCleanup(pTable->pCache);
-
-  code = taosCloseFile(&pTable->pDataFile);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  taosArrayDestroy(pTable->pSeqToBlock);
-
-  taosMemFree(pTable);
-_err:
-  if (code != 0) {
-    bseError("bse file %s failed to close table since %s", pTable->name, tstrerror(code));
-  }
-  return code;
-}
-static int32_t readerTableGet(SReaderTable *pTable, int64_t key, uint8_t **pValue, int32_t *len) {
-  int32_t code = 0;
-  int32_t line = 0;
-
-  BlockInfo *p = NULL;
-  code = getBlockBySeq(pTable->pSeqToBlock, key, &p);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  code = tableLoadBlk((STable *)pTable, p->blockId, &pTable->data);
-  TSDB_CHECK_CODE(code, line, _err);
-
-  code = blockSeekSeq(&pTable->data, key, pValue, len);
-_err:
-  return code;
-}
-
-int blockSeqCmpr(const void *a, const void *b) {
-  BlockInfo *p1 = (BlockInfo *)a;
-  BlockInfo *p2 = (BlockInfo *)b;
-  if (p1->seq < p2->seq) return -1;
-  return 1;
-}
-static int32_t readerTableLoadMeta(SReaderTable *pTable) {
-  int32_t  line = 0;
-  int32_t  code = 0;
-  int64_t  size = 0;
-  uint8_t *buf = NULL;
-
-  code = taosStatFile(pTable->name, &size, NULL, NULL);
-  if (size == 0) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  pTable->pDataFile = taosOpenFile(pTable->name, TD_FILE_READ);
-  if (pTable->pDataFile == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  buf = taosMemoryCalloc(1, kBlockCap);
-  if (buf == NULL) {
-    TSDB_CHECK_CODE(code = terrno, line, _err);
-  }
-
-  do {
-    memset(buf, 0, kBlockCap);
-    int64_t offset = size > kBlockCap ? ((size / kBlockCap) - 1) * kBlockCap : 0;
-    if (offset <= 0) {
-      break;
-    }
-    taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
-    if (taosReadFile(pTable->pDataFile, buf, kBlockCap) == kBlockCap) {
-      if (taosCheckChecksumWhole(buf, kBlockCap) == 1) {
-        SBlkData2 *pBlk = (SBlkData2 *)buf;
-        if (pBlk->head[3] == BSE_META_TYPE) {
-          uint8_t *data = pBlk->data;
-          uint8_t *p = data;
-          do {
-            int64_t seq;
-            int32_t len, blockId;
-            p = taosDecodeVariantI64(p, &seq);
-            p = taosDecodeVariantI32(p, &len);
-            p = taosDecodeVariantI32(p, &blockId);
-
-            BlockInfo info = {.seq = seq, .len = len, .blockId = blockId};
-            taosArrayPush(pTable->pSeqToBlock, &info);
-          } while ((p - data) < pBlk->len);
-
-          size -= kBlockCap;
-        } else {
-          break;
-        }
-      } else {
-        code = TSDB_CODE_INVALID_MSG;
-        break;
-      }
-    }
-  } while (1);
-
-  taosArraySort(pTable->pSeqToBlock, blockSeqCmpr);
-_err:
-  if (code != 0) {
-    bseError("table file %s failed to build reader table since %s", pTable->name, tstrerror(code));
-    if (pTable->pDataFile != NULL) {
-      taosCloseFile(&pTable->pDataFile);
-    }
-  }
-  taosMemFree(buf);
-  return code;
 }

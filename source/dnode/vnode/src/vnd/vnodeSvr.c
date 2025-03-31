@@ -618,13 +618,13 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
     }
   }
 
-  code = bsePutBatch(pVnode->pBse, pBatch);
+  code = bseAppendBatch(pVnode->pBse, pBatch);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   int64_t cost = taosGetTimestampUs() - st;
   if (cost >= 500) {
-    bseDebug("vgId:%d, %s, cost:%" PRId64 "us, rows:%d, size:%" PRId64 "", TD_VID(pVnode), __func__, cost, sz,
-             pBlobRow->len);
+    vDebug("vgId:%d, %s, cost:%" PRId64 "us, rows:%d, size:%" PRId64 "", TD_VID(pVnode), __func__, cost, sz,
+           pBlobRow->len);
   }
 _exit:
   if (code != 0) {
