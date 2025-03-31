@@ -5,7 +5,7 @@ on:
     branches:
       - 'new_test_framework'
     paths:
-      - 'test/cases/**/*.py'
+      - 'test/cases/**/test_*.py'
       - 'test/new_test_framework/utils/*.py'
   pull_request:
     branches:
@@ -13,7 +13,7 @@ on:
       - '3.0'
     types: [closed]  # trigger on PR close
     paths:
-      - 'test/cases/**/*.py'
+      - 'test/cases/**/test_*.py'
       - 'test/new_test_framework/utils/*.py'
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
           else
             BRANCH_NAME="${{ github.ref_name }}"
           fi
-          # BRANCH_NAME="3.0"
+          BRANCH_NAME="main"
           echo "Target branch is $BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
@@ -67,7 +67,7 @@ jobs:
         uses: tj-actions/changed-files@v45
         with:
           files: |
-            test/cases/**/*.py
+            test/cases/**/test_*.py
 
       - name: Get all changed utils files
         id: changed-utils-files
@@ -149,7 +149,6 @@ jobs:
           # Deploy the documentation for the current version
           cd test
           mike deploy --push --update-aliases $BRANCH_NAME latest --config-file mkdocs.yml --branch gh-pages --allow-empty
-          #mike set-default --push --branch gh-pages latest --allow-empty
 
       - name: Commit and Push Updated Docs to gh-pages
         if: env.modified_flag == 'true' || env.modified_util == 'true'
