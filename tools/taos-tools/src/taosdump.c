@@ -4157,16 +4157,16 @@ static int64_t dumpInAvroTbTagsImpl(
     // 
     // add stb schema changed info to dbChanged
     //
-    StbChange * pStbChange = NULL;
-    // if recordSchema->version == 0, pStbChange return NULL
-    int32_t code = AddStbChanged(pDbChange, namespace, *taos_v, recordSchema, &pStbChange);
+    StbChange * stbChange = NULL;
+    // if recordSchema->version == 0, stbChange return NULL
+    int32_t code = AddStbChanged(pDbChange, namespace, *taos_v, recordSchema, &stbChange);
     if (code) {
         return code;
     }
     // part tags
     char *partTags = "";
-    if (pStbChange && pStbChange->strTags) {
-        partTags = pStbChange->strTags;
+    if (stbChange && stbChange->strTags) {
+        partTags = stbChange->strTags;
     }
 
     char *sqlstr = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
@@ -4176,9 +4176,9 @@ static int64_t dumpInAvroTbTagsImpl(
     }
 
     
-    if(pStbChange) {
+    if(stbChange) {
         // use super table des
-        tableDes = pStbChange->tableDes;
+        tableDes = stbChange->tableDes;
     }
 
     // malloc TableDes
@@ -4282,9 +4282,11 @@ static int64_t dumpInAvroTbTagsImpl(
                 
                 // check filter
                 int16_t idx = i - 1;
-                if (!idxInBindTags(idx, tableDes)) {
-                    debugPrint("tag idx:%d field:%s not in server, ignore.\n", idx, field->name);
-                    continue;
+                if (stbChange && stbChange->schemaChanged) {
+                    if (!idxInBindTags(idx, tableDes)) {
+                        debugPrint("tag idx:%d field:%s not in server, ignore.\n", idx, field->name);
+                        continue;
+                    }    
                 }
 
                 // get tag value
