@@ -791,6 +791,11 @@ typedef struct SDropTSMAStmt {
   char      tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
 
+typedef struct {
+  SNode* pDbName;
+  char   fileName[PATH_MAX];
+} SLoadFileStmt;
+
 #ifdef __cplusplus
 }
 #endif

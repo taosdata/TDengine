@@ -4620,3 +4620,25 @@ _err:
   nodesDestroyNode(dbName);
   return NULL;
 }
+
+SNode* createLoadFileStmt(SAstCreateContext* pCxt, const SToken* pFileName) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  if (NULL == pFileName) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "file name not specified");
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    CHECK_PARSER_STATUS(pCxt);
+  }
+
+  SLoadFileStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_LOAD_FILE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  pStmt->pDbName = NULL;
+  strncpy(pStmt->fileName, pFileName->z, pFileName->n);
+
+  return (SNode*)pStmt;
+
+_err:
+  return NULL;
+}

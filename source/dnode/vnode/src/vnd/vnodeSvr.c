@@ -617,22 +617,22 @@ static int32_t vnodeProcessImportFileReq(SVnode *pVnode, int64_t ver, void *pReq
   tDecoderInit(&decoder, (uint8_t *)pReq, len);
 
   // Decode the request
-  if (tDecodeVImportFileReq(&decoder, &req) != 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    pRsp->code = code;  // Set error code in response
-    tDecoderClear(&decoder);
-    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
-    return code;
-  }
+  // if (tDecodeVImportFileReq(&decoder, &req) != 0) {
+  //   code = TSDB_CODE_INVALID_MSG;
+  //   pRsp->code = code;  // Set error code in response
+  //   tDecoderClear(&decoder);
+  //   vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
+  //   return code;
+  // }
 
   // Process the request
-  code = tsdbImportFile(pVnode->pTsdb, req.fileName);
-  if (code) {
-    pRsp->code = code;  // Set error code in response
-    tDecoderClear(&decoder);
-    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
-    return code;
-  }
+  // code = tsdbImportFile(pVnode->pTsdb, req.fileName);
+  // if (code) {
+  //   pRsp->code = code;  // Set error code in response
+  //   tDecoderClear(&decoder);
+  //   vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
+  //   return code;
+  // }
 
   pRsp->code = 0;
   tDecoderClear(&decoder);

@@ -1011,6 +1011,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       code = makeNode(type, sizeof(SVirtualScanPhysiNode), &pNode);
       break;
+    case QUERY_NODE_LOAD_FILE_STMT:
+      code = makeNode(type, sizeof(SLoadFileStmt), &pNode);
+      break;
     default:
       break;
   }

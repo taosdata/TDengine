@@ -46,37 +46,36 @@ int32_t tsdbImportFile(STsdb *pTsdb, const char *fileName) {
     return code;
   }
 
-  // Create the file object
-  STFile file = {
-    // TODO
-  };
-  STFileObj *fileObj = NULL;
+  // // Create the file object
+  // STFile file = {
+  //   // TODO
+  // };
+  // STFileObj *fileObj = NULL;
 
-  code = tsdbTFileObjInit(pTsdb, &file, &STFileObj);
-  if (code) {
-    // TODO
-  }
+  // code = tsdbTFileObjInit(pTsdb, &file, &STFileObj);
+  // if (code) {
+  //   // TODO
+  // }
 
-  TFileOpArray opArray;
+  // TFileOpArray opArray;
 
+  // // Try to change add the stt file to the vnode
+  // code = tsdbFSEditBegin(pTsdb->pFS, NULL, TSDB_FEDIT_COMMIT);
+  // if (code) {
+  //   tsdbError("Failed to begin edit for file %s, error code: %d (file: %s, func: %s, line: %d)",
+  //             fileName, code, __FILE__, __func__, __LINE__);
+  //   return code;
+  // }
 
-  // Try to change add the stt file to the vnode
-  code = tsdbFSEditBegin(pTsdb->pFS, NULL, TSDB_FEDIT_COMMIT);
-  if (code) {
-    tsdbError("Failed to begin edit for file %s, error code: %d (file: %s, func: %s, line: %d)", 
-              fileName, code, __FILE__, __func__, __LINE__);
-    return code;
-  }
-
-  // Commit the edit
-  code = tsdbFSEditCommit(pTsdb->pFS);
-  if (code) {
-    tsdbError("Failed to commit edit for file %s, error code: %d (file: %s, func: %s, line: %d)", 
-              fileName, code, __FILE__, __func__, __LINE__);
-    return code;
-  } else {
-    // TODO
-  }
+  // // Commit the edit
+  // code = tsdbFSEditCommit(pTsdb->pFS);
+  // if (code) {
+  //   tsdbError("Failed to commit edit for file %s, error code: %d (file: %s, func: %s, line: %d)",
+  //             fileName, code, __FILE__, __func__, __LINE__);
+  //   return code;
+  // } else {
+  //   // TODO
+  // }
 
   tsdbDebug("Finished importing data from file %s", fileName);
   return code;
