@@ -35,7 +35,20 @@ def _parse_ns_timestamp(timestr):
 
 
 def _parse_datetime(timestr):
-    # defined timestr formats
+    """
+    Parse a string to a datetime object. The string can be in one of the following formats:
+    The string can be in one of the following formats:
+    - '%Y-%m-%d %H:%M:%S.%f%z': Contains microseconds and timezone offset.
+    - '%Y-%m-%d %H:%M:%S%z': Contains no microseconds but contains timezone offset.
+    - '%Y-%m-%d %H:%M:%S.%f': Contains microseconds but no timezone offset.
+    - '%Y-%m-%d %H:%M:%S': Contains no microseconds and no timezone offset.
+    
+    Args:
+        timestr (str): The string to be parsed.
+    
+    Returns:
+        datetime.datetime: The datetime object parsed from the string.
+    """
     formats = [
         '%Y-%m-%d %H:%M:%S.%f%z',  # 包含微秒和时区偏移
         '%Y-%m-%d %H:%M:%S%z',      # 不包含微秒但包含时区偏移
@@ -180,6 +193,7 @@ class TDSql:
             row_tag (optional): If provided, the method will return the fetched results. Defaults to None.
             queryTimes (int, optional): The number of times to attempt the query in case of failure. Defaults to 10.
             count_expected_res (optional): If provided, the method will repeatedly execute the query until the first result matches this value or the queryTimes limit is reached. Defaults to None.
+            show (bool, optional): If True, the SQL statement will be logged before execution. Defaults to False.
 
         Returns:
             int: The number of rows fetched if row_tag is not provided.

@@ -7,13 +7,13 @@ on:
     branches:
       - 'new_test_framework'
     paths:
-      - 'test/cases/**/*.py'
+      - 'test/cases/**/test_*.py'
   pull_request:
     branches:
       - 'main'
       - '3.0'
     paths:
-      - 'test/cases/**/*.py'
+      - 'test/cases/**/test_*.py'
 
 jobs:
   validate_tests:
@@ -33,7 +33,7 @@ jobs:
         uses: tj-actions/changed-files@v45
         with:
           files: |
-            test/cases/**/*.py
+            test/cases/**/test_*.py
 
       - name: Validate test files
         if: steps.changed-case-files.outputs.any_changed == 'true'
