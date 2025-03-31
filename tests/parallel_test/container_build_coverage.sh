@@ -40,18 +40,15 @@ fi
 
 ulimit -c unlimited
 
-# if [ $ent -eq 0 ]; then
-#     REP_DIR=/home/TDengine
-#     REP_REAL_PATH=$WORKDIR/TDengine
-#     REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDengine
-# else
-#     REP_DIR=/home/TDinternal
-#     REP_REAL_PATH=$WORKDIR/TDinternal
-#     REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDinternal
-
-REP_DIR=/home/TDinternal
-REP_REAL_PATH=$WORKDIR/TDinternal
-REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDinternal
+if [ $ent -eq 0 ]; then
+    REP_DIR=/home/TDengine
+    REP_REAL_PATH=$WORKDIR/TDengine
+    REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDengine
+else
+    REP_DIR=/home/TDinternal
+    REP_REAL_PATH=$WORKDIR/TDinternal
+    REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDinternal
+    
     
 fi
 date 
