@@ -667,7 +667,8 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
     // check valid
     if (newc == 0) {
         // col must not zero
-        errorPrint("%s() LN%d, new column zero failed! oldc=%d\n", __func__, __LINE__, oldc);
+        errorPrint("backup data schema no same column with server table:%s local col num:%d server col num:%d\n", 
+                   tableDesSrv->name, recordSchema->tableDes->columns, tableDesSrv->columns);
         return -1;
     }
     if (newt == 0 && oldt > 0) {
