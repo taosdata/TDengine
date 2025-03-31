@@ -317,6 +317,11 @@ function run_thread() {
         if [ -z "${passwords[index]}" ]; then
             scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
         fi
+        # save allure report results
+        local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
+        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
+        $cmd
+        echo "Save allure report results to $log_dir/allure-results/ from $allure_report_results with cmd: $cmd"
 
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
@@ -390,11 +395,6 @@ function run_thread() {
                 cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
             fi
         fi
-        # save allure report results
-        local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
-        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
-        $cmd
-        echo "Save allure report results to $log_dir/allure-results/ from $allure_report_results with cmd: $cmd"
     done
 }
 
