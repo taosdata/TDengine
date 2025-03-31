@@ -387,7 +387,7 @@ function run_thread() {
         fi
         # save allure report results
         local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
-        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
+        cmd="$scpcmd:\"${allure_report_results}/*\"  \"$log_dir/allure-results/\""
         $cmd
         echo "Save allure report results to $log_dir/allure-results/ from $allure_report_results with cmd: $cmd"
     done
