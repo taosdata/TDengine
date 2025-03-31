@@ -10429,8 +10429,20 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
     return recordSchema;
 }
 
+
 int inspectAvroFile(char *filename) {
     int ret = 0;
+
+    if (filename) {
+        size_t len = strlen(filename);
+        if (len > strlen(MFILE_EXT)) {
+            char * ext = filename + len - strlen(MFILE_EXT);
+            if(strcasecmp(ext, MFILE_EXT) == 0) {
+                debugPrint("mfile ignore inspect. %s\n", filename);
+                return 0;
+            }
+        }
+    }
 
     avro_file_reader_t reader;
 
@@ -10759,7 +10771,7 @@ static int inspectAvroFiles(int argc, char *argv[]) {
 
     for (int i = 1; i < argc; i++) {
         if (strlen(argv[i])) {
-            fprintf(stdout, "\n### Inspecting %s...\n", argv[i]);
+            fprintf(stdout, "\n###** Inspecting %s...\n", argv[i]);
             ret = inspectAvroFile(argv[i]);
             fprintf(stdout, "\n### avro file %s inspected\n", argv[i]);
         }
