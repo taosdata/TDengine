@@ -612,7 +612,7 @@ int32_t taosAddClientLogCfg(SConfig *pCfg) {
                                 CFG_DYN_ENT_BOTH, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "asyncLog", tsAsyncLog, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
-      cfgAddInt32(pCfg, "logKeepDays", 0, -365000, 365000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH, CFG_CATEGORY_LOCAL));
+      cfgAddInt32(pCfg, "logKeepDays", tsLogKeepDays, 0, 365000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "simDebugFlag", simDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
