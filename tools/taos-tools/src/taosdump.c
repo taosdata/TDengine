@@ -10783,9 +10783,11 @@ static int inspectAvroFiles(int argc, char *argv[]) {
 int main(int argc, char *argv[]) {
     g_uniqueID = getUniqueIDFromEpoch();
 
+    printf("hello world taosdump\n");
     int ret = 0;
     /* Parse our arguments; every option seen by parse_opt will be
        reflected in arguments. */
+    /*
     if (argc > 1) {
         parse_timestamp(argc, argv, &g_args);
         parse_args(argc, argv, &g_args);
@@ -10858,6 +10860,7 @@ int main(int argc, char *argv[]) {
         free(node);
         node = next;
     }
+    */   
 
     return ret;
 }
