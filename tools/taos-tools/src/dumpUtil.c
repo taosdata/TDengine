@@ -14,6 +14,7 @@
  */
 
 
+#include <jansson.h>
 #include <taos.h>
 #include "pub.h"
 #include "dump.h"
