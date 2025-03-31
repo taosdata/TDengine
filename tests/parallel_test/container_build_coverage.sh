@@ -49,7 +49,6 @@ else
     REP_REAL_PATH=$WORKDIR/TDinternal
     REP_MOUNT_PARAM=$REP_REAL_PATH:/home/TDinternal
     
-    
 fi
 date 
 docker run \
