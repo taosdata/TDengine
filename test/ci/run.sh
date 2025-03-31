@@ -313,15 +313,6 @@ function run_thread() {
         echo "${hosts[index]} total time: ${total_time}s" >>"$case_log_file"
         # echo "$thread_no ${line} DONE"
 
-        # save the test results for allure report
-        local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-        if [ -z "${passwords[index]}" ]; then
-            scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-        fi
-        local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
-        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
-        $cmd
-
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
             flock -x "$lock_file" -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
@@ -333,10 +324,6 @@ function run_thread() {
             fi
             mkdir -p "${log_dir}"/"${case_file}".coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            # scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            # if [ -z "${passwords[index]}" ]; then
-            #     scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            # fi
             cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             $cmd # 2>/dev/null
             local corefile
@@ -377,8 +364,8 @@ function run_thread() {
             $cmd
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
-            # local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
-            scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
+            local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             if [ -z "${passwords[index]}" ]; then
                 scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             fi
@@ -386,8 +373,9 @@ function run_thread() {
             $cmd
             cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
             $cmd
-            # cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
-            # $cmd
+            # save allure report results
+            cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
+            $cmd
             # backup source code (disabled)
             source_tar_dir=$log_dir/TDengine_${hosts[index]}
             source_tar_file=TDengine.tar.gz
@@ -531,7 +519,6 @@ if [ -f "$report_dir/index.html" ]; then
     echo "Allure report generated successfully at $report_dir."
 else
     echo "Error: Failed to generate Allure report."
-    exit 1
 fi
 
 echo "Test report: https://platform.tdengine.net:8090/reports/$branch/report"
