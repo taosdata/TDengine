@@ -85,7 +85,7 @@ class EMSQuery(TDCase):
 
     def get_compression_ratio(self):
         self.tdRest.request(f'flush database {self.dbname};')
-        self.tdRest.request(data=f"show table distributed center_db.site_topic6_u2_193;")
+        # self.tdRest.request(data=f"show table distributed center_db.site_topic6_mqtt_u2_193;")
         self.tdRest.request(f'show {self.dbname}.disk_info;')
 
         query_res = self.tdRest.resp['data'][0][0]
