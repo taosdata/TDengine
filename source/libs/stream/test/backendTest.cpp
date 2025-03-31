@@ -64,7 +64,7 @@ void *backendOpen() {
   std::vector<int64_t> tsArray;
   for (int32_t i = 0; i < size; i++) {
     int64_t ts = taosGetTimestampMs();
-    SWinKey key;  // = {.groupId = (uint64_t)(i), .ts = ts};
+    SWinKey key {0};  // = {.groupId = (uint64_t)(i), .ts = ts};
     key.groupId = (uint64_t)(i);
     key.ts = ts;
     const char *val = "value data";
