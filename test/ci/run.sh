@@ -313,6 +313,16 @@ function run_thread() {
         echo "${hosts[index]} total time: ${total_time}s" >>"$case_log_file"
         # echo "$thread_no ${line} DONE"
 
+        local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        if [ -z "${passwords[index]}" ]; then
+            scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        fi
+        # save allure report results
+        local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
+        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
+        $cmd
+        echo "Save allure report results to $log_dir/allure-results/ from $allure_report_results with cmd: $cmd"
+
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
             flock -x "$lock_file" -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
@@ -385,11 +395,6 @@ function run_thread() {
                 cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
             fi
         fi
-        # save allure report results
-        local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
-        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
-        $cmd
-        echo "Save allure report results to $log_dir/allure-results/ from $allure_report_results with cmd: $cmd"
     done
 }
 
@@ -512,18 +517,21 @@ fi
 
 # copy results to server
 cp -r "$log_dir/allure-results/"* "$results_dir"
+cp_status=$?
+echo "Copying allure results to $results_dir, status: $cp_status"
 
 # generate the test report for pr
-allure generate "$results_dir" -o "$report_dir" --clean
+/opt/allure/bin/allure generate "$results_dir" -o "$report_dir" --clean
+generate_status=$?
+echo "Generating allure report, status: $generate_status"
 
 # check report is generated successfully
 if [ -f "$report_dir/index.html" ]; then
     echo "Allure report generated successfully at $report_dir."
+    echo "Test report: https://platform.tdengine.net:8090/reports/$branch/report"
 else
     echo "Error: Failed to generate Allure report."
 fi
-
-echo "Test report: https://platform.tdengine.net:8090/reports/$branch/report"
 
 echo "${log_dir}" >&2
 date
