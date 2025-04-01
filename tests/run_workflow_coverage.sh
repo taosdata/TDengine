@@ -30,7 +30,7 @@ function lcovFunc {
 
     # collect data
     #lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
-    lcov -d "$CAPTURE_GCDA_DIR" --capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
+    lcov -d "$CAPTURE_GCDA_DIR" --capture --rc branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
 
     # remove exclude paths 
     lcov --remove coverage.info \
