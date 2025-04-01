@@ -58,10 +58,14 @@ typedef struct {
   SArray* pNullValueFlag;
 } SRowVal;
 
+typedef struct SColumnFillProgress {
+  SListNode* pBlockNode;
+  int32_t    rowIdx;
+} SColumnFillProgress;
 
-typedef struct SFillProgress {
+typedef struct SBlockFillProgress {
   int32_t rowIdx;
-} SFillProgress;
+} SBlockFillProgress;
 
 typedef struct SFillBlock {
   SSDataBlock* pBlock;
@@ -94,6 +98,7 @@ typedef struct SFillInfo {
   SExecTaskInfo*   pTaskInfo;
   int8_t           isFilled;
   SList*           pFillSavedBlockList;
+  SArray*          pColFillProgress;
 } SFillInfo;
 
 typedef struct SResultCellData {
@@ -156,14 +161,14 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFi
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
-int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity);
+int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity, bool *wantMoreBlock);
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
 bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
                               int32_t rowIndex);
 
 inline static SFillBlock* tFillSaveBlock(SFillInfo* pFill, SSDataBlock* pBlock, SArray* pProgress) {
-  SFillBlock block = {.pFillProgress = pProgress, .pBlock = pBlock, .allColFinished = false};
+  SFillBlock block = {.pBlock = pBlock, .pFillProgress = pProgress, .allColFinished = false};
   SListNode* pNode = tdListAdd(pFill->pFillSavedBlockList, &block);
   if (!pNode) {
     return NULL;

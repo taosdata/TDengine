@@ -92,7 +92,7 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   }
 
   int32_t numOfResultRows = pResultInfo->capacity - pResBlock->info.rows;
-  int32_t code = taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
+  int32_t code = taosFillResultDataBlock2(pInfo->pFillInfo, pResBlock, numOfResultRows, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     T_LONG_JMP(pTaskInfo->env, code);
@@ -107,7 +107,7 @@ static void doHandleRemainBlockFromNewGroup(SOperatorInfo* pOperator, SFillOpera
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
     int32_t numOfResultRows = pResultInfo->capacity - pInfo->pFinalRes->info.rows;
-    int32_t code = taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pFinalRes, numOfResultRows);
+    int32_t code = taosFillResultDataBlock2(pInfo->pFillInfo, pInfo->pFinalRes, numOfResultRows, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       T_LONG_JMP(pTaskInfo->env, code);
@@ -243,6 +243,7 @@ static SSDataBlock* doFillImpl2(SOperatorInfo* pOperator) {
     return pResBlock;
   }
 
+  // TODO wjm do not invoke get next after got null from downstream
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
@@ -290,7 +291,8 @@ static SSDataBlock* doFillImpl2(SOperatorInfo* pOperator) {
     }
 
     int32_t numOfResultRows = pOperator->resultInfo.capacity - pResBlock->info.rows;
-    code = taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
+    bool wantMoreBlock = false;
+    code = taosFillResultDataBlock2(pInfo->pFillInfo, pResBlock, numOfResultRows, &wantMoreBlock);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // current group has no more result to return
@@ -316,6 +318,7 @@ static SSDataBlock* doFillImpl2(SOperatorInfo* pOperator) {
         return pResBlock;
       }
     } else {
+      if (wantMoreBlock) continue;
       return NULL;
     }
   }
@@ -437,8 +440,10 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         pResBlock->info.id.groupId = pInfo->curGroupId;
         return pResBlock;
       }
-    } else {
+    } else if (pInfo->pFillInfo->numOfRows == 0) {
       return NULL;
+    } else {
+      continue;
     }
   }
 
@@ -462,7 +467,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   SSDataBlock* fillResult = NULL;
   while (true) {
-    fillResult = doFillImpl(pOperator);
+    fillResult = doFillImpl2(pOperator);
     if (fillResult == NULL) {
       setOperatorCompleted(pOperator);
       break;
