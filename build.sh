@@ -52,8 +52,8 @@ do_stop() {
 do_purge() {
   sudo rm -rf /var/lib/taos         # data storage
   sudo rm -rf /var/log/taos         # logs
-  sudo rm -f  /usr/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos}             # executables
-  sudo rm -f  /usr/local/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos}       # executables
+  sudo rm -f  /usr/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos,taosudf}             # executables
+  sudo rm -f  /usr/local/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos,taosudf}       # executables
   sudo rm -rf /usr/lib/libtaos*     # libraries
   sudo rm -rf /usr/include/{taosws.h,taos.h,taosdef.h,taoserror.h,tdef.h,taosudf.h}               # header files
   sudo rm -rf /usr/local/taos       # all stuffs
