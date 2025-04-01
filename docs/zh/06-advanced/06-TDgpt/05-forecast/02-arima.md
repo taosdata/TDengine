@@ -41,7 +41,7 @@ ARIMA 模型是一种自回归模型，只需要自变量即可预测后续的�
 FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5")
 ```
 
-完整的调用SQL语句如下：
+完整的调用 SQL 语句如下：
 
 ```SQL
 SELECT _frowts, FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5") from foo
@@ -53,7 +53,7 @@ SELECT _frowts, FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,s
 "period": period, // 返回结果的周期性，同输入
 "alpha": alpha,   // 返回结果的置信区间，同输入
 "algo": "arima",  // 返回结果使用的算法
-"mse": mse,       // 拟合输入时间序列时候生成模型的最小均方误差(MSE)
+"mse": mse,       // 拟合输入时间序列时候生成模型的最小均方误差 (MSE)
 "res": res        // 列模式的结果
 }
 ```

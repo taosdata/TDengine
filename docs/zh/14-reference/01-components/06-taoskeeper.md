@@ -19,7 +19,7 @@ taosKeeper 有两种安装方式：
 
 ## 配置
 
-taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式：命令行参数、环境变量 和 配置文件。优先级为：命令行参数、环境变量、配置文件参数。 一般我们推荐使用配置文件。
+taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式：命令行参数、环境变量 和 配置文件。优先级为：命令行参数、环境变量、配置文件参数。一般我们推荐使用配置文件。
 
 ### 命令行参数和环境变量
 
@@ -374,7 +374,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 | taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB)                                                      |
 | taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s)                                            |
 | taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s)                                            |
-| taos_dnodes_info_uptime        | gauge   | 该 dnode 的启动时间(单位 秒)                                                             |
+| taos_dnodes_info_uptime        | gauge   | 该 dnode 的启动时间 (单位 秒)                                                             |
 | taos_dnodes_info_vnodes_num    | counter | 该 dnode 所在节点的 vnode 数量                                                           |
 
 #### 数据目录
@@ -511,7 +511,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
   - `database_name`：数据库名称
   - `vgroup_id`：虚拟组 id
 - **类型**：gauge
-- **含义**：虚拟组状态。 0 为 unsynced，表示没有 leader 选出；1 为 ready。
+- **含义**：虚拟组状态。0 为 unsynced，表示没有 leader 选出；1 为 ready。
 
 ##### taos_taosd_vgroups_info_tables_num
 

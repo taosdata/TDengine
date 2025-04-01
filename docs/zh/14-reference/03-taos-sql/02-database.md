@@ -62,7 +62,7 @@ database_option: {
   - last_value：表示缓存子表每一列的最近的非 NULL 值。这将显著改善无特殊影响（WHERE、ORDER BY、GROUP BY、INTERVAL）下的 LAST 函数的性能表现。
   - both：表示同时打开缓存最近行和列功能。
     Note：CacheModel 值来回切换有可能导致 last/last_row 的查询结果不准确，请谨慎操作（推荐保持打开）。
-- CACHESIZE：表示每个 vnode 中用于缓存子表最近数据的内存大小。默认为 1 ，范围是[1, 65536]，单位是 MB。
+- CACHESIZE：表示每个 vnode 中用于缓存子表最近数据的内存大小。默认为 1，范围是[1, 65536]，单位是 MB。
 - COMP：表示数据库文件压缩标志位，缺省值为 2，取值范围为 [0, 2]。
   - 0：表示不压缩。
   - 1：表示一阶段压缩。
@@ -76,8 +76,8 @@ database_option: {
   - 数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间；
   - KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位；
   - 也可以不写单位，如 KEEP 50，此时默认单位为天；
-  - 仅企业版支持[多级存储](https://docs.taosdata.com/operation/planning/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）；
-  - 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）；
+  - 仅企业版支持[多级存储](https://docs.taosdata.com/operation/planning/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能，因此，可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）；
+  - 社区版不支持多级存储功能（即使配置了多个保存时间，也不会生效，KEEP 会取最大的保存时间）；
   - 了解更多，请点击 [关于主键时间戳](https://docs.taosdata.com/reference/taos-sql/insert/)。
 - KEEP_TIME_OFFSET：删除或迁移保存时间超过 KEEP 值的数据的延迟执行时间（自 3.2.0.0 版本生效），默认值为 0 (小时)。
   - 在数据文件保存时间超过 KEEP 后，删除或迁移操作不会立即执行，而会额外等待本参数指定的时间间隔，以实现与业务高峰期错开的目的。
@@ -90,13 +90,13 @@ database_option: {
 - TABLE_PREFIX：分配数据表到某个 vgroup 时，用于忽略或仅使用表名前缀的长度值。
   - 当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的前缀；
   - 当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的前缀；
-  - 例如：假定表名为 "v30001"，当 TSDB_PREFIX = 2 时，使用 "0001" 来决定分配到哪个 vgroup ，当 TSDB_PREFIX = -2 时使用 "v3" 来决定分配到哪个 vgroup。
+  - 例如：假定表名为 "v30001"，当 TSDB_PREFIX = 2 时，使用 "0001" 来决定分配到哪个 vgroup，当 TSDB_PREFIX = -2 时使用 "v3" 来决定分配到哪个 vgroup。
 - TABLE_SUFFIX：分配数据表到某个 vgroup 时，用于忽略或仅使用表名后缀的长度值。
   - 当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的后缀；
   - 当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的后缀；
-  - 例如：假定表名为 "v30001"，当 TSDB_SUFFIX = 2 时，使用 "v300" 来决定分配到哪个 vgroup ，当 TSDB_SUFFIX = -2 时使用 "01" 来决定分配到哪个 vgroup。
-- TSDB_PAGESIZE：一个 vnode 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
-- DNODES：指定 vnode 所在的 DNODE 列表，如 '1,2,3'，以逗号区分且字符间不能有空格 （**仅企业版支持**）
+  - 例如：假定表名为 "v30001"，当 TSDB_SUFFIX = 2 时，使用 "v300" 来决定分配到哪个 vgroup，当 TSDB_SUFFIX = -2 时使用 "01" 来决定分配到哪个 vgroup。
+- TSDB_PAGESIZE：一个 vnode 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB 到 16 MB。
+- DNODES：指定 vnode 所在的 DNODE 列表，如 '1,2,3'，以逗号区分且字符间不能有空格（**仅企业版支持**）
 - WAL_LEVEL：WAL 级别，默认为 1。
   - 1：写 WAL，但不执行 fsync。
   - 2：写 WAL，而且执行 fsync。
@@ -122,7 +122,7 @@ database_option: {
 create database if not exists db vgroups 10 buffer 10;
 ```
 
-以上示例创建了一个有 10 个 vgroup 名为 db 的数据库， 其中每个 vnode 分配 10MB 的写入缓存
+以上示例创建了一个有 10 个 vgroup 名为 db 的数据库，其中每个 vnode 分配 10MB 的写入缓存
 
 ### 使用数据库
 
@@ -183,7 +183,7 @@ alter_database_option: {
 
 - 如果 cacheload 非常接近 cachesize，则 cachesize 可能过小。
 - 如果 cacheload 明显小于 cachesize 则 cachesize 是够用的。
-- 可以根据这个原则判断是否需要修改 cachesize 。
+- 可以根据这个原则判断是否需要修改 cachesize。
 - 具体修改值可以根据系统可用内存情况来决定是加倍或者是提高几倍。
 
 :::note
