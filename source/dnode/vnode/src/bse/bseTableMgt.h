@@ -17,20 +17,13 @@
 #define _TD_BSE_TABLE_MANAGER_H_
 
 #include "bse.h"
+#include "bseCache.h"
 #include "bseTable.h"
 #include "bseUtil.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct {
-  int32_t cap;
-} SBlockCacheMgt;
-
-typedef struct {
-  int32_t cap;
-} STableCacheMgt;
 
 typedef struct {
   STableBuilder *p[2];
@@ -41,16 +34,20 @@ typedef struct {
 } STableBuilderMgt;
 
 typedef struct {
+  SArray       *pFileList;
+  STableCache  *pTableCache;
+  SBlockCache  *pBatchCache;
+  TdThreadMutex mutex;
+  SBse         *pBse;
+} STableReaderMgt;
+typedef struct {
   char  path[TSDB_FILENAME_LEN];
   void *pBse;
 
-  SArray *pFileList;
-
   STableBuilderMgt manager[1];
+  STableReaderMgt  reader[1];
 
-  STableCacheMgt *pTableCache;
-  SBlockCacheMgt *pBatchCache;
-  TdThreadMutex   mutex;
+  TdThreadMutex mutex;
 } STableMgt;
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
@@ -64,6 +61,8 @@ int32_t bseTableMgtCommit(STableMgt *pMgt);
 int32_t bseTableMgtRecover(SBse *pBse, STableMgt *pMgt);
 
 int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch);
+
+int32_t bseTableMgtGetLiveFileList(STableMgt *pMgt, SArray **pList);
 #ifdef __cplusplus
 }
 #endif

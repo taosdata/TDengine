@@ -79,7 +79,7 @@ set(
     #bse
     "src/bse/bseMgt.c"
     "src/bse/bseTable.c"
-    "src/bse/bseBlockCache.c"
+    "src/bse/bseCache.c"
     "src/bse/bseTableMgt.c"
     "src/bse/bseUtil.c"
 )

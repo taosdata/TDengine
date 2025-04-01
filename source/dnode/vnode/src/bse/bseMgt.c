@@ -303,6 +303,7 @@ static int32_t removeUnCommitFile(SBse *p) {
       }
     }
   }
+  taosArrayDestroy(pFiles);
 
   return code;
 }
@@ -736,11 +737,15 @@ int32_t bseCommit(SBse *pBse) {
   int32_t code = 0;
   int32_t line = 0;
   int64_t st = taosGetTimestampMs();
+  SArray *pLiveFile = NULL;
 
   code = bseTableMgtCommit(pBse->pTableMgt);
   TSDB_CHECK_CODE(code, line, _error);
 
-  code = bseGenCommitInfo(pBse, ((STableMgt *)pBse->pTableMgt)->pFileList);
+  code = bseTableMgtGetLiveFileList(pBse->pTableMgt, &pLiveFile);
+  TSDB_CHECK_CODE(code, line, _error);
+
+  code = bseGenCommitInfo(pBse, pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);
 
   code = bseCommitFinish(pBse);
@@ -754,6 +759,7 @@ _error:
   if (code != 0) {
     bseError("vgId:%d failed to commit at line %d since %s", BSE_VGID(pBse), tstrerror(code));
   }
+  taosArrayDestroy(pLiveFile);
 
   return code;
 }

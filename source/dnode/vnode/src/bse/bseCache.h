@@ -13,5 +13,38 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef BSE_TABLE_CACHE_H
+#define BSE_TABLE_CACHE_H
+
+#include "bseTable.h"
 #include "bseUtil.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+  int32_t cap;
+  int32_t size;
+  void  **pCache;
+} STableCache;
+
+int32_t tableCacheOpen(int32_t cap, STableCache **p);
+int32_t tableCacheGet(STableCache *p, char *key, STableReader **pReader);
+void    tableCacheClose(STableCache *p);
+
+typedef struct {
+  int32_t cap;
+  int32_t size;
+  void  **pCache;
+} SBlockCache;
+
+int32_t blockCacheOpen(int32_t cap, SBlockCache **p);
+int32_t blockCacheGet(SBlockCache *p, char *key, SBlock **pBlock);
+void    blockCacheClose(SBlockCache *p);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
