@@ -305,7 +305,7 @@ Displays information about all topics in the current database.
 
 ```sql
 SHOW TRANSACTIONS;
-SHOW TRANSACTION [tranaction_id];
+SHOW TRANSACTION [transaction_id];
 ```
 
 Displays information about one of or all transaction(s) currently being executed in the system (these transactions are only for metadata level, not for regular tables).

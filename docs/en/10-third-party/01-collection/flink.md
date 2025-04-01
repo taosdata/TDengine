@@ -202,7 +202,7 @@ Parameter configuration instructions:
 |-----------------------| :-----: | ------------ |
 | connector             | string | connector identifier, set `tdengine-connector`|
 | td.jdbc.url           | string | url of the connection |
-| td.jdbc.mode          | strng  | connector type `sink`|
+| td.jdbc.mode          | string  | connector type `sink`|
 | sink.db.name          | string | target database name|
 | sink.batch.size       | integer| batch size written|
 | sink.supertable.name  | string | name of the supertable|
