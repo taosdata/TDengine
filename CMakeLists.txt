@@ -45,7 +45,7 @@ include(${TD_SUPPORT_DIR}/external.cmake)
 # contrib
 add_subdirectory(contrib)
 
-# freemine: turn it on to let cmake to find out non-acyclic-dependencies
+# NOTE: turn it on to let cmake to find out non-acyclic-dependencies
 # set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 
 # api

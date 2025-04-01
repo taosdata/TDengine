@@ -666,7 +666,7 @@ install_man:
 
 .PHONY: install
 ## install libraries, CLI, links and man pages
-## freemine: install: install_libxxhash.a install_libxxhash install_libxxhash.includes install_libxxhash.pc install_xxhsum install_man
+## install: install_libxxhash.a install_libxxhash install_libxxhash.includes install_libxxhash.pc install_xxhsum install_man
 install: install_libxxhash.a install_libxxhash.includes install_libxxhash.pc
 	@echo xxhash installation completed
 

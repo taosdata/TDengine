@@ -2408,6 +2408,4 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
 }
 
 char *getBuildInfo() { return td_buildinfo; }
-// freemine: TODO: this is to trigger github workflow
-//                 do NOT forget to delete when done!!!
 

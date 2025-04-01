@@ -210,7 +210,7 @@ if(${BUILD_PTHREAD})        # {
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=ON         # freemine: building dll or not
+        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=ON
         CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=/wd4244"
         CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=/wd4244"
         BUILD_COMMAND
@@ -385,7 +385,6 @@ if(${BUILD_TEST})           # {
         VERBATIM
     )
     add_dependencies(build_externals ext_gtest)     # this is for github workflow in cache-miss step.
-    include_directories(${_ins}/include)            # freemine: a better and specific way?
 endif(${BUILD_TEST})        # }
 
 # cppstub
@@ -419,7 +418,7 @@ if(${BUILD_TEST})           # {
         INSTALL_COMMAND ""
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/src/stub.h ${_ins}/include/stub.h
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/${_platform_dir}/addr_any.h ${_ins}/include/addr_any.h
-        # freemine: TODO: seems only .h files are exported
+        # TODO: seems only .h files are exported
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -470,7 +469,7 @@ elseif(${TD_WINDOWS})
     set(ext_cjson_static cjson.lib)
 endif()
 INIT_EXT(ext_cjson
-    INC_DIR          include/cjson           # freemine: tweak in this way to hack #include <cJSON.h> in source codes
+    INC_DIR          include/cjson           # TODO: tweak in this way to hack #include <cJSON.h> in source codes
     LIB              lib/${ext_cjson_static}
 )
 # GIT_REPOSITORY https://github.com/taosdata-contrib/cJSON.git
@@ -530,12 +529,12 @@ ExternalProject_Add(ext_xz
 add_dependencies(build_externals ext_xz)     # this is for github workflow in cache-miss step.
 
 # xxHash
-# freemine: ref from lzma2::xxhash.h: `https://github.com/Cyan4973/xxHash`
-# freemine: TODO: external-symbols (eg. XXH64_createState ...) exist both in libxxhash.a and libfast-lzma2.a
-#                 static linking problem?
-#                 currently, always call DEP_ext_... in such order, for the same target:
-#                 DEP_ext_xxhash(...)
-#                 DEP_ext_lzma2(...)
+# NOTE: ref from lzma2::xxhash.h: `https://github.com/Cyan4973/xxHash`
+# TODO: external-symbols (eg. XXH64_createState ...) exist both in libxxhash.a and libfast-lzma2.a
+#       static linking problem?
+#       currently, always call DEP_ext_... in such order, for the same target:
+#       DEP_ext_xxhash(...)
+#       DEP_ext_lzma2(...)
 if(${TD_LINUX})
     set(ext_xxhash_static libxxhash.a)
 elseif(${TD_DARWIN})
@@ -610,7 +609,7 @@ if(${TD_LINUX})
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/lzma2.Makefile Makefile
-            # freemine: xxhash.h is now introduced by ext_xxhash
+            # NOTE: xxhash.h is now introduced by ext_xxhash
         CONFIGURE_COMMAND ""
         BUILD_COMMAND
             COMMAND make DESTDIR=${_ins}
@@ -666,7 +665,7 @@ if(NOT ${TD_WINDOWS})       # {
         set(_c_flags_list -fPIC)
     elseif(${TD_DARWIN})
         set(ext_tz_static libtz.a)
-        set(_c_flags_list -fPIC -DHAVE_GETTEXT=0) # freemine: TODO: brew install gettext?
+        set(_c_flags_list -fPIC -DHAVE_GETTEXT=0) # TODO: brew install gettext?
     endif()
     INIT_EXT(ext_tz
         INC_DIR          include
@@ -728,14 +727,13 @@ if(${JEMALLOC_ENABLED})     # {
         PATCH_COMMAND
             COMMAND ./autogen.sh
         CONFIGURE_COMMAND
-            COMMAND ./configure -prefix=${_ins} --disable-initial-exec-tls     # freemine: why disable-initial-exec-tls
+            COMMAND ./configure -prefix=${_ins} --disable-initial-exec-tls     # NOTE: why disable-initial-exec-tls
                     CFLAGS=-Wno-missing-braces
                     CXXFLAGS=-Wno-missing-braces
         BUILD_COMMAND
             COMMAND make
         INSTALL_COMMAND
             COMMAND make install
-        # freemine: TODO: always refreshed!!!
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -769,7 +767,7 @@ if(${BUILD_WITH_SQLITE})    # {
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
-        # freemine: TODO: seems no use at all
+        # TODO: seems no use at all
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -810,7 +808,7 @@ endif(${BUILD_CRASHDUMP})   # }
 
 # ssl
 if(NOT ${TD_WINDOWS})       # {
-    # freemine: why at this moment???
+    # TODO: why at this moment???
     # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
     if(${TD_LINUX})
         set(ext_ssl_static libssl.a)
@@ -1034,7 +1032,7 @@ endif(${BUILD_ADDR2LINE})   # }
 
 # pcre2
 if(${BUILD_PCRE2})          # {
-    # freemine: seems no necessary cause strict rules has been enforced by geos
+    # TODO: seems no necessary cause strict rules has been enforced by geos
     if(${TD_LINUX})
         set(ext_pcre2_static libpcre2-8.a)
     elseif(${TD_DARWIN})
@@ -1060,7 +1058,7 @@ if(${BUILD_PCRE2})          # {
         CMAKE_ARGS -DPCRE2_BUILD_TESTS:BOOL=OFF
         CMAKE_ARGS -DPCRE2_STATIC_PIC:BOOL=OFF
         CMAKE_ARGS -DPCRE2_SHOW_REPORT:BOOL=OFF
-        # freemine: turns off because of dynamic linking
+        # NOTE: turns off because of dynamic linking
         CMAKE_ARGS -DPCRE2_SUPPORT_LIBZ:BOOL=OFF
         CMAKE_ARGS -DPCRE2_SUPPORT_LIBBZ2:BOOL=OFF
         CMAKE_ARGS -DPCRE2_SUPPORT_LIBREADLINE:BOOL=OFF

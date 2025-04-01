@@ -683,7 +683,7 @@ struct normalized_div_args
     unsigned shift;
 };
 
-// freemine: move to os/osDef.h?
+// TODO: move to os/osDef.h?
 #if defined(_MSC_VER)
 #define TD_FORCEINLINE       __forceinline
 #elif defined(__GNUC__) || defined(__clang__)

@@ -124,10 +124,10 @@ IF(TD_WINDOWS)
 
     IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
         MESSAGE("${Green} will build Release version! ${ColourReset}")
-        # freemine: let cmake to choose default compile options
+        # NOTE: let cmake to choose default compile options
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
-        # freemine: let cmake to choose default compile options
+        # NOTE: let cmake to choose default compile options
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
@@ -300,7 +300,7 @@ ELSE()
 ENDIF()
 
 IF(TD_LINUX_64)
-    # freemine: need to test
+    # NOTE: need to test
     IF(${JEMALLOC_ENABLED})
         MESSAGE(STATUS "JEMALLOC Enabled")
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=attributes")

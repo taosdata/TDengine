@@ -92,7 +92,7 @@ ENDIF()
 MESSAGE("collect --version show info:")
 # version
 IF (DEFINED TD_VER_NUMBER)
-    # freemine: global compile flags???
+    # TODO: global compile flags???
     ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
     MESSAGE(STATUS "taos version:${TD_VER_NUMBER}")
 ELSE ()

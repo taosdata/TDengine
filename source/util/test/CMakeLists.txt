@@ -1,31 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
 PROJECT(TDengine)
 
-# freemine: FIND_PATH(HEADER_GTEST_INCLUDE_DIR gtest.h /usr/include/gtest /usr/local/include/gtest)
-# freemine: FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64)
-# freemine: FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64)
-# freemine: 
-# freemine: IF(HEADER_GTEST_INCLUDE_DIR AND(LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
-# freemine:     MESSAGE(STATUS "gTest library found, build unit test")
-# freemine: 
-# freemine:     INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
-# freemine:     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
-# freemine: 
-# freemine:     LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
-# freemine:     LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/terrorTest.cpp)
-# freemine:     ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
-# freemine:     TARGET_LINK_LIBRARIES(utilTest util common os gtest pthread)
-# freemine: 
-# freemine:     LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/cacheTest.cpp)
-# freemine:     LIST(APPEND SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
-# freemine:     ADD_EXECUTABLE(hashTest ${SOURCE_LIST})
-# freemine:     TARGET_LINK_LIBRARIES(hashTest util common os gtest pthread)
-# freemine: 
-# freemine:     LIST(APPEND BIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
-# freemine:     ADD_EXECUTABLE(trefTest ${BIN_SRC})
-# freemine:     TARGET_LINK_LIBRARIES(trefTest common util)
-# freemine: ENDIF()
-
 # IF (TD_LINUX)
 # ADD_EXECUTABLE(trefTest ./trefTest.c)
 # TARGET_LINK_LIBRARIES(trefTest util common)
