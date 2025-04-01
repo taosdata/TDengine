@@ -39,8 +39,8 @@ docker run -d -v ~/data/taos/dnode/data:/var/lib/taos \
 
 :::note
 
-- /var/lib/taos: TDengine 默认数据文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode/data 为你自己的数据目录
-- /var/log/taos: TDengine 默认日志文件目录。可通过[配置文件]修改位置。你可以修改~/data/taos/dnode/log 为你自己的日志目录
+- /var/lib/taos: TDengine 默认数据文件目录。可通过[配置文件]修改位置。你可以修改 ~/data/taos/dnode/data 为你自己的数据目录
+- /var/log/taos: TDengine 默认日志文件目录。可通过[配置文件]修改位置。你可以修改 ~/data/taos/dnode/log 为你自己的日志目录
   
 :::
 
