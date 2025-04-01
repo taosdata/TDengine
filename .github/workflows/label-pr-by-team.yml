@@ -13,24 +13,14 @@ jobs:
     steps:
         - name: Checkout Repository
           uses: actions/checkout@v4
-
-        - name: Checkout .github Repository
-          uses: actions/checkout@v4
-          with:
-            repository: taosdata/.github
-            path: .github
-            branch: feature/pr_labels
+          
         - name: Generate GitHub App Token
           id: app-token
           uses: tibdex/github-app-token@v1
           with:
             app_id: ${{ vars.TAOSDATA_BOT_ID }}
             private_key: ${{ secrets.TAOSDATA_BOT_KEY }}
-        - name: Find path to add-pr-labels
-          id: find-path
-          run: |
-            find_path=$(find .github -type d -name "add-pr-labels")
-            echo "find_path=${find_path}" >> $GITHUB_ENV
+
         - name: Add PR Labels
           uses: taosdata/.github/.github/actions/add-pr-labels@feature/pr_labels
           with:
