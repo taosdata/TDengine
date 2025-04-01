@@ -102,4 +102,11 @@ echo "CAPTURE_GCDA_DIR = $CAPTURE_GCDA_DIR"
 echo "BRANCH = $BRANCH"
 
 lcovFunc
+
+COVERAGE_INFO="$TDENGINE_DIR/coverage.info"
+OUTPUT_DIR="$CAPTURE_GCDA_DIR/coverage_report"
+# Generate local HTML reports
+genhtml "$COVERAGE_INFO"  --branch-coverage --function-coverage --output-directory "$OUTPUT_DIR"
+
+
 print_color "$GREEN" "End of coverage test on workflow!"
