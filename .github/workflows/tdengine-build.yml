@@ -131,6 +131,10 @@ jobs:
             snappy \
             zlib
 
+      - name: Show software version
+        run: |
+          cmake --version
+
       - name: Install dependencies on Windows
         if: runner.os == 'Windows'
         run: |
