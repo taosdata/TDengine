@@ -596,10 +596,10 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSubmitTbData) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  uint64_t seq = 0;
-  int32_t  nr = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+  int64_t seq = 0;
+  int32_t nr = 0;
 
   int64_t    st = taosGetTimestampUs();
   SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;

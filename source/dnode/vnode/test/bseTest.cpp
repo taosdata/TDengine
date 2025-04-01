@@ -60,36 +60,66 @@ int main(int argc, char **argv) {
 //   taosCloseFile(&pFile);
 // }
 
-TEST(bseCase, openTest) {
-    SBse *bse = NULL;
-    uint64_t seq = 0; 
-    std::vector<uint64_t> data;
-    SBseCfg cfg = {.vgId = 2};
-    int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
-    for (int32_t i = 0; i < 2; i++) {
-        code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
-        data.push_back(seq); 
+static void initLog() {
+    dDebugFlag = 143;
+    vDebugFlag = 0;
+    mDebugFlag = 143;
+    cDebugFlag = 0;
+    jniDebugFlag = 0;
+    tmrDebugFlag = 135;
+    uDebugFlag = 135;
+    rpcDebugFlag = 143;
+    qDebugFlag = 0;
+    wDebugFlag = 0;
+    sDebugFlag = 0;
+    tsdbDebugFlag = 0;
+    tsLogEmbedded = 1;
+    tsAsyncLog = 0;
+
+    const char *path = TD_TMP_DIR_PATH "td";
+    taosRemoveDir(path);
+    taosMkDir(path);
+    tstrncpy(tsLogDir, path, PATH_MAX);
+    if (taosInitLog("taosdlog", 1, false) != 0) {
+      printf("failed to init log file\n");
     }
-    bseCommit(bse); 
+}
+TEST(bseCase, openTest) {
+    initLog();
+
+    SBse *bse = NULL;
+    std::vector<int64_t> data;
+    SBseCfg cfg = {.vgId = 2};
+
+    SBseBatch *pBatch = NULL;
+    
+    int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+    code = bseBatchInit(bse, &pBatch,1024);
+    for (int32_t i = 0; i < 2; i++) {
+      int64_t seq = 0;
+      char *buf = "test";
+      code = bseBatchPut(pBatch, &seq, (uint8_t *)buf, strlen(buf)); 
+      data.push_back(seq);  
+    }
+
+    code = bseAppendBatch(bse, pBatch); 
         
 
     for (int32_t i = 0; i < 2; i++) {
       char *p = NULL;
       int32_t len = 0;
-      uint64_t seq = data[i];
+      int64_t seq = data[i];
       code = bseGet(bse, seq, (uint8_t **)&p, &len);
       taosMemoryFree(p);
       ASSERT_EQ(len, 4);
       //code = bseRead(bse, data[i], NULL, NULL);
     }
-    //bseCommit(bse);
-    
-
+    bseCommit(bse);
     
     data.clear();
     for (int32_t i = 0; i < 2; i++) {
-        code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
-        data.push_back(seq); 
+        //code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
+        //data.push_back(seq); 
     }
     bseCommit(bse);
 

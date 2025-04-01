@@ -65,6 +65,12 @@ typedef struct {
 } SBlock;
 
 typedef struct {
+  int64_t sseq;
+  int64_t eseq;
+} SSeqRange;
+
+int8_t inSeqRange(SSeqRange *p, int64_t seq);
+typedef struct {
   char         name[TSDB_FILENAME_LEN];
   TdFilePtr    pDataFile;
   STableFooter footer;
@@ -72,13 +78,14 @@ typedef struct {
   SArray      *pMetaHandle;
   SBlock      *pData;
   SBlock      *pHdata;
-  void        *bse;
   int32_t      blockCap;
   int8_t       compressType;
   int32_t      offset;
   int32_t      blockId;
-  int64_t      startSeq;
-  int64_t      lastSeq;
+  // int64_t      startSeq;
+  // int64_t      lastSeq;
+  SSeqRange range;
+  void     *bse;
 } STableBuilder;
 
 typedef struct {
@@ -109,7 +116,7 @@ int32_t tableBuildFlush(STableBuilder *p, int8_t type);
 int32_t tableBuildCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
 int32_t tableBuildClose(STableBuilder *p, int8_t commited);
 void    tableBuildClear(STableBuilder *p);
-void    tableBuildReInit(STableBuilder *p, char *path);
+void    tableBuildReInit(STableBuilder *p);
 
 int32_t tableReadOpen(char *name, STableReader **pReader);
 int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);

@@ -33,12 +33,6 @@ typedef struct {
 } STableCacheMgt;
 
 typedef struct {
-  int64_t sseq;
-  int64_t eseq;
-} SSeqRange;
-
-typedef struct {
-  SSeqRange      range[2];
   STableBuilder *p[2];
   int8_t         inUse;
 

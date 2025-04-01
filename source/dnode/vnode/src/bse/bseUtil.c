@@ -45,7 +45,7 @@ void bseBuildTempMetaName(SBse *pBse, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver.tmp", pBse->path, TD_DIRSEP);
 }
 void bseBuildFullName(SBse *pBse, char *name, char *fullname) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%s%s", pBse->path, TD_DIRSEP, fullname);
+  snprintf(fullname, BSE_FILE_FULL_LEN, "%s%s%s", pBse->path, TD_DIRSEP, name);
 }
 
 void bseBuildDataName(SBse *pBse, int64_t seq, char *name) {

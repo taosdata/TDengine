@@ -18,6 +18,9 @@
 #include "bseTable.h"
 #include "bseUtil.h"
 
+static int32_t getTableBuildFromManage(STableBuilderMgt *pMgt, STableBuilder **p);
+static void    tableBuildManageDestroy(STableBuilderMgt *pMgt);
+
 static int32_t initTableCache(int32_t cap, STableCacheMgt **pMgt) {
   int32_t code = 0;
 
@@ -73,6 +76,7 @@ int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   TSDB_CHECK_CODE(code, lino, _error);
 
   p->pBse = pBse;
+  p->manager->pBse = pBse;
 
   *pMgt = p;
 _error:
@@ -87,11 +91,14 @@ _error:
 
 int32_t bseTableMgtCleanup(void *pMgt) {
   if (pMgt == NULL) return 0;
-  STableMgt *p = (STableMgt *)pMgt;
 
+  STableMgt *p = (STableMgt *)pMgt;
   taosArrayDestroy(p->pFileList);
   destroyBlockCache(p->pBatchCache);
   destroyTableCache(p->pTableCache);
+  taosThreadMutexDestroy(&p->mutex);
+
+  tableBuildManageDestroy(p->manager);
   taosMemFree(p);
   return 0;
 }
@@ -105,13 +112,16 @@ int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len
 
   STableBuilderMgt *pBuilderMgt = pMgt->manager;
 
-  int8_t     inUse = pBuilderMgt->inUse;
-  SSeqRange *range = &pBuilderMgt->range[inUse];
+  int8_t inUse = pBuilderMgt->inUse;
 
-  if (seq >= range->sseq) {
-    STableBuilder *pBuilder = pBuilderMgt->p[inUse];
+  STableBuilder *pBuilder = pBuilderMgt->p[inUse];
+  if (pBuilder && inSeqRange(&pBuilder->range, seq)) {
     code = tableBuildGet(pBuilder, seq, pValue, len);
     goto _error;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(p->pFileList); i++) {
+    SBseLiveFileInfo *pInfo = taosArrayGet(p->pFileList, i);
+    bseError("seq:%" PRId64 " sseq:%" PRId64 " eseq:%" PRId64 " name:%s", seq, pInfo->sseq, pInfo->eseq, pInfo->name);
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(p->pFileList); i++) {
@@ -135,7 +145,7 @@ int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len
 
 _error:
   if (code != 0) {
-    bseError("failed to get table at line %d since %s", code, terrno);
+    bseError("failed to get table at line %d since %s", lino, tstrerror(code));
   }
   taosThreadMutexUnlock(&pMgt->mutex);
   return code;
@@ -151,6 +161,8 @@ int32_t bseTableMgtAddLiveFile(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
 _error:
   if (code != 0) {
     bseError("failed to update live file at line %d since %s", lino, tstrerror(code));
+  } else {
+    bseInfo("succ to add live file %s", pInfo->name);
   }
   taosThreadMutexUnlock(&pMgt->mutex);
   return code;
@@ -182,9 +194,20 @@ int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch) {
 
   // taosThreadMutexLock(&pMgt->mutex);
   STableBuilderMgt *pBuilderMgt = pMgt->manager;
-  STableBuilder    *pBuilder = pBuilderMgt->p[pBuilderMgt->inUse];
 
-  code = tableBuildPutBatch(pBuilder, pBatch);
+  STableBuilder *p = pBuilderMgt->p[pBuilderMgt->inUse];
+  if (p == NULL) {
+    code = getTableBuildFromManage(pBuilderMgt, &p);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+
+  code = tableBuildPutBatch(p, pBatch);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("failed to append table at line %d since %s", lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -243,6 +266,9 @@ int32_t bseTableMgtRecover(SBse *pBse, STableMgt *pMgt) {
   }
   pBse->seq = lastSeq + 1;
 
+  STableBuilder *pBuilder = NULL;
+  getTableBuildFromManage(pMgt->manager, &pBuilder);
+
 _error:
   if (code != 0) {
     bseError("failed to recover table at line %d since %s", lino, tstrerror(code));
@@ -250,15 +276,26 @@ _error:
   return code;
 }
 
-int32_t initTableBuildManage(STableBuilderMgt *pMgt, int64_t seq) {
+int32_t getTableBuildFromManage(STableBuilderMgt *pMgt, STableBuilder **pBuilder) {
   int32_t code = 0;
   char    path[TSDB_FILENAME_LEN] = {0};
 
+  SBse *pBse = pMgt->pBse;
+  bseBuildDataName(pMgt->pBse, pBse->seq, path);
+
   STableBuilder *p = NULL;
-  bseBuildDataFullName(pMgt->pBse, seq, path);
   code = tableBuildOpen(path, &p);
+
+  p->bse = pMgt->pBse;
   pMgt->p[pMgt->inUse] = p;
-  pMgt->inited = 1;
-  pMgt->inUse = 0;
+
+  *pBuilder = p;
   return code;
+}
+void tableBuildManageDestroy(STableBuilderMgt *pMgt) {
+  for (int32_t i = 0; i < 2; i++) {
+    if (pMgt->p[i] != NULL) {
+      tableBuildClose(pMgt->p[i], 0);
+    }
+  }
 }

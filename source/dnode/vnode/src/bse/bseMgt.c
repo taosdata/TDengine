@@ -188,12 +188,17 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
 
   char   *pSerialized = cJSON_PrintUnformatted(pRoot);
   int32_t sz = strlen(pSerialized);
-  cJSON_Delete(pRoot);
+
+  *pBuf = pSerialized;
+  *len = sz;
 
 _err:
-  bseError("vgId:%d, %s failed at line %d since %s", pBse->cfg.vgId, __func__, line, tstrerror(code));
+  if (code != 0) {
+    bseError("vgId:%d, %s failed at line %d since %s", pBse->cfg.vgId, __func__, line, tstrerror(code));
+    cJSON_Delete(pFileSet);
+  }
   cJSON_Delete(pRoot);
-  cJSON_Delete(pFileSet);
+  pRoot = NULL;
   return code;
 }
 
@@ -227,6 +232,7 @@ static int32_t bseReadCurrent(SBse *pBse, char **p, int64_t *len) {
   if (nread != sz) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+  taosCloseFile(&fd);
 
   *p = pCurrent;
   *len = sz;
@@ -310,6 +316,7 @@ _error:
   if (code != 0) {
     bseError("vgId:%d failed to get commit info from current meta since %s", BSE_VGID(pBse), tstrerror(code));
   }
+  cJSON_Delete(pRoot);
   return code;
 }
 static int32_t bseRecover(SBse *pBse) {
@@ -323,9 +330,11 @@ static int32_t bseRecover(SBse *pBse) {
 
   if (len == 0) {
     bseInfo("vgId:%d, no current meta file found, no need to recover", BSE_VGID(pBse));
-    return 0;
+  } else {
+    code = bseInitCommitInfo(pBse, pCurrent, &pBse->commitInfo);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
-  code = bseInitCommitInfo(pBse, pCurrent, &pBse->commitInfo);
+  code = bseTableMgtRecover(pBse, pBse->pTableMgt);
 
 _error:
   if (code != 0) {
@@ -340,6 +349,8 @@ int32_t bseInitLock(SBse *pBse) {
   (void)taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
   (void)taosThreadRwlockInit(&pBse->rwlock, &attr);
   (void)taosThreadRwlockAttrDestroy(&attr);
+
+  taosThreadMutexInit(&pBse->mutex, NULL);
   return 0;
 }
 
@@ -369,14 +380,36 @@ static int32_t bseCreateCommitInfo(SBse *pBse) {
   }
   return 0;
 }
+static int32_t bseCreateBatchList(SBse *pBse) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  pBse->pBatchList = taosArrayInit(2, sizeof(SBseBatch *));
+  if (pBse->pBatchList == NULL) {
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+
+  SBseBatch *b = NULL;
+  code = bseBatchCreate(&b, 1024);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  if (taosArrayPush(pBse->pBatchList, &b) == NULL) {
+    bseBatchDestroy(b);
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to create batch list since %s at line %d", BSE_VGID(pBse), tstrerror(code), lino);
+  }
+  return code;
+}
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   int32_t lino = 0;
   int32_t code = 0;
 
-  SBse *p = taosMemoryMalloc(sizeof(SBse));
+  SBse *p = taosMemoryCalloc(1, sizeof(SBse));
   if (p == NULL) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _err);
+    TSDB_CHECK_CODE(code = terrno, lino, _err);
   }
   p->cfg = *pCfg;
   tstrncpy(p->path, path, sizeof(p->path));
@@ -390,9 +423,13 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   code = bseCreateCommitInfo(p);
   TSDB_CHECK_CODE(code, lino, _err);
 
+  code = bseCreateBatchList(p);
+  TSDB_CHECK_CODE(code, lino, _err);
+
   code = bseRecover(p);
   TSDB_CHECK_CODE(code, lino, _err);
 
+  *pBse = p;
 _err:
   if (code != 0) {
     bseError("vgId:%d failed to open bse at line %d since %s", BSE_VGID(p), lino, tstrerror(code));
@@ -405,12 +442,27 @@ void bseClose(SBse *pBse) {
   if (pBse == NULL) {
     return;
   }
+  bseTableMgtCleanup(pBse->pTableMgt);
+  for (int32_t i = 0; i < taosArrayGetSize(pBse->pBatchList); i++) {
+    SBseBatch **p = taosArrayGet(pBse->pBatchList, i);
+    bseBatchDestroy(*p);
+  }
+  taosArrayDestroy(pBse->pBatchList);
+  taosArrayDestroy(pBse->commitInfo.pFileList);
+  taosThreadMutexDestroy(&pBse->mutex);
+  taosThreadRwlockDestroy(&pBse->rwlock);
+
+  taosMemFree(pBse);
 
   return;
 }
 int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t line = 0;
   int32_t code = 0;
+
+  taosThreadRwlockRdlock(&pBse->rwlock);
+  code = bseTableMgtGet(pBse->pTableMgt, seq, pValue, len);
+  taosThreadRwlockUnlock(&pBse->rwlock);
   return code;
 }
 
@@ -465,7 +517,9 @@ int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SBseBatch *p = taosMemoryCalloc(1, sizeof(SBseBatch));
-  TSDB_CHECK_CODE(code = terrno, lino, _error);
+  if (p == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
   p->len = 0;
   p->seq = 0;
@@ -524,7 +578,7 @@ _error:
   }
   return code;
 }
-int32_t bseBatchPut(SBseBatch *pBatch, uint64_t *seq, uint8_t *value, int32_t len) {
+int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t offset = 0;
@@ -679,13 +733,12 @@ _error:
 
 int32_t bseCommitFinish(SBse *pBse) {
   int32_t code = 0;
-  return code;
 
   char buf[TSDB_FILENAME_LEN] = {0};
   char tbuf[TSDB_FILENAME_LEN] = {0};
 
   bseBuildCurrentMetaName(pBse, buf);
-  bseBuildTempMetaName(pBse, tbuf);
+  bseBuildTempCurrentMetaName(pBse, tbuf);
 
   code = taosRenameFile(tbuf, buf);
   return code;
@@ -703,12 +756,16 @@ int32_t bseCommit(SBse *pBse) {
   code = bseGenCommitInfo(pBse, ((STableMgt *)pBse->pTableMgt)->pFileList);
   TSDB_CHECK_CODE(code, line, _error);
 
-  bseCommitFinish(pBse);
+  code = bseCommitFinish(pBse);
+  TSDB_CHECK_CODE(code, line, _error);
 
 _error:
   cost = taosGetTimestampMs() - st;
   if (cost > 100) {
     bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_VGID(pBse), cost);
+  }
+  if (code != 0) {
+    bseError("vgId:%d failed to commit at line %d since %s", BSE_VGID(pBse), tstrerror(code));
   }
 
   return code;
