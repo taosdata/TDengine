@@ -54,11 +54,11 @@ jobs:
         run: |
           echo "The number of CPU cores is: ${{ env.CPU_CORES }}"
 
-      # NOTE: do we really need this?
-      # freemine: - name: prepare install path
-      # freemine:   run: |
-      # freemine:     sudo mkdir -p /usr/local/lib
-      # freemine:     sudo mkdir -p /usr/local/include
+      - name: prepare install path
+        if: runner.os == 'Darwin'
+        run: |
+          sudo mkdir -p /usr/local/lib
+          sudo mkdir -p /usr/local/include
 
       - name: Checkout the repository
         uses: actions/checkout@v4

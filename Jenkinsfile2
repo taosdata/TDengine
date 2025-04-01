@@ -155,7 +155,7 @@ def pre_test(){
     script {
         sh '''
             cd ${WK}
-            git checkout 3.0
+            git checkout ''' + env.CHANGE_TARGET + '''
             cd ${WKC}
             git checkout ''' + env.CHANGE_TARGET + '''
         '''
