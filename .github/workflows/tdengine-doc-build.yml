@@ -51,10 +51,11 @@ jobs:
 
       - name: Check document changes
         id: changed-doc-files
-        uses: ${{ github.workspace }}/../../_actions/tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@v46
         with:
           files: 'docs/**'
-          path: ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
+          path: ${{ github.workspace }}/../../_actions
+          # path: ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
           # settings for push event
           since_last_remote_commit: ${{ github.event_name == 'push' }}
           # settings for pull request event
