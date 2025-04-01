@@ -98,8 +98,6 @@ jobs:
           yarn ass local
           yarn build
 
-            run:
-
   check-docs-typos:
     runs-on: ubuntu-latest
     steps:
