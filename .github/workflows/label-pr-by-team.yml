@@ -14,6 +14,11 @@ jobs:
         - name: Checkout Repository
           uses: actions/checkout@v4
 
+        - name: Checkout .github Repository
+          uses: actions/checkout@v4
+          with:
+            repository: taosdata/.github
+            path: .github
         - name: Generate GitHub App Token
           id: app-token
           uses: tibdex/github-app-token@v1
