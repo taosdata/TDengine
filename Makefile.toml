@@ -799,7 +799,7 @@ script_runner = "bash"
 script = """
 # docker pull node:22.3.0
 chmod +x ./build.sh
-docker run --rm -v $(pwd):/app node:22.3.0 bash /app/build.sh
+docker run --rm -e COMMUNITY=${COMMUNITY} -v $(pwd):/app node:22.3.0 bash /app/build.sh
 """
 
 [tasks.explorer]

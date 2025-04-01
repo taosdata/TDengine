@@ -8,7 +8,7 @@ npm install -g pnpm
 pnpm self-update
 pnpm install
 
-echo "start build ..."
+echo "start build, community=${COMMUNITY}..."
 pnpm run build
 cp -r static dist/
 echo "build finished ..."
