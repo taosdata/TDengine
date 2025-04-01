@@ -4,7 +4,7 @@ description: Label PR based on team membership
 on:
   pull_request:
     # test message13
-    # types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize]
 
 jobs:
   label-pr:
