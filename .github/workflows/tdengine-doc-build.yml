@@ -55,8 +55,7 @@ jobs:
         uses: tj-actions/changed-files@v46
         with:
           files: 'docs/**'
-          path: ${{ github.workspace }}/../../_actions/tj-actions/changed-files/v46
-          # path: ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
+          path: ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
           # settings for push event
           since_last_remote_commit: ${{ github.event_name == 'push' }}
           # settings for pull request event
