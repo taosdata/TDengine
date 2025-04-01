@@ -6,7 +6,7 @@
 1. [Run Test Cases](#4-Run-Test-Cases)
 1. [Add New Case](#5-Add-New-Case)
 1. [Add New Case to CI](#6-Add-New-Case-to-CI)
-
+1. [Workflows](#7-workflows)
 
 # 1. Introduction
 
@@ -65,12 +65,31 @@ test/
 
 # 4. Run Test Cases
 
-Run test cases command description:
+## 4.1 Set environment variables (Optional)
+
+Please set the environment variables according to your scenarios. This is optional, the binaries in `debug/build/bin` will be used by default.
+
+```bash
+source ./setenv_build.sh    # run test after build
+source ./setenv_install.sh  # run test after installation
+```
+
+## 4.2 Basic Usage
 
 ```bash
 cd test
-pytest [options] [test_file_path] [test_file_path]
+pytest [options] [test_file_path]
 ```
+
+Notes:
+- options: described below 
+- test_file_path: optional, if provided, only the test case in the file or path will be run; if not provided, all test cases (files start with test_) will be run
+
+## 4.3 Run tests by command line arguments
+
+Run test cases command description:
+
+## 4.4 Run tests by configuration file
 
 Options:
 
@@ -99,15 +118,15 @@ Options:
   - `-L`
   - `-C`
 
+## 4.5 Common Options
+
 Some useful pytest common options:
 - `-s`: disable output capturing
 - `--log-level`: set log level
 - `--alluredir`: generate allure report directory
 - `-m`: run test by mark
 
-test_file_path:
-- test_file_path is optional, if not provided, all test cases(files start with test_) will be run
-- if provided, only the test case in the file or path will be run
+## 4.6 Examples
 
 Here are some examples of using pytest to execute test cases:
 
@@ -126,7 +145,6 @@ pytest --log-level=DEBUG
 
 # 5. Run test with a specific YAML configuration file
 pytest --yaml_file=ci_default.yaml cases/data_write/sql_statement/test_insert_double.py
-
 ```
 
 # 5. Add New Case
@@ -149,20 +167,22 @@ To add a new test case, follow these steps:
 5. **Describe case function in docstring**:
    - Describe the case function in docstring, including the case name, description, labels, jira, since, history, etc.
 
-### Example of a New Test Case
-
-Here is an example of how to write a new test case:
-
-```python
-# cases/demo/test_demo.py
-```
+Please refer to `cases/demo/test_demo.py` as an example.
 
 # 6. Add New Case to CI
 
-To add a new test case to the CI pipeline, include the case run command in the `test/parallel_test/cases.task` file. For example:
+To add a new test case to the CI pipeline, include the case run command in the `test/ci/cases.task` file. For example:
 
 ```text
-# test/parallel_test/cases.task
+# test/ci/cases.task
 ,,y,.,./ci/pytest.sh pytest cases/storage/tsma/test_tsma.py
 ```
+
+# 7. Workflows
+
+## 7.1 CI Test
+
+## 7.2 Docstring Check
+
+## 7.3 Cases Doc Publish
 
