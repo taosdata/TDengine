@@ -4,7 +4,6 @@
 DEFOMMNL049ba = "DEFOMMNL049ba"
 4c71ba2 = "4c71ba2"
 ine = "ine"
-data = "data"
 
 [default.extend-words]
 OT = "OT"
