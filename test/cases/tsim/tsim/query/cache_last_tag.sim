@@ -1,0 +1,189 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql alter local "multiResultFunctionStarReturnTags" "0";
+
+print step1=====================
+sql drop database if exists test;
+sql create database test  vgroups 4 CACHEMODEL 'both';
+sql use test;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(3,3,3);
+sql create table t4 using st tags(NULL,4,4);
+
+sql insert into t1 values(1648791211000,1,1,1);
+sql insert into t1 values(1648791211001,2,2,2);
+sql insert into t2 values(1648791211002,3,3,3);
+sql insert into t2 values(1648791211003,4,4,4);
+sql insert into t3 values(1648791211004,5,5,5);
+sql insert into t3 values(1648791211005,6,6,6);
+sql insert into t4 values(1648791211007,NULL,NULL,NULL);
+
+sql select last(*),last_row(*) from st;
+
+if $cols != 8 then
+  print ======cols=$cols
+  return -1
+endi
+
+sql alter local "multiResultFunctionStarReturnTags" "1";
+
+sql select last(*),last_row(*) from st;
+
+if $cols != 14 then
+  print ======cols=$cols
+  return -1
+endi
+
+sql select last(*) from st;
+
+if $cols != 7 then
+  return -1
+endi
+
+sql select last_row(*) from st;
+
+if $cols != 7 then
+  return -1
+endi
+
+sql select last(*),last_row(*) from t1;
+
+if $cols != 8 then
+  return -1
+endi
+
+print step2=====================
+
+sql drop database if exists test1;
+sql create database test1  vgroups 4 CACHEMODEL 'last_row';
+sql use test1;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(3,3,3);
+sql create table t4 using st tags(NULL,4,4);
+
+sql insert into t1 values(1648791211000,1,1,1);
+sql insert into t1 values(1648791211001,2,2,2);
+sql insert into t2 values(1648791211002,3,3,3);
+sql insert into t2 values(1648791211003,4,4,4);
+sql insert into t3 values(1648791211004,5,5,5);
+sql insert into t3 values(1648791211005,6,6,6);
+sql insert into t4 values(1648791211007,NULL,NULL,NULL);
+
+sql select last(*),last_row(*) from st;
+
+if $cols != 14 then
+  return -1
+endi
+
+sql select last(*) from st;
+
+if $cols != 7 then
+  return -1
+endi
+
+return -1
+
+sql select last_row(*) from st;
+
+if $cols != 7 then
+  return -1
+endi
+
+sql select last(*),last_row(*) from t1;
+
+if $cols != 8 then
+  return -1
+endi
+
+print step3=====================
+
+sql drop database if exists test2;
+sql create database test2  vgroups 4 CACHEMODEL 'last_value';
+sql use test2;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(3,3,3);
+sql create table t4 using st tags(NULL,4,4);
+
+sql insert into t1 values(1648791211000,1,1,1);
+sql insert into t1 values(1648791211001,2,2,2);
+sql insert into t2 values(1648791211002,3,3,3);
+sql insert into t2 values(1648791211003,4,4,4);
+sql insert into t3 values(1648791211004,5,5,5);
+sql insert into t3 values(1648791211005,6,6,6);
+sql insert into t4 values(1648791211007,NULL,NULL,NULL);
+
+sql select last(*),last_row(*) from st;
+
+if $cols != 14 then
+  return -1
+endi
+
+sql select last(*) from st;
+
+if $cols != 7 then
+  return -1
+endi
+
+sql select last_row(*) from st;
+
+if $cols != 7 then
+  return -1
+endi
+
+sql select last(*),last_row(*) from t1;
+
+if $cols != 8 then
+  return -1
+endi
+
+sql drop database if exists test4;
+sql create database test4  vgroups 4;
+sql use test4;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(3,3,3);
+sql create table t4 using st tags(NULL,4,4);
+
+sql insert into t1 values(1648791211000,1,1,1);
+sql insert into t1 values(1648791211001,2,2,2);
+sql insert into t2 values(1648791211002,3,3,3);
+sql insert into t2 values(1648791211003,4,4,4);
+sql insert into t3 values(1648791211004,5,5,5);
+sql insert into t3 values(1648791211005,6,6,6);
+sql insert into t4 values(1648791211007,NULL,NULL,NULL);
+
+sql select last(*),last_row(*) from st;
+
+if $cols != 14 then
+  return -1
+endi
+
+sql select last(*) from st;
+
+if $cols != 7 then
+  return -1
+endi
+
+sql select last_row(*) from st;
+
+if $cols != 7 then
+  return -1
+endi
+
+sql select last(*),last_row(*) from t1;
+
+if $cols != 8 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

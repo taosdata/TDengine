@@ -1,0 +1,45 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+
+print ========= start dnode1 as master
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1
+sql create database d1 replica 1 duration 7 keep 50
+sql use d1
+sql create table tb (ts timestamp, a int)
+sql insert into tb values(now-30d, -28)
+sql insert into tb values(now-27d, -27)
+sql insert into tb values(now-26d, -26)
+sql select count(a) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step2
+#sql alter table tb(ts timestamp, a int, b smallint)
+sql alter table tb add column b smallint
+sql insert into tb values(now-25d, -25, 0)
+sql insert into tb values(now-22d, -24, 1)
+sql insert into tb values(now-20d, -23, 2)
+sql select count(b) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ========= step3
+sql insert into tb values(now-23d, -23, 0)
+sql insert into tb values(now-21d, -21, 0)
+sql select count(b) from tb
+if $data00 != 5 then
+  return -1
+endi
+
+sql insert into tb values(now-29d, -29, 0)
+sql select count(b) from tb
+if $data00 != 6 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -4447,9 +4447,65 @@ static int32_t setVSuperTableVgroupList(STranslateContext* pCxt, SName* pName, S
   SArray* vgroupList = NULL;
   int32_t code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   if (TSDB_CODE_SUCCESS == code) {
+    taosMemoryFreeClear(pVirtualTable->pVgroupList);
     code = toVgroupsInfo(vgroupList, &pVirtualTable->pVgroupList);
   }
   taosArrayDestroy(vgroupList);
+  return code;
+}
+
+static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRefScanTable) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
+  SArray*    vgroupList = NULL;
+  SSHashObj* dbNameHash = NULL;
+  SArray*    tmpVgroupList = NULL;
+  bool       tmpasyn = pCxt->pParseCxt->async;
+  SName      dbName;
+
+  vgroupList = taosArrayInit(1, sizeof(SVgroupInfo));
+  QUERY_CHECK_NULL(vgroupList, code, lino, _return, terrno);
+
+  dbNameHash = tSimpleHashInit(taosArrayGetSize(pCxt->pMetaCache->pVStbRefDbs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  QUERY_CHECK_NULL(dbNameHash, code, lino, _return, terrno);
+
+  // set async to false since other db's info won't be collect during collectMetaKey
+  pCxt->pParseCxt->async = false;
+  // travel all vnodes' response
+  for (int32_t i = 0; i < taosArrayGetSize(pCxt->pMetaCache->pVStbRefDbs); i++) {
+    SVStbRefDbsRsp *pRsp = taosArrayGet(pCxt->pMetaCache->pVStbRefDbs, i);
+    QUERY_CHECK_NULL(pRsp, code, lino, _return, terrno);
+
+    // travel all ref dbs in one vnode's response
+    for(int32_t j = 0; j < taosArrayGetSize(pRsp->pDbs); j++) {
+      char *pDb = taosArrayGetP(pRsp->pDbs, j);
+      QUERY_CHECK_NULL(pDb, code, lino, _return, terrno);
+
+      // do not put duplicate ref db's vgroup into vgroupList
+      if (!tSimpleHashGet(dbNameHash, pDb, strlen(pDb))) {
+        PAR_ERR_JRET(tSimpleHashPut(dbNameHash, pDb, strlen(pDb), NULL, 0));
+        PAR_ERR_JRET(tNameSetDbName(&dbName, pName->acctId, pDb, strlen(pDb)));
+        PAR_ERR_JRET(getDBVgInfoImpl(pCxt, &dbName, &tmpVgroupList));
+        QUERY_CHECK_NULL(taosArrayAddAll(vgroupList, tmpVgroupList), code, lino, _return, terrno);
+        taosArrayDestroy(tmpVgroupList);
+        tmpVgroupList = NULL;
+      }
+    }
+  }
+
+  pCxt->pParseCxt->async = tmpasyn;
+  taosArrayDestroyEx(pCxt->pMetaCache->pVStbRefDbs, tDestroySVStbRefDbsRsp);
+  pCxt->pMetaCache->pVStbRefDbs = NULL;
+  taosMemoryFreeClear(pRefScanTable->pVgroupList);
+  PAR_ERR_JRET(toVgroupsInfo(vgroupList, &pRefScanTable->pVgroupList));
+
+_return:
+  if (code) {
+    qError("%s failed, code:%d", __func__, code);
+  }
+  taosArrayDestroy(tmpVgroupList);
+  taosArrayDestroy(vgroupList);
+  tSimpleHashCleanup(dbNameHash);
   return code;
 }
 
@@ -5058,6 +5114,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
 
   PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
   PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
+  PAR_ERR_JRET(setVSuperTableRefScanVgroupList(pCxt, pName, pRealTable));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
   *pTable = (SNode*)pVTable;
 

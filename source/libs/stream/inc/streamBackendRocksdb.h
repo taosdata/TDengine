@@ -140,7 +140,7 @@ int32_t    streamBackendInit(const char* path, int64_t chkpId, int32_t vgId, SBa
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);
 int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
-int32_t    streamBackendDoCheckpoint(void* pMeta, int64_t checkpointId, int64_t processver);
+int32_t    streamBackendDoCheckpoint(void* pMeta, int64_t checkpointId, int64_t processver, SArray* pList);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 int32_t    streamStateCvtDataFormat(char* path, char* key, void* cfInst);
@@ -262,7 +262,7 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
 int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo);
 
-int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId);
+int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processedVer, SArray* pList);
 
 int32_t bkdMgtCreate(char* path, SBkdMgt** bm);
 int32_t bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);

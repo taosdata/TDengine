@@ -1,0 +1,137 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql drop database if exists test0;
+sql create database test0 vgroups 3;
+sql use test0;
+sql create stable sta (ts timestamp, col1 int) tags(t1 int);
+sql create table tba1 using sta tags(1);
+sql create table tba2 using sta tags(2);
+
+sql insert into tba1 values ('2023-11-17 16:29:00', 1);
+sql insert into tba1 values ('2023-11-17 16:29:02', 3);
+sql insert into tba1 values ('2023-11-17 16:29:03', 4);
+sql insert into tba1 values ('2023-11-17 16:29:04', 5);
+ 
+sql insert into tba2 values ('2023-11-17 16:29:00', 2);
+sql insert into tba2 values ('2023-11-17 16:29:01', 3);
+sql insert into tba2 values ('2023-11-17 16:29:03', 5);
+sql insert into tba2 values ('2023-11-17 16:29:05', 7);
+
+sql drop database if exists testa;
+sql create database testa vgroups 3;
+sql use testa;
+
+sql create table sta1(ts timestamp, f int, g bigint) tags (t int);
+sql insert into cta11 using sta1 tags(1) values('2023-10-16 09:10:11.001', 100111, 1001110);
+sql insert into cta12 using sta1 tags(2) values('2023-10-16 09:10:12.001', 100112, 1001120);
+sql insert into cta13 using sta1 tags(3) values('2023-10-16 09:10:13.001', 100113, 1001130);
+sql insert into cta14 using sta1 tags(4) values('2023-10-16 09:10:14.001', 100114, 1001140);
+
+sql create table sta2(ts timestamp, f int, g bigint) tags (t int);
+sql insert into cta21 using sta2 tags(1) values('2023-10-16 09:10:11.002', 100221, 1002210);
+sql insert into cta22 using sta2 tags(2) values('2023-10-16 09:10:12.002', 100222, 1002220);
+sql insert into cta23 using sta2 tags(3) values('2023-10-16 09:10:13.002', 100223, 1002230);
+sql insert into cta24 using sta2 tags(4) values('2023-10-16 09:10:14.002', 100224, 1002240);
+
+sql create table stt(ts timestamp, f int, g int) tags (t int);
+sql create table tt using stt tags(99);
+
+sql create table stv(ts timestamp, h int) tags (t1 int);
+sql insert into ctv1 using stv tags(1) values('2023-10-16 10:10:10', 1);
+
+sql drop database if exists testb;
+sql create database testb vgroups 1 PRECISION 'us';
+sql use testb;
+
+sql create table stb1(ts timestamp, f int,g int) tags (t int);
+sql insert into ctb11 using stb1 tags(1) values('2023-10-16 09:10:11', 110111, 1101110);
+sql insert into ctb12 using stb1 tags(2) values('2023-10-16 09:10:12', 110112, 1101120);
+sql insert into ctb13 using stb1 tags(3) values('2023-10-16 09:10:13', 110113, 1101130);
+sql insert into ctb14 using stb1 tags(4) values('2023-10-16 09:10:14', 110114, 1101140);
+
+sql create table st2(ts timestamp, f int, g int) tags (t int);
+sql insert into ctb21 using st2 tags(1) values('2023-10-16 09:10:11', 110221, 1102210);
+sql insert into ctb22 using st2 tags(2) values('2023-10-16 09:10:12', 110222, 1102220);
+sql insert into ctb23 using st2 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);
+sql insert into ctb24 using st2 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);
+
+sql drop database if exists testb1;
+sql create database testb1 vgroups 1 PRECISION 'us';
+sql use testb1;
+
+sql create table stb21(ts timestamp, f int,g int) tags (t int);
+sql insert into ctb11 using stb21 tags(1) values('2023-10-16 09:10:11', 110111, 1101110);
+sql insert into ctb12 using stb21 tags(2) values('2023-10-16 09:10:12', 110112, 1101120);
+sql insert into ctb13 using stb21 tags(3) values('2023-10-16 09:10:13', 110113, 1101130);
+sql insert into ctb14 using stb21 tags(4) values('2023-10-16 09:10:14', 110114, 1101140);
+
+sql create table st22(ts timestamp, f int, g int) tags (t int);
+sql insert into ctb21 using st22 tags(1) values('2023-10-16 09:10:11', 110221, 1102210);
+sql insert into ctb22 using st22 tags(2) values('2023-10-16 09:10:12', 110222, 1102220);
+sql insert into ctb23 using st22 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);
+sql insert into ctb24 using st22 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);
+
+sql drop database if exists testc;
+sql create database testc vgroups 3;
+sql use testc;
+
+sql create table stc1(ts timestamp, f int) tags (t json);
+sql insert into ctb11 using stc1 tags("{\"tag1\":\"1-11\",\"tag2\":1}") values('2023-10-16 09:10:11', 11);
+sql insert into ctb11 using stc1 tags("{\"tag1\":\"1-11\",\"tag2\":1}") values('2023-10-16 09:10:12', 12);
+sql insert into ctb12 using stc1 tags("{\"tag1\":\"1-12\",\"tag2\":2}") values('2023-10-16 09:10:11', 21);
+sql insert into ctb12 using stc1 tags("{\"tag1\":\"1-12\",\"tag2\":2}") values('2023-10-16 09:10:12', 22);
+
+sql create table stc2(ts timestamp, f int) tags (t json);
+sql insert into ctb21 using stc2 tags("{\"tag1\":\"1-21\",\"tag2\":1}") values('2023-10-16 09:10:11', 110);
+sql insert into ctb21 using stc2 tags("{\"tag1\":\"1-21\",\"tag2\":1}") values('2023-10-16 09:10:12', 120);
+sql insert into ctb22 using stc2 tags("{\"tag1\":\"1-22\",\"tag2\":2}") values('2023-10-16 09:10:11', 210);
+sql insert into ctb22 using stc2 tags("{\"tag1\":\"1-22\",\"tag2\":2}") values('2023-10-16 09:10:12', 220);
+
+run tsim/join/inner_join.sim
+run tsim/join/left_join.sim
+run tsim/join/right_join.sim
+run tsim/join/full_join.sim
+run tsim/join/left_semi_join.sim
+run tsim/join/right_semi_join.sim
+run tsim/join/left_anti_join.sim
+run tsim/join/right_anti_join.sim
+run tsim/join/left_asof_join.sim
+run tsim/join/right_asof_join.sim
+run tsim/join/left_win_join.sim
+run tsim/join/right_win_join.sim
+run tsim/join/join_scalar1.sim
+run tsim/join/join_scalar2.sim
+run tsim/join/join_timeline.sim
+run tsim/join/join_nested.sim
+run tsim/join/join_boundary.sim
+run tsim/join/join_explain.sim
+run tsim/join/join_json.sim
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+run tsim/join/inner_join.sim
+run tsim/join/left_join.sim
+run tsim/join/right_join.sim
+run tsim/join/full_join.sim
+run tsim/join/left_semi_join.sim
+run tsim/join/right_semi_join.sim
+run tsim/join/left_anti_join.sim
+run tsim/join/right_anti_join.sim
+run tsim/join/left_asof_join.sim
+run tsim/join/right_asof_join.sim
+run tsim/join/left_win_join.sim
+run tsim/join/right_win_join.sim
+run tsim/join/join_scalar1.sim
+run tsim/join/join_scalar2.sim
+run tsim/join/join_timeline.sim
+run tsim/join/join_nested.sim
+run tsim/join/join_boundary.sim
+run tsim/join/join_explain.sim
+run tsim/join/join_json.sim
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
