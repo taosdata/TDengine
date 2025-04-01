@@ -266,7 +266,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     }
   }
 
-  tscDebugL("req:0x%" PRIx64 ", build request, QID:0x%" PRIx64, (*pRequest)->self, (*pRequest)->requestId);
+  tscDebug("req:0x%" PRIx64 ", build request, QID:0x%" PRIx64, (*pRequest)->self, (*pRequest)->requestId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1843,6 +1843,7 @@ int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
   destroySendMsgInfo(pSendInfo);
   return TSDB_CODE_SUCCESS;
 }
+
 int32_t doProcessMsgFromServer(void* param) {
   AsyncArg* arg = (AsyncArg*)param;
   int32_t   code = doProcessMsgFromServerImpl(&arg->msg, arg->pEpset);
@@ -2942,11 +2943,13 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
 
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
+    tscError("conn:0x%" PRIx64 ", sql string exceeds max length:%d", connId, TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     fp(param, NULL, terrno);
     return;
   }
+
+  tscDebug("conn:0x%" PRIx64 ", taos_query execute, sql:%s", connId, sql);
 
   SRequestObj* pRequest = NULL;
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, 0);
@@ -2960,6 +2963,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   pRequest->body.queryFp = fp;
   doAsyncQuery(pRequest, false);
 }
+
 void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid) {
   if (sql == NULL || NULL == fp) {
@@ -2973,11 +2977,14 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
 
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
+    tscError("conn:0x%" PRIx64 ", QID:0x%" PRIx64 ", sql string exceeds max length:%d", connId, reqid,
+             TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     fp(param, NULL, terrno);
     return;
   }
+
+  tscDebug("conn:0x%" PRIx64 ", taos_query execute, QID:0x%" PRIx64 ", sql:%s", connId, reqid, sql);
 
   SRequestObj* pRequest = NULL;
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, reqid);
@@ -2996,8 +3003,6 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
-
-  tscDebug("conn:0x%" PRIx64 ", taos_query execute sql:%s", *(int64_t*)taos, sql);
 
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (NULL == param) {
@@ -3028,8 +3033,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   }
   taosMemoryFree(param);
 
-  tscDebug("QID:0x%" PRIx64 ", taos_query end, conn:0x%" PRIx64 " res:%p", pRequest ? pRequest->requestId : 0,
-           *(int64_t*)taos, pRequest);
+  // tscDebug("QID:0x%" PRIx64 ", taos_query end, conn:0x%" PRIx64 ", res:%p", pRequest ? pRequest->requestId : 0,
+  //          *(int64_t*)taos, pRequest);
 
   return pRequest;
 }
@@ -3062,6 +3067,10 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
     pRequest = param->pRequest;
   }
   taosMemoryFree(param);
+
+  // tscDebug("QID:0x%" PRIx64 ", taos_query end, conn:0x%" PRIx64 ", res:%p", pRequest ? pRequest->requestId : 0,
+  //   *(int64_t*)taos, pRequest);
+
   return pRequest;
 }
 
@@ -3160,9 +3169,14 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
     code = TSDB_CODE_SUCCESS;
     pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
   }
+
+  tscDebug("QID:0x%" PRIx64 ", taos_query end, req:0x%" PRIx64 ", res:%p", pRequest->requestId, pRequest->self,
+           pRequest);
+
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   }
+
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {
     pReq->inCallback = false;
