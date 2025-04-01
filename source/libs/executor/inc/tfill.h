@@ -167,28 +167,10 @@ int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
                               int32_t rowIndex);
 
-inline static SFillBlock* tFillSaveBlock(SFillInfo* pFill, SSDataBlock* pBlock, SArray* pProgress) {
-  SFillBlock block = {.pBlock = pBlock, .pFillProgress = pProgress, .allColFinished = false};
-  SListNode* pNode = tdListAdd(pFill->pFillSavedBlockList, &block);
-  if (!pNode) {
-    return NULL;
-  }
-  return (SFillBlock*)pNode->data;
-}
-
-inline static SFillBlock* tFillGetSavedBlock(SFillInfo* pFill) {
-  return (SFillBlock*)tdListGetHead(pFill->pFillSavedBlockList)->data;
-}
-
-inline static SSDataBlock* tFillPopSavedBlock(SFillInfo* pFill) {
-  SListNode* pNode = tdListPopHead(pFill->pFillSavedBlockList);
-  if (!pNode) return NULL;
-  SFillBlock* pFillBlock = (SFillBlock*)pNode->data;
-  taosArrayDestroy(pFillBlock->pFillProgress);
-  taosMemFreeClear(pNode);
-  return pFillBlock->pBlock;
-}
-
+SFillBlock*  tFillSaveBlock(SFillInfo* pFill, SSDataBlock* pBlock, SArray* pProgress);
+SFillBlock*  tFillGetSavedBlock(SFillInfo* pFill);
+SSDataBlock* tFillPopSavedBlock(SFillInfo* pFill);
+void         destroyFillBlock(void* p);
 
 #ifdef __cplusplus
 }

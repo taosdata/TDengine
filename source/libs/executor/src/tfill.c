@@ -711,11 +711,13 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
     SGroupKeys* pKey = taosArrayGet(pFillInfo->prev.pRowVal, i);
     if (pKey) taosMemoryFree(pKey->pData);
   }
+  taosArrayDestroy(pFillInfo->prev.pNullValueFlag);
   taosArrayDestroy(pFillInfo->prev.pRowVal);
   for (int32_t i = 0; i < taosArrayGetSize(pFillInfo->next.pRowVal); ++i) {
     SGroupKeys* pKey = taosArrayGet(pFillInfo->next.pRowVal, i);
     if (pKey) taosMemoryFree(pKey->pData);
   }
+  taosArrayDestroy(pFillInfo->next.pNullValueFlag);
   taosArrayDestroy(pFillInfo->next.pRowVal);
 
   //  for (int32_t i = 0; i < pFillInfo->numOfTags; ++i) {
@@ -740,6 +742,8 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
 
   taosMemoryFreeClear(pFillInfo->pTags);
   taosMemoryFreeClear(pFillInfo->pFillCol);
+  taosArrayDestroy(pFillInfo->pColFillProgress);
+  tdListFreeP(pFillInfo->pFillSavedBlockList, destroyFillBlock);
   taosMemoryFreeClear(pFillInfo);
   return NULL;
 }
@@ -1260,6 +1264,7 @@ static void tryExtractReadyBlocks(struct SFillInfo* pFillInfo, SSDataBlock* pDst
       TSWAP(pDstBlock->pDataBlock, pFillBlock->pBlock->pDataBlock);
       tdListPopNode(pFillInfo->pFillSavedBlockList, pListNode);
       // TODO wjm free the pFillBlock
+      destroyFillBlock(pListNode->data);
       taosMemFreeClear(pListNode);
       qDebug("TODO wjm extracted one ready block, noMoreBlocks: %d, allFinished: %d, list remain size: %d", noMoreBlocks, allFinished, pFillInfo->pFillSavedBlockList->dl_neles_);
     }
@@ -1399,6 +1404,13 @@ int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstB
       doFillOneRow2(pFillInfo, pFillBlock->pBlock, pFillInfo->pSrcBlock, pFillInfo->start, true);
       allFilled = pFillInfo->order == TSDB_ORDER_ASC ? pFillInfo->currentKey > pFillInfo->end : pFillInfo->currentKey < pFillInfo->end;
     }
+
+    for (int32_t colIdx = 0; colIdx < pFillInfo->numOfCols; ++colIdx) {
+      if (tIsColFallBehind(pFillInfo, colIdx)) {
+        code = tFillFromHeadForCol(pFillInfo, pFillInfo->start, colIdx, true);
+        if (code != 0) goto _end;
+      }
+    }
   }
 
   // check from list head if we have already filled all rows in blocks, if any block is full, send it out
@@ -1481,3 +1493,33 @@ _end:
          pDstBlock->info.rows, pFillInfo->pFillSavedBlockList->dl_neles_);
   return code;
 }
+
+void destroyFillBlock(void* p) {
+  SFillBlock* pFillBlock = p;
+  taosArrayDestroy(pFillBlock->pFillProgress);
+  blockDataDestroy(pFillBlock->pBlock);
+}
+
+SFillBlock* tFillSaveBlock(SFillInfo* pFill, SSDataBlock* pBlock, SArray* pProgress) {
+  SFillBlock block = {.pBlock = pBlock, .pFillProgress = pProgress, .allColFinished = false};
+  SListNode* pNode = tdListAdd(pFill->pFillSavedBlockList, &block);
+  if (!pNode) {
+    return NULL;
+  }
+  return (SFillBlock*)pNode->data;
+}
+
+SFillBlock* tFillGetSavedBlock(SFillInfo* pFill) {
+  return (SFillBlock*)tdListGetHead(pFill->pFillSavedBlockList)->data;
+}
+
+SSDataBlock* tFillPopSavedBlock(SFillInfo* pFill) {
+  SListNode* pNode = tdListPopHead(pFill->pFillSavedBlockList);
+  if (!pNode) return NULL;
+  SFillBlock* pFillBlock = (SFillBlock*)pNode->data;
+  taosArrayDestroy(pFillBlock->pFillProgress);
+  taosMemFreeClear(pNode);
+  return pFillBlock->pBlock;
+}
+
+
