@@ -41,8 +41,6 @@ jobs:
         with:
           files: 'docs/**'
           path: ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
-          # settings for push event
-          since_last_remote_commit: ${{ github.event_name == 'push' }}
           # settings for pull request event
           base_sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
