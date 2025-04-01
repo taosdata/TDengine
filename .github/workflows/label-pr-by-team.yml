@@ -3,6 +3,7 @@ description: Label PR based on team membership
 
 on:
   pull_request:
+    # test message
     # types: [opened]
 
 jobs:
@@ -24,5 +25,6 @@ jobs:
           uses: taosdata/.github/.github/actions/add-pr-labels@feature/pr_labels
           with:
             github-token: ${{ steps.app-token.outputs.token }}
+
 
                 
