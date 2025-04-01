@@ -37,7 +37,7 @@ jobs:
           git checkout main
           git pull >/dev/null
           # git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
-          git fetch origin +refs/pull/12345/merge
+          git fetch origin +refs/pull/30581/merge
           git checkout -qf FETCH_HEAD
 
       # - name: Check tj-actions repo
