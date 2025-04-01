@@ -62,7 +62,7 @@ serverPort 6030
 
 ```shell
 taos> show dnodes;
- id | endpoint | vnodes|support_vnodes|status| create_time | note |
+ id | endpoint | vnodes|supprt_vnodes|status| create_time | note |
 ===================================================================================
  1| h1.taosdata.com:6030 | 0| 1024| ready| 2022-07-16 10:50:42.673 | |
 ```
