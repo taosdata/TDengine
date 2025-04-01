@@ -191,7 +191,7 @@ _error:
   return code;
 }
 
-int32_t tableBuildUpdateSeq(STableBuilder *p, SValueInfo *pInfo) {
+int32_t tableBuildUpdateSeq(STableBuilder *p, SBlockItemInfo *pInfo) {
   int32_t    code = 0;
   SSeqRange *pRange = &p->range;
   if (pRange->sseq == -1) {
@@ -216,14 +216,14 @@ int32_t tableBuildPutBatch(STableBuilder *p, SBseBatch *pBatch) {
   int32_t flushIdx = 0;
 
   for (int32_t i = 0; i < taosArrayGetSize(pBatch->pSeq); i++) {
-    SValueInfo *pInfo = taosArrayGet(pBatch->pSeq, i);
+    SBlockItemInfo *pInfo = taosArrayGet(pBatch->pSeq, i);
     if (i == 0 || i == taosArrayGetSize(pBatch->pSeq) - 1) {
       code = tableBuildUpdateSeq(p, pInfo);
       TSDB_CHECK_CODE(code, lino, _error);
     }
 
-    SValueInfo *pEndInfo = taosArrayGet(pBatch->pSeq, i);
-    SValueInfo *pStartInfo = taosArrayGet(pBatch->pSeq, flushIdx);
+    SBlockItemInfo *pEndInfo = taosArrayGet(pBatch->pSeq, i);
+    SBlockItemInfo *pStartInfo = taosArrayGet(pBatch->pSeq, flushIdx);
 
     int64_t len = pEndInfo->offset - pStartInfo->offset;
     if (blockEsimateSize(p->pData, len) >= tableBuildGetBlockSize(p)) {
@@ -242,7 +242,7 @@ int32_t tableBuildPutBatch(STableBuilder *p, SBseBatch *pBatch) {
     }
   }
   if (flushIdx < taosArrayGetSize(pBatch->pSeq)) {
-    SValueInfo *pStartInfo = taosArrayGet(pBatch->pSeq, flushIdx);
+    SBlockItemInfo *pStartInfo = taosArrayGet(pBatch->pSeq, flushIdx);
     offset = blockAppendBatch(p->pData, pBatch->buf + pStartInfo->offset, pBatch->len - pStartInfo->offset);
   }
 _error:
@@ -252,9 +252,9 @@ _error:
   return 0;
 }
 int32_t tableBuildPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len) {
-  int32_t    code = 0;
-  int32_t    lino = 0;
-  SValueInfo info = {.offset = 0, .size = len, .vlen = len, .seq = *seq};
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  SBlockItemInfo info = {.offset = 0, .size = len, .vlen = len, .seq = *seq};
   code = tableBuildUpdateSeq(p, &info);
   TSDB_CHECK_CODE(code, lino, _error);
 

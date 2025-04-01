@@ -37,7 +37,7 @@ typedef struct {
   int32_t  size;
   int32_t  vlen;
   int32_t  seq;
-} SValueInfo;
+} SBlockItemInfo;
 
 typedef struct {
   int32_t vgId;

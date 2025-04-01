@@ -45,7 +45,7 @@ static int32_t kBlockCap = 16 * 1024 * 1024;
 
 static int32_t bseFindCurrMetaVer(SBse *pBse);
 
-static int32_t bseRecover(SBse *pBse);
+static int32_t bseRecover(SBse *pBse, int8_t rm);
 static int32_t bseGenCommitInfo(SBse *pBse, SArray *pInfo);
 
 static int32_t bseBatchClear(SBseBatch *pBatch);
@@ -230,7 +230,44 @@ _error:
   cJSON_Delete(pRoot);
   return code;
 }
-static int32_t bseRecover(SBse *pBse) {
+
+static int32_t listAllFiles(const char *path, SArray *pFiles) {
+  SBseLiveFileInfo info = {0};
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TdDirPtr pDir = taosOpenDir(path);
+  if (pDir == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir)) != NULL) {
+    char *name = taosGetDirEntryName(de);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+    if (strstr(name, BSE_DATA_SUFFIX) == NULL) {
+      continue;
+    }
+    SBseLiveFileInfo info = {0};
+    memcpy(info.name, name, strlen(name));
+
+    if (taosArrayPush(pFiles, &info) == NULL) {
+      code = terrno;
+      goto _error;
+    }
+  }
+
+_error:
+
+  if (code != 0) {
+    bseError("failed to list files at line %d since %s", lino, tstrerror(code));
+  }
+  taosCloseDir(&pDir);
+  return code;
+}
+static int32_t bseRecover(SBse *pBse, int8_t rmIncomplete) {
   int32_t code = 0;
   int32_t lino = 0;
   char   *pCurrent = NULL;
@@ -337,7 +374,7 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   code = bseCreateBatchList(p);
   TSDB_CHECK_CODE(code, lino, _err);
 
-  code = bseRecover(p);
+  code = bseRecover(p, 1);
   TSDB_CHECK_CODE(code, lino, _err);
 
   *pBse = p;
@@ -440,7 +477,7 @@ int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
-  p->pSeq = taosArrayInit(nKeys, sizeof(SValueInfo));
+  p->pSeq = taosArrayInit(nKeys, sizeof(SBlockItemInfo));
   if (p->pSeq == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -500,7 +537,7 @@ int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len
   offset += taosEncodeVariantI32((void **)&p, len);
   offset += taosEncodeBinary((void **)&p, value, len);
 
-  SValueInfo info = {.offset = pBatch->len, .size = offset, .vlen = len, .seq = lseq};
+  SBlockItemInfo info = {.offset = pBatch->len, .size = offset, .vlen = len, .seq = lseq};
   pBatch->len += offset;
 
   if (taosArrayPush(pBatch->pSeq, &info) == NULL) {

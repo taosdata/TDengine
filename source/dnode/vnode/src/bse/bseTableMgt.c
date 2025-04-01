@@ -192,7 +192,7 @@ int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // taosThreadMutexLock(&pMgt->mutex);
+  taosThreadMutexLock(&pMgt->mutex);
   STableBuilderMgt *pBuilderMgt = pMgt->manager;
 
   STableBuilder *p = pBuilderMgt->p[pBuilderMgt->inUse];
@@ -208,6 +208,7 @@ _error:
   if (code != 0) {
     bseError("failed to append table at line %d since %s", lino, tstrerror(code));
   }
+  taosThreadMutexUnlock(&pMgt->mutex);
   return code;
 }
 
@@ -265,9 +266,6 @@ int32_t bseTableMgtRecover(SBse *pBse, STableMgt *pMgt) {
     lastSeq = pLastFile->eseq;
   }
   pBse->seq = lastSeq + 1;
-
-  STableBuilder *pBuilder = NULL;
-  getTableBuildFromManage(pMgt->manager, &pBuilder);
 
 _error:
   if (code != 0) {

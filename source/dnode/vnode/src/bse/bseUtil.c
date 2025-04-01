@@ -30,12 +30,13 @@ void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *buf) {
 void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf) {
   TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." BSE_LOG_SUFFIX, pBse->path, ver));
 }
+
 void bseBuildCurrentMetaName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-current.meta", pBse->path, TD_DIRSEP);
+  snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT", pBse->path, TD_DIRSEP);
 }
 
 void bseBuildTempCurrentMetaName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-current.meta.temp", pBse->path, TD_DIRSEP);
+  snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT.temp", pBse->path, TD_DIRSEP);
 }
 
 void bseBuildMetaName(SBse *pBse, int ver, char *name) {
