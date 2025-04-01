@@ -46,7 +46,10 @@ jobs:
       - name: AutoCorrect
         uses: huacnlee/autocorrect-action@v2
         with:
-          args: --lint --no-diff-bg-color docs/zh/**/*.md docs/en/**/*.md
+          args: --lint --no-diff-bg-color docs/zh/**/*.md docs/en/**/*.md > autocorrect.log
+
+      - name: Print full logs
+        run: cat autocorrect.log
 
   build-doc:
     runs-on:
