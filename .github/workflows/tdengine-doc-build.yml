@@ -15,7 +15,11 @@ env:
   EN_DOC_REPO: 'docs.tdengine.com'
   TD_REPO: 'TDengine'
   TOOLS_REPO: 'taos-tools'
-
+  
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
 jobs:
   build-doc:
     runs-on:
