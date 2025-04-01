@@ -1463,7 +1463,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
   QRY_PARAM_CHECK(ppRes);
-
+  qInfo("%s", __FUNCTION__);
   if (pOperator->pOperatorGetParam) {
     pOperator->dynamicTask = true;
     if (isDynVtbScan(pOperator)) {
@@ -3772,7 +3772,7 @@ static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
   SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
-  qDebug("stream scan started, %s", id);
+  qDebug("%s stream scan started, %s, recoverStep:%d", __FUNCTION__, id, pStreamInfo->recoverStep);
 
   if (pVtableInfos != NULL && pStreamInfo->recoverStep != STREAM_RECOVER_STEP__NONE) {
     qError("stream vtable source scan should not have recovery step: %d", pStreamInfo->recoverStep);

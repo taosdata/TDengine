@@ -1404,6 +1404,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+  qDebug("%s ===stream===return data:%s.", __FUNCTION__, getStreamOpName(pOperator->operatorType));
 
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
