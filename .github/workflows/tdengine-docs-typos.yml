@@ -11,11 +11,11 @@ jobs:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
 
-      - name: Use custom config file
+      - name: Use custom zh config file
         uses: crate-ci/typos@v1.31.1
         with:
-          files: 'docs/**/*.md'
-          config: docs/typos.toml
+          files: 'docs/zh/**/*.md'
+          config: docs/zhtypos.toml
 
       - name: Writes changes in the local checkout
         uses: crate-ci/typos@v1.31.1
