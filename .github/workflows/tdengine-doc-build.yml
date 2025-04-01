@@ -19,7 +19,7 @@ env:
 jobs:
   check-docs-typos:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    continue-on-error: false 
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
@@ -29,6 +29,7 @@ jobs:
         with:
           files: 'docs/zh/**/*.md'
           config: docs/typos.toml
+        continue-on-error: true
 
       - name: Use custom en config file
         uses: crate-ci/typos@v1.31.1
