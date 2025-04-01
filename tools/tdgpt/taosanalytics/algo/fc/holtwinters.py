@@ -52,7 +52,7 @@ class _HoltWintersService(AbstractForecastService):
                     trend=self.trend_option,
                     seasonal=self.seasonal_option,
                     seasonal_periods=self.period
-                ).fit()
+                ).fit(optimized = True, method='TNC')
 
         fc = fitted_model.forecast(fc_rows)
 
