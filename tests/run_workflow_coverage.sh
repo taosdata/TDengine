@@ -30,11 +30,11 @@ function lcovFunc {
 
     # collect data
     #lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
-    lcov -d "$CAPTURE_GCDA_DIR" --capture --rc branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
+    lcov -d "$CAPTURE_GCDA_DIR" --capture --rc lcov_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
 
     # remove exclude paths 
     lcov --remove coverage.info \
-        'contrib/*' 'test/*' '*/packaging/*' '*/taos-tools/deps/*' '*/taosadapter/*' '*/TSZ/*' \
+        '*/contrib/*' '*/test/*' '*/packaging/*' '*/taos-tools/deps/*' '*/taosadapter/*' '*/TSZ/*' \
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c' '/*/enterprise/*' '*/docs/*' '*/sim/*'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
         '*/tbase64.c' '*/tbuffer.c' '*/tdes.c' '*/texception.c' '*/examples/*' '*/tidpool.c' '*/tmempool.c'\
@@ -42,7 +42,7 @@ function lcovFunc {
         '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/version.c' '*/tencode.h' \
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c' '*/debug/*' '*/tests/*'\
         '*/tsdbFile.c' '*/tsdbUpgrade.c' '*/tsdbFS.c' '*/tsdbReaderWriter.c' \ 
-        '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'\
+        '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'  '*contrib*' '*test*' \
         '*/streamsessionnonblockoperator.c' '*/streameventnonblockoperator.c' '*/streamstatenonblockoperator.c' '*/streamfillnonblockoperator.c' \
         '*/streamclient.c' '*/cos_cp.c' '*/cos.c' '*/trow.c' '*/trow.h' '*/tsdbSnapshot.c' '*/smaTimeRange.c' \
         '*/metaSma.c' '*/mndDump.c' '*/td_block_blob_client.cpp' \
