@@ -29,7 +29,6 @@ jobs:
         with:
           files: 'docs/zh/**/*.md'
           config: docs/typos.toml
-        continue-on-error: true
 
       - name: Use custom en config file
         uses: crate-ci/typos@v1.31.1
@@ -41,6 +40,7 @@ jobs:
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
+    needs: check-docs-typos
     steps:
       - name: Get the latest document contents
         run: |
