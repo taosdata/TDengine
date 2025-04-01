@@ -370,7 +370,8 @@ static SKeyword keywordTable[] = {
     {"CONTINUOUS_WINDOW_CLOSE", TK_CONTINUOUS_WINDOW_CLOSE},
     {"RECALCULATE",          TK_RECALCULATE},
     {"VTABLES",              TK_VTABLES},
-    {"META_ONLY",            TK_META_ONLY}
+    {"META_ONLY",            TK_META_ONLY},
+    {"LOAD",                 TK_LOAD}
 };
 // clang-format on
 

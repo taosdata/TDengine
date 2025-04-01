@@ -500,6 +500,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiStreamContinueEvent";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
       return "PhysiStreamContinueCount";
+    case QUERY_NODE_LOAD_FILE_STMT:
+      return "LoadFileStmt";
     default:
       break;
   }
@@ -4491,6 +4493,12 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
 static const char* jkPlanQueryId = "QueryId";
 static const char* jkPlanNumOfSubplans = "NumOfSubplans";
 static const char* jkPlanSubplans = "Subplans";
+
+static int32_t loadFileStmtToJson(const void* pObj, SJson* pJson) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
 
 static int32_t planToJson(const void* pObj, SJson* pJson) {
   const SQueryPlan* pNode = (const SQueryPlan*)pObj;
@@ -9193,6 +9201,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return subplanToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN:
       return planToJson(pObj, pJson);
+    case QUERY_NODE_LOAD_FILE_STMT:
+      return loadFileStmtToJson(pObj, pJson);
     default:
       break;
   }
