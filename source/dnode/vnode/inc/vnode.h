@@ -152,6 +152,9 @@ int32_t  metaInitTbFilterCache(SMeta *pMeta);
 
 int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols);
 
+int32_t metaGetCachedRefDbs(void* pVnode, tb_uid_t suid, SArray* pList);
+int32_t metaPutRefDbsToCache(void* pVnode, tb_uid_t suid, SArray* pList);
+
 // tsdb
 typedef struct STsdbReader STsdbReader;
 

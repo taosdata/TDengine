@@ -1,0 +1,329 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database abc1 vgroups 2;
+sql use abc1;
+sql create table st1 (ts timestamp, k int, x int, y int, z binary(12), u nchar(12)) tags(a int, b nchar(12), c varchar(24), d bool) sma(x);
+sql create table tu using st1 tags(1, 'abc', 'binary1', true);
+sql create table tu1 using st1 tags(2, '水木', 'binary2', false);
+sql create table tu2 using st1 tags(3, '水木1', 'binary3', true);
+sql create table tu3 using st1 tags(4, 'abc', '12', false);
+sql insert into tu values('2022-01-01 1:1:1', 1, 10, 9, 'a', '水3木') ('2022-07-02 22:46:53.294', 2, 10, 8, 'a', '水1木') ('2022-07-02 22:47:53.294', 1, 10, 7, 'b', '水2木')('2022-07-02 22:48:53.294', 1, 10, null, 'd', '3')('2022-07-02 22:50:53.294', 1, 10, null, null, '322');
+sql insert into tu1 values('2022-01-01 1:1:1', 11, 101, 91, 'aa', '3水木');
+sql insert into tu2 values('2022-01-01 1:1:1', 111, 1010, 919, 'aaa', '3水木3');
+
+sql select * from tu;
+if $rows != 5 then
+  return -1
+endi
+
+sql select * from tu order by ts desc;
+if $rows != 5 then
+  return -1
+endi
+
+sql create table st2 (ts timestamp, k int, x int, y int, z binary(12), u nchar(12)) tags(a int) sma(x);
+sql create table tuu1 using st2 tags(2);
+sql insert into tuu1 values('2022-01-01 1:1:1', 11, 101, 911, 'aa', '3水木33');
+sql insert into tuu1 values('2022-01-01 1:1:2', NULL, 101, 911, 'aa', '3水木33');
+sql insert into tu values('2022-01-01 1:1:1', NULL, NULL, NULL, NULL, '水3木');
+sql insert into tu values('2022-01-01 1:1:1', NULL, 911, NULL, NULL, '');
+sql flush database abc1;
+
+sql insert into tu values('2021-12-1 1:1:1', 1,1,1,'a', 12);
+sql insert into tu values('2022-6-1 1:1:1', 1,1,1,'a', 12);
+sql insert into tu values('2022-6-1 1:1:2', 1,1,1,'a', 12);
+sql insert into tu values('2022-6-1 1:1:3', 1,1,1,'a', 12);
+
+sql select * from tu order by ts desc;
+if $rows != 9 then
+  return -1
+endi
+
+sql select * from tu order by ts asc;
+if $rows != 9 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-1 1:1:0' order by ts asc;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-1 1:1:0' order by ts desc;
+if $rows != 0 then
+    return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-1 1:1:2' order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-1 1:1:2' order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-1 1:1:2' order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-1 1:10:2' order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-1 1:10:2' order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-9 1:10:2' order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<'2022-1-9 1:10:2' order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-1-9 1:10:2' order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-1-9 1:10:2' order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-9 1:10:2' order by ts asc;
+if $rows != 4 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-9 1:10:2' order by ts desc;
+if $rows != 4 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:10:2' order by ts asc;
+if $rows != 4 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:10:2' order by ts desc;
+if $rows != 4 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:1:1' order by ts asc;
+if $row != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:1:1' order by ts desc;
+if $row != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' order by ts asc;
+if $rows != 8 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' order by ts desc;
+if $rows != 8 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' order by ts asc;
+if $rows != 9 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' order by ts desc;
+if $rows != 9 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:1:2' order by ts asc;
+if $rows != 3 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:1:2' order by ts desc;
+if $rows != 3 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:1:1' order by ts asc;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:1:1' order by ts desc;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:1:0' order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-31 1:1:1' and ts<='2022-6-1 1:1:0' order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-6-1 1:1:0' order by ts asc;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-6-1 1:1:0' order by ts desc;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-7-1 1:1:0' order by ts asc;
+if $rows != 5 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-7-1 1:1:0' order by ts desc;
+if $rows != 5 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-7-7 1:1:0' order by ts desc;
+if $rows != 9 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-7-7 1:1:0' order by ts asc;
+if $rows != 9 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-7-2 1:1:0' order by ts desc;
+if $rows != 5 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-7-2 1:1:0' order by ts asc;
+if $rows != 5 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-7-2 22:47:0' order by ts desc;
+if $rows != 6 then
+  return -1
+endi
+
+sql select * from tu where ts>='2021-12-1 1:1:1' and ts<='2022-7-2 22:47:0' order by ts asc;
+if $rows != 6 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:47:0' order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:47:0' order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-8-2 22:47:0' order by ts asc;
+if $rows != 4 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-8-2 22:47:0' order by ts desc;
+if $rows != 4 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:48:53.299' order by ts asc;
+if $rows != 3 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:48:53.299' order by ts desc;
+if $rows != 3 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:48:53.293';
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:48:53.293' order by ts desc;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:48:53.292' order by ts asc;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:48:53.292' order by ts desc;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<='2022-7-2 22:48:53.294';
+sql select * from tu where ts>='2022-7-1 1:1:1' and ts<'2022-7-2 22:48:53.294';
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:48:53.294';
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<='2022-7-2 22:47:53.294';
+
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<='2022-7-2 22:47:53.293' order by ts asc;
+
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<='2022-7-2 22:47:53.293' order by ts desc;
+
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<='2022-7-2 22:48:53.293' order by ts asc;
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<='2022-7-2 22:48:53.293' order by ts desc;
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<='2022-7-2 22:48:53.293' order by ts desc;
+sql select * from tu where ts>='2022-7-1 22:46:55' and ts<='2022-7-2 22:48:53.293' order by ts desc;
+sql select * from tu where ts>='2022-7-1 22:46:55' and ts<='2022-7-2 22:48:53.293' order by ts asc;
+sql select * from tu where ts>='2022-7-1 22:46:55' and ts<='2022-7-2 22:48:53.293' order by ts desc;
+
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:47:53.294';
+
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:48:53.294';
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:48:53.294' order by ts desc;
+
+sql select * from tu where ts>='2022-7-1 22:46:55' and ts<'2022-7-2 22:48:53.294' order by ts desc;
+sql select * from tu where ts>='2021-12-2 22:46:55' and ts<'2022-7-2 22:48:53.294' order by ts desc;
+
+sql select * from tu where ts>='2021-12-2 22:46:55' and ts<'2022-7-2 22:48:53.294' order by ts asc;
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:46:59.294' order by ts asc;
+
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:46:59.294' order by ts asc;
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:46:59.294' order by ts asc;
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:46:59.294' order by ts desc;
+
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:46:59.294' order by ts desc;
+
+sql select * from tu where ts>='2021-7-2 22:46:55' and ts<'2022-7-2 22:46:54.294' order by ts desc;
+
+sql select * from tu where ts>='2021-12-2 22:46:55' and ts<'2022-7-2 22:46:54.294' order by ts desc;
+sql select * from tu where ts>='2022-7-2 22:46:55' and ts<'2022-7-2 22:46:54.294' order by ts desc;
+
+sql select * from tu where ts>='2022-7-2 22:46:51' and ts<'2022-7-2 22:48:54.294' order by ts desc;
+sql select * from tu where ts>='2022-7-2 22:46:51' and ts<'2022-7-2 22:48:54.294' order by ts asc;
+sql select * from tu where ts>='2022-7-2 22:46:51' and ts<'2022-7-2 22:58:54.294' order by ts asc;
+
+sql select * from tu where ts>='2022-7-2 22:46:51' and ts<'2022-7-2 22:58:54.294' order by ts asc;
+
+sql select * from tu where ts>='2022-7-2 22:46:51' and ts<'2022-7-2 22:58:54.294' order by ts desc;

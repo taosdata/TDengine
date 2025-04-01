@@ -14,6 +14,8 @@ Stream computing can include data filtering, scalar function computations (inclu
 
 TDengine's stream computing can support aggregation of supertables distributed across multiple nodes and can handle out-of-order data writing. It provides a watermark mechanism to measure the degree of tolerance for data disorder and offers an `ignore expired` configuration option to decide the handling strategy for out-of-order data — either discard or recalculate.
 
+Tips: Stream computing does not supportted in windows platform.
+
 Below is a detailed introduction to the specific methods used in stream computing.
 
 ## Creating Stream Computing

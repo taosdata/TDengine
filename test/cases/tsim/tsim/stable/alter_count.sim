@@ -1,0 +1,263 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+
+print ========= start dnode1 as master
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1
+sql create database d1 replica 1 duration 7 keep 50
+sql use d1
+sql create table tb (ts timestamp, a int)
+sql insert into tb values(now-28d, -28)
+sql insert into tb values(now-27d, -27)
+sql insert into tb values(now-26d, -26)
+sql select count(a) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step2
+sql alter table tb add column b smallint
+sql insert into tb values(now-25d, -25, 0)
+sql insert into tb values(now-24d, -24, 1)
+sql insert into tb values(now-23d, -23, 2)
+sql select count(b) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step3
+# sql alter table tb(ts timestamp, a int, b smallint, c tinyint)
+sql alter table tb add column c tinyint
+sql insert into tb values(now-22d, -22, 3, 0)
+sql insert into tb values(now-21d, -21, 4, 1)
+sql insert into tb values(now-20d, -20, 5, 2)
+sql select count(c) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step4
+# sql alter table tb(ts timestamp, a int, b smallint, c tinyint, d int)
+sql alter table tb add column d int
+sql insert into tb values(now-19d, -19, 6, 0, 0)
+sql insert into tb values(now-18d, -18, 7, 1, 1)
+sql insert into tb values(now-17d, -17, 8, 2, 2)
+sql select count(d) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step5
+# sql alter table tb(ts timestamp, a int, b smallint, c tinyint, d int, e bigint)
+sql alter table tb add column e bigint
+sql insert into tb values(now-16d, -16, 9, 0, 0, 0)
+sql insert into tb values(now-15d, -15, 10, 1, 1, 1)
+sql insert into tb values(now-14d, -14, 11, 2, 2, 2)
+sql select count(e) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step6
+# sql alter table tb(ts timestamp, a int, b smallint, c tinyint, d int, e bigint, f float)
+sql alter table tb add column f float
+sql insert into tb values(now-13d, -13, 12, 0, 0, 0, 0)
+sql insert into tb values(now-12d, -12, 13, 1, 1, 1, 1)
+sql insert into tb values(now-11d, -11, 24, 2, 2, 2, 2)
+sql select count(f) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step7
+# sql alter table tb(ts timestamp, a int, b smallint, c tinyint, d int, e bigint, f float, g double)
+sql alter table tb add column g double
+sql insert into tb values(now-10d, -10, 15, 0, 0, 0, 0, 0)
+sql insert into tb values(now-9d, -9, 16, 1, 1, 1, 1, 1)
+sql insert into tb values(now-8d, -8, 17, 2, 2, 2, 2, 2)
+sql select count(g) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step8
+# sql alter table tb(ts timestamp, a int, b smallint, c tinyint, d int, e bigint, f float, g double, h binary(10) )
+sql alter table tb add column h binary(10)
+sql insert into tb values(now-7d, -7, 18, 0, 0, 0, 0, 0, '0')
+sql insert into tb values(now-6d, -6, 19, 1, 1, 1, 1, 1, '1')
+sql insert into tb values(now-5d, -5, 20, 2, 2, 2, 2, 2, '2')
+sql select count(h) from tb
+if $data00 != 3 then
+  return -1
+endi
+
+print ======== step9
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data00 != 24 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data01 != 21 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data02 != 18 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data03 != 15 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data04 != 12 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data05 != 9 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data06 != 6 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data07 != 3 then
+  return -1
+endi
+
+print ============= step10
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from d1.tb;
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from d1.tb;
+
+sql use d1
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data00 != 24 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data01 != 21 then
+  print expect 21, actual $data01
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data02 != 18 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data03 != 15 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data04 != 12 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data05 != 9 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data06 != 6 then
+  return -1
+endi
+
+sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
+if $data07 != 3 then
+  return -1
+endi
+
+print ======== step11
+#sql alter table tb(ts timestamp, b smallint, c tinyint, d int, e bigint, f float, g double, h binary(20))
+sql alter table tb drop column a
+sql insert into tb values(now-4d, 1, 1, 1, 1, 1, 1, '1')
+sql select count(g) from tb
+if $data00 != 7 then
+  return -1
+endi
+
+print ======== step12
+#sql alter table tb(ts timestamp, c tinyint, d int, e bigint, f float, g double, h binary(20))
+sql alter table tb drop column b
+sql insert into tb values(now-3d, 1, 1, 1, 1, 1, '1')
+sql select count(g) from tb
+if $data00 != 8 then
+  return -1
+endi
+
+print ======== step13
+#sql alter table tb(ts timestamp, d int, e bigint, f float, g double, h binary(20))
+sql alter table tb drop column c
+sql insert into tb values(now-2d, 1, 1, 1, 1, '1')
+sql select count(g) from tb
+if $data00 != 9 then
+  return -1
+endi
+
+print ======== step14
+#sql alter table tb(ts timestamp, e bigint, f float, g double, h binary(20))
+sql alter table tb drop column d
+sql insert into tb values(now-1d, 1, 1, 1, '1')
+sql select count(g) from tb
+if $data00 != 10 then
+  return -1
+endi
+
+print ======== step15
+#sql alter table tb(ts timestamp, f float, g double, h binary(20))
+sql alter table tb drop column e
+sql insert into tb values(now, 1, 1, '1')
+sql select count(g) from tb
+if $data00 != 11 then
+  return -1
+endi
+
+print ======== step16
+#sql alter table tb(ts timestamp, g double, h binary(20))
+sql alter table tb drop column f
+sql insert into tb values(now+1d, 1, '1')
+sql select count(g) from tb
+if $data00 != 12 then
+  return -1
+endi
+
+print ======== step17
+#sql alter table tb(ts timestamp, h binary(20))
+sql alter table tb drop column g
+sql insert into tb values(now+2d, '1')
+sql select count(h) from tb
+if $data00 != 10 then
+  return -1
+endi
+
+print ============== step18
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+#sql select count(g) from tb
+#if $data00 != 12 then
+#  return -1
+#endi
+sql select count(*) from tb
+if $data00 != 31 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

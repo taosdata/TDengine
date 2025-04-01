@@ -1,0 +1,369 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = union_db
+$tbPrefix = union_tb
+$tbPrefix1 = union_tb_
+$mtPrefix = union_mt
+$tbNum = 10
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+
+print =============== union.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$j = 1
+
+$mt1 = $mtPrefix . $j
+
+sql drop database if exists $db -x step1
+step1:
+sql create database if not exists $db
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
+
+$i = 0
+$t = 1578203484000
+
+$half = $tbNum / 2
+
+while $i < $half
+  $tb = $tbPrefix . $i
+
+  $nextSuffix = $i + $half
+  $tb1 = $tbPrefix . $nextSuffix
+
+  sql create table $tb using $mt tags( $i )
+  sql create table $tb1 using $mt tags( $nextSuffix )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x * 1000
+    $ms = $ms * 60
+
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+
+    $t1 = $t + $ms
+    sql insert into $tb values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )  $tb1 values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+sql create table $mt1 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
+
+$j = 0
+$t = 1578203484000
+$rowNum = 100
+$tbNum = 5
+$i = 0
+
+while $i < $tbNum
+  $tb1 = $tbPrefix1 . $j
+  sql create table $tb1 using $mt1 tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x * 1000
+    $ms = $ms * 60
+
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+
+    $t1 = $t + $ms
+    sql insert into $tb1 values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $j = $j + 1
+endw
+
+$i = 1
+$tb = $tbPrefix . $i
+
+## column type not identical
+sql select count(*) as a from union_mt0 union all select avg(c1) as a from union_mt0
+sql select count(*) as a from union_mt0 union all select spread(c1) as a from union_mt0;
+
+## union not supported
+sql (select count(*) from union_mt0) union (select count(*) from union_mt0);
+
+## column type not identical
+sql_error select c1 from union_mt0 limit 10 union all select c2 from union_tb1 limit 20;
+
+## union not support recursively union
+sql_error select c1 from union_tb0 limit 2 union all (select c1 from union_tb1 limit 1 union all select c1 from union_tb3 limit 2);
+sql_error (select c1 from union_tb0 limit 1 union all select c1 from union_tb1 limit 1) union all (select c1 from union_tb0 limit 10 union all select c1 from union_tb1 limit 10);
+
+# union as subclause
+sql_error (select c1 from union_tb0 limit 1 union all select c1 from union_tb1 limit 1) limit 1
+
+# sql with parenthese
+sql (select c1 from union_tb0)
+if $rows != 1000 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+sql (select 'ab' as options from union_tb1 limit 1) union all (select 'dd' as options from union_tb0 limit 1) order by options;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @ab@ then
+  return -1
+endi
+if $data10 != @dd@ then
+  return -1
+endi
+
+sql (select 'ab12345' as options from union_tb1 limit 1) union all (select '1234567' as options from union_tb0 limit 1) order by options desc;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @ab12345@ then
+  return -1
+endi
+if $data10 != @1234567@ then
+  return -1
+endi
+
+# mixed order
+sql (select ts, c1 from union_tb1 order by ts asc limit 10) union all (select ts, c1 from union_tb0 order by ts desc limit 2) union all (select ts, c1 from union_tb2 order by ts asc limit 10) order by ts
+if $rows != 22 then
+  return -1
+endi
+if $data00 != @20-01-05 13:51:24.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @20-01-05 13:51:24.000@ then
+  return -1
+endi
+if $data11 != 0 then
+  return -1
+endi
+print $data90 $data91
+if $data90 != @20-01-05 13:55:24.000@ then
+  return -1
+endi
+if $data91 != 4 then
+  return -1
+endi
+
+# different sort order
+
+# super table & normal table mixed up
+sql (select c3 from union_tb0 limit 2) union all (select sum(c1) as c3 from union_mt0) order by c3;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data20 != 495000 then
+  return -1
+endi
+
+# type compatible
+sql (select c3 from union_tb0 limit 2) union all (select sum(c1) as c3 from union_tb1) order by c3;
+if $rows != 3 then
+ return -1
+endi
+if $data00 != 0 then
+   return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data20 != 49500 then
+  return -1
+endi
+
+# two join subclause
+sql (select count(*) as c from union_tb0, union_tb1 where union_tb0.ts=union_tb1.ts) union all (select union_tb0.c3 as c from union_tb0, union_tb1 where union_tb0.ts=union_tb1.ts limit 10) order by c desc
+if $rows != 11 then
+  return -1
+endi
+if $data00 != 1000 then
+  return -1
+endi
+if $data10 != 9 then
+  return -1
+endi
+if $data20 != 8 then
+  return -1
+endi
+if $data90 != 1 then
+ return -1
+endi
+
+print ===========================================tags union
+# two super table tag union, limit is not active during retrieve tags query
+sql (select t1 from union_mt0) union all (select t1 from union_mt0)
+if $rows != 20000 then
+  return -1
+endi
+
+#sql select t1 from union_mt0 union all select t1 from union_mt0 limit 1
+#if $row != 11 then
+#  return -1
+#endi
+#========================================== two super table join subclause
+print ================two super table join subclause
+sql (select _wstart as ts, avg(union_mt0.c1) as c from union_mt0 interval(1h) limit 10) union all (select union_mt1.ts, union_mt1.c1/1.0 as c from union_mt0, union_mt1 where union_mt1.ts=union_mt0.ts and union_mt1.t1=union_mt0.t1 limit 5);
+print the rows value is: $rows
+if $rows != 15 then
+  return -1
+endi
+
+# first subclause are empty
+sql (select count(*) as c from union_tb0 where ts > now + 3650d) union all (select sum(c1) as c from union_tb1);
+if $rows != 2 then
+  return -1
+endi
+#if $data00 != 49500 then
+#  return -1
+#endi
+
+# all subclause are empty
+sql (select c1 from union_tb0 limit 0) union all (select c1 from union_tb1 where ts>'2021-1-1 0:0:0')
+if $rows != 0 then
+  return -1
+endi
+
+# middle subclause empty
+sql (select c1 from union_tb0 limit 1) union all (select c1 from union_tb1 where ts>'2030-1-1 0:0:0' union all select last(c1) as c1 from union_tb1) order by c1;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 99 then
+  return -1
+endi
+
+# multi-vnode projection query
+sql (select c1 from union_mt0) union all select c1 from union_mt0;
+if $rows != 20000 then
+ return -1
+endi
+
+# multi-vnode projection query + limit
+sql (select ts, c1 from union_mt0 limit 1) union all (select ts, c1 from union_mt0 limit 1);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @20-01-05 13:51:24.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @20-01-05 13:51:24.000@ then
+  return -1
+endi
+if $data11 != 0 then
+  return -1
+endi
+
+# two aggregated functions for super tables
+sql (select _wstart as ts, sum(c1) as a from union_mt0 interval(1s) limit 9) union all (select ts, max(c3) as a from union_mt0 limit 2) order by ts;
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @20-01-05 13:51:24.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @20-01-05 13:52:24.000@ then
+  return -1
+endi
+if $data11 != 10 then
+  return -1
+endi
+if $data20 != @20-01-05 13:53:24.000@ then
+  return -1
+endi
+if $data21 != 20 then
+  return -1
+endi
+if $data90 != @20-01-05 15:30:24.000@ then
+  return -1
+endi
+if $data91 != 99 then
+  return -1
+endi
+
+#=================================================================================================
+# two aggregated functions for normal tables
+sql (select sum(c1) as a from union_tb0 limit 1) union all (select sum(c3) as a from union_tb1 limit 2);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 49500 then
+  return -1
+endi
+if $data10 != 49500 then
+  return -1
+endi
+
+# two super table query + interval + limit
+sql (select ts, first(c3) as a from union_mt0 limit 1) union all (select _wstart as ts, sum(c3) as a from union_mt0 interval(1h) limit 1) order by ts desc;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @20-01-05 13:51:24.000@ then
+ return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @20-01-05 13:00:00.000@ then
+ return -1
+endi
+if $data11 != 360 then
+  return -1
+endi
+
+sql (select 'aaa' as option from union_tb1 where c1 < 0 limit 1) union all (select 'bbb' as option from union_tb0 limit 1)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @bbb@ then
+  return -1
+endi
+
+sql_error (show tables) union all (show tables)
+sql_error (show stables) union all (show stables)
+sql_error (show databases) union all (show databases)
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

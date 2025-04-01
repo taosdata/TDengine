@@ -1364,11 +1364,11 @@ void DestroyRegexCache(){
   }
   taosWLockLatch(&sRegexCache.mutex);
   sRegexCache.exit = true;
+  taosWUnLockLatch(&sRegexCache.mutex);
   taosHashCleanup(sRegexCache.regexHash);
   sRegexCache.regexHash = NULL;
   taosTmrCleanUp(sRegexCache.regexCacheTmr);
   sRegexCache.regexCacheTmr = NULL;
-  taosWUnLockLatch(&sRegexCache.mutex);
 }
 
 int32_t checkRegexPattern(const char *pPattern) {

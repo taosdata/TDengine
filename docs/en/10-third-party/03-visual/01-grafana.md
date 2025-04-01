@@ -137,9 +137,8 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
       url: "$TDENGINE_API"
       isDefault: true
       secureJsonData:
-        url: "$TDENGINE_URL"
+        url: "$TDENGINE_API"
         basicAuth: "$TDENGINE_BASIC_AUTH"
-        token: "$TDENGINE_CLOUD_TOKEN"
       version: 1
       editable: true
     ```
@@ -166,14 +165,14 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
       grafana:
         image: grafana/grafana:latest
         volumes:
-          - ./tdengine.yml:/etc/grafana/provisioning/tdengine.yml
+          - ./tdengine.yml:/etc/grafana/provisioning/datasources/tdengine.yml
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
           GF_INSTALL_PLUGINS: "tdengine-datasource"
-          TDENGINE_URL: "http://tdengine:6041"
+          TDENGINE_API: "http://tdengine:6041"
           #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
-          TDENGINE_BASIC_AUTH: "cm9vdDp0YmFzZTEyNQ=="
+          TDENGINE_BASIC_AUTH: "cm9vdDp0YW9zZGF0YQ=="
         ports:
           - 3000:3000
 

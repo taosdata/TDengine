@@ -1,0 +1,82 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_cn_db
+$tbPrefix = lm_cn_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+
+sql create table $tb() -x step1
+	return -1
+step1:
+
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step2
+sql create table $tb (ts timestamp)  -x step2
+	return -1
+step2:
+
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step3
+sql create table $tb (ts int)  -x step3
+	return -1
+step3:
+
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step4
+sql create table $tb (ts timestamp, a1 int, a2 int, a3 int, a4 int, a5 int, a6 int, a7 int, a8 int, a9 int, a10 int, a11 int, a12 int, a13 int, a14 int, a15 int, a16 int, a17 int, a18 int, a19 int, a20 int, a21 int, a22 int, a23 int, a24 int, a25 int, a26 int, a27 int, a28 int,a29 int,a30 int,a31 int,a32 int, b1 int, b2 int, b3 int, b4 int, b5 int, b6 int, b7 int, b8 int, b9 int, b10 int, b11 int, b12 int, b13 int, b14 int, b15 int, b16 int, b17 int, b18 int, b19 int, b20 int, b21 int, b22 int, b23 int, b24 int, b25 int, b26 int, b27 int, b28 int,b29 int,b30 int,b31 int,b32 int)
+
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step5
+$i = 1
+$tb = $tbPrefix . $i
+
+sql create table $tb (ts timestamp, a1 int, a2 int, a3 int, a4 int, a5 int, a6 int, a7 int, a8 int, a9 int, a10 int, a11 int, a12 int, a13 int, a14 int, a15 int, a16 int, a17 int, a18 int, a19 int, a20 int, a21 int, a22 int, a23 int, a24 int, a25 int, a26 int, a27 int, a28 int,a29 int,a30 int,a31 int,a32 int, b1 int, b2 int, b3 int, b4 int, b5 int)
+
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+
+sql insert into $tb values (now, 1 , 2 , 3 , 4 , 5 , 6 , 7 , 8 , 9 , 10 , 11 , 12 , 13 , 14 , 15 , 16 , 17 , 18 , 19 , 20 , 21 , 22 , 23 , 24 , 25 ,26 , 27 ,28 ,29,30,31, 32, 33, 34, 35, 36, 37)
+sql select * from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop table $tb
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

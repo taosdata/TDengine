@@ -1163,7 +1163,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
-  if (pAlter->s3Compact > TSDB_MIN_S3_COMPACT && pAlter->s3Compact != pDb->cfg.s3Compact) {
+  if (pAlter->s3Compact >= TSDB_MIN_S3_COMPACT && pAlter->s3Compact != pDb->cfg.s3Compact) {
     pDb->cfg.s3Compact = pAlter->s3Compact;
     pDb->vgVersion++;
     code = 0;

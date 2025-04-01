@@ -1,0 +1,510 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print step4
+
+sql create database test4_1 vgroups 4;
+sql use test4_1;
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stable streamt4_1(ts timestamp,a varchar(10),b tinyint,c tinyint) tags(ta int,cc int,tc int);
+
+sql create stream streams4_1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_1(ts, b, a) TAGS(cc) SUBTABLE(concat(concat("tbn-", tbname), "_1")) as select _irowts, interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(prev);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791217000,20000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791212000,10000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791215001,20,2,3);
+
+$loop_count = 0
+loop4_1:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select a,b from streamt4_1;
+sql select a,b from streamt4_1;
+
+if $rows != 6 then
+  print ======rows=$rows
+  goto loop4_1
+endi
+
+if $data00 != false then
+  print ======data00=$data00
+  goto loop4_1
+endi
+
+if $data01 != 16 then
+  print ======data01=$data01
+  goto loop4_1
+endi
+
+if $data10 != true then
+  print ======data10=$data10
+  goto loop4_1
+endi
+
+if $data20 != true then
+  print ======data20=$data20
+  goto loop4_1
+endi
+
+if $data50 != false then
+  print ======data50=$data50
+  goto loop4_1
+endi
+
+if $data51 != 32 then
+  print ======data51=$data51
+  goto loop4_1
+endi
+
+print step4_2
+
+sql create database test4_2 vgroups 4;
+sql use test4_2;
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stable streamt4_2(ts timestamp,a varchar(10),b tinyint,c tinyint) tags(ta int,cc int,tc int);
+
+sql create stream streams4_2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_2(ts, b, a) TAGS(cc) SUBTABLE(concat(concat("tbn-", tbname), "_2")) as select _irowts, interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(next);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791217000,20000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791212000,10000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791215001,20,2,3);
+
+$loop_count = 0
+loop4_2:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select a,b from streamt4_2;
+sql select a,b from streamt4_2;
+
+if $rows != 6 then
+  print ======rows=$rows
+  goto loop4_2
+endi
+
+if $data00 != false then
+  print ======data00=$data00
+  goto loop4_2
+endi
+
+if $data01 != 16 then
+  print ======data01=$data01
+  goto loop4_2
+endi
+
+if $data10 != true then
+  print ======data10=$data10
+  goto loop4_2
+endi
+
+if $data20 != true then
+  print ======data20=$data20
+  goto loop4_2
+endi
+
+if $data50 != false then
+  print ======data50=$data50
+  goto loop4_2
+endi
+
+if $data51 != 32 then
+  print ======data51=$data51
+  goto loop4_2
+endi
+
+print step4_3
+
+sql create database test4_3 vgroups 4;
+sql use test4_3;
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stable streamt4_3(ts timestamp,a varchar(10),b tinyint,c tinyint) tags(ta int,cc int,tc int);
+
+sql create stream streams4_3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_3(ts, b, a) TAGS(cc) SUBTABLE(concat(concat("tbn-", tbname), "_3")) as select _irowts, interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(linear);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791217000,20000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791212000,10000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791215001,20,2,3);
+
+$loop_count = 0
+loop4_3:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select a,b from streamt4_3;
+sql select a,b from streamt4_3;
+
+if $rows != 6 then
+  print ======rows=$rows
+  goto loop4_3
+endi
+
+if $data00 != false then
+  print ======data00=$data00
+  goto loop4_3
+endi
+
+if $data01 != 16 then
+  print ======data01=$data01
+  goto loop4_3
+endi
+
+if $data10 != true then
+  print ======data10=$data10
+  goto loop4_3
+endi
+
+if $data20 != true then
+  print ======data20=$data20
+  goto loop4_3
+endi
+
+if $data50 != false then
+  print ======data50=$data50
+  goto loop4_3
+endi
+
+if $data51 != 32 then
+  print ======data51=$data51
+  goto loop4_3
+endi
+
+print step4_4
+
+sql create database test4_4 vgroups 4;
+sql use test4_4;
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stable streamt4_4(ts timestamp,a varchar(10),b tinyint,c tinyint) tags(ta int,cc int,tc int);
+
+sql create stream streams4_4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_4(ts, b, a) TAGS(cc) SUBTABLE(concat(concat("tbn-", tbname), "_4")) as select _irowts, interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(NULL);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791217000,20000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791212000,10000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791215001,20,2,3);
+
+$loop_count = 0
+loop4_4:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select a,b from streamt4_4;
+sql select a,b from streamt4_4;
+
+if $rows != 6 then
+  print ======rows=$rows
+  goto loop4_4
+endi
+
+if $data00 != false then
+  print ======data00=$data00
+  goto loop4_4
+endi
+
+if $data01 != 16 then
+  print ======data01=$data01
+  goto loop4_4
+endi
+
+if $data10 != true then
+  print ======data10=$data10
+  goto loop4_4
+endi
+
+if $data20 != true then
+  print ======data20=$data20
+  goto loop4_4
+endi
+
+if $data50 != false then
+  print ======data50=$data50
+  goto loop4_4
+endi
+
+if $data51 != 32 then
+  print ======data51=$data51
+  goto loop4_4
+endi
+
+print step4_5
+
+sql create database test4_5 vgroups 4;
+sql use test4_5;
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stable streamt4_5(ts timestamp,a varchar(10),b tinyint,c tinyint) tags(ta int,cc int,tc int);
+
+sql create stream streams4_5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt4_5(ts, b, a) TAGS(cc) SUBTABLE(concat(concat("tbn-", tbname), "_5")) as select _irowts, interp(a), _isfilled as a1 from st partition by tbname, b as cc every(1s) fill(value,1100);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791217000,20000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791212000,10000,2,3);
+
+sleep 2000
+
+sql insert into t1 values(1648791215001,20,2,3);
+
+$loop_count = 0
+loop4_5:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select a,b from streamt4_5;
+sql select a,b from streamt4_5;
+
+if $rows != 6 then
+  print ======rows=$rows
+  goto loop4_5
+endi
+
+if $data00 != false then
+  print ======data00=$data00
+  goto loop4_5
+endi
+
+if $data01 != 16 then
+  print ======data01=$data01
+  goto loop4_5
+endi
+
+if $data10 != true then
+  print ======data10=$data10
+  goto loop4_5
+endi
+
+if $data20 != true then
+  print ======data20=$data20
+  goto loop4_5
+endi
+
+if $data50 != false then
+  print ======data50=$data50
+  goto loop4_5
+endi
+
+if $data51 != 32 then
+  print ======data51=$data51
+  goto loop4_5
+endi
+
+print step5
+print =============== create database
+sql drop database if exists test5;
+sql create database test5 vgroups 4 precision 'us';
+sql use test5;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams5 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt as select interp(a), _isfilled as a1 from t1 every(1s) fill(prev);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791213000001,1,1,1,1.0) (1648791215000001,20,1,1,1.0) (1648791216000000,3,1,1,1.0);
+
+$loop_count = 0
+loop5:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select cast(`_irowts` as bigint) from streamt order by 1;
+sql select cast(`_irowts` as bigint) from streamt order by 1;
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+if $data00 != 1648791214000000 then
+  print ======data00=$data00
+  goto loop5
+endi
+
+if $data10 != 1648791215000000 then
+  print ======data01=$data01
+  goto loop5
+endi
+
+if $data20 != 1648791216000000 then
+  print ======data01=$data01
+  goto loop5
+endi
+
+print step6
+print =============== create database
+sql drop database if exists test6;
+sql create database test6 vgroups 4 precision 'us';
+sql use test6;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams6 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt as select interp(a), _isfilled as a1 from t1 every(1s) fill(next);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791213000001,1,1,1,1.0) (1648791215000001,20,1,1,1.0) (1648791216000000,3,1,1,1.0);
+
+$loop_count = 0
+loop6:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select cast(`_irowts` as bigint) from streamt order by 1;
+sql select cast(`_irowts` as bigint) from streamt order by 1;
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+if $data00 != 1648791214000000 then
+  print ======data00=$data00
+  goto loop6
+endi
+
+if $data10 != 1648791215000000 then
+  print ======data01=$data01
+  goto loop6
+endi
+
+if $data20 != 1648791216000000 then
+  print ======data01=$data01
+  goto loop6
+endi
+
+print step7
+print =============== create database
+sql drop database if exists test7;
+sql create database test7 vgroups 4 precision 'us';
+sql use test7;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams7 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt as select interp(a), _isfilled as a1 from t1 every(1s) fill(linear);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791213000001,1,1,1,1.0) (1648791215000001,20,1,1,1.0) (1648791216000000,3,1,1,1.0);
+
+$loop_count = 0
+loop7:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select cast(`_irowts` as bigint) from streamt order by 1;
+sql select cast(`_irowts` as bigint) from streamt order by 1;
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop7
+endi
+
+if $data00 != 1648791214000000 then
+  print ======data00=$data00
+  goto loop7
+endi
+
+if $data10 != 1648791215000000 then
+  print ======data01=$data01
+  goto loop7
+endi
+
+if $data20 != 1648791216000000 then
+  print ======data01=$data01
+  goto loop7
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
