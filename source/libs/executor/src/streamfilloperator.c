@@ -1242,6 +1242,17 @@ void doBuildForceFillResultImpl(SOperatorInfo* pOperator, SStreamFillSupporter* 
     }
   }
 
+  if (pBlock->info.parTbName[0] == 0) {
+    void*   tbname = NULL;
+    int32_t winCode = TSDB_CODE_SUCCESS;
+    code = pInfo->stateStore.streamStateGetParName(pInfo->pState, pBlock->info.id.groupId, &tbname, false, &winCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (winCode == TSDB_CODE_SUCCESS) {
+      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+      pInfo->stateStore.streamStateFreeVal(tbname);
+    }
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
