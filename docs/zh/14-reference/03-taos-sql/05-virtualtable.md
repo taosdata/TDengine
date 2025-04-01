@@ -16,7 +16,7 @@ description: 对虚拟表的各种管理操作
 ```sql
 CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
     ts_col_name timestamp, 
-    (create_defination[ ,create_defination] ...) 
+    (create_definition[ ,create_definition] ...) 
      
   create_definition:
     vtb_col_name column_definition
@@ -29,7 +29,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 ### 创建虚拟子表
 ```sql
 CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
-    (create_defination[ ,create_defination] ...) 
+    (create_definition[ ,create_definition] ...) 
     USING [db_name.]stb_name 
     [(tag_name [, tag_name] ...)] 
     TAGS (tag_value [, tag_value] ...)
@@ -239,10 +239,6 @@ select c1, c2 from v1;
 </table>
 
 因为 c1、c2 列对应的原始表 t1、t2 中没有 0:00:03 这个时间戳，所以最后的结果也不会包含这个时间戳。
-
-**使用限制**
-
-1. 查询虚拟超级表时，暂不支持虚拟子表的数据源来自不同的数据库。
 
 ## 修改虚拟普通表
 

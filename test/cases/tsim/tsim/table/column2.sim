@@ -1,0 +1,23 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== step1
+sql create database db
+sql use db
+sql create table tt (ts timestamp, a int, b float, c smallint, d double, e tinyint, f bigint, g timestamp, h binary(10), i bool);
+sql insert into tt values (now + 1m , 1 , 1 , 1 , 1 ,  1 , 10, 150000000 , '11' , true ) 
+
+sql select * from tt
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop database db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

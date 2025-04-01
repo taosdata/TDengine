@@ -1136,6 +1136,45 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
   return checkpointId;
 }
 
+static void dropHistoryTaskIfNoStreamTask(SStreamMeta* pMeta, SArray*  pRecycleList) {
+  int32_t i = 0;
+  while (i < taosArrayGetSize(pMeta->pTaskList)) {
+    SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    if (pTaskId == NULL) {
+      i++;
+      continue;
+    }
+    SStreamTask* task = taosAcquireRef(streamTaskRefPool, pTaskId->refId);
+    if (task != NULL && task->info.fillHistory == 1) {
+      if (taosHashGet(pMeta->pTasksMap, &task->streamTaskId, sizeof(STaskId)) == NULL &&
+        task->status.taskStatus != TASK_STATUS__DROPPING) {
+        STaskId id = streamTaskGetTaskId(task);
+        if (taosArrayPush(pRecycleList, &id) == NULL) {
+          stError("%s s-task:0x%x failed to add into pRecycleList list due to:%d", __FUNCTION__, task->id.taskId, terrno);
+        } else {
+          int32_t total = taosArrayGetSize(pRecycleList);
+          stInfo("%s s-task:0x%x is already dropped, add into recycle list, total:%d", __FUNCTION__, task->id.taskId, total);
+        }
+        int32_t code = taosHashRemove(pMeta->pTasksMap, &id, sizeof(STaskId));
+        if (code == 0) {
+          taosArrayRemove(pMeta->pTaskList, i);
+        } else {
+          i++;
+          stError("%s s-task:0x%x failed to remove task from taskmap, code:%d", __FUNCTION__, task->id.taskId, code);
+        }
+        if (taosReleaseRef(streamTaskRefPool, pTaskId->refId) != 0) {
+          stError("%s s-task:0x%x failed to release refId:%" PRId64, __FUNCTION__, task->id.taskId, pTaskId->refId);
+        }
+        continue;
+      }
+    }
+    if (task != NULL && taosReleaseRef(streamTaskRefPool, pTaskId->refId) != 0) {
+      stError("%s s-task:0x%x failed to release refId:%" PRId64, __FUNCTION__, task->id.taskId, pTaskId->refId);
+    }
+    i++;
+  }
+}
+
 // not allowed to return error code
 void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC*     pCur = NULL;
@@ -1269,6 +1308,8 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   tdbFree(pVal);
 
   tdbTbcClose(pCur);
+
+  dropHistoryTaskIfNoStreamTask(pMeta, pRecycleList);
 
   if (taosArrayGetSize(pRecycleList) > 0) {
     for (int32_t i = 0; i < taosArrayGetSize(pRecycleList); ++i) {

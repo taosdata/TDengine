@@ -1,0 +1,256 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+print ========== step0
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+$x = 0
+step0:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step0
+endi
+if $data(2)[4] != ready then
+  goto step0
+endi
+if $data(3)[4] != ready then
+  goto step0
+endi
+if $data(4)[4] != ready then
+  goto step0
+endi
+
+print ========= step1
+sql create database db1 replica 3 vgroups 1
+sql create database db2 replica 3 vgroups 1
+sql create database db3 replica 3 vgroups 1 
+sql create database db4 replica 3 vgroups 1 
+
+print =============== step12 wait vgroup2
+$x = 0
+step12:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show db1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $rows != 1 then
+  return -1
+endi
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step12
+endi
+
+print =============== step13 wait vgroup3
+$x = 0
+step13:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show db1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $rows != 1 then
+  return -1
+endi
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step13
+endi
+
+print =============== step14 wait vgroup4
+$x = 0
+step14:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show db1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step14
+endi
+
+print =============== step15 wait vgroup5
+$x = 0
+step15:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show db1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step15
+endi
+
+print =============== step16: create table
+sql create table db1.tb1 (ts timestamp, i int)
+sql create table db2.tb2 (ts timestamp, i int)
+sql create table db3.tb3 (ts timestamp, i int)
+sql create table db4.tb4 (ts timestamp, i int)
+sql insert into db1.tb1 values(now, 1)
+sql insert into db2.tb2 values(now, 1)
+sql insert into db3.tb3 values(now, 1)
+sql insert into db4.tb4 values(now, 1)
+
+sql select count(*) from db1.tb1
+$lastRows1 = $rows
+sql select count(*) from db2.tb2
+$lastRows2 = $rows
+sql select count(*) from db3.tb3
+$lastRows3 = $rows
+sql select count(*) from db4.tb4
+$lastRows4 = $rows
+
+print ======== step2
+run_back tsim/vnode/back_insert_many.sim
+sleep 3000
+
+$x = 0
+loop:
+
+print ======== step3
+system sh/exec.sh -n dnode2 -s stop
+sleep 3000
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+
+print ======== step4
+system sh/exec.sh -n dnode3 -s stop
+sleep 3000
+system sh/exec.sh -n dnode3 -s start
+sleep 3000
+
+print ======== step5
+system sh/exec.sh -n dnode2 -s stop
+sleep 3000
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+
+print ======== step6
+$y = 0
+step6: 
+	$y = $y + 1
+	sleep 1000
+	if $y == 50 then
+		return -1
+	endi
+
+sql select count(*) from db1.tb1 -x step6
+print select count(*) from db1.tb1 ==> $data00 $lastRows1 
+if $data00 <= $lastRows1 then
+  goto step6
+endi
+$lastRows1 = $data00
+
+sql select count(*) from db2.tb2 -x step6
+print select count(*) from db2.tb2 ==> $data00 $lastRows2 
+if $data00 <= $lastRows2 then
+  goto step6
+endi
+$lastRows2 = $data00
+
+sql select count(*) from db3.tb3 -x step6
+print select count(*) from  db3.tb3 ==> $data00 $lastRows3 
+if $data00 <= $lastRows3 then
+  goto step6
+endi
+$lastRows3 = $data00
+
+sql select count(*) from db4.tb4 -x step6
+print select count(*) from  db4.tb4 ==> $data00 $lastRows4 
+if $data00 <= $lastRows4 then
+  goto step6
+endi
+$lastRows4 = $data00
+
+print ======== step7
+
+print ======== loop Times $x
+
+if $x < 2 then
+  $x = $x + 1
+  goto loop
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT
