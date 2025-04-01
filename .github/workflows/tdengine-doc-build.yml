@@ -46,8 +46,7 @@ jobs:
       - name: AutoCorrect
         uses: huacnlee/autocorrect-action@v2
         with:
-          args: --lint --no-diff-bg-color $(git diff --diff-filter=AM --name-only ${{ github.event.pull_request.base.sha }}}
-    
+          args: --lint --no-diff-bg-color $(git diff --diff-filter=AM --name-only ${{ github.event.pull_request.base.sha }})
 
   build-doc:
     runs-on:
