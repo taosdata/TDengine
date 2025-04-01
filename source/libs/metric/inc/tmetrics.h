@@ -16,8 +16,8 @@
 #ifndef _TD_METRICS_H_
 #define _TD_METRICS_H_
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -165,7 +165,7 @@ int32_t tmetrics_set_log_path(const char *path);
 // Write metrics management
 SWriteMetricsEx* tmetrics_get_write_metrics();
 SWriteMetricsEx* tmetrics_get_vnode_write_metrics(int32_t vgId);
-void  tmetrics_init_write_metrics(SWriteMetricsEx* metrics);
+void             tmetrics_init_write_metrics(SWriteMetricsEx* metrics, int32_t vgId);
 void  tmetrics_collect_write_metrics(SWriteMetricsEx* metrics);
 void  tmetrics_log_write_metrics(SWriteMetricsEx* metrics, const char* log_file);
 void  tmetrics_collect_all_vnodes();

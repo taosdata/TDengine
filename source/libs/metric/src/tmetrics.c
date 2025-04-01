@@ -28,12 +28,10 @@
 #include "ttime.h"
 #include "ttimer.h"
 
-// Error code definition if not available
 #ifndef TSDB_CODE_FAILED_TO_CREATE_THREAD
 #define TSDB_CODE_FAILED_TO_CREATE_THREAD TSDB_CODE_APP_ERROR
 #endif
 
-// Global metrics manager instance
 static SMetricsManager gMetricsManager = {0};
 static tmr_h           gMetricsTimer = NULL;
 static TdThread        gMetricsThread;
@@ -42,6 +40,23 @@ static int64_t         gLastCollectTime = 0;
 
 static void  tmetrics_collect_metrics_callback(void* param, void* tmrId);
 static void* tmetrics_async_writer_fn(void* arg);
+static SWriteMetricsEx* tmetrics_get_or_init_vnode_metrics(int32_t vgId);
+
+static void tmetrics_init_metric_def(SMetric* metric, const char* name, const char* description, EMetricType type,
+                                     EMetricLevel level, EMetricCategory category, EMetricScope scope, const char* unit,
+                                     int32_t vgId) {
+  strcpy(metric->definition.name, name);
+  strcpy(metric->definition.description, description);
+  metric->definition.type = type;
+  metric->definition.level = level;
+  metric->definition.category = category;
+  metric->definition.scope = scope;
+  strcpy(metric->definition.unit, unit);
+  metric->value.int_val = 0;
+  metric->value.double_val = 0.0;
+  metric->collect_time = 0;
+  metric->vgId = vgId;
+}
 
 int32_t tmetrics_init() {
   if (gMetricsManager.is_initialized) {
@@ -51,10 +66,9 @@ int32_t tmetrics_init() {
   memset(&gMetricsManager, 0, sizeof(SMetricsManager));
 
   gMetricsManager.high_level_enabled = false;
-  gMetricsManager.collection_interval = 5000;  // Default 5 seconds
+  gMetricsManager.collection_interval = 5000;
   gMetricsManager.log_path = taosStrdup("metrics.log");
 
-  // Initialize global metrics
   gMetricsManager.write_metrics = taosMemoryCalloc(1, sizeof(SWriteMetricsEx));
   gMetricsManager.query_metrics = taosMemoryCalloc(1, sizeof(SQueryMetricsEx));
   gMetricsManager.stream_metrics = taosMemoryCalloc(1, sizeof(SStreamMetricsEx));
@@ -65,33 +79,29 @@ int32_t tmetrics_init() {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // Initialize vnode metrics array with pre-allocated size
-  gMetricsManager.vnode_metrics_size = 1024;  // Max 1024 vnodes
+  gMetricsManager.vnode_metrics_size = 1024;
   gMetricsManager.vnode_metrics = taosMemoryCalloc(gMetricsManager.vnode_metrics_size, sizeof(void*));
   if (gMetricsManager.vnode_metrics == NULL) {
     tmetrics_cleanup();
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  tmetrics_init_write_metrics((SWriteMetricsEx*)gMetricsManager.write_metrics);
+  tmetrics_init_write_metrics((SWriteMetricsEx*)gMetricsManager.write_metrics, 0);
   tmetrics_init_query_metrics((SQueryMetricsEx*)gMetricsManager.query_metrics);
   tmetrics_init_stream_metrics((SStreamMetricsEx*)gMetricsManager.stream_metrics);
 
-  // Initialize metrics timer
   void* tmrHandle = taosTmrInit(10, 100, 3000, "metrics-tmr");
   if (tmrHandle == NULL) {
     tmetrics_cleanup();
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // Start the metrics background thread
   gMetricsRunning = true;
   if (taosThreadCreate(&gMetricsThread, NULL, tmetrics_async_writer_fn, NULL) != 0) {
     tmetrics_cleanup();
     return TSDB_CODE_FAILED_TO_CREATE_THREAD;
   }
 
-  // Start the metrics collection timer
   gMetricsTimer = taosTmrStart(tmetrics_collect_metrics_callback, gMetricsManager.collection_interval, NULL, tmrHandle);
   if (gMetricsTimer == NULL) {
     gMetricsRunning = false;
@@ -106,13 +116,11 @@ int32_t tmetrics_init() {
 }
 
 void tmetrics_cleanup() {
-  // Stop timer
   if (gMetricsTimer != NULL) {
     taosTmrStop(gMetricsTimer);
     gMetricsTimer = NULL;
   }
 
-  // Stop background thread
   if (gMetricsRunning) {
     gMetricsRunning = false;
     taosThreadJoin(gMetricsThread, NULL);
@@ -150,17 +158,14 @@ void tmetrics_cleanup() {
   memset(&gMetricsManager, 0, sizeof(SMetricsManager));
 }
 
-// Callback for the timer to collect metrics
 static void tmetrics_collect_metrics_callback(void* param, void* tmrId) {
   if (!gMetricsManager.is_initialized) return;
 
   int64_t now = taosGetTimestampMs();
   if (now - gLastCollectTime < gMetricsManager.collection_interval) {
-    return;  // Avoid collecting too frequently
+    return;
   }
 
-  // Collect metrics into the shared structures
-  // This is a lightweight operation that just copies data
   if (gMetricsManager.write_metrics) {
     tmetrics_collect_write_metrics((SWriteMetricsEx*)gMetricsManager.write_metrics);
   }
@@ -176,17 +181,14 @@ static void tmetrics_collect_metrics_callback(void* param, void* tmrId) {
   gLastCollectTime = now;
 }
 
-// Background thread to asynchronously write metrics to log file
 static void* tmetrics_async_writer_fn(void* arg) {
   int64_t       lastWriteTime = 0;
-  const int64_t writeInterval = 1000;  // Write at most once per second
+  const int64_t writeInterval = 1000;
 
   while (gMetricsRunning) {
     int64_t now = taosGetTimestampMs();
 
     if (now - lastWriteTime >= writeInterval && gMetricsManager.log_path != NULL) {
-      // Write metrics to log file only if significant time has passed
-      // This avoids excessive disk I/O
       if (gMetricsManager.write_metrics) {
         tmetrics_log_write_metrics((SWriteMetricsEx*)gMetricsManager.write_metrics, gMetricsManager.log_path);
       }
@@ -199,10 +201,11 @@ static void* tmetrics_async_writer_fn(void* arg) {
         tmetrics_log_stream_metrics((SStreamMetricsEx*)gMetricsManager.stream_metrics, gMetricsManager.log_path);
       }
 
+      tmetrics_log_all_vnodes(gMetricsManager.log_path);
+
       lastWriteTime = now;
     }
 
-    // Sleep to avoid busy waiting
     taosMsleep(100);
   }
 
@@ -219,7 +222,6 @@ int32_t tmetrics_set_collection_interval(int64_t interval_ms) {
   }
 
   gMetricsManager.collection_interval = interval_ms;
-  // Update timer if it's running
   if (gMetricsTimer != NULL) {
     taosTmrReset(tmetrics_collect_metrics_callback, interval_ms, NULL, NULL, &gMetricsTimer);
   }
@@ -248,148 +250,67 @@ SWriteMetricsEx* tmetrics_get_write_metrics() {
   if (!gMetricsManager.is_initialized) {
     return NULL;
   }
-
   return (SWriteMetricsEx*)gMetricsManager.write_metrics;
 }
 
-void tmetrics_init_write_metrics(SWriteMetricsEx* metrics) {
+void tmetrics_init_write_metrics(SWriteMetricsEx* metrics, int32_t vgId) {
   if (metrics == NULL) return;
 
-  strcpy(metrics->total_requests.definition.name, "total_requests");
-  strcpy(metrics->total_requests.definition.description, "Total number of write requests received");
-  metrics->total_requests.definition.type = METRIC_TYPE_INT64;
-  metrics->total_requests.definition.level = METRIC_LEVEL_LOW;
-  metrics->total_requests.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->total_requests.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->total_requests.definition.unit, "count");
-
-  strcpy(metrics->total_rows.definition.name, "total_rows");
-  strcpy(metrics->total_rows.definition.description, "Total number of rows written");
-  metrics->total_rows.definition.type = METRIC_TYPE_INT64;
-  metrics->total_rows.definition.level = METRIC_LEVEL_LOW;
-  metrics->total_rows.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->total_rows.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->total_rows.definition.unit, "rows");
-
-  strcpy(metrics->total_bytes.definition.name, "total_bytes");
-  strcpy(metrics->total_bytes.definition.description, "Total bytes of data written");
-  metrics->total_bytes.definition.type = METRIC_TYPE_INT64;
-  metrics->total_bytes.definition.level = METRIC_LEVEL_LOW;
-  metrics->total_bytes.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->total_bytes.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->total_bytes.definition.unit, "bytes");
-
-  strcpy(metrics->avg_write_size.definition.name, "avg_write_size");
-  strcpy(metrics->avg_write_size.definition.description, "Average size of SQL write operations");
-  metrics->avg_write_size.definition.type = METRIC_TYPE_DOUBLE;
-  metrics->avg_write_size.definition.level = METRIC_LEVEL_LOW;
-  metrics->avg_write_size.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->avg_write_size.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->avg_write_size.definition.unit, "bytes/request");
-
-  strcpy(metrics->cache_hit_ratio.definition.name, "cache_hit_ratio");
-  strcpy(metrics->cache_hit_ratio.definition.description, "Cache hit ratio during write operations");
-  metrics->cache_hit_ratio.definition.type = METRIC_TYPE_DOUBLE;
-  metrics->cache_hit_ratio.definition.level = METRIC_LEVEL_LOW;
-  metrics->cache_hit_ratio.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->cache_hit_ratio.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->cache_hit_ratio.definition.unit, "ratio, 0-1");
-
-  strcpy(metrics->rpc_queue_wait.definition.name, "rpc_queue_wait");
-  strcpy(metrics->rpc_queue_wait.definition.description, "Average time spent waiting in RPC queue");
-  metrics->rpc_queue_wait.definition.type = METRIC_TYPE_INT64;
-  metrics->rpc_queue_wait.definition.level = METRIC_LEVEL_LOW;
-  metrics->rpc_queue_wait.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->rpc_queue_wait.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->rpc_queue_wait.definition.unit, "µs");
-
-  strcpy(metrics->preprocess_time.definition.name, "preprocess_time");
-  strcpy(metrics->preprocess_time.definition.description, "Average time spent preprocessing write requests");
-  metrics->preprocess_time.definition.type = METRIC_TYPE_INT64;
-  metrics->preprocess_time.definition.level = METRIC_LEVEL_LOW;
-  metrics->preprocess_time.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->preprocess_time.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->preprocess_time.definition.unit, "µs");
-
-  strcpy(metrics->wal_write_rate.definition.name, "wal_write_rate");
-  strcpy(metrics->wal_write_rate.definition.description, "WAL write rate");
-  metrics->wal_write_rate.definition.type = METRIC_TYPE_DOUBLE;
-  metrics->wal_write_rate.definition.level = METRIC_LEVEL_LOW;
-  metrics->wal_write_rate.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->wal_write_rate.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->wal_write_rate.definition.unit, "bytes/s");
-
-  strcpy(metrics->sync_rate.definition.name, "sync_rate");
-  strcpy(metrics->sync_rate.definition.description, "Message sync rate");
-  metrics->sync_rate.definition.type = METRIC_TYPE_DOUBLE;
-  metrics->sync_rate.definition.level = METRIC_LEVEL_LOW;
-  metrics->sync_rate.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->sync_rate.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->sync_rate.definition.unit, "msgs/s");
-
-  strcpy(metrics->apply_rate.definition.name, "apply_rate");
-  strcpy(metrics->apply_rate.definition.description, "Message apply rate");
-  metrics->apply_rate.definition.type = METRIC_TYPE_DOUBLE;
-  metrics->apply_rate.definition.level = METRIC_LEVEL_LOW;
-  metrics->apply_rate.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->apply_rate.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->apply_rate.definition.unit, "msgs/s");
-
-  strcpy(metrics->memory_table_size.definition.name, "memory_table_size");
-  strcpy(metrics->memory_table_size.definition.description, "Current size of memory table");
-  metrics->memory_table_size.definition.type = METRIC_TYPE_INT64;
-  metrics->memory_table_size.definition.level = METRIC_LEVEL_LOW;
-  metrics->memory_table_size.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->memory_table_size.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->memory_table_size.definition.unit, "bytes");
-
-  strcpy(metrics->commit_count.definition.name, "commit_count");
-  strcpy(metrics->commit_count.definition.description, "Total number of commit operations");
-  metrics->commit_count.definition.type = METRIC_TYPE_INT64;
-  metrics->commit_count.definition.level = METRIC_LEVEL_LOW;
-  metrics->commit_count.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->commit_count.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->commit_count.definition.unit, "count");
-
-  strcpy(metrics->merge_count.definition.name, "merge_count");
-  strcpy(metrics->merge_count.definition.description, "Number of file merges triggered by stt_trigger");
-  metrics->merge_count.definition.type = METRIC_TYPE_INT64;
-  metrics->merge_count.definition.level = METRIC_LEVEL_LOW;
-  metrics->merge_count.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->merge_count.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->merge_count.definition.unit, "count");
-
-  strcpy(metrics->avg_commit_time.definition.name, "avg_commit_time");
-  strcpy(metrics->avg_commit_time.definition.description, "Average time spent on commit operations");
-  metrics->avg_commit_time.definition.type = METRIC_TYPE_DOUBLE;
-  metrics->avg_commit_time.definition.level = METRIC_LEVEL_LOW;
-  metrics->avg_commit_time.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->avg_commit_time.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->avg_commit_time.definition.unit, "ms");
-
-  strcpy(metrics->avg_merge_time.definition.name, "avg_merge_time");
-  strcpy(metrics->avg_merge_time.definition.description, "Average time spent on merge operations");
-  metrics->avg_merge_time.definition.type = METRIC_TYPE_DOUBLE;
-  metrics->avg_merge_time.definition.level = METRIC_LEVEL_LOW;
-  metrics->avg_merge_time.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->avg_merge_time.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->avg_merge_time.definition.unit, "ms");
-
-  strcpy(metrics->blocked_commits.definition.name, "blocked_commits");
-  strcpy(metrics->blocked_commits.definition.description, "Number of commit operations blocked by ongoing merges");
-  metrics->blocked_commits.definition.type = METRIC_TYPE_INT64;
-  metrics->blocked_commits.definition.level = METRIC_LEVEL_LOW;
-  metrics->blocked_commits.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->blocked_commits.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->blocked_commits.definition.unit, "count");
-
-  strcpy(metrics->memtable_wait_time.definition.name, "memtable_wait_time");
-  strcpy(metrics->memtable_wait_time.definition.description, "Average time spent waiting for memtable lock");
-  metrics->memtable_wait_time.definition.type = METRIC_TYPE_INT64;
-  metrics->memtable_wait_time.definition.level = METRIC_LEVEL_HIGH;
-  metrics->memtable_wait_time.definition.category = METRIC_CATEGORY_WRITE;
-  metrics->memtable_wait_time.definition.scope = METRIC_SCOPE_VNODE;
-  strcpy(metrics->memtable_wait_time.definition.unit, "µs");
+  tmetrics_init_metric_def(&metrics->total_requests, "total_requests", "Total number of write requests received",
+                           METRIC_TYPE_INT64, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "count",
+                           vgId);
+  tmetrics_init_metric_def(&metrics->total_rows, "total_rows", "Total number of rows written", METRIC_TYPE_INT64,
+                           METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "rows", vgId);
+  tmetrics_init_metric_def(&metrics->total_bytes, "total_bytes", "Total bytes of data written", METRIC_TYPE_INT64,
+                           METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "bytes", vgId);
+  tmetrics_init_metric_def(&metrics->avg_write_size, "avg_write_size", "Average size of SQL write operations",
+                           METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE,
+                           "bytes/request", vgId);
+  tmetrics_init_metric_def(&metrics->cache_hit_ratio, "cache_hit_ratio", "Cache hit ratio during write operations",
+                           METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE,
+                           "ratio, 0-1", vgId);
+  tmetrics_init_metric_def(&metrics->rpc_queue_wait, "rpc_queue_wait", "Average time spent waiting in RPC queue",
+                           METRIC_TYPE_INT64, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "µs", vgId);
+  tmetrics_init_metric_def(&metrics->preprocess_time, "preprocess_time",
+                           "Average time spent preprocessing write requests", METRIC_TYPE_INT64, METRIC_LEVEL_LOW,
+                           METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "µs", vgId);
+  tmetrics_init_metric_def(&metrics->wal_write_rate, "wal_write_rate", "WAL write rate", METRIC_TYPE_DOUBLE,
+                           METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "bytes/s", vgId);
+  tmetrics_init_metric_def(&metrics->sync_rate, "sync_rate", "Message sync rate", METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW,
+                           METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "msgs/s", vgId);
+  tmetrics_init_metric_def(&metrics->apply_rate, "apply_rate", "Message apply rate", METRIC_TYPE_DOUBLE,
+                           METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "msgs/s", vgId);
+  tmetrics_init_metric_def(&metrics->memory_table_size, "memory_table_size", "Current size of memory table",
+                           METRIC_TYPE_INT64, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "bytes",
+                           vgId);
+  tmetrics_init_metric_def(&metrics->memory_table_rows, "memory_table_rows", "Current rows in memory table",
+                           METRIC_TYPE_INT64, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "rows",
+                           vgId);
+  tmetrics_init_metric_def(&metrics->commit_count, "commit_count", "Total number of commit operations",
+                           METRIC_TYPE_INT64, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "count",
+                           vgId);
+  tmetrics_init_metric_def(&metrics->auto_commit_count, "auto_commit_count", "Total number of auto commit operations",
+                           METRIC_TYPE_INT64, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "count",
+                           vgId);
+  tmetrics_init_metric_def(&metrics->forced_commit_count, "forced_commit_count",
+                           "Total number of forced commit operations", METRIC_TYPE_INT64, METRIC_LEVEL_LOW,
+                           METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "count", vgId);
+  tmetrics_init_metric_def(&metrics->stt_trigger_value, "stt_trigger_value", "Current value of stt_trigger",
+                           METRIC_TYPE_INT64, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "value",
+                           vgId);
+  tmetrics_init_metric_def(&metrics->merge_count, "merge_count", "Number of file merges triggered by stt_trigger",
+                           METRIC_TYPE_INT64, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "count",
+                           vgId);
+  tmetrics_init_metric_def(&metrics->avg_commit_time, "avg_commit_time", "Average time spent on commit operations",
+                           METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "ms", vgId);
+  tmetrics_init_metric_def(&metrics->avg_merge_time, "avg_merge_time", "Average time spent on merge operations",
+                           METRIC_TYPE_DOUBLE, METRIC_LEVEL_LOW, METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "ms", vgId);
+  tmetrics_init_metric_def(&metrics->blocked_commits, "blocked_commits",
+                           "Number of commit operations blocked by ongoing merges", METRIC_TYPE_INT64, METRIC_LEVEL_LOW,
+                           METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "count", vgId);
+  tmetrics_init_metric_def(&metrics->memtable_wait_time, "memtable_wait_time",
+                           "Average time spent waiting for memtable lock", METRIC_TYPE_INT64, METRIC_LEVEL_HIGH,
+                           METRIC_CATEGORY_WRITE, METRIC_SCOPE_VNODE, "µs", vgId);
 }
 
 void tmetrics_collect_write_metrics(SWriteMetricsEx* metrics) {
@@ -398,11 +319,8 @@ void tmetrics_collect_write_metrics(SWriteMetricsEx* metrics) {
   int64_t now = taosGetTimestampMs();
 
   if (tmetrics_is_high_level_enabled()) {
-
-
-    metrics->memtable_wait_time.value.int_val = 180;  
+    metrics->memtable_wait_time.value.int_val = 180;
     metrics->memtable_wait_time.collect_time = now;
-
 
     metrics->cache_hit_ratio.value.double_val = 0.85;
     metrics->rpc_queue_wait.value.int_val = 12;
@@ -410,12 +328,25 @@ void tmetrics_collect_write_metrics(SWriteMetricsEx* metrics) {
     metrics->wal_write_rate.value.double_val = 1250.0;
     metrics->sync_rate.value.double_val = 350.5;
     metrics->apply_rate.value.double_val = 320.8;
-    metrics->memory_table_size.value.int_val = 1024 * 1024 * 8;  // 8MB
+    metrics->memory_table_size.value.int_val = 1024 * 1024 * 8;
+  }
+}
+
+static void tmetrics_log_metric(TdFilePtr fp, const SMetric* metric) {
+  if (metric->definition.type == METRIC_TYPE_INT64) {
+    taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metric->definition.name, metric->value.int_val,
+                    metric->definition.unit);
+  } else if (metric->definition.type == METRIC_TYPE_DOUBLE) {
+    taosFprintfFile(fp, "    %s: %.2f (%s)\n", metric->definition.name, metric->value.double_val,
+                    metric->definition.unit);
+  } else if (metric->definition.type == METRIC_TYPE_STRING) {
+    taosFprintfFile(fp, "    %s: %s (%s)\n", metric->definition.name,
+                    metric->value.str_val ? metric->value.str_val : "", metric->definition.unit);
   }
 }
 
 void tmetrics_log_write_metrics(SWriteMetricsEx* metrics, const char* log_file) {
-  if (metrics == NULL) return;
+  if (metrics == NULL || log_file == NULL) return;
 
   TdFilePtr fp = taosOpenFile(log_file, TD_FILE_APPEND | TD_FILE_CREATE | TD_FILE_WRITE);
   if (!fp) return;
@@ -430,40 +361,26 @@ void tmetrics_log_write_metrics(SWriteMetricsEx* metrics, const char* log_file) 
     taosFprintfFile(fp, "[%s] Global Write Performance Metrics:\n", timeStr);
   }
 
-  taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metrics->total_requests.definition.name,
-                  metrics->total_requests.value.int_val, metrics->total_requests.definition.unit);
-
-  taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metrics->total_rows.definition.name,
-                  metrics->total_rows.value.int_val, metrics->total_rows.definition.unit);
-
-  taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metrics->total_bytes.definition.name,
-                  metrics->total_bytes.value.int_val, metrics->total_bytes.definition.unit);
-
-  taosFprintfFile(fp, "    %s: %.2f (%s)\n", metrics->avg_write_size.definition.name,
-                  metrics->avg_write_size.value.double_val, metrics->avg_write_size.definition.unit);
-
-  // 添加更多相关指标
-  taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metrics->commit_count.definition.name,
-                  metrics->commit_count.value.int_val, metrics->commit_count.definition.unit);
-
-  taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metrics->merge_count.definition.name,
-                  metrics->merge_count.value.int_val, metrics->merge_count.definition.unit);
-
-  taosFprintfFile(fp, "    %s: %.2f (%s)\n", metrics->avg_commit_time.definition.name,
-                  metrics->avg_commit_time.value.double_val, metrics->avg_commit_time.definition.unit);
-
-  taosFprintfFile(fp, "    %s: %.2f (%s)\n", metrics->avg_merge_time.definition.name,
-                  metrics->avg_merge_time.value.double_val, metrics->avg_merge_time.definition.unit);
-
-  taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metrics->blocked_commits.definition.name,
-                  metrics->blocked_commits.value.int_val, metrics->blocked_commits.definition.unit);
-
-  taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metrics->stt_trigger_value.definition.name,
-                  metrics->stt_trigger_value.value.int_val, "value");
+  tmetrics_log_metric(fp, &metrics->total_requests);
+  tmetrics_log_metric(fp, &metrics->total_rows);
+  tmetrics_log_metric(fp, &metrics->total_bytes);
+  tmetrics_log_metric(fp, &metrics->avg_write_size);
+  tmetrics_log_metric(fp, &metrics->commit_count);
+  tmetrics_log_metric(fp, &metrics->merge_count);
+  tmetrics_log_metric(fp, &metrics->avg_commit_time);
+  tmetrics_log_metric(fp, &metrics->avg_merge_time);
+  tmetrics_log_metric(fp, &metrics->blocked_commits);
+  tmetrics_log_metric(fp, &metrics->stt_trigger_value);
 
   if (tmetrics_is_high_level_enabled()) {
-    taosFprintfFile(fp, "    %s: %" PRId64 " (%s)\n", metrics->memtable_wait_time.definition.name,
-                    metrics->memtable_wait_time.value.int_val, metrics->memtable_wait_time.definition.unit);
+    tmetrics_log_metric(fp, &metrics->memtable_wait_time);
+    tmetrics_log_metric(fp, &metrics->cache_hit_ratio);
+    tmetrics_log_metric(fp, &metrics->rpc_queue_wait);
+    tmetrics_log_metric(fp, &metrics->preprocess_time);
+    tmetrics_log_metric(fp, &metrics->wal_write_rate);
+    tmetrics_log_metric(fp, &metrics->sync_rate);
+    tmetrics_log_metric(fp, &metrics->apply_rate);
+    tmetrics_log_metric(fp, &metrics->memory_table_size);
   }
 
   taosFprintfFile(fp, "\n");
@@ -474,54 +391,54 @@ SQueryMetricsEx* tmetrics_get_query_metrics() {
   if (!gMetricsManager.is_initialized) {
     return NULL;
   }
-
   return (SQueryMetricsEx*)gMetricsManager.query_metrics;
 }
 
 void tmetrics_init_query_metrics(SQueryMetricsEx* metrics) {
   if (metrics == NULL) return;
+  // TODO: Initialize query metrics definitions
 }
 
 void tmetrics_collect_query_metrics(SQueryMetricsEx* metrics) {
   if (metrics == NULL) return;
+  // TODO: Implement query metrics collection
 }
 
 void tmetrics_log_query_metrics(SQueryMetricsEx* metrics, const char* log_file) {
   if (metrics == NULL) return;
+  // TODO: Implement query metrics logging
 }
 
 SStreamMetricsEx* tmetrics_get_stream_metrics() {
   if (!gMetricsManager.is_initialized) {
     return NULL;
   }
-
   return (SStreamMetricsEx*)gMetricsManager.stream_metrics;
 }
 
 void tmetrics_init_stream_metrics(SStreamMetricsEx* metrics) {
   if (metrics == NULL) return;
+  // TODO: Initialize stream metrics definitions
 }
 
 void tmetrics_collect_stream_metrics(SStreamMetricsEx* metrics) {
   if (metrics == NULL) return;
+  // TODO: Implement stream metrics collection
 }
 
 void tmetrics_log_stream_metrics(SStreamMetricsEx* metrics, const char* log_file) {
   if (metrics == NULL) return;
+  // TODO: Implement stream metrics logging
 }
 
 int32_t tmetrics_register_custom_metric(SMetricDef* def, void* collector) { return TSDB_CODE_SUCCESS; }
 
 int32_t tmetrics_unregister_custom_metric(const char* name) { return TSDB_CODE_SUCCESS; }
 
-// Record write operation start with minimal overhead
 void tmetrics_record_write_begin(SWriteMetricsEx* metrics, int32_t vgId, int32_t rows, int32_t bytes) {
-  if (metrics == NULL) {
-    metrics = tmetrics_get_vnode_write_metrics(vgId);
-    if (metrics == NULL) return;
-  }
+  if (metrics == NULL) metrics = tmetrics_get_or_init_vnode_metrics(vgId);
+  if (metrics == NULL) return;
 
-  // Update counters atomically
   __sync_fetch_and_add(&metrics->total_requests.value.int_val, 1);
   __sync_fetch_and_add(&metrics->total_rows.value.int_val, rows);
   __sync_fetch_and_add(&metrics->total_bytes.value.int_val, bytes);
@@ -529,127 +446,88 @@ void tmetrics_record_write_begin(SWriteMetricsEx* metrics, int32_t vgId, int32_t
   metrics->total_requests.collect_time = taosGetTimestampMs();
 }
 
-// Record write operation end and calculate duration
 void tmetrics_record_write_end(SWriteMetricsEx* metrics, int32_t vgId, int64_t start_time, bool is_commit) {
-  if (metrics == NULL) {
-    metrics = tmetrics_get_vnode_write_metrics(vgId);
-    if (metrics == NULL) return;
-  }
+  if (metrics == NULL) metrics = tmetrics_get_or_init_vnode_metrics(vgId);
+  if (metrics == NULL) return;
 
   int64_t end_time = taosGetTimestampMs();
   int64_t elapsed = end_time - start_time;
 
-  // Update average write size using sliding window
   if (metrics->total_requests.value.int_val > 0) {
-    double old_avg = metrics->avg_write_size.value.double_val;
-    double new_avg =
-        old_avg * 0.9 + ((double)metrics->total_bytes.value.int_val / metrics->total_requests.value.int_val) * 0.1;
-    metrics->avg_write_size.value.double_val = new_avg;
+    double old_avg_size = metrics->avg_write_size.value.double_val;
+    double current_size = (double)metrics->total_bytes.value.int_val / metrics->total_requests.value.int_val;
+    metrics->avg_write_size.value.double_val = old_avg_size * 0.9 + current_size * 0.1;
   }
 
   if (is_commit) {
     __sync_fetch_and_add(&metrics->commit_count.value.int_val, 1);
-
-    // Update average commit time using sliding window
-    double old_avg = metrics->avg_commit_time.value.double_val;
-    double new_avg = old_avg * 0.9 + ((double)elapsed) * 0.1;
-    metrics->avg_commit_time.value.double_val = new_avg;
+    double old_avg_commit = metrics->avg_commit_time.value.double_val;
+    metrics->avg_commit_time.value.double_val = old_avg_commit * 0.9 + ((double)elapsed) * 0.1;
   }
 
   metrics->avg_write_size.collect_time = end_time;
+  if (is_commit) {
+    metrics->commit_count.collect_time = end_time;
+    metrics->avg_commit_time.collect_time = end_time;
+  }
 }
 
-// Record file merge operation
 void tmetrics_record_merge(SWriteMetricsEx* metrics, int32_t vgId, int64_t merge_time) {
-  if (metrics == NULL) {
-    metrics = tmetrics_get_vnode_write_metrics(vgId);
-    if (metrics == NULL) return;
-  }
+  if (metrics == NULL) metrics = tmetrics_get_or_init_vnode_metrics(vgId);
+  if (metrics == NULL) return;
 
   __sync_fetch_and_add(&metrics->merge_count.value.int_val, 1);
 
   double old_avg = metrics->avg_merge_time.value.double_val;
-  double new_avg = old_avg * 0.9 + ((double)merge_time) * 0.1;
-  metrics->avg_merge_time.value.double_val = new_avg;
+  metrics->avg_merge_time.value.double_val = old_avg * 0.9 + ((double)merge_time) * 0.1;
 
   metrics->merge_count.collect_time = taosGetTimestampMs();
+  metrics->avg_merge_time.collect_time = metrics->merge_count.collect_time;
 }
 
-// Record blocked commit
 void tmetrics_record_blocked_commit(SWriteMetricsEx* metrics, int32_t vgId) {
-  if (metrics == NULL) {
-    metrics = tmetrics_get_vnode_write_metrics(vgId);
-    if (metrics == NULL) return;
-  }
+  if (metrics == NULL) metrics = tmetrics_get_or_init_vnode_metrics(vgId);
+  if (metrics == NULL) return;
 
   __sync_fetch_and_add(&metrics->blocked_commits.value.int_val, 1);
   metrics->blocked_commits.collect_time = taosGetTimestampMs();
 }
 
-// Update STT trigger value
 void tmetrics_update_stt_trigger(SWriteMetricsEx* metrics, int32_t vgId, int32_t value) {
-  if (metrics == NULL) {
-    metrics = tmetrics_get_vnode_write_metrics(vgId);
-    if (metrics == NULL) return;
-  }
+  if (metrics == NULL) metrics = tmetrics_get_or_init_vnode_metrics(vgId);
+  if (metrics == NULL) return;
 
   metrics->stt_trigger_value.value.int_val = value;
   metrics->stt_trigger_value.collect_time = taosGetTimestampMs();
 }
 
-// Get metrics instance for specific vnode
-SWriteMetricsEx* tmetrics_get_vnode_write_metrics(int32_t vgId) {
+static SWriteMetricsEx* tmetrics_get_or_init_vnode_metrics(int32_t vgId) {
   if (!gMetricsManager.is_initialized || vgId < 0 || vgId >= gMetricsManager.vnode_metrics_size) {
     return NULL;
   }
 
-  // Lazy initialization of vnode metrics
   if (gMetricsManager.vnode_metrics[vgId] == NULL) {
-    gMetricsManager.vnode_metrics[vgId] = taosMemoryCalloc(1, sizeof(SWriteMetricsEx));
-    if (gMetricsManager.vnode_metrics[vgId] == NULL) {
+    SWriteMetricsEx* new_metrics = (SWriteMetricsEx*)taosMemoryCalloc(1, sizeof(SWriteMetricsEx));
+    if (new_metrics == NULL) {
       return NULL;
     }
+    tmetrics_init_write_metrics(new_metrics, vgId);
 
-    tmetrics_init_write_metrics((SWriteMetricsEx*)gMetricsManager.vnode_metrics[vgId]);
-
-    // Set vgId for all metrics
-    SWriteMetricsEx* metrics = (SWriteMetricsEx*)gMetricsManager.vnode_metrics[vgId];
-    metrics->total_requests.vgId = vgId;
-    metrics->total_rows.vgId = vgId;
-    metrics->total_bytes.vgId = vgId;
-    metrics->avg_write_size.vgId = vgId;
-    metrics->cache_hit_ratio.vgId = vgId;
-    metrics->rpc_queue_wait.vgId = vgId;
-    metrics->preprocess_time.vgId = vgId;
-    metrics->wal_write_rate.vgId = vgId;
-    metrics->sync_rate.vgId = vgId;
-    metrics->apply_rate.vgId = vgId;
-    metrics->memory_table_size.vgId = vgId;
-    metrics->memory_table_rows.vgId = vgId;
-    metrics->commit_count.vgId = vgId;
-    metrics->auto_commit_count.vgId = vgId;
-    metrics->forced_commit_count.vgId = vgId;
-    metrics->stt_trigger_value.vgId = vgId;
-    metrics->merge_count.vgId = vgId;
-    metrics->avg_commit_time.vgId = vgId;
-    metrics->avg_merge_time.vgId = vgId;
-    metrics->blocked_commits.vgId = vgId;
-    metrics->memtable_wait_time.vgId = vgId;
+    // Use atomic compare-and-swap to safely assign if still NULL
+    if (!__sync_bool_compare_and_swap(&gMetricsManager.vnode_metrics[vgId], NULL, new_metrics)) {
+      // Another thread initialized it in the meantime, free our allocation
+      taosMemoryFree(new_metrics);
+    }
   }
 
   return (SWriteMetricsEx*)gMetricsManager.vnode_metrics[vgId];
 }
 
-// Collect and log metrics for all vnodes
+SWriteMetricsEx* tmetrics_get_vnode_write_metrics(int32_t vgId) { return tmetrics_get_or_init_vnode_metrics(vgId); }
+
 void tmetrics_collect_all_vnodes() {
   if (!gMetricsManager.is_initialized) return;
 
-  // Collect global metrics
-  if (gMetricsManager.write_metrics) {
-    tmetrics_collect_write_metrics((SWriteMetricsEx*)gMetricsManager.write_metrics);
-  }
-
-  // Collect metrics for all vnodes
   for (int32_t i = 0; i < gMetricsManager.vnode_metrics_size; i++) {
     if (gMetricsManager.vnode_metrics[i]) {
       SWriteMetricsEx* metrics = (SWriteMetricsEx*)gMetricsManager.vnode_metrics[i];
@@ -658,16 +536,9 @@ void tmetrics_collect_all_vnodes() {
   }
 }
 
-// Log metrics for all active vnodes
 void tmetrics_log_all_vnodes(const char* log_file) {
   if (!gMetricsManager.is_initialized || !log_file) return;
 
-  // Log global metrics
-  if (gMetricsManager.write_metrics) {
-    tmetrics_log_write_metrics((SWriteMetricsEx*)gMetricsManager.write_metrics, log_file);
-  }
-
-  // Log metrics for active vnodes only
   for (int32_t i = 0; i < gMetricsManager.vnode_metrics_size; i++) {
     if (gMetricsManager.vnode_metrics[i]) {
       SWriteMetricsEx* metrics = (SWriteMetricsEx*)gMetricsManager.vnode_metrics[i];
