@@ -238,7 +238,7 @@ jobs:
           COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
         run: |
           allure generate $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_report/ --clean
-          echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/allure_report/"
+          echo "see report at $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/allure_report/"
       - name: taosx & agent Report
         run: |
           # taosx merged report
@@ -556,6 +556,29 @@ jobs:
             local text="$1"
             curl -X POST -H "Content-Type: application/json" \
             -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+          
+          PR_INFO="taosX 仓库代码的测试覆盖率\n
+          本次测试执行失败，失败的job为 $failed_jobs\n
+          执行的workflow见：https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n"
+
+          post_to_feishu "$PR_INFO"
+      
+      - name: Send Feishu Message to Platform Alert Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3 <<EOF
             {
                 "msg_type": "text",
                 "content": {
