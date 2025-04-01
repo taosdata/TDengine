@@ -29,21 +29,12 @@ jobs:
         with:
           files: 'docs/zh/**/*.md'
           config: docs/typos.toml
-        continue-on-error: true 
 
       - name: Use custom en config file
         uses: crate-ci/typos@v1.31.1
         with:
           files: 'docs/en/**/*.md'
           config: docs/typos.toml
-        continue-on-error: true 
-
-      - name: Check for errors in previous steps
-        run: |
-          if [[ "${{ steps.zh.outputs.success }}" != "true" || "${{ steps.en.outputs.success }}" != "true" ]]; then
-            echo "One or more steps failed."
-            exit 1
-          fi
 
   build-doc:
     runs-on:
