@@ -1,19 +1,13 @@
 name: TDengine Doc Build
 
 on:
-  push:
+  pull_request:
     branches:
-      - 'wl/doc/main'
+      - 'main'
+      - '3.0'
+      - 'docs-cloud'
     paths:
       - 'docs/**'
-      - '.github/workflows/tdengine-doc-build.yml'
-  # pull_request:
-  #   branches:
-  #     - 'main'
-  #     - '3.0'
-  #     - 'docs-cloud'
-  #   paths:
-  #     - 'docs/**'
 
 env:
   DOC_WKC: '/root/doc_ci_work'
@@ -36,19 +30,10 @@ jobs:
           git clean -f
           git remote prune origin
           git fetch
-          # git checkout ${{ github.event.pull_request.base.ref }}
-          git checkout main
+          git checkout ${{ github.event.pull_request.base.ref }}
           git pull >/dev/null
-          # git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
-          git fetch origin +refs/pull/30581/merge
+          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
           git checkout -qf FETCH_HEAD
-
-      # - name: Check tj-actions repo
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: 'tj-actions/changed-files'
-      #     ref: 'v46'
-      #     fetch-depth: 0
 
       - name: Check document changes
         id: changed-doc-files
