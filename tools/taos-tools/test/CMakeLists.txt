@@ -25,6 +25,10 @@ IF(TD_LINUX)
     # taosdump
     ADD_EXECUTABLE(taosdumpTest taosdumpTest.cpp ../src/toolsSys.c)
     DEP_ext_gtest(taosdumpTest)
+    target_link_libraries(
+        taosdumpTest
+        PRIVATE os
+    )
 
     target_include_directories(
         taosdumpTest
