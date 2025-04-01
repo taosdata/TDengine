@@ -15,4 +15,10 @@ jobs:
         uses: crate-ci/typos@v1.31.1
         with:
           files: 'docs/zh/**/*.md'
-          config: docs/zh/typos.toml
+          config: docs/zh/typos_zh.toml
+
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: 'docs/en/**/*.md'
+          config: docs/en/typos_en.toml
