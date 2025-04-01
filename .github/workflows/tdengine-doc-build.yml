@@ -6,6 +6,7 @@ on:
       - 'wl/doc/main'
     paths:
       - 'docs/**'
+      - '.github/workflows/tdengine-doc-build.yml'
   # pull_request:
   #   branches:
   #     - 'main'

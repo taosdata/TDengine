@@ -5,7 +5,6 @@ slug: /basic-features/data-model
 ---
 
 
-
 import Image from '@theme/IdealImage';
 import dataModel from '../assets/data-model-01.png';
 
