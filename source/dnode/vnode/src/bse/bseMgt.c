@@ -260,14 +260,53 @@ static int32_t listAllFiles(const char *path, SArray *pFiles) {
   }
 
 _error:
-
   if (code != 0) {
     bseError("failed to list files at line %d since %s", lino, tstrerror(code));
   }
   taosCloseDir(&pDir);
   return code;
 }
-static int32_t bseRecover(SBse *pBse, int8_t rmIncomplete) {
+static int32_t removeUnCommitFile(SBse *p) {
+  int32_t code = 0;
+
+  SArray *pFiles = taosArrayInit(64, sizeof(SBseLiveFileInfo));
+  if (pFiles == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  code = listAllFiles(p->path, pFiles);
+  if (code != 0) {
+    taosArrayDestroy(pFiles);
+    return code;
+  }
+
+  SArray *commitedFile = p->commitInfo.pFileList;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pFiles); i++) {
+    SBseLiveFileInfo *pInfo = taosArrayGet(pFiles, i);
+    int32_t           found = 0;
+    for (int32_t j = 0; j < taosArrayGetSize(commitedFile); j++) {
+      SBseLiveFileInfo *pCommited = taosArrayGet(commitedFile, j);
+      if (strcmp(pInfo->name, pCommited->name) == 0) {
+        found = 1;
+        break;
+      }
+    }
+    if (found == 0) {
+      char buf[TSDB_FILENAME_LEN] = {0};
+      snprintf(buf, sizeof(buf), "%s/%s", p->path, pInfo->name);
+      code = taosRemoveFile(buf);
+      if (code != 0) {
+        bseError("vgId:%d failed to remove file %s since %s", p->cfg.vgId, pInfo->name, tstrerror(code));
+      } else {
+        bseInfo("vgId:%d remove file %s", p->cfg.vgId, pInfo->name);
+      }
+    }
+  }
+
+  return code;
+}
+static int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
   int32_t code = 0;
   int32_t lino = 0;
   char   *pCurrent = NULL;
@@ -280,6 +319,10 @@ static int32_t bseRecover(SBse *pBse, int8_t rmIncomplete) {
     bseInfo("vgId:%d, no current meta file found, no need to recover", BSE_VGID(pBse));
   } else {
     code = bseInitCommitInfo(pBse, pCurrent, &pBse->commitInfo);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+  if (rmUnCommited) {
+    code = removeUnCommitFile(pBse);
     TSDB_CHECK_CODE(code, lino, _error);
   }
   code = bseTableMgtRecover(pBse, pBse->pTableMgt);
