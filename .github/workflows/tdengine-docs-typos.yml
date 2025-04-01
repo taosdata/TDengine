@@ -15,7 +15,7 @@ jobs:
         uses: crate-ci/typos@v1.31.1
         with:
           files: 'docs/zh/**/*.md'
-          config: docs/zhtypos.toml
+          config: docs/zh/typos.toml
 
       - name: Writes changes in the local checkout
         uses: crate-ci/typos@v1.31.1
