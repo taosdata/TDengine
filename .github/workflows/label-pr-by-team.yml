@@ -3,7 +3,7 @@ description: Label PR based on team membership
 
 on:
   pull_request:
-    # test message2
+    # test message3
     # types: [opened]
 
 jobs:
