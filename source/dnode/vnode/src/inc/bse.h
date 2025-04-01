@@ -40,60 +40,6 @@ typedef struct {
 } SValueInfo;
 
 typedef struct {
-  uint8_t  head[4];
-  uint32_t id;
-  uint32_t len;
-  uint8_t  data[0];
-} SBlkData2;
-
-typedef struct {
-  uint8_t  bType;
-  uint8_t  type;  // content data
-  uint32_t crc;
-  uint32_t id;
-  uint32_t len;
-  uint32_t cap;
-  uint8_t  flushed;
-  uint32_t dataNum;
-  int32_t  blockId;
-  int8_t   inited;
-
-  SBlkData2 *pData;
-  // int8_t   type;   // content data
-
-  // int8_t   bType;  // block type
-  // int8_t   type;   // content data
-  // uint32_t id;
-  // uint32_t len;
-  // uint32_t cap;
-  // uint8_t *data;
-} SBlkData;
-
-typedef struct {
-  uint8_t  type;
-  uint32_t len;
-  uint32_t num;
-} SBlkHeader;
-
-typedef struct {
-  char      name[TSDB_FILENAME_LEN];
-  TdFilePtr pDataFile;
-  TdFilePtr pIdxFile;
-  SBlkData  data;
-  SBlkData  iData;
-  SBlkData  bufBlk;
-  // STableFooter footer;
-  SHashObj *pCache;
-  SArray   *pSeqToBlock;
-  int32_t   blockId;
-  uint64_t  initSeq;
-  uint8_t   commited;
-  uint8_t   fileOpened;
-  int64_t   seq;
-  void     *bse;
-} STable;
-
-typedef struct {
   int32_t vgId;
   int64_t commitVer;
   int64_t lastVer;
@@ -102,16 +48,12 @@ typedef struct {
 } SBseCommitInfo;
 typedef struct {
   int32_t vgId;
-  int32_t fsyncPeriod;
-  int32_t retentionPeriod;  // secs
-  int32_t rollPeriod;       // secs
-  int64_t retentionSize;
-  int64_t segSize;
   int64_t committed;
   int32_t encryptAlgorithm;
   char    encryptKey[ENCRYPT_KEY_LEN + 1];
   int8_t  clearFiles;
-  int8_t  compress;
+  int8_t  compressType;
+  int32_t blockSize;
 } SBseCfg;
 
 typedef struct {

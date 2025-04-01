@@ -43,16 +43,6 @@ typedef struct {
 
 static int32_t kBlockCap = 16 * 1024 * 1024;
 
-typedef struct {
-  int64_t seq;
-  int32_t len;
-  int32_t blockId;
-} BlockInfo;
-
-// static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
-// static void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
-// static void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
-
 static int32_t bseFindCurrMetaVer(SBse *pBse);
 
 static int32_t bseRecover(SBse *pBse);
@@ -62,15 +52,6 @@ static int32_t bseBatchClear(SBseBatch *pBatch);
 static int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
 static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
 static int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
-
-// data block func
-static int32_t blockInit(int32_t blockId, int32_t cap, int8_t type, SBlkData *blk);
-static int32_t blockCleanup(SBlkData *data);
-// static int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset);
-static int8_t  blockMayShouldFlush(SBlkData *data, int32_t len);
-static int32_t blockReset(SBlkData *data, uint8_t type, int32_t blkId);
-// static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t *pValue, int32_t *len);
-static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
 
 /*
  vgId: 0,
@@ -84,76 +65,6 @@ static int32_t bseUpdateCommitInfo(SBseCommitInfo *pCommit, SBseLiveFileInfo *pI
   if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
     return terrno;
   }
-  return 0;
-}
-int32_t blockInit(int32_t id, int32_t cap, int8_t type, SBlkData *blk) {
-  blk->type = type;
-  blk->len = 0;
-  blk->cap = cap;
-  blk->id = id;
-  blk->dataNum = 0;
-
-  blk->pData = (SBlkData2 *)taosMemoryCalloc(1, kBlockCap);
-  blk->pData->id = id;
-  blk->pData->len = 0;
-  blk->pData->head[3] = type;
-  return 0;
-}
-
-int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset) {
-  int32_t    code = 0;
-  SBlkData2 *pBlk = blk->pData;
-  uint8_t   *p = pBlk->data + pBlk->len;
-  *offset = pBlk->id * kBlockCap + pBlk->len;
-
-  memcpy(p, value, len);
-  pBlk->len += len;
-  blk->dataNum += len;
-
-  return 0;
-}
-
-int32_t blockAddMeta(SBlkData *blk, BlockInfo *pInfo) {
-  int32_t    code = 0;
-  SBlkData2 *pBlk = blk->pData;
-  uint8_t   *p = pBlk->data + pBlk->len;
-
-  pBlk->len += taosEncodeVariantI64((void **)&p, pInfo->seq);
-  pBlk->len += taosEncodeVariantI32((void **)&p, pInfo->len);
-  pBlk->len += taosEncodeVariantI32((void **)&p, pInfo->blockId);
-  blk->dataNum++;
-  return 0;
-}
-
-int8_t blockMayShouldFlush(SBlkData *data, int32_t len) {
-  SBlkData2 *pBlkData = data->pData;
-  return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) + sizeof(int32_t) > data->cap;
-}
-
-int8_t blockMetaShouldFlush(SBlkData *data, BlockInfo *pInfo) {
-  SBlkData2 *pBlkData = data->pData;
-  int32_t    len = taosEncodeVariantI64(NULL, pInfo->seq);
-  len += taosEncodeVariantI32(NULL, pInfo->len);
-  len += taosEncodeVariantI32(NULL, pInfo->blockId);
-  return (sizeof(SBlkData2) + pBlkData->len + len + sizeof(TSCKSUM)) + sizeof(int32_t) > data->cap;
-}
-
-int32_t blockReset(SBlkData *data, uint8_t type, int32_t blockId) {
-  SBlkData2 *pBlkData = data->pData;
-
-  memset((uint8_t *)pBlkData, 0, kBlockCap);
-  data->type = type;
-  data->len = 0;
-  data->id = blockId;
-  data->dataNum = 0;
-
-  pBlkData->id = blockId;
-  pBlkData->len = 0;
-  pBlkData->head[3] = type;
-  return 0;
-}
-int32_t blockCleanup(SBlkData *data) {
-  taosMemoryFree(data->pData);
   return 0;
 }
 
@@ -545,9 +456,7 @@ _error:
 }
 int32_t bseBatchSetParam(SBseBatch *pBatch, int64_t seq, int32_t cap) {
   pBatch->seq = seq;
-  taosArrayEnsureCap(pBatch->pSeq, cap);
-
-  return 0;
+  return taosArrayEnsureCap(pBatch->pSeq, cap);
 }
 int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   int32_t    code = 0;
@@ -565,11 +474,9 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = bseBatchSetParam(p, sseq, nKeys);
-
-  p->pBse = pBse;
-
   TSDB_CHECK_CODE(code, lino, _error);
 
+  p->pBse = pBse;
   *pBatch = p;
 _error:
   if (code != 0) {
