@@ -181,12 +181,7 @@ void tdbBtreeClose(SBTree *pBt) {
 
 int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
   SBTC   btc;
-  SCell *pCell;
-  void  *pBuf;
-  int    szCell;
-  int    szBuf;
   int    ret;
-  int    idx;
   int    c;
 
   ret = tdbBtcOpen(&btc, pBt, pTxn);

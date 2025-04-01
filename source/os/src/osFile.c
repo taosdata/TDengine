@@ -52,7 +52,6 @@ typedef int32_t FileFd;
 #ifdef WINDOWS
 typedef struct TdFile {
   TdThreadRwlock rwlock;
-  int            refId;
   HANDLE         hFile;
   FILE          *fp;
   int32_t        tdFileOptions;
@@ -60,7 +59,6 @@ typedef struct TdFile {
 #else
 typedef struct TdFile {
   TdThreadRwlock rwlock;
-  int            refId;
   FileFd         fd;
   FILE          *fp;
 } TdFile;
@@ -1196,7 +1194,6 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   (void)taosThreadRwlockInit(&(pFile->rwlock), NULL);
 #endif
   pFile->fp = fp;
-  pFile->refId = 0;
 
 #ifdef WINDOWS
   pFile->hFile = hFile;
@@ -1252,7 +1249,6 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
     (*ppFile)->fd = -1;
 #endif
   }
-  (*ppFile)->refId = 0;
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&((*ppFile)->rwlock));
   (void)taosThreadRwlockDestroy(&((*ppFile)->rwlock));
