@@ -1,0 +1,181 @@
+sql connect
+sql use test0;
+
+sql select a.col1, b.col1 from sta a right join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by b.col1, a.col1;
+if $rows != 10 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data10 != 2 then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != 1 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data30 != 2 then
+  return -1
+endi
+if $data31 != 2 then
+  return -1
+endi
+if $data40 != NULL then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data50 != NULL then
+  return -1
+endi
+if $data51 != 3 then
+  return -1
+endi
+if $data60 != NULL then
+  return -1
+endi
+if $data61 != 4 then
+  return -1
+endi
+if $data70 != NULL then
+  return -1
+endi
+if $data71 != 5 then
+  return -1
+endi
+if $data80 != NULL then
+  return -1
+endi
+if $data81 != 5 then
+  return -1
+endi
+if $data90 != NULL then
+  return -1
+endi
+if $data91 != 7 then
+  return -1
+endi
+
+sql select a.col1, b.col1 from sta a right join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data20 != 2 then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+if $data30 != 2 then
+  return -1
+endi
+if $data31 != 2 then
+  return -1
+endi
+
+sql select a.col1, b.col1 from sta a right join sta b on a.ts = b.ts;
+if $rows != 12 then
+  return -1
+endi
+
+sql select a.col1, b.col1 from tba1 a right join tba2 b on a.ts = b.ts order by a.col1, b.col1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data10 != NULL then
+  return -1
+endi
+if $data11 != 7 then
+  return -1
+endi
+if $data20 != 1 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data30 != 4 then
+  return -1
+endi
+if $data31 != 5 then
+  return -1
+endi
+
+sql select a.col1, b.col1 from tba2 a right join tba1 b on a.ts = b.ts order by a.col1, b.col1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data10 != NULL then
+  return -1
+endi
+if $data11 != 5 then
+  return -1
+endi
+if $data20 != 2 then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+if $data30 != 5 then
+  return -1
+endi
+if $data31 != 4 then
+  return -1
+endi
+
+sql select count(*) from tba1 a right join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select count(a.*) from tba1 a right join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+sql select count(b.*) from tba1 a right join tba2 b on a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi

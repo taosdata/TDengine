@@ -1,1 +1,0 @@
-docker build --build-arg pkgFile=TDengine-anode-3.3.6.0-Linux-x64.tar.gz --build-arg dirName=TDengine-anode-3.3.6.0 -t "tdgpt-ce:3.3.6.0" .

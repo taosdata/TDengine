@@ -280,7 +280,6 @@ int32_t uploadByRsync(const char* id, const char* path, int64_t checkpointId) {
 // abort from retry if quit
 int32_t downloadByRsync(const char* id, const char* path, int64_t checkpointId) {
   int64_t st = taosGetTimestampMs();
-  int32_t MAX_RETRY = 10;
   int32_t times = 0;
   int32_t code = 0;
 
@@ -350,7 +349,7 @@ int32_t downloadByRsync(const char* id, const char* path, int64_t checkpointId) 
   return code;
 }
 
-int32_t deleteRsync(const char* id) {
+int32_t deleteRsync(const char* pTaskId, int64_t checkpointId) {
   char*   tmp = "./tmp_empty/";
   int32_t code = taosMkDir(tmp);
   if (code != 0) {
@@ -360,8 +359,9 @@ int32_t deleteRsync(const char* id) {
 
   char command[PATH_MAX] = {0};
   snprintf(command, PATH_MAX,
-           "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 %s rsync://%s/checkpoint/%s/data/",
-           tsLogDir, tmp, tsSnodeAddress, id);
+           "rsync -av --debug=all --log-file=%s/rsynclog --delete --timeout=10 %s rsync://%s/checkpoint/%s/%" PRId64
+           "/",
+           tsLogDir, tmp, tsSnodeAddress, pTaskId, checkpointId);
 
   code = execCommand(command);
   taosRemoveDir(tmp);
@@ -370,6 +370,7 @@ int32_t deleteRsync(const char* id) {
     return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
-  uDebug("[rsync] delete data:%s successful", id);
+  uInfo("[rsync] cmd:%s delete checkpoint remote backup data for task:%s, checkpointId:%" PRId64 " successful",
+         command, pTaskId, checkpointId);
   return 0;
 }

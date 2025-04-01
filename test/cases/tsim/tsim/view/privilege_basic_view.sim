@@ -1,0 +1,170 @@
+sql connect
+sql use testa;
+
+sql create user u1 pass "taosdata"
+sql create user u2 pass "taosdata"
+sql create user u3 pass "taosdata"
+
+print == root create views == 
+sql create view view1 as select * from sta1;
+sql create view view2 as select * from view1;
+sql create view view3 as select * from view2;
+
+sql_error grant all on view1 to root;
+sql_error revoke all on view1 from root;
+
+sql_error grant read on view1 to u1;
+sql grant read on testa.view1 to u1;
+
+sql select * from information_schema.ins_user_privileges order by user_name, privilege;
+if $rows != 2 then
+  return -1
+endi
+if $data10 != u1 then
+  return -1
+endi
+if $data11 != read then
+  return -1
+endi
+
+sql connect u1
+sql use testa
+sql_error select * from sta1;
+sql select * from view1;
+sql_error select * from view2;
+sql_error select * from testb.view1;
+sql_error insert into view1 values (now, 1);
+sql_error create or replace view1 as select * from st2;
+sql_error create viewa as select * from sta1;
+sql_error drop view view1;
+sql show views;
+sql show create view view1;
+sql desc view1;
+sql select * from information_schema.ins_views;
+if $rows != 3 then
+  return -1
+endi
+sql_error grant read on testa.view1 to u2;
+sql_error revoke read on testa.view1 from u1;
+
+sql connect root
+sql use testa
+sql drop view testa.view1;
+sql select * from information_schema.ins_user_privileges order by user_name, privilege;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != root then
+  return -1
+endi
+sql grant all on testa.* to u1;
+sql reset query cache
+
+print == u1 create view1 ==
+sql connect u1
+sql use testa
+sql select * from sta1;
+sql_error insert into view1 values (now, 1);
+sql create view view1 as select * from sta1;
+
+sql connect root
+sql grant read on testa.view1 to u2;
+sql_error insert into view1 values (now, 1);
+
+sql connect u2
+sql use testa
+sql_error select * from sta1;
+sql_error insert into view1 values (now, 1);
+sql select * from view1;
+
+sql connect root
+sql revoke all on testa.* from u1
+sql reset query cache
+
+sql connect u1
+sql use testa
+sql_error select * from sta1;
+sql_error select * from view1;
+
+sql connect u2
+sql use testa
+sql_error select * from view1;
+
+sql connect root
+sql grant all on testa.* to u2
+sql reset query cache
+
+sql connect u2
+sql use testa
+sql select * from view1;
+sql_error create or replace view1 as select * from st2;
+
+sql connect u1
+sql use testa
+sql_error create or replace view1 as select * from st2;
+
+sql connect root
+sql grant all on testa.* to u1
+sql reset query cache
+
+sql connect u1
+sql use testa
+sql create or replace view view1 as select * from st2;
+
+sql connect root
+sql grant alter on testa.view1 to u2
+sql revoke all on testa.* from u1
+sql reset query cache
+
+print == u2 replace view1 ==
+sql connect u2
+sql use testa
+sql select * from view1;
+sql create or replace view view1 as select * from sta1;
+sql_error insert into view1 values (now, 1);
+sql select * from information_schema.ins_views where view_name = 'view1';
+if $rows != 1 then
+  return -1
+endi
+if $data01 != testa then
+  return -1
+endi
+if $data02 != u2 then
+  return -1
+endi
+
+sql connect root
+sql grant all on testa.view1 to u3;
+
+sql connect u3
+sql use testa
+sql_error select * from sta1
+sql_error insert into view1 values (now, 1);
+sql select * from view1
+
+sql connect root
+sql revoke all on testa.* from u2
+sql reset query cache
+
+sql connect u3
+sql use testa
+sql_error select * from view1
+sql_error insert into view1 values (now, 1);
+
+sql connect root
+sql grant all on testa.* to u3
+sql drop user u1;
+sql drop user u2;
+sql reset query cache
+
+sql connect u3
+sql use testa
+sql select * from view1
+sql_error insert into view1 values (now, 1);
+
+sql connect root
+sql drop user u3;
+sql drop view testa.view1;
+sql drop view testa.view2;
+sql drop view testa.view3;
+

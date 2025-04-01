@@ -124,9 +124,8 @@ docker run -d \
       url: "$TDENGINE_API"
       isDefault: true
       secureJsonData:
-        url: "$TDENGINE_URL"
+        url: "$TDENGINE_API"
         basicAuth: "$TDENGINE_BASIC_AUTH"
-        token: "$TDENGINE_CLOUD_TOKEN"
       version: 1
       editable: true
     ```
@@ -153,14 +152,14 @@ docker run -d \
       grafana:
         image: grafana/grafana:latest
         volumes:
-          - ./tdengine.yml:/etc/grafana/provisioning/tdengine.yml
+          - ./tdengine.yml:/etc/grafana/provisioning/datasources/tdengine.yml
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
           GF_INSTALL_PLUGINS: "tdengine-datasource"
-          TDENGINE_URL: "http://tdengine:6041"
+          TDENGINE_API: "http://tdengine:6041"
           #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
-          TDENGINE_BASIC_AUTH: "cm9vdDp0YmFzZTEyNQ=="
+          TDENGINE_BASIC_AUTH: "cm9vdDp0YW9zZGF0YQ=="
         ports:
           - 3000:3000
 
@@ -187,12 +186,12 @@ docker run -d \
 本节内容按如下方式组织：  
 1. 介绍基础知识，包括 Grafana 的内置变量和自定义变量，TDengine 对与时序查询的特色语法支持。
 2. 介绍如何使用 TDengine 数据源在 Grafana 中创建 Dashboard，然后给出使用时序查询的特色语法和如何分组展示数据。
-3. 由于配置的 Dashbord 在页面显示时会定时查询 TDengine 来刷新显示，如果 SQL 编写不当会导致严重的性能问题，我们给出了性能优化建议。
+3. 由于配置的 Dashboard 在页面显示时会定时查询 TDengine 来刷新显示，如果 SQL 编写不当会导致严重的性能问题，我们给出了性能优化建议。
 4. 最后我们以 TDengine 监控面板 TDinsight 为例介绍了如何导入我们提供的 DashBoard。
 
 ### Grafana 内置变量和自定义变量
 
-Grafana 中的 Variable（变量）功能非常强大，可以在 Dashboard 的查询、面板标题、标签等地方使用，用来创建更加动态和交互式的 Dashbord，提高用户体验和效率。
+Grafana 中的 Variable（变量）功能非常强大，可以在 Dashboard 的查询、面板标题、标签等地方使用，用来创建更加动态和交互式的 Dashboard，提高用户体验和效率。
 
 变量的主要作用和特点包括：
 
@@ -217,13 +216,13 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 
 #### 自定义变量
 
-我们可以在 Dashbord 中增加自定义变量。自定义变量和内置变量的使用方式没有区别，都是在 SQL 中用 `$variableName` 进行引用。
+我们可以在 Dashboard 中增加自定义变量。自定义变量和内置变量的使用方式没有区别，都是在 SQL 中用 `$variableName` 进行引用。
 自定义变量支持多种类型，常见的类型包括 `Query`（查询）、`Constant`（常量）、`Interval`（间隔）、`Data source`（数据源）等。
 自定义变量可以引用其他自定义变量，比如一个变量表示区域，另一个变量可以引用区域的值，来查询这个区域的设备。
 
 ##### 添加查询类型变量
 
-在 Dashbord 的配置中，选择 【Variables】，然后点击 【New variable】：
+在 Dashboard 的配置中，选择 【Variables】，然后点击 【New variable】：
 1. 在 “Name” 字段中，输入你的变量名，此处我们设置变量名为 `selected_groups`。
 2. 在 【Select variable type】下拉菜单中，选择 “Query”（查询）。
 根据选择的变量类型，配置相应的选项。例如，如果选择了 “Query” 类型，你需要指定数据源和用于获取变量值的查询语句。此处我们还以智能电表为例，设置查询类型，选择数据源后，配置 SQL 为 `select distinct(groupid) from power.meters where groupid < 3 and ts > $from and ts < $to;`
@@ -262,7 +261,7 @@ TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序
 
 ### 创建 Dashboard
 
-有了前面的基础知识，我们可以配置基于 TDengine 数据源的时间序列数据展示 Dashbord。  
+有了前面的基础知识，我们可以配置基于 TDengine 数据源的时间序列数据展示 Dashboard。  
 在 Grafana 主界面创建 Dashboard，点击【Add Query】进入面板查询页面：
 
 ![TDengine Database Grafana plugin create dashboard](./create_dashboard1.webp)

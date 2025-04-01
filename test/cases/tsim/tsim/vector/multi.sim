@@ -1,0 +1,200 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_mu_db
+$tbPrefix = m_mu_tb
+$mtPrefix = m_mu_mt
+
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, a int, b float, c smallint, d double, e tinyint, f binary(10), g bool) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 1
+  while $x < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (now + $ms , $x , $x , $x , $x ,  10 , '11' , true ) 
+    $x = $x + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a + b from $tb 
+print ===> $data00 $data10 $data20 $data30
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select a + c from $tb where ts < now + 4m
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select a + d from $tb where ts > now + 4m
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select a + e from $tb where ts < now + 4m order by ts desc
+
+sql select a + a from $tb where ts > now + 4m order by ts desc 
+
+sql select a + c from $tb where ts < now + 4m order by ts asc
+
+sql select a + f from $tb where ts > now + 4m order by ts asc
+
+print =============== step3
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a - e from $tb 
+print ===> $data00
+if $data00 != -9.000000000 then 
+  return -1
+endi
+
+sql select a - b from $tb where ts < now + 4m
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select a - e from $tb where ts > now + 4m
+print ===> $data00
+if $data00 != -5.000000000 then 
+  return -1
+endi
+
+print =============== step4
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a * b + e from $tb 
+print ===> $data00
+if $data00 != 11.000000000 then 
+  return -1
+endi
+
+sql select a * b + c from $tb where ts < now + 4m
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select a * b -d from $tb where ts > now + 4m
+print ===> $data20
+if $data20 != 42.000000000 then 
+  return -1
+endi
+
+print =============== step5
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a / 2 + e from $tb 
+print ===> $data00
+if $data00 != 10.500000000 then 
+  return -1
+endi
+
+sql select a / 2 from $tb where ts < now + 4m
+print ===> $data10
+if $data10 != 1.000000000 then 
+  return -1
+endi
+
+sql select a / 2 * e from $tb where ts > now + 4m
+print ===> $data00
+if $data00 != 25.000000000 then 
+  return -1
+endi
+
+sql select a / e  from $tb where ts > now + 4m
+print ===> $data00
+if $data00 != 0.500000000 then 
+  return -1
+endi
+
+print =============== step6
+$i = 1
+$tb = $tbPrefix . $i
+sql select a + ts from $tb 
+
+sql select a + f from $tb
+
+sql select a + g from $tb
+
+print =============== step7
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a + b from $tb where a = 2
+print ===> $data00
+if $data00 != 4.000000000 then 
+  return -1
+endi
+
+sql select * from $tb where b < 2
+print ===> $rows
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from $tb where b > 2
+print ===> $rows
+if $rows != 17 then 
+  return -1
+endi
+
+sql select a + c from $tb where b = 2 and ts < now + 4m
+print ===> $data00
+if $data00 != 4.000000000 then 
+  return -1
+endi
+
+sql select a + d from $tb where c = 10 and ts > now + 4m
+print ===> $data00
+if $data00 != 20.000000000 then 
+  return -1
+endi
+
+sql select a + e from $tb where d = 2 and ts < now + 4m order by ts desc
+
+sql select a + a from $tb where e = 2 and ts > now + 4m order by ts desc 
+
+sql select a + c from $tb where f = 2 and ts < now + 4m order by ts asc
+
+sql select a + f from $tb where g = 2 and ts > now + 4m order by ts asc
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

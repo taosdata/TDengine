@@ -1,0 +1,192 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/cfg.sh -n dnode1 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode2 -c transPullupInterval -v 1
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sql connect
+
+print =============== create dnodes
+sql create dnode $hostname port 7200
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+
+print =============== kill dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+
+print =============== create database
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+sql_error create database d1 vgroups 2;
+
+print =============== show transactions
+sql show transactions
+if $rows != 1 then
+  return -1
+endi
+
+if $data[0][0] != 7 then
+  return -1
+endi
+
+if $data[0][2] != redoAction then
+  return -1
+endi
+
+if $data[0][4] != d1 then
+  return -1
+endi
+
+sql_error create database d1 vgroups 2;
+
+print =============== start dnode2
+system sh/exec.sh -n dnode2 -s start
+
+$x = 0
+step2:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step2
+endi
+if $data(2)[4] != ready then
+  goto step2
+endi
+
+sql show transactions
+if $rows != 0 then
+  goto step2
+endi
+
+sql_error create database d1 vgroups 2;
+
+print =============== kill dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+
+system_content printf %OS%
+if $system_content != Windows_NT then
+  print =============== create database
+  sql show transactions
+  if $rows != 0 then
+    return -1
+  endi
+
+  sql_error create database d2 vgroups 2;
+
+  print =============== show transactions
+  sql show transactions
+  if $rows != 1 then
+    return -1
+  endi
+
+  if $data[0][0] != 8 then
+    return -1
+  endi
+
+  if $data[0][2] != redoAction then
+    return -1
+  endi
+
+  if $data[0][4] != d2 then
+    return -1
+  endi
+
+  sql select * from information_schema.ins_databases ;
+  if $rows != 4 then
+    return -1
+  endi
+  print d2 ==> $data(d2)[15]
+  if $data(d2)[15] != creating then
+    return -1
+  endi
+
+  sql_error create database d2 vgroups 2;
+
+  print =============== kill transaction
+  sql kill transaction 8;
+  sleep 2000
+
+  sql show transactions
+  if $rows != 0 then
+    return -1
+  endi
+endi
+
+print =============== start dnode2
+system sh/exec.sh -n dnode2 -s start
+
+$x = 0
+step3:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+  sql select * from information_schema.ins_dnodes
+  print ===> $data00 $data01 $data02 $data03 $data04 $data05
+  print ===> $data10 $data11 $data12 $data13 $data14 $data15
+  if $rows != 2 then
+    return -1
+  endi
+  if $data(1)[4] != ready then
+    goto step3
+  endi
+  if $data(2)[4] != ready then
+    goto step3
+  endi
+
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+sql drop database if exists d2;
+
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+sql create database d2 vgroups 2;
+sql_error kill transaction 1;
+sql_error kill transaction 2;
+sql_error kill transaction 3;
+sql_error kill transaction 4;
+sql_error kill transaction 5;
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT

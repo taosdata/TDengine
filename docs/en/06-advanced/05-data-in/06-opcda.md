@@ -13,6 +13,10 @@ import imgStep6 from '../../assets/opc-da-06.png';
 import imgStep7 from '../../assets/opc-da-07.png';
 import imgStep8 from '../../assets/opc-da-08.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, synchronizing data from an OPC-DA server to the current TDengine cluster.
 
 ## Overview

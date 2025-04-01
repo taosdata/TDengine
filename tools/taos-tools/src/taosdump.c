@@ -607,7 +607,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
 
             if (full_path.we_wordv[0]) {
-                tstrncpy(g_args.inpath, full_path.we_wordv[0], DUMP_DIR_LEN);
+                TOOLS_STRNCPY(g_args.inpath, full_path.we_wordv[0], DUMP_DIR_LEN);
                 wordfree(&full_path);
             } else {
                 errorPrintReqArg3(CUS_PROMPT"dump", "-i or --inpath");
@@ -647,7 +647,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 errorPrint("Invalid path %s\n", arg);
                 exit(EXIT_FAILURE);
             }
-            tstrncpy(g_configDir, full_path.we_wordv[0], MAX_PATH_LEN);
+            TOOLS_STRNCPY(g_configDir, full_path.we_wordv[0], MAX_PATH_LEN);
             wordfree(&full_path);
             break;
 
@@ -848,9 +848,9 @@ static void copyHumanTimeToArg(char *timeStr, bool isStartTime) {
         timeStr += strlen("--end-time=");
     }
     if (isStartTime) {
-        tstrncpy(g_args.humanStartTime, timeStr, HUMAN_TIME_LEN);
+        TOOLS_STRNCPY(g_args.humanStartTime, timeStr, HUMAN_TIME_LEN);
     } else {
-        tstrncpy(g_args.humanEndTime, timeStr, HUMAN_TIME_LEN);
+        TOOLS_STRNCPY(g_args.humanEndTime, timeStr, HUMAN_TIME_LEN);
     }
 }
 
@@ -1018,12 +1018,12 @@ static int getTableRecordInfoImplNative(
 
         if (tryStable) {
             pTableRecordInfo->isStb = true;
-            tstrncpy(pTableRecordInfo->tableRecord.stable, table,
+            TOOLS_STRNCPY(pTableRecordInfo->tableRecord.stable, table,
                     TSDB_TABLE_NAME_LEN);
             isSet = true;
         } else {
             pTableRecordInfo->isStb = false;
-            tstrncpy(pTableRecordInfo->tableRecord.name,
+            TOOLS_STRNCPY(pTableRecordInfo->tableRecord.name,
                     (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                     min(TSDB_TABLE_NAME_LEN,
                         lengths[TSDB_SHOW_TABLES_NAME_INDEX] + 1));
@@ -1244,7 +1244,7 @@ static int dumpCreateMTableClause(
         if (tableDes->cols[counter].note[0] != '\0') break;
     }
 
-    ASSERT(counter < numColsAndTags);
+    TOOLS_ASSERT(counter < numColsAndTags);
     count_temp = counter;
 
     for (; counter < numColsAndTags; counter++) {
@@ -1485,7 +1485,7 @@ int processFieldsValueV3(
                             tableDes->cols[index].var_value = NULL;
                         }
                         tableDes->cols[index].var_value = calloc(1, len * 5);
-                        ASSERT(tableDes->cols[index].var_value);
+                        TOOLS_ASSERT(tableDes->cols[index].var_value);
 
                         if (NULL == tableDes->cols[index].var_value) {
                             errorPrint("%s() LN%d, memory allocation failed!\n",
@@ -1731,7 +1731,7 @@ void constructTableDesFromStb(const TableDes *stbTableDes,
         TableDes **ppTableDes) {
     TableDes *tableDes = *ppTableDes;
 
-    tstrncpy(tableDes->name, table, TSDB_TABLE_NAME_LEN);
+    TOOLS_STRNCPY(tableDes->name, table, TSDB_TABLE_NAME_LEN);
     tableDes->columns = stbTableDes->columns;
     tableDes->tags = stbTableDes->tags;
     memcpy(tableDes->cols, stbTableDes->cols,
@@ -1929,15 +1929,15 @@ static int getTableDesNative(
                 __func__, __LINE__, command, taos);
     }
 
-    tstrncpy(tableDes->name, table, TSDB_TABLE_NAME_LEN);
+    TOOLS_STRNCPY(tableDes->name, table, TSDB_TABLE_NAME_LEN);
     uint32_t columns = 0, tags = 0;
     while ((row = taos_fetch_row(res)) != NULL) {
         int32_t* lengths = taos_fetch_lengths(res);
         char type[20] = {0};
-        tstrncpy(tableDes->cols[colCount].field,
+        TOOLS_STRNCPY(tableDes->cols[colCount].field,
                 (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
                 lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX]+1);
-        tstrncpy(type, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+        TOOLS_STRNCPY(type, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
                 lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX]+1);
         tableDes->cols[colCount].type = typeStrToType(type);
         tableDes->cols[colCount].length =
@@ -1949,7 +1949,7 @@ static int getTableDesNative(
                     min(
                         lengths[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
                         COL_NOTE_LEN-1));
-            tstrncpy(tableDes->cols[colCount].note,
+            TOOLS_STRNCPY(tableDes->cols[colCount].note,
                     note, lengths[TSDB_DESCRIBE_METRIC_NOTE_INDEX]+1);
         }
 
@@ -2093,7 +2093,7 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
 
     json_object_foreach(element, key, value) {
         if (0 == strcmp(key, "name")) {
-            tstrncpy(recordSchema->name, json_string_value(value),
+            TOOLS_STRNCPY(recordSchema->name, json_string_value(value),
                     RECORD_NAME_LEN);
         } else if (0 == strcmp(key, "fields")) {
             if (JSON_ARRAY == json_typeof(value)) {
@@ -2106,7 +2106,7 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
 
                 recordSchema->num_fields = size;
                 recordSchema->fields = calloc(1, sizeof(FieldStruct) * size);
-                ASSERT(recordSchema->fields);
+                TOOLS_ASSERT(recordSchema->fields);
 
                 for (i = 0; i < size; i++) {
                     FieldStruct *field = (FieldStruct *)
@@ -2117,7 +2117,7 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
 
                     json_object_foreach(arr_element, ele_key, ele_value) {
                         if (0 == strcmp(ele_key, "name")) {
-                            tstrncpy(field->name,
+                            TOOLS_STRNCPY(field->name,
                                     json_string_value(ele_value),
                                     TSDB_COL_NAME_LEN-1);
                         } else if (0 == strcmp(ele_key, "type")) {
@@ -2265,7 +2265,7 @@ avro_value_iface_t* prepareAvroWface(
         avro_schema_t *schema,
         RecordSchema **recordSchema,
         avro_file_writer_t *writer) {
-    ASSERT(avroFilename);
+    TOOLS_ASSERT(avroFilename);
     if (avro_schema_from_json_length(jsonSchema, strlen(jsonSchema), schema)) {
         errorPrint("%s() LN%d, Unable to parse:\n%s \nto schema\n"
                 "error message: %s\n",
@@ -2313,7 +2313,7 @@ static int dumpCreateTableClauseAvro(
         TableDes *tableDes,
         int numOfCols,
         const char* dbName) {
-    ASSERT(dumpFilename);
+    TOOLS_ASSERT(dumpFilename);
     // {
     // "type": "record",
     // "name": "_ntb",
@@ -2674,41 +2674,41 @@ static enAVROTYPE createDumpinList(const char *dbPath,
     switch (avroType) {
         case enAVRO_UNKNOWN:
             g_tsDumpInDebugFiles = (char **)calloc(count, sizeof(char *));
-            ASSERT(g_tsDumpInDebugFiles);
+            TOOLS_ASSERT(g_tsDumpInDebugFiles);
 
             for (int64_t i = 0; i < count; i++) {
                 g_tsDumpInDebugFiles[i] = calloc(1, MAX_FILE_NAME_LEN);
-                ASSERT(g_tsDumpInDebugFiles[i]);
+                TOOLS_ASSERT(g_tsDumpInDebugFiles[i]);
             }
             break;
 
         case enAVRO_NTB:
             g_tsDumpInAvroNtbs = (char **)calloc(count, sizeof(char *));
-            ASSERT(g_tsDumpInAvroNtbs);
+            TOOLS_ASSERT(g_tsDumpInAvroNtbs);
 
             for (int64_t i = 0; i < count; i++) {
                 g_tsDumpInAvroNtbs[i] = calloc(1, MAX_FILE_NAME_LEN);
-                ASSERT(g_tsDumpInAvroNtbs[i]);
+                TOOLS_ASSERT(g_tsDumpInAvroNtbs[i]);
             }
             break;
 
         case enAVRO_TBTAGS:
             g_tsDumpInAvroTagsTbs = (char **)calloc(count, sizeof(char *));
-            ASSERT(g_tsDumpInAvroTagsTbs);
+            TOOLS_ASSERT(g_tsDumpInAvroTagsTbs);
 
             for (int64_t i = 0; i < count; i++) {
                 g_tsDumpInAvroTagsTbs[i] = calloc(1, MAX_FILE_NAME_LEN);
-                ASSERT(g_tsDumpInAvroTagsTbs[i]);
+                TOOLS_ASSERT(g_tsDumpInAvroTagsTbs[i]);
             }
             break;
 
         case enAVRO_DATA:
             g_tsDumpInAvroFiles = (char **)calloc(count, sizeof(char *));
-            ASSERT(g_tsDumpInAvroFiles);
+            TOOLS_ASSERT(g_tsDumpInAvroFiles);
 
             for (int64_t i = 0; i < count; i++) {
                 g_tsDumpInAvroFiles[i] = calloc(1, MAX_FILE_NAME_LEN);
-                ASSERT(g_tsDumpInAvroFiles[i]);
+                TOOLS_ASSERT(g_tsDumpInAvroFiles[i]);
             }
             break;
 
@@ -2739,25 +2739,25 @@ static enAVROTYPE createDumpinList(const char *dbPath,
                             if (0 == strcmp(entryName, "dbs.sql")) {
                                 continue;
                             }
-                            tstrncpy(g_tsDumpInDebugFiles[nCount],
+                            TOOLS_STRNCPY(g_tsDumpInDebugFiles[nCount],
                                     entryName,
                                     min(namelen+1, MAX_FILE_NAME_LEN));
                             break;
 
                         case enAVRO_NTB:
-                            tstrncpy(g_tsDumpInAvroNtbs[nCount],
+                            TOOLS_STRNCPY(g_tsDumpInAvroNtbs[nCount],
                                     entryName,
                                     min(namelen+1, MAX_FILE_NAME_LEN));
                             break;
 
                         case enAVRO_TBTAGS:
-                            tstrncpy(g_tsDumpInAvroTagsTbs[nCount],
+                            TOOLS_STRNCPY(g_tsDumpInAvroTagsTbs[nCount],
                                     entryName,
                                     min(namelen+1, MAX_FILE_NAME_LEN));
                             break;
 
                         case enAVRO_DATA:
-                            tstrncpy(g_tsDumpInAvroFiles[nCount],
+                            TOOLS_STRNCPY(g_tsDumpInAvroFiles[nCount],
                                     entryName,
                                     min(namelen+1, MAX_FILE_NAME_LEN));
                             break;
@@ -3682,7 +3682,7 @@ int processValueToAvro(
             } else {
                 avro_value_set_branch(&avro_value, 1, &branch);
                 char *binTemp = calloc(1, 1+bytes);
-                ASSERT(binTemp);
+                TOOLS_ASSERT(binTemp);
                 strncpy(binTemp, (char*)value, len);
                 avro_value_set_string(&branch, binTemp);
                 free(binTemp);
@@ -3782,7 +3782,7 @@ static int64_t writeResultToAvroNative(
         numFields = taos_field_count(res);
 
         fields = taos_fetch_fields(res);
-        ASSERT(fields);
+        TOOLS_ASSERT(fields);
 
         int32_t countInBatch = 0;
         TAOS_ROW row;
@@ -4590,7 +4590,7 @@ static int64_t dumpInAvroTbTagsImpl(
                             (const char **)&stbName, &size);
                 } else {
                     stbName = calloc(1, TSDB_TABLE_NAME_LEN);
-                    ASSERT(stbName);
+                    TOOLS_ASSERT(stbName);
 
                     char *dupSeq = strdup(fileName);
                     char *running = dupSeq;
@@ -4599,7 +4599,7 @@ static int64_t dumpInAvroTbTagsImpl(
                     debugPrint("%s() LN%d stable : %s parsed from file:%s\n",
                             __func__, __LINE__, stb, fileName);
 
-                    tstrncpy(stbName, stb, TSDB_TABLE_NAME_LEN);
+                    TOOLS_STRNCPY(stbName, stb, TSDB_TABLE_NAME_LEN);
                     free(dupSeq);
                 }
 
@@ -4836,7 +4836,7 @@ static void dumpInAvroDataUnsignedBigInt(FieldStruct *field,
         } else {
             if (TSDB_DATA_TYPE_BIGINT == field->array_type) {
                 uint64_t *array_u64 = malloc(sizeof(uint64_t));
-                ASSERT(array_u64);
+                TOOLS_ASSERT(array_u64);
                 *array_u64 = 0;
 
                 size_t array_size = 0;
@@ -4863,7 +4863,7 @@ static void dumpInAvroDataUnsignedBigInt(FieldStruct *field,
     } else {
         if (TSDB_DATA_TYPE_BIGINT == field->array_type) {
             uint64_t *array_u64 = malloc(sizeof(uint64_t));
-            ASSERT(array_u64);
+            TOOLS_ASSERT(array_u64);
             *array_u64 = 0;
 
             size_t array_size = 0;
@@ -4903,7 +4903,7 @@ static void dumpInAvroDataUnsignedSmallInt(FieldStruct *field,
         } else {
             if (TSDB_DATA_TYPE_INT == field->array_type) {
                 uint16_t *array_u16 = malloc(sizeof(uint16_t));
-                ASSERT(array_u16);
+                TOOLS_ASSERT(array_u16);
                 *array_u16 = 0;
 
                 size_t array_size = 0;
@@ -4930,7 +4930,7 @@ static void dumpInAvroDataUnsignedSmallInt(FieldStruct *field,
     } else {
         if (TSDB_DATA_TYPE_INT == field->array_type) {
             uint16_t *array_u16 = malloc(sizeof(uint16_t));
-            ASSERT(array_u16);
+            TOOLS_ASSERT(array_u16);
             *array_u16 = 0;
 
             size_t array_size = 0;
@@ -4970,7 +4970,7 @@ static void dumpInAvroDataUnsignedTinyInt(FieldStruct *field,
         } else {
             if (TSDB_DATA_TYPE_INT == field->array_type) {
                 uint8_t *array_u8 = malloc(sizeof(uint8_t));
-                ASSERT(array_u8);
+                TOOLS_ASSERT(array_u8);
                 *array_u8 = 0;
 
                 size_t array_size = 0;
@@ -4998,7 +4998,7 @@ static void dumpInAvroDataUnsignedTinyInt(FieldStruct *field,
     } else {
         if (TSDB_DATA_TYPE_INT == field->array_type) {
             uint8_t *array_u8 = malloc(sizeof(uint8_t));
-            ASSERT(array_u8);
+            TOOLS_ASSERT(array_u8);
             *array_u8 = 0;
 
             size_t array_size = 0;
@@ -5038,7 +5038,7 @@ static void dumpInAvroDataUnsignedInt(FieldStruct *field,
         } else {
             if (TSDB_DATA_TYPE_INT == field->array_type) {
                 uint32_t *array_u32 = malloc(sizeof(uint32_t));
-                ASSERT(array_u32);
+                TOOLS_ASSERT(array_u32);
                 *array_u32 = 0;
 
                 size_t array_size = 0;
@@ -5070,7 +5070,7 @@ static void dumpInAvroDataUnsignedInt(FieldStruct *field,
     } else {
         if (TSDB_DATA_TYPE_INT == field->array_type) {
             uint32_t *array_u32 = malloc(sizeof(uint32_t));
-            ASSERT(array_u32);
+            TOOLS_ASSERT(array_u32);
             *array_u32 = 0;
 
             size_t array_size = 0;
@@ -5109,7 +5109,7 @@ static void dumpInAvroDataBool(FieldStruct *field,
         debugPrint2("%s | ", "null");
     } else {
         int32_t *bl = malloc(sizeof(int32_t));
-        ASSERT(bl);
+        TOOLS_ASSERT(bl);
         avro_value_get_boolean(&bool_branch, bl);
         verbosePrint("%s() LN%d, *bl=%d\n",
             __func__, __LINE__, *bl);
@@ -5195,7 +5195,7 @@ static void dumpInAvroDataDouble(FieldStruct *field,
             bind->is_null = is_null;
         } else {
             double *dbl = malloc(sizeof(double));
-            ASSERT(dbl);
+            TOOLS_ASSERT(dbl);
             avro_value_get_double(&dbl_branch, dbl);
             debugPrint2("%f | ", *dbl);
             bind->buffer = dbl;
@@ -5203,7 +5203,7 @@ static void dumpInAvroDataDouble(FieldStruct *field,
         }
     } else {
         double *dbl = malloc(sizeof(double));
-        ASSERT(dbl);
+        TOOLS_ASSERT(dbl);
         avro_value_get_double(value, dbl);
         if (TSDB_DATA_DOUBLE_NULL == *dbl) {
             debugPrint2("%s | ", "NULL");
@@ -5228,7 +5228,7 @@ static void dumpInAvroDataFloat(FieldStruct *field,
             bind->is_null = is_null;
         } else {
             float *f = malloc(sizeof(float));
-            ASSERT(f);
+            TOOLS_ASSERT(f);
             avro_value_get_float(&float_branch, f);
             debugPrint2("%f | ", *f);
             bind->buffer = f;
@@ -5236,7 +5236,7 @@ static void dumpInAvroDataFloat(FieldStruct *field,
         }
     } else {
         float *f = malloc(sizeof(float));
-        ASSERT(f);
+        TOOLS_ASSERT(f);
         avro_value_get_float(value, f);
         if (TSDB_DATA_FLOAT_NULL == *f) {
             debugPrint2("%s | ", "NULL");
@@ -5261,7 +5261,7 @@ static void dumpInAvroDataTimeStamp(FieldStruct *field,
             debugPrint2("%s | ", "null");
         } else {
             int64_t *n64 = malloc(sizeof(int64_t));
-            ASSERT(n64);
+            TOOLS_ASSERT(n64);
             avro_value_get_long(&ts_branch, n64);
             debugPrint2("%"PRId64" | ", *n64);
             bind->buffer_length = sizeof(int64_t);
@@ -5269,7 +5269,7 @@ static void dumpInAvroDataTimeStamp(FieldStruct *field,
         }
     } else {
         int64_t *n64 = malloc(sizeof(int64_t));
-        ASSERT(n64);
+        TOOLS_ASSERT(n64);
         avro_value_get_long(value, n64);
         debugPrint2("%"PRId64" | ", *n64);
         bind->buffer_length = sizeof(int64_t);
@@ -5289,7 +5289,7 @@ static void dumpInAvroDataBigInt(FieldStruct *field,
             debugPrint2("%s | ", "null");
         } else {
             int64_t *n64 = malloc(sizeof(int64_t));
-            ASSERT(n64);
+            TOOLS_ASSERT(n64);
             avro_value_get_long(&bigint_branch, n64);
             verbosePrint("%s() LN%d: *n64=%"PRId64" null=%"PRId64"\n",
                                   __func__, __LINE__, *n64,
@@ -5300,7 +5300,7 @@ static void dumpInAvroDataBigInt(FieldStruct *field,
         }
     } else {
         int64_t *n64 = malloc(sizeof(int64_t));
-        ASSERT(n64);
+        TOOLS_ASSERT(n64);
         avro_value_get_long(value, n64);
         verbosePrint("%s() LN%d: *n64=%"PRId64" null=%"PRId64"\n",
                               __func__, __LINE__, *n64,
@@ -5329,7 +5329,7 @@ static void dumpInAvroDataSmallInt(FieldStruct *field,
             debugPrint2("%s | ", "null");
         } else {
             int32_t *n16 = malloc(sizeof(int32_t));
-            ASSERT(n16);
+            TOOLS_ASSERT(n16);
 
             avro_value_get_int(&smallint_branch, n16);
 
@@ -5339,7 +5339,7 @@ static void dumpInAvroDataSmallInt(FieldStruct *field,
         }
     } else {
         int32_t *n16 = malloc(sizeof(int32_t));
-        ASSERT(n16);
+        TOOLS_ASSERT(n16);
 
         avro_value_get_int(value, n16);
         verbosePrint("%s() LN%d: *n16=%d null=%d\n",
@@ -5370,7 +5370,7 @@ static void dumpInAvroDataTinyInt(FieldStruct *field,
             debugPrint2("%s | ", "null");
         } else {
             int32_t *n8 = malloc(sizeof(int32_t));
-            ASSERT(n8);
+            TOOLS_ASSERT(n8);
 
             avro_value_get_int(&tinyint_branch, n8);
 
@@ -5380,7 +5380,7 @@ static void dumpInAvroDataTinyInt(FieldStruct *field,
         }
     } else {
         int32_t *n8 = malloc(sizeof(int32_t));
-        ASSERT(n8);
+        TOOLS_ASSERT(n8);
 
         avro_value_get_int(value, n8);
 
@@ -5412,7 +5412,7 @@ static void dumpInAvroDataInt(FieldStruct *field,
             debugPrint2("%s | ", "null");
         } else {
             int32_t *n32 = malloc(sizeof(int32_t));
-            ASSERT(n32);
+            TOOLS_ASSERT(n32);
 
             avro_value_get_int(&int_branch, n32);
 
@@ -5428,7 +5428,7 @@ static void dumpInAvroDataInt(FieldStruct *field,
         }
     } else {
         int32_t *n32 = malloc(sizeof(int32_t));
-        ASSERT(n32);
+        TOOLS_ASSERT(n32);
 
         avro_value_get_int(value, n32);
         if ((int32_t)TSDB_DATA_INT_NULL == *n32) {
@@ -5538,7 +5538,7 @@ static int64_t dumpInAvroDataImpl(
                 tbName = strdup(avroName);
             } else {
                 tbName = malloc(TSDB_TABLE_NAME_LEN+1);
-                ASSERT(tbName);
+                TOOLS_ASSERT(tbName);
 
                 char *dupSeq = strdup(fileName);
                 char *running = dupSeq;
@@ -5632,7 +5632,7 @@ static int64_t dumpInAvroDataImpl(
                                 __func__, __LINE__);
                     } else {
                         int64_t *ts = malloc(sizeof(int64_t));
-                        ASSERT(ts);
+                        TOOLS_ASSERT(ts);
 
                         avro_value_get_long(&ts_branch, ts);
 
@@ -5645,7 +5645,7 @@ static int64_t dumpInAvroDataImpl(
                     }
                 } else {
                     int64_t *ts = malloc(sizeof(int64_t));
-                    ASSERT(ts);
+                    TOOLS_ASSERT(ts);
 
                     avro_value_get_long(&field_value, ts);
 
@@ -6199,8 +6199,8 @@ static int dumpInAvroWorkThreads(const char *dbPath, const char *typeExt) {
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
     threadInfo *infos = (threadInfo *)calloc(
             threads, sizeof(threadInfo));
-    ASSERT(pids);
-    ASSERT(infos);
+    TOOLS_ASSERT(pids);
+    TOOLS_ASSERT(infos);
 
     int64_t from = 0;
 
@@ -6216,7 +6216,7 @@ static int dumpInAvroWorkThreads(const char *dbPath, const char *typeExt) {
                 "Thread[%d] takes care avro files total %"PRId64" files "
                 "from %"PRId64"\n",
                 t, pThreadInfo->count, pThreadInfo->from);
-        tstrncpy(pThreadInfo->dbPath, dbPath, MAX_DIR_LEN);
+        TOOLS_STRNCPY(pThreadInfo->dbPath, dbPath, MAX_DIR_LEN);
 
         if (pthread_create(pids + t, NULL,
                     dumpInAvroWorkThreadFp, (void*)pThreadInfo) != 0) {
@@ -6416,7 +6416,7 @@ static int64_t writeResultDebugNative(
     int count = 0;
 
     int numFields = taos_field_count(res);
-    ASSERT(numFields > 0);
+    TOOLS_ASSERT(numFields > 0);
     TAOS_FIELD *fields = taos_fetch_fields(res);
 
     int32_t  total_sqlstr_len = 0;
@@ -7225,7 +7225,7 @@ static int createMTableAvroHeadImp(
                                 subTableDes->cols[subTableDes->columns
                                 + tag].var_value);
                         char *bytes = malloc(nlen+1);
-                        ASSERT(bytes);
+                        TOOLS_ASSERT(bytes);
 
                         memcpy(bytes,
                                 subTableDes->cols[subTableDes->columns
@@ -7751,7 +7751,7 @@ static int writeTagsToAvro(
                                 tbDes->cols[tbDes->columns
                                 + tag].var_value);
                         char *bytes = malloc(nlen+1);
-                        ASSERT(bytes);
+                        TOOLS_ASSERT(bytes);
 
                         memcpy(bytes,
                                 tbDes->cols[tbDes->columns
@@ -8517,7 +8517,7 @@ static void loadFileMark(FILE *fp, char *mark, char *fcharset) {
     do {
 #ifdef WINDOWS
         line = calloc(1, markLen);
-        ASSERT(line);
+        TOOLS_ASSERT(line);
         if (NULL == fgets(line, markLen, fp)) {
             goto _exit_no_charset;
         }
@@ -8637,7 +8637,7 @@ static int64_t dumpInOneDebugFile(
     int64_t failed = 0;
 #ifdef WINDOWS
     line = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
-    ASSERT(line);
+    TOOLS_ASSERT(line);
     while (fgets(line, TSDB_MAX_ALLOWED_SQL_LEN, fp) != NULL) {
         read_len = strlen(line?line:"");
 #else
@@ -8788,8 +8788,8 @@ static int dumpInDebugWorkThreads(const char *dbPath) {
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
     threadInfo *infos = (threadInfo *)calloc(
             threads, sizeof(threadInfo));
-    ASSERT(pids);
-    ASSERT(infos);
+    TOOLS_ASSERT(pids);
+    TOOLS_ASSERT(infos);
 
     int64_t a = sqlFileCount / threads;
     if (a < 1) {
@@ -8982,7 +8982,7 @@ static int dumpInWithDbPath(const char *dbPath) {
 }
 
 static int dumpIn() {
-    ASSERT(g_args.isDumpIn);
+    TOOLS_ASSERT(g_args.isDumpIn);
 
     int ret = 0;
     ret = dumpInWithDbPath(g_args.inpath);
@@ -9133,13 +9133,13 @@ int dumpSTableData(SDbInfo* dbInfo, TableDes* stbDes, char** tbNameArr, int64_t 
         batch = 1;
     }
 
-    ASSERT(threads);
+    TOOLS_ASSERT(threads);
     int64_t mod = tbCount % threads;
 
     pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
     threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
-    ASSERT(pids);
-    ASSERT(infos);
+    TOOLS_ASSERT(pids);
+    TOOLS_ASSERT(infos);
 
     infoPrint("create %d thread(s) to export data ...\n", threads);
     threadInfo *pThreadInfo;
@@ -9739,7 +9739,7 @@ static bool fillDBInfoWithFieldsNative(const int index,
         const int *lengths, int fieldCount) {
     for (int f = 0; f < fieldCount; f++) {
         if (0 == strcmp(fields[f].name, "name")) {
-            tstrncpy(g_dbInfos[index]->name, (char*)(row[f]),
+            TOOLS_STRNCPY(g_dbInfos[index]->name, (char*)(row[f]),
                     min(TSDB_DB_NAME_LEN, lengths[f]+1));
             debugPrint("%s() LN%d, db name: %s, len: %d\n",
                     __func__, __LINE__,
@@ -9775,7 +9775,7 @@ static bool fillDBInfoWithFieldsNative(const int index,
                 return false;
             }
         } else if (0 == strcmp(fields[f].name, "strict")) {
-            tstrncpy(g_dbInfos[index]->strict,
+            TOOLS_STRNCPY(g_dbInfos[index]->strict,
                     (char*)row[f], min(STRICT_LEN, lengths[f]+1));
             debugPrint("%s() LN%d: field: %d, keep: %s, length:%d\n",
                     __func__, __LINE__, f,
@@ -9788,14 +9788,14 @@ static bool fillDBInfoWithFieldsNative(const int index,
             g_dbInfos[index]->days = *((int16_t *)row[f]);
         } else if ((0 == strcmp(fields[f].name, "keep"))
                 || (0 == strcmp(fields[f].name, "keep0,keep1,keep2"))) {
-            tstrncpy(g_dbInfos[index]->keeplist, (char*)row[f],
+            TOOLS_STRNCPY(g_dbInfos[index]->keeplist, (char*)row[f],
                     min(KEEPLIST_LEN, lengths[f]+1));
             debugPrint("%s() LN%d: field: %d, keep: %s, length:%d\n",
                     __func__, __LINE__, f,
                     g_dbInfos[index]->keeplist,
                     lengths[f]);
         } else if (0 == strcmp(fields[f].name, "duration")) {
-            tstrncpy(g_dbInfos[index]->duration, (char*) row[f],
+            TOOLS_STRNCPY(g_dbInfos[index]->duration, (char*) row[f],
                     min(DURATION_LEN, lengths[f]+1));
             debugPrint("%s() LN%d: field: %d, duration: %s, length:%d\n",
                     __func__, __LINE__, f,
@@ -9874,7 +9874,7 @@ static bool fillDBInfoWithFieldsNative(const int index,
                 return false;
             }
         } else if (0 == strcmp(fields[f].name, "precision")) {
-            tstrncpy(g_dbInfos[index]->precision, (char*)row[f],
+            TOOLS_STRNCPY(g_dbInfos[index]->precision, (char*)row[f],
                     min(DB_PRECISION_LEN, lengths[f]+1));
             debugPrint("%s() LN%d, db precision: %s, len: %d\n",
                     __func__, __LINE__,
@@ -10346,7 +10346,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
 
     json_object_foreach(element, key, value) {
         if (0 == strcmp(key, "name")) {
-            tstrncpy(recordSchema->name, json_string_value(value),
+            TOOLS_STRNCPY(recordSchema->name, json_string_value(value),
                     RECORD_NAME_LEN);
         } else if (0 == strcmp(key, "fields")) {
             if (JSON_ARRAY == json_typeof(value)) {
@@ -10375,14 +10375,14 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
 
                     json_object_foreach(arr_element, ele_key, ele_value) {
                         if (0 == strcmp(ele_key, "name")) {
-                            tstrncpy(field->name,
+                            TOOLS_STRNCPY(field->name,
                                     json_string_value(ele_value),
                                     TSDB_COL_NAME_LEN-1);
                         } else if (0 == strcmp(ele_key, "type")) {
                             int ele_type = json_typeof(ele_value);
 
                             if (JSON_STRING == ele_type) {
-                                tstrncpy(field->type,
+                                TOOLS_STRNCPY(field->type,
                                         json_string_value(ele_value),
                                         TYPE_NAME_LEN-1);
                             } else if (JSON_ARRAY == ele_type) {
@@ -10401,7 +10401,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                                             "null")) {
                                             field->nullable = true;
                                         } else {
-                                            tstrncpy(field->type,
+                                            TOOLS_STRNCPY(field->type,
                                                     arr_type_ele_str,
                                                     TYPE_NAME_LEN-1);
                                         }
@@ -10423,11 +10423,11 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                                 } else if (0 == strcmp(arr_type_ele_value_str,
                                                             "array")) {
                                                     field->is_array = true;
-                                                    tstrncpy(field->type,
+                                                    TOOLS_STRNCPY(field->type,
                                                             arr_type_ele_value_str,
                                                             TYPE_NAME_LEN-1);
                                                 } else {
-                                                    tstrncpy(field->type,
+                                                    TOOLS_STRNCPY(field->type,
                                                             arr_type_ele_value_str,
                                                             TYPE_NAME_LEN-1);
                                                 }
@@ -10445,7 +10445,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                                         const char *arr_type_ele_value_value_str =
                                                             json_string_value(
                                                                      arr_type_ele_value_value);
-                                                        tstrncpy(field->array_type_str,
+                                                        TOOLS_STRNCPY(field->array_type_str,
                                                                 arr_type_ele_value_value_str,
                                                                 TYPE_NAME_LEN-1);
                                                     }
@@ -10464,7 +10464,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                     if (0 == strcmp(obj_key, "type")) {
                                         int obj_value_type = json_typeof(obj_value);
                                         if (JSON_STRING == obj_value_type) {
-                                            tstrncpy(field->type,
+                                            TOOLS_STRNCPY(field->type,
                                                     json_string_value(obj_value), TYPE_NAME_LEN-1);
                                             if (0 == strcmp(field->type, "array")) {
                                                 field->is_array = true;
@@ -10475,7 +10475,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
 
                                             json_object_foreach(obj_value, field_key, field_value) {
                                                 if (JSON_STRING == json_typeof(field_value)) {
-                                                    tstrncpy(field->type,
+                                                    TOOLS_STRNCPY(field->type,
                                                             json_string_value(field_value),
                                                             TYPE_NAME_LEN-1);
                                                 } else {
@@ -10487,7 +10487,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
                                         int obj_value_items = json_typeof(obj_value);
                                         if (JSON_STRING == obj_value_items) {
                                             field->is_array = true;
-                                            tstrncpy(field->array_type_str,
+                                            TOOLS_STRNCPY(field->array_type_str,
                                                     json_string_value(obj_value), TYPE_NAME_LEN-1);
                                         } else if (JSON_OBJECT == obj_value_items) {
                                             const char *item_key;
@@ -10495,7 +10495,7 @@ static RecordSchema *parse_json_for_inspect(json_t *element) {
 
                                             json_object_foreach(obj_value, item_key, item_value) {
                                                 if (JSON_STRING == json_typeof(item_value)) {
-                                                    tstrncpy(field->array_type_str,
+                                                    TOOLS_STRNCPY(field->array_type_str,
                                                             json_string_value(item_value),
                                                             TYPE_NAME_LEN-1);
                                                 }

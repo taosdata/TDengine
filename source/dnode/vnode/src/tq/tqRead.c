@@ -565,7 +565,7 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_CONDITION(ret == NULL, code, lino, END, true);
 
-    tqTrace("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64, pReader->nextBlk, blockSz, uid);
+    tqTrace("iterator data block in hash continue, progress:%d/%d, total queried tables:%d, uid:%"PRId64, pReader->nextBlk, blockSz, taosHashGetSize(pReader->tbIdHash), uid);
     pReader->nextBlk++;
   }
 

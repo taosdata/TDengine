@@ -1,0 +1,115 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$db = testdb
+sql drop database if exists $db
+sql create database $db
+sql use $db
+
+print ======================== regular expression match test
+$st_name = st
+$ct1_name = ct1
+$ct2_name = ct2
+
+sql create table $st_name (ts timestamp, c1b binary(20)) tags(t1b binary(20));
+sql create table $ct1_name using $st_name tags('taosdata1')
+sql create table $ct2_name using $st_name tags('taosdata2')
+sql create table not_match using $st_name tags('NOTMATCH')
+
+sql insert into $ct1_name values(now, 'this is engine')
+sql insert into $ct2_name values(now, 'this is app egnine')
+sql insert into not_match values (now + 1s, '1234')
+
+sql select tbname from $st_name where tbname match '.*'
+if $rows != 3 then
+  return -1
+endi
+
+sql select tbname from $st_name where tbname match '^ct[[:digit:]]'
+if $rows != 2 then
+  return -1
+endi
+
+sql select tbname from $st_name where tbname nmatch '^ct[[:digit:]]'
+if $rows != 1 then
+  return -1
+endi
+
+sql select tbname from $st_name where tbname match '.*'
+if $rows != 3 then
+  return -1
+endi
+
+sql select tbname from $st_name where tbname nmatch '.*'
+if $rows != 0 then
+  return -1
+endi
+
+sql select tbname from $st_name where t1b match '[[:lower:]]+'
+if $rows != 2 then
+  return -1
+endi
+
+sql select tbname from $st_name where t1b nmatch '[[:lower:]]+'
+if $rows != 1 then
+  return -1
+endi
+
+sql select c1b from $st_name where c1b match 'engine'
+if $data00 != @this is engine@ then
+  return -1
+endi
+
+if $rows != 1 then
+  return -1
+endi
+
+sql select c1b from $st_name where c1b nmatch 'engine' order by ts
+if $data00 != @this is app egnine@ then
+  return -1
+endi
+if $rows != 2 then
+  return -1
+endi
+
+sql_error select c1b from $st_name where c1b match e;
+sql_error select c1b from $st_name where c1b nmatch e;
+
+sql create table wrong_type(ts timestamp, c0 tinyint, c1 smallint, c2 int, c3 bigint, c4 float, c5 double, c6 bool, c7 nchar(20)) tags(t0 tinyint, t1 smallint, t2 int, t3 bigint, t4 float, t5 double, t6 bool, t7 nchar(10))
+sql insert into wrong_type_1 using wrong_type tags(1, 2, 3, 4, 5, 6, true, 'notsupport') values(now, 1, 2, 3, 4, 5, 6, false, 'notsupport')
+sql_error select * from wrong_type where ts match '.*'
+sql_error select * from wrong_type where ts nmatch '.*'
+sql_error select * from wrong_type where c0 match '.*'
+sql_error select * from wrong_type where c0 nmatch '.*'
+sql_error select * from wrong_type where c1 match '.*'
+sql_error select * from wrong_type where c1 nmatch '.*'
+sql_error select * from wrong_type where c2 match '.*'
+sql_error select * from wrong_type where c2 nmatch '.*'
+sql_error select * from wrong_type where c3 match '.*'
+sql_error select * from wrong_type where c3 nmatch '.*'
+sql_error select * from wrong_type where c4 match '.*'
+sql_error select * from wrong_type where c4 nmatch '.*'
+sql_error select * from wrong_type where c5 match '.*'
+sql_error select * from wrong_type where c5 nmatch '.*'
+sql_error select * from wrong_type where c6 match '.*'
+sql_error select * from wrong_type where c6 nmatch '.*'
+sql select * from wrong_type where c7 match '.*'
+sql select * from wrong_type where c7 nmatch '.*'
+sql_error select * from wrong_type where t1 match '.*'
+sql_error select * from wrong_type where t1 nmatch '.*'
+sql_error select * from wrong_type where t2 match '.*'
+sql_error select * from wrong_type where t2 nmatch '.*'
+sql_error select * from wrong_type where t3 match '.*'
+sql_error select * from wrong_type where t3 nmatch '.*'
+sql_error select * from wrong_type where t4 match '.*'
+sql_error select * from wrong_type where t4 nmatch '.*'
+sql_error select * from wrong_type where t5 match '.*'
+sql_error select * from wrong_type where t5 nmatch '.*'
+sql_error select * from wrong_type where t6 match '.*'
+sql_error select * from wrong_type where t6 nmatch '.*'
+sql select * from wrong_type where t7 match '.*'
+sql select * from wrong_type where t7 nmatch '.*'
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

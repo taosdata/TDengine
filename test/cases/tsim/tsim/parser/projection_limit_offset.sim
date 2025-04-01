@@ -1,0 +1,427 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = group_db
+$tbPrefix = group_tb
+$mtPrefix = group_mt
+$tbNum = 8
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+
+print =============== projection_limit_offset.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$tstart = 100000
+
+sql drop database if exists $db -x step1
+step1:
+sql create database if not exists $db keep 36500
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
+
+$i = 0
+$half = $tbNum / 2
+
+while $i < $half
+  $tb = $tbPrefix . $i
+  $tg2 = ' . abc
+  $tg2 = $tg2 . '
+
+  $tbId = $i + $half
+
+  $tb1 = $tbPrefix . $tbId
+
+  sql create table $tb using $mt tags( $i , $tg2 )
+  sql create table $tb1 using $mt tags( $i , $tg2 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar ) $tb1 values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 100000
+endw
+
+$i1 = 1
+$i2 = 0
+
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$dbPrefix = group_db
+$tbPrefix = group_tb
+$mtPrefix = group_mt
+
+$tb1 = $tbPrefix . $i1
+$tb2 = $tbPrefix . $i2
+$ts1 = $tb1 . .ts
+$ts2 = $tb2 . .ts
+
+#===============select * from super_table limit/offset[TBASE-691]=================================
+sql select ts from group_mt0
+print $rows
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 0;
+if $rows != 4008 then
+  print expect 4008, actual:$rows
+  return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 1;
+if $rows != 4007 then
+  return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 101;
+print $rows
+if $rows != 3907 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.101@ then
+  return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 902;
+if $rows != 3106 then
+  return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 400;
+if $rows != 3608 then
+  return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 4007;
+if $rows != 1 then
+  return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 2000 offset 4008;
+if $rows != 0 then
+  return -1
+endi
+
+#==================================order by desc, multi vnode, limit/offset===================================
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 0;
+if $rows != 4008 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.500@ then
+   return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 1;
+if $rows != 4007 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.500@ then
+   return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 101;
+print $rows
+if $rows != 3907 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.488@ then
+   return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 902;
+if $rows != 3106 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.388@ then
+   return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 400;
+if $rows != 3608 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.450@ then
+   return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 4007;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+   return -1
+endi
+
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 2000 offset 4008;
+if $rows != 0 then
+  return -1
+endi
+
+#=================================single value filter======================================
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 0;
+if $row != 8 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 1;
+if $row != 7 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 2;
+if $row != 6 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 4;
+if $row != 4 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 7;
+if $row != 1 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 8;
+if $row != 0 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 9;
+if $row != 0 then
+   return -1
+endi
+
+#===============================single value filter, order by desc============================
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 0;
+if $row != 8 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 1;
+if $row != 7 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 2;
+if $row != 6 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 4;
+if $row != 4 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 7;
+if $row != 1 then
+   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 8;
+if $row != 0 then
+   return -1
+endi
+
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 9;
+if $row != 0 then
+   return -1
+endi
+
+#[tbase-695]
+sql select ts,tbname from group_mt0 where ts>='1970-01-01 8:1:40' and ts<'1970-1-1 8:1:40.500' and c1<99999999 limit 10000 offset 500
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $row != 3500 then
+   return -1
+endi
+
+#=================================parse error sql==========================================
+sql_error select ts,tbname from group_mt0 order by ts desc limit 100 offset -1;
+sql_error select ts,tbname from group_mt0 order by c1 asc limit 100 offset -1;
+sql_error select ts,tbname from group_mt0 order by ts desc limit -1, 100;
+sql_error select ts,tbname from group_mt0 order by ts desc slimit -1, 100;
+sql_error select ts,tbname from group_mt0 order by ts desc slimit 1 soffset 1;
+
+#================================functions applys to sql===================================
+sql select first(t1) from group_mt0;
+sql select last(t1) from group_mt0;
+sql select min(t1) from group_mt0;
+sql select max(t1) from group_mt0;
+sql select top(t1, 20) from group_mt0;
+sql select bottom(t1, 20) from group_mt0;
+sql select avg(t1) from group_mt0;
+sql_error select percentile(t1, 50) from group_mt0;
+sql_error select percentile(t1, 50) from group_mt0;
+sql_error select percentile(t1, 50) from group_mt0;
+
+#====================================tbase-722==============================================
+print tbase-722
+sql select spread(ts) from group_tb0;
+print $data00
+
+if $data00 != 999.000000000 then
+   return -1
+endi
+
+#====================================tbase-716==============================================
+print tbase-716
+sql select count(*) from group_tb0 where ts in ('2016-1-1 12:12:12');
+sql_error select count(*) from group_tb0 where ts < '12:12:12';
+
+#===============================sql for twa==========================================
+sql_error select twa(c1) from group_stb0;
+sql_error select twa(c2) from group_stb0 where ts<now and ts>now-1h group by t1;
+sql_error select twa(c2) from group_stb0 where ts<now and ts>now-1h group by tbname,t1;
+sql_error select twa(c2) from group_stb0 group by tbname,t1;
+sql_error select twa(c2) from group_stb0 group by tbname;
+sql_error select twa(c2) from group_stb0 group by t1;
+sql_error select twa(c2) from group_stb0 where ts<now and ts>now-1h group by t1,tbname;
+
+#================================first/last error check================================
+sql create table m1 (ts timestamp, k int) tags(a int);
+sql create table tm0 using m1 tags(1);
+sql create table tm1 using m1 tags(2);
+
+sql insert into tm0 values(10000, 1) (20000, 2)(30000, 3) (40000, NULL) (50000, 2) tm1 values(10001, 2)(20000,4)(90000,9);
+
+#=============================tbase-1205
+sql select count(*) from tm1 where ts<now and ts>= now -1d interval(1h) fill(NULL);
+if $rows != 0 then
+  return -1
+endi
+
+print ===================>TD-1834
+sql select * from tm0 where ts>11000 and ts< 20000 order by ts asc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from tm0 where ts>11000 and ts< 20000 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select _wstart, count(*),first(k),last(k) from m1 where tbname in ('tm0') interval(1s) order by _wstart desc;
+if $row != 5 then
+    return -1
+endi
+
+if $data00 != @70-01-01 08:00:50.000@ then
+    return -1
+endi
+
+if $data01 != 1 then
+   return -1
+endi
+
+if $data02 != 2 then
+   return -1
+endi
+
+if $data11 != 1 then
+   return -1
+endi
+
+if $data12 != NULL then
+   return -1
+endi
+
+if $data13 != NULL then
+   return -1
+endi
+
+
+print =============tbase-1324
+sql select a, k-k from m1
+if $row != 8 then
+   return -1
+endi
+
+sql select diff(k) from tm0
+if $row != 4 then
+   return -1
+endi
+if $data20 != NULL then
+   return -1
+endi
+
+#error sql
+sql_error select * from 1;
+#sql_error select 1;  // equals to select server_status();
+sql_error select k+k;
+sql_error select k+1;
+sql_error select abc();
+sql select 1 where 1=2;
+sql select 1 limit 1;
+sql select 1 slimit 1;
+sql select 1 interval(1h);
+sql_error select count(*);
+sql_error select sum(k);
+sql select 'abc';
+sql_error select k+1,sum(k) from tm0;
+sql_error select k, sum(k) from tm0;
+sql_error select k, sum(k)+1 from tm0;
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+#=============================tbase-1205
+sql select count(*) from tm1 where ts<now and ts>= now -1d interval(1h) fill(NULL);
+
+print ===================>TD-1834
+sql select * from tm0 where ts>11000 and ts< 20000 order by ts asc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from tm0 where ts>11000 and ts< 20000 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+
+

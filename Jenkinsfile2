@@ -358,7 +358,7 @@ def pre_test_build_win() {
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%/tests/ci
-        pip3 install taospy==2.7.21 
+        pip3 install taospy==2.7.23
         pip3 install taos-ws-py==0.3.8
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taos.dll C:\\Windows\\System32
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taosnative.dll C:\\Windows\\System32
