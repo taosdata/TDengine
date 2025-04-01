@@ -53,10 +53,10 @@ class TDTestCase(TBase):
         cmd = f"-D {db} -o {tmpdir}"
         rlist = self.taosdump(cmd)
         results = [
-            "OK: total 1 table(s) of stable: meters1 schema dumped.",
-            "OK: total 2 table(s) of stable: meters2 schema dumped.",
-            "OK: total 3 table(s) of stable: meters3 schema dumped.",
-            "OK: 84 row(s) dumped out!"
+            "OK: total 10 table(s) of stable: meters1 schema dumped.",
+            "OK: total 20 table(s) of stable: meters2 schema dumped.",
+            "OK: total 30 table(s) of stable: meters3 schema dumped.",
+            "OK: 6024 row(s) dumped out!"
         ]
         self.checkManyString(rlist, results)
 
@@ -66,7 +66,7 @@ class TDTestCase(TBase):
         rlist = self.taosdump(cmd)
         results = [
             f"rename DB Name {db} to {newdb}",
-            f"OK: 84 row(s) dumped in!"
+            f"OK: 6024 row(s) dumped in!"
         ]
         self.checkManyString(rlist, results)
 
@@ -134,30 +134,33 @@ class TDTestCase(TBase):
 
         # new cols is null
         sql = f"select count(*) from {newdb}.meters3 where newic is null"
-        tdSql.checkAgg(sql, 30)
+        tdSql.checkAgg(sql, 3000)
 
         #
         # check tag
         #
-        '''
+
         sqls = [
             [
-                f"select distinct tfc,tbname from    {db}.meters3 order by tbname;", 
-                f"select distinct tfc,tbname from {newdb}.meters3 order by tbname;"
+                f"select distinct tti,tbi,tuti,tusi,tbin,tic,tbname from    {db}.meters1 order by tbname;", 
+                f"select distinct tti,tbi,tuti,tusi,tbin,tic,tbname from {newdb}.meters1 order by tbname;"
             ],
             [
-                f"select distinct tbin,tbname from    {db}.meters3 order by tbname;", 
-                f"select distinct tbin,tbname from {newdb}.meters3 order by tbname;"
+                f"select distinct tti,tbi,tuti,tusi,tbin,tbname from    {db}.meters2 order by tbname;", 
+                f"select distinct tti,tbi,tuti,tusi,tbin,tbname from {newdb}.meters2 order by tbname;"
             ],
         ]
 
         for sql in sqls:
-            self.checkSameResult(sql[0], sql[1])'
+            self.checkSameResult(sql[0], sql[1])
 
         # new tag is null
+        sql = f"select count(*) from {newdb}.meters1 where newtti is null"
+        tdSql.checkAgg(sql, 1000)
+
         sql = f"select count(*) from {newdb}.meters3 where newtdc is null"
-        tdSql.checkAgg(sql, 30)'
-        '''
+        tdSql.checkAgg(sql, 2000)
+
 
 
     # normal table

@@ -20,7 +20,7 @@
                 {
                     "name": "meters1",
                     "child_table_exists": "no",
-                    "childtable_count": 1,
+                    "childtable_count": 0,
                     "insert_rows": 0,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
@@ -74,7 +74,7 @@
                 {
                     "name": "meters2",
                     "child_table_exists": "no",
-                    "childtable_count": 2,
+                    "childtable_count": 0,
                     "insert_rows": 0,
                     "childtable_prefix": "e",
                     "insert_mode": "taosc",
@@ -107,7 +107,7 @@
                 {
                     "name": "meters3",
                     "child_table_exists": "no",
-                    "childtable_count": 3,
+                    "childtable_count": 10,
                     "insert_rows": 0,
                     "childtable_prefix": "f",
                     "insert_mode": "taosc",

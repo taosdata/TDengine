@@ -4209,7 +4209,8 @@ static int64_t dumpInAvroTbTagsImpl(
         
         char *stbName = NULL;
         char *tbName = NULL;
-
+        
+        int32_t  n = 0; // compatible old data 
         int32_t  curr_sqlstr_len = 0;
         for (int i = 0; i < recordSchema->num_fields - tagAdjExt; i++) {
             avro_value_t field_value, field_branch;
@@ -4294,7 +4295,7 @@ static int64_t dumpInAvroTbTagsImpl(
                             &value, field->name, &field_value, NULL)) {
 
                     // read value with type            
-                    switch (tableDes->cols[tableDes->columns - 1 + i].type) {
+                    switch (tableDes->cols[tableDes->columns + n].type) {
                         case TSDB_DATA_TYPE_BOOL:
                             curr_sqlstr_len = dumpInAvroBool(
                                          &field_value, sqlstr,
@@ -4377,6 +4378,9 @@ static int64_t dumpInAvroTbTagsImpl(
                     errorPrint("Failed to get value by name: %s\n",
                             field->name);
                 }
+
+                // bind tags move next
+                n++;
             }
 
             // check curr_sqlstr_len invalid size
@@ -10771,7 +10775,7 @@ static int inspectAvroFiles(int argc, char *argv[]) {
 
     for (int i = 1; i < argc; i++) {
         if (strlen(argv[i])) {
-            fprintf(stdout, "\n###** Inspecting %s...\n", argv[i]);
+            fprintf(stdout, "\n### Inspecting %s...\n", argv[i]);
             ret = inspectAvroFile(argv[i]);
             fprintf(stdout, "\n### avro file %s inspected\n", argv[i]);
         }
