@@ -59,6 +59,11 @@ function lcovFunc {
     # push result to coveralls.io
     echo "push result to coveralls.io"
     /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info 
+
+    # push result to https://app.codecov.io/
+    pip install codecov
+    codecov -t b0e18192-e4e0-45f3-8942-acab64178afe -f coverage.info  -b $BRANCH
+    # codecov -t b0e18192-e4e0-45f3-8942-acab64178afe -f coverage.info  -b $BRANCH -X gcov #如果覆盖率数据已经由其他工具（如 lcov）生成，可以通过 -X gcov 禁用 gcov 的自动收集，以避免冲突或冗余。
 }
 
 
