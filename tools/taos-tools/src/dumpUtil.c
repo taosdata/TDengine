@@ -195,9 +195,7 @@ json_t *load_json(char *jsonbuf) {
     json_t *root = NULL;
     json_error_t error;
 
-#ifndef WINDOWS
-    root = json_loads_impl(jsonbuf, 0, &error);
-#endif
+    root = json_loads(jsonbuf, 0, &error);
     if (root) {
         return root;
     } else {
