@@ -293,48 +293,75 @@ Download Visual Studio from the following link:
 
 ```cmd
 https://visualstudio.microsoft.com/zh-hans/downloads
+
 ```
 
 Download Microsoft Visual C++ 2015-2022 Redistributable (x64) from the following link:
 
 ```cmd
 https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170
+
 ```
 
 ### 3.1.2 Install Go
 
-Update the installation package to version 1.23.3.
+Update the installation package to version 1.23.3 from the following link:
 
 ```cmd
-curl -o go1.23.3.windows-amd64.msi https://golang.org/dl/go1.20.3.windows-amd64.msi
-msiexec /i go1.23.3.windows-amd64.msi
+https://golang.google.cn/dl/
+
+```
+
+Enter  in PowerShell to check if the installation is correct:
+
+```cmd
+go version
+
+```
+
+Configuring Go environment variables:
+
+```cmd
+go env -w GO111MODULE=on
+go env -w GOPROXY=https://goproxy.cn,direct
+
 ```
 
 ### 3.1.3 Install Cargo
 
-Better start it from [rustup](https://rustup.rs/)(the installer for Rust).
+Download rustup-init.exe from the following link:
 
 ```cmd
-curl -o rustup-init.exe https://win.rustup.rs/
-rustup-init.exe
+https://win.rustup.rs/
+
 ```
 
+Download and install open-ssl
+
+```cmd
+
+git clone https://github.com/Microsoft/vcpkg.git
+.\vcpkg\bootstrap-vcpkg.bat
+cd vcpkg
+.\vcpkg.exe install openssl:x64-windows-static-md
+
+```
 ### 3.1.4 Install Jdk & maven
 
 Visit the following link to download openjdk17 and maven.
 
 ```cmd
-https://adoptium.net/temurin/releases/?os=windows&package=jdk&version=17
+https://adoptium.net/temurin/releases/
 https://maven.apache.org/download.cgi
 ```
 
-install jdk and maven
+Install jdk and maven.
 
 ```cmd
 msiexec /i openjdk-17_windows-x64_bin.msi
 mkdir "C:\Program Files\Apache\Maven"
-powershell -Command "Expand-Archive -Path 'apache-maven-3.9.5-bin.zip' -DestinationPath 'C:\Program Files\Apache\Maven'"
-setx PATH "%PATH%;C:\Program Files\Apache\Maven\apache-maven-3.9.5\bin"
+setx MAVEN_HOME "C:\apache-maven-3.9.5" /M
+setx PATH "%PATH%;%MAVEN_HOME%\bin" /M
 ```
 
 
@@ -350,7 +377,7 @@ https://nodejs.org/en/download
 Install node
 
 ```cmd
-msiexec /i node-v18.17.1-x64.msi
+msiexec /i node-v22.14.0-x64.msi
 ```
 
 ### 3.1.6 Install Python-connector
