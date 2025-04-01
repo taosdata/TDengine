@@ -1,0 +1,99 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database d1
+sql create database d2
+
+sql use d1;
+sql create table st(ts timestamp, f int) tags(t int);
+sql insert into ct1 using st tags(1) values('2021-04-19 00:00:00', 1);
+sql insert into ct2 using st tags(2) values('2021-04-19 00:00:01', 2);
+sql insert into ct1 values('2021-04-19 00:00:02', 2);
+sql create table st2(ts timestamp, f int) tags(t int);
+
+sql use d2;
+sql create table st(ts timestamp, f int) tags(t int);
+sql insert into ct1 using st tags(1) values('2021-04-19 00:00:00', 1);
+sql insert into ct2 using st tags(2) values('2021-04-19 00:00:01', 2);
+
+sql create database db1 vgroups 1;
+sql create table db1.stb (ts timestamp, c1 int, c2 int) tags(t1 int, t2 int);
+
+sql use d1;
+sql insert into st (tbname, ts, f, t) values('ct3', '2021-04-19 08:00:03', 3, 3);
+sql insert into d1.st (tbname, ts, f) values('ct6', '2021-04-19 08:00:04', 6);
+sql insert into d1.st (tbname, ts, f) values('ct6', '2021-04-19 08:00:05', 7)('ct8', '2021-04-19 08:00:06', 8);
+sql insert into d1.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:07', 9, 9)('ct8', '2021-04-19 08:00:08', 10, 10);
+sql insert into d1.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:09', 9, 9)('ct8', '2021-04-19 08:00:10', 10, 10) d2.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:11', 9, 9)('ct8', '2021-04-19 08:00:12', 10, 10);
+
+sql select * from d1.st
+print $rows
+if $rows != 11 then
+  return -1
+endi
+sql select * from d2.st;
+print $rows
+if $rows != 4 then
+  return -1
+endi
+
+sql insert into d2.st(ts, f, tbname) values('2021-04-19 08:00:13', 1, 'ct1') d1.ct1 values('2021-04-19 08:00:14', 1);
+
+sql select * from d1.st
+print $rows
+if $rows != 12 then
+  return -1
+endi
+sql select * from d2.st;
+print $rows
+if $rows != 5 then
+  return -1
+endi
+
+sql create database dgxy;
+sql use dgxy;
+sql create table st(ts timestamp, f int) tags(t int);
+sql insert into ct1 using st tags(1) values(now, 1);
+sql insert into st(tbname, ts, f) values('ct1', now, 2);
+sql select * from ct1;
+if $rows != 2 then
+  return -1
+endi
+sql show tables like 'ct1';
+if $rows != 1 then 
+  return -1
+endi
+
+sql insert into st(tbname, ts, f, t) values('ct2',now,20,NULL)('ct3',now,30,NULL)
+sql insert into st(tbname, t, ts, f) values('ct4',NULL, now,20)('ct5',NULL, now,30)
+sql show create table ct2
+sql show create table ct3
+sql show create table ct4
+sql show create table ct5
+sql show tags from ct2
+if $data05 != NULL then
+  return -1
+endi
+sql show tags from ct3
+if $data05 != NULL then
+  return -1
+endi
+sql show tags from ct4
+if $data05 != NULL then
+  return -1
+endi
+sql show tags from ct5
+if $data05 != NULL then
+  return -1
+endi
+
+sql_error insert into d2.st values(now, 1, 1)
+sql_error insert into d2.st(ts, f) values(now, 1);
+sql_error insert into d2.st(ts, f, tbname) values(now, 1);
+sql_error insert into d2.st(ts, f, tbname) values(now, 1, '');
+sql_error insert into d2.st(ts, f, tbname) values(now, 1, 'd2.ct2');
+sql_error insert into d2.st(ts, tbname) values(now, 1, 34)
+sql_error insert into st using st2 tags(2) values(now,1);
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

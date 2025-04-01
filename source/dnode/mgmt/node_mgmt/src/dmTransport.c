@@ -116,13 +116,13 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
   }
 }
 
-static void dmUpdateAnalFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
-  SRetrieveAnalAlgoRsp rsp = {0};
-  if (tDeserializeRetrieveAnalAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
-    taosAnalUpdate(rsp.ver, rsp.hash);
+static void dmUpdateAnalyticFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  SRetrieveAnalyticAlgoRsp rsp = {0};
+  if (tDeserializeRetrieveAnalyticAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
+    taosAnalyUpdate(rsp.ver, rsp.hash);
     rsp.hash = NULL;
   }
-  tFreeRetrieveAnalAlgoRsp(&rsp);
+  tFreeRetrieveAnalyticAlgoRsp(&rsp);
   rpcFreeCont(pRpc->pCont);
 }
 
@@ -164,6 +164,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
     case TDMT_VND_SUBMIT_RSP:
+    case TDMT_MND_GET_DB_INFO_RSP:
       code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:
@@ -175,7 +176,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
-      dmUpdateAnalFunc(&pDnode->data, pTrans->serverRpc, pRpc);
+      dmUpdateAnalyticFunc(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     default:
       break;

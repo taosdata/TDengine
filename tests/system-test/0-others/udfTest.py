@@ -622,20 +622,25 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
 
         cfgPath = buildPath + "/../sim/dnode1/cfg"
-        udfdPath = buildPath +'/build/bin/udfd'
+        udfdPath = buildPath +'/build/bin/taosudf'
 
         for i in range(3):
 
-            tdLog.info(" loop restart udfd  %d_th" % i)
+            tdLog.info(" loop restart taosudf  %d_th" % i)
 
             tdSql.query("select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
-            # stop udfd cmds
-            get_processID = "ps -ef | grep -w udfd | grep -v grep| grep -v defunct | awk '{print $2}'"
-            processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
+              
+            clean_env = os.environ.copy()
+            clean_env.pop('ASAN_OPTIONS', None)
+            clean_env.pop('LD_PRELOAD', None)
+            get_processID = "ps -ef | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
+            processID = subprocess.check_output(get_processID, shell=True, env=clean_env).decode("utf-8")
+            tdLog.info("taosudf process ID: %s" % processID)
             stop_udfd = " kill -9 %s" % processID
             os.system(stop_udfd)
+            
 
             time.sleep(2)
 
@@ -643,9 +648,9 @@ class TDTestCase:
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
 
-            # # start udfd  cmds
+            # # start taosudf  cmds
             # start_udfd = "nohup " + udfdPath +'-c' +cfgPath +" > /dev/null 2>&1 &"
-            # tdLog.info("start udfd : %s " % start_udfd)
+            # tdLog.info("start taosudf : %s " % start_udfd)
 
     def test_function_name(self):
         tdLog.info(" create function name is not build_in functions ")
@@ -680,15 +685,15 @@ class TDTestCase:
             time.sleep(2)
 
     def test_udfd_cmd(self):
-        tdLog.info(" test udfd -V ")
-        os.system("udfd -V")
-        tdLog.info(" test udfd -c ")
-        os.system("udfd -c")
+        tdLog.info(" test taosudf -V ")
+        os.system("taosudf -V")
+        tdLog.info(" test taosudf -c ")
+        os.system("taosudf -c")
         
         letters = string.ascii_letters + string.digits + '\\'
         path = ''.join(random.choice(letters) for i in range(5000))
 
-        os.system(f"udfd -c {path}")
+        os.system(f"taosudf -c {path}")
    
     def test_change_udf_normal(self, func_name):
         # create function with normal file

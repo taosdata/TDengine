@@ -35,6 +35,10 @@
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
+#ifdef TAOSD_INTEGRATED
+extern void shellStopDaemon();
+#endif
+
 static int32_t sentinel = TSC_VAR_NOT_RELEASE;
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
 
@@ -55,7 +59,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   return ret;
 }
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
 static void freeTz(void *p) {
   timezone_t tz = *(timezone_t *)p;
   tzfree(tz);
@@ -95,7 +99,7 @@ static timezone_t setConnnectionTz(const char *val) {
     tz = tzalloc("UTC");
     if (tz == NULL) {
       tscError("%s set timezone UTC error", __func__);
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       goto END;
     }
   }
@@ -153,6 +157,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     val = NULL;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (option == TSDB_OPTION_CONNECTION_CHARSET || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
       if (!taosValidateEncodec(val)) {
@@ -169,9 +174,9 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       pObj->optionInfo.charsetCxt = NULL;
     }
   }
-
+#endif
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
     if (val != NULL) {
       if (val[0] == 0) {
         val = "UTC";
@@ -239,7 +244,7 @@ void taos_cleanup(void) {
     tscWarn("failed to cleanup task queue");
   }
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   tzCleanup();
 #endif
   tmqMgmtClose();
@@ -259,10 +264,14 @@ void taos_cleanup(void) {
 
   taosConvDestroy();
   DestroyRegexCache();
-
+#ifdef TAOSD_INTEGRATED
+  shellStopDaemon();
+#endif
   tscInfo("all local resources released");
   taosCleanupCfg();
+#ifndef TAOSD_INTEGRATED
   taosCloseLog();
+#endif
 }
 
 static setConfRet taos_set_config_imp(const char *config) {
@@ -279,7 +288,7 @@ setConfRet taos_set_config(const char *config) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
+  tscInfo("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
     user = TSDB_DEFAULT_USER;
   }
@@ -478,10 +487,10 @@ void taos_close_internal(void *taos) {
   }
 
   STscObj *pTscObj = (STscObj *)taos;
-  tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  tscDebug("conn:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
   if (TSDB_CODE_SUCCESS != taosRemoveRef(clientConnRefPool, pTscObj->id)) {
-    tscError("0x%" PRIx64 " failed to remove ref from conn pool", pTscObj->id);
+    tscError("conn:0x%" PRIx64 ", failed to remove ref from conn pool", pTscObj->id);
   }
 }
 
@@ -535,14 +544,15 @@ void taos_free_result(TAOS_RES *res) {
     return;
   }
 
-  tscDebug("taos free res %p", res);
+  tscTrace("res:%p, will be freed", res);
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
-    tscDebug("0x%" PRIx64 " taos_free_result start to free query", pRequest->requestId);
+    tscDebug("QID:0x%" PRIx64 ", call taos_free_result to free query, res:%p", pRequest->requestId, res);
     destroyRequest(pRequest);
     return;
   }
+
   SMqRspObj *pRsp = (SMqRspObj *)res;
   if (TD_RES_TMQ(res)) {
     tDeleteMqDataRsp(&pRsp->dataRsp);
@@ -596,6 +606,14 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
 TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false, TD_REQ_FROM_APP); }
 TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
   return taosQueryImplWithReqid(taos, sql, false, reqid);
+}
+
+TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res) {
+  if (taos_num_fields(res) == 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+    return NULL;
+  }
+  SReqResultInfo* pResInfo = tscGetCurResInfo(res);
+  return pResInfo->fields;
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
@@ -750,6 +768,14 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
 
       case TSDB_DATA_TYPE_BOOL:
         len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        break;
+      case TSDB_DATA_TYPE_DECIMAL64:
+      case TSDB_DATA_TYPE_DECIMAL: {
+        uint32_t decimalLen = strlen(row[i]);
+        uint32_t copyLen = TMIN(size - len - 1, decimalLen);
+        (void)memcpy(str + len, row[i], copyLen);
+        len += copyLen;
+      } break;
       default:
         break;
     }
@@ -890,6 +916,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 
   if (db == NULL || strlen(db) == 0) {
     releaseTscObj(*(int64_t *)taos);
+    tscError("invalid parameter for %s", db == NULL ? "db is NULL" : "db is empty");
     terrno = TSDB_CODE_TSC_INVALID_INPUT;
     return terrno;
   }
@@ -1157,7 +1184,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   SRequestObj         *pRequest = pWrapper->pRequest;
   SQuery              *pQuery = pRequest->pQuery;
 
-  qDebug("0x%" PRIx64 " start to semantic analysis,QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+  qDebug("req:0x%" PRIx64 ", start to semantic analysis, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
 
   int64_t analyseStart = taosGetTimestampUs();
   pRequest->metric.ctgCostUs = analyseStart - pRequest->metric.ctgStart;
@@ -1258,7 +1285,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     if (pQuery->haveResultSet) {
-      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols);
+      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema, pRequest->isStmtBind);
       setResPrecision(&pRequest->body.resInfo, pQuery->precision);
     }
   }
@@ -1276,14 +1303,14 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     pRequest->pQuery = NULL;
 
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
-      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
+      tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       restartAsyncQuery(pRequest, code);
       return;
     }
 
     // return to app directly
-    tscError("0x%" PRIx64 " error occurs, code:%s, return to user app,QID:0x%" PRIx64, pRequest->self, tstrerror(code),
+    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
     pRequest->code = code;
     returnToUser(pRequest);
@@ -1333,7 +1360,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   SQuery              *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgCostUs += taosGetTimestampUs() - pRequest->metric.ctgStart;
-  qDebug("0x%" PRIx64 " start to continue parse,QID:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
+  qDebug("req:0x%" PRIx64 ", continue parse query, QID:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
          tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -1346,7 +1373,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("0x%" PRIx64 " error happens, code:%d - %s,QID:0x%" PRIx64, pWrapper->pRequest->self, code,
+    tscError("req:0x%" PRIx64 ", error happens, code:%d - %s, QID:0x%" PRIx64, pWrapper->pRequest->self, code,
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
@@ -1363,7 +1390,7 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("0x%" PRIx64 " error happens, code:%d - %s,QID:0x%" PRIx64, pWrapper->pRequest->self, code,
+    tscError("req:0x%" PRIx64 ", error happens, code:%d - %s, QID:0x%" PRIx64, pWrapper->pRequest->self, code,
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
@@ -1416,7 +1443,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt};
+                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
+                           .streamRunHistory = pRequest->streamRunHistory};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;
@@ -1469,7 +1497,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     code = pRequest->prevCode;
     terrno = code;
     pRequest->code = code;
-    tscDebug("call sync query cb with code: %s", tstrerror(code));
+    tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
     doRequestCallback(pRequest, code);
     return;
   }
@@ -1484,7 +1512,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("0x%" PRIx64 " error happens, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
+    tscError("req:0x%" PRIx64 ", error happens, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
@@ -1492,11 +1520,11 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     pRequest->pQuery = NULL;
 
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
-      tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d,QID:0x%" PRIx64,
+      tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);
       if (code != 0) {
-        tscWarn("0x%" PRIx64 " refresh meta failed, code:%d - %s,QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
+        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
                 pRequest->requestId);
       }
       pRequest->prevCode = code;
@@ -1511,7 +1539,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 }
 
 void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
-  tscInfo("restart request: %s p: %p", pRequest->sqlstr, pRequest);
+  tscInfo("restart request:%s p:%p", pRequest->sqlstr, pRequest);
   SRequestObj *pUserReq = pRequest;
   (void)acquireRequest(pRequest->self);
   while (pUserReq) {
@@ -2168,7 +2196,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if( atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum)>1) {
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     tscError("async bind param is still working, please try again later");
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
@@ -2182,7 +2210,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
   if (NULL == hashTbnames) {
-    tscError("stmt2 bind failed: %s", tstrerror(terrno));
+    tscError("stmt2 bind failed, %s", tstrerror(terrno));
     return terrno;
   }
 
@@ -2192,7 +2220,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (pStmt->sql.stbInterlaceMode) {
         if (tSimpleHashGet(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i])) != NULL) {
           code = terrno = TSDB_CODE_PAR_TBNAME_DUPLICATED;
-          tscError("stmt2 bind failed: %s %s", tstrerror(terrno), bindv->tbnames[i]);
+          tscError("stmt2 bind failed, %s %s", tstrerror(terrno), bindv->tbnames[i]);
           goto out;
         }
 
@@ -2208,16 +2236,17 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       }
     }
 
+    SVCreateTbReq *pCreateTbReq = NULL;
     if (bindv->tags && bindv->tags[i]) {
-      code = stmtSetTbTags2(stmt, bindv->tags[i]);
-      if (code) {
-        goto out;
-      }
-    } else if (pStmt->bInfo.tbType == TSDB_CHILD_TABLE && pStmt->sql.autoCreateTbl) {
-      code = stmtSetTbTags2(stmt, NULL);
-      if (code) {
-        return code;
-      }
+      code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
+    } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
+      code = stmtCheckTags2(stmt, &pCreateTbReq);
+    } else {
+      pStmt->sql.autoCreateTbl = false;
+    }
+
+    if (code) {
+      goto out;
     }
 
     if (bindv->bind_cols && bindv->bind_cols[i]) {
@@ -2237,7 +2266,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         goto out;
       }
 
-      code = stmtBindBatch2(stmt, bind, col_idx);
+      code = stmtBindBatch2(stmt, bind, col_idx, pCreateTbReq);
       if (TSDB_CODE_SUCCESS != code) {
         goto out;
       }
@@ -2258,10 +2287,6 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 0) {
-    tscError("async bind param is still working, please try again later");
-    return TSDB_CODE_TSC_STMT_API_ERROR;
-  }
 
   ThreadArgs *args = (ThreadArgs *)taosMemoryMalloc(sizeof(ThreadArgs));
   args->stmt = stmt;
@@ -2269,14 +2294,23 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   args->col_idx = col_idx;
   args->fp = fp;
   args->param = param;
+
+  (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+    (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+    tscError("async bind param is still working, please try again later");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
   (void)atomic_add_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+  (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+
   int code_s = taosStmt2AsyncBind(stmtAsyncBindThreadFunc, (void *)args);
   if (code_s != TSDB_CODE_SUCCESS) {
     (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
     (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
-    // terrno = TAOS_SYSTEM_ERROR(errno);
+    tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
   }
 
   return code_s;

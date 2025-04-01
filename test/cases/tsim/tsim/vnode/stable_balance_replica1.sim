@@ -1,0 +1,135 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode2 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode3 -c supportVnodes -v 5
+system sh/cfg.sh -n dnode4 -c supportVnodes -v 5
+
+$dbPrefix = br1_db
+$tbPrefix = br1_tb
+$mtPrefix = br1_mt
+$tbNum = 13
+$rowNum = 200
+$totalNum = 200
+
+print ============== step1
+print ========= start dnode1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$db = $dbPrefix
+$mt = $mtPrefix
+$st = $stPrefix . $i
+
+sql create database $db vgroups 4
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  $y = 0
+  while $y < $rowNum
+    $val = $x * 60000
+    $ms = 1519833600000 + $val 
+    sql insert into $tb values ($ms , $y , $y ) 
+    $x = $x + 1
+    $y = $y + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+sql select * from information_schema.ins_dnodes
+print dnode1 openVnodes $data(1)[2]
+if $data(1)[2] != 4 then
+	return -1
+endi
+
+print =============== step3 start dnode2
+sql create dnode $hostname port 7200
+system sh/exec.sh -n dnode2 -s start
+
+$x = 0
+step3:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step3
+endi
+if $data(2)[4] != ready then
+  goto step3
+endi
+
+sql balance vgroup
+sql select * from information_schema.ins_dnodes
+print dnode1 openVnodes $data(1)[2]
+print dnode2 openVnodes $data(2)[2]
+if $data(1)[2] != 2 then
+	return -1
+endi
+if $data(2)[2] != 2 then
+	return -1
+endi
+
+print =============== step4
+$i = 1
+$tb = $tbPrefix . $i
+sql select * from $tb
+print select * from $tb ==> $rows
+if $rows != 200 then
+  return -1
+endi
+
+$i = 5
+$tb = $tbPrefix . $i
+sql select * from $tb
+print select * from $tb ==> $rows
+if $rows != 200 then
+  return -1
+endi
+
+$i = 8
+$tb = $tbPrefix . $i
+$st = $stPrefix . $i
+sql select * from $tb
+print select * from $tb ==> $rows
+if $rows != 200 then
+  return -1
+endi
+
+print =============== step5
+sql select * from $mt
+print select * from $mt ==> $rows
+if $rows != 2600 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

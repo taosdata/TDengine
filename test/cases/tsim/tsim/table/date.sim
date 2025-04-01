@@ -1,0 +1,223 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_da_db
+$tbPrefix = lm_da_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1 ms db
+sql create database $db
+sql use $db
+
+sql create table $tb (ts timestamp, speed int)
+sql insert into $tb values ('2017-01-01 08:00:00.001', 1)
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != @17-01-01 08:00:00.001@ then
+  return -1
+endi
+
+print =============== step2 ms db
+sql_error insert into $tb values ('2017-08-28 00:23:46.429+ 1a', 2) 
+sql_error insert into $tb values ('2017-08-28 00:23:46cd .429', 2) 
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step3 ms db
+sql_error insert into $tb values ('1970-01-01 08:00:00.000', 3)
+sql_error insert into $tb values ('1970-01-01 08:00:00.000', 3)
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step4 ms db
+sql insert into $tb values(now, 4);
+sql insert into $tb values(now+1a, 5);
+sql insert into $tb values(now+1s, 6);
+sql insert into $tb values(now+1m, 7);
+sql insert into $tb values(now+1h, 8);
+sql insert into $tb values(now+1d, 9);
+sql insert into $tb values(now+3w, 10);
+sql insert into $tb values(31556995200000, 11);
+sql insert into $tb values('2970-01-01 00:00:00.000', 12);
+
+sql_error insert into $tb values(now+1n, 20);
+sql_error insert into $tb values(now+1y, 21);
+sql_error insert into $tb values(31556995200001, 22);
+sql_error insert into $tb values('2970-01-02 00:00:00.000', 23);
+sql_error insert into $tb values(9223372036854775807, 24);
+sql_error insert into $tb values(9223372036854775808, 25);
+sql_error insert into $tb values(92233720368547758088, 26);
+
+
+print =============== step5 ms db
+sql_error insert into $tb values ('9999-12-31 213:59:59.999', 27)
+sql select ts from $tb
+print $rows
+if $rows != 10 then
+  return -1
+endi
+
+print =============== step6 ms db
+sql_error insert into $tb values ('9999-12-99 23:59:59.999', 28)
+
+sql select ts from $tb
+if $rows != 10 then
+  return -1
+endi
+
+print =============== step7 ms db
+$i = 1
+$tb = $tbPrefix . $i
+sql create table $tb (ts timestamp, ts2 timestamp)
+
+print =============== step8 ms db
+sql insert into $tb values (now, now)
+sql select * from $tb 
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== step20 us db
+sql create database $db precision 'us' keep 365000d;
+
+sql create table $tb (ts timestamp, speed int)
+sql insert into $tb values ('2017-01-01 08:00:00.001', 1)
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != @17-01-01 08:00:00.001000@ then
+  print data00 = $data00
+  return -1
+endi
+
+print =============== step21 us db
+sql_error insert into $tb values ('2017-08-28 00:23:46.429+ 1a', 2) 
+sql_error insert into $tb values ('2017-08-28 00:23:46cd .429', 2) 
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step22 us db
+sql_error insert into $tb values ('970-01-01 08:00:00.000', 3)
+sql_error insert into $tb values ('970-01-01 08:00:00.000', 3)
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step23 us db
+sql insert into $tb values(now, 4);
+sql insert into $tb values(now+1a, 5);
+sql insert into $tb values(now+1s, 6);
+sql insert into $tb values(now+1m, 7);
+sql insert into $tb values(now+1h, 8);
+sql insert into $tb values(now+1d, 9);
+sql insert into $tb values(now+3w, 10);
+sql insert into $tb values(31556995200000000, 11);
+sql insert into $tb values('2970-01-01 00:00:00.000000', 12);
+
+sql_error insert into $tb values(now+1n, 20);
+sql_error insert into $tb values(now+1y, 21);
+sql_error insert into $tb values(31556995200000001, 22);
+sql_error insert into $tb values('2970-01-02 00:00:00.000000', 23);
+sql_error insert into $tb values(9223372036854775807, 24);
+sql_error insert into $tb values(9223372036854775808, 25);
+sql_error insert into $tb values(92233720368547758088, 26);
+sql_error insert into $tb values ('9999-12-31 213:59:59.999', 27)
+
+print =============== step24 us db
+sql select ts from $tb
+print $rows
+if $rows != 10 then
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== step30 ns db
+sql create database $db precision 'ns' keep 36500d;
+
+sql create table $tb (ts timestamp, speed int)
+sql insert into $tb values ('2017-01-01 08:00:00.001', 1)
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != @17-01-01 08:00:00.001000000@ then
+  print data00 = $data00
+  return -1
+endi
+
+print =============== step31 ns db
+sql_error insert into $tb values ('2017-08-28 00:23:46.429+ 1a', 2) 
+sql_error insert into $tb values ('2017-08-28 00:23:46cd .429', 2) 
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step32 ns db
+#sql_error insert into $tb values ('970-01-01 08:00:00.000000000', 3)
+#sql_error insert into $tb values ('970-01-01 08:00:00.000000000', 3)
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step33 ns db
+sql insert into $tb values(now, 4);
+sql insert into $tb values(now+1a, 5);
+sql insert into $tb values(now+1s, 6);
+sql insert into $tb values(now+1m, 7);
+sql insert into $tb values(now+1h, 8);
+sql insert into $tb values(now+1d, 9);
+sql insert into $tb values(now+3w, 10);
+sql insert into $tb values(9214646400000000000, 11);
+sql insert into $tb values('2262-01-01 00:00:00.000000000', 12);
+
+sql_error insert into $tb values(now+1n, 20);
+sql_error insert into $tb values(now+1y, 21);
+sql_error insert into $tb values(9214646400000000001, 22);
+sql_error insert into $tb values('2262-01-02 00:00:00.000000000', 23);
+sql_error insert into $tb values(9223372036854775807, 24);
+sql_error insert into $tb values(9223372036854775808, 25);
+sql_error insert into $tb values(92233720368547758088, 26);
+sql_error insert into $tb values ('9999-12-31 213:59:59.999', 27)
+
+print =============== step34 ns db
+sql select ts from $tb
+print $rows
+if $rows != 10 then
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,158 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = mb_db
+$tbPrefix = mb_tb
+$stbPrefix = mb_stb
+$tbNum = 10
+$ts0 = 1537146000000
+$delta = 1000
+print ========== mixed_blocks.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database if exists $db
+$paramRows = 200
+$rowNum = $paramRows * 4
+$rowNum = $rowNum / 5
+sql create database $db maxrows $paramRows
+print ====== create tables
+sql use $db
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 bool, c6 binary(10), c7 nchar(10)) tags(t1 int)
+
+$i = 0
+$ts = $ts0
+$tb1 = $tbPrefix . 1
+$tb2 = $tbPrefix . 2
+sql create table $tb1 using $stb tags( 1 )
+sql create table $tb2 using $stb tags( 2 )
+
+$tb1 = $tbPrefix . 1
+$tb2 = $tbPrefix . 2
+$x = 0
+print rowNum = $rowNum
+while $x < $rowNum
+  $xs = $x * $delta
+  $ts = $ts0 + $xs
+  $c = $x / 10
+  $c = $c * 10
+  $c = $x - $c
+  $binary = 'binary . $c
+  $binary = $binary . '
+  $nchar = 'nchar . $c
+  $nchar = $nchar . '
+  $c = 0 - $x
+  sql insert into $tb1 values ( $ts , $x , $x , $x , $x , true, $binary , $nchar )
+  sql insert into $tb2 values ( $ts , $c , $c , $c , $c , true, $binary , $nchar )
+  $x = $x + 1
+endw
+print ====== tables created
+sql select * from information_schema.ins_databases
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+$rowNum = $rowNum * 2
+while $x < $rowNum
+  $xs = $x * $delta
+  $ts = $ts0 + $xs
+  $c = $x / 10
+  $c = $c * 10
+  $c = $x - $c
+  $binary = 'binary . $c
+  $binary = $binary . '
+  $nchar = 'nchar . $c
+  $nchar = $nchar . '
+  $c = 0 - $x
+  sql insert into $tb1 values ( $ts , $x , $x , $x , $x , true, $binary , $nchar )
+  sql insert into $tb2 values ( $ts , $c , $c , $c , $c , true, $binary , $nchar )
+  $x = $x + 1
+endw
+
+#### query a STable and using where clause to filter out all the data from tb2 and make the query only return first/last of tb1
+sql select first(ts,c1), last(ts,c1), spread(c1), t1 from $stb where c1 > 0 group by t1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:01.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != @18-09-17 09:05:19.000@ then
+  return -1
+endi
+if $data03 != 319 then
+  return -1
+endi
+if $data04 != 318.000000000 then
+  print expect 318.000000000, actual: $data04
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+
+sql select max(c1), min(c1), sum(c1), avg(c1), count(c1), t1 from $stb where c1 > 0 group by t1
+if $rows != 2 then
+  print === rows $rows
+  return -1
+endi
+if $data00 != 319 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 51040 then
+  return -1
+endi
+if $data03 != 160.000000000 then
+  return -1
+endi
+if $data04 != 319 then
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+
+sql select first(ts,c1), last(ts,c1) from $tb1 where c1 > 0
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:01.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != @18-09-17 09:05:19.000@ then
+  return -1
+endi
+if $data03 != 319 then
+  return -1
+endi
+
+print ===================> TD-2488
+sql create table m1(ts timestamp, k int) tags(a int);
+sql create table t1 using m1 tags(1);
+sql create table t2 using m1 tags(2);
+sql insert into t1 values('2020-1-1 1:1:1', 1);
+sql insert into t1 values('2020-1-1 1:10:1', 2);
+sql insert into t2 values('2020-1-1 1:5:1', 99);
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql select ts from m1 where ts='2020-1-1 1:5:1'
+if $rows != 1 then
+  return -1
+endi

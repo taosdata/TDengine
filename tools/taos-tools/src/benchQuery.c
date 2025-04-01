@@ -23,42 +23,31 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
     }
 
     // execute sql
-    uint32_t threadID = pThreadInfo->threadID;
     char dbName[TSDB_DB_NAME_LEN] = {0};
-    tstrncpy(dbName, g_queryInfo.dbName, TSDB_DB_NAME_LEN);
+    TOOLS_STRNCPY(dbName, g_queryInfo.dbName, TSDB_DB_NAME_LEN);
 
-    if (g_queryInfo.iface == REST_IFACE) {
-        int retCode = postProceSql(command, g_queryInfo.dbName, 0, REST_IFACE,
-                                   0, g_arguments->port, false,
-                                   pThreadInfo->sockfd, pThreadInfo->filePath);
-        if (0 != retCode) {
-            errorPrint("====restful return fail, threadID[%u]\n", threadID);
-            ret = -1;
-        }
+    // query
+    TAOS *taos = pThreadInfo->conn->taos;
+    int64_t rows  = 0;
+    TAOS_RES *res = taos_query(taos, command);
+    int code = taos_errno(res);
+    if (res == NULL || code) {
+        // failed query
+        errorPrint("failed to execute sql:%s, "
+                    "code: 0x%08x, reason:%s\n",
+                    command, code, taos_errstr(res));
+        ret = -1;
     } else {
-        // query
-        TAOS *taos = pThreadInfo->conn->taos;
-        int64_t rows  = 0;
-        TAOS_RES *res = taos_query(taos, command);
-        int code = taos_errno(res);
-        if (res == NULL || code) {
-            // failed query
-            errorPrint("failed to execute sql:%s, "
-                        "code: 0x%08x, reason:%s\n",
-                        command, code, taos_errstr(res));
-            ret = -1;
-        } else {
-            // succ query
-            if (record)
-                rows = fetchResult(res, pThreadInfo->filePath);
-        }
-
-        // free result
-        if (res) {
-            taos_free_result(res);
-        }
-        debugPrint("query sql:%s rows:%"PRId64"\n", command, rows);
+        // succ query
+        if (record)
+            rows = fetchResult(res, pThreadInfo->filePath);
     }
+
+    // free result
+    if (res) {
+        taos_free_result(res);
+    }
+    debugPrint("query sql:%s rows:%"PRId64"\n", command, rows);
 
     // record count
     if (ret ==0) {
@@ -80,10 +69,15 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
 }
 
 // interlligent sleep
-void autoSleep(uint64_t interval, uint64_t delay ) {
+int32_t autoSleep(uint64_t interval, uint64_t delay ) {
+    int32_t msleep = 0;
     if (delay < interval * 1000) {
-        toolsMsleep((int32_t)(interval * 1000 - delay));  // ms
+        msleep = (int32_t)((interval - delay/1000));
+        infoPrint("do sleep %dms ...\n", msleep);
+        toolsMsleep(msleep);  // ms
+        debugPrint("%s\n","do sleep end");
     }
+    return msleep;
 }
 
 // reset 
@@ -140,10 +134,13 @@ static void *specQueryMixThread(void *sarg) {
 
     int64_t st = 0;
     int64_t et = 0;
-    int64_t startTs = toolsGetTimestampMs();
-    int64_t lastPrintTime = startTs;
-    uint64_t  queryTimes = g_queryInfo.specifiedQueryInfo.queryTimes;
-    uint64_t interval = g_queryInfo.specifiedQueryInfo.queryInterval;
+    int64_t startTs        = toolsGetTimestampMs();
+    int64_t lastPrintTime  = startTs;
+    // batchQuery
+    bool     batchQuery    = g_queryInfo.specifiedQueryInfo.batchQuery;
+    uint64_t queryTimes    = batchQuery ? 1 : g_queryInfo.specifiedQueryInfo.queryTimes;
+    uint64_t interval      = batchQuery ? 0 : g_queryInfo.specifiedQueryInfo.queryInterval;
+    
     pThreadInfo->query_delay_list = benchArrayInit(queryTimes, sizeof(int64_t));
     for (int i = pThreadInfo->start_sql; i <= pThreadInfo->end_sql; ++i) {
         SSQL * sql = benchArrayGet(g_queryInfo.specifiedQueryInfo.sqls, i);
@@ -382,7 +379,7 @@ static void *stbQueryThread(void *sarg) {
 // ---------------------------------  firse level function ------------------------------
 //
 
-void totalChildQuery(qThreadInfo* infos, int threadCnt, int64_t spend) {
+void totalChildQuery(qThreadInfo* infos, int threadCnt, int64_t spend, BArray *pDelays) {
     // valid check
     if (infos == NULL || threadCnt == 0) {
         return ;
@@ -444,9 +441,11 @@ void totalChildQuery(qThreadInfo* infos, int threadCnt, int64_t spend) {
                                     (int32_t)(delay_list->size * 0.99)))/1E6,
                 *(int64_t *)(benchArrayGet(delay_list,
                                     (int32_t)(delay_list->size - 1)))/1E6);
-    } else {
-        errorPrint("%s() LN%d, delay_list size: %"PRId64"\n",
-                   __func__, __LINE__, (int64_t)delay_list->size);
+    }
+
+    // copy to another
+    if (pDelays) {
+        benchArrayAddBatch(pDelays, delay_list->pData, delay_list->size, false);
     }
     benchArrayDestroy(delay_list);
 }
@@ -547,7 +546,7 @@ static int stbQuery(uint16_t iface, char* dbName) {
     }
 
     // total show
-    totalChildQuery(threadInfos, threadCnt, end - start);
+    totalChildQuery(threadInfos, threadCnt, end - start, NULL);
 
     ret = 0;
 
@@ -825,7 +824,7 @@ static int specQueryMix(uint16_t iface, char* dbName) {
     }
 
     // statistic
-    totalChildQuery(infos, threadCnt, end - start);
+    totalChildQuery(infos, threadCnt, end - start, NULL);
     ret = 0;
 
 OVER:
@@ -834,6 +833,206 @@ OVER:
 
     // free sqls
     freeSpecialQueryInfo();
+
+    return ret;
+}
+
+void totalBatchQuery(int32_t allSleep, BArray *pDelays) {
+    // sort
+    qsort(pDelays->pData, pDelays->size, pDelays->elemSize, compare);
+
+    // total delays
+    double totalDelays = 0;
+    for (size_t i = 0; i < pDelays->size; i++) {
+        int64_t *delay = benchArrayGet(pDelays, i);
+        totalDelays   += *delay;
+    }    
+
+    printf("\n");
+    // show sleep times
+    if (allSleep > 0) {
+        infoPrint("All sleep spend: %.3fs\n", (float)allSleep/1000);
+    }
+
+    // show P90 ...
+    if (pDelays->size) {
+        infoPrint(
+                "Total delay: "
+                "min delay: %.6fs, "
+                "avg delay: %.6fs, "
+                "p90: %.6fs, "
+                "p95: %.6fs, "
+                "p99: %.6fs, "
+                "max: %.6fs\n",
+                *(int64_t *)(benchArrayGet(pDelays, 0))/1E6,
+                (double)totalDelays/pDelays->size/1E6,
+                *(int64_t *)(benchArrayGet(pDelays,
+                                    (int32_t)(pDelays->size * 0.9)))/1E6,
+                *(int64_t *)(benchArrayGet(pDelays,
+                                    (int32_t)(pDelays->size * 0.95)))/1E6,
+                *(int64_t *)(benchArrayGet(pDelays,
+                                    (int32_t)(pDelays->size * 0.99)))/1E6,
+                *(int64_t *)(benchArrayGet(pDelays,
+                                    (int32_t)(pDelays->size - 1)))/1E6);
+    }
+}
+
+//
+// specQuery Mix Batch
+//
+static int specQueryBatch(uint16_t iface, char* dbName) {
+    // init
+    BArray *pDelays    = NULL;
+    int ret            = -1;
+    int nConcurrent    = g_queryInfo.specifiedQueryInfo.concurrent;
+    uint64_t interval  = g_queryInfo.specifiedQueryInfo.queryInterval;
+    pthread_t * pids   = benchCalloc(nConcurrent, sizeof(pthread_t), true);
+    qThreadInfo *infos = benchCalloc(nConcurrent, sizeof(qThreadInfo), true);
+    infoPrint("start batch query, sleep interval:%" PRIu64 "ms query times:%" PRIu64 " thread:%d \n", 
+        interval, g_queryInfo.query_times, nConcurrent);    
+
+    // concurent calc
+    int total_sql_num = g_queryInfo.specifiedQueryInfo.sqls->size;
+    int start_sql     = 0;
+    int a             = total_sql_num / nConcurrent;
+    if (a < 1) {
+        warnPrint("sqls num:%d < concurent:%d, set concurrent %d\n", total_sql_num, nConcurrent, nConcurrent);
+        nConcurrent = total_sql_num;
+        a = 1;
+    }
+    int b = 0;
+    if (nConcurrent != 0) {
+        b = total_sql_num % nConcurrent;
+    }
+
+    //
+    // connect
+    //
+    int connCnt = 0;
+    for (int i = 0; i < nConcurrent; ++i) {
+        qThreadInfo *pThreadInfo = infos + i;
+        // create conn
+        if (initQueryConn(pThreadInfo, iface)){
+            ret = -1;
+            goto OVER;      
+        }
+        
+        connCnt ++;
+    }
+
+
+    // reset total
+    g_queryInfo.specifiedQueryInfo.totalQueried = 0;
+    g_queryInfo.specifiedQueryInfo.totalFail    = 0;
+
+    //
+    // running
+    //
+    int threadCnt = 0;
+    int allSleep  = 0;
+    pDelays       = benchArrayInit(10, sizeof(int64_t));
+    for (int m = 0; m < g_queryInfo.query_times; ++m) {
+        // reset
+        threadCnt = 0;
+        start_sql = 0;
+
+        // create thread
+        for (int i = 0; i < nConcurrent; ++i) {
+            qThreadInfo *pThreadInfo = infos + i;
+            pThreadInfo->threadID    = i;
+            pThreadInfo->start_sql   = start_sql;
+            pThreadInfo->end_sql     = i < b ? start_sql + a : start_sql + a - 1;
+            start_sql = pThreadInfo->end_sql + 1;
+            pThreadInfo->total_delay = 0;
+            // total zero
+            pThreadInfo->nSucc = 0;
+            pThreadInfo->nFail = 0;
+    
+            // main run
+            int code = pthread_create(pids + i, NULL, specQueryMixThread, pThreadInfo);
+            if (code != 0) {
+                errorPrint("failed specQueryBatchThread create. error code =%d \n", code);
+                break;
+            }
+            
+            threadCnt ++;
+        }
+        
+        bool needExit = false;
+        if (threadCnt != nConcurrent) {
+            // if failed, set termainte flag true like ctrl+c exit
+            needExit = true;
+            g_arguments->terminate = true;
+        }
+        
+        // wait thread finished
+        int64_t start = toolsGetTimestampUs();
+        for (int i = 0; i < threadCnt; ++i) {
+            pthread_join(pids[i], NULL);
+            qThreadInfo *pThreadInfo = infos + i;
+            // total queries
+            g_queryInfo.specifiedQueryInfo.totalQueried += pThreadInfo->nSucc;
+            if (g_arguments->continueIfFail == YES_IF_FAILED) {
+                // yes need add failed count
+                g_queryInfo.specifiedQueryInfo.totalQueried += pThreadInfo->nFail;
+                g_queryInfo.specifiedQueryInfo.totalFail    += pThreadInfo->nFail;
+            }
+    
+            // destory
+            if (needExit) {
+                benchArrayDestroy(pThreadInfo->query_delay_list);
+                pThreadInfo->query_delay_list = NULL;
+            }
+        }
+        int64_t end = toolsGetTimestampUs();
+    
+        // create 
+        if (needExit) {
+            errorPrint("failed to create thread. expect nConcurrent=%d real threadCnt=%d,  exit testing.\n", nConcurrent, threadCnt);
+            goto OVER;
+        }
+    
+        // batch total
+        printf("\n");
+        totalChildQuery(infos, threadCnt, end - start, pDelays);
+
+        // show batch total
+        int64_t delay = end - start;
+        infoPrint("count:%d execute batch spend: %" PRId64 "ms\n", m + 1, delay/1000);
+
+        // sleep
+        if ( g_queryInfo.specifiedQueryInfo.batchQuery && interval > 0) {
+            allSleep += autoSleep(interval, delay);
+        }
+
+        // check cancel
+        if(g_arguments->terminate) {
+            break;
+        }
+    }
+    ret = 0;
+    
+    // all total
+    totalBatchQuery(allSleep, pDelays);
+
+OVER:
+    // close conn
+    for (int i = 0; i < connCnt; ++i) {
+        qThreadInfo *pThreadInfo = infos + i;
+        closeQueryConn(pThreadInfo, iface);
+    }
+
+    // free threads
+    tmfree(pids);
+    tmfree(infos);
+
+    // free sqls
+    freeSpecialQueryInfo();
+
+    // free delays
+    if (pDelays) {
+        benchArrayDestroy(pDelays);
+    }
 
     return ret;
 }
@@ -867,25 +1066,11 @@ void totalQuery(int64_t spends) {
 int queryTestProcess() {
     prompt(0);
 
-    if (REST_IFACE == g_queryInfo.iface) {
-        encodeAuthBase64();
-    }
-
     // kill sql for executing seconds over "kill_slow_query_threshold"
     if (g_queryInfo.iface == TAOSC_IFACE && g_queryInfo.killQueryThreshold) {
         int32_t ret = killSlowQuery();
         if (ret != 0) {
             return ret;
-        }
-    }
-
-    // covert addr
-    if (g_queryInfo.iface == REST_IFACE) {
-        if (convertHostToServAddr(g_arguments->host,
-                    g_arguments->port + TSDB_PORT_HTTP,
-                    &(g_arguments->serv_addr)) != 0) {
-            errorPrint("%s", "convert host to server address\n");
-            return -1;
         }
     }
 
@@ -903,14 +1088,19 @@ int queryTestProcess() {
     // start running
     //
 
-    
     uint64_t startTs = toolsGetTimestampMs();
     if(g_queryInfo.specifiedQueryInfo.sqls && g_queryInfo.specifiedQueryInfo.sqls->size > 0) {
         // specified table
         if (g_queryInfo.specifiedQueryInfo.mixed_query) {
             // mixed
-            if (specQueryMix(g_queryInfo.iface, g_queryInfo.dbName)) {
-                return -1;
+            if(g_queryInfo.specifiedQueryInfo.batchQuery) {
+                if (specQueryBatch(g_queryInfo.iface, g_queryInfo.dbName)) {
+                    return -1;
+                }    
+            } else {
+                if (specQueryMix(g_queryInfo.iface, g_queryInfo.dbName)) {
+                    return -1;
+                }    
             }
         } else {
             // no mixied

@@ -36,7 +36,7 @@ extern "C" {
 #define MND_STREAM_TASK_UPDATE_NAME  "stream-task-update"
 #define MND_STREAM_CHKPT_UPDATE_NAME "stream-chkpt-update"
 #define MND_STREAM_CHKPT_CONSEN_NAME "stream-chkpt-consen"
-#define MND_STREAM_RESTART_NAME      "stream-restart"
+#define MND_STREAM_STOP_NAME         "stream-stop"
 
 typedef struct SStreamTransInfo {
   int64_t     startTime;
@@ -72,6 +72,7 @@ typedef struct SStreamExecInfo {
   bool             initTaskList;
   SArray          *pNodeList;
   int64_t          ts;  // snapshot ts
+  int64_t          chkptReportScanTs; // scan checkpoint report ts
   SStreamTransMgmt transMgmt;
   SHashObj        *pTaskMap;
   SArray          *pTaskList;
@@ -122,7 +123,7 @@ int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamId);
 
 int32_t  mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams);
 int32_t  mndGetNumOfStreamTasks(const SStreamObj *pStream);
-int32_t  mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList);
+int32_t  mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList, SHashObj* pTermMap);
 void     mndDestroyVgroupChangeInfo(SVgroupChangeInfo *pInfo);
 void     mndKillTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName);
 int32_t  setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
@@ -147,14 +148,15 @@ int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *p
 int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream, int64_t chkptId);
 int32_t mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int64_t chkptId);
-int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t checkpointId, int64_t ts);
-int32_t mndStreamSetRestartAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t mndStreamSetChkptIdAction(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream, int64_t checkpointId, SArray *pList);
+int32_t mndStreamSetStopAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t checkpointId,
                                      int8_t mndTrigger);
+int32_t mndStreamSetStopStreamTasksActions(SMnode* pMnode, STrans *pTrans, uint64_t dbUid);
+
 int32_t mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SArray *pChkptInfoList);
 int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq);
-int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int32_t taskId, int64_t checkpointId,
-                                          int64_t ts);
+int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId, SArray* pList);
 void    removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo);
 int32_t mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList,
                                SVgroupChangeInfo *pInfo);

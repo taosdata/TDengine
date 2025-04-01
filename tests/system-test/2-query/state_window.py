@@ -203,7 +203,23 @@ class TDTestCase:
         tdSql.execute("insert into t0 values(now, 3,NULL,3,3,3,3,3,3,3)", queryTimes=1)
         tdSql.query("select first(c2) from t0 session(ts, 1s) order by ts", queryTimes=1)
 
+    def ts6079(self):
+        ts = 1741757485230
+        tdSql.execute("drop database if exists ts6079")
+        tdSql.execute("create database ts6079 vgroups 2 replica 1")
+        tdSql.execute("CREATE STABLE ts6079.`meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` VARCHAR(24))")
+        for tableIndex in range(10):
+            tdSql.execute(f"CREATE TABLE ts6079.t{tableIndex} USING ts6079.meters TAGS ({tableIndex}, 'tb{tableIndex}')")
+            for num in range(10):
+                tdSql.execute(f"INSERT INTO ts6079.t{tableIndex} VALUES({ts + num}, {num * 1.0}, {215 + num}, 0.0)")
+
+        tdSql.query("select _wstart ,first(ts),last(ts),count(*),to_char(ts, 'yyyymmdd') as ts from ts6079.meters partition by to_char(ts, 'yyyymmdd') as ts state_window(cast(current as varchar(2)));")
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 3, 10)
+   
+ 
     def run(self):
+        self.ts6079()
         self.test_crash_for_session_window()
         self.test_crash_for_state_window1()
         self.test_crash_for_state_window2()

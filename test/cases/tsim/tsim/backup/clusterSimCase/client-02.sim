@@ -1,0 +1,70 @@
+# create database db1
+# create table tb ()
+# loop insert disorder data
+###############################################################
+################ set script parameters ################
+$tblStart = 0
+$tblEnd   = 10000
+$tsStart  = 1325347200000  # 2012-01-01 00:00:00.000
+$preBinary = ' . client-02-
+###############################################################
+
+sql connect
+
+print ================ create db
+$db = db
+sql create database if not exists $db replica 2 
+sql use $db
+
+print ================ create table $tb (ts timestamp, c1 int, c2 binary(16))
+
+$i = $tblStart
+while $i < $tblEnd
+  $tb = tb . $i
+#  print create table if not exists $tb ( ts timestamp , c1 int , c2 binary(16) )
+  sql create table if not exists $tb ( ts timestamp , c1 int , c2 binary(16) )
+  $i = $i + 1
+endw 
+
+$totalRows   = 0
+$rowsPerTbl  = 0
+$ts          = $tsStart
+$rowsPerLoop = 160
+
+$loop_cnt = 0
+loop_run:
+print ================ client-02 start loop insert data ( loop_cnt: $loop_cnt )
+$i  = $tblStart
+while $i < $tblEnd
+  $tb = tb . $i
+  
+  $c2Binary = $preBinary . $i
+  $c2Binary = $c2Binary . '
+
+  $x = 0
+  while $x < $rowsPerLoop
+    sql insert into $tb values ( $ts + 0a , $x , $c2Binary ) ( $ts + 2a , $x , $c2Binary ) ( $ts + 4a , $x , $c2Binary ) ( $ts + 6a , $x , $c2Binary ) ( $ts + 8a , $x , $c2Binary ) ( $ts + 10a , $x , $c2Binary ) ( $ts + 12a , $x , $c2Binary ) ( $ts + 14a , $x , $c2Binary ) ( $ts + 16a , $x , $c2Binary ) ( $ts + 18a , $x , $c2Binary ) ( $ts + 20a , $x , $c2Binary ) ( $ts + 22a , $x , $c2Binary ) ( $ts + 24a , $x , $c2Binary ) ( $ts + 26a , $x , $c2Binary ) ( $ts + 28a , $x , $c2Binary ) ( $ts + 30a , $x , $c2Binary ) ( $ts + 32a , $x , $c2Binary ) ( $ts + 34a , $x , $c2Binary ) ( $ts + 36a , $x , $c2Binary ) ( $ts + 38a , $x , $c2Binary )
+    sql insert into $tb values ( $ts + 1a , $x , $c2Binary ) ( $ts + 3a , $x , $c2Binary ) ( $ts + 5a , $x , $c2Binary ) ( $ts + 7a , $x , $c2Binary ) ( $ts + 9a , $x , $c2Binary ) ( $ts + 11a , $x , $c2Binary ) ( $ts + 13a , $x , $c2Binary ) ( $ts + 15a , $x , $c2Binary ) ( $ts + 17a , $x , $c2Binary ) ( $ts + 19a , $x , $c2Binary ) ( $ts + 21a , $x , $c2Binary ) ( $ts + 23a , $x , $c2Binary ) ( $ts + 25a , $x , $c2Binary ) ( $ts + 27a , $x , $c2Binary ) ( $ts + 29a , $x , $c2Binary ) ( $ts + 31a , $x , $c2Binary ) ( $ts + 33a , $x , $c2Binary ) ( $ts + 35a , $x , $c2Binary ) ( $ts + 37a , $x , $c2Binary ) ( $ts + 39a , $x , $c2Binary )
+    $x = $x + 40
+    $ts = $ts + 40a
+  endw 
+  if $i == $tblStart then
+    $rowsPerTbl = $rowsPerTbl + $x   
+  endi
+
+  $totalRows = $totalRows + $x
+  $i = $i + 1
+  
+endw 
+
+sql select count(*) from $tb
+print data00 $data00 rowsPerTbl $rowsPerTbl
+if $data00 != $rowsPerTbl then
+  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  print ************ client-02 insert data into  $tb  error ***** *****
+  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  return -1
+endi
+
+$loop_cnt = $loop_cnt + 1
+goto loop_run

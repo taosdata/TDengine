@@ -9,6 +9,9 @@
 set +e
 #set -x
 
+export ASAN_OPTIONS=detect_odr_violation=0
+echo "forbid check ODR violation."
+
 FILE_NAME=
 VALGRIND=0
 TEST=0
@@ -102,11 +105,14 @@ echo "dataDir            $DATA_DIR"               >> $TAOS_CFG
 echo "logDir             $LOG_DIR"                >> $TAOS_CFG
 echo "scriptDir          ${CODE_DIR}"             >> $TAOS_CFG
 echo "numOfLogLines      100000000"               >> $TAOS_CFG
-echo "rpcDebugFlag       143"                     >> $TAOS_CFG
+echo "simdebugFlag       135"                     >> $TAOS_CFG
 echo "tmrDebugFlag       131"                     >> $TAOS_CFG
-echo "cDebugFlag         143"                     >> $TAOS_CFG
-echo "udebugFlag         143"                     >> $TAOS_CFG
-echo "debugFlag          143"                     >> $TAOS_CFG
+echo "udebugFlag         135"                     >> $TAOS_CFG
+echo "rpcDebugFlag       135"                     >> $TAOS_CFG
+echo "jnidebugFlag       135"                     >> $TAOS_CFG
+echo "qdebugFlag         135"                     >> $TAOS_CFG
+echo "cDebugFlag         135"                     >> $TAOS_CFG
+echo "tqClientDebugFlag  135"                     >> $TAOS_CFG
 echo "wal                0"                       >> $TAOS_CFG
 echo "asyncLog           0"                       >> $TAOS_CFG
 echo "locale             en_US.UTF-8"             >> $TAOS_CFG

@@ -1,0 +1,182 @@
+name: TDengine Build
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+      - '3.3.6'
+      - 'enh/cmake-TD-33848'
+    paths-ignore:
+      - 'docs/**'
+      - 'packaging/**'
+      - 'tests/**'
+      - '**/*.md'
+      - '.github/workflows/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Run on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - ubuntu-22.04
+          - ubuntu-24.04
+          - macos-14
+          - macos-15
+          - windows-2022
+
+          
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Cache Go modules on Linux and macOS
+        if: runner.os != 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache Homebrew on macOS
+        if: runner.os == 'macOS'
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/Homebrew
+          key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
+          restore-keys: |
+            ${{ runner.os }}-brew-
+
+      - name: Cache Go modules on Windows
+        if: runner.os == 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\Users\runneradmin\go\pkg\mod
+            C:\Users\runneradmin\AppData\Local\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.18
+
+      - name: Install dependencies on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update -y
+          sudo apt install -y \
+            build-essential \
+            cmake \
+            gawk \
+            libgeos-dev \
+            libjansson-dev \
+            liblzma-dev \
+            libsnappy-dev \
+            libssl-dev \
+            libz-dev \
+            pkg-config \
+            zlib1g
+
+
+
+      - name: Install dependencies on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install \
+            argp-standalone \
+            gawk \
+            gflags \
+            geos \
+            jansson \
+            openssl \
+            pkg-config \
+            snappy \
+            zlib
+
+      - name: Install dependencies on Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install jom --yes
+
+        
+      - name: prepare install path on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          sudo mkdir -p /usr/local/lib
+          sudo mkdir -p /usr/local/include
+
+      - name: Build and install TDengine on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          mkdir debug && cd debug
+          cmake .. -DBUILD_TOOLS=true \
+            -DBUILD_KEEPER=true \
+            -DBUILD_HTTP=false \
+            -DBUILD_TEST=true \
+            -DWEBSOCKET=true \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_DEPENDENCY_TESTS=false
+          make -j4
+          sudo make install
+          which taosd
+          which taosadapter
+          which taoskeeper
+
+      - name: Build and install TDengine on Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set CL=/MP8
+          mkdir debug && cd debug
+          cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=false -DBUILD_DEPENDENCY_TESTS=false -DBUILD_KEEPER=true
+          jom -j4
+          jom install
+        
+      - name: Statistics ldd
+        if: runner.os != 'Windows'
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -name "*.so" -print0 | xargs -0 ldd || true
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd || true
+
+      - name: Statistics size
+        if: runner.os != 'Windows'
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lhrS
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lhrS
+
+      - name: Start taosd and taosadapter
+        if: runner.os != 'Windows'
+        run: |
+          cp /etc/taos/taos.cfg ./
+          sudo echo "supportVnodes 256" >> taos.cfg
+          nohup sudo taosd -c taos.cfg &
+          nohup sudo taosadapter &
+
+      - name: Run tests with taosBenchmark 
+        if: runner.os != 'Windows'
+        run: |
+          taosBenchmark -t 10 -n 10 -y 
+          taos -s "select count(*) from test.meters"
+
+      - name: Clean up  on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          if pgrep taosd; then sudo pkill taosd; fi
+          if pgrep taosadapter; then sudo pkill taosadapter; fi

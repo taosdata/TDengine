@@ -33,6 +33,7 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                               | TDengine Version   |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.6.0                   | Support efficient writing and decimal data types in WebSocket connections.                                                                                                                                                                                                                                                                                                                                  | 3.3.6.0 and higher |
 | 3.5.3                   | Support unsigned data types in WebSocket connections.                                                                                                                                                                                                                                                                                                                                                       | -                  |
 | 3.5.2                   | Fixed WebSocket result set free bug.                                                                                                                                                                                                                                                                                                                                                                        | -                  |
 | 3.5.1                   | Fixed the getObject issue in data subscription.                                                                                                                                                                                                                                                                                                                                                             | -                  |
@@ -121,6 +122,7 @@ Please refer to the specific error codes:
 | 0x2378     | consumer create error                                           | Data subscription creation failed, check the error information and taos log for troubleshooting.                                   |
 | 0x2379     | seek offset must not be a negative number                       | The seek interface parameter must not be negative, use the correct parameters.                                                     |
 | 0x237a     | vGroup not found in result set                                  | VGroup not assigned to the current consumer, due to the Rebalance mechanism causing the Consumer and VGroup to be unbound.         |
+| 0x2390     | background thread write error in Efficient Writing              | In the event of an efficient background thread write error, you can stop writing and rebuild the connection.                       |
 
 - [TDengine Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 <!-- - [TDengine_ERROR_CODE](../error-code) -->
@@ -148,6 +150,7 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | JSON              | java.lang.String     | only supported in tags                  |
 | VARBINARY         | byte[]               |                                         |
 | GEOMETRY          | byte[]               |                                         |
+| DECIMAL           | java.math.BigDecimal |                                         |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
@@ -319,7 +322,15 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_APP_NAME: App name, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is java.  
 - TSDBDriver.PROPERTY_KEY_APP_IP: App IP, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is empty.  
-  
+
+- TSDBDriver.PROPERTY_KEY_ASYNC_WRITE: Efficient Writing mode. Currently, only the `stmt` method is supported. Effective only when using WebSocket connections. DeDefault value is empty, meaning Efficient Writing mode is not enabled.
+- TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM: In Efficient Writing mode, this refers to the number of background write threads. Effective only when using WebSocket connections. Default value is 10.
+- TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW: In Efficient Writing mode, this is the batch size for writing data, measured in rows. Effective only when using WebSocket connections. Default value is 1000.
+- TSDBDriver.PROPERTY_KEY_CACHE_SIZE_BY_ROW: In Efficient Writing mode, this is the cache size, measured in rows. Effective only when using WebSocket connections. Default value is 10000.
+- TSDBDriver.PROPERTY_KEY_COPY_DATA: In Efficient Writing mode, this determines Whether to copy the binary data passed by the application through the `addBatch` method. Effective only when using WebSocket connections. Default value is false.
+- TSDBDriver.PROPERTY_KEY_STRICT_CHECK: In Efficient Writing mode, this determines whether to validate the length of table names and variable-length data types. Effective only when using WebSocket connections. Default value is false.
+- TSDBDriver.PROPERTY_KEY_RETRY_TIMES: In Efficient Writing mode, this is the number of retry attempts for failed write operations. Effective only when using WebSocket connections. Default value is 3.  
+
 Additionally, for native JDBC connections, other parameters such as log level and SQL length can be specified by specifying the URL and Properties.
 
 **Priority of Configuration Parameters**

@@ -52,6 +52,8 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 | Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|        2.7.23         | 支持 DECIMAL 数据类型                                                                                                                                            | - |
+|        2.7.22         | 支持 Python 3.12 及以上版本                                                                                                                                            | - |
 |        2.7.21         | Native 支持 STMT2 写入                                                                                                                                            | - |
 |        2.7.19         | 支持 Apache Superset 连接 TDengine Cloud 数据源                                                                                                                    | - |
 |        2.7.18         | 支持 Apache Superset 产品连接本地 TDengine 数据源                                                                                                                   | - |
@@ -63,7 +65,7 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 |         2.7.9         | 数据订阅支持获取消费进度和重置消费进度                                                                                                                                 | 3.0.2.6 及更高版本 |
 |         2.7.8         | 新增 `execute_many`                                                                                                                                              | 3.0.0.0 及更高版本 |
 
-WebSocket Connector 历史版本：  
+WebSocket Connector 历史版本：
 
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine 版本    |
@@ -127,6 +129,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 |       JSON        |       str       |
 |     GEOMETRY      |    bytearray    |
 |     VARBINARY     |    bytearray    |
+|     DECIMAL       |    Decimal      |
 ## 示例程序汇总
 
 | 示例程序链接                                                                                                              | 示例程序内容             |
@@ -168,24 +171,24 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 |   protocol |   | username  | password  | host | port |  database  |  params               |
 ```
 
-- **protocol**: 使用 websocket 协议建立连接。例如`ws://localhost:6041`
-- **username/password**: 数据库的用户名和密码。
-- **host/port**: 主机地址和端口号。例如`localhost:6041`
-- **database**: 数据库名称。
-- **params**: 其他参数。 例如token。
+- **protocol**：使用 websocket 协议建立连接。例如`ws://localhost:6041`
+- **username/password**：数据库的用户名和密码。
+- **host/port**：主机地址和端口号。例如`localhost:6041`
+- **database**：数据库名称。
+- **params**：其他参数。 例如token。
 
 #### 建立连接
 
 - `fn connect(dsn: Option<&str>, args: Option<&PyDict>) -> PyResult<Connection>`
     - **接口说明**：建立 taosAdapter 连接。
     - **参数说明**：
-        - `dsn`: 类型 `Option<&str>` 可选，数据源名称（DSN），用于指定要连接的数据库的位置和认证信息。 
-        - `args`: 类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供, 可用于设置
-            - `user`: 数据库的用户名
-            - `password`: 数据库的密码。
-            - `host`: 主机地址
-            - `port`: 端口号
-            - `database`: 数据库名称   
+        - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定要连接的数据库的位置和认证信息。 
+        - `args`：类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供, 可用于设置
+            - `user`：数据库的用户名
+            - `password`：数据库的密码。
+            - `host`：主机地址
+            - `port`：端口号
+            - `database`：数据库名称   
     - **返回值**：连接对象。
     - **异常**：操作失败抛出 `ConnectionError` 异常。
 - `fn cursor(&self) -> PyResult<Cursor>`
@@ -205,7 +208,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
     - **接口说明**：执行带有 req_id 的 sql 语句。 
     - **参数说明**：
         - `sql`：待执行的 sql 语句。
-        - `reqId`: 用于问题追踪。
+        - `reqId`：用于问题追踪。
     - **返回值**：影响的条数。
     - **异常**：操作失败抛出 `QueryError` 异常。
 - `fn query(&self, sql: &str) -> PyResult<TaosResult>`
@@ -218,7 +221,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
     - **接口说明**：查询带有 req_id 的 sql 语句。 
     - **参数说明**：
         - `sql`：待执行的 sql 语句。
-        - `reqId`: 用于问题追踪。
+        - `reqId`：用于问题追踪。
     - **返回值**：`TaosResult` 数据集对象。
     - **异常**：操作失败抛出 `QueryError` 异常。
 
@@ -238,19 +241,19 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **接口说明**：无模式写入。
     - **参数说明**：
         - `lines`：待写入的数据数组，无模式具体的数据格式可参考 `Schemaless 写入`。
-        - `protocol`: 协议类型
-            - `PySchemalessProtocol::Line`：  InfluxDB 行协议（Line Protocol)。
+        - `protocol`：协议类型
+            - `PySchemalessProtocol::Line`：InfluxDB 行协议（Line Protocol)。
             - `PySchemalessProtocol::Telnet`：OpenTSDB 文本行协议。
-            - `PySchemalessProtocol::Json`：  JSON 协议格式
-        - `precision`: 时间精度 
-            - `PySchemalessPrecision::Hour`：  小时
+            - `PySchemalessProtocol::Json`：JSON 协议格式
+        - `precision`：时间精度 
+            - `PySchemalessPrecision::Hour`：小时
             - `PySchemalessPrecision::Minute`：分钟
             - `PySchemalessPrecision::Second`  秒
             - `PySchemalessPrecision::Millisecond`：毫秒
             - `PySchemalessPrecision::Microsecond`：微秒
-            - `PySchemalessPrecision::Nanosecond`： 纳秒
+            - `PySchemalessPrecision::Nanosecond`：纳秒
         - `ttl`：表过期时间，单位天。
-        - `reqId`: 用于问题追踪。
+        - `reqId`：用于问题追踪。
     - **异常**：操作失败抛出 `DataError` 或 `OperationalError` 异常。
 
 #### 参数绑定
@@ -261,22 +264,22 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `fn prepare(&mut self, sql: &str) -> PyResult<()>`
     - **接口说明**：绑定预编译 sql 语句。
     - **参数说明**：
-        - `sql`: 预编译的 SQL 语句。
+        - `sql`：预编译的 SQL 语句。
     - **异常**：操作失败抛出 `ProgrammingError` 异常。
 - `fn set_tbname(&mut self, table_name: &str) -> PyResult<()>`
     - **接口说明**：设置将要写入数据的表名。
     - **参数说明**：
-        - `tableName`: 表名，如果需要指定数据库, 例如： `db_name.table_name` 即可。
+        - `tableName`：表名，如果需要指定数据库, 例如：`db_name.table_name` 即可。
     - **异常**：操作失败抛出 `ProgrammingError` 异常。
 - `fn set_tags(&mut self, tags: Vec<PyTagView>) -> PyResult<()>`
     - **接口说明**：设置表 Tags 数据, 用于自动建表。
     - **参数说明**：
-        - `paramsArray`: Tags 数据。
+        - `paramsArray`：Tags 数据。
     - **异常**：操作失败抛出 `ProgrammingError` 异常。
 - `fn bind_param(&mut self, params: Vec<PyColumnView>) -> PyResult<()>`
     - **接口说明**：绑定数据。
     - **参数说明**：
-        - `paramsArray`: 绑定数据。
+        - `paramsArray`：绑定数据。
     - **异常**：操作失败抛出 `ProgrammingError` 异常。
 - `fn add_batch(&mut self) -> PyResult<()>`
     - **接口说明**：提交绑定数据。
@@ -286,10 +289,10 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **返回值**：写入条数。
     - **异常**：操作失败抛出 `QueryError` 异常。
 - `fn affect_rows(&mut self) -> PyResult<usize>`
-    - **接口说明**： 获取写入条数。
+    - **接口说明**：获取写入条数。
     - **返回值**：写入条数。
 - `fn close(&self) -> PyResult<()>`
-    - **接口说明**： 关闭 stmt 对象。
+    - **接口说明**：关闭 stmt 对象。
 
 
 #### 数据订阅
@@ -298,8 +301,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - port：端口号。
     - group.id：所在的 group。
     - client.id：客户端id。
-    - td.connect.user: 数据库用户名。
-    - td.connect.pass: 数据库密码。
+    - td.connect.user：数据库用户名。
+    - td.connect.pass：数据库密码。
     - td.connect.token：数据库的连接token。
     - auto.offset.reset：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
     - enable.auto.commit：是否允许自动提交。
@@ -307,14 +310,14 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 
 - `fn Consumer(conf: Option<&PyDict>, dsn: Option<&str>) -> PyResult<Self>`
     - **接口说明** 消费者构造函数。
-        - `conf`: 类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供, 具体配置参见属性列表。
-        - `dsn`: 类型 `Option<&str>` 可选，数据源名称（DSN），用于指定要连接的数据库的位置和认证信息。 
+        - `conf`：类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供, 具体配置参见属性列表。
+        - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定要连接的数据库的位置和认证信息。 
     - **返回值**：Consumer 消费者对象。
     - **异常**：操作失败抛出 `ConsumerException` 异常。
 - `fn subscribe(&mut self, topics: &PyList) -> PyResult<()>` 
     - **接口说明** 订阅一组主题。
     - **参数说明**：
-        - `topics`: 订阅的主题列表。
+        - `topics`：订阅的主题列表。
     - **异常**：操作失败抛出 `ConsumerException` 异常。
 - `fn unsubscribe(&mut self)`
     - **接口说明** 取消订阅。
@@ -322,13 +325,13 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `fn poll(&mut self, timeout: Option<f64>) -> PyResult<Option<Message>>`
     - **接口说明** 轮询消息。
     - **参数说明**：
-        - `timeoutMs`: 表示轮询的超时时间，单位毫秒。
+        - `timeoutMs`：表示轮询的超时时间，单位毫秒。
     - **返回值**：`Message` 每个主题对应的数据。
     - **异常**：操作失败抛出 `ConsumerException` 异常。
 - `fn commit(&mut self, message: &mut Message) -> PyResult<()>`
     - **接口说明** 提交当前处理的消息的偏移量。
     - **参数说明**：
-        - `message`: 类型 `Message`, 当前处理的消息的偏移量。
+        - `message`：类型 `Message`, 当前处理的消息的偏移量。
     - **异常**：操作失败抛出 `ConsumerException` 异常。
 - `fn assignment(&mut self) -> PyResult<Option<Vec<TopicAssignment>>>`
     - **接口说明**：获取消费者当前分配的指定的分区或所有分区。
@@ -337,22 +340,22 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `fn seek(&mut self, topic: &str, vg_id: i32, offset: i64) -> PyResult<()>`
     - **接口说明**：将给定分区的偏移量设置到指定的位置。
     - **参数说明**：
-        - `topic`: 订阅的主题。
-        - `vg_id`: vgroupid。
+        - `topic`：订阅的主题。
+        - `vg_id`：vgroupid。
         - `offset`:需要设置的偏移量。
     - **异常**：操作失败抛出 ConsumerException 异常。
 - `fn committed(&mut self, topic: &str, vg_id: i32) -> PyResult<i64>`
     - **接口说明**：获取订阅主题的vgroupid分区最后提交的偏移量。
     - **参数说明**：
-        - `topic`: 订阅的主题。
-        - `vg_id`: vgroupid。
+        - `topic`：订阅的主题。
+        - `vg_id`：vgroupid。
     - **返回值**：`i64`，分区最后提交的偏移量。
     - **异常**：操作失败抛出 ConsumerException 异常。
 - `fn position(&mut self, topic: &str, vg_id: i32) -> PyResult<i64>`
     - **接口说明**：获取给定分区当前的偏移量。
     - **参数说明**：
-        - `topic`: 订阅的主题。
-        - `vg_id`: vgroupid。
+        - `topic`：订阅的主题。
+        - `vg_id`：vgroupid。
     - **返回值**：`i64`，分区最后提交的偏移量。
     - **异常**：操作失败抛出 ConsumerException 异常。
 - `fn close(&mut self)`
@@ -365,14 +368,14 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 
 - `def connect(*args, **kwargs):`
     - **接口说明**：建立 taosAdapter 连接。
-    - **参数说明**： 
-        - `kwargs`: 以 Python 字典的形式提供, 可用于设置
-            - `user`: 数据库的用户名
-            - `password`: 数据库的密码。
-            - `host`: 主机地址
-            - `port`: 端口号
-            - `database`: 数据库名称 
-            - `timezone`: 时区
+    - **参数说明**：
+        - `kwargs`：以 Python 字典的形式提供, 可用于设置
+            - `user`：数据库的用户名
+            - `password`：数据库的密码。
+            - `host`：主机地址
+            - `port`：端口号
+            - `database`：数据库名称 
+            - `timezone`：时区
     - **返回值**：`TaosConnection` 连接对象。
     - **异常**：操作失败抛出 `AttributeError` 或 `ConnectionError` 异常。
 - `def cursor(self)`
@@ -385,14 +388,14 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **接口说明**：执行 sql 语句。 
     - **参数说明**：
         - `operation`：待执行的 sql 语句。
-        - `reqId`: 用于问题追踪。
+        - `reqId`：用于问题追踪。
     - **返回值**：影响的条数。
     - **异常**：操作失败抛出 `ProgrammingError` 异常。
 - `def query(self, sql: str, req_id: Optional[int] = None) -> TaosResult`
     - **接口说明**：查询数据。
     - **参数说明**：
         - `sql`：待执行的 sql 语句。
-        - `reqId`: 用于问题追踪。
+        - `reqId`：用于问题追踪。
     - **返回值**：`TaosResult` 数据集对象。
     - **异常**：操作失败抛出 `ProgrammingError` 异常。
 
@@ -415,19 +418,19 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **接口说明**：无模式写入。
     - **参数说明**：
         - `lines`：待写入的数据数组，无模式具体的数据格式可参考 `Schemaless 写入`。
-        - `protocol`: 协议类型
-            - `SmlProtocol.LINE_PROTOCOL`：  InfluxDB 行协议（Line Protocol)。
+        - `protocol`：协议类型
+            - `SmlProtocol.LINE_PROTOCOL`：InfluxDB 行协议（Line Protocol)。
             - `SmlProtocol.TELNET_PROTOCOL`：OpenTSDB 文本行协议。
-            - `SmlProtocol.JSON_PROTOCOL`：  JSON 协议格式
-        - `precision`: 时间精度 
-            - `SmlPrecision.Hour`：  小时
+            - `SmlProtocol.JSON_PROTOCOL`：JSON 协议格式
+        - `precision`：时间精度 
+            - `SmlPrecision.Hour`：小时
             - `SmlPrecision.Minute`：分钟
             - `SmlPrecision.Second`  秒
             - `SmlPrecision.Millisecond`：毫秒
             - `SmlPrecision.Microsecond`：微秒
-            - `SmlPrecision.Nanosecond`： 纳秒
+            - `SmlPrecision.Nanosecond`：纳秒
         - `ttl`：表过期时间，单位天。
-        - `reqId`: 用于问题追踪。
+        - `reqId`：用于问题追踪。
     - **返回值**：影响的条数。    
     - **异常**：操作失败抛出 `SchemalessError` 异常。
 
@@ -435,36 +438,36 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def statement2(self, sql=None, option=None)`
     - **接口说明**：使用连接对象创建 stmt2 对象
     - **参数说明**
-        - `sql`: 绑定的 SQL 语句，如果不为空会调用`prepare`函数
+        - `sql`：绑定的 SQL 语句，如果不为空会调用`prepare`函数
         - `option` 传入 TaosStmt2Option 类实例选项
     - **返回值**：stmt2 对象。
     - **异常**：操作失败抛出 `ConnectionError` 异常。
 - `def prepare(self, sql)`
     - **接口说明**：绑定预编译 sql 语句
     - **参数说明**：
-        - `sql`: 绑定的 SQL 语句
+        - `sql`：绑定的 SQL 语句
     - **异常**：操作失败抛出 `StatementError` 异常。
 - `def bind_param(self, tbnames, tags, datas)`
     - **接口说明**：以独立数组方式绑定数据
     - **参数说明**：
-        - `tbnames`: 绑定表名数组，数据类型为 list 
-        - `tags`: 绑定 tag 列值数组，数据类型为 list 
-        - `tags`: 绑定普通列值数组，数据类型为 list 
+        - `tbnames`：绑定表名数组，数据类型为 list 
+        - `tags`：绑定 tag 列值数组，数据类型为 list 
+        - `tags`：绑定普通列值数组，数据类型为 list 
     - **异常**：操作失败抛出 `StatementError` 异常
 - `def bind_param_with_tables(self, tables)`
     - **接口说明**：以独立表方式绑定数据，独立表是以表为组织单位，每张表中有表名，TAG 值及普通列数值属性
     - **参数说明**：
-        - `tables`: `BindTable` 独立表对象数组
+        - `tables`：`BindTable` 独立表对象数组
     - **异常**：操作失败抛出 `StatementError` 异常。
 - `def execute(self) -> int:`
     - **接口说明**：执行将绑定数据全部写入
     - **返回值**：影响行数
     - **异常**：操作失败抛出 `QueryError` 异常。
 - `def result(self)`
-    - **接口说明**： 获取参数绑定查询结果集
+    - **接口说明**：获取参数绑定查询结果集
     - **返回值**：返回 TaosResult 对象
 - `def close(self)`
-    - **接口说明**： 关闭 stmt2 对象
+    - **接口说明**：关闭 stmt2 对象
 
 
 #### 数据订阅
@@ -473,21 +476,21 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - td.connect.port：端口号。
     - group.id：所在的 group。
     - client.id：客户端id。
-    - td.connect.user: 数据库用户名。
-    - td.connect.pass: 数据库密码。
+    - td.connect.user：数据库用户名。
+    - td.connect.pass：数据库密码。
     - td.connect.token：数据库的连接token。
     - auto.offset.reset：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
     - enable.auto.commit：是否允许自动提交。
     - auto.commit.interval.ms：自动提交间隔
 - `def Consumer(configs)`
     - **接口说明** 消费者构造函数。
-        - `configs`: Python 字典的形式提供, 具体配置参见属性列表。
+        - `configs`：Python 字典的形式提供, 具体配置参见属性列表。
     - **返回值**：Consumer 消费者对象。
     - **异常**：操作失败抛出 `TmqError` 异常。
 - `def subscribe(self, topics)` 
     - **接口说明** 订阅一组主题。
     - **参数说明**：
-        - `topics`: 订阅的主题列表。
+        - `topics`：订阅的主题列表。
     - **异常**：操作失败抛出 `TmqError` 异常。
 - `def unsubscribe(self)`
     - **接口说明** 取消订阅。
@@ -495,14 +498,14 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def poll(self, timeout: float = 1.0)`
     - **接口说明** 轮询消息。
     - **参数说明**：
-        - `timeout`: 表示轮询的超时时间，单位毫秒。
+        - `timeout`：表示轮询的超时时间，单位毫秒。
     - **返回值**：`Message` 每个主题对应的数据。
     - **异常**：操作失败抛出 `TmqError` 异常。
 - `def commit(self, message: Message = None, offsets: [TopicPartition] = None)`
     - **接口说明** 提交当前处理的消息的偏移量。
     - **参数说明**：
-        - `message`: 类型 `Message`, 当前处理的消息的偏移量。
-        - `offsets`: 类型 `[TopicPartition]`, 提交一批消息的偏移量。
+        - `message`：类型 `Message`, 当前处理的消息的偏移量。
+        - `offsets`：类型 `[TopicPartition]`, 提交一批消息的偏移量。
     - **异常**：操作失败抛出 `TmqError` 异常。
 - `def assignment(self)`
     - **接口说明**：获取消费者当前分配的指定的分区或所有分区。
@@ -511,25 +514,25 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def seek(self, partition)`
     - **接口说明**：将给定分区的偏移量设置到指定的位置。
     - **参数说明**：
-        - `partition`: 需要设置的偏移量。
-            - `topic`: 订阅的主题
-            - `partition`: 分区
-            - `offset`: 偏移量
+        - `partition`：需要设置的偏移量。
+            - `topic`：订阅的主题
+            - `partition`：分区
+            - `offset`：偏移量
     - **异常**：操作失败抛出 `TmqError` 异常。
 - `def committed(self, partitions)`
     - **接口说明**：获取订阅主题的分区最后提交的偏移量。
     - **参数说明**：
-        - `partition`: 需要设置的偏移量。
-            - `topic`: 订阅的主题
-            - `partition`: 分区
+        - `partition`：需要设置的偏移量。
+            - `topic`：订阅的主题
+            - `partition`：分区
     - **返回值**：`partition`，分区最后提交的偏移量。
     - **异常**：操作失败抛出 `TmqError` 异常。
 - `def position(self, partitions)`
     - **接口说明**：获取给定分区当前的偏移量。
     - **参数说明**：
-        - `partition`: 需要设置的偏移量。
-            - `topic`: 订阅的主题
-            - `partition`: 分区
+        - `partition`：需要设置的偏移量。
+            - `topic`：订阅的主题
+            - `partition`：分区
     - **返回值**：`partition`，分区最后提交的偏移量。
     - **异常**：操作失败抛出 TmqError 异常。
 - `def close(self)`
@@ -541,39 +544,39 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def connect(**kwargs) -> TaosRestConnection`
     - **接口说明**：建立 taosAdapter 连接。
     - **参数说明**：
-        - `kwargs`: 以 Python 字典的形式提供, 可用于设置
-            - `user`: 数据库的用户名
-            - `password`: 数据库的密码。
-            - `host`: 主机地址
-            - `port`: 端口号
-            - `database`: 数据库名称   
+        - `kwargs`：以 Python 字典的形式提供, 可用于设置
+            - `user`：数据库的用户名
+            - `password`：数据库的密码。
+            - `host`：主机地址
+            - `port`：端口号
+            - `database`：数据库名称   
     - **返回值**：连接对象。
     - **异常**：操作失败抛出 `ConnectError` 异常。
 - `def execute(self, sql: str, req_id: Optional[int] = None) -> Optional[int]`
     - **接口说明**：执行 sql 语句。 
     - **参数说明**：
         - `sql`：待执行的 sql 语句。
-        - `reqId`: 用于问题追踪。
+        - `reqId`：用于问题追踪。
     - **返回值**：影响的条数。
     - **异常**：操作失败抛出 `ConnectError` 或 `HTTPError` 异常。
 - `def query(self, sql: str, req_id: Optional[int] = None) -> Result`
    - **接口说明**：查询数据。
     - **参数说明**：
         - `sql`：待执行的 sql 语句。
-        - `reqId`: 用于问题追踪。
+        - `reqId`：用于问题追踪。
     - **返回值**：`Result` 数据集对象。
     - **异常**：操作失败抛出 `ConnectError` 或 `HTTPError` 异常。
 - `RestClient(self, url: str, token: str = None, database: str = None, user: str = "root", password: str = "taosdata", timeout: int = None, convert_timestamp: bool = True, timezone: Union[str, datetime.tzinfo] = None)`
     - **接口说明**：建立 taosAdapter 连接 client。
     - **参数说明**：
-        - `url`: taosAdapter REST 服务的 URL。
-        - `user`: 数据库的用户名。
-        - `password`: 数据库的密码。
-        - `database`: 数据库名称。
-        - `timezone`: 时区。
-        - `timeout`:  HTTP 请求超时时间。单位为秒。
-        - `convert_timestamp`: 是否将时间戳从STR类型转换为datetime类型。
-        - `timezone`: 时区.
+        - `url`：taosAdapter REST 服务的 URL。
+        - `user`：数据库的用户名。
+        - `password`：数据库的密码。
+        - `database`：数据库名称。
+        - `timezone`：时区。
+        - `timeout`：HTTP 请求超时时间。单位为秒。
+        - `convert_timestamp`：是否将时间戳从STR类型转换为datetime类型。
+        - `timezone`：时区.
     - **返回值**：连接对象。
     - **异常**：操作失败抛出 `ConnectError` 异常。
 - `def sql(self, q: str, req_id: Optional[int] = None) -> dict`

@@ -1,0 +1,76 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$tbNum = 10
+$rowNum = 10
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== insert_drop.sim
+$i = 0
+$db = iddb
+$stb = stb
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+print ====== create tables
+sql use $db
+sql create table $stb (ts timestamp, c1 int) tags(t1 int)
+
+$i = 0
+$ts = $ts0
+while $i < 10
+  $tb = tb . $i
+  sql create table $tb using $stb tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    sql insert into $tb values ( $ts , $x )
+    $x = $x + 1
+  endw
+  $i = $i + 1
+endw
+print ====== tables created
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+sql use $db
+sql drop table tb5
+$i = 0
+while $i < 4
+
+  $tb = tb . $i
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    sql insert into $tb values ( $ts , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+sql use $db
+
+sql create table tb5 using $stb tags(5)
+sql select * from tb5
+print $rows should be 0
+if $rows != 0 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

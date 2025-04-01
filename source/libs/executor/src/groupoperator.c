@@ -292,7 +292,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
   int32_t         numOfGroupCols = taosArrayGetSize(pInfo->pGroupCols);
   //  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
-  // qError("QInfo:0x%"PRIx64" group by not supported on double/float columns, abort", GET_TASKID(pRuntimeEnv));
+  //  qError("QInfo:0x%" PRIx64 ", group by not supported on double/float columns, abort", GET_TASKID(pRuntimeEnv));
   //    return;
   //  }
 
@@ -1393,10 +1393,14 @@ static int32_t buildStreamCreateTableResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*                pTask = pOperator->pTaskInfo;
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                  pSrc = pInfo->pInputDataBlock;
-  if ((pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) ||
-      taosHashGetSize(pInfo->pPartitions) == 0) {
+  if ((pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0)) {
+    pTask->storageAPI.stateStore.streamStateSetParNameInvalid(pTask->streamInfo.pState);
     goto _end;
   }
+  if (taosHashGetSize(pInfo->pPartitions) == 0) {
+    goto _end;
+  }
+
   blockDataCleanup(pInfo->pCreateTbRes);
   code = blockDataEnsureCapacity(pInfo->pCreateTbRes, taosHashGetSize(pInfo->pPartitions));
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1503,6 +1507,10 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
         (*ppRes) = pInfo->pDelRes;
         return code;
       } break;
+      case STREAM_RECALCULATE_DATA:
+      case STREAM_RECALCULATE_DELETE:
+      case STREAM_RECALCULATE_START:
+      case STREAM_RECALCULATE_END:
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_RETRIEVE:
       case STREAM_CHECKPOINT:
@@ -1587,12 +1595,13 @@ int32_t initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pPar
   pScanInfo->partitionSup = *pParSup;
   pScanInfo->pPartScalarSup = pExpr;
   pScanInfo->pPartTbnameSup = pTbnameExpr;
+  pScanInfo->hasPart = true;
   for (int32_t j = 0; j < pResExprSupp->numOfExprs; j++) {
     if (pScanInfo->primaryKeyIndex == pResExprSupp->pExprInfo[j].base.pParam[0].pCol->slotId) {
       *pPkColIndex = j;
     }
   }
-  if (!pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->pUpdateInfo && pScanInfo->twAggSup.calTrigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
     code = pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0, pScanInfo->igCheckUpdate,
                                            pScanInfo->pkColType, pScanInfo->pkColLen, &pScanInfo->pUpdateInfo);
   }

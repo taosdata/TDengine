@@ -19,6 +19,10 @@ import imgStep12 from '../../assets/mqtt-12.png';
 import imgStep13 from '../../assets/mqtt-13.png';
 import imgStep14 from '../../assets/mqtt-14.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, migrating data from MQTT to the current TDengine cluster.
 
 ## Overview
@@ -86,9 +90,15 @@ The keep alive interval is the time interval negotiated between the client and t
 
 In **Clean Session**, choose whether to clear the session. The default value is true.
 
-Fill in the Topic names to be consumed in **Subscription Topics and QoS Configuration**. Use the following format: `topic1::0,topic2::1`.
+In the **Topics Qos Config**, fill in the topic name and QoS to subscribe. Use the following format: `{topic_name}::{qos}` (e.g., `my_topic::0`). MQTT protocol 5.0 supports shared subscriptions, allowing multiple clients to subscribe to the same topic for load balancing. Use the following format: `$share/{group_name}/{topic_name}::{qos}`, where `$share` is a fixed prefix indicating the enablement of shared subscription, and `group_name` is the client group name, similar to Kafka's consumer group.
 
-Click the **Check Connectivity** button to check if the data source is available.
+In the **Topic Analysis**, fill in the MQTT topic parsing rules. The format is the same as the MQTT Topic, parsing each level of the MQTT Topic into corresponding variable names, with `_` indicating that the current level is ignored during parsing. For example: if the MQTT Topic `a/+/c` corresponds to the parsing rule `v1/v2/_`, it means assigning the first level `a` to variable `v1`, the value of the second level (where the wildcard `+` represents any value) to variable `v2`, and ignoring the value of the third level `c`, which will not be assigned to any variable. In the `payload parsing` below, the variables obtained from Topic parsing can also participate in various transformations and calculations.
+
+In the **Compression**, configure the message body compression algorithm. After receiving the message, taosX uses the corresponding compression algorithm to decompress the message body and obtain the original data. Options include none (no compression), gzip, snappy, lz4, and zstd, with the default being none.
+
+In the **Char Encoding**, configure the message body encoding format. After receiving the message, taosX uses the corresponding encoding format to decode the message body and obtain the original data. Options include UTF_8, GBK, GB18030, and BIG5, with the default being UTF_8.
+
+Click the **Check Connection** button to check if the data source is available.
 
 <figure>
 <Image img={imgStep05} alt=""/>

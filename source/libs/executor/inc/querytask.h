@@ -71,11 +71,13 @@ typedef struct {
   SVersionRange         fillHistoryVer;
   STimeWindow           fillHistoryWindow;
   SStreamState*         pState;
+  SStreamState*         pOtherState;
   int32_t               eventTypes;          // event types to notify
   SSchemaWrapper*       notifyResultSchema;  // agg result to notify
   char*                 stbFullName;         // used to generate dest child table name
   bool                  newSubTableRule;     // used to generate dest child table name
   STaskNotifyEventStat* pNotifyEventStat;    // used to store notify event statistics
+  SArray              * pVTables;            // used to store merge info for merge task, SArray<SVCTableMergeInfo>
 } SStreamTaskInfo;
 
 struct SExecTaskInfo {
