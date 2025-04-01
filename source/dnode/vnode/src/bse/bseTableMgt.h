@@ -38,11 +38,12 @@ typedef struct {
 } SSeqRange;
 
 typedef struct {
-  int8_t inUse;
-
   SSeqRange      range[2];
   STableBuilder *p[2];
+  int8_t         inUse;
 
+  int8_t inited;
+  SBse  *pBse;
 } STableBuilderMgt;
 
 typedef struct {
@@ -58,13 +59,17 @@ typedef struct {
   TdThreadMutex   mutex;
 } STableMgt;
 
-int32_t bseTableMgtInit(SBse *pBse, void **pMgt);
+int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
 
 int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len);
 
 int32_t bseTableMgtCleanup(void *p);
 
 int32_t bseTableMgtCommit(STableMgt *pMgt);
+
+int32_t bseTableMgtRecover(SBse *pBse, STableMgt *pMgt);
+
+int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch);
 #ifdef __cplusplus
 }
 #endif

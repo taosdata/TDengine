@@ -99,18 +99,19 @@ typedef struct {
   int64_t size;
   int32_t level;
   char    name[TSDB_FILENAME_LEN];
-} STableLiveFileInfo;
+} SBseLiveFileInfo;
 
 int32_t tableBuildOpen(char *path, STableBuilder **pBuilder);
 int32_t tableBuildPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len);
+int32_t tableBuildPutBatch(STableBuilder *p, SBseBatch *pBatch);
 int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len);
 int32_t tableBuildFlush(STableBuilder *p, int8_t type);
-int32_t tableBuildCommit(STableBuilder *p, STableLiveFileInfo *pInfo);
+int32_t tableBuildCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
 int32_t tableBuildClose(STableBuilder *p, int8_t commited);
 void    tableBuildClear(STableBuilder *p);
 void    tableBuildReInit(STableBuilder *p, char *path);
 
-int32_t tableReadOpen(char *name, STableReader *pReader);
+int32_t tableReadOpen(char *name, STableReader **pReader);
 int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
 int32_t tableReadClose(STableReader *p);
 

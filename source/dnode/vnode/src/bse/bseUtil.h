@@ -16,6 +16,7 @@
 #ifndef BSE_UTIL_H_
 #define BSE_UTIL_H_
 
+#include "bse.h"
 #include "os.h"
 #include "tlog.h"
 #include "tmsg.h"
@@ -40,6 +41,20 @@ extern "C" {
 
 #define BSE_VGID(p) ((p)->cfg.vgId)
 
+
+#define BSE_DATA_SUFFIX  "data"
+#define BSE_LOG_SUFFIX   "log"
+#define BSE_INDEX_SUFFIX "idx"
+
+void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
+void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
+void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
+void bseBuildCurrentMetaName(SBse *pBse, char *name) ;
+void bseBuildTempCurrentMetaName(SBse *pBse, char *name);
+void bseBuildMetaName(SBse *pBse, int ver, char *name);
+void bseBuildTempMetaName(SBse *pBse, char *name);
+void bseBuildFullName(SBse *pBse, char *name, char *fullname);
+void bseBuildDataName(SBse *pBse, int64_t seq, char *name);
 // clang-format on
 #ifdef __cplusplus
 }

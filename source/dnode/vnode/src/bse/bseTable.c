@@ -35,6 +35,7 @@ static int32_t footerDecode(STableFooter *pFooter, char *buf);
 static int32_t blockCreate(int32_t cap, SBlock **pBlock);
 static void    blockDestroy(SBlock *pBlock);
 static int32_t blockPut(SBlock *pBlock, int64_t seq, uint8_t *value, int32_t len);
+static int32_t blockAppendBatch(SBlock *p, uint8_t *value, int32_t len);
 static int32_t blockEsimateSize(SBlock *pBlock, int32_t extra);
 static int32_t blockClear(SBlock *pBlock);
 static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len);
@@ -67,11 +68,6 @@ int32_t tableBuildOpen(char *path, STableBuilder **pBuilder) {
 
   p->pMetaHandle = taosArrayInit(128, sizeof(SBlkHandle));
 
-  p->pDataFile = taosOpenFile(p->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
-  if (p->pDataFile == NULL) {
-    TSDB_CHECK_CODE(terrno, lino, _error);
-  }
-
   p->blockCap = 4 * 1024 * 1024;
   p->compressType = 0;
   code = blockCreate(tableBuildGetBlockSize(p), &p->pData);
@@ -90,6 +86,19 @@ _error:
     bseError("failed to open table builder since %s at line %d", tstrerror(code), lino);
   }
   return code;
+}
+
+int32_t tableBuildShouldOpenFile(STableBuilder *p) {
+  if (p->pDataFile == NULL) {
+    char name[TSDB_FILENAME_LEN];
+    bseBuildDataFullName((SBse *)p->bse, p->startSeq, name);
+    p->pDataFile = taosOpenFile(p->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+    if (p->pDataFile == NULL) {
+      return terrno;
+    }
+    bseBuildDataName(NULL, p->startSeq, p->name);
+  }
+  return 0;
 }
 int32_t tableBuildReinit(STableBuilder *p, char *path) {
   int32_t code = 0;
@@ -170,12 +179,76 @@ _error:
   }
   return code;
 }
+
+int32_t tableBuildUpdateSeq(STableBuilder *p, SValueInfo *pInfo) {
+  int32_t code = 0;
+  if (p->startSeq == -1) {
+    p->startSeq = pInfo->seq;
+    code = tableBuildShouldOpenFile(p);
+  } else {
+    p->lastSeq = pInfo->seq;
+  }
+  return code;
+}
+/*|seq len value|seq len value| seq len value| seq len value|*/
+/*0             | */
+int32_t tableBuildPutBatch(STableBuilder *p, SBseBatch *pBatch) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  int32_t  len = 0;
+  int32_t  n = 0;
+  uint8_t *pValue = NULL;
+  int32_t  offset = 0;
+
+  int32_t flushIdx = 0;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pBatch->pSeq); i++) {
+    SValueInfo *pInfo = taosArrayGet(pBatch->pSeq, i);
+    if (i == 0 || i == taosArrayGetSize(pBatch->pSeq) - 1) {
+      code = tableBuildUpdateSeq(p, pInfo);
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
+
+    SValueInfo *pEndInfo = taosArrayGet(pBatch->pSeq, i);
+    SValueInfo *pStartInfo = taosArrayGet(pBatch->pSeq, flushIdx);
+
+    int64_t len = pEndInfo->offset - pStartInfo->offset;
+    if (blockEsimateSize(p->pData, len) >= tableBuildGetBlockSize(p)) {
+      if (i > 0) {
+        pEndInfo = taosArrayGet(pBatch->pSeq, i - 1);
+        if ((i - 1) == flushIdx) {
+          continue;
+        }
+        code = blockAppendBatch(p->pData, pBatch->buf + pStartInfo->offset, pEndInfo->offset - pStartInfo->offset);
+        TSDB_CHECK_CODE(code, lino, _error);
+      }
+      code = tableBuildFlush(p, BSE_TABLE_DATA_TYPE);
+      flushIdx = i;
+      TSDB_CHECK_CODE(code, lino, _error);
+    } else {
+      continue;
+    }
+  }
+  if (flushIdx < taosArrayGetSize(pBatch->pSeq)) {
+    SValueInfo *pStartInfo = taosArrayGet(pBatch->pSeq, flushIdx);
+    code = blockAppendBatch(p->pData, pBatch->buf + pStartInfo->offset, pBatch->len - pStartInfo->offset);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+_error:
+  if (code != 0) {
+    bseError("failed to append batch since %s", tstrerror(code));
+  }
+  return 0;
+}
 int32_t tableBuildPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len) {
   int32_t code = 0;
   int32_t lino = 0;
   // seqlen + valuelen + value
   if (p->startSeq == -1) {
     p->startSeq = *seq;
+    tableBuildShouldOpenFile(p);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
   int32_t extra = sizeof(*seq) + len + sizeof(len);
@@ -196,6 +269,9 @@ _error:
 }
 
 int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len) {
+  if (p == NULL) {
+    return TSDB_CODE_NOT_FOUND;
+  }
   return blockSeek(p->pData, seq, value, len);
 }
 
@@ -230,19 +306,19 @@ _error:
   return code;
 }
 
-int32_t tableBuildGenCommitInfo(STableBuilder *p, STableLiveFileInfo *pInfo) {
+int32_t tableBuildGenCommitInfo(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   char    name[TSDB_FILENAME_LEN];
-  sprintf(pInfo->name, "%s/%" PRId64 ".bse", p->name, p->lastSeq);
+  sprintf(pInfo->name, "%s/%" PRId64 ".bse", p->name, p->startSeq);
 
   pInfo->sseq = p->startSeq;
   pInfo->eseq = p->lastSeq;
   pInfo->size = p->offset;
   pInfo->level = 0;
 
-  return 0;
+  return code;
 }
-int32_t tableBuildCommit(STableBuilder *p, STableLiveFileInfo *pInfo) {
+int32_t tableBuildCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -256,6 +332,7 @@ int32_t tableBuildCommit(STableBuilder *p, STableLiveFileInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableBuildAddFooter(p);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   tableBuildGenCommitInfo(p, pInfo);
   tableBuildClear(p);
@@ -386,7 +463,7 @@ _error:
   }
   return code;
 }
-int32_t tableReadOpen(char *name, STableReader *pReader) {
+int32_t tableReadOpen(char *name, STableReader **pReader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -413,10 +490,12 @@ int32_t tableReadOpen(char *name, STableReader *pReader) {
   code = blockCreate(p->blockCap, &p->pHdata);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  memcpy(pReader->name, name, strlen(name));
+  memcpy(p->name, name, strlen(name));
 
   code = tableReadOpenImpl(p);
   TSDB_CHECK_CODE(code, lino, _error);
+
+  *pReader = p;
 
 _error:
   if (code != 0) {
@@ -541,9 +620,17 @@ static int32_t blockCreate(int32_t cap, SBlock **p) {
 
 static int32_t blockEsimateSize(SBlock *p, int32_t extra) {
   // block len + TSCHSUM + len + type;
-  return sizeof(*p) + p->len + sizeof(TSCKSUM) + sizeof(int8_t);
+  return sizeof(*p) + p->len + sizeof(TSCKSUM) + sizeof(int8_t) + extra;
 }
 
+static int32_t blockAppendBatch(SBlock *p, uint8_t *value, int32_t len) {
+  int32_t  code = 0;
+  int32_t  offset = 0;
+  uint8_t *data = (uint8_t *)p->data + p->len;
+  memcpy(data, value, len);
+  p->len += len;
+  return code;
+}
 static int32_t blockPut(SBlock *p, int64_t seq, uint8_t *value, int32_t len) {
   int32_t  code = 0;
   uint8_t *data = (uint8_t *)p->data + p->len;

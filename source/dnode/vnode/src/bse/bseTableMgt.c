@@ -48,7 +48,7 @@ static int32_t initBlockCache(int32_t cap, SBlockCacheMgt **pMgt) {
 static void destroyTableCache(STableCacheMgt *p) { taosMemFree(p); }
 static void destroyBlockCache(SBlockCacheMgt *p) { taosMemFree(p); }
 
-int32_t bseTableMgtInit(SBse *pBse, void **pMgt) {
+int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -61,7 +61,7 @@ int32_t bseTableMgtInit(SBse *pBse, void **pMgt) {
   code = taosThreadMutexInit(&p->mutex, NULL);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  p->pFileList = taosArrayInit(128, sizeof(STableLiveFileInfo));
+  p->pFileList = taosArrayInit(128, sizeof(SBseLiveFileInfo));
   if (p->pFileList == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
@@ -115,16 +115,19 @@ int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(p->pFileList); i++) {
-    STableLiveFileInfo *pInfo = taosArrayGet(p->pFileList, i);
+    SBseLiveFileInfo *pInfo = taosArrayGet(p->pFileList, i);
     if (pInfo->sseq <= seq && pInfo->eseq >= seq) {
-      STableReader reader;
-      code = tableReadOpen(pInfo->name, &reader);
+      STableReader *pReader = NULL;
+      char          name[TSDB_FILENAME_LEN] = {0};
+
+      bseBuildFullName((SBse *)p->pBse, pInfo->name, name);
+      code = tableReadOpen(name, &pReader);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      code = tableReadGet(&reader, seq, pValue, len);
+      code = tableReadGet(pReader, seq, pValue, len);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      code = tableReadClose(&reader);
+      code = tableReadClose(pReader);
       TSDB_CHECK_CODE(code, lino, _error);
       break;
     }
@@ -138,7 +141,7 @@ _error:
   return code;
 }
 
-int32_t bseTableMgtAddLiveFile(STableMgt *pMgt, STableLiveFileInfo *pInfo) {
+int32_t bseTableMgtAddLiveFile(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   taosThreadMutexLock(&pMgt->mutex);
@@ -152,13 +155,13 @@ _error:
   taosThreadMutexUnlock(&pMgt->mutex);
   return code;
 }
-int32_t bseTableMgtRemoveLiveFile(STableMgt *pMgt, STableLiveFileInfo *pInfo) {
+int32_t bseTableMgtRemoveLiveFile(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   taosThreadMutexLock(&pMgt->mutex);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMgt->pFileList); i++) {
-    STableLiveFileInfo *p = taosArrayGet(pMgt->pFileList, i);
+    SBseLiveFileInfo *p = taosArrayGet(pMgt->pFileList, i);
     if (strcmp(p->name, pInfo->name) == 0) {
       taosArrayRemove(pMgt->pFileList, i);
       break;
@@ -173,13 +176,26 @@ _error:
   return code;
 }
 
-int32_t bseTableMgtCommit(STableMgt *pMgt) {
+int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  // taosThreadMutexLock(&pMgt->mutex);
   STableBuilderMgt *pBuilderMgt = pMgt->manager;
+  STableBuilder    *pBuilder = pBuilderMgt->p[pBuilderMgt->inUse];
 
-  int8_t flushIdx = -1;
+  code = tableBuildPutBatch(pBuilder, pBatch);
+  return code;
+}
+
+int32_t bseTableMgtCommit(STableMgt *pMgt) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int8_t  flushIdx = -1;
+
+  STableBuilderMgt *pBuilderMgt = pMgt->manager;
+  STableBuilder    *pBuilder = NULL;
+
   taosThreadMutexLock(&pMgt->mutex);
   flushIdx = pBuilderMgt->inUse;
   pBuilderMgt->inUse = 1 - pBuilderMgt->inUse;
@@ -188,8 +204,13 @@ int32_t bseTableMgtCommit(STableMgt *pMgt) {
   if (flushIdx == -1) {
     return 0;
   }
-  STableBuilder     *pBuilder = pBuilderMgt->p[flushIdx];
-  STableLiveFileInfo info = {0};
+
+  pBuilder = pBuilderMgt->p[flushIdx];
+  if (pBuilder == NULL) {
+    return code;
+  }
+
+  SBseLiveFileInfo info = {0};
 
   code = tableBuildCommit(pBuilder, &info);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -201,5 +222,43 @@ _error:
   if (code != 0) {
     bseError("failed to commit table at line %d since %s", lino, tstrerror(code));
   }
+  return code;
+}
+
+int32_t bseTableMgtRecover(SBse *pBse, STableMgt *pMgt) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int64_t lastSeq = 0;
+
+  SBseCommitInfo *pInfo = &pBse->commitInfo;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pFileList); i++) {
+    SBseLiveFileInfo *p = taosArrayGet(pInfo->pFileList, i);
+    code = bseTableMgtAddLiveFile(pMgt, p);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+
+  SBseLiveFileInfo *pLastFile = taosArrayGetLast(pMgt->pFileList);
+  if (pLastFile != NULL) {
+    lastSeq = pLastFile->eseq;
+  }
+  pBse->seq = lastSeq + 1;
+
+_error:
+  if (code != 0) {
+    bseError("failed to recover table at line %d since %s", lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t initTableBuildManage(STableBuilderMgt *pMgt, int64_t seq) {
+  int32_t code = 0;
+  char    path[TSDB_FILENAME_LEN] = {0};
+
+  STableBuilder *p = NULL;
+  bseBuildDataFullName(pMgt->pBse, seq, path);
+  code = tableBuildOpen(path, &p);
+  pMgt->p[pMgt->inUse] = p;
+  pMgt->inited = 1;
+  pMgt->inUse = 0;
   return code;
 }

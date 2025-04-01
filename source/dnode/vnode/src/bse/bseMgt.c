@@ -26,8 +26,6 @@
 #include "tmsg.h"
 #include "tutil.h"
 
-#define BSE_FILE_FULL_LEN TSDB_FILENAME_LEN
-
 enum type {
   BSE_DATA_TYPE = 0x1,
   BSE_META_TYPE = 0x2,
@@ -42,17 +40,7 @@ typedef struct {
   int64_t fileSize;
   int64_t syncedOffset;
 } SBseFileInfo;
-#define kBlockTrailerSize (1 + 1 + 4)  // complete flag + compress type + crc unmask
 
-#define BSE_DATA_SUFFIX  "data"
-#define BSE_LOG_SUFFIX   "log"
-#define BSE_INDEX_SUFFIX "idx"
-
-static char *bseFilexSuffix[] = {
-    "idx",
-    "data",
-    "log",
-};
 static int32_t kBlockCap = 16 * 1024 * 1024;
 
 typedef struct {
@@ -61,9 +49,9 @@ typedef struct {
   int32_t blockId;
 } BlockInfo;
 
-static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
-static void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
-static void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
+// static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
+// static void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
+// static void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
 
 static int32_t bseFindCurrMetaVer(SBse *pBse);
 
@@ -92,7 +80,7 @@ static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, ui
  fileSet: [{startSeq: 0, endSeq: 0, size:xx, level:xxx,name:xxx},...],
 */
 
-static int32_t bseUpdateCommitInfo(SBseCommitInfo *pCommit, STableLiveFileInfo *pInfo) {
+static int32_t bseUpdateCommitInfo(SBseCommitInfo *pCommit, SBseLiveFileInfo *pInfo) {
   if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
     return terrno;
   }
@@ -169,35 +157,6 @@ int32_t blockCleanup(SBlkData *data) {
   return 0;
 }
 
-static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *buf) {
-  // build data file name
-  // snprintf(name, strlen(name), "%s/%s020"."BSE_DATA_SUFFIX, ver, pBse->path);
-  // sprintf(name, strlen(name), "%s/%020"."BSE_DATA_SUFFIX, ver, pBse->path);
-  TAOS_UNUSED(sprintf(buf, "%s/%d.%s", pBse->path, (int32_t)(ver), BSE_DATA_SUFFIX));
-}
-
-static void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *buf) {
-  // build index file name
-  TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." BSE_INDEX_SUFFIX, pBse->path, ver));
-}
-static void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf) {
-  TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." BSE_LOG_SUFFIX, pBse->path, ver));
-}
-static void bseBuildCurrentMetaName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-current.meta", pBse->path, TD_DIRSEP);
-}
-
-static void bseBuildTempCurrentMetaName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-current.meta.temp", pBse->path, TD_DIRSEP);
-}
-
-static FORCE_INLINE int32_t bseBuildMetaName(SBse *pBse, int ver, char *name) {
-  return snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver%d", pBse->path, TD_DIRSEP, ver);
-}
-static FORCE_INLINE int32_t bseBuildTempMetaName(SBse *pBse, char *name) {
-  return snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver.tmp", pBse->path, TD_DIRSEP);
-}
-
 static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
   int32_t code = 0;
   // int32_t code = 0;
@@ -217,8 +176,8 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
   cJSON_AddItemToObject(pRoot, "fileSet", pFileSet);
 
   for (int32_t i = 0; i < taosArrayGetSize(fileSet); i++) {
-    STableLiveFileInfo *pInfo = taosArrayGet(fileSet, i);
-    cJSON              *pField = cJSON_CreateObject();
+    SBseLiveFileInfo *pInfo = taosArrayGet(fileSet, i);
+    cJSON            *pField = cJSON_CreateObject();
     cJSON_AddNumberToObject(pField, "startSeq", pInfo->sseq);
     cJSON_AddNumberToObject(pField, "endSeq", pInfo->eseq);
     cJSON_AddNumberToObject(pField, "size", pInfo->size);
@@ -335,7 +294,7 @@ static int32_t bseInitCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pIn
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _error;
     }
-    STableLiveFileInfo info = {0};
+    SBseLiveFileInfo info = {0};
     info.sseq = pStartSeq->valuedouble;
     info.eseq = pEndSeq->valuedouble;
     info.size = pFileSize->valuedouble;
@@ -354,11 +313,10 @@ _error:
   return code;
 }
 static int32_t bseRecover(SBse *pBse) {
-  int32_t        code = 0;
-  int32_t        lino = 0;
-  char          *pCurrent = NULL;
-  int64_t        len = 0;
-  SBseCommitInfo info = {0};
+  int32_t code = 0;
+  int32_t lino = 0;
+  char   *pCurrent = NULL;
+  int64_t len = 0;
 
   code = bseReadCurrent(pBse, &pCurrent, &len);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -367,7 +325,7 @@ static int32_t bseRecover(SBse *pBse) {
     bseInfo("vgId:%d, no current meta file found, no need to recover", BSE_VGID(pBse));
     return 0;
   }
-  code = bseInitCommitInfo(pBse, pCurrent, &info);
+  code = bseInitCommitInfo(pBse, pCurrent, &pBse->commitInfo);
 
 _error:
   if (code != 0) {
@@ -401,11 +359,11 @@ _err:
   return code;
 }
 
-static int32_t bseCreateTableManager(SBse *p) { return bseTableMgtInit(p, (void **)&p->pTableMgt); }
+static int32_t bseCreateTableManager(SBse *p) { return bseTableMgtCreate(p, (void **)&p->pTableMgt); }
 
 static int32_t bseCreateCommitInfo(SBse *pBse) {
   SBseCommitInfo *pCommit = &pBse->commitInfo;
-  pCommit->pFileList = taosArrayInit(64, sizeof(STableLiveFileInfo));
+  pCommit->pFileList = taosArrayInit(64, sizeof(SBseLiveFileInfo));
   if (pCommit->pFileList == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -459,7 +417,7 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
 int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
   taosThreadMutexLock(&pBse->mutex);
-  code = 0;  // tableAppendBatch(pBse->pTable[pBse->inUse], pBatch);
+  code = bseTableMgtAppend(pBse->pTableMgt, pBatch);
   code = bseRecycleBatch(pBse, pBatch);
 
   taosThreadMutexUnlock(&pBse->mutex);
@@ -659,13 +617,6 @@ _error:
   }
   return code;
 }
-int32_t bseFileSetCmprFn(const void *p1, const void *p2) {
-  SBseFileInfo *k1 = (SBseFileInfo *)p1;
-  SBseFileInfo *k2 = (SBseFileInfo *)p2;
-  if (k1->firstVer < k2->firstVer) return -1;
-
-  return 0;
-}
 
 int32_t seqComparFunc(const void *p1, const void *p2) {
   uint64_t pu1 = *(const uint64_t *)p1;
@@ -741,10 +692,10 @@ int32_t bseCommitFinish(SBse *pBse) {
 }
 int32_t bseCommit(SBse *pBse) {
   // Generate static info and footer info;
-  int64_t st = taosGetTimestampMs();
   int64_t cost = 0;
   int32_t code = 0;
   int32_t line = 0;
+  int64_t st = taosGetTimestampMs();
 
   code = bseTableMgtCommit(pBse->pTableMgt);
   TSDB_CHECK_CODE(code, line, _error);
