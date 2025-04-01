@@ -1,0 +1,211 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== prepare stb and ctb
+sql create database db vgroups 1
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4), c3 int, c4 bigint, c5 int, c6 int) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
+sql create table db.ctb using db.stb tags(101, 102, "103")
+sql insert into db.ctb values(now, 1, "2", 3, 4, 5, 6)
+
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+if $data[0][0] != stb then
+  return -1
+endi
+if $data[0][1] != db then
+  return -1
+endi
+if $data[0][3] != 7 then
+  return -1
+endi
+if $data[0][4] != 3 then
+  return -1
+endi
+if $data[0][6] != abd then
+  return -1
+endi
+
+sql select * from information_schema.ins_tables where db_name = 'db'
+if $rows != 1 then
+  return -1
+endi
+if $data[0][0] != ctb then
+  return -1
+endi
+if $data[0][1] != db then
+  return -1
+endi
+if $data[0][3] != 7 then
+  return -1
+endi
+if $data[0][4] != stb then
+  return -1
+endi
+if $data[0][6] != 2 then
+  return -1
+endi
+if $data[0][9] != CHILD_TABLE then
+  return -1
+endi
+
+sql select * from db.stb
+if $rows != 1 then
+  return -1
+endi
+if $data[0][1] != 1 then
+  return -1
+endi
+if $data[0][2] != 2 then
+  return -1
+endi
+if $data[0][3] != 3 then
+  return -1
+endi
+if $data[0][4] != 4 then
+  return -1
+endi
+if $data[0][5] != 5 then
+  return -1
+endi
+if $data[0][6] != 6 then
+  return -1
+endi
+if $data[0][7] != 101 then
+  return -1
+endi
+
+sql_error alter table db.stb drop column ts
+sql_error alter table db.stb drop column t1
+sql_error alter table db.stb drop column t2
+sql_error alter table db.stb drop column t3
+sql_error alter table db.stb drop column c9
+
+print ========== step1 drop column c6
+sql alter table db.stb drop column c6
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $data[0][3] != 6 then
+  return -1
+endi
+
+sql select * from information_schema.ins_tables where db_name = 'db'
+if $data[0][3] != 6 then
+  return -1
+endi
+
+sql select * from db.stb
+sql select * from db.stb
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
+if $rows != 1 then
+  return -1
+endi
+if $data[0][1] != 1 then
+  return -1
+endi
+if $data[0][2] != 2 then
+  return -1
+endi
+if $data[0][3] != 3 then
+  return -1
+endi
+if $data[0][4] != 4 then
+  return -1
+endi
+if $data[0][5] != 5 then
+  return -1
+endi
+if $data[0][6] != 101 then
+  print expect 101, actual: $data06
+  return -1
+endi
+
+sql insert into db.ctb values(now+1s, 1, 2, 3, 4, 5)
+sql select * from db.stb
+if $rows != 2 then
+  return -1
+endi
+
+print ========== step2 drop column c5
+sql alter table db.stb drop column c5
+sql_error insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
+sql insert into db.ctb values(now+2s, 1, 2, 3, 4)
+sql insert into db.ctb values(now+3s, 1, 2, 3, 4)
+sql_error insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
+
+sql select * from db.stb
+if $rows != 4 then
+  return -1
+endi
+
+print ========== step3 drop column c4
+sql alter table db.stb drop column c4
+sql select * from db.stb
+sql_error insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
+sql_error insert into db.ctb values(now+2s, 1, 2, 3, 4)
+sql insert into db.ctb values(now+3s, 1, 2, 3)
+
+sql select * from db.stb
+if $rows != 5 then
+  return -1
+endi
+
+print ========== step4 add column c4
+sql alter table db.stb add column c4 binary(13)
+sql insert into db.ctb values(now+4s, 1, 2, 3, '4')
+sql select * from db.stb
+if $rows != 6 then
+  return -1
+endi
+if $data[1][4] != NULL then
+  return -1
+endi
+if $data[2][4] != NULL then
+  return -1
+endi
+if $data[3][4] != NULL then
+  return -1
+endi
+if $data[5][4] != 4 then
+  return -1
+endi
+
+print ========== step5 describe
+sql describe db.ctb
+if $rows != 8 then
+  return -1
+endi
+if $data[0][0] != ts then
+  return -1
+endi
+if $data[1][0] != c1 then
+  return -1
+endi
+if $data[2][0] != c2 then
+  return -1
+endi
+if $data[3][0] != c3 then
+  return -1
+endi
+if $data[4][0] != c4 then
+  return -1
+endi
+if $data[4][1] != VARCHAR then
+  return -1
+endi
+if $data[4][2] != 13 then
+  return -1
+endi
+if $data[5][0] != t1 then
+  return -1
+endi
+if $data[6][0] != t2 then
+  return -1
+endi
+if $data[7][0] != t3 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

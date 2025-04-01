@@ -367,7 +367,7 @@ taosBenchmark -f <json file>
 以下参数透传订阅属性，参见 [订阅创建参数](../../../develop/tmq/#创建参数) 说明：
 - **client.id**
 - **auto.offset.reset** 
-- **enable.auto.commit** 
+- **enable.manual.commit** 
 - **enable.auto.commit**
 - **msg.with.table.name**
 - **auto.commit.interval.ms**

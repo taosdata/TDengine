@@ -1,0 +1,172 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql drop database if exists test
+sql create database test;
+sql use test;
+
+sql create table st(ts timestamp, f int) tags (t int);
+sql insert into ct1 using st tags(1) values(now, 1);
+sql insert into ct2 using st tags(2) values(now, 2);
+sql insert into ct3 using st tags(3) values(now, 3);
+sql insert into ct4 using st tags(4) values(now, 4);
+
+sql create table st2(ts timestamp, f int) tags (t int);
+sql insert into ct21 using st2 tags(1) values(now, 1);
+sql insert into ct22 using st2 tags(2) values(now, 2);
+sql insert into ct23 using st2 tags(3) values(now, 3);
+sql insert into ct24 using st2 tags(4) values(now, 4);
+
+sql select tbname, 1 from st group by tbname order by tbname;
+print $rows  $data00 $data10 $data20
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @ct1@ then
+  return -1
+endi
+if $data10 != @ct2@ then
+  return -1
+endi
+sql select tbname, 1 from st group by tbname slimit 0, 1;
+print $rows
+if $rows != 1 then
+  return -1
+endi
+sql select tbname, 1 from st group by tbname slimit 2, 2;
+print $rows $data00 $data10
+if $rows != 2 then
+  return -1
+endi
+sql select tbname, 1 from st group by tbname order by tbname slimit 0, 1;
+print $rows  $data00 $data10 $data20
+if $rows != 4 then
+  return -1
+endi
+
+sql create table stt1(ts timestamp, f int) tags (t int, b varchar(10));
+sql insert into ctt11 using stt1 tags(1, '1aa') values(now, 1);
+sql insert into ctt12 using stt1 tags(2, '1bb') values(now, 2);
+sql insert into ctt13 using stt1 tags(3, '1cc') values(now, 3);
+sql insert into ctt14 using stt1 tags(4, '1dd') values(now, 4);
+sql insert into ctt14 values(now, 5);
+
+sql create table stt2(ts timestamp, f int) tags (t int, b varchar(10));
+sql insert into ctt21 using stt2 tags(1, '2aa') values(now, 1);
+sql insert into ctt22 using stt2 tags(2, '2bb') values(now, 2);
+sql insert into ctt23 using stt2 tags(3, '2cc') values(now, 3);
+sql insert into ctt24 using stt2 tags(4, '2dd') values(now, 4);
+
+sql select tags t, b from stt1 order by t
+print $rows
+print $data00 $data01 $data10 $data11 $data20 $data21 $data30 $data31
+if $rows != 4 then
+  return -1
+endi
+if $data31 != @1dd@ then
+  return -1
+endi
+
+sql select tags t, b from stt2 order by t
+print $rows
+print $data00 $data01 $data10 $data11 $data20 $data21 $data30 $data31
+if $rows != 4 then
+  return -1
+endi
+if $data31 != @2dd@ then
+  return -1
+endi
+
+sql select tags t,b,f from stt1 order by t
+print $rows
+print $data00 $data01 $data02 $data10 $data11 $data12 $data20 $data21 $data22 $data30 $data31 $data32 $data40 $data41 $data42
+if $rows != 5 then
+  return -1
+endi
+if $data42 != 5 then
+  return -1
+endi
+
+sql select tags tbname,t,b from stt1 order by t
+print $rows
+print $data00 $data01 $data02 $data10 $data11 $data12 $data20 $data21 $data22 $data30 $data31 $data32
+if $rows != 4 then
+  return -1
+endi
+if $data30 != @ctt14@ then
+  return -1
+endi
+if $data32 != @1dd@ then
+  return -1
+endi
+
+sql select tags t,b from stt1 where t=1
+print $rows
+print $data00 $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @1@ then
+  return -1
+endi
+if $data01 != @1aa@ then
+  return -1
+endi
+
+sql select tags t,b from stt1 where tbname='ctt11'
+print $rows
+print $data00 $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @1@ then
+  return -1
+endi
+if $data01 != @1aa@ then
+  return -1
+endi
+
+sql select tags t,b from ctt11
+print $rows
+print $data00 $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @1@ then
+  return -1
+endi
+if $data01 != @1aa@ then
+  return -1
+endi
+
+sql create table stb34 (ts timestamp, f int) tags(t int);
+sql insert into ctb34 using stb34 tags(1) values(now, 1)(now+1s, 2);
+sql select 1 from (select tags t from stb34 order by t)
+print $rows
+if $rows != 1 then
+  return -1
+endi
+
+sql select count(*) from (select tags t from stb34)
+if $data00 != 1 then
+  return -1
+endi
+
+
+sql select 1 from (select tags ts from stb34)
+print $rows
+if $rows != 2 then
+  return -1
+endi
+
+sql select count(*) from (select tags ts from stb34)
+if $data00 != 2 then
+  return -1
+endi
+
+sql select tags 2 from stb34
+if $rows != 1 then 
+  return -1
+endi
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

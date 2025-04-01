@@ -1,0 +1,361 @@
+sql connect
+
+$dbPrefix = lm2_db
+$tbPrefix = lm2_tb
+$stbPrefix = lm2_stb
+$tbNum = 10
+$rowNum = 10000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+$tsu = $rowNum * $delta
+$tsu = $tsu - $delta
+$tsu = $tsu + $ts0
+
+print ========== limit2.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+$tb = $tbPrefix . 0
+print ====== use db
+sql use $db
+
+##### aggregation on stb with 6 tags + where + group by + limit offset
+$val1 = 1
+$val2 = $tbNum - 1
+print select count(*) from $stb where t1 > $val1 and t1 < $val2 group by t1, t2, t3, t4, t5, t6 order by t1 asc limit 1 offset 0
+sql select count(*), t1, t2, t3, t4, t5, t6 from $stb where t1 > $val1 and t1 < $val2 group by t1, t2, t3, t4, t5, t6 order by t1 asc limit 1 offset 0
+$val = $tbNum - 3
+
+print $rows
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $rowNum then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != tb2 then
+  print expect tb2, actual: $data02
+  return -1
+endi
+if $data03 != tb2 then
+  return -1
+endi
+if $data04 != 2 then
+  return -1
+endi
+if $data05 != 2 then
+  return -1
+endi
+
+sql select count(*), t3, t4 from $stb where t2 like '%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 2 offset 0
+if $rows != 2 then
+  return -1
+endi
+if $data00 != $rowNum then
+  return -1
+endi
+if $data01 != tb4 then
+  return -1
+endi
+if $data02 != 4 then
+  return -1
+endi
+if $data11 != tb3 then
+  return -1
+endi
+if $data12 != 3 then
+  return -1
+endi
+
+sql select count(*) from $stb where t2 like '%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 1 offset 1
+if $rows != 1 then
+  return -1
+endi
+
+## TBASE-348
+sql_error select count(*) from $stb where t1 like 1
+
+##### aggregation on tb + where + fill + limit offset
+sql select _wstart, max(c1) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1) limit 10 offset 1
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @18-09-17 09:05:00.000@ then
+  return -1
+endi
+if $data01 != -1 then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data90 != @18-09-17 09:50:00.000@ then
+  return -1
+endi
+if $data91 != 5 then
+  return -1
+endi
+
+$tb5 = $tbPrefix . 5
+sql select max(c1), min(c2) from $tb5 where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2) limit 10 offset 1
+if $rows != 10 then
+  return -1
+endi
+if $data00 != -1 then
+  return -1
+endi
+if $data01 != -2 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != -2 then
+  return -1
+endi
+if $data90 != 5 then
+  return -1
+endi
+if $data91 != -2 then
+  return -1
+endi
+
+### [TBASE-350]
+## tb + interval + fill(value) + limit offset
+$tb = $tbPrefix . 0
+$limit = $rowNum
+$offset = $limit / 2
+sql select max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2 ,-3, -4 , -5, -6 ,-7 ,'-8', '-9') limit $limit offset $offset
+if $rows != $limit then
+  print expect $limit, actual $rows
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 8200
+if $rows != 8200 then
+  return -1
+endi
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 100000;
+
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 10 offset 8190;
+if $rows != 10 then
+  return -1
+endi
+
+if $data00 != 5 then
+  return -1
+endi
+
+if $data10 != -1000 then
+  return -1
+endi
+
+if $data20 != 6 then
+  return -1
+endi
+
+if $data30 != -1000 then
+  return -1
+endi
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 10 offset 10001;
+if $rows != 10 then
+  return -1
+endi
+
+if $data00 != -1000 then
+  return -1
+endi
+
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != -1000 then
+  return -1
+endi
+
+if $data30 != 2 then
+  return -1
+endi
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 10000 offset 10001;
+print ====> needs to validate the last row result
+if $rows != 9998 then
+  return -1
+endi
+
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 100 offset 20001;
+if $rows != 0 then
+  return -1
+endi
+
+# tb + interval + fill(linear) + limit offset
+$limit = $rowNum
+$offset = $limit / 2
+sql select _wstart,max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(linear) limit $limit offset $offset
+if $rows != $limit then
+  print expect $limit, actual $rows
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data11 != 0 then
+  return -1
+endi
+if $data13 != 0.500000000 then
+  return -1
+endi
+if $data35 != 0.000000000 then
+  return -1
+endi
+if $data46 != 0.000000000 then
+  return -1
+endi
+if $data47 != 1 then
+  return -1
+endi
+if $data57 != NULL then
+  return -1
+endi
+if $data68 != binary3 then
+  return -1
+endi
+if $data79 != NULL then
+  return -1
+endi
+
+## tb + interval + fill(prev) + limit offset
+$limit = $rowNum
+$offset = $limit / 2
+sql select max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(prev) limit $limit offset $offset
+if $rows != $limit then
+  print expect $limit, actual: $rows
+  return -1
+endi
+
+
+$limit = $rowNum
+$offset = $limit / 2
+$offset = $offset + 10
+sql select _wstart,max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 = 5 interval(5m) fill(value, -1, -2 ,-3, -4 , -5, -6 ,-7 ,'-8', '-9') limit $limit offset $offset
+if $rows != $limit then
+  return -1
+endi
+if $data01 != 5 then
+  return -1
+endi
+if $data02 != 5 then
+  return -1
+endi
+if $data03 != 5.000000000 then
+  return -1
+endi
+if $data04 != 5.000000000 then
+  return -1
+endi
+if $data05 != 0.000000000 then
+  return -1
+endi
+if $data07 != 1 then
+  return -1
+endi
+if $data08 != binary5 then
+  return -1
+endi
+if $data09 != nchar5 then
+  return -1
+endi
+if $data18 != NULL then
+  return -1
+endi
+if $data19 != NULL then
+  return -1
+endi
+
+$limit = $rowNum
+$offset = $limit * 2
+$offset = $offset - 11
+sql select _wstart,max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from $tb where ts >= $ts0 and ts <= $tsu and c1 = 5 interval(5m) fill(value, -1, -2 ,-3, -4 , -5, -6 ,-7 ,'-8', '-9') limit $limit offset $offset
+if $rows != 10 then
+  return -1
+endi
+if $data01 != -1 then
+  return -1
+endi
+if $data02 != -2 then
+  return -1
+endi
+if $data11 != 5 then
+  return -1
+endi
+if $data12 != 5 then
+  return -1
+endi
+if $data13 != 5.000000000 then
+  return -1
+endi
+if $data15 != 0.000000000 then
+  return -1
+endi
+if $data16 != 0.000000000 then
+  return -1
+endi
+if $data18 != binary5 then
+  return -1
+endi
+if $data19 != nchar5 then
+  return -1
+endi
+
+### [TBASE-350]
+## stb + interval + fill + group by + limit offset
+sql select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 partition by t1 interval(5m) fill(value, -1, -2, -3, -4 ,-7 ,'-8', '-9') limit 2 offset 10
+if $rows != 2 then
+  return -1
+endi
+
+$limit = 5
+$offset = $rowNum * 2
+$offset = $offset - 2
+sql select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000  partition by t1 interval(5m) fill(value, -1, -2, -3, -4 ,-7 ,'-8', '-9') order by t1 limit $limit offset $offset
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 9 then
+  return -1
+endi
+if $data01 != 9 then
+  return -1
+endi
+if $data02 != 9.000000000 then
+  return -1
+endi
+if $data03 != 9.000000000 then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+if $data05 != binary9 then
+  return -1
+endi
+if $data06 != nchar9 then
+  return -1
+endi
+
+
+#add one more test case
+sql select max(c1), last(c8) from lm2_db0.lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(linear) limit 10 offset 4089;"
+

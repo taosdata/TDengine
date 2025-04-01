@@ -1,0 +1,126 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== step1
+sql create database d1;
+sql use d1;
+sql create table d1.t1 (ts timestamp, i int);
+sql create table d1.t2 (ts timestamp, i int);
+sql create table d1.t3 (ts timestamp, i int);
+sql insert into d1.t1 values(now, 1);
+sql insert into d1.t2 values(now, 1);
+sql drop table d1.t1;
+sql drop database d1;
+
+sql select * from information_schema.ins_databases;
+if $rows != 2 then
+  return -1
+endi
+
+print =============== step2
+sql create database d2;
+sql use d2;
+sql create table d2.t1 (ts timestamp, i int);
+sql create table d2.t2 (ts timestamp, i int);
+sql create table d2.t3 (ts timestamp, i int);
+sql insert into d2.t1 values(now, 1);
+sql insert into d2.t2 values(now, 1);
+sql drop table d2.t1;
+sql drop table d2.t2;
+sql drop table d2.t3;
+
+sql show d2.tables;
+if $rows != 0 then
+  return -1
+endi
+
+sql show d2.vgroups;
+if $rows != 2 then
+  return -1
+endi
+
+sql drop database d2;
+
+sql select * from information_schema.ins_databases;
+if $rows != 2 then
+  return -1
+endi
+
+print =============== step3
+sql create database d3;
+sql use d3;
+sql create table d3.st (ts timestamp, i int) tags (j int);
+sql create table d3.t1 using d3.st tags(1);
+sql create table d3.t2 using d3.st tags(1);
+sql create table d3.t3 using d3.st tags(1);
+sql insert into d3.t1 values(now, 1);
+sql drop table d3.t1;
+sql drop table d3.t2;
+sql drop table d3.t3;
+
+sql show d3.tables;
+if $rows != 0 then
+  return -1
+endi
+
+sql show d3.vgroups;
+if $rows != 2 then
+  return -1
+endi
+
+sql drop database d3;
+
+sql select * from information_schema.ins_databases;
+if $rows != 2 then
+  return -1
+endi
+
+print =============== step4
+sql create database d4;
+sql use d4;
+sql create table d4.st (ts timestamp, i int) tags (j int);
+sql create table d4.t1 using d4.st tags(1);
+sql create table d4.t2 using d4.st tags(1);
+sql create table d4.t3 using d4.st tags(1);
+sql insert into d4.t1 values(now, 1);
+sql drop table d4.t1;
+sql drop table d4.st;
+
+sql show d4.tables;
+if $rows != 0 then
+  return -1
+endi
+
+sql show d4.stables;
+if $rows != 0 then
+  return -1
+endi
+
+sql drop database d4;
+
+sql select * from information_schema.ins_databases;
+if $rows != 2 then
+  return -1
+endi
+
+print =============== step5
+sql create database d5;
+sql use d5;
+sql create table d5.st (ts timestamp, i int) tags (j int);
+sql create table d5.t1 using d5.st tags(1);
+sql create table d5.t2 using d5.st tags(1);
+sql create table d5.t3 using d5.st tags(1);
+sql insert into d5.t1 values(now, 1);
+sql drop table d5.t1;
+
+sql drop database d5;
+
+sql select * from information_schema.ins_databases;
+if $rows != 2 then
+  return -1
+endi
+
+print =============== step6
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
