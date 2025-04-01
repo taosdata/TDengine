@@ -1,9 +1,9 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+# CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
-PROJECT(taos-tools
-        LANGUAGES C
-        VERSION 0.1.0
-        )
+# PROJECT(taos-tools
+#         LANGUAGES C
+#         VERSION 0.1.0
+#         )
 
 if(NOT WIN32)
     string(ASCII 27 Esc)
