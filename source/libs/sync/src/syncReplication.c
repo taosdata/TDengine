@@ -90,7 +90,7 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   pMsg->destId = *destRaftId;
   TAOS_CHECK_RETURN(syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg));
 
-  int32_t nRef = 0;
+  int64_t nRef = 0;
   if (pSyncNode != NULL) {
     nRef = atomic_add_fetch_64(&pSyncNode->sendCount, 1);
     if (nRef <= 0) {
