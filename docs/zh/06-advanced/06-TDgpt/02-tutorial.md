@@ -87,7 +87,7 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 ### 环境准备
 
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上, 对部署 anode 的有一定的环境要求：
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
 
 - Python: 3.10 或以上版本。
 - TDengine：需使用 3.3.6.0 或以上版本。
