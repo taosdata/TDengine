@@ -3,7 +3,12 @@ name: Cancel Workflow on PR Close or Merge
 # 触发条件：当 PR 被关闭或合并时
 on:
   pull_request:
-    types: [closed, merged]
+    types: [closed]
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+      - '3.3.6'
 
 jobs:
   cancel:
