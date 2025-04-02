@@ -38,7 +38,7 @@ toc_max_heading_level: 4
 
 下面通过创建数据库，来熟悉数据浏览器页面的功能和操作，接下来看创建数据库的两种方式：
 
-1. 通过点击图中的 + 号，跳转到创建数据数库页面，点击“创建”按钮，如下图：
+1. 通过点击图中的 + 号，跳转到创建数据数库页面，点击**创建**按钮，如下图：
 
 第一步 点击 + 号；
 ![explorer-02-createDbentry.jpeg](./pic/explorer-02-createDbentry.jpeg "点开 + 号创建数据库")
@@ -47,7 +47,7 @@ toc_max_heading_level: 4
 ![explorer-03-createDbPage.jpeg](./pic/explorer-03-createDbPage.jpeg "创建数据库页面")
 ![explorer-04-createDbPage2.jpeg](./pic/explorer-04-createDbPage2.jpeg "创建数据库页面展开参数")
 
-弟三步 点击“创建”按钮之后，如下图左边出现数据库名称则创建数据库成功。
+弟三步 点击**创建**按钮之后，如下图左边出现数据库名称则创建数据库成功。
 ![explorer-05-createDbtest01.jpeg](./pic/explorer-05-createDbtest01.jpeg "创建数据库 test01")
 
 2. 通过在 SQL 编辑器中数据 sql 语句，点击 执行 按钮，如下图：
@@ -65,7 +65,7 @@ toc_max_heading_level: 4
 第一步 鼠标移动到 STables 上，点击出现的 + 号，出现创建超级表 tab；
 ![explorer-08-createStbEntry.jpeg](./pic/explorer-08-createStbEntry.jpeg "创建超级表入口")
 
-第二步 填写超级表信息，点击“创建”按钮；
+第二步 填写超级表信息，点击**创建**按钮；
 ![explorer-09-createStbPage.jpeg](./pic/explorer-09-createStbPage.jpeg "创建超级表页面")
 
 第三步 点击 Stables 出现刚才填写的超级表名，则证明创建成功。
@@ -132,7 +132,7 @@ toc_max_heading_level: 4
 
 ![stream-02-createStreamEntry.jpeg](./pic/stream-02-createStreamEntry.jpeg "创建流计算入口")
 
-第一步 填写创建流计算需要的信息，点击 创建 按钮；
+第一步 填写创建流计算需要的信息，点击**创建**按钮；
 
 ![stream-03-createStreamWizard.jpeg](./pic/stream-03-createStreamWizard.jpeg "创建流计算 Wizard 页面")
 ![stream-04-createStreamWizard.jpeg](./pic/stream-04-createStreamWizard.jpeg "创建流计算 Wizard 页面")
@@ -142,7 +142,7 @@ toc_max_heading_level: 4
 
 ### 使用 SQL
 
-第一步 切换到 SQL 页，直接输入创建流计算 sql，点击 创建 按钮；
+第一步 切换到 SQL 页，直接输入创建流计算 sql，点击**创建**按钮；
 ![stream-06-createStreamSql.jpeg](./pic/stream-06-createStreamSql.jpeg "创建流计算 SQL 页面")
 
 第二步 页面出现以下记录，则证明创建成功。
@@ -162,7 +162,7 @@ toc_max_heading_level: 4
 
 1. Wizard 方式
    
-第一步 填写添加新主题需要的信息，点击“创建”按钮；
+第一步 填写添加新主题需要的信息，点击**创建**按钮；
 ![topic-03-addTopicWizard.jpeg](./pic/topic-03-addTopicWizard.jpeg "添加新主题 Wizard 页面")
 
 如上图，您可以选择是否“同步 meta”。如果同步 meta 信息，则可以订阅到 meta 信息，比如增加或者删除超级表。
@@ -174,7 +174,7 @@ toc_max_heading_level: 4
 
 2. Sql 方式
 
-第一步 切换到 SQL 页，直接输入添加新主题 sql，点击“创建”按钮；
+第一步 切换到 SQL 页，直接输入添加新主题 sql，点击**创建**按钮；
 ![topic-06-addTopicSql.jpeg](./pic/topic-06-addTopicSql.jpeg "添加新主题 SQL 页面")
 
 第二步 页面出现以下记录，则证明创建成功。

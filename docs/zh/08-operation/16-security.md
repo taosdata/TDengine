@@ -137,7 +137,7 @@ create stable operations(ts timestamp, details varchar(64000)， user varchar(25
 
 ### 查看审计日志
 
-在 taosd 和 taosKeeper 都正确配置并启动之后，随着系统的不断运行，系统中的各种操作（如上表所示）会被实时记录并上报，用户可以登录 taosExplorer，点击“系统管理”→“审计”页面，即可查看审计日志; 也可以在 TDengine CLI 中直接查询相应的库和表。
+在 taosd 和 taosKeeper 都正确配置并启动之后，随着系统的不断运行，系统中的各种操作（如上表所示）会被实时记录并上报，用户可以登录 taosExplorer，点击**系统管理**→**审计**页面，即可查看审计日志; 也可以在 TDengine CLI 中直接查询相应的库和表。
 
 ## 数据加密
 
