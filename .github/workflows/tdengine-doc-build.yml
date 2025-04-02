@@ -46,7 +46,7 @@ jobs:
       - name: AutoCorrect
         uses: huacnlee/autocorrect-action@v2
         with:
-          args: --lint --no-diff-bg-color docs/zh/* docs/en/*
+          args: --lint docs/zh/* docs/en/*
 
   build-doc:
     runs-on:
