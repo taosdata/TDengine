@@ -413,7 +413,7 @@ For the OpenTSDB text protocol, the parsing of timestamps follows its official p
                                                 const char *lines,
                                                 int len,
                                                 int32_t *totalRows,
-                                                int protocal,
+                                                int protocol,
                                                 int precision,
                                                 int ttl,
                                                 uint64_t reqid)`
