@@ -31,7 +31,7 @@ HoltWinters 有两种不同的季节性组成部分，当季节变化在该时�
 FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
 ```
 
-完整的调用SQL语句如下：
+完整的调用 SQL 语句如下：
 
 ```SQL
 SELECT _frowts, FORECAST(i32, "algo=holtwinters, period=10,trend=mul,seasonal=mul") from foo

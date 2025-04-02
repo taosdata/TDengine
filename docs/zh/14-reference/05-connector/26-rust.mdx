@@ -120,7 +120,7 @@ DSN 描述字符串基本结构如下：
 - **database**：指定默认连接的数据库名，可选参数。
 - **params**：其他可选参数。
 
-一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
+一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`，表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
 
 #### TaosBuilder
 
@@ -468,7 +468,7 @@ Stmt 结构体提供了参数绑定相关功能，用于实现高效写入。
 
 ### 数据订阅
 
-数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder， 消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
+数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder，消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
 
 #### TmqBuilder
 

@@ -6,8 +6,8 @@ description: 常见问题
 
 ### 1. 安装过程中编译 uWSGI 失败，如何处理
 
-TDgpt 安装过程中需要在本地编译 uWSGI，某些环境的 Python（例如：anaconda）安装 uWSGI 会出现冲突导致编译失败，安装流程因此无法继续下去。这种情况下可以尝试在安装过程中忽略 uWSGI的安装。
-由于忽略了 uWSGI 安装，后续启动 taosasnode 服务的时候，需要手动输入命令进行启动 `python3.10 /usr/local/taos/taosanode/lib/taosanalytics/app.py`。 执行该命令的时候请确保使用了虚拟环境中的 Python 程序才能加载依赖库。
+TDgpt 安装过程中需要在本地编译 uWSGI，某些环境的 Python（例如：anaconda）安装 uWSGI 会出现冲突导致编译失败，安装流程因此无法继续下去。这种情况下可以尝试在安装过程中忽略 uWSGI 的安装。
+由于忽略了 uWSGI 安装，后续启动 taosasnode 服务的时候，需要手动输入命令进行启动 `python3.10 /usr/local/taos/taosanode/lib/taosanalytics/app.py`。执行该命令的时候请确保使用了虚拟环境中的 Python 程序才能加载依赖库。
 
 ### 2. 创建 anode 失败，返回指定服务无法访问
 

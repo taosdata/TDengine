@@ -28,7 +28,7 @@ description: 使用 TDengine 连接永洪 BI
 jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata
 ```
 4. 接着在“认证方式”选择“无身份认证”。
-5. 在数据源的高级设置中，修改“Quote符号”的值为反引号“`”。
+5. 在数据源的高级设置中，修改“Quote 符号”的值为反引号“`”。
 6. 点击“测试连接”，弹出“测试成功”的对话框。点击“保存”按钮，输入“MyTDengine”来保存 TDengine 数据源。
 
 ### 创建 TDengine 数据集
