@@ -4634,7 +4634,7 @@ SNode* createLoadFileStmt(SAstCreateContext* pCxt, const SToken* pFileName) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_LOAD_FILE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
-  pStmt->pDbName = NULL;
+  // pStmt->pDbName = NULL;
   strncpy(pStmt->fileName, pFileName->z, pFileName->n);
 
   return (SNode*)pStmt;
