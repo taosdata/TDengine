@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Workflow Runs
-        uses: styfle/cancel-workflow-action
+        uses: styfle/cancel-workflow-action@0.12.1
         with:
           workflow_id: "TDengine Test"
           only_same_branch: true
