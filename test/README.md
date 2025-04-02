@@ -69,8 +69,9 @@ test/
 ├── env/                  # TDengine deploy configuration yaml file directory
 │   └── demo.yaml         # configuration example
 │
-├── utils/                # common functions utils directory
-│   └── ...
+├── new_test_framework/   
+│   └── utils             # common functions utils directory
+│   │   ├── ...
 │
 ├── requirements.txt      # dependencies
 └── README.md             # project description
