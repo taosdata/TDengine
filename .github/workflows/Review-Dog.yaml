@@ -1,7 +1,7 @@
 
-name: Label PR by Team
-description: Label PR based on team membership
-
+name: Review Dog
+description: 
+  This workflow is triggered when a pull request is opened. It generates a GitHub App token, checks out the repository, and runs the autocorrect action. If the action fails, it reports the results using ReviewDog.
 on:
   pull_request:
     # test message13
