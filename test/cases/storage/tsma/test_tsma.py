@@ -1,15 +1,12 @@
-import pytest
 import random
 import os
 import sys
 import string
 from random import randrange
 import time
-import threading
 import secrets
 from new_test_framework.utils import tdLog, tdSql, tdCom, List
 
-# from tmqCommon import *
 
 ROUND = 1000
 
@@ -1223,8 +1220,7 @@ class TestTsma:
         self.tsma_drop_tsma()
         self.tsma_tb_ddl_with_created_tsma()
     
-    @pytest.mark.common
-    @pytest.mark.ci
+
     def test_tsma(self):
 
         self.init_data()

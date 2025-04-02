@@ -58,6 +58,7 @@ if(${BUILD_TEST})
   enable_testing()
 endif(${BUILD_TEST})
 
+ADD_SUBDIRECTORY(contrib/TSZ)
 add_subdirectory(source)
 add_subdirectory(utils)
 add_subdirectory(tools)
