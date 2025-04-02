@@ -91,7 +91,8 @@ curl 127.0.0.1:5001/ds_predict
 ```
 
 # 添加模型适配代码
-您可参考 [timemoe.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py） 文件进行 MaaS 服务的适配。我们适配Time-MoE提供预测服务。
+您可参考 [timemoe.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py)
+文件进行 MaaS 服务的适配。我们适配Time-MoE提供预测服务。
 
 ```python
 class _TimeMOEService(AbstractForecastService):
