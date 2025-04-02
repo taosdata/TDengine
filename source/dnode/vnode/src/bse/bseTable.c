@@ -342,6 +342,20 @@ _error:
   return code;
 }
 
+int32_t compareFunc(const void *pLeft, const void *pRight) {
+  SBlkHandle *p1 = (SBlkHandle *)pLeft;
+  SBlkHandle *p2 = (SBlkHandle *)pRight;
+  if (p1->range.sseq > p2->range.sseq) {
+    return 1;
+  } else if (p1->range.sseq < p2->range.sseq) {
+    return -1;
+  }
+  return 0;
+}
+static int32_t findHandleBySeq(SArray *pMetaHandle, int64_t seq) {
+  SBlkHandle handle = {.range = {.sseq = seq, .eseq = seq}};
+  return taosArraySearchIdx(pMetaHandle, &handle, compareFunc, TD_LE);
+}
 int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len) {
   if (p == NULL) {
     return TSDB_CODE_NOT_FOUND;
@@ -352,12 +366,12 @@ int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *l
     if (isGreaterSeqRange(&pHandle->range, seq)) {
       return blockSeek(p->pData, seq, value, len);
     } else {
-      for (int32_t i = 0; i < taosArrayGetSize(p->pMetaHandle); i++) {
-        pHandle = taosArrayGet(p->pMetaHandle, i);
-        if (inSeqRange(&pHandle->range, seq)) {
-          return tabldBuildSeekData(p, pHandle, seq, value, len);
-        }
+      int32_t idx = findHandleBySeq(p->pMetaHandle, seq);
+      if (idx < 0) {
+        return TSDB_CODE_NOT_FOUND;
       }
+      pHandle = taosArrayGet(p->pMetaHandle, idx);
+      return tabldBuildSeekData(p, pHandle, seq, value, len);
     }
   } else {
     return blockSeek(p->pData, seq, value, len);
@@ -601,18 +615,12 @@ int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *le
   int32_t     code = 0;
   SBlkHandle *pHandle = NULL;
   // opt later
-  for (int32_t i = 0; i < taosArrayGetSize(p->pMetaHandle); i++) {
-    pHandle = taosArrayGet(p->pMetaHandle, i);
-    if (inSeqRange(&pHandle->range, seq)) {
-      break;
-    } else {
-      pHandle = NULL;
-    }
-  }
-
-  if (pHandle == NULL) {
+  int32_t idx = findHandleBySeq(p->pMetaHandle, seq);
+  if (idx < 0) {
     return TSDB_CODE_NOT_FOUND;
   }
+
+  pHandle = taosArrayGet(p->pMetaHandle, idx);
   return tableReadSeekData(p, pHandle, seq, pValue, len);
 }
 
