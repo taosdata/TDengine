@@ -94,7 +94,7 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   if (pSyncNode != NULL) {
     nRef = atomic_add_fetch_64(&pSyncNode->sendCount, 1);
     if (nRef <= 0) {
-      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+      sError("vgId:%d, send count is %" PRId64, pSyncNode->vgId, nRef);
     }
   }
 
@@ -102,7 +102,7 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   if (mgr != NULL) {
     nRef = atomic_add_fetch_64(&mgr->sendCount, 1);
     if (nRef <= 0) {
-      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+      sError("vgId:%d, send count is %" PRId64, pSyncNode->vgId, nRef);
     }
   }
 

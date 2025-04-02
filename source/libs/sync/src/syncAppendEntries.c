@@ -106,7 +106,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t nRef = atomic_add_fetch_64(&ths->recvCount, 1);
   if (nRef <= 0) {
-    sError("vgId:%d, recv count is %d", ths->vgId, nRef);
+    sError("vgId:%d, recv count is %" PRId64, ths->vgId, nRef);
   }
 
   int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
