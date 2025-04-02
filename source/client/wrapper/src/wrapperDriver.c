@@ -55,6 +55,11 @@ static int32_t taosGetInstallPath(char *driverPath, const char *driverName) {
   return 0;
 }
 
+static int32_t taosGetCurrentPath(char *driverPath, const char *driverName) {
+  tsnprintf(driverPath, PATH_MAX, "./%s",driverName);
+  return 0;
+}
+
 int32_t taosDriverInit(EDriverType driverType) {
   int32_t     code = -1;
   char        driverPath[PATH_MAX + 32] = {0};
@@ -67,10 +72,17 @@ int32_t taosDriverInit(EDriverType driverType) {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
 
+  // dev
   if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
     tsDriver = taosLoadDll(driverPath);
   }
 
+  // current
+  if (tsDriver == NULL && taosGetCurrentPath(driverPath, driverName) == 0) {
+    tsDriver = taosLoadDll(driverPath);
+  }
+
+  // install
   if (tsDriver == NULL && taosGetInstallPath(driverPath, driverName) == 0) {
     tsDriver = taosLoadDll(driverPath);
   }
