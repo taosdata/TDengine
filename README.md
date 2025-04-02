@@ -696,13 +696,13 @@ If TDengine CLI connects the server successfully, welcome messages and version i
 You can start TDengine server on Windows platform with below commands:
 
 ```cmd
-.\build\bin\taosd.exe -c test\cfg
+.\TDinternal\debug\build\bin\taosd.exe -c .\TDinternal\debug\test\cfg
 ```
 
 In another terminal, use the TDengine CLI to connect the server:
 
 ```cmd
-.\build\bin\taos.exe -c test\cfg
+.\TDinternal\debug\build\bin\taos.exe -c .\TDinternal\debug\test\cfg
 ```
 
 option "-c test/cfg" specifies the system configuration file directory.
