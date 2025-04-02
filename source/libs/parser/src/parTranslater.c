@@ -19126,6 +19126,11 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t rewriteLoadFileStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  // TODO
+  return 0;
+}
+
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
@@ -19235,6 +19240,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
       code = rewriteShowAliveStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_LOAD_FILE_STMT:
+      code = rewriteLoadFileStmt(pCxt, pQuery);
       break;
     default:
       break;

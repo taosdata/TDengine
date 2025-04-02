@@ -4621,21 +4621,18 @@ _err:
   return NULL;
 }
 
-SNode* createLoadFileStmt(SAstCreateContext* pCxt, const SToken* pFileName) {
+SNode* createLoadFileStmt(SAstCreateContext* pCxt, SToken* pDbName, SToken* pFileName) {
   CHECK_PARSER_STATUS(pCxt);
-
-  if (NULL == pFileName) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "file name not specified");
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-    CHECK_PARSER_STATUS(pCxt);
-  }
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
 
   SLoadFileStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_LOAD_FILE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
-  // pStmt->pDbName = NULL;
-  strncpy(pStmt->fileName, pFileName->z, pFileName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+
+  (void)trimString(pFileName->z, pFileName->n, pStmt->fileName, sizeof(pStmt->fileName) - 1);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->fileName, pFileName);
 
   return (SNode*)pStmt;
 

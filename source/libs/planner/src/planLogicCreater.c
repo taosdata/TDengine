@@ -2525,6 +2525,8 @@ static int32_t getMsgType(ENodeType sqlType) {
       return TDMT_VND_ALTER_TABLE;
     case QUERY_NODE_FLUSH_DATABASE_STMT:
       return TDMT_VND_COMMIT;
+    case QUERY_NODE_LOAD_FILE_STMT:
+      return TDMT_VND_LOAD_FILE;
     default:
       break;
   }

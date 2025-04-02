@@ -4495,8 +4495,26 @@ static const char* jkPlanNumOfSubplans = "NumOfSubplans";
 static const char* jkPlanSubplans = "Subplans";
 
 static int32_t loadFileStmtToJson(const void* pObj, SJson* pJson) {
-  int32_t code = 0;
-  // TODO
+  const SLoadFileStmt* pNode = (const SLoadFileStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, "DbName", pNode->dbName);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "FileName", pNode->fileName);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLoadFileStmt(const SJson* pJson, void* pObj) {
+  SLoadFileStmt* pNode = (SLoadFileStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, "DbName", pNode->dbName);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, "FileName", pNode->fileName);
+  }
+
   return code;
 }
 
@@ -9605,6 +9623,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToSubplan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN:
       return jsonToPlan(pJson, pObj);
+    case QUERY_NODE_LOAD_FILE_STMT:
+      return jsonToLoadFileStmt(pJson, pObj);
     default:
       break;
   }

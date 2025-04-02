@@ -369,7 +369,7 @@ SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
 SNode* createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type);
 SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pFuncNode, SNodeList* pNodeList, SToken* pAlias);
 
-SNode* createLoadFileStmt(SAstCreateContext* pCxt, const SToken* pFileName);
+SNode* createLoadFileStmt(SAstCreateContext* pCxt, SToken* pDbName, SToken* pFileName);
 
 #ifdef __cplusplus
 }

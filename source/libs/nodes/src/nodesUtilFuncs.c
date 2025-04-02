@@ -2156,7 +2156,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       break;
     case QUERY_NODE_LOAD_FILE_STMT:
-      // nodesDestroyNode(((SLoadFileStmt*)pNode)->pDbName);
+      // Do nothing
       break;
     default:
       break;

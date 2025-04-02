@@ -394,6 +394,10 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
   return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER, NULL);
 }
 
+static int32_t authLoadFile(SAuthCxt* pCxt, SLoadFileStmt* pStmt) {
+  return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL);
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
@@ -469,6 +473,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateView(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:
       return authDropView(pCxt, (SDropViewStmt*)pStmt);
+    case QUERY_NODE_LOAD_FILE_STMT:
+      return authLoadFile(pCxt, (SLoadFileStmt*)pStmt);
+      break;
     default:
       break;
   }

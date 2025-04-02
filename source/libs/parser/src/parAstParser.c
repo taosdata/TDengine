@@ -1100,6 +1100,10 @@ static int32_t collectMetaKeyFromShowAlive(SCollectMetaKeyCxt* pCxt, SShowAliveS
   return code;
 }
 
+static int32_t collectMetaKeyFromLoadFile(SCollectMetaKeyCxt* pCxt, SLoadFileStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
   pCxt->pStmt = pStmt;
   switch (nodeType(pStmt)) {
@@ -1268,6 +1272,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
       return collectMetaKeyFromShowAlive(pCxt, (SShowAliveStmt*)pStmt);
+    case QUERY_NODE_LOAD_FILE_STMT:
+      return collectMetaKeyFromLoadFile(pCxt, (SLoadFileStmt*)pStmt);
     default:
       break;
   }

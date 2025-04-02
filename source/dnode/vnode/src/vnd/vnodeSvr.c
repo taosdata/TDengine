@@ -606,7 +606,7 @@ static int32_t vnodeProcessImportFileReq(SVnode *pVnode, int64_t ver, void *pReq
   int32_t code = 0;
 
   // Missing response initialization
-  pRsp->msgType = TDMT_VND_IMPORT_FILE_RSP;
+  pRsp->msgType = TDMT_VND_LOAD_FILE_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
@@ -840,7 +840,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_ARB_CHECK_SYNC:
       vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
       break;
-    case TDMT_VND_IMPORT_FILE:
+    case TDMT_VND_LOAD_FILE:
       vnodeProcessImportFileReq(pVnode, ver, pReq, len, pRsp);
       break;
     default:

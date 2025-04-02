@@ -325,7 +325,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_TABLE_NAME, "vnode-table-name", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_VSUBTABLES_META, "vnode-virtual_stables-meta", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_VSTB_REF_DBS, "vnode-virtual-stables-ref-dbs", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_IMPORT_FILE, "vnode-import-file", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_LOAD_FILE, "vnode-import-file", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8
