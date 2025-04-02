@@ -1028,7 +1028,7 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
   SDnodeListRsp rsp = {0};
   int32_t       code = -1;
 
-  rsp.dnodeList = taosArrayInit(5, sizeof(SEpSet));
+  rsp.dnodeList = taosArrayInit(5, sizeof(SDNodeAddr));
   if (NULL == rsp.dnodeList) {
     mError("failed to alloc epSet while process dnode list req");
     code = terrno;
@@ -1039,12 +1039,13 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
-    SEpSet epSet = {0};
-    epSet.numOfEps = 1;
-    tstrncpy(epSet.eps[0].fqdn, pObj->fqdn, TSDB_FQDN_LEN);
-    epSet.eps[0].port = pObj->port;
+    SDNodeAddr dnodeAddr = {0};
+    dnodeAddr.nodeId = pObj->id;
+    dnodeAddr.epSet.numOfEps = 1;
+    tstrncpy(dnodeAddr.epSet.eps[0].fqdn, pObj->fqdn, TSDB_FQDN_LEN);
+    dnodeAddr.epSet.eps[0].port = pObj->port;
 
-    if (taosArrayPush(rsp.dnodeList, &epSet) == NULL) {
+    if (taosArrayPush(rsp.dnodeList, &dnodeAddr) == NULL) {
       if (terrno != 0) code = terrno;
       sdbRelease(pSdb, pObj);
       sdbCancelFetch(pSdb, pIter);
