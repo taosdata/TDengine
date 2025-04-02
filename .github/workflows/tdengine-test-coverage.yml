@@ -1,6 +1,5 @@
-# Coverage test for taosd & taosc
-
 name: TDengine Coverage
+description: Coverage test for taosd & taosc
 
 on:
   workflow_dispatch:
@@ -18,7 +17,7 @@ on:
   schedule:
     # - cron: '0 06 * * *'
     # - cron: '0 18 * * *'
-    - cron: '0 */3 * * *'
+    - cron: '0 */4 * * *'
 
 
 concurrency:
