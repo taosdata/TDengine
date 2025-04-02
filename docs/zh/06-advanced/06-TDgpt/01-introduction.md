@@ -84,7 +84,7 @@ TDgpt 默认使用 uWSGI 驱动的 flask 服务，可以通过打开 uwsgi 的�
 
 # 参考文献
 
-[1] Merlion: https://opensource.salesforce.com/Merlion/latest/index.html
+[1] Merlion:https://opensource.salesforce.com/Merlion/latest/index.html
 
 [2] Kats:https://facebookresearch.github.io/Kats/
 

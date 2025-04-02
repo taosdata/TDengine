@@ -96,7 +96,7 @@ TDengine 提供数据写入的幂等性保证，即您可以反复调用 API 进
     - 需要注意的是，这里的 tag_key1、tag_key2 并不是用户输入的标签的原始顺序，而是使用了标签名称按照字符串升序排列后的结果。所以，tag_key1 并不是在行协议中输入的第一个标签。
    排列完成以后计算该字符串的 MD5 散列值 "md5_val"。然后将计算的结果与字符串组合生成表名："t_md5_val"。其中的 "t_" 是固定的前缀，每个通过该映射关系自动生成的表都具有该前缀。
 
-    - 如果不想用自动生成的表名，有两种指定子表名的方式 (第一种优先级更高)。
+    - 如果不想用自动生成的表名，有两种指定子表名的方式（第一种优先级更高）。
         - 通过在 taos.cfg 里配置 smlAutoChildTableNameDelimiter 参数来指定（`@ # 空格 回车 换行 制表符` 除外)，例如配置 smlAutoChildTableNameDelimiter=- 插入数据为 st,t0=cpu1,t1=4 c1=3 1626006833639000000 则创建的表名为 cpu1-4。
         - 通过在 taos.cfg 里配置 smlChildTableName 参数来指定，例如配置 smlChildTableName=tname 插入数据为 st,tname=cpu1,t1=4 c1=3 1626006833639000000 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略。
 

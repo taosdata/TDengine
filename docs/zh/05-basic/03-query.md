@@ -182,7 +182,7 @@ INTERVAL(interval_val [, interval_offset])
 ```
 
 时间窗口子句包括 3 个子句：
-- INTERVAL 子句：用于产生相等时间周期的窗口，interval_val 指定每个时间窗口的大小，interval_offset 指定窗口偏移量；默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从“Unix time 0 + interval_offset”开始；
+- INTERVAL 子句：用于产生相等时间周期的窗口，interval_val 指定每个时间窗口的大小，interval_offset 指定窗口偏移量；默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从 "Unix time 0 + interval_offset" 开始；
 - SLIDING 子句：用于指定窗口向前滑动的时间；
 - FILL：用于指定窗口区间数据缺失的情况下，数据的填充模式。
 
