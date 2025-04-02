@@ -605,4 +605,4 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000446 | Analysis failed since too many input rows for anode | 输入数据太多         | 减小分析数据输入规模                         |
 | 0x80000447 | white-noise data not processed                      | 白噪声数据不分析       |                                    |
 | 0x80000448 | Analysis internal error, not processed              | anode 出现内部错误   | 具体查看server端的日志 (taosanode.app.log) |
-| 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少   | 增加输入数据规模（至少10行记录）                  |
+| 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少   | 增加输入数据规模（预测至少10行记录）                |
