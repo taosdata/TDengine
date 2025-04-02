@@ -92,7 +92,7 @@ If you have never started the anode, see [Operations & Maintenance](../../../man
 
 ### Unit Testing
 
-You can add unit test cases to the `forecase_test.py` file in the `taosanalytics/test` directory or create a file for unit tests. Unit tests have a depency on the Python unittest module.
+You can add unit test cases to the `forecase_test.py` file in the `taosanalytics/test` directory or create a file for unit tests. Unit tests have a dependency on the Python unittest module.
 
 ```python
 def test_myfc(self):

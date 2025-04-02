@@ -2121,8 +2121,8 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   }
   DECODESQL();
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createDb));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isImport));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createDb));
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->passIsMd5));

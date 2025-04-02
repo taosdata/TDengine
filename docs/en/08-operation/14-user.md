@@ -18,7 +18,7 @@ create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
 The parameters are explained as follows.
 
 - user_name: Up to 23 B long.
-- password: The password must be between 8 and 255 characters long. The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`, and this reqirement is able to be closed by adding enableStrongPassword 0 in taos.cfg, or by the following SQL:
+- password: The password must be between 8 and 255 characters long. The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`, and this requirement is able to be closed by adding enableStrongPassword 0 in taos.cfg, or by the following SQL:
 ```sql
 alter all dnodes 'EnableStrongPassword' '0'
 ```
