@@ -17,7 +17,8 @@ TDgpt 在企业版中提供预测分析模型和异常检测模型有效性评�
 
 在配置文件 `analytics.ini` 配置文件中设置 `taosd` 服务的连接信息，包括 主机地址、配置文件路径、用户名、登录密码等信息。
 
-   ```ini
+   ```textmate
+
    [taosd]
    # taosd 服务主机名
    host = 127.0.0.1
@@ -81,7 +82,7 @@ arima={"time_step": 3600000, "start_p": 0, "max_p": 5, "start_q": 0, "max_q": 5}
 
 3. 调用评估工具
 ```shell
-python3.10 ./analytics_compare.py forecast
+python3 ./analytics_compare.py forecast
 ```
 
 > 需确保激活虚拟环境并调用该虚拟环境的 Python，否则启动的时候 Python 会提示找不到所需要的依赖库。
@@ -149,7 +150,7 @@ lof={"algorithm":"auto", "n_neighbor": 3}
 
 4. 调用评估工具
 ```shell
-python3.10 ./analytics_compare.py anomaly-detection
+python3 ./analytics_compare.py anomaly-detection
 ```
 5. 检查结果
 
