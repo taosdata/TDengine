@@ -13,7 +13,6 @@ on:
       - 'packaging/**'
       - 'tests/**'
       - '**/*.md'
-      - '.github/workflows/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
