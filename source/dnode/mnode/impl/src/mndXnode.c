@@ -27,6 +27,7 @@
 static SSdbRaw *mndXnodeActionEncode(SXnodeObj *pObj) {
   int32_t code = 0;
   int32_t lino = 0;
+
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE, XNODE_VER_NUMBER, sizeof(SXnodeObj) + XNODE_RESERVE_SIZE);
@@ -52,13 +53,14 @@ _OVER:
 }
 
 static SSdbRow *mndXnodeActionDecode(SSdbRaw *pRaw) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  int32_t    code = 0;
+  int32_t    lino = 0;
   SSdbRow   *pRow = NULL;
   SXnodeObj *pObj = NULL;
+  int8_t     sver = 0;
 
-  int8_t sver = 0;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
   if (sver != XNODE_VER_NUMBER) {

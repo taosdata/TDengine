@@ -144,6 +144,7 @@ typedef enum {
   SDB_MNODE = 2,
   SDB_QNODE = 3,
   SDB_SNODE = 4,
+  SDB_XNODE = 5,
   SDB_DNODE = 6,
   SDB_USER = 7,
   SDB_AUTH = 8,
@@ -168,8 +169,7 @@ typedef enum {
   SDB_ARBGROUP = 27,
   SDB_ANODE = 28,
   SDB_CFG = 29,
-  SDB_XNODE = 30,
-  SDB_MAX = 31
+  SDB_MAX = 30
 } ESdbType;
 
 typedef struct SSdbRaw {
