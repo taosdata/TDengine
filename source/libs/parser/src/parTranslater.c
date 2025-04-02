@@ -5513,7 +5513,12 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
       if (NULL == pRealTable->pMeta) {
         SName name = {0};
         toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
-        code = getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true);
+        if (pCxt->refTable) {
+          code = collectUseTable(&name, pCxt->pTargetTables);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true);
+        }
         if (TSDB_CODE_SUCCESS != code) {
           (void)generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
           return code;
