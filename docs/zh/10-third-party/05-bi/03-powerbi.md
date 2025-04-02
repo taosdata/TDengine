@@ -72,7 +72,7 @@ select _wstart date, count(*) from test.meters interval(1d) having count(*)>0
 
 **第 5 步**，建立维度和度量的关联关系。打开模型视图，建立表 tags 和 data 的关联关系，将 tbname 设置为关联数据列。
 
-**第 6 步**，建立日期和度量的关联关系。打开模型视图，建立数据集 date 和 data 的关联关系，关联的数据列为 date 和 datatime。
+**第 6 步**，建立日期和度量的关联关系。打开模型视图，建立数据集 date 和 data 的关联关系，关联的数据列为 date 和 datetime。
 
 **第 7 步**，制作报告。在柱状图、饼图等控件中使用这些数据。  
 

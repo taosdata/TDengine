@@ -99,11 +99,13 @@ int32_t syncStart(int64_t rid) {
     sError("vgId:%d, failed to restore sync log buffer since %s", pSyncNode->vgId, tstrerror(code));
     goto _err;
   }
+  sInfo("vgId:%d, sync node restore is executed", pSyncNode->vgId);
 
   if ((code = syncNodeStart(pSyncNode)) < 0) {
     sError("vgId:%d, failed to start sync node since %s", pSyncNode->vgId, tstrerror(code));
     goto _err;
   }
+  sInfo("vgId:%d, sync node start is executed", pSyncNode->vgId);
 
   syncNodeRelease(pSyncNode);
 

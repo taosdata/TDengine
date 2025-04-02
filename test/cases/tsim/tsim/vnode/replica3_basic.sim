@@ -1,0 +1,368 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+
+print ========== step0
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+step01:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+if $rows != 3 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step01
+endi
+if $data(2)[4] != ready then
+  goto step01
+endi
+if $data(3)[4] != ready then
+  goto step01
+endi
+
+sql create mnode on dnode 2
+sql create mnode on dnode 3
+
+$x = 0
+step02: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql select * from information_schema.ins_mnodes
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+print $data(3)[0] $data(3)[1] $data(3)[2] 
+
+if $rows != 3 then 
+  return -1
+endi
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != leader then 
+  return -1
+endi
+if $data(2)[0] != 2 then 
+  return -1
+endi
+if $data(2)[2] != follower then 
+  goto step02
+endi
+if $data(3)[0] != 3 then 
+  return -1
+endi
+if $data(3)[2] != follower then 
+  goto step02
+endi
+
+$N = 10
+$table = table_r3
+$db = db1
+
+print =================== step 1 
+sql create database $db replica 3 vgroups 1
+sql use $db
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step1
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step1
+endi
+
+sql use $db
+sql create table $table (ts timestamp, speed int) 
+
+print =================== step2
+$x = 1
+$y = $x + $N
+$expect = $N
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , $x ) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+if $rows != $expect then 
+  return -1
+endi
+
+print =================== step3
+system sh/exec.sh -n dnode2 -s stop
+$x = 0
+step3:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step3
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step3
+endi
+
+$y = $x + $N
+$expect = $N * 2
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , $x ) 
+  $x = $x + 1
+endw 
+
+print sql select * from $table -> $rows points 
+#if $rows != $expect then 
+#  return -1
+#endi
+
+print =================== step4
+system sh/exec.sh -n dnode2 -s start
+$x = 0
+step4:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step4
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step4
+endi
+
+$y = $x + $N
+$expect = $N * 3
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , $x ) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+#if $rows != $expect then 
+#  return -1
+#endi
+
+print =================== step5
+system sh/exec.sh -n dnode3 -s stop
+$x = 0
+step5:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step5
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step5
+endi
+
+$y = $x + $N
+$expect = $N * 4
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , 10) 
+  $x = $x + 1
+endw 
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+#if $rows != $expect then 
+#  return -1
+#endi
+
+print =================== step6
+system sh/exec.sh -n dnode3 -s start
+$x = 0
+step6:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step6
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step6
+endi
+
+$y = $x + $N
+$expect = $N * 5
+while $x < $y
+$ms = $x . m
+sql insert into $table values (now + $ms , $x )
+$x = $x + 1
+endw
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+#if $rows != $expect then 
+#  return -1
+#endi
+
+print =================== step7
+system sh/exec.sh -n dnode1 -s stop
+$x = 0
+step7:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step7
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step7
+endi
+
+$y = $x + $N
+$expect = $N * 6
+while $x < $y
+$ms = $x . m
+sql insert into $table values (now + $ms , 10)
+$x = $x + 1
+endw
+
+sql select * from $table
+print sql select * from $table -> $rows points 
+#if $rows != $expect then 
+#  return -1
+#endi
+
+print =================== step 8
+system sh/exec.sh -n dnode1 -s start
+$x = 0
+step8:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step8
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step8
+endi
+
+$y = $x + $N
+$expect = $N * 7
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now + $ms , 10) 
+  $x = $x + 1
+endw 
+
+print sql select * from $table -> $rows points 
+#if $rows != $expect then 
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT

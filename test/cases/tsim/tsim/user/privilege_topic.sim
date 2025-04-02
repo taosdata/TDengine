@@ -1,0 +1,156 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create db
+sql create database root_d1 vgroups 1 wal_retention_period 3600;
+sql create database root_d2 vgroups 1 wal_retention_period 3600;
+sql create database root_d3 vgroups 1 wal_retention_period 3600;
+
+sql show user privileges
+if $rows != 1 then 
+  return -1
+endi
+if $data(root)[1] != all then 
+  return -1
+endi
+if $data(root)[2] != all then 
+  return -1
+endi
+
+print =============== create users
+sql create user user1 PASS 'taosdata'
+sql create user user2 PASS 'taosdata'
+sql create user user3 PASS 'taosdata'
+sql create user user4 PASS 'taosdata'
+sql create user user5 PASS 'taosdata'
+sql create user user6 PASS 'taosdata'
+sql alter user user1 sysinfo 0
+
+sql select * from information_schema.ins_users
+if $rows != 7 then 
+  return -1
+endi
+
+sql GRANT read ON root_d1.* to user1;
+sql GRANT write ON root_d2.* to user2;
+sql GRANT read ON root_d3.* to user3;
+sql GRANT write ON root_d3.* to user3;
+
+sql show user privileges
+if $rows != 5 then 
+  return -1
+endi
+if $data(user1)[1] != read then 
+  return -1
+endi
+if $data(user1)[2] != root_d1 then 
+  return -1
+endi
+if $data(user2)[1] != write then 
+  return -1
+endi
+if $data(user2)[2] != root_d2 then 
+  return -1
+endi
+
+print =============== create topis
+sql use root_d1
+sql create table root_d1_stb (ts timestamp, i int) tags (j int)
+sql create topic root_d1_topic1 as select ts, i from root_d1_stb
+sql create topic root_d1_topic2 as select ts, i from root_d1_stb
+sql create topic root_d1_topic3 as select ts, i from root_d1_stb
+sql create topic root_d1_topic4 as select ts, i from root_d1_stb
+
+sql show user privileges
+if $rows != 5 then 
+  return -1
+endi
+
+sql GRANT subscribe ON root_d1_topic1 TO user4
+sql GRANT subscribe ON root_d1_topic2 TO user5
+sql GRANT subscribe ON root_d1_topic3 TO user6
+sql show user privileges
+if $rows != 8 then 
+  return -1
+endi
+
+if $data(user4)[1] != subscribe then 
+  return -1
+endi
+if $data(user4)[2] != root_d1_topic1 then 
+  return -1
+endi
+if $data(user5)[1] != subscribe then 
+  return -1
+endi
+if $data(user5)[2] != root_d1_topic2 then 
+  return -1
+endi
+if $data(user6)[1] != subscribe then 
+  return -1
+endi
+if $data(user6)[2] != root_d1_topic3 then 
+  return -1
+endi
+
+sql REVOKE subscribe ON root_d1_topic3 from user6
+sql show user privileges
+if $rows != 7 then 
+  return -1
+endi
+if $data(user4)[1] != subscribe then 
+  return -1
+endi
+if $data(user4)[2] != root_d1_topic1 then 
+  return -1
+endi
+if $data(user5)[1] != subscribe then 
+  return -1
+endi
+if $data(user5)[2] != root_d1_topic2 then 
+  return -1
+endi
+
+print =============== repeat revoke/grant or invalid revoke/grant
+sql GRANT subscribe ON root_d1_topic1 to user4
+sql GRANT subscribe ON root_d1_topic2 to user4
+sql GRANT subscribe ON root_d1_topic3 to user4
+sql GRANT subscribe ON root_d1_topic1 to user5
+sql GRANT subscribe ON root_d1_topic2 to user5
+sql GRANT subscribe ON root_d1_topic3 to user5
+sql GRANT subscribe ON root_d1_topic1 to user6
+sql GRANT subscribe ON root_d1_topic2 to user6
+sql GRANT subscribe ON root_d1_topic3 to user6
+sql REVOKE subscribe ON root_d1_topic1 from user4
+sql REVOKE subscribe ON root_d1_topic2 from user4
+sql REVOKE subscribe ON root_d1_topic3 from user4
+sql REVOKE subscribe ON root_d1_topic1 from user5
+sql REVOKE subscribe ON root_d1_topic2 from user5
+sql REVOKE subscribe ON root_d1_topic3 from user5
+sql REVOKE subscribe ON root_d1_topic1 from user6
+sql REVOKE subscribe ON root_d1_topic2 from user6
+sql REVOKE subscribe ON root_d1_topic3 from user6
+
+print =============== invalid revoke/grant
+sql_error GRANT subscribe ON root_d1_topicx from user5
+sql_error REVOKE subscribe ON root_d1_topicx from user5
+
+print =============== check 
+sql GRANT subscribe ON root_d1_topic1 TO user4
+sql GRANT subscribe ON root_d1_topic2 TO user5
+sql GRANT subscribe ON root_d1_topic3 TO user6
+sql show user privileges
+if $rows != 8 then 
+  return -1
+endi
+
+print =============== re connect
+print user u1 login
+sql close
+sql connect user1
+
+sql_error show user privileges
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

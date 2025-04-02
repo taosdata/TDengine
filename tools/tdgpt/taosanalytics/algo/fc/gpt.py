@@ -10,31 +10,31 @@ from taosanalytics.service import AbstractForecastService
 
 
 class _GPTService(AbstractForecastService):
-    name = 'td_gpt_fc'
-    desc = "internal gpt forecast model based on transformer"
+    name = 'tdtsfm_1'
+    desc = "Time-Series Foundation Model based on transformer by TAOS DATA"
 
     def __init__(self):
         super().__init__()
 
         self.table_name = None
-        self.service_host = 'http://127.0.0.1:5000/ds_predict'
         self.headers = {'Content-Type': 'application/json'}
 
-        self.std = None
-        self.threshold = None
-        self.time_interval = None
-        self.dir = 'internal-gpt'
+        service_host = conf.get_tsfm_service("tdtsfm_1")
+        if  service_host is not None:
+            self.service_host = service_host
+        else:
+            self.service_host = 'http://127.0.0.1:5000/tdtsfm'
 
 
     def execute(self):
         if self.list is None or len(self.list) < self.period:
             raise ValueError("number of input data is less than the periods")
 
-        if self.fc_rows <= 0:
+        if self.rows <= 0:
             raise ValueError("fc rows is not specified yet")
 
         # let's request the gpt service
-        data = {"input": self.list, 'next_len': self.fc_rows}
+        data = {"input": self.list, 'next_len': self.rows}
         try:
             response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
         except Exception as e:
@@ -54,7 +54,7 @@ class _GPTService(AbstractForecastService):
             "res": [pred_y]
         }
 
-        insert_ts_list(res["res"], self.start_ts, self.time_step, self.fc_rows)
+        insert_ts_list(res["res"], self.start_ts, self.time_step, self.rows)
         return res
 
 

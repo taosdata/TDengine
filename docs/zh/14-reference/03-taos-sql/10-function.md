@@ -567,7 +567,7 @@ TAN(expr)
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
-##### TRUNCATE
+#### TRUNCATE
 
 ```sql
 TRUNCATE(expr, digits)
@@ -1137,7 +1137,7 @@ CAST(expr AS type_name)
   - 字符串类型转换数值类型时可能出现的无效字符情况，例如 "a" 可能转为 0，但不会报错。
   - 转换到数值类型时，数值大于 type_name 可表示的范围时，则会溢出，但不会报错。
   - 转换到字符串类型时，如果转换后长度超过 type_name 中指定的长度，则会截断，但不会报错。
-- DECIMAL类型不支持与JSON,VARBINARY,GEOMERTY类型的互转.
+- DECIMAL 类型不支持与 JSON、VARBINARY、GEOMETRY 类型的互转。
 
 #### TO_CHAR
 
@@ -1195,7 +1195,7 @@ TO_CHAR(ts, format_str_literal)
 **使用说明**：
 - `Month`、`Day`等的输出格式是左对齐的，右侧添加空格，如 `2023-OCTOBER  -01`、`2023-SEPTEMBER-01`，9 月是月份中英文字母数最长的，因此 9 月没有空格。星期类似。
 - 使用`ms`、`us`、`ns`时，以上三种格式的输出只在精度上不同，比如 ts 为 `1697182085123`，`ms` 的输出为 `123`，`us` 的输出为 `123000`，`ns` 的输出为 `123000000`。
-- 时间格式中无法匹配规则的内容会直接输出。如果想要在格式串中指定某些能够匹配规则的部分不做转换，可以使用双引号，如 `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`。如果想要输出双引号，那么在双引号之前加一个反斜杠，如 `to_char(ts, '\"yyyy-mm-dd\"')` 将会输出 `"2023-10-10"`。
+- 时间格式中无法匹配规则的内容会直接输出。如果想要在格式串中指定某些能够匹配规则的部分不做转换，可以使用双引号，如 `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`。如果想要输出双引号，那么在双引号之前加一个反斜杠，如 `to_char(ts, '\"yyyy-mm-dd\"')` 将会输出 `"2023-10-10"`。
 - 那些输出是数字的格式，如`YYYY`、`DD`，大写与小写意义相同，即 `yyyy` 和 `YYYY` 可以互换。
 - 推荐在时间格式中带时区信息，如果不带则默认输出的时区为服务端或客户端所配置的时区。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
@@ -1619,13 +1619,13 @@ AVG(expr)
 
 **功能说明**：统计指定字段的平均值。
 
-**返回数据类型**：DOUBLE, DECIMAL。
+**返回数据类型**：DOUBLE、DECIMAL。
 
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
-**说明**: 当输入类型为DECIMAL类型时, 输出类型也为DECIMAL类型, 输出的precision和scale大小符合数据类型章节中的描述规则, 通过计算SUM类型和UINT64的除法得到结果类型, 若SUM的结果导致DECIMAL类型溢出, 则报DECIMAL OVERFLOW错误。
+**说明**: 当输入类型为 DECIMAL 类型时，输出类型也为 DECIMAL 类型，输出的 precision 和 scale 大小符合数据类型章节中的描述规则，通过计算 SUM 类型和 UINT64 的除法得到结果类型，若 SUM 的结果导致 DECIMAL 类型溢出, 则报 DECIMAL OVERFLOW 错误。
 
 ### COUNT
 
@@ -1808,13 +1808,13 @@ SUM(expr)
 
 **功能说明**：统计表/超级表中某列的和。
 
-**返回数据类型**：DOUBLE、BIGINT,DECIMAL。
+**返回数据类型**：DOUBLE、BIGINT、DECIMAL。
 
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
-**说明**: 输入类型为DECIMAL类型时, 输出类型为DECIMAL(38, scale), precision为当前支持的最大值, scale为输入类型的scale, 若SUM的结果溢出时, 报DECIMAL OVERFLOW错误.
+**说明**: 输入类型为 DECIMAL 类型时，输出类型为 DECIMAL(38, scale) ，precision 为当前支持的最大值，scale 为输入类型的 scale，若 SUM 的结果溢出时，报 DECIMAL OVERFLOW 错误.
 
 ### VAR_POP
 

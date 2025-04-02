@@ -1,0 +1,129 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+print ========== step0
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+$x = 0
+step0:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step0
+endi
+if $data(2)[4] != ready then
+  goto step0
+endi
+if $data(3)[4] != ready then
+  goto step0
+endi
+if $data(4)[4] != ready then
+  goto step0
+endi
+
+$N = 10
+$table = table_r3
+$db = db1
+
+print =================== step 1 
+sql create database $db replica 3 vgroups 2
+sql use $db
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+if $rows != 2 then
+  return -1
+endi
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step1
+endi
+$leaderExist = 0
+if $data(3)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(3)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(3)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step1
+endi
+
+sql create table st (ts timestamp, speed int) tags (t1 int)
+
+$tbPre = m
+$N = 300
+$x = 0
+$y = $x + $N
+while $x < $y
+  $table = $tbPre . $x 
+  sql create table $table using st tags ( $x )
+  $ms = $x . m
+  sql insert into $table values (now + $ms , $x )  
+  $x = $x + 1
+endw 
+
+#print =================== step2
+$x = -500
+$y = $x + $N
+while $x < $y
+  $ms = $x . m 
+  sql insert into $table values (now $ms , $x ) 
+  $x = $x + 1
+endw 
+
+$expect = $N + 1
+sql select * from $table
+print sql select * from $table -> $rows points expect $expect
+if $rows != $expect then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT

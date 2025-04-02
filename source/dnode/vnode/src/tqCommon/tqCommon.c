@@ -170,28 +170,28 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
 
 // this is to process request from transaction, always return true.
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored, bool isLeader) {
-  int32_t      vgId = pMeta->vgId;
-  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
-  SRpcMsg      rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
-  int64_t      st = taosGetTimestampMs();
-  bool         updated = false;
-  int32_t      code = 0;
-  SStreamTask* pTask = NULL;
-  SStreamTask* pHTask = NULL;
-
+  int32_t                  vgId = pMeta->vgId;
+  char*                    msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t                  len = pMsg->contLen - sizeof(SMsgHead);
+  SRpcMsg                  rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
+  int64_t                  st = taosGetTimestampMs();
+  bool                     updated = false;
+  int32_t                  code = 0;
+  SStreamTask*             pTask = NULL;
+  SStreamTask*             pHTask = NULL;
   SStreamTaskNodeUpdateMsg req = {0};
+  SDecoder                 decoder;
 
-  SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
-  if (tDecodeStreamTaskUpdateMsg(&decoder, &req) < 0) {
+  code = tDecodeStreamTaskUpdateMsg(&decoder, &req);
+  tDecoderClear(&decoder);
+
+  if (code < 0) {
     rsp.code = TSDB_CODE_MSG_DECODE_ERROR;
     tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(rsp.code));
-    tDecoderClear(&decoder);
+    tDestroyNodeUpdateMsg(&req);
     return rsp.code;
   }
-
-  tDecoderClear(&decoder);
 
   int32_t gError = streamGetFatalError(pMeta);
   if (gError != 0) {
@@ -845,11 +845,29 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
       goto _start;
 
     } else if (pStartInfo->curStage == START_CHECK_DOWNSTREAM) {
-      pStartInfo->restartCount += 1;
+      int32_t numOfRecv = taosHashGetSize(pStartInfo->pReadyTaskSet);
+      taosHashGetSize(pStartInfo->pFailedTaskSet);
+
+      int32_t newTotal = taosArrayGetSize(pStartInfo->pRecvChkptIdTasks);
       tqDebug(
-          "vgId:%d in start tasks procedure (check downstream), inc restartCounter by 1 and wait for it completes, "
-          "remaining restart:%d",
-          vgId, pStartInfo->restartCount);
+          "vgId:%d start all tasks procedure is interrupted by transId:%d, wait for partial tasks rsp. recv check "
+          "downstream results, received:%d results, total req tasks:%d",
+          vgId, pMeta->updateInfo.activeTransId, numOfRecv, newTotal);
+
+      bool allRsp = allCheckDownstreamRspPartial(pStartInfo, newTotal, pMeta->vgId);
+      if (allRsp) {
+        tqDebug("vgId:%d all partial results received, continue the restart procedure", pMeta->vgId);
+        streamMetaResetStartInfo(pStartInfo, vgId);
+        goto _start;
+      } else {
+        pStartInfo->restartCount += 1;
+        SStartTaskStageInfo* pCurStageInfo = taosArrayGetLast(pStartInfo->pStagesList);
+
+        tqDebug("vgId:%d in start tasks procedure (check downstream), reqTs:%" PRId64
+                ", inc restartCounter by 1 and wait for it completes, "
+                "remaining restart:%d",
+                vgId, pCurStageInfo->ts, pStartInfo->restartCount);
+      }
     } else {
       tqInfo("vgId:%d in start procedure, but not start to do anything yet, do nothing", vgId);
     }
@@ -987,7 +1005,6 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
       pStartInfo->restartCount -= 1;
       tqDebug("vgId:%d role:%d need to restart all tasks again, restartCounter:%d", vgId, pMeta->role,
               pStartInfo->restartCount);
-//      streamMetaWUnLock(pMeta);
 
       return restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
     } else {
@@ -1416,7 +1433,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  tqDebug("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64
+  tqInfo("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64
           " transId:%d from mnode, reqTs:%" PRId64 " task createTs:%" PRId64,
           pTask->id.idStr, vgId, pTask->chkInfo.checkpointId, req.checkpointId, req.transId, req.startTs,
           pTask->execInfo.created);
@@ -1465,16 +1482,43 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
             pMeta->vgId, info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
   }
 
-  streamMetaWUnLock(pTask->pMeta);
-
   if (pMeta->role == NODE_ROLE_LEADER) {
+    STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
+
+    bool exist = false;
+    for (int32_t i = 0; i < taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks); ++i) {
+      STaskId* pId = taosArrayGet(pMeta->startInfo.pRecvChkptIdTasks, i);
+      if (id.streamId == pId->streamId && id.taskId == pId->taskId) {
+        exist = true;
+        break;
+      }
+    }
+
+    if (!exist) {
+      void* p = taosArrayPush(pMeta->startInfo.pRecvChkptIdTasks, &id);
+      if (p == NULL) {  // todo handle error, not record the newly attached, start may dead-lock
+        tqError("s-task:0x%x failed to add into recv checkpointId task list, code:%s", req.taskId, tstrerror(code));
+      } else {
+        int32_t num = taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks);
+        tqDebug("s-task:0x%x vgId:%d added into recv checkpointId task list, already recv %d", req.taskId, req.nodeId,
+                num);
+      }
+    } else {
+      int32_t num = taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks);
+      tqDebug("s-task:0x%x vgId:%d already exist in recv consensus checkpontId, total existed:%d", req.taskId,
+              req.nodeId, num);
+    }
+
     code = tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, req.streamId, req.taskId);
-    if (code) {
+    if (code != 0) {
+      // todo remove the newly added, otherwise, deadlock exist
       tqError("s-task:0x%x vgId:%d failed start task async, code:%s", req.taskId, vgId, tstrerror(code));
     }
   } else {
     tqDebug("vgId:%d follower not start task:%s", vgId, pTask->id.idStr);
   }
+
+  streamMetaWUnLock(pTask->pMeta);
 
   streamMetaReleaseTask(pMeta, pTask);
   return 0;
