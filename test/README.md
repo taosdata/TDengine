@@ -153,7 +153,7 @@ pytest cases/data_write/sql_statement/test_insert_double.py
 pytest cases/data_write/sql_statement/test_insert_double.py::TestInsertDouble::test_value
 
 # 3. Run test cases with a specific marker
-pytest -m ci
+pytest -m cluster
 
 # 4. Set the log level for the tests
 pytest --log-level=DEBUG
