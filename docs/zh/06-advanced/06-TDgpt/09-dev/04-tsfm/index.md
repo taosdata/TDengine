@@ -92,7 +92,7 @@ curl 127.0.0.1:5001/ds_predict
 
 # 添加模型适配代码
 您可参考 [timemoe.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py)
-文件进行 MaaS 服务的适配。我们适配Time-MoE提供预测服务。
+文件进行 MaaS 服务的适配。我们适配 Time-MoE 提供预测服务。
 
 ```python
 class _TimeMOEService(AbstractForecastService):
@@ -178,7 +178,7 @@ FROM foo;
 ```
 
 ## 添加其他开源时序基础模型
-模型在本地部署服务以后，在 TDgpt 中注册的逻辑相似。只需要修改类名称和模型服务名称(Key)、设置正确的服务地址即可。
+模型在本地部署服务以后，在 TDgpt 中注册的逻辑相似。只需要修改类名称和模型服务名称 (Key)、设置正确的服务地址即可。
 
 
 ## 参考文献
