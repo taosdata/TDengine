@@ -1,6 +1,0 @@
-{"name": "person",
- "type": "record",
- "fields": [ {"name": "height", "type": "long"},
-             {"name": "weight", "type": "long"},
-             {"name": "name", "type": "string"},
-             {"name": "hacker", "type": "boolean", "default": false}]}

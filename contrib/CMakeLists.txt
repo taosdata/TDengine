@@ -43,8 +43,6 @@ endif()
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-
 # s3
 if(${BUILD_WITH_S3})
     message(FATAL_ERROR "freemine: not implemented yet")
