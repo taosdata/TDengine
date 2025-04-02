@@ -29,8 +29,8 @@ function lcovFunc {
     cd $TDENGINE_DIR
 
     # collect data
-    #lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
-    lcov -d "$CAPTURE_GCDA_DIR" --capture --rc lcov_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
+    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
+
 
     # remove exclude paths 
     lcov --remove coverage.info \
@@ -58,7 +58,8 @@ function lcovFunc {
 
     # push result to coveralls.io
     echo "push result to coveralls.io"
-    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info 
+    # push result to https://coveralls.io/
+    # /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage.info 
 
     # push result to https://app.codecov.io/
     pip install codecov
@@ -116,3 +117,5 @@ genhtml "$COVERAGE_INFO"  --branch-coverage --function-coverage --output-directo
 
 
 print_color "$GREEN" "End of coverage test on workflow!"
+
+echo "For more details: https://app.codecov.io/github/taosdata/TDengine"
