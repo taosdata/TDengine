@@ -17,7 +17,7 @@ jobs:
           gh auth status
           gh run list \
             --repo ${{ github.repository }} \
-            --branch ${{ github.event.pull_request.head.ref }} \
+            --pr-nuomber ${{ github.event.pull_request.number }} \
             --workflow "TDengine Test" \
             --status in_progress \
             --status queued \
