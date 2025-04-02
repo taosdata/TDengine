@@ -1,4 +1,4 @@
-name: TDengine Doc Build
+name: TDengine Doc Build and Check
 
 on:
   pull_request:
@@ -21,10 +21,30 @@ concurrency:
   cancel-in-progress: true
   
 jobs:
+  check-docs-typos:
+    runs-on: ubuntu-latest
+    continue-on-error: false 
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
+
+      - name: Use custom zh config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: 'docs/zh/**/*.md'
+          config: docs/typos.toml
+
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: 'docs/en/**/*.md'
+          config: docs/typos.toml
+
   build-doc:
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
+    needs: check-docs-typos
     steps:
       - name: Get the latest document contents
         run: |
@@ -92,3 +112,4 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass local
           yarn build
+
