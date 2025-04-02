@@ -8,7 +8,7 @@ toc_max_heading_level: 4
 
 双活系统的定义是：业务系统中有且仅有两台服务器，其上分别部署一套服务，在业务层看来这两台机器和两套服务是一个完整的系统，对其中的细节业务层不需要感知。双活中的两个节点通常被称为 Master-Slave，意为”主从“或”主备“，本文档中可能会出现混用的情况。
 
-TDengine 双活系统的部署架构图如下, 其中涉及到三个关键点：
+TDengine 双活系统的部署架构图如下，其中涉及到三个关键点：
 
 1. 由 Client Driver 实现对双系统的 Failover，即主节点宕机时的主从切换
 2. 由 taosX 从（当前的）主节点到从节点实现数据复制
@@ -45,7 +45,7 @@ connection = DriverManager.getConnection(url, properties);
 | PROPERTY_KEY_SLAVE_CLUSTER_HOST    | 第二节点的主机名或者 ip，默认空 |
 | PROPERTY_KEY_SLAVE_CLUSTER_PORT    | 第二节点的端口号，默认空  |
 | PROPERTY_KEY_ENABLE_AUTO_RECONNECT | 是否启用自动重连。仅在使用 WebSocket 连接时生效。true: 启用，false: 不启用。默认为 false。双活场景下请设置为 true |
-| PROPERTY_KEY_RECONNECT_INTERVAL_MS | 重连的时间间隔，单位毫秒：默认 2000 毫秒，也就是 2 秒；最小值为 0， 表示立即重试；最大值不做限制 |
+| PROPERTY_KEY_RECONNECT_INTERVAL_MS | 重连的时间间隔，单位毫秒：默认 2000 毫秒，也就是 2 秒；最小值为 0，表示立即重试；最大值不做限制 |
 | PROPERTY_KEY_RECONNECT_RETRY_COUNT | 每节点最多重试次数：默认值为 3；最小值为 0，表示不进行重试；最大值不做限制 |
 
 ## 约束条件
@@ -75,7 +75,7 @@ taosx replica start -f source_endpoint -t sink_endpoint [database...]
 ```
 
 在本机器所在的 taosx 服务中建立从 source_endpoint 到 sink_endpoint 的同步任务。运行该命令成功后，将打印 replica ID 到控制台（后续记为 id）。
-其中输入参数 source_endpoint 和 sink_endpoiint 为必须，形如 td2:6030 ，示例如下
+其中输入参数 source_endpoint 和 sink_endpoiint 为必须，形如 td2:6030，示例如下
 
 ```shell
 taosx replica start -f td1:6030 -t td2:6030 
@@ -125,7 +125,7 @@ taosx replica stop id [db...]
 
 该命令作用如下：
 1. 停止指定 Replica ID 下所有或指定数据库的双副本同步任务。
-2. 使用 `taosx replica stop id1 db1` 表示停止 id1 replica 下 db1的同步任务。
+2. 使用 `taosx replica stop id1 db1` 表示停止 id1 replica 下 db1 的同步任务。
 3. `--no-new-databases` 选项启用时，不停止新增数据库监听任务，仅停止当前同步中的数据库。
 
 ### 重启双活任务
@@ -136,7 +136,7 @@ taosx replica restart id [db...]
 
 该命令作用如下：
 1. 重启指定 Replica ID 下所有或指定数据库的双副本同步任务。
-2. 使用 `taosx replica start id1 db1` 仅重启指定数据库 db1的同步任务。
+2. 使用 `taosx replica start id1 db1` 仅重启指定数据库 db1 的同步任务。
 
 ### 查看同步进度
 
@@ -144,7 +144,7 @@ taosx replica restart id [db...]
 taosx replica diff id [db....]
 ```
 
-该命令能够输出当前双副本同步任务中订阅的 Offset  与最新 WAL 的差值（不代表行数）， 例如：
+该命令能够输出当前双副本同步任务中订阅的 Offset  与最新 WAL 的差值（不代表行数），例如：
 
 ```shell
 +---------+----------+----------+----------+-----------+---------+---------+------+
@@ -174,7 +174,7 @@ taosx replica update id --new-database-checking-interval <SECONDS>
 
 ### 推荐使用步骤
 
-1. 假定在机器 A 上运行，需要首先使用 taosx replica start 来配置 taosX，其输入参数是待同步的源端和目标端服务器地址 ，在完成配置后会自动启动同步服务和任务。此处假定 taosx 服务使用标准端口，同步任务使用原生连接。
+1. 假定在机器 A 上运行，需要首先使用 taosx replica start 来配置 taosX，其输入参数是待同步的源端和目标端服务器地址，在完成配置后会自动启动同步服务和任务。此处假定 taosx 服务使用标准端口，同步任务使用原生连接。
 2. 在机器 B 上的步骤相同
 3. 在完成对两台机器的服务启动后，双活系统即可提供服务
 4. 在已经完成配置后，如果想要再次启动双活系统，请使用 restart 子命

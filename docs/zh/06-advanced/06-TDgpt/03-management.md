@@ -102,7 +102,7 @@ Anode 运行配置主要是以下：
 
 - app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
 - model-dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
-- log-level: app-log文件的日志级别
+- log-level: app-log 文件的日志级别
 
 ### Anode 基本操作
 
@@ -114,7 +114,7 @@ Anode 运行配置主要是以下：
 CREATE ANODE {node_url}
 ```
 
-node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串, 例如：`create anode '127.0.0.1:6090'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6090'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 
@@ -157,14 +157,14 @@ Query OK, 10 row(s) in set (0.028750s)
 | ---- | --------------- | ------------------- |
 | 异常检测 | grubbs          | 基于数学统计学检测模型         |
 | 异常检测 | lof             | 基于密度的检测模型           |
-| 异常检测 | shesd           | 季节性ESD算法模型          |
+| 异常检测 | shesd           | 季节性 ESD 算法模型          |
 | 异常检测 | ksigma          | 数学统计学检测模型           |
 | 异常检测 | iqr             | 数学统计学检测模型           |
 | 预测分析 | sample_ad_model | 基于自编码器的异常检测示例模型     |
 | 预测分析 | arima           | 移动平均自回归预测算法         |
 | 预测分析 | holtwinters     | 多次指数平滑预测算法          |
 | 预测分析 | tdtsfm_1        | 涛思时序数据基础模型 v1.0 版本  |
-| 预测分析 | timemoe-fc      | Time-MoE时序基础模型的预测能力 |
+| 预测分析 | timemoe-fc      | Time-MoE 时序基础模型的预测能力 |
 
 相关算法的具体介绍和使用说明见后续章节。
 
