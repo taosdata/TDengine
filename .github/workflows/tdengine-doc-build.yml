@@ -9,6 +9,10 @@ on:
     paths:
       - 'docs/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-DocBuild
+  cancel-in-progress: true
+
 env:
   DOC_WKC: '/root/doc_ci_work'
   ZH_DOC_REPO: 'docs.taosdata.com'
