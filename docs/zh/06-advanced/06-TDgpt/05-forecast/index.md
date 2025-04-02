@@ -151,35 +151,27 @@ gen_figure = true
    [taosd]
    # taosd 服务主机名
    host = 127.0.0.1
+   # 登录用户名
+   user = root
+
+   # 登录密码
+   password = taosdata
+
+   # 配置文件路径
+   conf = /etc/taos/taos.cfg
+
+   [input_data]
+
+   # 用于预测评估的数据库名称
+   db_name = test
+
+   # 读取数据的表名称
+   table_name = passengers
+
+   # 读取列名称
+   column_name = val, _c0
    ```
 
-# 登录用户名
-
-user = root
-
-# 登录密码
-
-password = taosdata
-
-# 配置文件路径
-
-conf = /etc/taos/taos.cfg
-
-[input_data]
-
-# 用于预测评估的数据库名称
-
-db_name = test
-
-# 读取数据的表名称
-
-table_name = passengers
-
-# 读取列名称
-
-column_name = val, _c0   
-
-```
 2. 准备数据。
 
 我们在 TDgpt 安装目录下的 `resource` 文件夹中准备了一个样例数据 `sample-fc.sql`, 执行以下命令即可见示例数据写入到数据库：
