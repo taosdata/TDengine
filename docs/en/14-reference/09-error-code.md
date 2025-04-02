@@ -571,8 +571,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many                              | Reduce the rows of input data to below than the threshold              |
 | 0x80000447 | white-noise data not processed                      | white noise data is not processed                   | Ignore the white noise check or use another input data                 |
 | 0x80000448 | Analysis internal error, not processed              | Internal error occurs                               | Check the taosanode.app.log for more details                           |
-| 0x80000449 | Analysis failed since not enough rows               | Input data rows for forecast is not enough          | Increase the number of input rows (ast least 10 rows)                  |
-
+| 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough           | Increase the number of input rows (10 rows for forecasting at least)   |
 
 
 ## virtual table
