@@ -1,0 +1,18 @@
+name: Cancel Workflow on PR Close or Merge
+
+# 触发条件：当 PR 被关闭或合并时
+on:
+  pull_request:
+    types: [closed, merged]
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Workflow Runs
+        uses: styfle/cancel-workflow-action@v2
+        with:
+          # 取消与当前 PR 相关的 workflow
+          workflow_id: "TDengine Test"  # 替换为你的 workflow 名称或 ID
+          # 取消所有与当前 PR 相关的运行实例
+          only_same_branch: true
