@@ -34,15 +34,15 @@ function lcovFunc {
 
     # remove exclude paths 
     lcov --remove coverage.info \
-        '*/contrib/*' '*/test/*' '*/tests/*' '*/passwdTest.c'  '*/taosc_test/*' '*/taoscTest.cpp' '*/packaging/*' '*/taos-tools/deps/*' '*/taosadapter/*' '*/TSZ/*' \
+        '*/contrib/*' '*/test/*' '*/passwdTest.c'  '*/taosc_test/*' '*/taoscTest.cpp' '*/packaging/*' '*/taos-tools/deps/*' '*/taosadapter/*' '*/TSZ/*' \
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c' '/*/enterprise/*' '*/docs/*' '*/sim/*'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
         '*/tbase64.c' '*/tbuffer.c' '*/tdes.c' '*/texception.c' '*/examples/*' '*/tidpool.c' '*/tmempool.c'\
         '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.cc' '*/strftime.c' '*/localtime.c'\
         '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/version.c' '*/tencode.h' \
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c' '*/debug/*' '*/tests/*'\
-        '*/tsdbFile.c' '*/tsdbUpgrade.c' '*/tsdbFS.c' '*/tsdbReaderWriter.c' \ 
-        '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'  'contrib/*' '*test*' '*tests*' \
+        '*/tsdbFile.c' '*/tsdbUpgrade.c' '*/tsdbFS.c' '*/tsdbReaderWriter.c' '*/tests/script/api/passwdTest.c'\ 
+        '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'  'contrib/*' '*test*' '*tests*' '*/tests/taosc_test/taoscTest.cpp'\
         '*/cJSON.c' '*/lz4.c' '*/contrib/lz4/*' '*/contrib/zlib/*'  '*/contrib/pcre2/*' '*/contrib/libux/*' '*/contrib/libxml2/*' \
         '*/streamsessionnonblockoperator.c' '*/streameventnonblockoperator.c' '*/streamstatenonblockoperator.c' '*/streamfillnonblockoperator.c' \
         '*/streamclient.c' '*/cos_cp.c' '*/cos.c' '*/trow.c' '*/trow.h' '*/tsdbSnapshot.c' '*/smaTimeRange.c' \
