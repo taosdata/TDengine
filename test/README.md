@@ -21,6 +21,10 @@ This is the new end-to-end testing framework for TDengine. It offers several adv
 
 4. **Flexible Server Deployment via YAML**: Users can deploy servers in a more versatile manner using YAML files, allowing for customized configurations and easier management of different testing scenarios.
 
+5. **Integration with Allure Report**: After the tests are done, [Allure Report](https://allurereport.org/) will be created automatically, which can be accessed by just one click.
+
+6. **Integration with Github Action**: Including workflow to run the test cases in the new test framework, workflow to validate the docstring of test cases and workflow to publish case docs to Github Pages.
+
 > [!NOTE]
 > - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
 > - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.8+.
@@ -41,9 +45,9 @@ cd test
 pip3 install -r requirements.txt
 ```
 
-- Building
+- Building (Optional)
 
-Before testing, please make sure the building operation with option `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been done, otherwise execute commands below:
+Tests can be run against TDengine either by installation or by build. When building TDengine, please make sure the building options `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been used:
 
 ```bash
 cd debug
@@ -206,15 +210,22 @@ A Docstring check is triggered for any PR submitted to the `test/cases` director
 ## 7.3 Cases Doc Publish
 A cases documentation publish is triggered when a PR is merged into the `test/cases` directory, updating the case description documentation page.
 
+Note:
+- Please referto [Deploy Case Docs](https://github.com/taosdata/TDengine/actions/workflows/deploy-case-docs.yml) for details.
+- Published cases doc can be found at [TDengine Case List](https://taosdata.github.io/TDengine/main/).
+
 ## 8. Test Report
 
 The testing framework executes with the `--alluredir=allure-results` parameter by default, which generates an Allure report. In the Allure report, you can view the test execution results, logs for failed test cases, and case description information.
 
 ### 8.1 Local Execution Results
+
 After execution, you can check the `allure-results` directory, which contains the Allure report files. Users can manually generate the report page using the Allure command:
 
 ```bash
 allure generate allure-results -o $YOUR_REPORT_DIR --clean
 ```
+
 ### 8.2 CI Execution Results
-You can find the test report link in the GitHub workflow, which redirects you to the Allure report page when clicked.
+
+You can find the test report link in the GitHub workflow, which redirects you to the Allure report page when clicked. Please refer to the execution log of [New Framework Test](https://github.com/taosdata/TDengine/actions/workflows/new-framework-test.yml) for details.
