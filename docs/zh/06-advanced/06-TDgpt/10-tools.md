@@ -10,6 +10,8 @@ import ad_result from './pic/ad-result.png';
 TDgpt 在企业版中提供预测分析模型和异常检测模型有效性评估工具 `analytics_compare`，该工具能够使用 TDengine 中的时序数据作为
 回测依据，评估不同预测模型或训练模型的有效性。
 
+> 该工具在开源版本中不可用
+
 使用评估工具，需要在其相关的配置文件 `taosanode.ini` 中设置正确的参数，包括选取评估的数据范围、结果输出时间、参与评估的模型、模型的参数、是否生成预测结果图等配置。
 
 在具备完备的 Python 库的运行环境中，通过 `shell` 调用 TDgpt 安装路径下的 misc 中 `analytics_compare` 的命令即可。
