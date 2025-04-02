@@ -846,7 +846,7 @@ _end:
   return pTaskInfo->code;
 
 _endclean:
-  if (pTaskInfo->pOpParam) {
+  if (pTaskInfo->pOpParam && !pTaskInfo->paramSet) {
     freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
     pTaskInfo->pOpParam = NULL;
   }
