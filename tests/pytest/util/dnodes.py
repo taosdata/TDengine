@@ -76,14 +76,16 @@ class TDSimClient:
         self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
         self.cfgPath = os.path.join(self.path,"sim","psim","cfg","taos.cfg")
 
-        cmd = "rm -rf " + self.logDir
+        os.system("ls -l %s"%self.logDir)
+        cmd = "rm -rf " + self.logDir + "/*"
         if os.system(cmd) != 0:
+            os.system("ls -l %s"%self.logDir)
             tdLog.exit(cmd)
 
-        # cmd = "mkdir -p " + self.logDir
-        # if os.system(cmd) != 0:
-        #     tdLog.exit(cmd)
-        os.makedirs(self.logDir)
+        cmd = "mkdir -p " + self.logDir
+        if os.system(cmd) != 0:
+            tdLog.exit(cmd)
+        # os.makedirs(self.logDir)
 
         cmd = "rm -rf " + self.cfgDir
         if os.system(cmd) != 0:
@@ -222,7 +224,8 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "rm -rf " + self.logDir
+        tdLog.info("rm -rf " + self.logDir + "/*")
+        cmd = "rm -rf " + self.logDir + "/*"
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
@@ -235,10 +238,10 @@ class TDDnode:
         #     tdLog.exit(cmd)
         os.makedirs(self.dataDir)
 
-        # cmd = "mkdir -p " + self.logDir
-        # if os.system(cmd) != 0:
-        #     tdLog.exit(cmd)
-        os.makedirs(self.logDir)
+        cmd = "mkdir -p " + self.logDir
+        if os.system(cmd) != 0:
+            tdLog.exit(cmd)
+        #os.makedirs(self.logDir)
 
         # cmd = "mkdir -p " + self.cfgDir
         # if os.system(cmd) != 0:
