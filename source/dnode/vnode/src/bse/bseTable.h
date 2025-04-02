@@ -43,12 +43,14 @@ enum {
 };
 
 typedef struct {
-  uint64_t offset;
-  uint64_t size;
-  uint32_t blockId;
-  int64_t  seq;
+  int64_t sseq;
+  int64_t eseq;
+} SSeqRange;
+typedef struct {
+  uint64_t  offset;
+  uint64_t  size;
+  SSeqRange range;
 } SBlkHandle;
-
 typedef struct {
   SBlkHandle metaHandle[1];
   SBlkHandle indexHandle[1];
@@ -64,12 +66,8 @@ typedef struct {
   char    data[0];
 } SBlock;
 
-typedef struct {
-  int64_t sseq;
-  int64_t eseq;
-} SSeqRange;
-
 int8_t inSeqRange(SSeqRange *p, int64_t seq);
+int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq);
 typedef struct {
   char         name[TSDB_FILENAME_LEN];
   TdFilePtr    pDataFile;
@@ -84,8 +82,11 @@ typedef struct {
   int32_t      blockId;
   // int64_t      startSeq;
   // int64_t      lastSeq;
-  SSeqRange range;
+  SSeqRange tableRange;
+  SSeqRange blockRange;
   void     *bse;
+  int32_t   nRef;
+
 } STableBuilder;
 
 typedef struct {
@@ -116,7 +117,7 @@ int32_t tableBuildFlush(STableBuilder *p, int8_t type);
 int32_t tableBuildCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
 int32_t tableBuildClose(STableBuilder *p, int8_t commited);
 void    tableBuildClear(STableBuilder *p);
-void    tableBuildReInit(STableBuilder *p);
+int32_t tableBuildOpenFile(STableBuilder *p);
 
 int32_t tableReadOpen(char *name, STableReader **pReader);
 int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);

@@ -95,7 +95,7 @@ TEST(bseCase, openTest) {
     
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
     code = bseBatchInit(bse, &pBatch,1024);
-    for (int32_t i = 0; i < 2; i++) {
+    for (int32_t i = 0; i < 10000; i++) {
       int64_t seq = 0;
       char *buf = "test";
       code = bseBatchPut(pBatch, &seq, (uint8_t *)buf, strlen(buf)); 
@@ -105,26 +105,32 @@ TEST(bseCase, openTest) {
     code = bseAppendBatch(bse, pBatch); 
         
 
-    for (int32_t i = 0; i < 2; i++) {
+    for (int32_t i = 0; i < 10000; i++) {
+      char *p = NULL;
+      int32_t len = 0;
+      int64_t seq = data[i];
+      code = bseGet(bse, seq, (uint8_t **)&p, &len);
+      taosMemoryFree(p);
+      printf("read at index %d\n", i);
+      ASSERT_EQ(len, 4);
+      //code = bseRead(bse, data[i], NULL, NULL);
+    }
+    bseCommit(bse);
+    
+    for (int32_t i = 0; i < 1000; i++) {
       char *p = NULL;
       int32_t len = 0;
       int64_t seq = data[i];
       code = bseGet(bse, seq, (uint8_t **)&p, &len);
       taosMemoryFree(p);
       ASSERT_EQ(len, 4);
-      //code = bseRead(bse, data[i], NULL, NULL);
-    }
-    bseCommit(bse);
-    
-    data.clear();
-    for (int32_t i = 0; i < 2; i++) {
         //code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
         //data.push_back(seq); 
     }
     bseCommit(bse);
 
 
-    for (int32_t i = 1; i < 2; i++) {
+    for (int32_t i = 1; i < 10000; i++) {
       uint8_t* value = NULL;
       int32_t len = 0;
       uint64_t seq = data[i];

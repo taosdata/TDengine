@@ -53,21 +53,6 @@ static int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
 static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
 static int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
 
-/*
- vgId: 0,
- commitVer: 0,
- lastVer: 0,
- lastSeq: 0,
- fileSet: [{startSeq: 0, endSeq: 0, size:xx, level:xxx,name:xxx},...],
-*/
-
-static int32_t bseUpdateCommitInfo(SBseCommitInfo *pCommit, SBseLiveFileInfo *pInfo) {
-  if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
-    return terrno;
-  }
-  return 0;
-}
-
 static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
   int32_t code = 0;
   // int32_t code = 0;
@@ -113,7 +98,7 @@ _err:
   return code;
 }
 
-static int32_t bseReadCurrent(SBse *pBse, char **p, int64_t *len) {
+static int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
   int32_t   code = 0;
   int32_t   lino = 0;
   TdFilePtr fd = NULL;
@@ -271,7 +256,7 @@ static int32_t removeUnCommitFile(SBse *p) {
 
   SArray *pFiles = taosArrayInit(64, sizeof(SBseLiveFileInfo));
   if (pFiles == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   code = listAllFiles(p->path, pFiles);
@@ -307,13 +292,25 @@ static int32_t removeUnCommitFile(SBse *p) {
 
   return code;
 }
+
+static int32_t bseInitStartSeq(SBse *pBse) {
+  int32_t code = 0;
+  int64_t lastSeq = 0;
+
+  SBseLiveFileInfo *pLastFile = taosArrayGetLast(pBse->commitInfo.pFileList);
+  if (pLastFile != NULL) {
+    lastSeq = pLastFile->eseq;
+  }
+  pBse->seq = lastSeq + 1;
+  return code;
+}
 static int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
   int32_t code = 0;
   int32_t lino = 0;
   char   *pCurrent = NULL;
   int64_t len = 0;
 
-  code = bseReadCurrent(pBse, &pCurrent, &len);
+  code = bseReadCurrentFile(pBse, &pCurrent, &len);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (len == 0) {
@@ -326,7 +323,11 @@ static int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
     code = removeUnCommitFile(pBse);
     TSDB_CHECK_CODE(code, lino, _error);
   }
-  code = bseTableMgtRecover(pBse, pBse->pTableMgt);
+
+  code = bseTableMgtUpdateLiveFileSet(pBse->pTableMgt, pBse->commitInfo.pFileList);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = bseInitStartSeq(pBse);
 
 _error:
   if (code != 0) {
@@ -557,6 +558,7 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   code = bseBatchSetParam(p, sseq, nKeys);
   TSDB_CHECK_CODE(code, lino, _error);
 
+  p->startSeq = sseq;
   p->pBse = pBse;
   *pBatch = p;
 _error:
@@ -581,7 +583,7 @@ int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len
   offset += taosEncodeVariantI32((void **)&p, len);
   offset += taosEncodeBinary((void **)&p, value, len);
 
-  SBlockItemInfo info = {.offset = pBatch->len, .size = offset, .vlen = len, .seq = lseq};
+  SBlockItemInfo info = {.size = offset, .seq = lseq};
   pBatch->len += offset;
 
   if (taosArrayPush(pBatch->pSeq, &info) == NULL) {
@@ -731,6 +733,20 @@ int32_t bseCommitFinish(SBse *pBse) {
   code = taosRenameFile(tbuf, buf);
   return code;
 }
+static int32_t bseCommitDo(SBse *pBse, SArray *pFileSet) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = bseGenCommitInfo(pBse, pFileSet);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = bseCommitFinish(pBse);
+  TSDB_CHECK_CODE(code, lino, _error);
+_error:
+  if (code != 0) {
+  }
+  return code;
+}
 int32_t bseCommit(SBse *pBse) {
   // Generate static info and footer info;
   int64_t cost = 0;
@@ -739,16 +755,10 @@ int32_t bseCommit(SBse *pBse) {
   int64_t st = taosGetTimestampMs();
   SArray *pLiveFile = NULL;
 
-  code = bseTableMgtCommit(pBse->pTableMgt);
+  code = bseTableMgtCommit(pBse->pTableMgt, &pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);
 
-  code = bseTableMgtGetLiveFileList(pBse->pTableMgt, &pLiveFile);
-  TSDB_CHECK_CODE(code, line, _error);
-
-  code = bseGenCommitInfo(pBse, pLiveFile);
-  TSDB_CHECK_CODE(code, line, _error);
-
-  code = bseCommitFinish(pBse);
+  code = bseCommitDo(pBse, pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);
 
 _error:

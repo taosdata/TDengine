@@ -33,10 +33,8 @@ typedef enum {
 } SBseCompress;
 
 typedef struct {
-  uint64_t offset;
-  int32_t  size;
-  int32_t  vlen;
-  int32_t  seq;
+  int32_t size;
+  int64_t seq;
 } SBlockItemInfo;
 
 typedef struct {
@@ -48,12 +46,11 @@ typedef struct {
 } SBseCommitInfo;
 typedef struct {
   int32_t vgId;
-  int64_t committed;
   int32_t encryptAlgorithm;
   char    encryptKey[ENCRYPT_KEY_LEN + 1];
-  int8_t  clearFiles;
   int8_t  compressType;
   int32_t blockSize;
+  int8_t  clearUncommittedFile;
 } SBseCfg;
 
 typedef struct {
@@ -78,6 +75,7 @@ typedef struct {
   int64_t  seq;
   SArray  *pSeq;
   void    *pBse;
+  int64_t  startSeq;
 } SBseBatch;
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);

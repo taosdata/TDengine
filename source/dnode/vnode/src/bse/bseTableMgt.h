@@ -31,6 +31,8 @@ typedef struct {
 
   int8_t inited;
   SBse  *pBse;
+
+  TdThreadMutex mutex;
 } STableBuilderMgt;
 
 typedef struct {
@@ -40,14 +42,12 @@ typedef struct {
   TdThreadMutex mutex;
   SBse         *pBse;
 } STableReaderMgt;
+
 typedef struct {
-  char  path[TSDB_FILENAME_LEN];
   void *pBse;
 
-  STableBuilderMgt manager[1];
-  STableReaderMgt  reader[1];
-
-  TdThreadMutex mutex;
+  STableBuilderMgt pBuilderMgt[1];
+  STableReaderMgt  pReaderMgt[1];
 } STableMgt;
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
@@ -56,13 +56,13 @@ int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len
 
 int32_t bseTableMgtCleanup(void *p);
 
-int32_t bseTableMgtCommit(STableMgt *pMgt);
+int32_t bseTableMgtCommit(STableMgt *pMgt, SArray **pLiveFileList);
 
-int32_t bseTableMgtRecover(SBse *pBse, STableMgt *pMgt);
+int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileList);
 
 int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch);
 
-int32_t bseTableMgtGetLiveFileList(STableMgt *pMgt, SArray **pList);
+int32_t bseTableMgtGetLiveFileSet(STableMgt *pMgt, SArray **pList);
 #ifdef __cplusplus
 }
 #endif
