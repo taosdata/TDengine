@@ -38,13 +38,14 @@ include(${TD_SUPPORT_DIR}/external.cmake)
 add_subdirectory(community/contrib)
 
 add_library(api INTERFACE)
-target_include_directories(api INTERFACE "${TD_COMMUNITY_DIR}/include/client")
+target_include_directories(api INTERFACE "community/include/client")
 
 if(${BUILD_TEST})
   include(CTest)
   enable_testing()
 endif(${BUILD_TEST})
 
+add_subdirectory(community/contrib/TSZ)
 add_subdirectory(community/source)
 add_subdirectory(community/utils)
 add_subdirectory(community/tools)
