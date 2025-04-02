@@ -34,7 +34,7 @@ arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
 futures-ext = { path = "crates/futures-ext" }
 dashmap = "6.1.0"
-faststr = { version = "0.2.27", features = ["serde"] }
+faststr = { version = "0.2.31", features = ["serde"] }
 rayon = { version = "1" }
 parquet = "54.2.0"
 scc = { version = "2" }
@@ -74,7 +74,7 @@ bigdecimal = "0.4"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "91baaa5"
+rev = "4be23aef162e1386"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]

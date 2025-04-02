@@ -1573,7 +1573,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3028,9 +3028,9 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "faststr"
-version = "0.2.27"
+version = "0.2.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9154486833a83cb5d99de8c4d831314b8ae810dd4ef18d89ceb7a9c7c728dd74"
+checksum = "a6503af7917fea18ffef8f7e8553fb8dff89e2e6837e94e09dd7fb069c82d62c"
 dependencies = [
  "bytes",
  "rkyv",
@@ -4556,7 +4556,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -4860,7 +4860,7 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=91baaa5#91baaa57fbb76bc11960b0306f375cf13ffe3608"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=4be23aef162e1386#4be23aef162e1386f288f3808b10de7a125a22e7"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -8382,7 +8382,7 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=91baaa5#91baaa57fbb76bc11960b0306f375cf13ffe3608"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=4be23aef162e1386#4be23aef162e1386f288f3808b10de7a125a22e7"
 dependencies = [
  "async-trait",
  "bytes",
@@ -8397,7 +8397,7 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=91baaa5#91baaa57fbb76bc11960b0306f375cf13ffe3608"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=4be23aef162e1386#4be23aef162e1386f288f3808b10de7a125a22e7"
 dependencies = [
  "anyhow",
  "derive_more 1.0.0",
@@ -8461,7 +8461,7 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=91baaa5#91baaa57fbb76bc11960b0306f375cf13ffe3608"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=4be23aef162e1386#4be23aef162e1386f288f3808b10de7a125a22e7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8471,7 +8471,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=91baaa5#91baaa57fbb76bc11960b0306f375cf13ffe3608"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=4be23aef162e1386#4be23aef162e1386f288f3808b10de7a125a22e7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8494,7 +8494,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=91baaa5#91baaa57fbb76bc11960b0306f375cf13ffe3608"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=4be23aef162e1386#4be23aef162e1386f288f3808b10de7a125a22e7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8535,7 +8535,7 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=91baaa5#91baaa57fbb76bc11960b0306f375cf13ffe3608"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=4be23aef162e1386#4be23aef162e1386f288f3808b10de7a125a22e7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8543,6 +8543,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "dashmap 6.1.0",
+ "faststr",
  "flume",
  "futures",
  "itertools 0.13.0",
@@ -10150,7 +10151,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
