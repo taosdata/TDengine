@@ -241,9 +241,6 @@ Result:
 
 Since the original tables t1 and t2 (corresponding to columns c1 and c2) lack the timestamp 0:00:03, this timestamp will not appear in the final result.
 
-**Limitations**
-1. Querying virtual supertables does not support subtables from different databases.
-
 ## Modify Virtual Basic Tables
 
 ```sql

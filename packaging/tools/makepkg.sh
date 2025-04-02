@@ -372,10 +372,11 @@ if [ "$verMode" == "cluster" ]; then
         rm -rf ${install_dir}/connector/rust/.git ||:
 
         # copy taosx
-        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
-          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}          
-          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx/uninstall_taosx.sh
-          sed -i "s/uninstall.sh/uninstall_taosx.sh/g" ${install_dir}/taosx/uninstall_taosx.sh
+        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ]; then
+          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ${install_dir}          
+          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
+          sed -i "s/uninstall.sh/uninstall_${clientName2}x.sh/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
+          sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
         fi
     fi
 fi

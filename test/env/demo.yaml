@@ -1,0 +1,39 @@
+settings:
+- fqdn:
+  - localhost
+  name: taosd
+  spec:
+    config:
+      firstEP: localhost:6030
+    dnodes:
+    - config:
+        asyncLog: 0
+        cDebugFlag: 135
+        charset: UTF-8
+        dDebugFlag: 131
+        dataDir: /data/huoh/TDinternal/sim/dnode1/data
+        enableQueryHb: 1
+        jniDebugFlag: 131
+        locale: en_US.UTF-8
+        logDir: /data/huoh/TDinternal/sim/dnode1/log
+        mDebugFlag: 135
+        maxShellConns: 30000
+        monitor: 0
+        numOfLogLines: 100000000
+        qDebugFlag: 131
+        rpcDebugFlag: 135
+        sDebugFlag: 131
+        smaDebugFlag: 135
+        stDebugFlag: 135
+        statusInterval: 1
+        supportVnodes: '1024'
+        telemetryReporting: 0
+        tmrDebugFlag: 131
+        tqDebugFlag: 135
+        uDebugFlag: 131
+        vDebugFlag: 131
+        wDebugFlag: 131
+      config_dir: /data/huoh/TDinternal/sim/dnode1/cfg
+      endpoint: localhost:6030
+      taosdPath: /data/huoh/TDinternal/debug/build/bin/taosd
+    version: 2.4.0.0
