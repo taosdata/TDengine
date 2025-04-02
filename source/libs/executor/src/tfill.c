@@ -1339,9 +1339,6 @@ _end:
 static int32_t fillInitSavedBlockList(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity) {
   int32_t code = 0;
   SFillBlock* pFillBlock = NULL;
-  qDebug("TODO wjm first time fill result, create save list, rows in src: %"PRId64 ", asc/desc: %d,%s filltype: %s",
-         pFillInfo->pSrcBlock->info.rows, pFillInfo->order, pFillInfo->order == TSDB_ORDER_ASC ? "asc" : "desc",
-         get_fill_type(pFillInfo->type));
   // TODO wjm do we need to check that src block have rows?
   pFillInfo->pFillSavedBlockList = tdListNew(sizeof(SFillBlock));
   if (!pFillInfo->pFillSavedBlockList) return terrno;
@@ -1366,7 +1363,7 @@ static void tryResetColNextPrev(struct SFillInfo* pFillInfo, int32_t colIdx) {
   bool     ascFill = FILL_IS_ASC_FILL(pFillInfo);
   int32_t  fillType = pFillInfo->type;
   bool     ascNext = ascFill && fillType == TSDB_FILL_NEXT, descPrev = !ascFill && fillType == TSDB_FILL_PREV;
-  if (ascNext || descPrev) {
+  if ((ascNext || descPrev) && !pFillInfo->pFillCol[colIdx].notFillCol) {
     SRowVal* pFillRow = ascFill ? (fillType == TSDB_FILL_NEXT ? &pFillInfo->next : &pFillInfo->prev)
       : (fillType == TSDB_FILL_NEXT ? &pFillInfo->prev : &pFillInfo->next);
     SGroupKeys* pKey = taosArrayGet(pFillRow->pRowVal, colIdx);
