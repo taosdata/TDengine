@@ -151,6 +151,13 @@ impl BackupConfig {
         if self.raw_from.get("self.repeat").is_some() {
             dsn.remove("self.repeat");
         }
+
+        dsn.remove("upcoming");
+        dsn.remove("interval");
+        dsn.remove("retry_interval");
+        dsn.remove("use.topic.name");
+        dsn.remove("max_retry");
+
         // 如果是 ws 协议，则默认启用压缩
         if let Some(protocol) = dsn.protocol.as_ref() {
             if protocol == "ws" || protocol == "wss" || protocol == "http" || protocol == "https" {
@@ -547,6 +554,47 @@ mod tests {
         assert_eq!(config.task_id, None);
         assert_eq!(config.database, "log");
         assert_eq!(config.backup_dir, Path::new("/tmp").canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_backup_config_to_tmq_dsn_remove_items() {
+        let config = BackupConfig {
+            raw_from:
+                "tmq://host:6030/db?retry_interval=1&interval=2&max_retry=3&upcoming=2025-12-12"
+                    .into_dsn()
+                    .unwrap(),
+            topic: "abc".to_string(),
+            task_id: None,
+            raw_to: Default::default(),
+            server_version: Default::default(),
+            database: Default::default(),
+            stable: None,
+            self_repeat: false,
+            upcoming: None,
+            interval: None,
+            backup_point_gen_mode: BackupPointGenMode::ByOffset,
+            error_retry_max: 0,
+            error_retry_interval: Default::default(),
+            backup_dir: Default::default(),
+            move_to: None,
+            backup_max_size: 0,
+            backup_comp_level: async_compression::Level::Fastest,
+            s3_enable: false,
+            s3_config: None,
+            backup_retention_period: None,
+            backup_retention_size: None,
+        };
+
+        assert!(config.raw_from.get("retry_interval").is_some());
+        assert!(config.raw_from.get("interval").is_some());
+        assert!(config.raw_from.get("max_retry").is_some());
+        assert!(config.raw_from.get("upcoming").is_some());
+        // when
+        let dsn = config.to_tmq_dsn();
+        assert!(dsn.get("retry_interval").is_none());
+        assert!(dsn.get("interval").is_none());
+        assert!(dsn.get("max_retry").is_none());
+        assert!(dsn.get("upcoming").is_none());
     }
 
     #[test]
