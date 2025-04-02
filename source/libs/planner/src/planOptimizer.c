@@ -574,6 +574,7 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
 }
 
 static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNodeList** pDnodeConds) {
+  if(pScan->node.pConditions == NULL) return TSDB_CODE_SUCCESS;
   int32_t code = nodesMakeList(pDnodeConds);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
