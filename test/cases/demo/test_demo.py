@@ -16,7 +16,7 @@ class TestDemo:
 
         Since: v3.3.0.0
 
-        Labels: 
+        Labels: demo
 
         Jira: None
 
