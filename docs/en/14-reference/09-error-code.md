@@ -560,7 +560,7 @@ This document details the server error codes that may be encountered when using 
 
 ## TDgpt
 
-| Error Code | Description                                         | Possible Error Scenarios or Reasons                 | Recommanded Actions for Users                                          |
+| Error Code | Description                                         | Possible Error Scenarios or Reasons                 | Recommended Actions for Users                                          |
 |------------|-----------------------------------------------------|-----------------------------------------------------|------------------------------------------------------------------------|
 | 0x80000440 | Analysis service response is NULL                   | The response content is empty                       | Check the taosanode.app.log for detailed response information          |
 | 0x80000441 | Analysis service can't access                       | Service is not work correctly, or network is broken | Check the status of taosanode and network status                       |
