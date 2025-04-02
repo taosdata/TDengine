@@ -447,12 +447,12 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **参数说明**：
         - `sql`：绑定的 SQL 语句
     - **异常**：操作失败抛出 `StatementError` 异常。
-- `def bind_param(self, tbnames, tags, datas)`
+- `def bind_param(self, tbnames, tags, cols)`
     - **接口说明**：以独立数组方式绑定数据
     - **参数说明**：
         - `tbnames`：绑定表名数组，数据类型为 list 
         - `tags`：绑定 tag 列值数组，数据类型为 list 
-        - `tags`：绑定普通列值数组，数据类型为 list 
+        - `cols`：绑定普通列值数组，数据类型为 list 
     - **异常**：操作失败抛出 `StatementError` 异常
 - `def bind_param_with_tables(self, tables)`
     - **接口说明**：以独立表方式绑定数据，独立表是以表为组织单位，每张表中有表名，TAG 值及普通列数值属性
