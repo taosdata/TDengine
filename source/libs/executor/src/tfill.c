@@ -910,13 +910,13 @@ static int32_t copyCurrentRowIntoBuf2(SFillInfo* pFillInfo, int32_t rowIndex, SR
     if (type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
       int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
 
-      if (!pFillInfo->pFillCol[i].notFillCol && (blockCurTs != pFillInfo->currentKey)) {
-        if (!ascNext && !descPrev) continue;
-      }
-
-      if (srcSlotId == pFillInfo->srcTsSlotId && pFillInfo->type == TSDB_FILL_LINEAR &&
-          !pFillInfo->pFillCol[i].notFillCol) {
-        continue;
+      if (blockCurTs != pFillInfo->currentKey) {
+        if (!pFillInfo->pFillCol[i].notFillCol) {
+          if (!ascNext && !descPrev) continue;
+        }
+        if (srcSlotId == pFillInfo->srcTsSlotId && pFillInfo->type == TSDB_FILL_LINEAR) {
+          continue;
+        }
       }
 
       SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
@@ -950,7 +950,6 @@ _end:
 }
 
 
-// TODO wjm prevent saving the same row
 static int32_t fillTrySaveRow(struct SFillInfo* pFillInfo, const SSDataBlock* pBlock, int32_t rowIdx) {
   if (!pBlock) return 0;
   int32_t  code = 0;
@@ -1030,17 +1029,17 @@ static bool doFillOneCol(SFillInfo* pFillInfo, SSDataBlock* pBlock, TSKEY ts, in
           (void)setNotFillColumn(pFillInfo, pDstCol, rowIdx, colIdx);
         }
       } else {
-        SRowVal*    pRVal = &pFillInfo->prev;
-        SGroupKeys* pKey = taosArrayGet(pRVal->pRowVal, colIdx);
-        if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pKey->isNull) {
+        SRowVal*         pRVal = &pFillInfo->prev;
+        SGroupKeys*      pKey = taosArrayGet(pRVal->pRowVal, colIdx);
+        int32_t          srcSlotId = GET_DEST_SLOT_ID(pCol);
+        SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
+        if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pKey->isNull ||
+            colDataIsNull_s(pSrcCol, pFillInfo->index)) {
           colDataSetNULL(pDstCol, rowIdx);
         } else {
           SGroupKeys* pKey1 = taosArrayGet(pRVal->pRowVal, pFillInfo->tsSlotId);
 
           int64_t prevTs = *(int64_t*)pKey1->pData;
-          int32_t srcSlotId = GET_DEST_SLOT_ID(pCol);
-
-          SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
           char*            data = colDataGetData(pSrcCol, pFillInfo->index);
           SPoint           point1, point2, point;
 
@@ -1295,6 +1294,7 @@ int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstB
 
   // check from list head if we have already filled all rows in blocks, if any block is full, send it out
   tryExtractReadyBlocks(pFillInfo, pDstBlock, capacity);
+  TSKEY lastSavedTs = -1;
   while (!fillShouldPause(pFillInfo, pDstBlock)) {
     if (!pFillBlock || pFillBlock->pBlock->info.rows >= capacity) {
       code = trySaveNewBlock(pFillInfo, pDstBlock, capacity, &pFillBlock);
@@ -1303,7 +1303,9 @@ int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstB
     }
     TSKEY fillCurTs = pFillInfo->currentKey;
     TSKEY blockCurTs = getBlockCurTs(pFillInfo, pFillInfo->pSrcBlock, pFillInfo->index);
-    if (pFillInfo->pSrcBlock) code = fillTrySaveRow(pFillInfo, pFillInfo->pSrcBlock, pFillInfo->index);
+    if (pFillInfo->pSrcBlock && (lastSavedTs != blockCurTs || blockCurTs == fillCurTs))
+      code = fillTrySaveRow(pFillInfo, pFillInfo->pSrcBlock, pFillInfo->index);
+    lastSavedTs = blockCurTs;
     if (code != 0) goto _end;
 
     if (blockCurTs != fillCurTs || !pFillInfo->pSrcBlock) {

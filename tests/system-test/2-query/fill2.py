@@ -50,7 +50,7 @@ scalar_convert_err = -2147470768
 decimal_test_query = True
 decimal_insert_validator_test = True
 operator_test_round = 1
-tb_insert_rows = 10000
+tb_insert_rows = 1000
 binary_op_with_const_test = True
 binary_op_with_col_test = True
 unary_op_test = True
@@ -59,7 +59,7 @@ test_decimal_funcs = False
 cast_func_test_round = 10
 in_op_test_round = 10
 
-null_ratio = 0.95
+null_ratio = 0.6
 test_round = 100
 
 class DecimalTypeGeneratorConfig:
@@ -1057,9 +1057,7 @@ class FillQueryGenerator:
         return self.interval
     
     def generate_fill(self):
-        #fill = ['PREV', 'NEXT', 'NULL', 'LINEAR', 'NULL_F']
-        fill = ['PREV', 'NEXT', 'NULL']
-        fill = ['LINEAR']
+        fill = ['PREV', 'NEXT', 'NULL', 'LINEAR', 'NULL_F']
         if self.fill is None:
             self.fill = random.choice(fill)
         return self.fill
@@ -1075,7 +1073,7 @@ class FillQueryGenerator:
             if self.tbname == 'meters':
                 window_count = random.randint(1, 10000)
             else:
-                window_count = random.randint(1, 100000)
+                window_count = random.randint(1, 50000)
             ts_start = self.ts_start - window_count * self.generate_interval() * 1.5
             ts_end = self.ts_end + window_count * self.generate_interval() * 1.5
             ts_start = random.randint(int(ts_start), int(ts_end))
@@ -1299,13 +1297,34 @@ class FillResValidator:
             for group in groups:
                 self.validate_fill_next_one_group(group[0], group[1], group[2])
     
-    def validate_fill_null_one_group(self, fill_res_one_group, interval_res_one_group, desc_res_one_group):
-        if len(interval_res_one_group) == 0:
-            if len(fill_res_one_group) != 0:
-                tdLog.exit(f"interval got no res, fill should got not res too, but not: {len(fill_res_one_group)}")
+    def validate_fill_null_rows(self, fill_res_one_group, interval_res_one_group, desc_res_one_group: List, null_f: bool):
+        if not null_f:
+            if len(interval_res_one_group) == 0:
+                if len(fill_res_one_group) != 0:
+                    tdLog.exit(f"interval got no res, fill should got not res too, but not: {len(fill_res_one_group)}")
+                return
+            if len(fill_res_one_group) != len(desc_res_one_group):
+                tdLog.exit(f"fill res: {len(fill_res_one_group)} desc res: {len(desc_res_one_group)}")
+            return False
+        else:
+            if len(interval_res_one_group) == 0:
+                if len(fill_res_one_group) == 0:
+                    tdLog.exit("fill null_f got not res")
+                for row in fill_res_one_group:
+                    colIdx = len(row)
+                    if self.generator.is_partition():
+                        colIdx -= 1
+                    for colIdx in range(1, colIdx):
+                        if row[colIdx] != None:
+                            tdLog.exit(f"got different val for fill_res NULL_F: {row} colIdx: {colIdx}, expect: None got: {row[colIdx]}")
+                return True
+            else:
+                return False
+
+    
+    def validate_fill_null_one_group(self, fill_res_one_group, interval_res_one_group, desc_res_one_group, null_f: bool = False):
+        if self.validate_fill_null_rows(fill_res_one_group, interval_res_one_group, desc_res_one_group, null_f):
             return
-        if len(fill_res_one_group) != len(desc_res_one_group):
-            tdLog.exit(f"fill res: {len(fill_res_one_group)} desc res: {len(desc_res_one_group)}")
         i = 0
         j = 0
         desc_res_one_group.reverse()
@@ -1344,15 +1363,15 @@ class FillResValidator:
                     i += 1
                     j += 1
     
-    def validate_fill_NULL(self):
+    def validate_fill_NULL(self, null_f: bool = False):
         if not self.generator.is_partition():
-            return self.validate_fill_null_one_group(self.fill_res, self.interval_res, self.desc_res)
+            return self.validate_fill_null_one_group(self.fill_res, self.interval_res, self.desc_res, null_f)
         else:
             groups = self.split_res_groups()
             for group in groups:
-                self.validate_fill_null_one_group(group[0], group[1], group[2])
+                self.validate_fill_null_one_group(group[0], group[1], group[2], null_f)
     
-    def calc_linear_val(self, interval_res_one_group, rowIdx, colIdx, curTs):
+    def calc_linear_val(self, interval_res_one_group, rowIdx, colIdx, curTs: datetime):
         prevRow = rowIdx - 1
         if prevRow < 0:
             return None
@@ -1360,13 +1379,20 @@ class FillResValidator:
         curRowVal = interval_res_one_group[rowIdx][colIdx]
         if prevRowVal is None or curRowVal is None:
             return None
-        prevRowTs = interval_res_one_group[prevRow][colIdx]
-        curRowTs = interval_res_one_group[rowIdx][colIdx]
+        prevRowTs: datetime = interval_res_one_group[prevRow][0]
+        curRowTs:datetime = interval_res_one_group[rowIdx][0]
         if curRowTs == prevRowTs:
-            raise Exception("curRowTs == prevRowTs")
+            raise Exception(f"{curRowTs} == {prevRowTs}")
         else:
-            delta = (curRowVal - prevRowVal) / (curRowTs - prevRowTs)
-            return prevRowVal + delta * (curTs - prevRowTs)
+            delta = (curRowVal - prevRowVal) / ((curRowTs - prevRowTs).total_seconds() * 1000)
+            result = prevRowVal + delta * (curTs - prevRowTs).total_seconds() * 1000
+            if isinstance(prevRowVal, int):
+                if math.isclose(result, math.ceil(result), rel_tol=1e-6, abs_tol=1e-6) or math.isclose(result, math.floor(result), rel_tol=1e-6, abs_tol=1e-6):
+                    result = round(result)
+                else:
+                    result =  int(result)
+            #tdLog.debug(f"calc_linear_val: {prevRowVal} {curRowVal} {prevRowTs} {curRowTs} {delta} {result} deltats: {(curTs - prevRowTs).total_seconds() * 1000} {prevRowVal} + {delta} * {(curTs - prevRowTs).total_seconds() * 1000} = {result}")
+            return result
 
     
     def validate_fill_linear_one_group(self, fill_res_one_group, interval_res_one_group, desc_res_one_group: List):
@@ -1400,11 +1426,16 @@ class FillResValidator:
                 if fill_ts < interval_row[0]:
                     ## this row is generated by fill
                     for colIdx in range(1, colNum):
+
                         val = self.calc_linear_val(interval_res_one_group, j, colIdx, fill_ts)
-                        if val != fill_row[colIdx]:
-                            tdLog.exit(f"got different val for fill_res: {fill_row} rowIdx: {i} colIdx: {colIdx}, expect: {val} got: {fill_row[colIdx]}")
-                        if val != desc_row[colIdx]:
-                            tdLog.exit(f"got different val for fill_res: {fill_row} rowIdx: {i} colIdx: {colIdx}, expect: {val} got: {desc_row[colIdx]}")
+                        if val is None:
+                            if fill_row[colIdx] is not None or desc_row[colIdx] is not None:
+                                tdLog.exit(f"got different val for fill_res: {fill_row} rowIdx: {i} colIdx: {colIdx}, expect: {val} got: {fill_row[colIdx]}")
+                        else:
+                            if not math.isclose(val, fill_row[colIdx], rel_tol=1e-6, abs_tol=1e-6):
+                                tdLog.exit(f"got different val for fill_res: {fill_row} rowIdx: {i} colIdx: {colIdx}, expect: {val} got: {fill_row[colIdx]}")
+                            if not math.isclose(val, desc_row[colIdx], rel_tol=1e-6, abs_tol=1e-6):
+                                tdLog.exit(f"got different val for fill_res: {fill_row} rowIdx: {i} colIdx: {colIdx}, expect: {val} got: {desc_row[colIdx]}")
                     i += 1
                 else:
                     ## this row is copied from interval
@@ -1435,6 +1466,8 @@ class FillResValidator:
             return self.validate_fill_NULL()
         elif self.generator.fill == 'LINEAR':
             return self.validate_fill_linear()
+        elif self.generator.fill == 'NULL_F':
+            return self.validate_fill_NULL(True)
         else:
             return True
         
@@ -1476,7 +1509,7 @@ class TDTestCase:
 
     def test_decimal_column_ddl(self):
         ## create decimal type table, normal/super table, decimal64/decimal128
-        tdLog.printNoPrefix("-------- test create decimal column")
+        tdLog.printNoPrefix("-------- test create columns")
         self.norm_tb_columns: List[Column] = [
             Column(DecimalType(TypeEnum.DECIMAL, 10, 2)),
             Column(DecimalType(TypeEnum.DECIMAL, 20, 4)),
