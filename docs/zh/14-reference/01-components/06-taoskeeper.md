@@ -358,22 +358,22 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 | taos_dnodes_info_cpu_cores     | gauge   | CPU 核心数                                                                               |
 | taos_dnodes_info_cpu_engine    | gauge   | 该 dnode 的进程所使用的 CPU 百分比（取值范围 0~100）                                     |
 | taos_dnodes_info_cpu_system    | gauge   | 该 dnode 所在节点的系统使用的 CPU 百分比（取值范围 0~100）                               |
-| taos_dnodes_info_disk_engine   | counter | 该 dnode 的进程使用的磁盘容量（单位 Byte)                                                |
-| taos_dnodes_info_disk_total    | counter | 该 dnode 所在节点的磁盘总容量（单位 Byte)                                                |
-| taos_dnodes_info_disk_used     | counter | 该 dnode 所在节点的磁盘已使用的容量（单位 Byte)                                          |
+| taos_dnodes_info_disk_engine   | counter | 该 dnode 的进程使用的磁盘容量（单位 Byte）                                                |
+| taos_dnodes_info_disk_total    | counter | 该 dnode 所在节点的磁盘总容量（单位 Byte）                                                |
+| taos_dnodes_info_disk_used     | counter | 该 dnode 所在节点的磁盘已使用的容量（单位 Byte）                                         |
 | taos_dnodes_info_has_mnode     | counter | 是否有 mnode                                                                             |
 | taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                             |
 | taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                             |
-| taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s)                                            |
-| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s)                                        |
-| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s)                                            |
-| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s)                                        |
+| taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s）                                            |
+| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                        |
+| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s）                                            |
+| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                        |
 | taos_dnodes_info_masters       | counter | 主节点数量                                                                               |
-| taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB)                                                    |
-| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB)                                            |
-| taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB)                                                      |
-| taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s)                                            |
-| taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s)                                            |
+| taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB）                                                    |
+| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB）                                           |
+| taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB）                                                      |
+| taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s）                                            |
+| taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s）                                            |
 | taos_dnodes_info_uptime        | gauge   | 该 dnode 的启动时间 (单位 秒)                                                             |
 | taos_dnodes_info_vnodes_num    | counter | 该 dnode 所在节点的 vnode 数量                                                           |
 
@@ -391,9 +391,9 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 | 指标名称                          | 类型  | 含义                 |
 | --------------------------------- | ----- | -------------------- |
-| taos_taosd_dnodes_data_dirs_avail | gauge | 可用空间（单位 Byte) |
-| taos_taosd_dnodes_data_dirs_total | gauge | 总空间（单位 Byte)   |
-| taos_taosd_dnodes_data_dirs_used  | gauge | 已用空间（单位 Byte) |
+| taos_taosd_dnodes_data_dirs_avail | gauge | 可用空间（单位 Byte）|
+| taos_taosd_dnodes_data_dirs_total | gauge | 总空间（单位 Byte）  |
+| taos_taosd_dnodes_data_dirs_used  | gauge | 已用空间（单位 Byte）|
 
 #### 日志目录
 
@@ -408,9 +408,9 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 | 指标名称                         | 类型  | 含义                 |
 | -------------------------------- | ----- | -------------------- |
-| taos_taosd_dnodes_log_dirs_avail | gauge | 可用空间（单位 Byte) |
-| taos_taosd_dnodes_log_dirs_total | gauge | 总空间（单位 Byte)   |
-| taos_taosd_dnodes_log_dirs_used  | gauge | 已用空间（单位 Byte) |
+| taos_taosd_dnodes_log_dirs_avail | gauge | 可用空间（单位 Byte） |
+| taos_taosd_dnodes_log_dirs_total | gauge | 总空间（单位 Byte）   |
+| taos_taosd_dnodes_log_dirs_used  | gauge | 已用空间（单位 Byte） |
 
 #### 日志数量
 

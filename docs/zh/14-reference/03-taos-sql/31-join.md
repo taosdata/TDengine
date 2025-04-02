@@ -245,12 +245,12 @@ SELECT ... FROM table_name1 LEFT|RIGHT WINDOW JOIN table_name2 [ON ...] WINDOW_O
 
 表 d1001 电压值大于 220V 时前后 1 秒的区间内表 d1002 的电压值：
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET（-1s, 1s) where a.voltage > 220
+SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) where a.voltage > 220
 ```
 
 表 d1001 电压值大于 220V 且前后 1 秒的区间内表 d1002 的电压平均值也大于 220V 的时间及电压值：
 ```sql
-SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET（-1s, 1s) where a.voltage > 220 HAVING(avg(b.voltage) > 220)
+SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) where a.voltage > 220 HAVING(avg(b.voltage) > 220)
 ```
 
 ### Full Outer Join

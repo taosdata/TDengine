@@ -272,7 +272,7 @@ SELECT avg(val) FROM (SELECT first(val) FROM super_table WHERE ts >= startTime a
 示例：
 
 ```sql
-select count(\*) from super_table_name;
+select count(*) from super_table_name;
 ```
 
 ### Dev
@@ -292,12 +292,12 @@ Select stddev(val) from table_name
 示例：
 
 ```sql
-Select apercentile(col1, 50, “t-digest”) from table_name
+Select apercentile(col1, 50, "t-digest") from table_name
 ```
 
 备注：
 
-1. 近似查询处理过程中，OpenTSDB 默认采用 t-digest 算法，所以为了获得相同的计算结果，需要在 apercentile 函数中指明使用的算法。TDengine 能够支持两种不同的近似处理算法，分别通过“default”和“t-digest”来声明。
+1. 近似查询处理过程中，OpenTSDB 默认采用 t-digest 算法，所以为了获得相同的计算结果，需要在 apercentile 函数中指明使用的算法。TDengine 能够支持两种不同的近似处理算法，分别通过 "default" 和 "t-digest" 来声明。
 ### First
 
 等效函数：first
@@ -391,11 +391,11 @@ Select sum(val) from table_name
 ```json
 // OpenTSDB 查询 JSON
 query = {
-“start”:1510560000,
-“end”: 1515000009,
-“queries”:[{
-“aggregator”: “count”,
-“metric”:”cpu.usage_user”,
+"start":1510560000,
+"end": 1515000009,
+"queries":[{
+"aggregator": "count",
+"metric":"cpu.usage_user",
 }]
 }
 

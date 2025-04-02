@@ -30,7 +30,7 @@ measurement,tag_set field_set timestamp
 - timestamp 即本行数据对应的主键时间戳。
 - 无模式写入不支持含第二主键列的表的数据写入。
 
-tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要使用双引号（")。
+tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要使用双引号（"）。
 
 在无模式写入数据行协议中，field_set 中的每个数据项都需要对自身的数据类型进行描述。具体来说：
 
@@ -94,11 +94,11 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 
    :::tip
    需要注意的是，这里的 tag_key1, tag_key2 并不是用户输入的标签的原始顺序，而是使用了标签名称按照字符串升序排列后的结果。所以，tag_key1 并不是在行协议中输入的第一个标签。
-   排列完成以后计算该字符串的 MD5 散列值 "md5_val"。然后将计算的结果与字符串组合生成表名：“t_md5_val”。其中的“t_”是固定的前缀，每个通过该映射关系自动生成的表都具有该前缀。
+   排列完成以后计算该字符串的 MD5 散列值 "md5_val"。然后将计算的结果与字符串组合生成表名： "t_md5_val"。其中的 "t_" 是固定的前缀，每个通过该映射关系自动生成的表都具有该前缀。
    :::tip
    
    如果不想用自动生成的表名，有两种指定子表名的方式 (第一种优先级更高)。
-   1. 通过在 taos.cfg 里配置 smlAutoChildTableNameDelimiter 参数来指定（`@ # 空格 回车 换行 制表符`除外)。
+   1. 通过在 taos.cfg 里配置 smlAutoChildTableNameDelimiter 参数来指定（`@ # 空格 回车 换行 制表符`除外）。
       1. 举例如下：配置 smlAutoChildTableNameDelimiter=- 插入数据为 st,t0=cpu1,t1=4 c1=3 1626006833639000000 则创建的表名为 cpu1-4。
    2. 通过在 taos.cfg 里配置 smlChildTableName 参数来指定。
       1. 举例如下：配置 smlChildTableName=tname 插入数据为 st,tname=cpu1,t1=4 c1=3 1626006833639000000 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略。
@@ -154,7 +154,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 ```
 
-该行数据映射生成一个超级表：st，其包含了 3 个类型为 nchar 的标签，分别是：t1, t2, t3。五个数据列，分别是 ts（timestamp），c1 (bigint），c3(binary)，c2 (bool), c4 (bigint）。映射成为如下 SQL 语句：
+该行数据映射生成一个超级表：st，其包含了 3 个类型为 nchar 的标签，分别是：t1, t2, t3。五个数据列，分别是 ts(timestamp)，c1(bigint)，c3(binary)，c2(bool), c4(bigint)。映射成为如下 SQL 语句：
 
 ```json
 create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) tags(t1 nchar(1), t2 nchar(1), t3 nchar(2))

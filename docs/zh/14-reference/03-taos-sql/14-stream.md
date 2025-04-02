@@ -241,7 +241,7 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 
 用户可以为每个 partition 对应的子表生成自定义的 TAG 值。
 ```sql
-CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s));
+CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s);
 ```
 
 PARTITION 子句中，为 concat("tag-", tbname) 定义了一个别名 cc，对应超级表 st1 的自定义 TAG 的名字。在上述示例中，流新创建的子表的 TAG 将以前缀 'new-' 连接原表名作为 TAG 的值。
@@ -425,7 +425,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "triggerCondition": {
             "conditionIndex": 1,
             "fieldValue": {
-              "c1": 20
+              "c1": 20,
               "c2": 3
             }
           },
