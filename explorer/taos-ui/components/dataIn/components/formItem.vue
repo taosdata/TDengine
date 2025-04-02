@@ -17,7 +17,7 @@
       :required="isFieldRequired()"
       :class="[classMark, { 'hidden-required': !isFieldRequired() }]"
       :rules="timeFormats.includes(field) ? [...timeRules, ...rules] : rules"
-      :prop="parent + field"
+      :prop="field.indexOf('.') >= 0 ? `${parent.slice(0, -1)}['${field}']` : parent + field"
     >
       <template #label>
         <el-tooltip v-if="doscShow && !dataSetDocsShow" placement="top" effect="light" :open-delay="0">
