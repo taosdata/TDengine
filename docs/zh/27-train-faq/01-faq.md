@@ -325,3 +325,12 @@ TDengine 3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 60 秒
 问题解决：
 1）通过 systemd 重启 taosd 服务：推荐方法是先执行命令 `systemctl reset-failed taosd.service` 重置失败计数器，然后再通过 `systemctl restart taosd.service` 重启；若需长期调整，可手动修改 /etc/systemd/system/taosd.service 文件，将 StartLimitInterval 调小或将 StartLimitBurst 调大 (注：重新安装 taosd 会重置该参数，需要重新修改)，执行 `systemctl daemon-reload` 重新加载配置，然后再重启。2）也可以不通过 systemd 而是通过 taosd 命令直接重启 taosd 服务，此时不受 StartLimitInterval 和 StartLimitBurst 参数限制。
 
+### 37 我明明修改了配置文件但是配置参数并没有生效？
+问题描述：
+TDengine 3.3.5.0 及以上的版本，有些用户可能会遇到一个问题：明明我在 `taos.cfg` 中修改了某个配置参数，但是重启后发现并没有生效，查看日志也找不到任何报错。
+
+问题原因：
+这是由于 TDengine 3.3.5.0 及以上的版本支持将动态修改的配置参数持久化，也就是您通过 `ALTER` 动态修改的参数，重启后仍然生效。所以 TDengine 3.3.5.0 及以上的版本在重启时会默认从 `dataDir` 中加载除了 `dataDir` 之外的的配置参数，而不会使用 `taos.cfg` 中的配置参数。
+
+问题解决：
+如果您了解了配置参数持久化的功能，仍然希望重启后从配置文件中加载配置参数，可以通过在配置文件中增加 `forceReadConfig 1` 这将会使 TDengine 强制从配置文件中读取配置参数。
