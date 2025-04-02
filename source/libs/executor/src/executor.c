@@ -729,7 +729,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
     qError("%s-%p execTask is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo, (void*)curOwner);
     pTaskInfo->code = TSDB_CODE_QRY_IN_EXEC;
-    return pTaskInfo->code;
+    goto _endclean;
   }
 
   if (pTaskInfo->cost.start == 0) {
@@ -739,7 +739,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   if (isTaskKilled(pTaskInfo)) {
     atomic_store_64(&pTaskInfo->owner, 0);
     qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
-    return pTaskInfo->code;
+    goto _endclean;
   }
 
   // error occurs, record the error code and return to client
@@ -751,7 +751,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
     atomic_store_64(&pTaskInfo->owner, 0);
 
-    return pTaskInfo->code;
+    goto _endclean;
   }
 
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
@@ -843,6 +843,13 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
+  return pTaskInfo->code;
+
+_endclean:
+  if (pTaskInfo->pOpParam) {
+    freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
+    pTaskInfo->pOpParam = NULL;
+  }
   return pTaskInfo->code;
 }
 
