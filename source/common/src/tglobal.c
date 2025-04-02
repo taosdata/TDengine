@@ -47,6 +47,7 @@ int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
 int32_t       tsStatusInterval = 1;  // second
 int32_t       tsNumOfSupportVnodes = 256;
+uint16_t      tsMqttPort = 6083;
 char          tsEncryptAlgorithm[16] = {0};
 char          tsEncryptScope[100] = {0};
 EEncryptAlgor tsiEncryptAlgorithm = 0;
@@ -672,6 +673,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
 static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
+  int32_t defaultMqttPort = 6083;
   if (taosGetFqdn(defaultFqdn) != 0) {
     tstrncpy(defaultFqdn, "localhost", TSDB_FQDN_LEN);
   }
@@ -682,6 +684,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "secondEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "fqdn", defaultFqdn, CFG_SCOPE_SERVER, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT,
+                                CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "mqttPort", defaultMqttPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT,
                                 CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "tempDir", tsTempDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
@@ -1383,6 +1387,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   char defaultFirstEp[TSDB_EP_LEN] = {0};
   (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "mqttPort");
+  tsMqttPort = (uint16_t)pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "firstEp");
   SEp firstEp = {0};
   TAOS_CHECK_RETURN(taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? defaultFirstEp : pItem->str, &firstEp));
@@ -2076,6 +2083,11 @@ static int32_t taosCheckGlobalCfg() {
 
   if (tsServerPort <= 0) {
     uError("invalid server port:%u, can not be initialized", tsServerPort);
+    TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
+  }
+
+  if (tsMqttPort <= 0 || tsMqttPort == tsServerPort) {
+    uError("invalid mqtt port:%u, can not be initialized", tsMqttPort);
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
