@@ -1534,7 +1534,7 @@ EOF
 
 # Install Grafana using a downloaded .deb package
 deploy_grafana() {
-    LATEST_VERSION=$(curl -s https://api.github.com/repos/grafana/grafana/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
+    LATEST_VERSION=$(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s https://api.github.com/repos/grafana/grafana/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
     if [ -f /etc/debian_version ]; then
         # Debian or Ubuntu
         deploy_debian_grafana "$LATEST_VERSION"
