@@ -1,6 +1,6 @@
 # Welcome to TDengine Cases Docs
 
-You can switch branches on this page. For more information about how to run cases, see [README]().
+You can switch branches on this page. For more information about how to run cases, see [README](https://github.com/taosdata/TDengine/blob/main/test/README.md).
 
 Case list can be found on the top bar case list docs.
 

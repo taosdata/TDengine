@@ -1,28 +1,17 @@
 import pytest
-from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
-from numpy import row_stack
 import taos
 import sys
 import time
 import os
+import socket
+import threading
+import inspect
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, cluster
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+#sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from clusterCommonCreate import *
 from clusterCommonCheck import clusterComCheck
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from clusterCommonCreate import *
-from clusterCommonCheck import clusterComCheck
-
-import time
-import socket
-import subprocess
-from multiprocessing import Process
-import threading
-import time
-import inspect
 import ctypes
 
 class Test5dnode3mnodeAdd1Dnode:
@@ -88,7 +77,7 @@ class Test5dnode3mnodeAdd1Dnode:
             for i in range(4):
                 tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
-
+    @pytest.mark.cluster
     def test_five_dnode_three_mnode(self):
         dnodeNumbers=6
         mnodeNums=3
