@@ -1,0 +1,88 @@
+# stop all dnodes before start this case
+system sh/stop_dnodes.sh
+
+# deploy dnode 1
+system sh/deploy.sh -n dnode1 -i 1
+
+# add some config items for this case
+#system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+
+# start dnode 1
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+
+#---- global parameters start ----#
+$dbName     = db
+$vgroups    = 4
+$stbPrefix  = stb
+$ctbPrefix  = ctb
+$ntbPrefix  = ntb
+$stbNum     = 1
+$ctbNum     = 10
+$ntbNum     = 10
+$rowsPerCtb = 10
+$tstart     = 1640966400000  # 2022-01-01 00:00:00.000
+#---- global parameters end ----#
+
+print == create database $dbName vgroups $vgroups
+sql create database $dbName vgroups $vgroups
+
+#wait database ready
+$loop_cnt = 0
+check_db_ready:
+if $loop_cnt == 10 then
+  print ====> database not ready!
+	return -1
+endi
+sql select * from information_schema.ins_databases
+print ==> rows: $rows
+print ==> $data(db)[0] $data(db)[1] $data(db)[2] $data(db)[3] $data(db)[4] $data(db)[5] $data(db)[6] $data(db)[7] $data(db)[8] $data(db)[9] $data(db)[10] $data(db)[11] $data(db)[12]
+print     $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $data(db)[18] $data(db)[19] $data(db)[20]
+if $data(db)[15] != ready then
+  sleep 100
+  $loop_cnt = $loop_cnt + 1
+  goto check_db_ready  
+endi
+
+sql use $dbName
+
+print == create consume info table and consume result table
+sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
+sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
+
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+
+print == create super table
+sql create table $stbPrefix (ts timestamp, c1 int, c2 float, c3 binary(16)) tags (t1 int)
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+print == create child table, normal table and insert data
+$i = 0
+while $i < $ctbNum
+  $ctb = $ctbPrefix . $i
+  $ntb = $ntbPrefix . $i
+  sql create table $ctb using $stbPrefix tags( $i )
+  sql create table $ntb (ts timestamp, c1 int, c2 float, c3 binary(16))
+
+  $x = 0
+  while $x < $rowsPerCtb
+    $binary = ' . binary-
+    $binary = $binary . $i
+    $binary = $binary . '
+
+    sql insert into $ctb values ($tstart , $i , $x , $binary )
+    sql insert into $ntb values ($tstart , $i , $x , $binary )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 1640966400000
+endw

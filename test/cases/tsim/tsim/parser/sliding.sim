@@ -1,0 +1,469 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = sliding_db
+$tbPrefix = sliding_tb
+$mtPrefix = sliding_mt
+$tbNum = 8
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+
+print =============== sliding.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$tstart = 946656000000
+
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database if exists $db -x step1
+step1:
+sql create database if not exists $db  keep 36500
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $tg2 = ' . abc
+  $tg2 = $tg2 . '
+  sql create table $tb using $mt tags( $i , $tg2 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    $next = $tstart + 30
+    $f = $x + 1
+    $c1 = $f / 100
+    $c1 = $c1 * 100
+    $c1 = $f - $c1
+
+    $binary1 = ' . binary
+    $binary1 = $binary1 . $c1
+    $binary1 = $binary1 . '
+
+    $nchar1 = ' . nchar
+    $nchar1 = $nchar1 . $c1
+    $nchar1 = $nchar1 . '
+
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar ) ($next , $c1 , $c1 , $c1 , $c1 , $c1 , $c1 , $c1 , $binary1 , $nchar1 )
+    $tstart = $tstart + 60
+    $x = $x + 2
+  endw
+
+  $i = $i + 1
+  $tstart = 946656000000
+endw
+
+$i1 = 1
+$i2 = 0
+
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$dbPrefix = sliding_db
+$tbPrefix = sliding_tb
+$mtPrefix = sliding_mt
+
+$tb1 = $tbPrefix . $i1
+$tb2 = $tbPrefix . $i2
+$ts1 = $tb1 . .ts
+$ts2 = $tb2 . .ts
+
+print ===============================interval_sliding query
+sql select _wstart, count(*) from sliding_tb0 interval(3s) sliding(3s);
+if $row != 10 then
+ return -1
+endi
+if $data00 != @00-01-01 00:00:00.000@ then
+ return -1
+endi
+if $data01 != 100 then
+ return -1
+endi
+if $data10 != @00-01-01 00:00:03.000@ then
+ return -1
+endi
+if $data11 != 100 then
+ return -1
+endi
+
+sql select _wstart, stddev(c1) from sliding_tb0 interval(10a) sliding(10a);
+if $row != 1000 then
+  return -1
+endi
+if $data00 != @00-01-01 00:00:00.000@ then
+  return -1
+endi
+if $data01 != 0.000000000 then
+   return -1
+endi
+if $data90 != @00-01-01 00:00:00.270@ then
+  return -1
+endi
+if $data91 != 0.000000000 then
+  return -1
+endi
+
+sql select _wstart, stddev(c1),count(c2),first(c3),last(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc;
+if $row != 1000 then
+  return -1
+endi
+if $data00 != @00-01-01 00:00:29.970@ then
+ return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 99 then
+  return -1
+endi
+if $data04 != 99 then
+  return -1
+endi
+if $data90 != @00-01-01 00:00:29.700@ then
+  return -1
+endi
+if $data91 != 0.000000000 then
+  return -1
+endi
+if $data92 != 1 then
+  return -1
+endi
+if $data93 != 90 then
+  return -1
+endi
+if $data94 != 90 then
+  return -1
+endi
+
+sql select _wstart, count(c2),last(c4) from sliding_tb0 interval(3s) sliding(1s) order by _wstart asc;
+if $row != 32 then
+  return -1
+endi
+if $data00 != @99-12-31 23:59:58.000@ then
+  print expect 12-31 23:59:58.000, actual: $data00
+  return -1
+endi
+if $data01 != 34 then
+  return -1
+endi
+if $data02 != 33 then
+  return -1
+endi
+
+sql select _wstart, count(c2),stddev(c3),first(c4),last(c4) from sliding_tb0 where ts>'2000-01-01 0:0:0' and ts<'2000-1-1 0:0:4' interval(3s) sliding(3s) order by _wstart asc;
+if $row != 2 then
+  return -1
+endi
+if $data04 != 99 then
+  return -1
+endi
+if $data01 != 99 then
+  return -1
+endi
+if $data02 != 28.577380332 then
+  return -1
+endi
+
+#interval offset + limit
+sql select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc limit 10 offset 90;
+if $row != 10 then
+  return -1
+endi
+if $data00 != @00-01-01 00:00:27.270@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 9 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data90 != @00-01-01 00:00:27.000@ then
+  return -1
+endi
+if $data91 != 1 then
+  return -1
+endi
+if $data92 != 0 then
+  return -1
+endi
+if $data93 != 0.000000000 then
+  return -1
+endi
+
+#interval offset test
+sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(3s) order by _wstart asc limit 100 offset 1;
+if $row != 9 then
+  return -1
+endi
+if $data00 != @00-01-01 00:00:03.000@ then
+  return -1
+endi
+if $data01 != 100 then
+  return -1
+endi
+if $data02 != 99 then
+  return -1
+endi
+if $data80 != @00-01-01 00:00:27.000@ then
+  return -1
+endi
+if $data81 != 100 then
+  return -1
+endi
+
+sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 where ts>'2000-1-1 0:0:0' and ts<'2000-1-1 0:0:4' interval(3s) sliding(3s) order by _wstart asc limit 100 offset 0;
+if $row != 2 then
+ return -1
+endi
+if $data00 != @00-01-01 00:00:00.000@ then
+ return -1
+endi
+if $data01 != 99 then
+ return -1
+endi
+if $data02 != 99 then
+ return -1
+endi
+if $data03 != 28.577380332 then
+ return -1
+endi
+if $data10 != @00-01-01 00:00:03.000@ then
+ return -1
+endi
+if $data11 != 34 then
+ return -1
+endi
+if $data12 != 33 then
+ return -1
+endi
+if $data13 != 9.810708435 then
+ return -1
+endi
+
+sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 1;
+if $row != 15 then
+ return -1
+endi
+if $data00 != @00-01-01 00:00:00.000@ then
+ return -1
+endi
+if $data01 != 100 then
+ return -1
+endi
+if $data02 != 99 then
+ return -1
+endi
+if $data03 != 28.866070048 then
+ return -1
+endi
+if $data90 != @00-01-01 00:00:18.000@ then
+ return -1
+endi
+if $data91 != 100 then
+ return -1
+endi
+if $data92 != 99 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 5;
+if $row != 11 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 6;
+if $row != 10 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 7;
+if $row != 9 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 8;
+if $row != 8 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 9;
+if $row != 7 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 10;
+if $row != 6 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 11;
+if $row != 5 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 12;
+if $row != 4 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 13;
+if $row != 3 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 14;
+if $row != 2 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 15;
+if $row != 1 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 16;
+if $row != 0 then
+ return -1
+endi
+
+sql select _wstart, count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) order by _wstart desc;
+if $row != 10 then
+ return -1
+endi
+#00-01-01 00:00:27.000 |                     1 |        0 |               0.000000000 |               0.000000000 |
+if $data00 != @00-01-01 00:00:27.000@ then
+ return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+if $data02 != 0 then
+ return -1
+endi
+if $data03 != 0.000000000 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) sliding(2s) order by _wstart desc limit 1 offset 14;
+if $row != 1 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) sliding(2s) order by _wstart desc limit 1 offset 15;
+if $row != 0 then
+ return -1
+endi
+
+sql select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) order by _wstart desc limit 10 offset 2;
+if $data00 != @00-01-01 00:00:29.910@ then
+  return -1
+endi
+
+sql select _wstart, count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by _wstart asc limit 1000;
+if $row != 3 then
+ return -1
+endi
+if $data00 != @99-12-31 23:59:40.000@ then
+ return -1
+endi
+if $data02 != 9.521904571 then
+ return -1
+endi
+if $data05 != 33 then
+ return -1
+endi
+if $data10 != @99-12-31 23:59:50.000@ then
+ return -1
+endi
+if $data12 != 9.521904571 then
+ return -1
+endi
+if $data15 != 33 then
+ return -1
+endi
+if $data25 != 33 then
+ return -1
+endi
+
+sql select _wstart, count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by _wstart desc limit 1000;
+if $row != 3 then
+ return -1
+endi
+if $data00 != @00-01-01 00:00:00.000@ then
+ print expect 00-01-01 00:00:00.000, actual: $data00
+ return -1
+endi
+if $data01 != 33 then
+ return -1
+endi
+if $data02 != 9.521904571 then
+ return -1
+endi
+if $data03 != 33 then
+ return -1
+endi
+if $data10 != @99-12-31 23:59:50.000@ then
+ return -1
+endi
+if $data11 != 33 then
+ return -1
+endi
+if $data12 != 9.521904571 then
+ return -1
+endi
+if $data20 != @99-12-31 23:59:40.000@ then
+ return -1
+endi
+if $data21 != 33 then
+ return -1
+endi
+if $data22 != 9.521904571 then
+ return -1
+endi
+
+print ====================>check boundary check crash at client side
+sql select count(*) from sliding_mt0 where ts>now and ts < now-1h;
+
+sql select sum(c1) from sliding_tb0 interval(1a) sliding(1a);
+
+print ========================query on super table
+
+print ========================error case
+sql_error select sum(c1) from sliding_tb0 interval(10a) sliding(12a);
+sql_error select sum(c1) from sliding_tb0 sliding(1n) interval(1y);
+sql_error select sum(c1) from sliding_tb0 interval(-1y)  sliding(1n);
+sql_error select sum(c1) from sliding_tb0 interval(1y)  sliding(-1n);
+sql_error select sum(c1) from sliding_tb0 interval(0)  sliding(0);
+sql_error select sum(c1) from sliding_tb0 interval(0m)  sliding(0m);
+sql_error select sum(c1) from sliding_tb0 interval(m)  sliding(m);
+sql_error select sum(c1) from sliding_tb0 sliding(4m);
+sql_error select count(*) from sliding_tb0 interval(1s) sliding(10s);
+sql_error select count(*) from sliding_tb0 interval(10s) sliding(10a);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

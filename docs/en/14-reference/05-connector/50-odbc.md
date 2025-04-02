@@ -225,8 +225,8 @@ The table below explains how the ODBC connector maps server data types to defaul
 
 | Attribute | Note |
 | :----- | :---- |
-| SQL_ATTR_CONCURRENCY | TDengine has no updatable-CURSOR machanism |
-| SQL_ATTR_FETCH_BOOKMARK_PTR | TDengine has no BOOKMARK machanism |
+| SQL_ATTR_CONCURRENCY | TDengine has no updatable-CURSOR mechanism |
+| SQL_ATTR_FETCH_BOOKMARK_PTR | TDengine has no BOOKMARK mechanism |
 | SQL_ATTR_IMP_PARAM_DESC | |
 | SQL_ATTR_IMP_ROW_DESC | |
 | SQL_ATTR_KEYSET_SIZE | |

@@ -1873,7 +1873,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
   }
 
-  mInfo("user:%s, start to create, createdb:%d, is_import:%d", createReq.user, createReq.isImport, createReq.createDb);
+  mInfo("user:%s, start to create, createdb:%d, is_import:%d", createReq.user, createReq.createDb, createReq.isImport);
 
 #ifndef TD_ENTERPRISE
   if (createReq.isImport == 1) {

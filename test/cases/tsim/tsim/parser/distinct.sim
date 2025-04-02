@@ -1,0 +1,83 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = sav_db
+$tbPrefix = sav_tb
+$stbPrefix = sav_stb
+$tbNum = 20
+$rowNum = 10
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== alter.sim
+$i = 0
+$db = $dbPrefix
+$stb = $stbPrefix
+
+sql drop database if exists $db
+sql create database $db
+sql use $db
+print ====== create tables
+sql create table $stb (ts timestamp, c1 int) tags(t1 int, t2 int)
+
+$i = 0
+$ts = $ts0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $stb tags( $i , 0 )
+  $i = $i + 1
+  sql insert into $tb values('2015-08-18 00:00:00', 1);
+  sql insert into $tb values('2015-08-18 00:06:00', 2);
+  sql insert into $tb values('2015-08-18 00:12:00', 3);
+  sql insert into $tb values('2015-08-18 00:18:00', 4);
+  sql insert into $tb values('2015-08-18 00:24:00', 5);
+  sql insert into $tb values('2015-08-18 00:30:00', 6);
+endw
+$i = 0
+$tb = $tbPrefix . $i
+
+print ====== table created
+
+#### select distinct tag
+sql select distinct t1 from $stb
+if $rows != $tbNum then
+  return -1
+endi
+
+#### select distinct tag
+sql select distinct t2 from $stb
+if $rows != 1 then
+  print $rows
+  return -1
+endi
+
+#### select multi normal column
+sql select distinct ts, c1  from $stb
+if $rows != 6 then
+  return -1
+endi
+
+#### select multi column
+sql select distinct ts from $stb
+if $rows != 6 then
+  return -1
+endi
+
+### select multi normal column
+### select distinct multi column on sub table
+
+sql select distinct ts, c1 from $tb
+if $rows != 6 then
+  return -1
+endi
+
+### select distinct
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
