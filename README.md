@@ -279,13 +279,7 @@ List the software and tools required to work on the project.
 - node 22.3.0 (for taos-explorer)
 - python 3.8~3.10 (for test)
 
-If your system has installed Winget(The operating system must be Windows 10 or above),you can run the script to set up the prerequisite software:
-
-```cmd
-Work in Progress.
-```
-
-You can also set up the prerequisite software by following the step-by-step instructions.
+You can  set up the prerequisite software by following the step-by-step instructions.
 
 ### 3.1.1 Install the required package
 
