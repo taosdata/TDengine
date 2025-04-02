@@ -734,7 +734,7 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
 #elif defined(_TD_DARWIN_64)
   return 0;
 #elif defined(TD_ASTRA) // TD_ASTRA_TODO
-  *totalKB = (int64_t)256 * 1024;
+  *totalKB = (int64_t)1024 * 1024;
   return 0;
 #else
   *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);

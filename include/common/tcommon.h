@@ -168,7 +168,7 @@ typedef enum EStreamType {
   STREAM_RECALCULATE_END,
 } EStreamType;
 
-#pragma pack(push, 1)
+PACK_PUSH_MIN
 typedef struct SColumnDataAgg {
   int32_t colId;
   int16_t numOfNull;
@@ -186,7 +186,7 @@ typedef struct SColumnDataAgg {
     };
   };
 } SColumnDataAgg;
-#pragma pack(pop)
+PACK_POP
 
 #define DECIMAL_AGG_FLAG 0x80000000
 

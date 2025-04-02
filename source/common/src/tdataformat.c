@@ -3450,8 +3450,7 @@ static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, S
 
 void tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key) {
   SColVal cv;
-
-  key->ts = ((TSKEY *)aColData[0].pData)[iRow];
+  key->ts = taosGetInt64Aligned((TSKEY *)aColData[0].pData + iRow);
   key->numOfPKs = 0;
 
   for (int i = 1; i < nColData; i++) {
@@ -4785,7 +4784,7 @@ void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len) {
         pVal->val = *(uint32_t *)pDatum;
         break;
       case sizeof(uint64_t):
-        taosSetUInt64Aligned(&pVal->val, (uint64_t *)pDatum);
+        taosSetPUInt64Aligned(&pVal->val, (uint64_t *)pDatum);
         break;
       default:
         break;
