@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-void cost_start();
+void cost_start(); 
 double cost_end(const char* tag);
 
 //
