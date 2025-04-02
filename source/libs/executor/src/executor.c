@@ -634,11 +634,10 @@ void destroyOperatorParam(SOperatorParam* pParam) {
   // TODO
 }
 
-void qDestroyOperatorParam(SOperatorParam* pParam) {
-  if (NULL == pParam) {
-    return;
-  }
+void qDestroyOperatorParam(qTaskInfo_t tinfo, SOperatorParam* pParam) {
   freeOperatorParam(pParam, OP_GET_PARAM);
+  ((SExecTaskInfo*)tinfo)->pOpParam = NULL;
+  ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
 
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
@@ -846,7 +845,7 @@ _end:
   return pTaskInfo->code;
 
 _endclean:
-  if (pTaskInfo->pOpParam && !pTaskInfo->paramSet) {
+  if (pTaskInfo->pOpParam) {
     freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
     pTaskInfo->pOpParam = NULL;
   }

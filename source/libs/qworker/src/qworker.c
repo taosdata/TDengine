@@ -524,6 +524,8 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   ctx->queryEnd = false;
 #endif
 
+  int32_t code = TSDB_CODE_SUCCESS;
+
   QW_SINK_ENABLE_MEMPOOL(ctx);
   dsReset(ctx->sinkHandle);
   QW_SINK_DISABLE_MEMPOOL();
@@ -538,10 +540,13 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
     QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
-    QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
+    QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
+_return:
+  qDestroyOperatorParam(ctx->taskHandle, NULL);
+  return code;
 }
 
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
@@ -1018,7 +1023,6 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   if (qwMsg->msg) {
     code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
-    qwMsg->msg = NULL;
     goto _return;
   }
 
@@ -1062,10 +1066,6 @@ _return:
 
   if (locked) {
     QW_UNLOCK(QW_WRITE, &ctx->lock);
-  }
-
-  if (qwMsg->msg) {
-    qDestroyOperatorParam(qwMsg->msg);
   }
 
   input.code = code;
