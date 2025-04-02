@@ -920,8 +920,7 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
         threads = 1;
     }
     if (ntables == 0) {
-        code = 0;
-        infoPrint("child table is zero, no need create. childTblCount: %"PRId64"\n", ntables);
+        errorPrint("failed to create child table, childTblCount: %"PRId64"\n", ntables);
         goto over;
     }
 

@@ -1230,14 +1230,12 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         }
 
         // check childtable_from and childtable_to valid
-        if (superTable->childTblCount > 0 && superTable->childTblFrom >= superTable->childTblCount) {
-            errorPrint("json config invalid. childtable_from(%"PRId64") is equal or large than childtable_count(%"PRId64")\n", 
-                    superTable->childTblFrom, superTable->childTblCount);
+        if (superTable->childTblFrom >= superTable->childTblCount) {
+            errorPrint("json config invalid. childtable_from(%"PRId64") is equal or large than childtable_count(%"PRId64")\n", superTable->childTblFrom, superTable->childTblCount);
             return -1;
         }  
-        if (superTable->childTblCount > 0 && superTable->childTblTo > superTable->childTblCount) {
-            errorPrint("json config invalid. childtable_to(%"PRId64") is large than childtable_count(%"PRId64")\n", 
-                    superTable->childTblTo, superTable->childTblCount);
+        if (superTable->childTblTo > superTable->childTblCount) {
+            errorPrint("json config invalid. childtable_to(%"PRId64") is large than childtable_count(%"PRId64")\n", superTable->childTblTo, superTable->childTblCount);
             return -1;
         }
 
