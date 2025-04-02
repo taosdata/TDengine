@@ -60,7 +60,7 @@ List the software and tools required to work on the project.
 - go 1.20+ (for taosadapter and taosx)
 - cargo 1.82.0+ (for taosx)
 - jdk 11~17, maven 3.8.0+ (for taosx plugin influxDB & openTSDB)
-- node 16.20.2 (for taos-explorer)
+- node 22.14.0 (for taos-explorer)
 - python 3.10.12+ (for test)
 
 Run the script to set up the prerequisite software:
@@ -276,10 +276,10 @@ List the software and tools required to work on the project.
 - go 1.20+ (for taosadapter and taosx)
 - cargo 1.82.0+ (for taosx)
 - jdk 11~17, maven 3.8.0+ (for taosx plugin influxDB & openTSDB)
-- node 16.20.2 (for taos-explorer)
-- python 3.10.12+ (for test)
+- node 22.3.0 (for taos-explorer)
+- python 3.8~3.10 (for test)
 
-If your system has installed Winget,you can run the script to set up the prerequisite software:
+If your system has installed Winget(The operating system must be Windows 10 or above),you can run the script to set up the prerequisite software:
 
 ```cmd
 Work in Progress.
@@ -301,6 +301,29 @@ Download Microsoft Visual C++ 2015-2022 Redistributable (x64) from the following
 ```cmd
 https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170
 
+
+Download and install msys2 from the following link, then set path for msys2(like C:\msys64\usr\bin):
+
+```cmd
+https://mirrors.tuna.tsinghua.edu.cn/msys2/distrib/x86_64/
+```
+
+Configuring msys2 path:
+
+```cmd
+setx PATH "%PATH%;C:\msys64\usr\bin" /M
+```
+
+Download and unzip jom from the following link, then set path for jom:
+
+```cmd
+https://mirror.aarnet.edu.au/pub/qtproject/official_releases/jom/jom.zip
+```
+
+Unzip the downloaded file to the target directory,(such as C:\jom-1.1.3),then configuring Jom environment variables:
+
+```cmd
+setx PATH "%PATH%;C:\jom-1.1.3" /M
 ```
 
 ### 3.1.2 Install Go
@@ -312,7 +335,7 @@ https://golang.google.cn/dl/
 
 ```
 
-Enter  in PowerShell to check if the installation is correct:
+Enter in PowerShell to check if the installation is correct:
 
 ```cmd
 go version
@@ -336,7 +359,7 @@ https://win.rustup.rs/
 
 ```
 
-Download and install open-ssl
+Download and install open-ssl:
 
 ```cmd
 
@@ -348,18 +371,17 @@ cd vcpkg
 ```
 ### 3.1.4 Install Jdk & maven
 
-Visit the following link to download openjdk17 and maven.
+Visit the following link to download openjdk17 and maven, then follow the installation wizard to operate the installation.
+
 
 ```cmd
 https://adoptium.net/temurin/releases/
 https://maven.apache.org/download.cgi
 ```
 
-Install jdk and maven.
+Set environment variables of maven.
 
 ```cmd
-msiexec /i openjdk-17_windows-x64_bin.msi
-mkdir "C:\Program Files\Apache\Maven"
 setx MAVEN_HOME "C:\apache-maven-3.9.5" /M
 setx PATH "%PATH%;%MAVEN_HOME%\bin" /M
 ```
@@ -368,24 +390,19 @@ setx PATH "%PATH%;%MAVEN_HOME%\bin" /M
 
 ### 3.1.5 Install node
 
-Visit the following link to download node using nvm.
+Visit the following link to download node 22, then follow the installation wizard to operate the installation
 
 ```cmd
 https://nodejs.org/en/download
 ```
 
-Install node
-
-```cmd
-msiexec /i node-v22.14.0-x64.msi
-```
 
 ### 3.1.6 Install Python-connector
 
-Install Python3.
+Taking python 3.8.10 as an example, install Python3 from the following link:
+
 ```cmd
-curl -o python-3.12.0.exe https://www.python.org/ftp/python/3.12.0/python-3.12.0.exe
-python-3.12.0.exe
+https://www.python.org/ftp/python/3.8.10/python-3.8.10-amd64.exe
 ```
 
 Install Pip3 
@@ -398,8 +415,7 @@ python3 -m pip install
 Install the dependent Python components.
 
 ```cmd
-pip3 install pandas psutil fabric2 requests faker simplejson toml \
-     pexpect tzlocal distro decorator loguru hyperloglog toml
+pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml
 ```
 
 Install the Python connector for TDengine.
@@ -518,19 +534,19 @@ Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows 
 mkdir debug && cd debug
 "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
 cmake .. -G "NMake Makefiles"
-nmake
+jom -j 4
 ```
 
-If you use the Visual Studio 2019 or 2017:
+If you use the Visual Studio 2019 or 2017 or 2022:
 
 please open a command window by executing "cmd.exe".
 Please specify "x64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
 
 ```cmd
 mkdir debug && cd debug
-"c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
-cmake .. -G "NMake Makefiles"
-nmake
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"  < x64 | x86 >
+cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true -DBUILD_TOOLS=true
+jom -j 4
 ```
 
 Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
@@ -538,7 +554,7 @@ Or, you can simply open a command window by clicking Windows Start -> "Visual St
 ```cmd
 mkdir debug && cd debug
 cmake .. -G "NMake Makefiles"
-nmake
+jom -j 4
 ```
 </details>
 
@@ -612,7 +628,7 @@ sudo make install
 After building successfully, TDengine can be installed by:
 
 ```cmd
-nmake install
+jom install
 ```
 
 </details>
