@@ -179,45 +179,6 @@ _end:
 }
 
 static SSDataBlock* doFillImpl2(SOperatorInfo* pOperator) {
-  // 进来时的状态:
-  // 1. initial状态, 从头开始
-  // 2. 新的group id, 可以从头开始
-  // 3. 当前group未结束, 只是发送了一个block, 现在需要接着上次的处理点继续.
-  //     上次的点可能是正好都正常, 处理完一个block, 直接发送的, 那么现在需要从currentKey接着向后处理.
-  //     也可能上次正好在处理某几个留白的列, 可能还没有处理完, 现在要继续处理. 怎么恢复状态呢?
-  //         是不是可以还是从currentKey开始, 在处理每一列时, 如果发现某一列还存在lag, 并且srcBlock内的值不是NULL,
-  //         那么优先处理这一列.
-  // save/pop final res block 逻辑
-  // 1. save 时机: 新建之后就save, 然后往里面填数据,
-  //    a. 满了且都fill了, pop出来, 发走.
-  //    b. 满了但是有没有fill结束的, 新建一个block, save.
-  //    c. 未满, 但是srcBlock处理完了, 那么继续fetch block, 当前状态不变.
-  //    d. 未满, 并且fetch block也没有了或者当前block结束了, 这时需要将所有save的block pop出来 fill NULL发送出去.
-  //    e. 也可能在b时, 新建save之后, 没有新的下游block了, 那么此时savedblocks里面存了一个空的block.
-  // 2. pop 时机:
-  //    a. 正常填充满, 则正常pop之后发送
-  //    b. 当前存储了多个block, 发现到某个时候, 所有列都可以填充了, 某个block完全填充满之后, pop发送.
-  //    c. 当前group结束时, 需要pop出来, fill NULL然后发送.
-
-
-  /*
-      清空final res block.
-      如果上一个block还没有处理结束, 那么不需要fetchblock, 接着处理. fillInfo里存储了上次处理到的row idx.
-
-      开始获取新的block.
-      修正开始和结束位置.
-      应用标量计算.
-      开始fill.
-          a. 这个tfill的接口需要返回下一个发送的block(所有列都填充完毕的场景), 或者不返回block(上一个block被save了,
-并且当前block并没有fill结束.).
-          b. 如果返回了block, 那么就发送, 如果没有返回, 继续获取src block.
-      返回block.
-
-   外部filloperator有一个finalResblock, 为了只用这一个block, tfill内需要封装一些逻辑, 在不能输出block时, 将till内部结果保存下来, 在可以输出时, 将行结果移到finalresblock中.
-   所以, tfill内部需要保存所有block, 以及每个block的处理进度. 而不是在filloperator中. 这样filloperator就不需要修改.
-  
-  */
-
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SFillOperatorInfo* pInfo = pOperator->info;

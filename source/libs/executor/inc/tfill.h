@@ -168,8 +168,6 @@ bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnI
                               int32_t rowIndex);
 
 SFillBlock*  tFillSaveBlock(SFillInfo* pFill, SSDataBlock* pBlock, SArray* pProgress);
-SFillBlock*  tFillGetSavedBlock(SFillInfo* pFill);
-SSDataBlock* tFillPopSavedBlock(SFillInfo* pFill);
 void         destroyFillBlock(void* p);
 
 #ifdef __cplusplus
