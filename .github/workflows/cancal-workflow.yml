@@ -17,5 +17,5 @@ jobs:
       - name: Cancel Workflow Runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
-          workflow_id: "{{ github.event.workflow_run.id }}"
+          workflow_id: ${{ github.event.workflow.id }}
           
