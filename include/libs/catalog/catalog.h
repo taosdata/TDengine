@@ -127,7 +127,7 @@ typedef struct SMetaData {
   SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray*   pTableCfg;    // pRes = STableCfg*
   SArray*   pTableTag;    // pRes = SArray<STagVal>*
-  SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
+  SArray*   pDnodeList;   // pRes = SArray<SDNodeAddr>*
   SArray*   pView;        // pRes = SViewMeta*
   SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
   SArray*   pTsmas;       // pRes = SArray<STableTSMAInfo*>
