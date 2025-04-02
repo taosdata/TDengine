@@ -156,7 +156,7 @@ class _TimeMOEService(AbstractForecastService):
 
 将代码添加到 `/usr/local/taos/taosanode/lib/taosanalytics/algo/fc` 路径下。您可以在该路径下找到 `timemoe.py` 的文件，该文件即为系统内置的支持 `Time-MoE` 的适配文件。
 
-TDgpt 默认已经内置了 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进行时序数据预测分析， 执行 `show anodes full`，可以看到 Time-MoE 的预测服务 `timemoe-fc`。
+TDgpt 默认已经内置了 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进行时序数据预测分析，执行 `show anodes full`，可以看到 Time-MoE 的预测服务 `timemoe-fc`。
 
 ## 设置模型服务地址
 
@@ -167,7 +167,7 @@ TDgpt 默认已经内置了 Time-MoE 模型的支持，能够使用 Time-MoE 的
 timemoe-fc = http://127.0.0.1:5001/ds_predict
 ```
 
-添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE本地服务的地址：http://127.0.0.1:5001/ds_predict。
+添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址：http://127.0.0.1:5001/ds_predict。
 
 然后重启 taosnode 服务，并更新服务端算法缓存列表 `update all anodes`，之后即可通过 SQL 语句调用 Time-MoE 的时间序列数据预测服务。
 

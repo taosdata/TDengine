@@ -1269,12 +1269,14 @@ int32_t encodeSWinKey(void** buf, SWinKey* key) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, key->ts);
   tlen += taosEncodeFixedU64(buf, key->groupId);
+  tlen += taosEncodeFixedI32(buf, key->numInGroup);
   return tlen;
 }
 
 void* decodeSWinKey(void* buf, SWinKey* key) {
   buf = taosDecodeFixedI64(buf, &key->ts);
   buf = taosDecodeFixedU64(buf, &key->groupId);
+  buf = taosDecodeFixedI32(buf, &key->numInGroup);
   return buf;
 }
 

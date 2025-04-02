@@ -44,7 +44,7 @@ database_option: {
 - VGROUPS: The number of initial vgroups in the database.
 - PRECISION: The timestamp precision of the database. ms for milliseconds, us for microseconds, ns for nanoseconds, default is ms.
 - REPLICA: Indicates the number of database replicas, which can be 1, 2, or 3, default is 1; 2 is only available in the enterprise version 3.3.0.0 and later. In a cluster, the number of replicas must be less than or equal to the number of DNODEs. The following restrictions apply:
-  - Operations such as SPLITE VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
+  - Operations such as SPLIT VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
   - A single-replica database can be changed to a double-replica database, but changing from double replicas to other numbers of replicas, or from three replicas to double replicas is not supported.
 - BUFFER: The size of the memory pool for writing into a VNODE, in MB, default is 256, minimum is 3, maximum is 16384.
 - PAGES: The number of cache pages in a VNODE's metadata storage engine, default is 256, minimum 64. A VNODE's metadata storage occupies PAGESIZE * PAGES, which by default is 1MB of memory.
