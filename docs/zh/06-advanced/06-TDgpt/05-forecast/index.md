@@ -10,9 +10,9 @@ import fc_result from '../pic/fc-result.png';
 在后续章节中，使用时序数据表 `foo` 作为示例，介绍预测和异常检测算法的使用方式，`foo` 表模式定义如下：
 
 | 列名称 | 类型        | 说明                 |
-| --- | --------- | ------------------ |
+| --- |-----------| ------------------ |
 | ts  | timestamp | 主时间戳列              |
-| i32 | int32     | 4字节整数，设备测量值 metric |
+| i32 | integer   | 4字节整数，设备测量值 metric |
 
 ```sql
 taos> select * from foo;

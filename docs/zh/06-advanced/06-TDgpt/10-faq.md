@@ -20,7 +20,7 @@ DB error: Analysis service can't access[0x80000441] (0.117446s)
 请务必使用 `curl` 命令检查 Anode 服务是否正常。执行 `curl '127.0.0.1:6090'` 后，正常的 Anode 服务会返回以下结果。
 
 ```bash
-TDengine© Time Series Data Analytics Platform (ver 1.0.x)
+TDgpt - TDengine© Time Series Data Analytics Platform (ver x.x.x)
 ```
 
 如果出现下面的结果，表示 Anode 服务不正常。
