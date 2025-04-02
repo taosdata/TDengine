@@ -300,7 +300,7 @@ Download Microsoft Visual C++ 2015-2022 Redistributable (x64) from the following
 
 ```cmd
 https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170
-
+```
 
 Download and install msys2 from the following link, then set path for msys2(like C:\msys64\usr\bin):
 
@@ -339,7 +339,6 @@ Enter in PowerShell to check if the installation is correct:
 
 ```cmd
 go version
-
 ```
 
 Configuring Go environment variables:
@@ -347,7 +346,6 @@ Configuring Go environment variables:
 ```cmd
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
-
 ```
 
 ### 3.1.3 Install Cargo
@@ -362,12 +360,10 @@ https://win.rustup.rs/
 Download and install open-ssl:
 
 ```cmd
-
 git clone https://github.com/Microsoft/vcpkg.git
 .\vcpkg\bootstrap-vcpkg.bat
 cd vcpkg
 .\vcpkg.exe install openssl:x64-windows-static-md
-
 ```
 ### 3.1.4 Install Jdk & maven
 
@@ -409,7 +405,6 @@ Install Pip3
 
 ```cmd
 python3 -m pip install
-
 ```
 
 Install the dependent Python components.
@@ -549,13 +544,6 @@ cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true -DBUILD_TOOLS=true
 jom -j 4
 ```
 
-Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
-
-```cmd
-mkdir debug && cd debug
-cmake .. -G "NMake Makefiles"
-jom -j 4
-```
 </details>
 
 # 5. Packaging
