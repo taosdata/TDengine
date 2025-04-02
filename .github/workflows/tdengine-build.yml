@@ -14,7 +14,6 @@ on:
       - 'packaging/**'
       - 'tests/**'
       - '**/*.md'
-      - '.github/workflows/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -134,6 +133,11 @@ jobs:
       - name: Show software version
         run: |
           cmake --version
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
 
       - name: Install dependencies on Windows
         if: runner.os == 'Windows'
