@@ -1,10 +1,19 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+cmake_minimum_required(VERSION 3.16)
 
 project(
   TDengine
   VERSION 3.0
   DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
+
+include(ExternalProject)
+include(CheckIncludeFile)
+include(CheckLibraryExists)
+include(CheckSymbolExists)
+
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
 set(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR}/community)
 set(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
@@ -21,24 +30,31 @@ include(${TD_SUPPORT_DIR}/cmake.platform)
 include(${TD_ENTERPRISE_DIR}/cmake/cmake.options)
 include(${TD_ENTERPRISE_DIR}/cmake/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
+include(${TD_SUPPORT_DIR}/check_env.cmake)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.version)
-include(${TD_SUPPORT_DIR}/cmake.install)
+include(${TD_SUPPORT_DIR}/external.cmake)
+
 add_subdirectory(community/contrib)
+
+add_library(api INTERFACE)
+target_include_directories(api INTERFACE "${TD_COMMUNITY_DIR}/include/client")
 
 if(${BUILD_TEST})
   include(CTest)
   enable_testing()
-  add_subdirectory(community/examples/c)
 endif(${BUILD_TEST})
 
-add_library(api INTERFACE)
-target_include_directories(api INTERFACE "${TD_COMMUNITY_DIR}/include/client")
 add_subdirectory(community/source)
-add_subdirectory(community/tools)
 add_subdirectory(community/utils)
+add_subdirectory(community/tools)
 add_subdirectory(community/tests)
 add_subdirectory(community/docs/doxgen)
 add_subdirectory(enterprise)
 
+if(${BUILD_TEST})
+  add_subdirectory(community/examples/c)
+endif(${BUILD_TEST})
+
+include(${TD_SUPPORT_DIR}/cmake.install)
 include(CPack)
