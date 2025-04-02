@@ -16,7 +16,6 @@ import sys
 import time
 import os
 from new_test_framework.utils import tdSql, tdLog, cluster
-
 from clusterCommonCheck import *
 
 
@@ -44,7 +43,6 @@ class Test5dnode3mnodeStop:
 
 
     @pytest.mark.cluster
-    @pytest.mark.ci
     def test_five_dnode_three_mnode(self):
         """测试多节点集群缩扩容后mnode状态
 

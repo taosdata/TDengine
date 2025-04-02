@@ -7,14 +7,23 @@
 1. [Add New Case](#5-Add-New-Case)
 1. [Add New Case to CI](#6-Add-New-Case-to-CI)
 1. [Workflows](#7-workflows)
+1. [Test Report](#8-test-report)
 
 # 1. Introduction
 
-This manual is intended to give developers a comprehensive guidance to test TDengine efficiently. It is divided into three main sections: introduction, prerequisites and testing guide.
+This is the new end-to-end testing framework for TDengine. It offers several advantages:
+
+1. **Built on Pytest**: The new framework is based on Pytest, which is known for its simplicity and scalability. Pytest provides powerful features such as fixtures, parameterized testing, and easy integration with other plugins, making it a popular choice for testing in Python.
+
+2. **Integration of Common Functions**: The framework integrates the capabilities of the original testing framework's common functions, allowing for seamless reuse of existing code and utilities.
+
+3. **Enhanced Deployment and Testing Structure**: It supports a more structured approach to deployment and testing, enabling users to define their testing environments and configurations more effectively.
+
+4. **Flexible Server Deployment via YAML**: Users can deploy servers in a more versatile manner using YAML files, allowing for customized configurations and easier management of different testing scenarios.
 
 > [!NOTE]
 > - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
-> - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.7+.
+> - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.8+.
 
 # 2. Prerequisites
 
@@ -70,8 +79,8 @@ test/
 Please set the environment variables according to your scenarios. This is optional, the binaries in `debug/build/bin` will be used by default.
 
 ```bash
-source ./setenv_build.sh    # run test after build
-source ./setenv_install.sh  # run test after installation
+source ./setenv_build.sh    # run test with build binaries
+source ./setenv_install.sh  # run test with installation
 ```
 
 ## 4.2 Basic Usage
@@ -89,8 +98,6 @@ Notes:
 
 Run test cases command description:
 
-## 4.4 Run tests by configuration file
-
 Options:
 
 - `-N <num>`: start dnodes numbers in clusters
@@ -104,9 +111,13 @@ Options:
 - `-I <num>`: independentMnode Mnode
 - `--replica <num>`: set the number of replicas
 - `--tsim <file>`: tsim test file (for compatibility with the original tsim framework; not typically used in normal circumstances)
-- `--yaml_file <file>`: TDengine deploy configuration yaml file (default directory is `env`, no need to specify the `env` path) 
+
 - `--skip_test`: only do deploy or install without running test
 - `--skip_deploy`: Only run test without start TDengine
+
+## 4.4 Run tests by configuration file
+
+- `--yaml_file <file>`: TDengine deploy configuration yaml file (default directory is `env`, no need to specify the `env` path) 
 
 **Mutually Exclusive Options**:
 - The `--yaml_file` option is mutually exclusive with the following options:
@@ -156,7 +167,11 @@ To add a new test case, follow these steps:
    - Create a new Python file for your test case. It is required to name the file starting with `test_`, for example, `test_new_feature.py`.
 
 2. **Import Required Modules**:
-   - At the top of your new test file, import the necessary modules, including `pytest`.
+   - At the top of your new test file, import the necessary modules. For example:
+
+   ```python
+   from new_test_framework.utils import tdLog, tdSql, etool
+   ```
 
 3. **Define Your Test Function**:
    - Define a function for your test case. The function name should start with `test_` to ensure that `pytest` recognizes it as a test case.
@@ -180,9 +195,26 @@ To add a new test case to the CI pipeline, include the case run command in the `
 
 # 7. Workflows
 
+Every time new code is submitted, the corresponding GitHub workflows are triggered as follows:
+
 ## 7.1 CI Test
+A CI test is triggered whenever a pull request (PR) is submitted.
 
 ## 7.2 Docstring Check
+A Docstring check is triggered for any PR submitted to the `test/cases` directory, ensuring the completeness of the case descriptions.
 
 ## 7.3 Cases Doc Publish
+A cases documentation publish is triggered when a PR is merged into the `test/cases` directory, updating the case description documentation page.
 
+## 8. Test Report
+
+The testing framework executes with the `--alluredir=allure-results` parameter by default, which generates an Allure report. In the Allure report, you can view the test execution results, logs for failed test cases, and case description information.
+
+### 8.1 Local Execution Results
+After execution, you can check the `allure-results` directory, which contains the Allure report files. Users can manually generate the report page using the Allure command:
+
+```bash
+allure generate allure-results -o $YOUR_REPORT_DIR --clean
+```
+### 8.2 CI Execution Results
+You can find the test report link in the GitHub workflow, which redirects you to the Allure report page when clicked.
