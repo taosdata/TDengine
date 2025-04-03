@@ -245,7 +245,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.operation')" width="150" class="action" fixed="right">
+        <el-table-column :label="t('dataIn.operation')" width="200" class="action" fixed="right">
           <template #default="scope">
             <el-tooltip placement="bottom" effect="light" :content="t('dataIn.editconfig')">
               <el-button
@@ -277,6 +277,15 @@
                 @click="del(scope.row)"
               ></el-button>
             </el-tooltip>
+            <el-tooltip v-if="scope.row.from.type === 'kafka'" placement="bottom" effect="light" :content="t('dataIn.tipForSkip')">
+              <el-button
+                plain
+                size="small"
+                icon="DArrowRight"
+                :disabled="dataInProps.isCommunity"
+                @click="confirmSkipToLatest(scope.row)"
+              ></el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -301,6 +310,31 @@
       center
     />
   </div>
+
+  <el-dialog v-model="dlgConfirmSeek2End" :title="$t('tips')" width="700px">
+    <div>
+      <div style="font-size: 16px;margin-bottom: 10px">
+        {{ t('dataIn.skip2Latest', [taskToSeek.name]) }}
+      </div>
+      <div>
+        <el-checkbox v-model="isRecoverHistoryData" style="margin-left: 10px">
+          {{ t('dataIn.redoPiledupData') }}
+          </el-checkbox>  
+      </div>
+      
+    </div>
+
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button class="w100" @click="dlgConfirmSeek2End = false">{{ $t('cancel') }}</el-button>
+
+        <el-button v-loading="requestIng" class="w100" type="primary" @click="skipToLatest">{{
+          $t('confirm')
+        }}</el-button>
+      </div>
+    </template>
+  </el-dialog>
+
 </template>
 <script setup lang="ts">
 import { startCase } from 'lodash-es';
@@ -831,6 +865,34 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   closeConnect();
 });
+
+const dlgConfirmSeek2End = ref(false);
+const isRecoverHistoryData = ref(false);
+const taskToSeek = ref<Recordable>({});
+
+const confirmSkipToLatest = (item: Recordable) => {
+  taskToSeek.value = {
+    id: item.id,
+    name: item.localname
+  };
+  dlgConfirmSeek2End.value = true;
+};
+
+const skipToLatest = async () => {
+  try {
+    await dataInProps.task.api.skip2Latest(taskToSeek.value.id, isRecoverHistoryData.value);
+  } catch (error) {
+    console.log(error);
+    ElMessage.error(error);
+  } finally {
+    dlgConfirmSeek2End.value = false;
+    isRecoverHistoryData.value = false;
+    await refresh();
+  }
+  
+};
+
+
 </script>
 <style lang="scss">
 .el-tooltip__popper {
@@ -849,6 +911,10 @@ onBeforeUnmount(() => {
 
 .el-form-item {
   display: flex;
+}
+
+.w100 {
+  width: 100px;
 }
 
 :deep(.el-form-item--mini .el-form-item__content) {
