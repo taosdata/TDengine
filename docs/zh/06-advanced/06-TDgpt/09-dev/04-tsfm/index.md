@@ -12,7 +12,7 @@ TDgpt 已经内置原生支持了两个时序基础模型涛思时序基础模�
 
 本章介绍如何本地部署 [Time-MoE](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
 
-# 准备环境
+## 准备环境
 
 为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备 Python 环境，使用 `pip` 安装必要的依赖包：
 
@@ -25,14 +25,14 @@ pip install accelerate
 您可以使用 TDgpt 的虚拟环境，也可以新创建一个虚拟环境，使用该虚拟环境之前，确保正确安装了上述依赖包。
 
 
-# 设置本地时序基础模型服务地址
+## 设置本地时序基础模型服务地址
 
 TDgpt 安装根目录下的 `./lib/taosanalytics/time-moe.py` 文件负责 Time-MoE 模型的部署和服务，修改文件设置合适的服务 URL。
 
 ```python
 @app.route('/ds_predict', methods=['POST'])
 def time_moe():
-...
+    ...
 ```
 
 修改 `ds_predict` 为需要开启的 URL 服务地址，或者使用默认值亦可。
@@ -67,7 +67,7 @@ nohup python time-moe.py > service_output.out 2>&1 &
 ```
 
 检查 `service_output.out` 文件，有如下输出，则说明加载成功
-```shell
+```text
 Running on all addresses (0.0.0.0)
 Running on http://127.0.0.1:5001
 ```
@@ -91,7 +91,8 @@ curl 127.0.0.1:5001/ds_predict
 ```
 
 # 添加模型适配代码
-您可参考 [timemoe.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py） 文件进行 MaaS 服务的适配。我们适配Time-MoE提供预测服务。
+您可参考 [timemoe.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py)
+文件进行 MaaS 服务的适配。我们适配 Time-MoE 提供预测服务。
 
 ```python
 class _TimeMOEService(AbstractForecastService):
@@ -155,9 +156,9 @@ class _TimeMOEService(AbstractForecastService):
 
 将代码添加到 `/usr/local/taos/taosanode/lib/taosanalytics/algo/fc` 路径下。您可以在该路径下找到 `timemoe.py` 的文件，该文件即为系统内置的支持 `Time-MoE` 的适配文件。
 
-TDgpt 默认已经内置了 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进行时序数据预测分析， 执行 `show anodes full`，可以看到 Time-MoE 的预测服务 `timemoe-fc`。
+TDgpt 默认已经内置了 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进行时序数据预测分析，执行 `show anodes full`，可以看到 Time-MoE 的预测服务 `timemoe-fc`。
 
-# 设置模型服务地址
+## 设置模型服务地址
 
 修改 `/etc/taos/taosanode.ini` 配置文件中[tsfm-service]部分：
 
@@ -166,20 +167,20 @@ TDgpt 默认已经内置了 Time-MoE 模型的支持，能够使用 Time-MoE 的
 timemoe-fc = http://127.0.0.1:5001/ds_predict
 ```
 
-添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE本地服务的地址：http://127.0.0.1:5001/ds_predict。
+添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址：http://127.0.0.1:5001/ds_predict。
 
 然后重启 taosnode 服务，并更新服务端算法缓存列表 `update all anodes`，之后即可通过 SQL 语句调用 Time-MoE 的时间序列数据预测服务。
 
-# SQL 调用基础模型预测能力
+## SQL 调用基础模型预测能力
 ```sql
 SELECT FORECAST(i32, 'algo=timemoe-fc') 
 FROM foo;
 ```
 
-# 添加其他开源时序基础模型
-模型在本地部署服务以后，在 TDgpt 中注册的逻辑相似。只需要修改类名称和模型服务名称(Key)、设置正确的服务地址即可。
+## 添加其他开源时序基础模型
+模型在本地部署服务以后，在 TDgpt 中注册的逻辑相似。只需要修改类名称和模型服务名称 (Key)、设置正确的服务地址即可。
 
 
-# 参考文献
+## 参考文献
 
 - Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts. [[paper](https://arxiv.org/abs/2409.16040)] [[GitHub Repo](https://github.com/Time-MoE/Time-MoE)]

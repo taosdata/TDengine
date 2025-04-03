@@ -11,7 +11,7 @@ description: TDengine 保留关键字的详细列表
 关键字列表如下：
 
 ### A
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | ABORT                | |
 | ACCOUNT              | |
@@ -42,7 +42,7 @@ description: TDengine 保留关键字的详细列表
 | ASSIGN               | 3.3.6.0+ |
 
 ### B
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | BALANCE              | |
 | BEFORE               | |
@@ -67,7 +67,7 @@ description: TDengine 保留关键字的详细列表
 | BY                   | |
 
 ### C
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | CACHE                | |
 | CACHEMODEL           | |
@@ -106,7 +106,7 @@ description: TDengine 保留关键字的详细列表
 | CURRENT_USER         | |
 
 ### D
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | DATABASE             | |
 | DATABASES            | |
@@ -131,7 +131,7 @@ description: TDengine 保留关键字的详细列表
 | DURATION             | |
 
 ### E
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | EACH                 | |
 | ELSE                 | |
@@ -149,7 +149,7 @@ description: TDengine 保留关键字的详细列表
 | EXPLAIN              | |
 
 ### F
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | FAIL                 | |
 | FHIGH                | 3.3.4.3+ |
@@ -170,7 +170,7 @@ description: TDengine 保留关键字的详细列表
 | FUNCTIONS            | |
 
 ### G
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | GE                   | |
 | GEOMETRY             | |
@@ -181,14 +181,14 @@ description: TDengine 保留关键字的详细列表
 | GT                   | |
 
 ### H
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | HAVING               | |
 | HEX                  | |
 | HOST                 | |
 
 ### I
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | ID                   | |
 | IF                   | |
@@ -217,14 +217,14 @@ description: TDengine 保留关键字的详细列表
 | ISNULL               | |
 
 ### J
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | JLIMIT               | |
 | JOIN                 | |
 | JSON                 | |
 
 ### K
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | KEEP                 | |
 | KEEP_TIME_OFFSET     | |
@@ -232,7 +232,7 @@ description: TDengine 保留关键字的详细列表
 | KILL                 | |
 
 ### L
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | LANGUAGE             | |
 | LAST                 | |
@@ -253,7 +253,7 @@ description: TDengine 保留关键字的详细列表
 | LT                   | |
 
 ### M
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | MACHINES             | |
 | MATCH                | |
@@ -271,7 +271,7 @@ description: TDengine 保留关键字的详细列表
 | MODULES              | |
 
 ### N
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | NCHAR                | |
 | NE                   | |
@@ -289,7 +289,7 @@ description: TDengine 保留关键字的详细列表
 | NULLS                | |
 
 ### O
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | OF                   | |
 | OFFSET               | |
@@ -302,7 +302,7 @@ description: TDengine 保留关键字的详细列表
 | OUTPUTTYPE           | |
 
 ### P
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | PAGES                | |
 | PAGESIZE             | |
@@ -321,7 +321,7 @@ description: TDengine 保留关键字的详细列表
 | PRIVILEGES           | |
 
 ### Q
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | QDURATION            | |
 | QEND                 | |
@@ -335,7 +335,7 @@ description: TDengine 保留关键字的详细列表
 | QUESTION             | |
 
 ### R
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | RAISE                | |
 | RAND                 | |
@@ -362,7 +362,7 @@ description: TDengine 保留关键字的详细列表
 | RSHIFT               | |
 
 ### S
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | S3_CHUNKPAGES        | |
 | S3_COMPACT           | |
@@ -409,7 +409,7 @@ description: TDengine 保留关键字的详细列表
 | SYSTEM               | |
 
 ### T
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | TABLE                | |
 | TABLE_PREFIX         | |
@@ -440,7 +440,7 @@ description: TDengine 保留关键字的详细列表
 | TTL                  | |
 
 ### U
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | UNION                | |
 | UNSAFE               | |
@@ -453,7 +453,7 @@ description: TDengine 保留关键字的详细列表
 | USING                | |
 
 ### V
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | VALUE                | |
 | VALUE_F              | |
@@ -472,7 +472,7 @@ description: TDengine 保留关键字的详细列表
 
 
 ### W
-|关键字|说明|
+|关键字 | 说明|
 |----------------------|-|
 | WAL                  | |
 | WAL_FSYNC_PERIOD     | |

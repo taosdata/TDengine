@@ -23,11 +23,11 @@ TDengine 支持 WAL 机制，实现数据的容错能力，保证数据的高可
 
 - 第 1 步，在集群 A 中创建一个数据库 db1，并向该数据库持续写入数据。
 
-- 第 2 步， 通过 Web 浏览器访问集群 A 的 taosExplorer 服务， 访问地址通常 为TDengine 集群所在 IP 地址的端口 6060，如 `http://localhost:6060`。
+- 第 2 步，通过 Web 浏览器访问集群 A 的 taosExplorer 服务，访问地址通常 为 TDengine 集群所在 IP 地址的端口 6060，如 `http://localhost:6060`。
 
 - 第 3 步，访问 TDengine 集群 B，创建一个与集群 A 中数据库 db1 参数配置相同的数据库 db2。
 
-- 第 4 步，通过 Web 浏览器访问集群 B 的 taosExplorer 服务，在 “数据浏览器” 页面找到 db2，在 “查看数据库配置” 选项中可以获取该数据库的 DSN，例如 `taos+ws://root:taosdata@clusterB:6041/db2`
+- 第 4 步，通过 Web 浏览器访问集群 B 的 taosExplorer 服务，在“数据浏览器”页面找到 db2，在“查看数据库配置”选项中可以获取该数据库的 DSN，例如 `taos+ws://root:taosdata@clusterB:6041/db2`
 
 - 第 5 步，在 taosExplorer 服务的“系统管理 - 数据同步”页面新增一个数据同步任务，在任务配置信息中填写需要同步的数据库 db1 和目标数据库 db2 的 DSN，完成创建任务后即可启动数据同步。
 

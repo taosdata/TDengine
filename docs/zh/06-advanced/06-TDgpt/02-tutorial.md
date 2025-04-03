@@ -58,10 +58,10 @@ docker pull tdengine/tdengine-tdgpt-full:3.3.6.0
 执行下面的命令启动容器：
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+docker run -d --name tdgpt -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
 ```
 
-**注意**：TDgpt 服务端使用 6090 TCP 端口。5000 和 5001 端口分别标准版中涛思时序基础模型服务端口和完整版中 Time-MoE 本地服务的端口；
+**注意**：TDgpt 服务端使用 6090 TCP 端口。5000 和 5001 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
 
 
 确定该容器已经启动并且在正常运行。
@@ -73,6 +73,7 @@ docker ps
 进入该容器并执行 `bash`
 
 ```shell
+# 此处容器名称为 tdgpt，创建容器时已经指定该名称
 docker exec -it <container name> bash
 ```
 
@@ -86,7 +87,7 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 ### 环境准备
 
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 Taos AI node（Anode）。Anode 运行在 Linux 平台上, 对部署 Anode 的有一定的环境要求：
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
 
 - Python: 3.10 或以上版本。
 - TDengine：需使用 3.3.6.0 或以上版本。
@@ -153,18 +154,18 @@ cd TDengine-TDgpt-<version>
 ./install.sh
 ```
 
-为了避免影响系统已有的 Python 环境，Anode 使用虚拟环境运行。安装 Anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，Anode 运行所需要的库均安装在该目录下。
+为了避免影响系统已有的 Python 环境，anode 使用虚拟环境运行。安装 anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，anode 运行所需要的库均安装在该目录下。
 > 为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要该 Python 虚拟环境，手动删除该目录即可。
 
 ### 激活虚拟环境
 
-为了避免影响系统已有的 Python 环境， TDgpt 安装过程中会自动创建一个虚拟环境，该虚拟环境默认创建的路径在 `/var/lib/taos/taosanode/venv/`。
+为了避免影响系统已有的 Python 环境，TDgpt 安装过程中会自动创建一个虚拟环境，该虚拟环境默认位于 `/var/lib/taos/taosanode/venv/`。
 
 - 创建完成该虚拟环境，该虚拟环境通过 `pip` 安装支持 TDgpt 运行所必须的 Python 依赖库。
 
 - 该虚拟环境不会被卸载脚本 `rmtaosanode` 删除，当您确认不再需要该虚拟环境的时候，需要手动删除该虚拟环境。
 
-- 后续如果您需要开发自己的算法模型，并整合到 TDgpt 中，需要通过虚拟环境中的 `pip` 安装新依赖库。
+- 后续如果您需要开发自己的算法模型并整合到 TDgpt 中，可通过虚拟环境中的 `pip` 安装新依赖库。
 
 ### 卸载
 
