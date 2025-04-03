@@ -58,10 +58,17 @@ jobs:
         with:
           app_id: ${{ vars.TAOSDATA_BOT_ID }}
           private_key: ${{ secrets.TAOSDATA_BOT_KEY }}
+          
       - name: Configure Git authentication
         run: |
           # 配置全局git配置      
           git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+          
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+          
       - name: Build and install TDinternal
         run: |
           mkdir debug && cd debug
@@ -77,6 +84,7 @@ jobs:
           which taosd
           which taosadapter
           which taoskeeper
+          
       - name: Start taosd
         run: |
           cp /etc/taos/taos.cfg ./
