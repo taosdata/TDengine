@@ -1147,6 +1147,9 @@ _end:
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
+  if (tinfo == NULL){
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   QUERY_CHECK_CONDITION((pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM), code, lino, _end,
                         TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
