@@ -264,10 +264,16 @@ int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock,
   pMsg->payloadType = typ;
 
   // send msg
+  int64_t snap_sync_start_ts = taosGetTimestampUs();
   if ((code = syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg)) != 0) {
     sSError(pSender, "failed to send snap replication msg since %s. seq:%d", tstrerror(code), seq);
     goto _OUT;
   }
+  int64_t snap_sync_end_ts = taosGetTimestampUs();
+
+  // Note: pMsg->dataLen might be 0 for messages like begin/end, which is fine.
+  (void)atomic_add_fetch_64(&pSender->pSyncNode->sync_bytes, (int64_t)pMsg->dataLen);
+  (void)atomic_add_fetch_64(&pSender->pSyncNode->sync_time, snap_sync_end_ts - snap_sync_start_ts);
 
 _OUT:
   TAOS_RETURN(code);

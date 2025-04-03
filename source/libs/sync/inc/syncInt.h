@@ -238,6 +238,14 @@ struct SSyncNode {
   int32_t sendCount;
   int32_t recvCount;
   int32_t slowCount;
+
+  // metrics
+  int64_t wal_write_bytes;
+  int64_t wal_write_time;
+  int64_t sync_bytes;
+  int64_t sync_time;
+  int64_t apply_bytes;
+  int64_t apply_time;
 };
 
 // open/close --------------

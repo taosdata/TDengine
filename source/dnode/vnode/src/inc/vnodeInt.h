@@ -468,6 +468,24 @@ typedef struct {
   int64_t id;
 } SVATaskID;
 
+typedef struct {
+  int64_t total_requests;
+  int64_t total_rows;
+  int64_t total_bytes;
+  double  write_size;
+  double  cache_hit_ratio;
+  int64_t rpc_queue_wait;
+  int64_t preprocess_time;
+
+  int64_t memory_table_size;
+  int64_t commit_count;
+  int64_t merge_count;
+  double  commit_time;
+  double  merge_time;
+  int64_t block_commit_time;
+  int64_t memtable_wait_time;
+} SVWriteMetrics;
+
 struct SVnode {
   SVState   state;
   SVStatis  statis;
@@ -477,6 +495,9 @@ struct SVnode {
   SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
+
+  //  Metrics
+  SVWriteMetrics writeMetrics;
 
   // Buffer Pool
   TdThreadMutex mutex;

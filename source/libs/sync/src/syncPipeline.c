@@ -731,7 +731,21 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     sGDebug(&rpcMsg.info.traceId, "vgId:%d, index:%" PRId64 ", get response info, handle:%p seq:%" PRId64 " num:%d",
             pNode->vgId, pEntry->index, &rpcMsg.info, cbMeta.seqNum, num);
 
+    int64_t apply_start_ts = taosGetTimestampUs();
     code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
+    int64_t apply_end_ts = taosGetTimestampUs();
+
+    (void)atomic_add_fetch_64(&pNode->apply_bytes, (int64_t)pEntry->bytes);
+    (void)atomic_add_fetch_64(&pNode->apply_time, apply_end_ts - apply_start_ts);
+
+    if (code != 0) {
+      sGError(&rpcMsg.info.traceId,
+              "vgId:%d, index:%" PRId64 ", failed to execute sync log entry, term:%" PRId64
+              ", role:%d, current term:%" PRId64,
+              pNode->vgId, pEntry->index, pEntry->term, role, raftStoreGetTerm(pNode));
+      goto _exit;
+    }
+
     retry = (code != 0) && (terrno == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
 
     sGTrace(&rpcMsg.info.traceId,
@@ -1593,7 +1607,14 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
   sGDebug(&msgOut.info.traceId,
           "vgId:%d, index:%" PRId64 ", replicate one msg to dest addr:0x%" PRIx64 ", term:%" PRId64 " prevterm:%" PRId64,
           pNode->vgId, pEntry->index, pDestId->addr, pEntry->term, prevLogTerm);
+
+  int64_t sync_start_ts = taosGetTimestampUs();  // Start timer
   TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
+  int64_t sync_end_ts = taosGetTimestampUs();  // End timer
+
+  // Atomically update sync metrics
+  (void)atomic_add_fetch_64(&pNode->sync_bytes, (int64_t)pEntry->bytes);
+  (void)atomic_add_fetch_64(&pNode->sync_time, sync_end_ts - sync_start_ts);
 
   if (!inBuf) {
     syncEntryDestroy(pEntry);

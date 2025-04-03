@@ -225,13 +225,15 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
 
-  int64_t tsWriteBegin = taosGetTimestampNs();
+  int64_t wal_start_ts = taosGetTimestampUs();
   int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
                               &pEntry->originRpcTraceId);
-  int64_t tsWriteEnd = taosGetTimestampNs();
-  int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
+  int64_t wal_end_ts = taosGetTimestampUs();
 
-  if (TSDB_CODE_SUCCESS != code) {
+  (void)atomic_add_fetch_64(&pData->pSyncNode->wal_write_bytes, (int64_t)pEntry->bytes);
+  (void)atomic_add_fetch_64(&pData->pSyncNode->wal_write_time, wal_end_ts - wal_start_ts);
+
+  if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = ERRNO;
@@ -252,7 +254,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   sGDebug(&pEntry->originRpcTraceId,
           "vgId:%d, index:%" PRId64 ", persist raft entry, type:%s origin type:%s elapsed:%" PRId64,
           pData->pSyncNode->vgId, pEntry->index, TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType),
-          tsElapsed);
+          wal_end_ts - wal_start_ts);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 

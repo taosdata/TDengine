@@ -577,7 +577,10 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       code = vnodePreProcessDropTtlMsg(pVnode, pMsg);
     } break;
     case TDMT_VND_SUBMIT: {
+      int64_t start = taosGetTimestampUs();
       code = vnodePreProcessSubmitMsg(pVnode, pMsg);
+      int64_t cost = taosGetTimestampUs() - start;
+      (void)atomic_add_fetch_64(&pVnode->writeMetrics.preprocess_time, cost);
     } break;
     case TDMT_VND_DELETE: {
       code = vnodePreProcessDeleteMsg(pVnode, pMsg);
