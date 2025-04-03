@@ -212,7 +212,7 @@ json_t *load_json(char *jsonbuf) {
 int32_t writeFile(char *filename, char *txt) {
     FILE * fp = fopen(filename, "w+");
     if(fp == NULL) {
-        errorPrint("open file failed. file=%s error=%s\n", filename, strerror(errno));
+        warnPrint("open file failed. file=%s error=%s\n", filename, strerror(errno));
         return -1;
     }
 
@@ -244,7 +244,7 @@ char * readFile(char *filename) {
     // open
     FILE * fp = fopen(filename, "r");
     if(fp == NULL) {
-        errorPrint("open file failed. file=%s error=%s\n", filename, strerror(errno));
+        warnPrint("open file failed. file=%s error=%s\n", filename, strerror(errno));
         return NULL;
     }
 
@@ -552,7 +552,7 @@ char * genPartStr(ColDes *colDes, int from , int num) {
     int32_t pos   = 0;
     for (int32_t i = 0; i < num; i++) {
         pos += sprintf(partStr + pos, 
-                i == 0 ? "(%s" : ",%s",
+                i == 0 ? "(`%s`" : ",`%s`",
                 colDes[from + i].field);
     }
     // end
@@ -601,14 +601,12 @@ bool schemaNoChanged(RecordSchema *recordSchema, TableDes *tableDesSrv) {
     return true;
 }
 
-// find field same in local
-bool findFieldInLocal(ColDes *colDes, TableDes * tableDes) {
+// find field same in server
+bool findFieldInServer(ColDes *colDes, TableDes * tableDes) {
     for (int32_t i = 0; i < tableDes->columns + tableDes->tags ; i++) {
         if (strcmp(colDes->field,  tableDes->cols[i].field) == 0 &&
                    colDes->type == tableDes->cols[i].type ) {
             debugPrint("%s i=%d found fields:%s type=%d\n", __func__, i, colDes->field, colDes->type);
-            // set local col idx
-            colDes->idx = tableDes->cols[i].idx;
             return true;
         }
     }
@@ -617,29 +615,36 @@ bool findFieldInLocal(ColDes *colDes, TableDes * tableDes) {
     return false;
 }
 
-void moveColDes(ColDes *colDes, int32_t des, int32_t src) {
-    // same no need move
-    if (des == src) {
-        return ;
+// copy tableDes , cols->var_val not copy
+void copyTableDes(TableDes *des, TableDes* src) {
+    // whole copy
+    int32_t num = src->columns + src->tags;
+    memcpy(des, src, sizeof(TableDes) + sizeof(ColDes) * num);
+    // src pointer must set null
+    for (int32_t i = 0; i < num; i++) {
+        des->cols[i].var_value = NULL;
     }
-
-    // set
-    colDes[des] = colDes[src];
 }
 
 // local schema recordSchema cross with server schema tableDes
 int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchema *recordSchema, TableDes *tableDesSrv) {
     // record old
-    int oldc = tableDesSrv->columns;
-    int oldt = tableDesSrv->tags;
+    TableDes* localDes = recordSchema->tableDes;
+    int oldc = localDes->columns;
+    int oldt = localDes->tags;
 
+    // local & server cross -> crossDes
+    TableDes* crossDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * (oldc + oldt));
+
+    // crossDes
     int newc = 0; // col num
-    int newt = 0; // tag num
+    int newt = 0; // tag num    
 
     // check schema no change
     if (schemaNoChanged(recordSchema, tableDesSrv)) {
         infoPrint("stb:%s schema no changed. server col:%d tag:%d\n", recordSchema->stbName, oldc, oldt);
-        pStbChange->tableDes      = tableDesSrv;
+        copyTableDes(crossDes, localDes);
+        pStbChange->tableDes      = crossDes;
         pStbChange->schemaChanged = false;
         pStbChange->strCols       = NULL;
         pStbChange->strTags       = NULL;
@@ -648,17 +653,21 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
 
     // loop all
     for (int i = 0; i < oldc + oldt; i++) {
-        ColDes * colDes = tableDesSrv->cols + i;
+        ColDes * colDes = localDes->cols + i;
         if (i < oldc) {
             // col
-            if (findFieldInLocal(colDes, recordSchema->tableDes)) {
-                moveColDes(tableDesSrv->cols, newc, i);
+            if (findFieldInServer(colDes, tableDesSrv)) {
+                crossDes->cols[newc] = *colDes;
+                // copy struct pointer must set NULL
+                crossDes->cols[newc].var_value = NULL;
                 ++newc;
             }
         } else {
             // tag
-            if (findFieldInLocal(colDes, recordSchema->tableDes)) {
-                moveColDes(tableDesSrv->cols, newc + newt, i);
+            if (findFieldInServer(colDes, tableDesSrv)) {
+                crossDes->cols[newc + newt] = *colDes;
+                // copy struct pointer must set NULL
+                crossDes->cols[newc + newt].var_value = NULL;
                 ++newt;
             }
         }
@@ -669,24 +678,27 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
         // col must not zero
         errorPrint("backup data schema no same column with server table:%s local col num:%d server col num:%d\n", 
                    tableDesSrv->name, recordSchema->tableDes->columns, tableDesSrv->columns);
+        freeTbDes(crossDes, true);           
         return -1;
     }
     if (newt == 0 && oldt > 0) {
         // tag must not zero
         errorPrint("%s() LN%d, new tag zero failed! oldt=%d\n", __func__, __LINE__, oldt);
+        freeTbDes(crossDes, true);
         return -1;
     }
 
     // set new
-    tableDesSrv->columns = newc;
-    tableDesSrv->tags    = newt;
+    crossDes->columns = newc;
+    crossDes->tags    = newt;
+    strncpy(crossDes->name, localDes->name, sizeof(localDes->name) - 1);
 
-    // save tableDes to StbChange
-    pStbChange->tableDes = tableDesSrv;
+    // save crossDes to StbChange
+    pStbChange->tableDes = crossDes;
     
     // gen part str
-    pStbChange->strCols = genPartStr(tableDesSrv->cols, 0,    newc);
-    pStbChange->strTags = genPartStr(tableDesSrv->cols, newc, newt);
+    pStbChange->strCols = genPartStr(pStbChange->tableDes->cols, 0,    newc);
+    pStbChange->strTags = genPartStr(pStbChange->tableDes->cols, newc, newt);
 
     pStbChange->schemaChanged = true;
     // show change log
@@ -740,6 +752,7 @@ int32_t AddStbChanged(DBChange *pDbChange, const char* dbName, TAOS *taos, Recor
         freeTbDes(tableDesSrv, true);
         return -1;
     }
+    freeTbDes(tableDesSrv, true);
     
     // set out
     if (ppStbChange) {
