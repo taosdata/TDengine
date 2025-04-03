@@ -198,7 +198,7 @@ void raftStoreNextTerm(SSyncNode *pNode) {
 void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term) {
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
   if (pNode->raftStore.currentTerm < term) {
-    pNode->raftStore.currentTerm = term;
+    atomic_store_64(&pNode->raftStore.currentTerm, term);
     int32_t code = 0;
     if ((code = raftStoreWriteFile(pNode)) != 0) {
       sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
@@ -208,9 +208,9 @@ void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term) {
 }
 
 SyncTerm raftStoreGetTerm(SSyncNode *pNode) {
-  (void)taosThreadMutexLock(&pNode->raftStore.mutex);
-  SyncTerm term = pNode->raftStore.currentTerm;
-  (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
+  //(void)taosThreadMutexLock(&pNode->raftStore.mutex);
+  SyncTerm term = atomic_load_64(&pNode->raftStore.currentTerm);
+  //(void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
   return term;
 }
 
