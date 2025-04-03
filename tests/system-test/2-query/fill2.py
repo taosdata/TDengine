@@ -871,7 +871,7 @@ class FillQueryGenerator:
     def generate_partition_by(self):
         if self.partition is None:
             partition_by_tbname = random.randint(0, 10)
-            if partition_by_tbname < 5 and self.fill != 'NULL_F':
+            if partition_by_tbname < 5 and self.generate_fill() != 'NULL_F':
                 self.partition = 'partition by tbname'
             else:
                 self.partition = ''
