@@ -50,7 +50,7 @@ set(SRCS
 add_library(_libxml2 ${SRCS})
 
 #target_link_libraries(_libxml2 PRIVATE td_contrib::zlib)
-target_link_libraries(_libxml2)
+target_link_libraries(_libxml2 PRIVATE zlib)
 
 target_include_directories(_libxml2 BEFORE PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/linux_x86_64/include")
 target_include_directories(_libxml2 BEFORE PUBLIC "${LIBXML2_SOURCE_DIR}/include")

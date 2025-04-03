@@ -48,6 +48,7 @@ target_link_libraries(
     PRIVATE ${CRYPTO_LIBRARY}
 
     PRIVATE _libxml2
+    PRIVATE zlib
 
     # PRIVATE ${CoreFoundation_Library}
     # PRIVATE ${SystemConfiguration_Library}

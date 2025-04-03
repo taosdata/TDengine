@@ -131,7 +131,7 @@ typedef struct SStmtQueue {
   bool        stopQueue;
   SStmtQNode* head;
   SStmtQNode* tail;
-  int64_t       qRemainNum;
+  uint64_t    qRemainNum;
   TdThreadMutex mutex;
   TdThreadCond  waitCond;
 } SStmtQueue;

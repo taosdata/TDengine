@@ -18,6 +18,7 @@ import threading
 import requests
 import time
 # import socketfrom
+
 import taos
 from new_test_framework.utils import tdLog, tdSql, tdCom
 

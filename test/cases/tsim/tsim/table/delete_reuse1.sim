@@ -1,0 +1,57 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1 
+sql create database d1 replica 1
+sql create table d1.t1 (ts timestamp, i int)
+sql insert into d1.t1 values(now, 1)
+
+sql select * from d1.t1
+if $rows != 1 then
+	return -1
+endi
+
+print ======== step2
+sql drop table d1.t1
+sql insert into d1.t1 values(now, 2) -x step2
+  return -1
+step2:
+
+print ========= step3
+sql create table d1.t1 (ts timestamp, i int)
+sql insert into d1.t1 values(now, 2)
+sql select * from d1.t1
+if $rows != 1 then
+	return -1
+endi
+if $data01 != 2 then
+	return -1
+endi
+
+print ========= step4
+$x = 0
+while $x < 20
+
+  sql drop table d1.t1
+  sql insert into d1.t1 values(now, -1) -x step4
+    return -1
+  step4:
+  
+  sql create table d1.t1 (ts timestamp, i int)
+  sql insert into d1.t1 values(now, $x )
+  sql select * from d1.t1
+  if $rows != 1 then
+	return -1
+  endi
+  if $data01 != $x then
+	return -1
+  endi
+  
+  $x = $x + 1
+  
+  print ===> loop times: $x
+endw 
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -4593,8 +4593,6 @@ static int32_t jsonToDataType(const SJson* pJson, void* pObj) {
 static const char* jkExprDataType = "DataType";
 static const char* jkExprAliasName = "AliasName";
 static const char* jkExprUserAlias = "UserAlias";
-static const char* jkExprRelateTo = "RelatedTo";
-static const char* jkExprBindExprID = "BindExprID";
 
 static int32_t exprNodeToJson(const void* pObj, SJson* pJson) {
   const SExprNode* pNode = (const SExprNode*)pObj;
@@ -4605,12 +4603,6 @@ static int32_t exprNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkExprUserAlias, pNode->userAlias);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkExprRelateTo, pNode->relatedTo);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkExprBindExprID, pNode->bindExprID);
   }
 
   return code;
@@ -4625,12 +4617,6 @@ static int32_t jsonToExprNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkExprUserAlias, pNode->userAlias);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkExprRelateTo, &pNode->relatedTo);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkExprBindExprID, &pNode->bindExprID);
   }
 
   return code;
@@ -6679,7 +6665,6 @@ static int32_t jsonToSetOperator(const SJson* pJson, void* pObj) {
 
 static const char* jkSelectStmtDistinct = "Distinct";
 static const char* jkSelectStmtProjections = "Projections";
-static const char* jkSelectStmtProjectionsBind = "ProjectionsBind";
 static const char* jkSelectStmtFrom = "From";
 static const char* jkSelectStmtWhere = "Where";
 static const char* jkSelectStmtPartitionBy = "PartitionBy";
@@ -6704,9 +6689,6 @@ static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   int32_t code = tjsonAddBoolToObject(pJson, jkSelectStmtDistinct, pNode->isDistinct);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSelectStmtProjections, pNode->pProjectionList);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkSelectStmtProjectionsBind, pNode->pProjectionBindList);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSelectStmtFrom, nodeToJson, pNode->pFromTable);
@@ -6769,9 +6751,6 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   int32_t code = tjsonGetBoolValue(pJson, jkSelectStmtDistinct, &pNode->isDistinct);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSelectStmtProjections, &pNode->pProjectionList);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkSelectStmtProjectionsBind, &pNode->pProjectionBindList);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSelectStmtFrom, &pNode->pFromTable);

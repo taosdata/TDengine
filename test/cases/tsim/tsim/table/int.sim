@@ -1,0 +1,127 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_in_db
+$tbPrefix = lm_in_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, speed int)
+
+sql insert into $tb values (now, NULL)
+sql select * from $tb order by ts desc
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+print =============== step2
+sql insert into $tb values (now+1m, -2147483648)
+sql insert into $tb values (now+2m, NULL)
+sql select * from $tb order by ts desc
+if $rows != 3 then 
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+print =============== step3
+sql insert into $tb values (now+3m, 2147483647)
+sql select * from $tb order by ts desc
+if $rows != 4 then 
+  return -1
+endi
+if $data01 != 2147483647 then 
+  return -1
+endi
+
+print =============== step4
+sql_error insert into $tb values (now+4m, 2147483648)
+sql insert into $tb values (now+5m, NULL)
+sql select * from $tb order by ts desc
+if $rows != 5 then 
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+print =============== step5
+sql_error insert into $tb values (now+6m, a2)
+sql insert into $tb values (now+7m, 0)
+sql select * from $tb order by ts desc
+if $rows != 6 then 
+  return -1
+endi
+if $data01 != 0 then 
+  return -1
+endi
+
+print =============== step6
+sql_error insert into $tb values (now+8m, 2a)
+sql  insert into $tb values (now+9m, 2)
+sql select * from $tb order by ts desc
+if $rows != 7 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+
+print =============== step7
+sql_error insert into $tb values (now+10m, 2a'1)
+sql insert into $tb values (now+11m, 2)
+sql select * from $tb order by ts desc
+if $rows != 8 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+
+print =============== step8
+sql insert into $tb values (now+12m, "NULL")
+sql select * from $tb order by ts desc
+if $rows != 9 then 
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+print =============== step9
+sql insert into $tb values (now+13m, 'NULL')
+sql select * from $tb order by ts desc
+if $rows != 10 then 
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+print =============== step10
+sql insert into $tb values (now+14m, -123)
+sql select * from $tb order by ts desc
+if $rows != 11 then 
+  return -1
+endi
+if $data01 != -123 then 
+  return -1
+endi
+ 
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+ 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

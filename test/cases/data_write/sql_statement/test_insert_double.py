@@ -1,3 +1,4 @@
+import pytest
 from new_test_framework.utils import tdLog, tdSql
 
 
@@ -102,6 +103,7 @@ class TestInsertDouble:
         tdSql.checkRows(12)
 
 
+    @pytest.mark.ci
     def test_insert_double(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         """测试插入各种double值
 

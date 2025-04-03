@@ -46,7 +46,6 @@ typedef struct STableKeyInfo {
 typedef struct SWinKey {
   uint64_t groupId;
   TSKEY    ts;
-  int32_t  numInGroup;
 } SWinKey;
 
 typedef struct SSessionKey {

@@ -1,0 +1,309 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = ac_db
+$tbPrefix = ac_tb
+$stbPrefix = ac_stb
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+$ts0 = 1537146000000
+
+print excuting test script auto_create_tb.sim
+print =============== set up
+$i = 0
+$db = $dbPrefix
+$stb = $stbPrefix
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+
+print =========== auto_create_tb.sim case1: test
+sql CREATE TABLE $stb (TS TIMESTAMP, C1 INT, C2 BIGINT, C3 FLOAT, C4 DOUBLE, C5 BINARY(10), C6 BOOL, C7 SMALLINT, C8 TINYINT, C9 NCHAR(10)) TAGS (T1 INT)
+sql show stables
+
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $stb then
+  return -1
+endi
+
+### create table on the fly
+sql insert into tb1 using $stb tags (1) values ( $ts0 , 1,1,1,1,'bin',1,1,1,'涛思数据')
+sql select * from tb1
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data09 != 涛思数据 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 1.00000 then
+  return -1
+endi
+if $data04 != 1.000000000 then
+  return -1
+endi
+if $data05 != bin then
+  return -1
+endi
+
+### insert into an existing table
+$ts1 = $ts0 + 1000
+$ts2 = $ts0 + 2000
+sql insert into tb1 using $stb tags (1) values ( $ts1 , 1,1,1,1,'bin',1,1,1,'涛思数据') ( $ts2 , 2,2,2,2,'binar', 1,1,1,'nchar')
+sql select * from $stb
+if $rows != 3 then
+  return -1
+endi
+if $data19 != 涛思数据 then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data22 != 2 then
+  return -2
+endi
+if $data23 != 2.00000 then
+  return -1
+endi
+if $data25 != binar then
+  return -1
+endi
+if $data29 != nchar then
+  return -1
+endi
+
+### [TBASE-410] auto create table with a negative tag value
+$ts1 = $ts0 + 1000
+$ts2 = $ts0 + 2000
+sql insert into tb_1 using $stb tags (-1) values ( $ts1 , 1,1,1,1,'bin',1,1,1,'涛思数据') ( $ts2 , 2,2,2,2,'binar', 1,1,1,'nchar')
+sql select * from $stb
+if $rows != 5 then
+  return -1
+endi
+if $data09 != 涛思数据 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data42 != 2 then
+  return -2
+endi
+if $data43 != 2.00000 then
+  return -1
+endi
+if $data45 != binar then
+  return -1
+endi
+if $data49 != nchar then
+  return -1
+endi
+sql drop table tb_1
+
+#### insert into an existing table with wrong tags
+$ts3 = $ts0 + 3000
+$ts4 = $ts0 + 4000
+sql insert into tb1 using $stb tags (2) values ( $ts3 , 1,1,1,1,'bin',1,1,1,'涛思数据') ( $ts4 , 2,2,2,2,'binar', 1,1,1,'nchar')
+sql select * from $stb
+if $rows != 5 then
+  return -1
+endi
+if $data09 != 涛思数据 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data42 != 2 then
+  return -2
+endi
+if $data43 != 2.00000 then
+  return -1
+endi
+if $data45 != binar then
+  return -1
+endi
+if $data49 != nchar then
+  return -1
+endi
+
+sql drop table tb1
+
+#### auto create multiple tables
+sql insert into tb1 using $stb tags(1) values ( $ts0 , 1, 1, 1, 1, 'bin1', 1, 1, 1, '涛思数据1') tb2 using $stb tags(2) values ( $ts0 , 2, 2, 2, 2, 'bin2', 2, 2, 2, '涛思数据2') tb3 using $stb tags(3) values ( $ts0 , 3, 3, 3, 3, 'bin3', 3, 3, 3, '涛思数据3')
+sql show tables
+print $rows $data00 $data10 $data20
+if $rows != 3 then
+  return -1
+endi
+if $data(tb1)[0] != tb1 then
+  return -1
+endi
+if $data(tb2)[0] != tb2 then
+  return -1
+endi
+if $data(tb3)[0] != tb3 then
+  return -1
+endi
+
+sql select c1,c1,c2,c3,c4,c5,c7,c8,c9 from $stb
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+
+if $rows != 3 then
+  return -1
+endi
+if $data(1)[1] != 1 then
+  return -1
+endi
+if $data(1)[8] != 涛思数据1 then
+  return -1
+endi
+if $data(2)[4] != 2.000000000 then
+  return -1
+endi
+if $data(2)[8] != 涛思数据2 then
+  return -1
+endi
+if $data(3)[8] != 涛思数据3 then
+  return -1
+endi
+
+sql select t1, count(*), first(c9) from $stb partition by t1 order by t1 asc slimit 3
+if $rows != 3 then
+  print expect 3, actual: $rows
+  return -1
+endi
+if $data(1)[1] != 1 then
+  return -1
+endi
+if $data(1)[2] != 涛思数据1 then
+  return -1
+endi
+if $data(2)[1] != 1 then
+  return -1
+endi
+if $data(2)[2] != 涛思数据2 then
+  return -1
+endi
+if $data(3)[1] != 1 then
+  return -1
+endi
+if $data(3)[2] != 涛思数据3 then
+  return -1
+endi
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+#### auto create multiple tables
+sql insert into tb1 using $stb tags(1) values ( $ts0 , 1, 1, 1, 1, 'bin1', 1, 1, 1, '涛思数据1') tb2 using $stb tags(2) values ( $ts0 , 2, 2, 2, 2, 'bin2', 2, 2, 2, '涛思数据2') tb3 using $stb tags(3) values ( $ts0 , 3, 3, 3, 3, 'bin3', 3, 3, 3, '涛思数据3')
+sql show tables
+if $rows != 3 then
+  return -1
+endi
+if $data(tb1)[0] != tb1 then
+  return -1
+endi
+if $data(tb2)[0] != tb2 then
+  return -1
+endi
+if $data(tb3)[0] != tb3 then
+  return -1
+endi
+
+sql select c1,c1,c2,c3,c4,c5,c7,c8,c9 from $stb
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+
+if $rows != 3 then
+  return -1
+endi
+if $data(1)[1] != 1 then
+  return -1
+endi
+if $data(1)[8] != 涛思数据1 then
+  return -1
+endi
+if $data(2)[4] != 2.000000000 then
+  return -1
+endi
+if $data(2)[8] != 涛思数据2 then
+  return -1
+endi
+if $data(3)[8] != 涛思数据3 then
+  return -1
+endi
+
+sql select t1, count(*), first(c9) from $stb partition by t1 order by t1 asc slimit 3
+if $rows != 3 then
+  return -1
+endi
+if $data(1)[1] != 1 then
+  return -1
+endi
+if $data(1)[2] != 涛思数据1 then
+  return -1
+endi
+if $data(2)[1] != 1 then
+  return -1
+endi
+if $data(2)[2] != 涛思数据2 then
+  return -1
+endi
+if $data(3)[1] != 1 then
+  return -1
+endi
+if $data(3)[2] != 涛思数据3 then
+  return -1
+endi
+
+print ======= too many columns in auto create tables
+sql create table tick (ts timestamp , last_prc double , volume int, amount double, oi int , bid_prc1 double, ask_prc1 double, bid_vol1 int, ask_vol1 int , bid_prc2 double, ask_prc2 double, bid_vol2 int, ask_vol2 int , bid_prc3 double, ask_prc3 double, bid_vol3 int, ask_vol3 int , bid_prc4 double, ask_prc4 double, bid_vol4 int, ask_vol4 int , bid_prc5 double, ask_prc5 double, bid_vol5 int, ask_vol5 int , open_prc double, highest_prc double, low_prc double, close_prc double , upper_limit double, lower_limit double) TAGS (ticker BINARY(32), product BINARY(8));
+sql show stables
+
+if $rows != 2 then
+  return -1
+endi
+
+sql insert into tick_000001 (ts, last_prc, volume, amount, oi, bid_prc1, ask_prc1) using tick tags ('000001', 'Stocks') VALUES (1546391700000, 0.000000, 0, 0.000000, 0, 0.000000, 10.320000);
+sql select tbname from tick
+if $rows != 1 then
+   return -1
+endi
+
+#sql drop database $db
+#sql select * from information_schema.ins_databases
+#if $rows != 0 then
+#  return -1
+#endi
+
+#[tbase-673]
+sql create table tu(ts timestamp, k int);
+sql_error create table txu using tu tags(0) values(now, 1);
+
+print =================> [TBASE-675]
+sql insert into tu values(1565971200000, 1) (1565971200000,2) (1565971200001, 3)(1565971200001, 4)
+sql select * from tu
+if $rows != 2 then
+    return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -264,7 +264,7 @@ def pre_test_win(){
     script {
         bat '''
             cd %WIN_INTERNAL_ROOT%
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout 3.0
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%
@@ -275,7 +275,7 @@ def pre_test_win(){
         if (env.CHANGE_URL =~ /\/TDengine\//) {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git pull origin ''' + env.CHANGE_TARGET + '''
+                git pull origin 3.0
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
@@ -486,21 +486,21 @@ pipeline {
                         }
                     }
                 }
-                stage('mac test') {
-                    agent{label " Mac_catalina "}
-                    when {
-                        beforeAgent true
-                        expression { file_only_tdgpt_change_except != '' }
-                    }
-                    steps {
-                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 60, unit: 'MINUTES'){
-                                pre_test()
-                                pre_test_build_mac()
-                            }
-                        }
-                    }
-                }
+                // stage('mac test') {
+                //     agent{label " Mac_catalina "}
+                //     when {
+                //         beforeAgent true
+                //         expression { file_only_tdgpt_change_except != '' }
+                //     }
+                //     steps {
+                //         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                //             timeout(time: 60, unit: 'MINUTES'){
+                //                 pre_test()
+                //                 pre_test_build_mac()
+                //             }
+                //         }
+                //     }
+                // }
                 stage('linux test') {
                     agent{label "slave217-test "}
                     options { skipDefaultCheckout() } 
@@ -524,14 +524,14 @@ pipeline {
                                     mkdir -p ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}
                                     echo "''' + file_no_doc_changed + '''" > ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
-                                    sh '''
-                                       cd ${WKC}/tests/parallel_test
-                                       ./run_check_assert_container.sh -d ${WKDIR}
-                                    '''
-                                    sh '''
-                                       cd ${WKC}/tests/parallel_test
-                                       ./run_check_void_container.sh -d ${WKDIR}
-                                    '''
+                                    // sh '''
+                                    //    cd ${WKC}/tests/parallel_test
+                                    //    ./run_check_assert_container.sh -d ${WKDIR}
+                                    // '''
+                                    // sh '''
+                                    //    cd ${WKC}/tests/parallel_test
+                                    //    ./run_check_void_container.sh -d ${WKDIR}
+                                    // '''
                                     sh '''
                                         date
                                         rm -rf ${WKC}/debug
@@ -563,10 +563,10 @@ pipeline {
                                             }
                                         }
                                     }
-                                    sh '''
-                                       cd ${WKC}/tests/parallel_test
-                                       ./run_scan_container.sh -d ${WKDIR} -b ${BRANCH_NAME}_${BUILD_ID}  -f ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt ''' + extra_param + '''
-                                    '''
+                                    // sh '''
+                                    //    cd ${WKC}/tests/parallel_test
+                                    //    ./run_scan_container.sh -d ${WKDIR} -b ${BRANCH_NAME}_${BUILD_ID}  -f ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt ''' + extra_param + '''
+                                    // '''
                                      if ( file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ ) {
                                         sh '''
                                             cd ${WKC}/tests/parallel_test

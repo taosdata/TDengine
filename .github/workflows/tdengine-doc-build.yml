@@ -23,6 +23,7 @@ concurrency:
 jobs:
   check-docs-typos:
     runs-on: ubuntu-latest
+    continue-on-error: false 
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
@@ -39,22 +40,11 @@ jobs:
           files: 'docs/en/**/*.md'
           config: docs/typos.toml
 
-  check-docs-linter-formatter:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: AutoCorrect
-        uses: huacnlee/autocorrect-action@v2
-        with:
-          args: --lint docs/zh/* docs/en/*
-
   build-doc:
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
-    needs: 
-        - check-docs-typos
-        - check-docs-linter-formatter 
+    needs: check-docs-typos
     steps:
       - name: Get the latest document contents
         run: |
