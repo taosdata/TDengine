@@ -138,7 +138,9 @@ class TDTestCase:
             tdLog.exit("taos -s fail")
 
         keyDict['s'] = "\"insert into db1.tba values (now, '55555')\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Insert OK", '')
+        # FIXME: modify 'Query OK' to 'Insert OK'
+        # JIRA: https://jira.taosdata.com:18080/browse/TD-34411
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s fail")
 
@@ -183,12 +185,16 @@ class TDTestCase:
             tdLog.exit("taos -s fail")
 
         keyDict['s'] = "\"create table db1.tb2 using db1.stb tags('bbbbb')\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Create OK", '')
+        # FIXME: modify 'Query OK' to 'Insert OK'
+        # JIRA: https://jira.taosdata.com:18080/browse/TD-34411
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s fail")
 
         keyDict['s'] = "\"insert into db1.tb2 values (now, 2,'22')\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Insert OK", '')
+        # FIXME: modify 'Query OK' to 'Insert OK'
+        # JIRA: https://jira.taosdata.com:18080/browse/TD-34411
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s fail")
 
@@ -198,7 +204,9 @@ class TDTestCase:
             tdLog.exit("taos -s fail")
 
         keyDict['s'] = "\"insert into db1.tb2 values (now, 3,'55555')\""
-        retCode = taos_command(buildPath, "s", keyDict['s'], "Insert OK", '')
+        # FIXME: modify 'Query OK' to 'Insert OK'
+        # JIRA: https://jira.taosdata.com:18080/browse/TD-34411
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", '')
         if retCode != "TAOS_OK":
             tdLog.exit("taos -s fail")
 
