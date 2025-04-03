@@ -45,7 +45,6 @@ typedef struct {
 
 typedef struct {
   void *pBse;
-
   STableBuilderMgt pBuilderMgt[1];
   STableReaderMgt  pReaderMgt[1];
 } STableMgt;

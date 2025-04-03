@@ -53,7 +53,7 @@ int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
 _error:
   if (code != 0) {
     if (p != NULL)
-      bseError("vgId:%d failed to open table pBuilderMgt since %s at line %d", BSE_VGID((SBse *)p->pBse),
+      bseError("vgId:%d failed to open table pBuilderMgt since %s at line %d", BSE_GET_VGID((SBse *)p->pBse),
                tstrerror(code), lino);
     bseTableMgtCleanup(p);
   }
@@ -142,11 +142,12 @@ int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse) {
   if (pReader->pFileList == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+  int32_t cap = BSE_GET_BLOCK_SIZE(pBse);
 
-  code = blockCacheOpen(4096 * 2, &pReader->pBatchCache);
+  code = blockCacheOpen(cap, &pReader->pBatchCache);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableCacheOpen(4096 * 2, &pReader->pTableCache);
+  code = tableCacheOpen(cap, &pReader->pTableCache);
   TSDB_CHECK_CODE(code, lino, _error);
 
   pReader->pBse = pBse;
@@ -172,11 +173,12 @@ static int32_t findTargetFile(SArray *pFileList) {
 int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  STableReader *pReader = NULL;
   for (int32_t i = 0; i < taosArrayGetSize(pReaderMgt->pFileList); i++) {
     SBseLiveFileInfo *pInfo = taosArrayGet(pReaderMgt->pFileList, i);
     if (pInfo->sseq <= seq && pInfo->eseq >= seq) {
-      STableReader *pReader = NULL;
-      char          name[TSDB_FILENAME_LEN] = {0};
+      char name[TSDB_FILENAME_LEN] = {0};
 
       bseBuildFullName((SBse *)pReaderMgt->pBse, pInfo->name, name);
       code = tableReadOpen(name, &pReader);
@@ -193,6 +195,9 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
 _error:
   if (code != 0) {
     bseError("failed to seek table pReaderMgt since %s at line %d", tstrerror(code), lino);
+  }
+  if (pReader != NULL) {
+    tableReadClose(pReader);
   }
   return code;
 }
@@ -325,9 +330,12 @@ int32_t tableBuildMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuild
   bseBuildDataName(pMgt->pBse, seq, path);
 
   STableBuilder *p = NULL;
-  code = tableBuildOpen(path, &p);
+  code = tableBuildOpen(path, &p, pBse);
+  if (code != 0) {
+    return code;
+  }
 
-  p->bse = pMgt->pBse;
+  p->pBse = pMgt->pBse;
   pMgt->p[pMgt->inUse] = p;
 
   *pBuilder = p;

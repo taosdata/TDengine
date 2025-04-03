@@ -39,7 +39,6 @@ extern "C" {
 #define bseGInfo(param, ...)  do { if (bseDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseInfo(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
 #define bseGDebug(param, ...) do { if (bseDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseDebug(param ",QID:%s", __VA_ARGS__, buf);}}    while(0)
 
-#define BSE_VGID(p) ((p)->cfg.vgId)
 
 
 #define BSE_DATA_SUFFIX  "data"
@@ -55,6 +54,10 @@ void bseBuildMetaName(SBse *pBse, int ver, char *name);
 void bseBuildTempMetaName(SBse *pBse, char *name);
 void bseBuildFullName(SBse *pBse, char *name, char *fullname);
 void bseBuildDataName(SBse *pBse, int64_t seq, char *name);
+
+int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) ;
+int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
 // clang-format on
 #ifdef __cplusplus
 }

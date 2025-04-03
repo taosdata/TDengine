@@ -16,15 +16,16 @@
 #ifndef BSE_TABLE_H_
 #define BSE_TABLE_H_
 
+#include "bse.h"
 #include "bseUtil.h"
 #include "cJSON.h"
-#include "lz4.h"
 #include "os.h"
 #include "tchecksum.h"
 #include "tcompare.h"
 #include "tlog.h"
 #include "tmsg.h"
 #include "tutil.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,10 +43,6 @@ enum {
   BSE_TABLE_FOOTER_TYPE = 0x8,
 };
 
-typedef struct {
-  int64_t sseq;
-  int64_t eseq;
-} SSeqRange;
 typedef struct {
   uint64_t  offset;
   uint64_t  size;
@@ -82,7 +79,6 @@ typedef struct {
   // SBlock       *pData;
   // SBlock       *pHdata;
   SBlockWrapper pBlockWrapper;
-  SBlockWrapper pHBlockWrapper;
   int32_t       blockCap;
   int8_t        compressType;
   int32_t       offset;
@@ -91,21 +87,22 @@ typedef struct {
   // int64_t      lastSeq;
   SSeqRange tableRange;
   SSeqRange blockRange;
-  void     *bse;
-  int32_t   nRef;
+
+  SBse   *pBse;
+  int32_t nRef;
 
 } STableBuilder;
 
 typedef struct {
-  char          name[TSDB_FILENAME_LEN];
-  TdFilePtr     pDataFile;
-  STableFooter  footer;
-  SArray       *pSeqToBlock;
-  SArray       *pMetaHandle;
-  SBlockWrapper pBlockWrapper;
-  SBlockWrapper pHBlockWrapper;
-  int32_t       blockCap;
-  int32_t       fileSize;
+  char         name[TSDB_FILENAME_LEN];
+  TdFilePtr    pDataFile;
+  STableFooter footer;
+  SArray      *pSeqToBlock;
+  SArray      *pMetaHandle;
+  // SBlockWrapper pBlockWrapper;
+  // SBlockWrapper pHBlockWrapper;
+  int32_t blockCap;
+  int32_t fileSize;
 } STableReader;
 
 typedef struct {
@@ -116,7 +113,7 @@ typedef struct {
   char    name[TSDB_FILENAME_LEN];
 } SBseLiveFileInfo;
 
-int32_t tableBuildOpen(char *path, STableBuilder **pBuilder);
+int32_t tableBuildOpen(char *path, STableBuilder **pBuilder, SBse *pBse);
 int32_t tableBuildPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len);
 int32_t tableBuildPutBatch(STableBuilder *p, SBseBatch *pBatch);
 int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len);

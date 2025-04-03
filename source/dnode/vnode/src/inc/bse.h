@@ -24,6 +24,7 @@
 extern "C" {
 #endif
 
+#define BSE_DEFAULT_BLOCK_SIZE (4 * 1024 * 1024)
 typedef enum {
   kNoCompres = 0,
   kLZ4Compres = 1,
@@ -51,6 +52,10 @@ typedef struct {
   int8_t  compressType;
   int32_t blockSize;
   int8_t  clearUncommittedFile;
+  int32_t keepDays;
+
+  int32_t tableCacheSize;
+  int32_t blockCacheSize;
 } SBseCfg;
 
 typedef struct {
@@ -78,7 +83,14 @@ typedef struct {
   int64_t  startSeq;
 } SBseBatch;
 
+typedef struct {
+  int64_t sseq;
+  int64_t eseq;
+} SSeqRange;
+
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
+void    bseClose(SBse *pBse);
+
 int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len);
 int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len);
 int32_t bseCommit(SBse *pBse);
@@ -86,14 +98,23 @@ int32_t bseRollback(SBse *pBse, int64_t ver);
 int32_t bseBeginSnapshot(SBse *pBse, int64_t ver);
 int32_t bseEndSnapshot(SBse *pBse);
 int32_t bseStopSnapshot(SBse *pBse);
-void    bseClose(SBse *pBse);
-
+int32_t bseCompact(SBse *pBse);
+int32_t bseDelete(SBse *pBse, SSeqRange range);
 int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch);
-int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 
+// batch func
+int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len);
 int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *size);
 int32_t bseBatchDestroy(SBseBatch *pBatch);
+
+int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg);
+#define BSE_GET_BLOCK_SIZE(p)       ((p)->cfg.blockSize)
+#define BSE_GET_COMPRESS_TYPE(p)    ((p)->cfg.compressType)
+#define BSE_GET_KEEPS_DAYS(p)       ((p)->cfg.keepDays)
+#define BSE_GET_TABLE_CACHE_SIZE(p) ((p)->cfg.tableCacheSize)
+#define BSE_GET_BLOCK_CACHE_SIZE(p) ((p)->cfg.blockCacheSize)
+#define BSE_GET_VGID(p)             ((p)->cfg.vgId)
 
 #ifdef __cplusplus
 }
