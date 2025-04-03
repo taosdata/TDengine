@@ -6,15 +6,28 @@
 1. [Run Test Cases](#4-Run-Test-Cases)
 1. [Add New Case](#5-Add-New-Case)
 1. [Add New Case to CI](#6-Add-New-Case-to-CI)
-
+1. [Workflows](#7-workflows)
+1. [Test Report](#8-test-report)
 
 # 1. Introduction
 
-This manual is intended to give developers a comprehensive guidance to test TDengine efficiently. It is divided into three main sections: introduction, prerequisites and testing guide.
+This is the new end-to-end testing framework for TDengine. It offers several advantages:
+
+1. **Built on Pytest**: The new framework is based on Pytest, which is known for its simplicity and scalability. Pytest provides powerful features such as fixtures, parameterized testing, and easy integration with other plugins, making it a popular choice for testing in Python.
+
+2. **Integration of Common Functions**: The framework integrates the capabilities of the original testing framework's common functions, allowing for seamless reuse of existing code and utilities.
+
+3. **Enhanced Deployment and Testing Structure**: It supports a more structured approach to deployment and testing, enabling users to define their testing environments and configurations more effectively.
+
+4. **Flexible Server Deployment via YAML**: Users can deploy servers in a more versatile manner using YAML files, allowing for customized configurations and easier management of different testing scenarios.
+
+5. **Integration with Allure Report**: After the tests are done, [Allure Report](https://allurereport.org/) will be created automatically, which can be accessed by just one click.
+
+6. **Integration with Github Action**: Including workflow to run the test cases in the new test framework, workflow to validate the docstring of test cases and workflow to publish case docs to Github Pages.
 
 > [!NOTE]
 > - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
-> - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.7+.
+> - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.8+.
 
 # 2. Prerequisites
 
@@ -32,9 +45,9 @@ cd test
 pip3 install -r requirements.txt
 ```
 
-- Building
+- Building (Optional)
 
-Before testing, please make sure the building operation with option `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been done, otherwise execute commands below:
+Tests can be run against TDengine either by installation or by build. When building TDengine, please make sure the building options `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been used:
 
 ```bash
 cd debug
@@ -56,8 +69,9 @@ test/
 ├── env/                  # TDengine deploy configuration yaml file directory
 │   └── demo.yaml         # configuration example
 │
-├── utils/                # common functions utils directory
-│   └── ...
+├── new_test_framework/   
+│   └── utils             # common functions utils directory
+│   │   ├── ...
 │
 ├── requirements.txt      # dependencies
 └── README.md             # project description
@@ -65,12 +79,29 @@ test/
 
 # 4. Run Test Cases
 
-Run test cases command description:
+## 4.1 Set environment variables (Optional)
+
+Please set the environment variables according to your scenarios. This is optional, the binaries in `debug/build/bin` will be used by default.
+
+```bash
+source ./setenv_build.sh    # run test with build binaries
+source ./setenv_install.sh  # run test with installation
+```
+
+## 4.2 Basic Usage
 
 ```bash
 cd test
-pytest [options] [test_file_path] [test_file_path]
+pytest [options] [test_file_path]
 ```
+
+Notes:
+- options: described below 
+- test_file_path: optional, if provided, only the test case in the file or path will be run; if not provided, all test cases (files start with test_) will be run
+
+## 4.3 Run tests by command line arguments
+
+Run test cases command description:
 
 Options:
 
@@ -85,9 +116,13 @@ Options:
 - `-I <num>`: independentMnode Mnode
 - `--replica <num>`: set the number of replicas
 - `--tsim <file>`: tsim test file (for compatibility with the original tsim framework; not typically used in normal circumstances)
-- `--yaml_file <file>`: TDengine deploy configuration yaml file (default directory is `env`, no need to specify the `env` path) 
+
 - `--skip_test`: only do deploy or install without running test
 - `--skip_deploy`: Only run test without start TDengine
+
+## 4.4 Run tests by configuration file
+
+- `--yaml_file <file>`: TDengine deploy configuration yaml file (default directory is `env`, no need to specify the `env` path) 
 
 **Mutually Exclusive Options**:
 - The `--yaml_file` option is mutually exclusive with the following options:
@@ -99,15 +134,15 @@ Options:
   - `-L`
   - `-C`
 
+## 4.5 Common Options
+
 Some useful pytest common options:
 - `-s`: disable output capturing
 - `--log-level`: set log level
 - `--alluredir`: generate allure report directory
 - `-m`: run test by mark
 
-test_file_path:
-- test_file_path is optional, if not provided, all test cases(files start with test_) will be run
-- if provided, only the test case in the file or path will be run
+## 4.6 Examples
 
 Here are some examples of using pytest to execute test cases:
 
@@ -119,14 +154,13 @@ pytest cases/data_write/sql_statement/test_insert_double.py
 pytest cases/data_write/sql_statement/test_insert_double.py::TestInsertDouble::test_value
 
 # 3. Run test cases with a specific marker
-pytest -m ci
+pytest -m cluster
 
 # 4. Set the log level for the tests
 pytest --log-level=DEBUG
 
 # 5. Run test with a specific YAML configuration file
 pytest --yaml_file=ci_default.yaml cases/data_write/sql_statement/test_insert_double.py
-
 ```
 
 # 5. Add New Case
@@ -138,7 +172,11 @@ To add a new test case, follow these steps:
    - Create a new Python file for your test case. It is required to name the file starting with `test_`, for example, `test_new_feature.py`.
 
 2. **Import Required Modules**:
-   - At the top of your new test file, import the necessary modules, including `pytest`.
+   - At the top of your new test file, import the necessary modules. For example:
+
+   ```python
+   from new_test_framework.utils import tdLog, tdSql, etool
+   ```
 
 3. **Define Your Test Function**:
    - Define a function for your test case. The function name should start with `test_` to ensure that `pytest` recognizes it as a test case.
@@ -149,20 +187,46 @@ To add a new test case, follow these steps:
 5. **Describe case function in docstring**:
    - Describe the case function in docstring, including the case name, description, labels, jira, since, history, etc.
 
-### Example of a New Test Case
-
-Here is an example of how to write a new test case:
-
-```python
-# cases/demo/test_demo.py
-```
+Please refer to `cases/demo/test_demo.py` as an example.
 
 # 6. Add New Case to CI
 
-To add a new test case to the CI pipeline, include the case run command in the `test/parallel_test/cases.task` file. For example:
+To add a new test case to the CI pipeline, include the case run command in the `test/ci/cases.task` file. For example:
 
 ```text
-# test/parallel_test/cases.task
+# test/ci/cases.task
 ,,y,.,./ci/pytest.sh pytest cases/storage/tsma/test_tsma.py
 ```
 
+# 7. Workflows
+
+Every time new code is submitted, the corresponding GitHub workflows are triggered as follows:
+
+## 7.1 CI Test
+A CI test is triggered whenever a pull request (PR) is submitted.
+
+## 7.2 Docstring Check
+A Docstring check is triggered for any PR submitted to the `test/cases` directory, ensuring the completeness of the case descriptions.
+
+## 7.3 Cases Doc Publish
+A cases documentation publish is triggered when a PR is merged into the `test/cases` directory, updating the case description documentation page.
+
+Note:
+- Please referto [Deploy Case Docs](https://github.com/taosdata/TDengine/actions/workflows/deploy-case-docs.yml) for details.
+- Published cases doc can be found at [TDengine Case List](https://taosdata.github.io/TDengine/main/).
+
+## 8. Test Report
+
+The testing framework executes with the `--alluredir=allure-results` parameter by default, which generates an Allure report. In the Allure report, you can view the test execution results, logs for failed test cases, and case description information.
+
+### 8.1 Local Execution Results
+
+After execution, you can check the `allure-results` directory, which contains the Allure report files. Users can manually generate the report page using the Allure command:
+
+```bash
+allure generate allure-results -o $YOUR_REPORT_DIR --clean
+```
+
+### 8.2 CI Execution Results
+
+You can find the test report link in the GitHub workflow, which redirects you to the Allure report page when clicked. Please refer to the execution log of [New Framework Test](https://github.com/taosdata/TDengine/actions/workflows/new-framework-test.yml) for details.

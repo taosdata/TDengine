@@ -15,11 +15,11 @@ qStudio 是一款免费的多平台 SQL 数据分析工具，可以轻松浏览�
 
 ## 使用 qStudio 连接 TDengine
 
-1. 启动 qStudio 应用，从菜单项选择 “Server” 和 “Add Server...”，然后在 Server Type 下拉框中选择 TDengine。
+1. 启动 qStudio 应用，从菜单项选择“Server”和“Add Server...”，然后在 Server Type 下拉框中选择 TDengine。
 
  ![qStudio 连接 TDengine](./qstudio/qstudio-connect-tdengine.webp)
 
-2. 配置 TDengine 连接，填入主机地址、端口号、用户名和密码。如果 TDengine 部署在本机，可以只填用户名和密码，默认用户名为 root，默认密码为 taosdata。点击 “Test” 可以对连接是否可用进行测试。如果本机没有安装 TDengine Java 连接器，qStudio 会提示下载安装。
+2. 配置 TDengine 连接，填入主机地址、端口号、用户名和密码。如果 TDengine 部署在本机，可以只填用户名和密码，默认用户名为 root，默认密码为 taosdata。点击“Test”可以对连接是否可用进行测试。如果本机没有安装 TDengine Java 连接器，qStudio 会提示下载安装。
 
  ![下载 Java 连接器](./qstudio/qstudio-jdbc-connector-download.webp)
 

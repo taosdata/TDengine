@@ -1,9 +1,5 @@
-import pytest
-import logging
 import sys
-import threading
 from new_test_framework.utils import tdLog, tdCom, tdCom, random, time
-
 
 
 class TestMaxDelayInterval:
