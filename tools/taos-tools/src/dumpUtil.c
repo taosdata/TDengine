@@ -691,7 +691,7 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
     // set new
     crossDes->columns = newc;
     crossDes->tags    = newt;
-    strncpy(crossDes->name, localDes->name, sizeof(crossDes->name) - 1);
+    strcpy(crossDes->name, localDes->name);
 
     // save crossDes to StbChange
     pStbChange->tableDes = crossDes;
