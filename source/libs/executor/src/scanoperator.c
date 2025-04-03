@@ -1463,7 +1463,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
   QRY_PARAM_CHECK(ppRes);
-  qInfo("%s", __FUNCTION__);
+  qTrace("%s call", __FUNCTION__);
   if (pOperator->pOperatorGetParam) {
     pOperator->dynamicTask = true;
     if (isDynVtbScan(pOperator)) {
@@ -2725,7 +2725,7 @@ int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowI
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  qInfo("%s child_table_name:%s,groupId:%"PRIu64, __func__, pBlock->info.parTbName, pBlock->info.id.groupId);
+  qTrace("%s child_table_name:%s,groupId:%"PRIu64, __func__, pBlock->info.parTbName, pBlock->info.id.groupId);
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

@@ -131,12 +131,6 @@ int32_t createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask
   (*pBlock)->type = STREAM_INPUT__DATA_BLOCK;
   (*pBlock)->blocks = pRes;
 
-  if (taosArrayGetSize(pRes) > 0) {
-    SSDataBlock *pDataBlock = taosArrayGet(pRes, 0);
-    uInfo("%s,parName:%s, groupId:%"PRIu64, __FUNCTION__, pDataBlock->info.parTbName, pDataBlock->info.id.groupId)
-    ASSERT(pDataBlock->info.parTbName[0] != '\0');
-  }
-
   if (pItem == NULL) {
     return code;
   }

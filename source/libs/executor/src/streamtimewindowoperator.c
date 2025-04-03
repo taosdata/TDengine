@@ -964,7 +964,7 @@ void buildDataBlockFromGroupRes(SOperatorInfo* pOperator, void* pState, SSDataBl
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
-      qInfo("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, groupId);
+      qDebug("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, groupId);
 
       pAPI->stateStore.streamStateFreeVal(tbname);
     } else {

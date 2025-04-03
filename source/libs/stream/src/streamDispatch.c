@@ -866,12 +866,10 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   if (pVal) {
     SBlockName* pBln = (SBlockName*)pVal;
     hashValue = pBln->hashValue;
-//    if (!pDataBlock->info.parTbName[0]) {
-      memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
-      memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
-      stDebug("s-task:%s cached table name:%s, blockdata type:%d, groupId:%" PRId64 " hashVal:0x%x", pTask->id.idStr, pBln->parTbName,
-              type, groupId, hashValue);
-//    }
+    memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
+    memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
+    stDebug("s-task:%s cached table name:%s, blockdata type:%d, groupId:%" PRId64 " hashVal:0x%x", pTask->id.idStr, pBln->parTbName,
+            type, groupId, hashValue);
   } else {
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
     if (pDataBlock->info.parTbName[0]) {

@@ -24,7 +24,7 @@
 #include "tcompare.h"
 #include "tref.h"
 
-#define MAX_TABLE_NAME_NUM 20000000
+#define MAX_TABLE_NAME_NUM 200000
 
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
@@ -582,7 +582,7 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char 
   }
 
 _end:
-  qInfo("%s tbname:%s, groupId:%"PRId64, __func__, tbname, groupId);
+  qTrace("%s tbname:%s, groupId:%"PRId64, __func__, tbname, groupId);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -620,7 +620,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
   (*pWinCode) = TSDB_CODE_SUCCESS;
 
 _end:
-  qInfo("%s tbname:%s, groupId:%"PRId64, __func__, (char*)(*pVal), groupId);
+  qTrace("%s tbname:%s, groupId:%"PRId64, __func__, (char*)(*pVal), groupId);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

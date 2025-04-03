@@ -1584,7 +1584,7 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, STimeWindowAggSup
     } else {
       memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
     }
-    qInfo("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, pKey->groupId);
+    qDebug("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, pKey->groupId);
 
     pAggSup->stateStore.streamStateFreeVal(tbname);
 
