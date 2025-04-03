@@ -210,6 +210,7 @@ int32_t doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnCo
   }
 
   mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, p->id);
+  p->ableToBeKilled = true;
 
   mndTransSetDbName(p, pStream->sourceDb, pStream->targetSTbName);
   if ((code = mndTransCheckConflict(pMnode, p)) != 0) {
