@@ -4630,12 +4630,10 @@ SNode* createLoadFileStmt(SAstCreateContext* pCxt, SToken* pDbName, SToken* pFil
   CHECK_MAKE_NODE(pStmt);
 
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
-
   (void)trimString(pFileName->z, pFileName->n, pStmt->fileName, sizeof(pStmt->fileName) - 1);
   COPY_STRING_FORM_ID_TOKEN(pStmt->fileName, pFileName);
 
   return (SNode*)pStmt;
-
 _err:
   return NULL;
 }

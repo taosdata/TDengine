@@ -19126,9 +19126,38 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t rewriteLoadFileStmt(STranslateContext* pCxt, SQuery* pQuery) {
+static int32_t serializeLoadFile(SLoadFileStmt* pStmt, SArray* pVgs, SArray** pOutput) {
   // TODO
   return 0;
+}
+
+static int32_t rewriteLoadFileStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  SLoadFileStmt* pStmt = (SLoadFileStmt*)pQuery->pRoot;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pVgs = NULL;
+
+  // Get Vgroup info
+  code = getDBVgInfo(pCxt, pStmt->dbName, &pVgs);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  // Serialize load info
+  SArray* pBufArray = NULL;
+  code = serializeLoadFile(pStmt, pVgs, &pBufArray);
+  if (code) {
+    taosArrayDestroy(pVgs);
+    return code;
+  }
+
+  // Rewrite to vnode modify op
+  code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
+  if (code) {
+    destroyCreateTbReqArray(pBufArray);
+  }
+  taosArrayDestroy(pVgs);
+  return code;
 }
 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {

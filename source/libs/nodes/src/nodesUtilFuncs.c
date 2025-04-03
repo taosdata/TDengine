@@ -1424,6 +1424,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_FLUSH_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_TRIM_DATABASE_STMT:   // no pointer field
+    case QUERY_NODE_LOAD_FILE_STMT:
       break;
     case QUERY_NODE_S3MIGRATE_DATABASE_STMT:  // no pointer field
       break;
@@ -2154,9 +2155,6 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN:
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
-      break;
-    case QUERY_NODE_LOAD_FILE_STMT:
-      // Do nothing
       break;
     default:
       break;
