@@ -10,7 +10,7 @@ target_include_directories(
 
 target_link_libraries(
     new-stream
-    PUBLIC rocksdb tdb tcs
+    PUBLIC tdb tcs
     PRIVATE os util transport qcom executor wal index
 )
 
