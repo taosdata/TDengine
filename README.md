@@ -542,9 +542,10 @@ jom -j 4
 
 # 5. Packaging
 
+## 5.1 Package on Linux
 <details>
 
-<summary>How to package the  enterprise edition locally?</summary>
+<summary>Detailed steps to package on Linux</summary>
 
 Using the following script to package the enterprise edition.
 
@@ -561,6 +562,34 @@ Once the packaging process is complete, you can find the installation package fi
 ```bash
 ll /root/TDinternal/community/release
 ```
+</details>
+
+## 5.2 Packaing on macOS
+<details>
+
+<summary>Detailed steps to package on macOS</summary>
+Using the following script to package the enterprise edition.
+
+```bash
+cd /root/TDinternal/enterprise/packaging
+# version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
+# if you use option "-b <branch_name>" and branch_name is not main or 3.0,
+# please ensure that both TDinternal and TDengine repo have this branch.
+./new_ver_release.sh -n <version_number>  
+```
+
+Once the packaging process is complete, you can find the installation package files listed below by executing the command:
+
+```bash
+ll /root/TDinternal/community/release
+```
+</details>
+
+## 5.3 Packaing on Windows
+<details>
+
+<summary>Detailed steps to package on Windows</summary>
+Work in Progress.
 </details>
 
 # 6. Installing
