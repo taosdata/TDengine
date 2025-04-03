@@ -91,7 +91,7 @@ class Start(TDCase):
             json.dump(summary_metrics, result_file, indent=4)
         end_time = datetime.utcnow()
         url = (
-            f"http://grafana.tdengine.net:3000/d/deg3yoj2k1ybkb/named-processes"
+            f'http://grafana.tdengine.net:3000/d/{self.workflow_config["grafana_datasource_name"]}/tdengine-process-exporter'
             f"?var-interval=10m&orgId=1&from={self.start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
             f"&timezone=browser&var-processes=$__all&refresh=5s"
         )

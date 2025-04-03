@@ -26,6 +26,11 @@ class EMSEdge(TDCase):
         task_list = []
         case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/env/config.yaml')
         case_data_from = case_data_org["from"]
+        taosd_url = f'http://{self.host}:6041/rest/sql/information_schema'
+        cluster_resp = self.tdRest.request(data="show cluster",method="POST",url=taosd_url)
+        resp = cluster_resp.json()
+        cluster_id = resp["data"][0][0]
+        case_data_from["labels"][0] = f"cluster-id::{cluster_id}"
         mqtt_parser = file.read_yaml(f'{os.environ["TEST_ROOT"]}/env/parser.yaml')
         for topic_id,topic_name in case_data_from["topics"].items():
             task_data = {}
