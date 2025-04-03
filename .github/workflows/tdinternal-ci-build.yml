@@ -62,6 +62,12 @@ jobs:
         run: |
           # 配置全局git配置      
           git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+          
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+          
       - name: Build and install TDinternal
         run: |
           mkdir debug && cd debug
