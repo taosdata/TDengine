@@ -1,7 +1,6 @@
 from datetime import datetime
 import json
 import os
-import time
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
@@ -10,7 +9,7 @@ class EMSCenter(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql, self.env_setting)
         self.tdRest = TDRest(env_setting=self.env_setting)
-        # TODO 外部传入edge侧的hostname，可能有多个
+        # TODO: External input for edge side hostname, may have multiple
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"][0]
@@ -44,9 +43,9 @@ class EMSCenter(TDCase):
         self.case_data_org["from"]["labels"][0] = f"cluster-id::{cluster_id}"
         headers = {"Content-Type": "application/json"}
         task_list = []
-        # 在center侧创建数据库 mqtt_datain
+        # Create database mqtt_datain on the center side
         self.tdCom.createDb(self.target_dbname,self.db_config)
-        # 创建legacy datain任务,每个edge侧的mqtt_datain数据库都会有一个legacy datain任务
+        # Create legacy datain task, each edge side's mqtt_datain database will have a legacy datain task
         for edge_host in self.edge_hosts:
             # "from": f"tmq+ws://{edge_host}:6041/{self.edge_db}?auto_offset_reset=earliest&client_id=test&experimental_snapshot_enable=true",
             case_data = {
@@ -61,11 +60,10 @@ class EMSCenter(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            本用例用于 ems 的客户场景测试 center 侧的测试执行,用例执行逻辑:
-            1. center 侧 taosd 中创建数据库
-            2. 创建 legacy datain 任务,每个 edge 侧的 mqtt_datain 数据库都会有一个 legacy datain 任务
-            3. 统计每个 legacy datain 任务的写入速率,通过 metrics 接口获取
-
+            This test case is for testing the center side of the EMS customer scenario. The execution logic is:
+            1. Create a database on the center side taosd.
+            2. Create legacy datain tasks; each edge side's mqtt_datain database will have a legacy datain task.
+            3. Count the write rate of each legacy datain task and retrieve it through the metrics interface.
         """
         return case_description
 

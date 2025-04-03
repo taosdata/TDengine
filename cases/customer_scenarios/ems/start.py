@@ -15,9 +15,8 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 import os
-import time
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 class Start(TDCase):
     def init(self):
         start_time = datetime.utcnow()

@@ -50,9 +50,9 @@ class EMSEdge(TDCase):
         headers = {"Content-Type": "application/json"}
         task_list = []
         cases_data = self.set_mqtt_datain_payload(hostname=self.host, target_dbname=self.target_dbname)
-        # 在edge侧创建数据库 mqtt_datain
-        self.tdCom.createDb(self.target_dbname,self.db_config)
-        # 创建4个mqtt datain任务
+        # Create database mqtt_datain on the edge side
+        self.tdCom.createDb(self.target_dbname, self.db_config)
+        # Create 4 mqtt datain tasks
 
         for case_data in cases_data:
             case_data["name"] = self.tdCom.get_long_name(4)
@@ -65,10 +65,11 @@ class EMSEdge(TDCase):
 
         # for task_id in task_list:
         #     self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
+        # # TODO: Wait for tasks to finish, later change to a method of getting task status
 
-        # # TODO 等待任务结束，后面换成获取任务状态的方式
         # time.sleep(15)
-        # # TODO 获取每个任务的metrics并保存下来
+        # # TODO: Get metrics for each task and save them
+
         # for task_id in task_list:
         #     response = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
         #     print("response========",response.text)
@@ -77,11 +78,10 @@ class EMSEdge(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            本用例用于 EMS 的客户场景测试, 用例执行逻辑：
-            1. 每个edge侧taosd中创建数据库
-            2. 每个edge侧创建4个mqtt datain任务, 每个edge侧的stable和table名需要保持唯一, 通过外部参数传入
-            3. 统计每个mqtt datain任务的写入速率, 通过metrics接口获取
-
+            This test case is for testing the EMS customer scenario. The execution logic is:
+            1. Create a database in each edge side taosd.
+            2. Create 4 mqtt datain tasks on each edge side; each edge side's stable and table names need to be unique, passed through external parameters.
+            3. Count the write rate of each mqtt datain task and retrieve it through the metrics interface.
         """
         return case_description
 
