@@ -34,7 +34,10 @@ use taosx_core::{
 };
 
 mod definition;
+pub(crate) mod kafka;
 pub(crate) mod opc;
+mod point_loader;
+
 mod query;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -633,8 +636,6 @@ async fn get_sample_impl(
         }
     }
 }
-
-mod point_loader;
 
 #[utoipa::path(
     tag = "data sources",
