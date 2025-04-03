@@ -798,7 +798,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
   stb->durMinute = db->durMinute;
 
   // loop insert child tables
-  for (uint64_t tbIdx = info->start_table_from; tbIdx <= info->end_table_to; ++tbIdx) {
+  for (uint64_t tbIdx = info->start_table_from; tbIdx <= info->end_table_to && !g_fail; ++tbIdx) {
     // get child table
     SChildTable *childTbl;
     if (g_arguments->bind_vgroup) {
