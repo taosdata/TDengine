@@ -3571,8 +3571,13 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool           resetElect = false;
 
   int64_t tsMs = taosGetTimestampMs();
-  int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeat(ths, pMsg, timeDiff, &pRpcMsg->info.traceId);
+
+  int64_t lastRecvTime = syncIndexMgrGetRecvTime(ths->pNextIndex, &(pMsg->srcId));
+  syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
+
+  int64_t netElapsed = tsMs - pMsg->timeStamp;
+  int64_t timeDiff = tsMs - lastRecvTime;
+  syncLogRecvHeartbeat(ths, pMsg, netElapsed, &pRpcMsg->info.traceId, timeDiff);
 
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
     sWarn(
@@ -3615,7 +3620,6 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (pMsg->term == currentTerm &&
       (ths->state != TAOS_SYNC_STATE_LEADER && ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER)) {
-    syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
     resetElect = true;
 
     ths->minMatchIndex = pMsg->minMatchIndex;
@@ -3684,7 +3688,8 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   int64_t tsMs = taosGetTimestampMs();
-  syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId);
+  int64_t lastRecvTime = syncIndexMgrGetRecvTime(ths->pMatchIndex, &pMsg->srcId);
+  syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId, tsMs - lastRecvTime);
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
 
@@ -3697,7 +3702,7 @@ int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, &pRpcMsg->info.traceId);
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, &pRpcMsg->info.traceId, timeDiff);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
