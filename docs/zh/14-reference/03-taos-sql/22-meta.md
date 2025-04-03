@@ -94,7 +94,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 6   |       replica        | INT              | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                          |
 | 7   |        strict        | VARCHAR(4)       | 废弃参数 |
 | 8   |       duration       | VARCHAR(10)      | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。内部存储单位为分钟，查询时有可能转换为天或小时展示                         |
-| 9   |         keep         | VARCHAR(32)      | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 内部存储单位为分钟，查询时有可能转换为天或小时展示                                   |
+| 9   |         keep         | VARCHAR(32)      | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。内部存储单位为分钟，查询时有可能转换为天或小时展示                                   |
 | 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。          |
 | 11  |       pagesize       | INT              | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB。需要注意，`pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。  |
 | 12  |        pages         | INT              | 每个 vnode 元数据存储引擎的缓存页个数。需要注意，`pages` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
@@ -131,7 +131,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 7   |    bufsize    | INT           | buffer 大小                                                                                   |
 | 8   | func_language | VARCHAR(31)    | 自定义函数编程语言                                                                            |
 | 9   |   func_body   | VARCHAR(16384) | 函数体定义                                                                                    |
-| 10  | func_version  | INT           | 函数版本号。初始版本为0，每次替换更新，版本号加1。                                           |
+| 10  | func_version  | INT           | 函数版本号。初始版本为 0，每次替换更新，版本号加 1。                                           |
 
 
 ## INS_INDEXES
@@ -151,18 +151,19 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 提供用户创建的超级表的相关信息。
 
-| #   |   **列名**    | **数据类型** | **说明**                                                                                              |
-| --- | :-----------: | ------------ | ----------------------------------------------------------------------------------------------------- |
-| 1   |  stable_name  | VARCHAR(192)  | 超级表表名                                                                                            |
-| 2   |    db_name    | VARCHAR(64)   | 超级表所在的数据库的名称                                                                              |
-| 3   |  create_time  | TIMESTAMP    | 创建时间                                                                                              |
-| 4   |    columns    | INT          | 列数目                                                                                                |
-| 5   |     tags      | INT          | 标签数目。需要注意，`tags` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                   |
-| 6   |  last_update  | TIMESTAMP    | 最后更新时间                                                                                          |
-| 7   | table_comment | VARCHAR(1024) | 表注释                                                                                                |
-| 8   |   watermark   | VARCHAR(64)   | 窗口的关闭时间。需要注意，`watermark` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。        |
-| 9   |   max_delay   | VARCHAR(64)   | 推送计算结果的最大延迟。需要注意，`max_delay` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。|
-| 10  |    rollup     | VARCHAR(128)  | rollup 聚合函数。需要注意，`rollup` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。          |
+| #  |    **列名**     | **数据类型**      | **说明**                                                          |
+|----|:-------------:|---------------|-----------------------------------------------------------------|
+| 1  |  stable_name  | VARCHAR(192)  | 超级表表名                                                           |
+| 2  |    db_name    | VARCHAR(64)   | 超级表所在的数据库的名称                                                    |
+| 3  |  create_time  | TIMESTAMP     | 创建时间                                                            |
+| 4  |    columns    | INT           | 列数目                                                             |
+| 5  |     tags      | INT           | 标签数目。需要注意，`tags` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。             |
+| 6  |  last_update  | TIMESTAMP     | 最后更新时间                                                          |
+| 7  | table_comment | VARCHAR(1024) | 表注释                                                             |
+| 8  |   watermark   | VARCHAR(64)   | 窗口的关闭时间。需要注意，`watermark` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。     |
+| 9  |   max_delay   | VARCHAR(64)   | 推送计算结果的最大延迟。需要注意，`max_delay` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 10 |    rollup     | VARCHAR(128)  | rollup 聚合函数。需要注意，`rollup` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。    |
+| 11 |    virtual    | BOOL          | 超级表是否是虚拟超级表。                                                    |
 
 ## INS_TABLES
 
@@ -194,21 +195,22 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 ## INS_COLUMNS
 
-| #   |   **列名**    | **数据类型** | **说明**               |
-| --- | :-----------: | ------------ | ---------------------- |
-| 1   |  table_name   | VARCHAR(192)  | 表名                   |
-| 2   |    db_name    | VARCHAR(64)   | 该表所在的数据库的名称 |
-| 3   |  table_type   | VARCHAR(21)   | 表类型                 |
-| 4   |   col_name    | VARCHAR(64)   | 列 的名称              |
-| 5   |   col_type    | VARCHAR(32)   | 列 的类型              |
-| 6   |  col_length   | INT          | 列 的长度              |
-| 7   | col_precision | INT          | 列 的精度              |
-| 8   |   col_scale   | INT          | 列 的比例              |
-| 9   | col_nullable  | INT          | 列 是否可以为空        |
+| #  |    **列名**     | **数据类型**     | **说明**                                                        |
+|----|:-------------:|--------------|---------------------------------------------------------------|
+| 1  |  table_name   | VARCHAR(192) | 表名                                                            |
+| 2  |    db_name    | VARCHAR(64)  | 该表所在的数据库的名称                                                   |
+| 3  |  table_type   | VARCHAR(21)  | 表类型                                                           |
+| 4  |   col_name    | VARCHAR(64)  | 列 的名称                                                         |
+| 5  |   col_type    | VARCHAR(32)  | 列 的类型                                                         |
+| 6  |  col_length   | INT          | 列 的长度                                                         |
+| 7  | col_precision | INT          | 列 的精度                                                         |
+| 8  |   col_scale   | INT          | 列 的比例                                                         |
+| 9  | col_nullable  | INT          | 列 是否可以为空                                                      |
+| 10 |  col_source   | VARCHAR(322) | 列 的数据来源。只有虚拟表的列才会有该值，表示虚拟表的数据来源，为 db_name.table_name.col_name |
 
 ## INS_USERS
 
-提供系统中创建的用户的相关信息. SYSINFO 属性为0 的用户不能查看此表。
+提供系统中创建的用户的相关信息。SYSINFO 属性为 0 的用户不能查看此表。
 
 | #   |  **列名**   | **数据类型** | **说明** |
 | --- | :---------: | ------------ | -------- |
@@ -356,4 +358,4 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 5   |   end_time    | TIMESTAMP    | 文件组的覆盖数据的结束时间              |
 | 6   |  total_size   | BIGINT       | 文件组的总大小                          |
 | 7   | last_compact  | TIMESTAMP    | 最后一次压缩的时间                      |
-| 8   | shold_compact | bool         | 是否需要压缩，true：需要，false：不需要 |
+| 8   | should_compact | bool         | 是否需要压缩，true：需要，false：不需要 |

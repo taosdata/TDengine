@@ -199,6 +199,7 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SSDataBlock*                pRes = pInfo->binfo.pRes;
   int64_t                     st = taosGetTimestampUs();
   int32_t                     numOfBlocks = taosArrayGetSize(pSupp->blocks);
+  const char*                 idstr = GET_TASKID(pTaskInfo);
 
   blockDataCleanup(pRes);
 
@@ -243,11 +244,11 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   }
 
   int64_t cost = taosGetTimestampUs() - st;
-  qDebug("all groups finished, cost:%" PRId64 "us", cost);
+  qDebug("%s all groups finished, cost:%" PRId64 "us", idstr, cost);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", idstr, __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -260,8 +261,6 @@ static void anomalyDestroyOperatorInfo(void* param) {
   SAnomalyWindowOperatorInfo* pInfo = (SAnomalyWindowOperatorInfo*)param;
   if (pInfo == NULL) return;
 
-  qDebug("anomaly_window operator is destroyed, algo:%s", pInfo->algoName);
-
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
@@ -271,6 +270,7 @@ static void anomalyDestroyOperatorInfo(void* param) {
     SSDataBlock* pBlock = taosArrayGetP(pInfo->anomalySup.blocks, i);
     blockDataDestroy(pBlock);
   }
+
   taosArrayDestroy(pInfo->anomalySup.blocks);
   taosArrayDestroy(pInfo->anomalySup.windows);
   taosMemoryFreeClear(pInfo->anomalySup.pResultRow);
@@ -327,7 +327,7 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, const char* pId)
       qError("%s failed to exec forecast, msg:%s", pId, pMsg);
     }
 
-    return TSDB_CODE_ANA_WN_DATA;
+    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
   } else if (rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -382,7 +382,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnalyticBuf                analyBuf = {.bufType = ANALYTICS_BUF_TYPE_JSON};
   char                        dataBuf[64] = {0};
   int32_t                     code = 0;
-  int64_t                     ts = 0;
+  int64_t                     ts = taosGetTimestampMs();
   int32_t                     lino = 0;
   const char*                 pId = GET_TASKID(pOperator->pTaskInfo);
 
@@ -593,7 +593,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
 
     for (int32_t r = 0; r < pBlock->info.rows; ++r) {
       TSKEY key = tsList[r];
-      bool  keyInWin = (key >= pSupp->curWin.skey && key < pSupp->curWin.ekey);
+      bool  keyInWin = (key >= pSupp->curWin.skey && key <= pSupp->curWin.ekey);
       bool  lastRow = (r == pBlock->info.rows - 1);
 
       if (keyInWin) {

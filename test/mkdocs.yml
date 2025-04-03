@@ -1,0 +1,39 @@
+site_name: TDengine Case List
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.top
+extra:
+  version:
+    provider: mike
+  
+markdown_extensions:
+- attr_list
+- toc:
+    permalink: true
+    separator: "-"
+    baselevel: 1
+    toc_depth: 4
+plugins:
+- search
+- mkdocstrings:
+    custom_templates: templates
+    handlers:
+      python:
+        paths:
+          - cases
+          - new_test_framework/utils
+        options:
+          heading_level: 2
+          show_root_heading: true
+          show_bases: false
+          show_source: false
+          show_object_full_path: false
+            
+- mike:
+    alias_type: symlink
+    version_selector: true  # 启用版本选择器
+
+docs_dir: docs
+site_dir: site

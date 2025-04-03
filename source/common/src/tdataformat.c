@@ -520,11 +520,12 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
         *pOrdered = true;
         *pDupTs = false;
       } else {
-        // no more compare if we already get disordered or duplicate rows
-        if (*pOrdered && !*pDupTs) {
-          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
-          *pOrdered = (code >= 0);
-          *pDupTs = (code == 0);
+        if (*pOrdered) {
+          int32_t res = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (res >= 0);
+          if (!*pDupTs) {
+            *pDupTs = (res == 0);
+          }
         }
       }
       lastRowKey = rowKey;
@@ -3086,7 +3087,10 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
           code = cgeos((char *)pBind->buffer + pBind->buffer_length * i, (size_t)pBind->length[i]);
-          if (code) goto _exit;
+          if (code) {
+            uError("stmt col[%d] bind geometry wrong format", i);
+            goto _exit;
+          }
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
             pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
@@ -3175,7 +3179,10 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
       } else {
         if (pColData->type == TSDB_DATA_TYPE_GEOMETRY) {
           code = cgeos(buf, pBind->length[i]);
-          if (code) goto _exit;
+          if (code) {
+            uError("stmt2 col[%d] bind geometry wrong format", i);
+            goto _exit;
+          }
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, buf, pBind->length[i]);
         buf += pBind->length[i];
@@ -3349,17 +3356,17 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
         *pOrdered = true;
         *pDupTs = false;
       } else {
-        // no more compare if we already get disordered or duplicate rows
-        if (*pOrdered && !*pDupTs) {
-          int32_t code = tRowKeyCompare(&rowKey, &lastRowKey);
-          *pOrdered = (code >= 0);
-          *pDupTs = (code == 0);
+        if (*pOrdered) {
+          int32_t res = tRowKeyCompare(&rowKey, &lastRowKey);
+          *pOrdered = (res >= 0);
+          if (!*pDupTs) {
+            *pDupTs = (res == 0);
+          }
         }
+        lastRowKey = rowKey;
       }
-      lastRowKey = rowKey;
     }
   }
-
 _exit:
   taosArrayDestroy(colValArray);
   taosArrayDestroy(bufArray);

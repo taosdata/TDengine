@@ -204,7 +204,7 @@ SHOW SUBSCRIPTIONS;
 SHOW [NORMAL | CHILD] [db_name.]TABLES [LIKE 'pattern'];
 ```
 
-显示当前数据库下的所有普通表和子表的信息。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示普通表信息， CHILD 指定只显示子表信息。
+显示当前数据库下的所有普通表和子表的信息。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示普通表信息，CHILD 指定只显示子表信息。
 
 ## SHOW TABLE DISTRIBUTED
 
@@ -216,7 +216,7 @@ SHOW TABLE DISTRIBUTED table_name;
 
 示例说明：
 
-语句： show table distributed d0\G;   竖行显示表 d0 的 BLOCK 分布情况
+语句：show table distributed d0\G;   竖行显示表 d0 的 BLOCK 分布情况
 
 <details>
  <summary>显示示例</summary>
@@ -228,7 +228,7 @@ _block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Comp
 
 Total_Blocks：表 d0 占用的 block 个数为 5 个
 
-Total_Size：  表 d0 所有 block 在文件中占用的大小为 93.65 KB 
+Total_Size：表 d0 所有 block 在文件中占用的大小为 93.65 KB 
 
 Average_size：平均每个 block 在文件中占用的空间大小为 18.73 KB
 
@@ -241,24 +241,24 @@ _block_dist: Total_Rows=[20000] Inmem_Rows=[0] MinRows=[3616] MaxRows=[4096] Ave
 
 Total_Rows：统计表 d0 的存储在磁盘上行数 20000 行（该数值仅供参考，不是精确的行数。获得精确的行数需要使用 count 函数）
 
-Inmem_Rows： 存储在写缓存中的数据行数（没有落盘），0 行表示内存缓存中没有数据
+Inmem_Rows：存储在写缓存中的数据行数（没有落盘），0 行表示内存缓存中没有数据
 
-MinRows：    BLOCK 中最小的行数，为 3616 行
+MinRows：BLOCK 中最小的行数，为 3616 行
 
-MaxRows：    BLOCK 中最大的行数，为 4096 行
+MaxRows：BLOCK 中最大的行数，为 4096 行
 
-Average_Rows： 每个 BLOCK 中的平均行数，此时为 4000 行
+Average_Rows：每个 BLOCK 中的平均行数，此时为 4000 行
 
 
 *************************** 3.row ***************************
 
 _block_dist: Total_Tables=[1] Total_Files=[2] Total_Vgroups=[1]
 
-Total_Tables： 子表的个数，这里为 1
+Total_Tables：子表的个数，这里为 1
 
-Total_Files：   表数据被分别保存的数据文件数量，这里是 2 个文件
+Total_Files：表数据被分别保存的数据文件数量，这里是 2 个文件
 
-Total_Vgroups： 表数据分布的虚拟节点（vnode）数量
+Total_Vgroups：表数据分布的虚拟节点（vnode）数量
 
 
 *************************** 5.row ***************************
@@ -288,7 +288,7 @@ Query OK, 24 row(s) in set (0.002444s)
 </code></pre>
  </details>
 
-上面是块中包含数据行数的块儿分布情况图，这里的 `0100 0299 0498 …` 表示的是每个块中包含的数据行数，上面的意思就是这个表的 5 个块，分布在 `3483 ~ 3681` 行的块有 1 个，占整个块的 20%，分布在 `3881 ~ 4096`（最大行数）的块数为 4 个，占整个块的 80%， 其它区域内分布块数为 0。
+上面是块中包含数据行数的块儿分布情况图，这里的 `0100 0299 0498 …` 表示的是每个块中包含的数据行数，上面的意思就是这个表的 5 个块，分布在 `3483 ~ 3681` 行的块有 1 个，占整个块的 20%，分布在 `3881 ~ 4096`（最大行数）的块数为 4 个，占整个块的 80%，其它区域内分布块数为 0。
 
 需要注意，这里只会显示 data 文件中数据块的信息，stt 文件中的数据的信息不会被显示。
 
@@ -313,10 +313,10 @@ SHOW TOPICS;
 
 ```sql
 SHOW TRANSACTIONS;
-SHOW TRANSACTION [tranaction_id];
+SHOW TRANSACTION [transaction_id];
 ```
 
-显示当前系统中正在执行的所有或者某一个事务的信息(该事务仅针对除普通表以外的元数据级别)。
+显示当前系统中正在执行的所有或者某一个事务的信息 (该事务仅针对除普通表以外的元数据级别)。
 
 ## SHOW USERS
 

@@ -8,7 +8,7 @@ TDengine 提供了兼容 InfluxDB (v1) 和 OpenTSDB 行协议的 Schemaless API�
 
 ### 兼容 InfluxDB 行协议写入的方法
 
-您可以配置任何支持使用 InfluxDB（v1） 行协议的应用访问地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 InfluxDB 兼容格式的数据到 TDengine。EndPoint 如下：
+您可以配置任何支持使用 InfluxDB（v1）行协议的应用访问地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 InfluxDB 兼容格式的数据到 TDengine。EndPoint 如下：
 ```text
 /influxdb/v1/write?<param1=value1>?<param2=value2>...
 ```
@@ -21,7 +21,7 @@ TDengine 提供了兼容 InfluxDB (v1) 和 OpenTSDB 行协议的 Schemaless API�
 - `p` TDengine 密码
 - `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考[创建表文档](/../../taos-sql/table/#创建表)的 TTL 参数
 
-注意： 目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
+注意：目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
 
 参考链接：[InfluxDB v1 写接口](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 

@@ -32,6 +32,8 @@ endif(${BUILD_TEST})
 
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
+
+ADD_SUBDIRECTORY(contrib/TSZ)
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)

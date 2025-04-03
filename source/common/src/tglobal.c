@@ -122,7 +122,7 @@ bool    tsEnableWhiteList = false;  // ip white list cfg
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
 int32_t tsArbCheckSyncIntervalSec = 3;
-int32_t tsArbSetAssignedTimeoutSec = 6;
+int32_t tsArbSetAssignedTimeoutSec = 10;
 
 // dnode
 int64_t tsDndStart = 0;
@@ -545,7 +545,11 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   char    cfgFile[PATH_MAX + 100] = {0};
 
   TAOS_CHECK_RETURN(taosExpandDir(inputCfgDir, cfgDir, PATH_MAX));
-  char  lastC = cfgDir[strlen(cfgDir) - 1];
+  int32_t pos = strlen(cfgDir);
+  if(pos > 0) {
+    pos -= 1;
+  }
+  char  lastC = cfgDir[pos];  
   char *tdDirsep = TD_DIRSEP;
   if (lastC == '\\' || lastC == '/') {
     tdDirsep = "";
@@ -1004,8 +1008,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
-  // min free disk space used to check if the disk is full [50MB, 1GB]
-  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, TFS_MIN_DISK_FREE_SIZE_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyMessageSize", tsStreamNotifyMessageSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
@@ -3134,6 +3137,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
   int32_t   lino = 0;
   char     *buffer = NULL;
   TdFilePtr pFile = NULL;
+  char     *serialized = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
   snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
@@ -3149,7 +3153,6 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
     uError("failed to open file:%s since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
   }
-  char *serialized = NULL;
   TAOS_CHECK_GOTO(globalConfigSerialize(version, array, &serialized), &lino, _exit);
 
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
@@ -3173,6 +3176,7 @@ int32_t taosPersistLocalConfig(const char *path) {
   int32_t   lino = 0;
   char     *buffer = NULL;
   TdFilePtr pFile = NULL;
+  char     *serialized = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
   snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
@@ -3190,7 +3194,6 @@ int32_t taosPersistLocalConfig(const char *path) {
     TAOS_RETURN(code);
   }
 
-  char *serialized = NULL;
   TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serialized), &lino, _exit);
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;

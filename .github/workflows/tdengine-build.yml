@@ -74,6 +74,17 @@ jobs:
             snappy \
             zlib
 
+      - name: prepare install path
+        run: |
+          sudo mkdir -p /usr/local/lib
+          sudo mkdir -p /usr/local/include
+
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
       - name: Build and install TDengine
         run: |
           mkdir debug && cd debug
@@ -89,6 +100,16 @@ jobs:
           which taosd
           which taosadapter
           which taoskeeper
+
+      - name: Statistics ldd
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -name "*.so" -print0 | xargs -0 ldd || true
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd || true
+
+      - name: Statistics size
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lhrS
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lhrS
 
       - name: Start taosd
         run: |

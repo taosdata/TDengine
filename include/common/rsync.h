@@ -15,7 +15,7 @@ void    stopRsync();
 int32_t startRsync();
 int32_t uploadByRsync(const char* id, const char* path, int64_t checkpointId);
 int32_t downloadByRsync(const char* id, const char* path, int64_t checkpointId);
-int32_t deleteRsync(const char* id);
+int32_t deleteRsync(const char* pTaskId, int64_t checkpointId);
 
 #ifdef __cplusplus
 }

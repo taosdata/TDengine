@@ -25,6 +25,7 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.1.5                     | Password supports special characters. |  - |
 | 3.1.4                     | Modified the readme.| -                           |
 | 3.1.3                     | Upgraded the es5-ext version to address vulnerabilities in the lower version. | -                      |
 | 3.1.2                     | Optimized data protocol and parsing, significantly improved performance. | -                           |

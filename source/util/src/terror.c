@@ -76,7 +76,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_REF_ID_REMOVED,               "Ref ID is removed")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_INVALID_ID,               "Invalid Ref ID")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            "Ref is already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                "Ref is not there")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_DLL_NOT_LOAD,                 "Driver was not loaded")
+TAOS_DEFINE_ERROR(TSDB_CODE_DLL_FUNC_NOT_LOAD,            "Function was not loaded from the driver")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_ERROR,                    "Unexpected generic error")
 TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_IN_PROGRESS,           "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RANGE,                 "Out of range")
@@ -375,8 +376,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_FOUND,          "Analysis algorithm is 
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "Analysis internal error, not processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS,   "Analysis failed since not enough rows")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -909,6 +912,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INVALID_DOWNSTREAM, "Virtual table scan 
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_PRIMTS_HAS_REF,          "Virtual table prim timestamp column should not has ref column")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_VIRTUAL_SUPER_TABLE, "Create virtual child table must use virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE,   "Virtual table not support decimal type")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT,        "Virtual table not support in STMT query and STMT insert")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not support in topic")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")
 #ifdef TAOS_ERROR_C
 };
 #endif

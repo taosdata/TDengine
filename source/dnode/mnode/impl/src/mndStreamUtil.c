@@ -738,6 +738,7 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
   int32_t code = 0;
   int32_t lino = 0;
   SArray *pDropped = NULL;
+  int64_t ts = 0;
 
   mDebug("start to scan checkpoint report info");
 
@@ -819,13 +820,17 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
   }
 
 _end:
+
+  ts = taosGetTimestampMs();
+  execInfo.chkptReportScanTs = ts;
+
   streamMutexUnlock(&execInfo.lock);
 
   if (pDropped != NULL) {
     taosArrayDestroy(pDropped);
   }
 
-  mDebug("end to scan checkpoint report info")
+  mDebug("end to scan checkpoint report info, ts:%"PRId64, ts);
   return code;
 }
 
@@ -1307,6 +1312,8 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
     STR_WITH_SIZE_TO_VARSTR(level, "agg", 3);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     STR_WITH_SIZE_TO_VARSTR(level, "sink", 4);
+  } else if (pTask->info.taskLevel == TASK_LEVEL__MERGE) {
+    STR_WITH_SIZE_TO_VARSTR(level, "merge", 5);
   }
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

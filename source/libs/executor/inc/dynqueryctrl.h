@@ -76,6 +76,7 @@ typedef struct SStbJoinDynCtrlInfo {
 
 typedef struct SVtbScanDynCtrlInfo {
   bool             scanAllCols;
+  char*            dbName;
   tsem_t           ready;
   SEpSet           epSet;
   SUseDbRsp*       pRsp;

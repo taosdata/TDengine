@@ -33,6 +33,10 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_select.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
@@ -70,6 +74,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f alter/alterConfig.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 
 ,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f alter/alter_db_option.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/subquery/subqueryBugs.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f storage/compressBasic.py -N 3
@@ -90,18 +95,23 @@
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py
+,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py -N 3
+
+,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
 #
 # army/tools
 #
 
-# benchmark 66 cases
+# benchmark 64 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
+
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
@@ -110,6 +120,7 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
 # ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-import.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert-decimal.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
@@ -117,7 +128,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBasic.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
@@ -126,6 +137,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/queryMain.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
@@ -161,6 +173,7 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
@@ -180,6 +193,7 @@
 
 
 # taosdump 43 cases
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpCompa.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbStb.py

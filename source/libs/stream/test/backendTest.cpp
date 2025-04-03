@@ -62,9 +62,10 @@ void *backendOpen() {
   // default/state/fill/sess/func/parname/partag
   int32_t              size = 100;
   std::vector<int64_t> tsArray;
+
   for (int32_t i = 0; i < size; i++) {
     int64_t ts = taosGetTimestampMs();
-    SWinKey key;  // = {.groupId = (uint64_t)(i), .ts = ts};
+    SWinKey key {0};  // = {.groupId = (uint64_t)(i), .ts = ts};
     key.groupId = (uint64_t)(i);
     key.ts = ts;
     const char *val = "value data";
@@ -139,7 +140,7 @@ void *backendOpen() {
   winkey.groupId = 0;
   winkey.ts = tsArray[0];
   char   *val = NULL;
-  int32_t len = 0;
+//  int32_t len = 0;
 
   pCurr = streamStateSeekKeyNext_rocksdb(p, &winkey);
   ASSERT(pCurr != NULL);
@@ -243,11 +244,12 @@ void *backendOpen() {
     ASSERT(vlen == strlen("Value"));
     ASSERT(key.groupId == 0 && key.win.skey == tsArray[tsArray.size() - 1]);
 
-    ASSERT(0 == streamStateSessionAddIfNotExist_rocksdb(p, &key, 10, (void **)&val, &len));
+    ASSERT(0 == streamStateSessionAddIfNotExist_rocksdb(p, &key, 10, (void **)&val, &vlen));
 
     ASSERT(0 ==
-           streamStateStateAddIfNotExist_rocksdb(p, &key, (char *)"key", strlen("key"), NULL, (void **)&val, &len));
+           streamStateStateAddIfNotExist_rocksdb(p, &key, (char *)"key", strlen("key"), NULL, (void **)&val, &vlen));
   }
+
   for (int i = 0; i < size; i++) {
     SSessionKey key = {0};  //{.win = {.skey = tsArray[i], .ekey = tsArray[i]}, .groupId = (uint64_t)(0)};
     key.win.skey = tsArray[i];
@@ -403,8 +405,11 @@ TEST_F(BackendEnv, checkOpen) {
     ASSERT(code == 0);
     streamStateDestroyBatch(pBatch);
   }
+
+  SArray* pList = taosArrayInit(3, sizeof(int64_t));
+
   // do checkpoint 2
-  int32_t code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 2, 0);
+  int32_t code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 2, 0, pList);
   ASSERT(code == 0);
 
   {
@@ -426,7 +431,9 @@ TEST_F(BackendEnv, checkOpen) {
     streamStateDestroyBatch(pBatch);
   }
 
-  code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 3, 0);
+  taosArrayClear(pList);
+
+  code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 3, 0, pList);
   ASSERT(code == 0);
 
   const char *path = "/tmp/backend/stream";
@@ -439,9 +446,11 @@ TEST_F(BackendEnv, checkOpen) {
   SArray *result = taosArrayInit(4, sizeof(void *));
   bkdMgtGetDelta(mgt, p->pTdbState->idstr, 3, result, (char *)dump);
 
-  code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 4, 0);
+  taosArrayClear(pList);
+  code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 4, 0, pList);
   ASSERT(code == 0);
 
+  taosArrayDestroy(pList);
   taosArrayClear(result);
   code = bkdMgtGetDelta(mgt, p->pTdbState->idstr, 4, result, (char *)dump);
   ASSERT(code == 0);

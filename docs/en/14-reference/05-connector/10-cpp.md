@@ -413,7 +413,7 @@ For the OpenTSDB text protocol, the parsing of timestamps follows its official p
                                                 const char *lines,
                                                 int len,
                                                 int32_t *totalRows,
-                                                int protocal,
+                                                int protocol,
                                                 int precision,
                                                 int ttl,
                                                 uint64_t reqid)`
@@ -682,7 +682,7 @@ The basic API is used to establish database connections and provide a runtime en
   - **Interface Description**: Cleans up the runtime environment, should be called before the application exits.
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
-  - **Interface Description**: Sets client options, currently supports locale (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), timezone (`TSDB_OPTION_TIMEZONE`), and configuration file path (`TSDB_OPTION_CONFIGDIR`). Locale, character set, and timezone default to the current settings of the operating system.
+  - **Interface Description**: Sets client options, currently supports locale (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), timezone (`TSDB_OPTION_TIMEZONE`), configuration file path (`TSDB_OPTION_CONFIGDIR`), and driver type (`TSDB_OPTION_DRIVER`). Locale, character set, and timezone default to the current settings of the operating system. The driver type can be either the native interface(`native`) or the WebSocket interface(`websocket`), with the default being `websocket`.
   - **Parameter Description**:
     - `option`: [Input] Setting item type.
     - `arg`: [Input] Setting item value.
@@ -829,6 +829,12 @@ This section introduces APIs that are all synchronous interfaces. After being ca
   - **Parameter Description**:
     - res: [Input] Result set.
   - **Return Value**: Non-`NULL`: successful, returns a pointer to a TAOS_FIELD structure, each element representing the metadata of a column. `NULL`: failure.
+
+- `TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res)`
+  - **Interface Description**: Retrieves the attributes of each column in the query result set (column name, data type, column length). Used in conjunction with `taos_num_fields()`, it can be used to parse the data of a tuple (a row) returned by `taos_fetch_row()`. In addition to the basic information provided by TAOS_FIELD, TAOS_FIELD_E also includes `precision` and `scale` information for the data type.
+  - **Parameter Description**:
+    - res: [Input] Result set.
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_FIELD_E structure, where each element represents the metadata of a column. `NULL`: Failure.
 
 - `void taos_stop_query(TAOS_RES *res)`
   - **Interface Description**: Stops the execution of the current query.
