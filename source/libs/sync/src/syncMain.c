@@ -3587,35 +3587,28 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     return 0;
   }
 
-  SRpcMsg rpcMsg = {0};
-  TAOS_CHECK_RETURN(syncBuildHeartbeatReply(&rpcMsg, ths->vgId));
-  SyncTerm currentTerm = raftStoreTryGetTerm(ths);
-
-  SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
-  pMsgReply->destId = pMsg->srcId;
-  pMsgReply->srcId = ths->myRaftId;
-  pMsgReply->term = currentTerm;
-  pMsgReply->privateTerm = 8864;  // magic number
-  pMsgReply->startTime = ths->startTime;
-  pMsgReply->timeStamp = tsMs;
-  rpcMsg.info.traceId = pRpcMsg->info.traceId;
-
-  // reply
-  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
-  sGDebug(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64,
-          ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp);
-
-  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
-
-  if (currentTerm == 0) currentTerm = raftStoreGetTerm(ths);
-  sGDebug(&rpcMsg.info.traceId,
-          "vgId:%d, process sync-heartbeat msg from dnode:%d, commit-index:%" PRId64 ", cluster:%d msgTerm:%" PRId64
-          " currentTerm:%" PRId64,
-          ths->vgId, DID(&(pMsg->srcId)), pMsg->commitIndex, CID(&(pMsg->srcId)), pMsg->term, currentTerm);
+  SyncTerm currentTerm = raftStoreGetTerm(ths);
 
   if (pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
     raftStoreSetTerm(ths, pMsg->term);
     currentTerm = pMsg->term;
+  }
+
+  int64_t tsMs2 = taosGetTimestampMs();
+
+  int64_t processTime = tsMs2 - tsMs;
+  if (processTime > SYNC_HEARTBEAT_SLOW_MS) {
+    sGError(&pRpcMsg->info.traceId,
+            "vgId:%d, process sync-heartbeat msg from dnode:%d, commit-index:%" PRId64 ", cluster:%d msgTerm:%" PRId64
+            " currentTerm:%" PRId64 ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsg->srcId)), pMsg->commitIndex, CID(&(pMsg->srcId)), pMsg->term, currentTerm,
+            processTime);
+  } else {
+    sGDebug(&pRpcMsg->info.traceId,
+            "vgId:%d, process sync-heartbeat msg from dnode:%d, commit-index:%" PRId64 ", cluster:%d msgTerm:%" PRId64
+            " currentTerm:%" PRId64 ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsg->srcId)), pMsg->commitIndex, CID(&(pMsg->srcId)), pMsg->term, currentTerm,
+            processTime);
   }
 
   if (pMsg->term == currentTerm &&
@@ -3627,7 +3620,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER || ths->state == TAOS_SYNC_STATE_LEARNER) {
       SRpcMsg rpcMsgLocalCmd = {0};
       TAOS_CHECK_RETURN(syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId));
-      rpcMsgLocalCmd.info.traceId = rpcMsg.info.traceId;
+      rpcMsgLocalCmd.info.traceId = pRpcMsg->info.traceId;
 
       SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
       pSyncMsg->cmd =
@@ -3641,7 +3634,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           sError("vgId:%d, failed to enqueue commit msg from heartbeat since %s, code:%d", ths->vgId, terrstr(), code);
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
-          sGTrace(&rpcMsg.info.traceId,
+          sGTrace(&pRpcMsg->info.traceId,
                   "vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
                   pMsg->commitIndex, pMsg->term);
         }
@@ -3653,7 +3646,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER)) {
     SRpcMsg rpcMsgLocalCmd = {0};
     TAOS_CHECK_RETURN(syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId));
-    rpcMsgLocalCmd.info.traceId = rpcMsg.info.traceId;
+    rpcMsgLocalCmd.info.traceId = pRpcMsg->info.traceId;
 
     SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
     pSyncMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
@@ -3670,6 +3663,36 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       }
     }
   }
+
+  SRpcMsg rpcMsg = {0};
+  TAOS_CHECK_RETURN(syncBuildHeartbeatReply(&rpcMsg, ths->vgId));
+  SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
+  pMsgReply->destId = pMsg->srcId;
+  pMsgReply->srcId = ths->myRaftId;
+  pMsgReply->term = currentTerm;
+  pMsgReply->privateTerm = 8864;  // magic number
+  pMsgReply->startTime = ths->startTime;
+  pMsgReply->timeStamp = tsMs;
+  rpcMsg.info.traceId = pRpcMsg->info.traceId;
+
+  // reply
+  int64_t tsMs3 = taosGetTimestampMs();
+
+  int64_t processTime2 = tsMs3 - tsMs2;
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+  if (processTime2 > SYNC_HEARTBEAT_SLOW_MS) {
+    sGError(&rpcMsg.info.traceId,
+            "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
+            ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+  } else {
+    sGDebug(&rpcMsg.info.traceId,
+            "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
+            ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+  }
+
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
