@@ -9,6 +9,10 @@ import imgStep2 from '../../assets/tdengine-2-02.png';
 import imgStep3 from '../../assets/tdengine-2-03.png';
 import imgStep4 from '../../assets/tdengine-2-04.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create a data migration task through the Explorer interface to migrate data from the old version of TDengine2 to the current cluster.
 
 ## Feature Overview

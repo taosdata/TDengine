@@ -33,6 +33,12 @@ class Configure:
         """ return model directory """
         return self._model_directory
 
+    def get_tsfm_service(self, service_name):
+        if self.conf.has_option("tsfm-service", service_name):
+            return self.conf.get("tsfm-service", service_name)
+        else:
+            return None
+
     def get_draw_result_option(self):
         """ get the option for draw results or not"""
         return self._draw_result

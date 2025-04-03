@@ -29,7 +29,7 @@ TDgpt - TDengine© Time Series Data Analytics Platform (ver x.x.x)
 curl: (7) Failed to connect to 127.0.0.1 port 6090: Connection refused
 ```
 
-如果 anode 服务启动/运行不正常，请检查 uWSGI 的运行日志 `/var/log/taos/taosanode/taosanode.log`，检查其中的错误信息，根据错误信息解决响应的问题。
+如果 Anode 服务启动/运行不正常，请检查 uWSGI 的运行日志 `/var/log/taos/taosanode/taosanode.log`，检查其中的错误信息，根据错误信息解决响应的问题。
 
 > 请勿使用 systemctl status taosanode 检查 taosanode 是否正常
 

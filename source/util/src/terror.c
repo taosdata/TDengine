@@ -378,7 +378,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_BUF_INVALID_TYPE,        "Analysis invalid buffe
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "tdgpt internal error, not processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "Analysis internal error, not processed")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")

@@ -27,7 +27,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000025 |  http-report already quit                    | 1.http上报出现的问题| 内部问题，可以忽略| 
 | 0x80000026 |  rpc module already quit                     | 1.客户端实例已经退出，依然用该实例做查询 | 检查业务代码，是否用错|
 | 0x80000027 | rpc async module already quit                | 1.引擎错误, 可以忽略, 该错误码不会返回到用户侧| 如果返回到用户侧, 需要引擎侧追查问题|
-| 0x80000028 | rpc async in proces                          | 1.引擎错误, 可以忽略, 该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题|
+| 0x80000028 | rpc async in process                         | 1.引擎错误, 可以忽略, 该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题|
 | 0x80000029 |  rpc no state                                | 1.引擎错误, 可以忽略, 该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题 |
 | 0x8000002A | rpc state already dropped                    | 1.引擎错误, 可以忽略, 该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题|
 | 0x8000002B | rpc msg exceed limit                         | 1.单个rpc 消息超过上限,该错误码不会返回到用户侧 | 如果返回到用户侧, 需要引擎侧追查问题|
@@ -213,7 +213,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x800003E5 | Topic with invalid option                                                                    | 内部错误                                      | 上报 issue                                                                                       |
 | 0x800003E6 | Consumer not exist                                                                           | 不存在                                        | 确认操作是否正确                                                                                |
 | 0x800003E7 | Topic unchanged                                                                              | 无变化                                        | 确认操作是否正确                                                                                |
-| 0x800003E8 | Subcribe not exist                                                                           | 不存在                                        | 确认操作是否正确                                                                                |
+| 0x800003E8 | Subscribe not exist                                                                           | 不存在                                        | 确认操作是否正确                                                                                |
 | 0x800003E9 | Offset not exist                                                                             | 不存在                                        | 确认操作是否正确                                                                                |
 | 0x800003EA | Consumer not ready                                                                           | 内部错误                                      | 上报 issue                                                                                       |
 | 0x800003EB | Topic subscribed cannot be dropped                                                           | 被使用                                        | 确认操作是否正确                                                                                |
@@ -257,7 +257,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 错误码     | 错误描述                                           | 可能的出错场景或者可能的原因   | 建议用户采取的措施 |
 | ---------- | -------------------------------------------------- | ------------------------------ | ------------------ |
 | 0x80000503 | Invalid vgroup ID                                  | 老客户端未更新 cache，内部错误 | 上报问题           |
-| 0x80000512 | No writing previlege                               | 无写权限                       | 寻求授权           |
+| 0x80000512 | No writing privilege                               | 无写权限                       | 寻求授权           |
 | 0x80000520 | Vnode does not exist                               | 内部错误                       | 上报问题           |
 | 0x80000521 | Vnode already exists                               | 内部错误                       | 上报问题           |
 | 0x80000522 | Hash value of table is not in the vnode hash range | 表不属于 vnode                 | 上报问题           |
@@ -469,7 +469,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002658 | Invalid windows pc                                                                                     | 非法使用窗口伪列                              | 检查并修正 SQL 语句                     |
 | 0x80002659 | Window not allowed                                                                                     | 函数不能在窗口中使用                          | 检查并修正 SQL 语句                     |
 | 0x8000265A | Stream not allowed                                                                                     | 函数不能在流计算中使用                        | 检查并修正 SQL 语句                     |
-| 0x8000265B | Group by not allowd                                                                                    | 函数不能在分组中使用                          | 检查并修正 SQL 语句                     |
+| 0x8000265B | Group by not allowed                                                                                    | 函数不能在分组中使用                          | 检查并修正 SQL 语句                     |
 | 0x8000265D | Invalid interp clause                                                                                  | 非法 INTERP 或相关语句                          | 检查并修正 SQL 语句                     |
 | 0x8000265E | Not valid function ion window                                                                          | 非法窗口语句                                  | 检查并修正 SQL 语句                     |
 | 0x8000265F | Only support single table                                                                              | 函数只支持在单表查询中使用                    | 检查并修正 SQL 语句                     |
@@ -486,7 +486,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002689 | Invalid using cols function                                                                            | cols 函数使用错误                             | 检查并修正 SQL 语句                        |
 | 0x8000268A | Cols function's first param must be a select function that output a single row         | cols 函数第一个参数应该为选择函数                | 检查并修正 SQL 语句                     |
 | 0x8000268B | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                      | 检查并修正 SQL 语句                     |
-| 0x8000268C | Join primary key col must be timestmap type                                                            | 关联查询主键列等值条件类型错误                 | 检查并修正 SQL 语句                     |
+| 0x8000268C | Join primary key col must be timestamp type                                                            | 关联查询主键列等值条件类型错误                 | 检查并修正 SQL 语句                     |
 | 0x8000268D | Invalid virtual table's ref column                                                                     | 创建/更新虚拟表时数据源列不正确                         | 检查并修正SQL语句           |
 | 0x8000268E | Invalid table type                                                                                     | 表类型不正确                                   | 检查并修正SQL语句           |
 | 0x8000268F | Invalid ref column type                                                                                | 虚拟表列的数据类型与数据源的数据类型不同                     | 检查并修正SQL语句           |

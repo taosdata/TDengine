@@ -1,0 +1,231 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    $v1 = $x
+    $v2 = $x
+    if $x == 0 then
+      $v1 = NULL
+    endi
+
+    sql insert into $tb values ($ms , $v1 , $v2 )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select * from $tb
+print $data00 $data01 $data02
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+if $rows != 20 then
+  return -1
+endi
+
+print =============== step3
+sql select count(tbcol), count(tbcol2), avg(tbcol), avg(tbcol2), sum(tbcol), sum(tbcol2) from $tb
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+if $data00 != 19 then
+  return -1
+endi
+if $data01 != 20 then
+  return -1
+endi
+if $data02 != 10.000000000 then
+  return -1
+endi
+if $data03 != 9.500000000 then
+  return -1
+endi
+if $data04 != 190 then
+  return -1
+endi
+if $data05 != 190 then
+  return -1
+endi
+
+print =============== step4
+sql select * from $tb  where tbcol2 = 19
+print ===> $data01 $data02
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 19 then
+  return -1
+endi
+if $data02 != 19 then
+  return -1
+endi
+
+sql select * from $tb  where tbcol is NULL
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from $tb  where tbcol = NULL
+if $rows != 0 then
+  return -1
+endi
+
+print =============== step5
+sql create table tt using $mt tags( NULL )
+
+#sql alter table $tb set tgcol=NULL -x step52
+#  return -1
+#step52:
+
+sql select * from $mt  where tgcol is NULL
+if $rows != 0 then
+  return -1
+endi
+
+print =============== step6
+sql select count(tbcol), count(tbcol2), avg(tbcol), avg(tbcol2), sum(tbcol), sum(tbcol2) from $mt
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+if $data00 != 190 then
+  return -1
+endi
+if $data01 != 200 then
+  return -1
+endi
+if $data02 != 10.000000000 then
+  return -1
+endi
+if $data03 != 9.500000000 then
+  return -1
+endi
+if $data04 != 1900 then
+  return -1
+endi
+if $data05 != 1900 then
+  return -1
+endi
+
+print =============== step7
+sql create table t1 (ts timestamp, i bool)
+sql create table t2 (ts timestamp, i smallint)
+sql create table t3 (ts timestamp, i tinyint)
+sql create table t4 (ts timestamp, i int)
+sql create table t5 (ts timestamp, i bigint)
+sql create table t6 (ts timestamp, i float)
+sql create table t7 (ts timestamp, i double)
+sql create table t8 (ts timestamp, i binary(10))
+sql insert into t1 values(now, NULL)
+sql insert into t2 values(now, NULL)
+sql insert into t3 values(now, NULL)
+sql insert into t4 values(now, NULL)
+sql insert into t5 values(now, NULL)
+sql insert into t6 values(now, NULL)
+sql insert into t7 values(now, NULL)
+#sql insert into t8 values(now, NULL)
+
+#sql select * from t1
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data01 != NULL then
+#  return -1
+#endi
+
+sql select * from t2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+sql select * from t3
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+sql select * from t4
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+sql select * from t5
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+sql select * from t6
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+sql select * from t7
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+#sql select * from t8
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data01 != NULL then
+#  return -1
+#endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

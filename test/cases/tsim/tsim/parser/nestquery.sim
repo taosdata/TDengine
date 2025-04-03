@@ -1,0 +1,408 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = nest_db
+$tbPrefix = nest_tb
+$mtPrefix = nest_mt
+$tbNum = 3
+$rowNum = 10000
+$totalNum = $tbNum * $rowNum
+
+print =============== nestquery.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database if exists $db
+sql create database if not exists $db
+
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
+
+$half = 2
+
+$i = 0
+while $i < $half
+  $tb = $tbPrefix . $i
+
+  $nextSuffix = $i + $half
+  $tb1 = $tbPrefix . $nextSuffix
+
+  sql create table $tb using $mt tags( $i )
+  sql create table $tb1 using $mt tags( $nextSuffix )
+
+  $x = 0
+  while $x < $rowNum
+    $y = $x * 60000
+    $ms = 1600099200000 + $y
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values ($ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )  $tb1 values ($ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+$i = 1
+$tb = $tbPrefix . $i
+
+print ==============> simple nest query test
+sql select count(*) from (select count(*) from nest_mt0)
+if $rows != 1 then
+ return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+
+sql select count(*) from (select count(*) from nest_mt0 group by tbname)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+
+sql select count(*) from (select count(*) from nest_mt0 partition by tbname interval(10h) )
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 68 then
+  return -1
+endi
+
+sql select sum(a) from (select count(*) a from nest_mt0 partition by tbname interval(10h))
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 40000 then
+  return -1
+endi
+
+print =================> alias name test
+sql select ts from (select _wstart as ts, count(*) a from nest_tb0 interval(1h))
+if $rows != 167 then
+  return -1
+endi
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+sql select count(a) from (select count(*) a from nest_tb0 interval(1h))
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 167 then
+   return -1
+endi
+
+print ================>master query + filter
+sql select t.* from (select count(*) a from nest_tb0 interval(10h)) t where t.a <= 520;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from (select count(*) a, tbname f1 from nest_mt0 group by tbname) t where t.a<0 and f1 = 'nest_tb0';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from (select count(*) a, tbname f1, tbname from nest_mt0 group by tbname) t where t.a>0 and f1 = 'nest_tb0';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 10000 then
+  return -1
+endi
+if $data01 != @nest_tb0@ then
+  return -1
+endi
+if $data02 != @nest_tb0@ then
+  return -1
+endi
+
+print ===================> nest query interval
+sql_error select ts, avg(c1) from (select ts, c1 from nest_tb0);
+
+sql select _wstart, avg(c1) from (select * from nest_tb0) interval(3d)
+print $data00 $data01 $data10 $data11 $data20 $data21
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @20-09-14 00:00:00.000@  then
+  return -1
+endi
+if $data01 != 49.222222222 then
+  return -1
+endi
+if $data10 != @20-09-17 00:00:00.000@  then
+  return -1
+endi
+if $data11 != 49.685185185 then
+  return -1
+endi
+if $data20 != @20-09-20 00:00:00.000@  then
+  return -1
+endi
+if $data21 != 49.500000000 then
+  return -1
+endi
+
+sql select stddev(c1) from (select c1 from nest_tb0);
+sql_error select percentile(c1, 20) from (select * from nest_tb0);
+#sql select interp(c1) from (select * from nest_tb0);
+sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
+sql_error select twa(c1) from (select c1 from nest_tb0);
+sql_error select irate(c1) from (select c1 from nest_tb0);
+sql_error select diff(c1), twa(c1) from (select * from nest_tb0);
+#sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
+
+sql select _wstart, apercentile(c1, 50) from (select * from nest_tb0) interval(1d)
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+if $data01 != 47.571428571 then
+  return -1
+endi
+if $data10 != @20-09-16 00:00:00.000@ then
+  return -1
+endi
+if $data11 != 49.666666667 then
+  return -1
+endi
+if $data20 != @20-09-17 00:00:00.000@ then
+  return -1
+endi
+if $data21 != 49.000000000 then
+  return -1
+endi
+if $data30 != @20-09-18 00:00:00.000@ then
+  return -1
+endi
+if $data31 != 48.333333333 then
+  return -1
+endi
+
+sql select twa(c1) from (select * from nest_tb0);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 49.500000000 then
+  return -1
+endi
+
+sql select leastsquares(c1, 1, 1) from (select * from nest_tb0);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @{slop:0.000100, intercept:49.000000}@ then
+  return -1
+endi
+
+sql select irate(c1) from (select * from nest_tb0);
+if $data00 != 0.016666667 then
+  return -1
+endi
+
+sql select derivative(c1, 1s, 0) from (select * from nest_tb0);
+print $rows $data00 $data10
+if $rows != 9999 then
+  return -1
+endi
+if $data00 != 0.016666667 then
+  return -1
+endi
+if $data10 != 0.016666667 then
+  return -1
+endi
+
+sql select diff(c1) from (select * from nest_tb0);
+if $rows != 9999 then
+  return -1
+endi
+
+sql select _wstart, avg(c1),sum(c2), max(c3), min(c4), count(*), first(c7), last(c7),spread(c6) from (select * from nest_tb0) interval(1d);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+if $data01 != 48.666666667 then
+  print expect 48.666666667, actual: $data01
+  return -1
+endi
+if $data02 != 70080.000000000 then
+  return -1
+endi
+if $data03 != 99 then
+  return -1
+endi
+if $data04 != 0 then
+  return -1
+endi
+if $data05 != 1440 then
+  return -1
+endi
+if $data06 != 0 then
+  print $data06
+  return -1
+endi
+if $data07 != 1 then
+  return -1
+endi
+if $data08 != 99.000000000 then
+  print expect 99.000000000, actual: $data08
+  return -1
+endi
+if $data10 != @20-09-16 00:00:00.000@ then
+  return -1
+endi
+if $data11 != 49.777777778 then
+  return -1
+endi
+if $data12 != 71680.000000000 then
+  return -1
+endi
+
+sql select top(x, 20) from (select c1 x from nest_tb0);
+
+sql select bottom(x, 20) from (select c1 x from nest_tb0)
+
+print ===================> group by + having
+
+print =========================> ascending order/descending order
+
+print =========================> nest query join
+sql select a.ts,a.k,b.ts from (select _wstart ts, count(*) k from nest_tb0 interval(30a)) a, (select _wstart ts, count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
+if $rows != 10000 then
+  return -1
+endi
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+if $data10 != @20-09-15 00:01:00.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data12 != @20-09-15 00:01:00.000@ then
+  return -1
+endi
+
+sql select sum(a.k), sum(b.f) from (select _wstart ts, count(*) k from nest_tb0 interval(30a)) a, (select _wstart ts, count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 10000 then
+  return -1
+endi
+if $data01 != 10000 then
+  return -1
+endi
+
+sql select a.ts,a.k,b.ts,c.ts,c.ts,c.x from (select _wstart ts, count(*) k from nest_tb0 interval(30a)) a, (select _wstart ts, count(*) f from nest_tb1 interval(30a)) b, (select _wstart ts, count(*) x from nest_tb2 interval(30a)) c where a.ts = b.ts and a.ts = c.ts
+if $rows != 10000 then
+  return -1
+endi
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+if $data03 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+#sql select diff(val) from (select c1 val from nest_tb0);
+#if $rows != 9999 then
+#  return -1
+#endi
+#if $data00 != 1 then
+#  return -1
+#endi
+
+sql_error select last_row(*) from (select * from nest_tb0) having c1 > 0
+
+print ===========>td-4805
+sql_error select tbname, i from (select * from nest_tb0) group by i;
+
+sql select count(*),c1 from (select * from nest_tb0) where c1 < 2 group by c1 order by c1;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 100 then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != 100 then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+
+print =====================>TD-5157
+sql select _wstart, twa(c1) from nest_tb1 interval(19a);
+if $rows != 10000 then
+  return -1
+endi
+if $data00 != @20-09-14 23:59:59.992@ then
+  return -1
+endi
+if $data01 != 0.000083333 then
+  return -1
+endi
+
+print ======================>TD-5271
+sql_error select min(val),max(val),first(val),last(val),count(val),sum(val),avg(val) from (select count(*) val from nest_mt0 group by tbname)
+
+print =================>us database interval query, TD-5039
+sql create database test precision 'us';
+sql use test;
+sql create table t1(ts timestamp, k int);
+sql insert into t1 values('2020-01-01 01:01:01.000', 1) ('2020-01-01 01:02:00.000', 2);
+sql select _wstart, avg(k) from (select _wstart, avg(k) k from t1 interval(1s)) interval(1m);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @20-01-01 01:01:00.000000@ then
+  return -1
+endi
+if $data01 != 1.000000000 then
+  return -1
+endi
+if $data10 != @20-01-01 01:02:00.000000@ then
+  return -1
+endi
+if $data11 != 2.000000000 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

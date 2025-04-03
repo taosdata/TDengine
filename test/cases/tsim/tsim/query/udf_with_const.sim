@@ -1,0 +1,45 @@
+system_content printf %OS%
+if $system_content == Windows_NT then
+  return 0;
+endi
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c udf -v 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1 udf
+system sh/compile_udf.sh
+sql create database udf vgroups 3;
+sql use udf;
+
+sql create table t (ts timestamp, f int);
+sql insert into t values(now, 1)(now+1s, 2)(now+2s,3)(now+3s,4)(now+4s,5)(now+5s,6)(now+6s,7);
+
+system_content printf %OS%
+if $system_content == Windows_NT then
+  return 0;
+endi
+
+if $system_content == Windows_NT then
+  sql create function gpd as 'C:\\Windows\\Temp\\gpd.dll' outputtype int;
+else
+  sql create function gpd as '/tmp/udf/libgpd.so' outputtype int;
+endi
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+sql select gpd(ts, tbname, 'detail') from t;
+if $rows != 7 then
+  return -1
+endi
+print $data00 $data10
+if $data00 != @0@ then
+  return -1
+endi
+sql drop function gpd;
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
