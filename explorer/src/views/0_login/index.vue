@@ -552,7 +552,7 @@ function checkPhone(val) {
   return /^1[3456789]\d{9}$/.test(val);
 }
 function checkEmail(val) {
-  return /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val);
+  return /^[.a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val);
 }
 
 async function handlerCaptcha() {

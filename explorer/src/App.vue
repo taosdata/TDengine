@@ -40,10 +40,6 @@ const dialogVisible = computed({
   },
 });
 
-if ($IS_COMMUNITY) {
-  store.commit('app/SET_SHOW_SYSTEM_MES', true)
-}
-
 onMounted(() => {
   nextTick(() => {
     if ($IS_OEM) {

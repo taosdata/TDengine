@@ -74,20 +74,23 @@
           >
             <el-option v-for="item in levelList" :key="item.value" v-bind="item"></el-option>
           </el-select> </el-tooltip
-        ><el-tag
-          v-if="isCanSetPrimaryKey && !isEdit"
-          size="large"
-          effect="plain"
-          type="info"
-          class="primary-key-checkbox"
         >
-          <el-checkbox
-            v-model="currentValue.primaryKey"
-            :disabled="isEdit || parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1"
-            @change="valueChange"
-            >PRIMARY KEY</el-checkbox
+        <el-tooltip placement="top" effect="light" :open-delay="100" :content="t('common.compositeKey')">
+          <el-tag
+            v-if="isCanSetPrimaryKey && !isEdit"
+            size="large"
+            effect="plain"
+            type="info"
+            class="primary-key-checkbox"
           >
-        </el-tag>
+            <el-checkbox
+              v-model="currentValue.primaryKey"
+              :disabled="isEdit || parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1"
+              @change="valueChange"
+              >Composite Key<el-icon><QuestionFilled /></el-icon></el-checkbox
+            >
+          </el-tag>
+        </el-tooltip>
       </template>
       <el-input
         v-model="currentValue.field"

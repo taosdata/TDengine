@@ -8,7 +8,7 @@
         <el-popover trigger="click" placement="right-end">
           <ol v-dompurify-html="$t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')" style="padding-left: 10px; list-style: unset"></ol>
           <template #reference>
-            <el-input v-model.trim="ruleForm.pwd" clear maxlength="16" :show-password="true" minlength="8"></el-input>
+            <el-input v-model.trim="ruleForm.pwd" clear maxlength="255" :show-password="true" minlength="8"></el-input>
           </template>
         </el-popover>
       </el-form-item>
@@ -384,6 +384,9 @@ function editUser(formEl: FormInstance | undefined) {
         cancel();
       } catch (error) {
         console.log(error);
+        if (error && error.desc) {
+          $error(error.desc);
+        }
       }
     } else {
       return false;
@@ -400,8 +403,8 @@ function submit(formEl: FormInstance | undefined) {
 }
 
 onMounted(async () => {
-  const result = await getDatabaseVariables('EnableStrongPassword');
-  enableStrongPassword.value = (result === true || result === 'true');
+  const result = await getDatabaseVariables('enableStrongPassword');
+  enableStrongPassword.value = (result === true || result === 'true' || result === '1');
 });
 
 </script>

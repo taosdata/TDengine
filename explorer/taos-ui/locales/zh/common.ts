@@ -13,6 +13,7 @@ export default {
   copy: '复制',
   dataType: '数据类型',
   level: '级别',
+  compositeKey: 'TDengine 采用时间戳做主键，但对于时间戳有可能相同的场景，您可选择另外一列与时间戳组成复合主键。',
   notEmptyTemp: '{0}不能为空',
   value: '值',
   share: '分享',
