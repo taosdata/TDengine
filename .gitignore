@@ -171,4 +171,5 @@ tzfile.h
 coverage.info
 taos
 taosd
+.DS_Store
 !test/requirements.txt
