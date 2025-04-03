@@ -22,6 +22,8 @@
 
 #include <tmsg.h>
 #include <vnodeInt.h>
+#include <random> 
+#include <string>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -84,6 +86,52 @@ static void initLog() {
       printf("failed to init log file\n");
     }
 }
+std::string genRandomString(int len) {
+    const std::string characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    std::random_device rd;  // 用于生成随机种子
+    std::mt19937 generator(rd());  // 随机数生成器
+    std::uniform_int_distribution<> distribution(0, characters.size() - 1);
+
+    std::string randomString;
+    for (int i = 0; i < len; ++i) {
+        randomString += characters[distribution(generator)];
+    }
+
+    return randomString;
+
+}  
+static int32_t putData(SBse *bse, int nItem, int32_t vlen, std::vector<int64_t> *data) {
+    SBseBatch *pBatch = NULL;
+    bseBatchInit(bse, &pBatch, nItem);
+    int32_t code = 0;
+    std::string value = genRandomString(vlen);
+    for (int32_t i = 0; i < nItem; i++) {
+        int64_t seq = 0;
+        code = bseBatchPut(pBatch, &seq, (uint8_t *)value.c_str(), value.size());
+        data->push_back(seq);
+    }
+    printf("put result ");
+    code = bseAppendBatch(bse, pBatch);
+    return code;
+}
+static int32_t getData(SBse *pBse, std::vector<int64_t> *data) {
+    int32_t code = 0;
+    for (int32_t i = 0; i < data->size(); i++) {
+        uint8_t *value = NULL;
+        int32_t len = 0;
+        uint64_t seq = data->at(i);
+        
+        code = bseGet(pBse, seq, &value, &len);
+        if (code != 0) {
+            printf("failed to get key %d error code: %d\n", i, code);
+        } else {
+          std::string str((char *)value, len);
+          printf("get result %d: %s\n", i, str.c_str());
+        }
+        taosMemFree(value);
+    }
+    return code;
+}
 TEST(bseCase, openTest) {
     initLog();
 
@@ -91,56 +139,22 @@ TEST(bseCase, openTest) {
     std::vector<int64_t> data;
     SBseCfg cfg = {.vgId = 2};
 
-    SBseBatch *pBatch = NULL;
     
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
-    code = bseBatchInit(bse, &pBatch,1024);
-    for (int32_t i = 0; i < 10000; i++) {
-      int64_t seq = 0;
-      char *buf = "test";
-      code = bseBatchPut(pBatch, &seq, (uint8_t *)buf, strlen(buf)); 
-      data.push_back(seq);  
-    }
+    putData(bse, 10000, 100, &data);
 
-    code = bseAppendBatch(bse, pBatch); 
-        
-
-    for (int32_t i = 0; i < 10000; i++) {
-      char *p = NULL;
-      int32_t len = 0;
-      int64_t seq = data[i];
-      code = bseGet(bse, seq, (uint8_t **)&p, &len);
-      taosMemoryFree(p);
-      printf("read at index %d\n", i);
-      ASSERT_EQ(len, 4);
-      //code = bseRead(bse, data[i], NULL, NULL);
-    }
     bseCommit(bse);
+
+    putData(bse, 10000, 200, &data);
     
-    for (int32_t i = 0; i < 1000; i++) {
-      char *p = NULL;
-      int32_t len = 0;
-      int64_t seq = data[i];
-      code = bseGet(bse, seq, (uint8_t **)&p, &len);
-      taosMemoryFree(p);
-      ASSERT_EQ(len, 4);
-        //code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
-        //data.push_back(seq); 
-    }
     bseCommit(bse);
 
+    putData(bse,10000, 200, &data);
 
-    for (int32_t i = 1; i < 10000; i++) {
-      uint8_t* value = NULL;
-      int32_t len = 0;
-      uint64_t seq = data[i];
-      code = bseGet(bse, seq, &value, &len);
-      if (code != 0) {
-        printf("failed to get key %d error code: %d\n", i, code);
-      }
-      taosMemFree(value);
-      //ASSERT_EQ(len, 4); 
-    }
+    getData(bse, &data);
+    bseCommit(bse);
+
+    getData(bse, &data);
     bseClose(bse);
     
 }

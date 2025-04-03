@@ -165,6 +165,10 @@ void tableReaderMgtCleanup(STableReaderMgt *pReader) {
   taosThreadMutexDestroy(&pReader->mutex);
 }
 
+static int32_t findTargetFile(SArray *pFileList) {
+  int32_t code = 0;
+  return code;
+}
 int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   int32_t lino = 0;

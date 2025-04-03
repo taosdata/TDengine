@@ -68,18 +68,25 @@ typedef struct {
 
 int8_t inSeqRange(SSeqRange *p, int64_t seq);
 int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq);
+
+typedef struct {
+  SBlock *data;
+  int32_t cap;
+} SBlockWrapper;
 typedef struct {
   char         name[TSDB_FILENAME_LEN];
   TdFilePtr    pDataFile;
   STableFooter footer;
   SArray      *pSeqToBlock;
   SArray      *pMetaHandle;
-  SBlock      *pData;
-  SBlock      *pHdata;
-  int32_t      blockCap;
-  int8_t       compressType;
-  int32_t      offset;
-  int32_t      blockId;
+  // SBlock       *pData;
+  // SBlock       *pHdata;
+  SBlockWrapper pBlockWrapper;
+  SBlockWrapper pHBlockWrapper;
+  int32_t       blockCap;
+  int8_t        compressType;
+  int32_t       offset;
+  int32_t       blockId;
   // int64_t      startSeq;
   // int64_t      lastSeq;
   SSeqRange tableRange;
@@ -90,15 +97,15 @@ typedef struct {
 } STableBuilder;
 
 typedef struct {
-  char         name[TSDB_FILENAME_LEN];
-  TdFilePtr    pDataFile;
-  STableFooter footer;
-  SArray      *pSeqToBlock;
-  SArray      *pMetaHandle;
-  SBlock      *pData;
-  SBlock      *pHdata;
-  int32_t      blockCap;
-  int32_t      fileSize;
+  char          name[TSDB_FILENAME_LEN];
+  TdFilePtr     pDataFile;
+  STableFooter  footer;
+  SArray       *pSeqToBlock;
+  SArray       *pMetaHandle;
+  SBlockWrapper pBlockWrapper;
+  SBlockWrapper pHBlockWrapper;
+  int32_t       blockCap;
+  int32_t       fileSize;
 } STableReader;
 
 typedef struct {
