@@ -781,6 +781,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py
