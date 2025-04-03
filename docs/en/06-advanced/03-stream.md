@@ -145,7 +145,7 @@ When creating a stream, you can specify the trigger mode of stream computing thr
 2. WINDOW_CLOSE: Triggered when the window closes (the closing of the window is determined by the event time, can be used in conjunction with watermark).
 3. MAX_DELAY time: If the window closes, computation is triggered. If the window has not closed, and the duration since it has not closed exceeds the time specified by max delay, computation is triggered.
 4. FORCE_WINDOW_CLOSE: Based on the current time of the operating system, only the results of the currently closed window are calculated and pushed out. The window is only calculated once at the moment of closure, and will not be recalculated subsequently. This mode currently only supports INTERVAL windows (does support sliding); In this mode, FILL_HISTORY is automatically set to 0, IGNORE EXPIRED is automatically set to 1 and IGNORE UPDATE is automatically set to 1; FILL only supports PREV, NULL, NONE, VALUE.
-   - This mode can be used to implement continuous queries, such as creating a stream that queries the number of data entries in the past 10 seconds window every 1 second。SQL as follows:
+   - This mode can be used to implement continuous queries, such as creating a stream that queries the number of data entries in the past 10 seconds window every 1 second. SQL as follows:
    ```sql
    create stream if not exists continuous_query_s trigger force_window_close into continuous_query as select count(*) from power.meters interval(10s) sliding(1s)
    ```

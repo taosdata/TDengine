@@ -3,16 +3,14 @@ title: 预测分析
 description: 介绍 TDgpt 内置时序数据预测模型
 ---
 
-import fc_result from '../pic/fc-result.png';
-
 时序数据预测分析以持续一个时间段的时序数据作为输入，预测接下一个连续时间区间内时间序列数据趋势，并且用户可以指定（预测）输出的时间序列数据点数量。为此，TDengine 引入新 SQL 函数 `FORECAST` 提供预测分析功能。基础数据（用于预测的历史时间序列数据）是该函数的输入，预测结果是该函数的输出。用户可以通过 `FORECAST` 函数调用 Anode 提供的预测算法提供的服务。预测分析通常只能针对超级表的子表或者不同表中同一个时间序列。
 
 在后续章节中，使用时序数据表 `foo` 作为示例，介绍预测和异常检测算法的使用方式，`foo` 表模式定义如下：
 
 | 列名称 | 类型        | 说明                 |
-| --- | --------- | ------------------ |
+| --- |-----------| ------------------ |
 | ts  | timestamp | 主时间戳列              |
-| i32 | int32     | 4字节整数，设备测量值 metric |
+| i32 | integer     | 4 字节整数，设备测量值 metric |
 
 ```sql
 taos> select * from foo;
@@ -53,7 +51,7 @@ algo=expr1
 | ------- | -------------------------- | ----------------------- |
 | algo    | 预测分析使用的算法                  | holtwinters             |
 | wncheck | 白噪声（white noise data）检查    | 默认值为 1，0 表示不进行检查        |
-| conf    | 预测数据的置信区间范围 ，取值范围 [0, 100] | 95                      |
+| conf    | 预测数据的置信区间范围，取值范围 [0, 100] | 95                      |
 | every   | 预测数据的采样间隔                  | 输入数据的采样间隔               |
 | start   | 预测结果的开始时间戳                 | 输入数据最后一个时间戳加上一个采样间隔时间区间 |
 | rows    | 预测结果的记录数                   | 10                      |
@@ -100,6 +98,7 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 
 - [ARIMA](./02-arima.md)
 - [HoltWinters](./03-holtwinters.md)
+- [Time Series Foundation Model](./04-tsfm.md)
 - CES (Complex Exponential Smoothing) 
 - Theta
 - Prophet
@@ -118,92 +117,3 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 
 ## 算法有效性评估工具
 
-TDgpt 在企业版中提供预测分析算法有效性评估工具 `analytics_compare`，调用该工具并设置合适的参数，能够使用 TDengine 中已经保存的数据作为回测依据，评估不同预测算法或训练模型的预测有效性。预测有效性的评估使用 `MSE` 指标作为依据，后续还将增加 `MAPE` 和 `MAE` 指标。
-
-使用评估工具，需要在配置文件 `taosanode.ini` 中设置正确的参数，包括选取评估的数据范围、结果输出时间、参与评估的算法、算法相应的参数、是否生成预测结果图等配置信息。
-
-```ini
-[forecast]
-# 训练数据的周期，每个周期包含多少个输入点
-period = 10
-
-# 使用范围内最后 10 条记录作为预测结果
-rows = 10
-
-# 训练数据开始时间
-start_time = 1949-01-01T00:00:00
-
-# 训练数据结束时间
-end_time = 1960-12-01T00:00:00
-
-# 输出结果的起始时间
-res_start_time = 1730000000000
-
-# 是否绘制预测结果图
-gen_figure = true
-```
-
-在具备完备的 Python 库的运行环境中，通过 `shell` 调用 TDgpt 安装路径下的 misc 中 `analytics_compare` 的命令即可。可以按照如下方式体验算法有效性评估工具：
-
-1. 在配置文件 `analytics.ini` 配置文件中设置 `taosd` 服务的连接信息，包括 主机地址、配置文件路径、用户名、登录密码等信息。
-   
-   ```ini
-   [taosd]
-   # taosd 服务主机名
-   host = 127.0.0.1
-   ```
-
-# 登录用户名
-
-user = root
-
-# 登录密码
-
-password = taosdata
-
-# 配置文件路径
-
-conf = /etc/taos/taos.cfg
-
-[input_data]
-
-# 用于预测评估的数据库名称
-
-db_name = test
-
-# 读取数据的表名称
-
-table_name = passengers
-
-# 读取列名称
-
-column_name = val, _c0   
-
-```
-2. 准备数据。
-
-我们在 TDgpt 安装目录下的 `resource` 文件夹中准备了一个样例数据 `sample-fc.sql`, 执行以下命令即可见示例数据写入到数据库：
-```shell
-taos -f sample-fc.sql
-```
-
-即可将示例数据写入到数据库中，以便进行后续的评估
-
-3. 执行算法评估工具，首先需要确保激活虚拟环境并调用 taosanode 运行的虚拟环境的 Python，否则启动的时候 Python 会提示找不到所需要的依赖库。
-
-```shell
-python3.10 ./analytics_compare.py forecast
-```
-
-4. 运行完成后，在当前目录下生成 `fc_result.xlsx` 文件，此文件即为算法评估的结果文件。该文件中第一个卡片是算法运行结果（如下表所示），分别包含了算法名称、执行调用参数、均方误差、执行时间 4 个指标。
-
-| algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
-| ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
-| holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
-| arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
-
-如果设置了 `gen_figure` 为 true，分析结果中还会有绘制的分析预测结果图（如下图所示）。
-
-<figure style={{textAlign: "center"}}>
-<img src={fc_result} alt="预测对比结果"/>
-</figure>

@@ -107,7 +107,7 @@ d1003 USING meters TAGS ("California.LosAngeles", 2) VALUES
 
 ### 通过超级表写入
 
-TDengine 还支持直接向超级表写入数据。需要注意的是，超级表是一个模板，本身不存储数据，写入的数据是存储在对应的子表中。如下 SQL 通过指定 tbname 列向子表d1001 写入一条数据。
+TDengine 还支持直接向超级表写入数据。需要注意的是，超级表是一个模板，本身不存储数据，写入的数据是存储在对应的子表中。如下 SQL 通过指定 tbname 列向子表 d1001 写入一条数据。
 
 ```sql
 insert into meters (tbname, ts, current, voltage, phase, location, group_id)
@@ -131,7 +131,7 @@ INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
 
 ## 删除
 
-为方便用户清理由于设备故障等原因产生的异常数据，TDengine 支持根据时间戳删除时序数据。下面的 SQL，将超级表 `meters` 中所有时间戳早于 `2021-10-01 10:40:00.100` 的数据删除。数据删除后不可恢复，请慎重使用。为了确保删除的数据确实是自己要删除的，建议可以先使用 select 语句加 where 后的删除条件查看要删除的数据内容，确认无误后再执行 delete 。
+为方便用户清理由于设备故障等原因产生的异常数据，TDengine 支持根据时间戳删除时序数据。下面的 SQL，将超级表 `meters` 中所有时间戳早于 `2021-10-01 10:40:00.100` 的数据删除。数据删除后不可恢复，请慎重使用。为了确保删除的数据确实是自己要删除的，建议可以先使用 select 语句加 where 后的删除条件查看要删除的数据内容，确认无误后再执行 delete。
 
 ```sql
 delete from meters where ts < '2021-10-01 10:40:00.100' ;
