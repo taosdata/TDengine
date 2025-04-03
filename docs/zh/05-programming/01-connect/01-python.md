@@ -124,7 +124,7 @@ $env:TDENGINE_CLOUD_TOKEN='<token>'
 :::
 <!-- exclude-end -->
 
-## 建立连接
+## 建立连接  {#connect}
 
 复制下面的代码到您的编辑器，然后执行这段代码。
 

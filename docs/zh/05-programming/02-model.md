@@ -6,7 +6,7 @@ description: TDengine 中如何建立数据模型
 
 TDengine 采用类关系型数据模型，需要建库、建表。因此对于一个具体的应用场景，需要考虑库、超级表和普通表的设计。本节不讨论细致的语法规则，只介绍概念。
 
-## 创建库
+## 创建库 {#create-database}
 
 不同类型的数据采集点往往具有不同的数据特征，包括数据采集频率的高低，数据保留时间的长短，副本的数目，数据块的大小，是否允许更新数据等等。为了在各种场景下 TDengine 都能以最大效率工作，TDengine 建议将不同数据特征的表创建在不同的库里，因为每个库可以配置不同的存储策略。创建一个库时，除 SQL 标准的选项外，还可以指定保留时长、副本数、缓存大小、时间精度、文件块里最大最小记录条数、是否压缩、一个数据文件覆盖的天数等多种参数。
 
@@ -22,8 +22,7 @@ TDengine 采用类关系型数据模型，需要建库、建表。因此对于�
 :::
 
 ## 创建超级表
-
-一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用 TDengine, 需要对每个类型的数据采集点创建一个超级表。以 [表 1](/tdinternal/arch#model_table1) 中的智能电表为例，可以使用如下的 SQL 命令创建超级表：
+一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用 TDengine, 需要对每个类型的数据采集点创建一个超级表。以 [表 1](../../concept) 中的智能电表为例，可以使用如下的 SQL 命令创建超级表：
 
 ```sql
 CREATE STABLE power.meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
@@ -37,7 +36,7 @@ CREATE STABLE power.meters (ts timestamp, current float, voltage int, phase floa
 
 ## 创建表
 
-TDengine 对每个数据采集点需要独立建表。与标准的关系型数据库一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以 [表 1](/tdinternal/arch#model_table1) 中的智能电表为例，可以使用如下的 SQL 命令建表：
+TDengine 对每个数据采集点需要独立建表。与标准的关系型数据库一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以 [表 1](../../concept) 中的智能电表为例，可以使用如下的 SQL 命令建表：
 
 ```sql
 CREATE TABLE power.d1001 USING meters TAGS ("California.SanFrancisco", 2);

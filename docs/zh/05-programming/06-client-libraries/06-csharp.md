@@ -20,7 +20,7 @@ title: C# Connector
 
 * 安装 [.NET SDK](https://dotnet.microsoft.com/download)
 * [Nuget 客户端](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) （可选安装）
-* 安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](../#安装客户端驱动)
+* 安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](https://docs.taosdata.com/reference/connector/#%E5%AE%89%E8%A3%85%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%A9%B1%E5%8A%A8)
 
 ### 安装 TDengine.Connector
 

@@ -37,7 +37,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 使用 Java Connector 连接数据库前，需要具备以下条件：
 
 - 已安装 Java 1.8 或以上版本运行时环境和 Maven 3.6 或以上版本
-- 已安装 TDengine 客户端驱动（使用原生连接必须安装，使用 REST 连接无需安装），具体步骤请参考[安装客户端驱动](../#安装客户端驱动)
+- 已安装 TDengine 客户端驱动（使用原生连接必须安装，使用 REST 连接无需安装），具体步骤请参考[安装客户端驱动](https://docs.taosdata.com/reference/connector/#%E5%AE%89%E8%A3%85%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%A9%B1%E5%8A%A8)
 
 ### 安装连接器
 
