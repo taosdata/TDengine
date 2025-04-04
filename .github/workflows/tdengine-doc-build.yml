@@ -1,6 +1,11 @@
 name: TDengine Doc Build and Check
 
 on:
+  push:
+    branches:
+      - 'docs-cloud'
+    paths:
+      - 'docs/**'
   pull_request:
     branches:
       - 'main'
