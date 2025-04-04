@@ -4,8 +4,11 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
 from taostest.util import file
+import sys
 class EMSEdge(TDCase):
     def init(self):
+        self.yml_name = sys.argv[1].split("=")[1]
+        self.numbers_str = ''.join(filter(str.isdigit, self.yml_name))
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
         self.db_config = json.load(open(os.path.join(self.env_root, "db_config.json")))
@@ -34,10 +37,10 @@ class EMSEdge(TDCase):
         mqtt_parser = file.read_yaml(f'{os.environ["TEST_ROOT"]}/env/parser.yaml')
         for topic_id,topic_name in case_data_from["topics"].items():
             task_data = {}
-            mqtt_parser[topic_id]["parser"]["s_model"]["name"] = f'site_{topic_id}_mqtt_{hostname.replace("-", "_")}'
+            mqtt_parser[topic_id]["parser"]["s_model"]["name"] = f'site_{topic_id}_mqtt_{self.numbers_str}'
             child_table_model = mqtt_parser[topic_id]["parser"]["model"]["name"]
-            mqtt_parser[topic_id]["parser"]["model"]["using"] = f'site_{topic_id}_mqtt_{hostname.replace("-", "_")}'
-            mqtt_parser[topic_id]["parser"]["model"]["name"] = f"{child_table_model}_{hostname.replace('-', '_')}"
+            mqtt_parser[topic_id]["parser"]["model"]["using"] = f'site_{topic_id}_mqtt_{self.numbers_str}'
+            mqtt_parser[topic_id]["parser"]["model"]["name"] = f"{child_table_model}_{self.numbers_str}"
             cliend_id = self.tdCom.get_long_name(4, mode="numbers")
             task_data["from"] = f'''mqtt://{hostname}:1883?version=5.0&client_id={cliend_id}&char_encoding=UTF_8&keep_alive=60&clean_session=true&topics={case_data_from["topics"][topic_id]}::0&topic_pattern={case_data_from["topic_patterns"][topic_id]}'''
             # mqtt_payload
