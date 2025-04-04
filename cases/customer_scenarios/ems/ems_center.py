@@ -47,9 +47,9 @@ class EMSCenter(TDCase):
         self.tdCom.createDb(self.target_dbname,self.db_config)
         # Create legacy datain task, each edge side's mqtt_datain database will have a legacy datain task
         for edge_host in self.edge_hosts:
-            # "from": f"tmq+ws://{edge_host}:6041/{self.edge_db}?auto_offset_reset=earliest&client_id=test&experimental_snapshot_enable=true",
+                # "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s&compression={self.compression_param}",
             case_data = {
-                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s&compression={self.compression_param}",
+                "from": f"tmq+ws://{edge_host}:6041/{self.edge_db}?auto.offset.reset=earliest&client.id=test&experimental.snapshot.enable=true",
                 "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}",
                 "labels": self.case_data_org["from"]["labels"]
             }

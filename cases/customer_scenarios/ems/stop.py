@@ -20,7 +20,7 @@ import sys
 from datetime import datetime
 from taostest.util.rest import TDRest
 
-class Start(TDCase):
+class Stop(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
@@ -32,6 +32,7 @@ class Start(TDCase):
         self.test_start_time = self.workflow_config["test_start_time"]
         self.host = self.taosd_setting["fqdn"][0]
         self.log_path = f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.workflow_config["test_start_time"]}'
+        self.api_type = 0
         pass
 
     def get_role(self):
@@ -63,13 +64,12 @@ class Start(TDCase):
 
         return task_metrics_dict
     def run(self) -> bool:
-
         # stop mqtt simulator
         self.stop_mqtt_simulator()
         headers = {"Content-Type": "application/json"}
         task_url = f'http://{self.host}:6060/api/x/tasks'
         metrics_dict = self.stop_tasks_get_metrics(task_url=task_url,headers=headers)
-        summary_metrics = {
+        query_summary_metrics = {
             "role": self.get_role(),
             "host": self.host,
             "total_rows_per_second":0,
@@ -77,16 +77,44 @@ class Start(TDCase):
             "total_written_rows":0,
             "total_written_points":0
         }
+        tmq_summary_metrics = {
+            "role": self.get_role(),
+            "host": self.host,
+            "total_messages":0,
+            "total_execute_time":0,
+            "total_consume_cost_ms":0,
+            "total_messages_of_data":0,
+            "total_messages_of_meta":0,
+            "total_out_of_range_rows":0,
+            "total_success_messages":0,
+            "total_write_cost_ms":0,
+            "total_write_raw_cost_ms":0
+        }
         for task_id,metrics in metrics_dict.items():
-            # summary_metrics["total_inserted_sqls"] += metrics_dict[task_id]["total"]["total_inserted_sqls"]
-            summary_metrics["total_points_per_second"] += metrics_dict[task_id]["total"]["total_points_per_second"]
-            summary_metrics["total_written_points"] += metrics_dict[task_id]["total"]["total_written_points"]
-            summary_metrics["total_written_rows"] += metrics_dict[task_id]["total"]["total_written_rows"]
-            summary_metrics["total_rows_per_second"] += metrics_dict[task_id]["total"]["total_rows_per_second"]
+            # query_summary_metrics["total_inserted_sqls"] += metrics_dict[task_id]["total"]["total_inserted_sqls"]
+            if "total_points_per_second" in metrics_dict[task_id]["total"]:
+                self.api_type = 0
+                query_summary_metrics["total_points_per_second"] += metrics_dict[task_id]["total"]["total_points_per_second"]
+                query_summary_metrics["total_written_points"] += metrics_dict[task_id]["total"]["total_written_points"]
+                query_summary_metrics["total_written_rows"] += metrics_dict[task_id]["total"]["total_written_rows"]
+                query_summary_metrics["total_rows_per_second"] += metrics_dict[task_id]["total"]["total_rows_per_second"]
+            else:
+                self.api_type = 1
+                tmq_summary_metrics["total_messages"] += metrics_dict[task_id]["total"]["total_messages"]
+                tmq_summary_metrics["total_execute_time"] += metrics_dict[task_id]["total"]["total_execute_time"]
+                tmq_summary_metrics["total_consume_cost_ms"] += metrics_dict[task_id]["total"]["total_consume_cost_ms"]
+                tmq_summary_metrics["total_messages_of_data"] += metrics_dict[task_id]["total"]["total_messages_of_data"]
+                tmq_summary_metrics["total_messages_of_meta"] += metrics_dict[task_id]["total"]["total_messages_of_meta"]
+                tmq_summary_metrics["total_out_of_range_rows"] += metrics_dict[task_id]["total"]["total_out_of_range_rows"]
+                tmq_summary_metrics["total_success_messages"] += metrics_dict[task_id]["total"]["total_success_messages"]
+                tmq_summary_metrics["total_write_cost_ms"] += metrics_dict[task_id]["total"]["total_write_cost_ms"]
+                tmq_summary_metrics["total_write_raw_cost_ms"] += metrics_dict[task_id]["total"]["total_write_raw_cost_ms"]
+
+
         with open(f'{self.log_path}/details/{self.host}.json', "w") as result_file:
             json.dump(metrics_dict, result_file, indent=4)
         with open(f'{self.log_path}/summary/{self.host}-mqtt-perf-result.json', "w") as result_file:
-            json.dump(summary_metrics, result_file, indent=4)
+            json.dump(query_summary_metrics, result_file, indent=4) if self.api_type ==0 else json.dump(tmq_summary_metrics, result_file, indent=4)
         end_time = datetime.utcnow()
         url = (
             f'http://grafana.tdengine.net:3000/d/{self.workflow_config["grafana_datasource_name"]}/tdengine-process-exporter'
