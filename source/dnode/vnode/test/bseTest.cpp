@@ -104,8 +104,8 @@ static int32_t putData(SBse *bse, int nItem, int32_t vlen, std::vector<int64_t> 
     SBseBatch *pBatch = NULL;
     bseBatchInit(bse, &pBatch, nItem);
     int32_t code = 0;
-    std::string value = genRandomString(vlen);
     for (int32_t i = 0; i < nItem; i++) {
+        std::string value = genRandomString(vlen);
         int64_t seq = 0;
         code = bseBatchPut(pBatch, &seq, (uint8_t *)value.c_str(), value.size());
         data->push_back(seq);
@@ -141,21 +141,21 @@ TEST(bseCase, openTest) {
 
     
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
-    putData(bse, 5, 100, &data);
+    putData(bse, 1000, 100, &data);
 
     bseCommit(bse);
     getData(bse, &data);
 
-    // putData(bse, 1000, 200, &data);
+    putData(bse, 1000, 200, &data);
     
-    // bseCommit(bse);
+    bseCommit(bse);
 
-    // putData(bse,1000, 200, &data);
+    putData(bse,1000, 200, &data);
 
-    // getData(bse, &data);
-    // bseCommit(bse);
+    getData(bse, &data);
+    bseCommit(bse);
 
-    // getData(bse, &data);
+    getData(bse, &data);
     bseClose(bse);
     
 }

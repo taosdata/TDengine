@@ -397,7 +397,7 @@ int32_t compareFunc(const void *pLeft, const void *pRight) {
   }
   return 0;
 }
-static int32_t findHandleBySeq(SArray *pMetaHandle, int64_t seq) {
+static int32_t findTargetBlock(SArray *pMetaHandle, int64_t seq) {
   SBlkHandle handle = {.range = {.sseq = seq, .eseq = seq}};
   return taosArraySearchIdx(pMetaHandle, &handle, compareFunc, TD_LE);
 }
@@ -411,7 +411,7 @@ int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *l
     if (isGreaterSeqRange(&pHandle->range, seq)) {
       return blockSeek(p->pBlockWrapper.data, seq, value, len);
     } else {
-      int32_t idx = findHandleBySeq(p->pMetaHandle, seq);
+      int32_t idx = findTargetBlock(p->pMetaHandle, seq);
       if (idx < 0) {
         return TSDB_CODE_NOT_FOUND;
       }
@@ -667,7 +667,7 @@ int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *le
   int32_t     code = 0;
   SBlkHandle *pHandle = NULL;
   // opt later
-  int32_t idx = findHandleBySeq(p->pMetaHandle, seq);
+  int32_t idx = findTargetBlock(p->pMetaHandle, seq);
   if (idx < 0) {
     return TSDB_CODE_NOT_FOUND;
   }

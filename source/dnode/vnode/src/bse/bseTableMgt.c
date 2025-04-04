@@ -26,12 +26,12 @@ static int32_t tableReaderMgtRemveLiveFile(STableReaderMgt *pReader, SBseLiveFil
 static int32_t tableReaderMgtAddLiveFileSet(STableReaderMgt *pReader, SArray *pFileSet);
 static int32_t tableReadMgtGetAllLiveFileSet(STableReaderMgt *pReader, SArray **pList);
 
-static int32_t tableBuildMgtInit(STableBuilderMgt *pMgt, SBse *pBse);
-static int32_t tableBuildMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **p);
-static void    tableBuildMgtDestroy(STableBuilderMgt *pMgt);
-static int32_t tableBuildMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited);
-static int32_t tableBuildMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
-int32_t        tableBuildMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch);
+static int32_t tableBuilderMgtInitialize(STableBuilderMgt *pMgt, SBse *pBse);
+static int32_t tableBuilderMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **p);
+static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
+static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited);
+static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
+int32_t        tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch);
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   int32_t code = 0;
@@ -43,7 +43,7 @@ int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   }
   p->pBse = pBse;
 
-  code = tableBuildMgtInit(p->pBuilderMgt, pBse);
+  code = tableBuilderMgtInitialize(p->pBuilderMgt, pBse);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableReaderMgtInit(p->pReaderMgt, pBse);
@@ -64,7 +64,7 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tableBuildMgtSeek(pMgt->pBuilderMgt, seq, pValue, len);
+  code = tableBuilderMgtSeek(pMgt->pBuilderMgt, seq, pValue, len);
   if (code == TSDB_CODE_OUT_OF_RANGE) {
     code = tableReaderMgtSeek(pMgt->pReaderMgt, seq, pValue, len);
     TSDB_CHECK_CODE(code, lino, _error);
@@ -80,7 +80,7 @@ int32_t bseTableMgtCleanup(void *pMgt) {
   if (pMgt == NULL) return 0;
 
   STableMgt *p = (STableMgt *)pMgt;
-  tableBuildMgtDestroy(p->pBuilderMgt);
+  tableBuilderMgtDestroy(p->pBuilderMgt);
   tableReaderMgtCleanup(p->pReaderMgt);
   taosMemFree(p);
   return 0;
@@ -90,7 +90,7 @@ int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tableBuildMgtPutBatch(pMgt->pBuilderMgt, pBatch);
+  code = tableBuilderMgtPutBatch(pMgt->pBuilderMgt, pBatch);
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
@@ -112,7 +112,7 @@ int32_t bseTableMgtCommit(STableMgt *pMgt, SArray **pLiveFileList) {
 
   SBseLiveFileInfo info = {0};
 
-  code = tableBuildMgtCommit(pMgt->pBuilderMgt, &info, &commited);
+  code = tableBuilderMgtCommit(pMgt->pBuilderMgt, &info, &commited);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (commited == 1) {
@@ -166,17 +166,29 @@ void tableReaderMgtCleanup(STableReaderMgt *pReader) {
   taosThreadMutexDestroy(&pReader->mutex);
 }
 
-static int32_t findTargetFile(SArray *pFileList) {
-  int32_t code = 0;
-  return code;
+int32_t compareFileInfoFunc(const void *a, const void *b) {
+  SBseLiveFileInfo *p1 = (SBseLiveFileInfo *)a;
+  SBseLiveFileInfo *p2 = (SBseLiveFileInfo *)b;
+
+  if (p1->sseq < p2->sseq) {
+    return -1;
+  } else if (p1->sseq > p2->sseq) {
+    return 1;
+  }
+  return 0;
+}
+static int32_t findTargetTable(SArray *pFileList, int64_t seq) {
+  SBseLiveFileInfo target = {.sseq = seq, .eseq = seq};
+  return taosArraySearchIdx(pFileList, &target, compareFileInfoFunc, TD_LE);
 }
 int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   int32_t lino = 0;
 
   STableReader *pReader = NULL;
-  for (int32_t i = 0; i < taosArrayGetSize(pReaderMgt->pFileList); i++) {
-    SBseLiveFileInfo *pInfo = taosArrayGet(pReaderMgt->pFileList, i);
+  int32_t       idx = findTargetTable(pReaderMgt->pFileList, seq);
+  if (idx > 0 && idx < taosArrayGetSize(pReaderMgt->pFileList)) {
+    SBseLiveFileInfo *pInfo = taosArrayGet(pReaderMgt->pFileList, idx);
     if (pInfo->sseq <= seq && pInfo->eseq >= seq) {
       char name[TSDB_FILENAME_LEN] = {0};
 
@@ -189,7 +201,8 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
 
       code = tableReadClose(pReader);
       TSDB_CHECK_CODE(code, lino, _error);
-      break;
+
+      pReader = NULL;
     }
   }
 _error:
@@ -269,7 +282,7 @@ _error:
   return code;
 }
 
-int32_t tableBuildMgtInit(STableBuilderMgt *pMgt, SBse *pBse) {
+int32_t tableBuilderMgtInitialize(STableBuilderMgt *pMgt, SBse *pBse) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -283,7 +296,7 @@ int32_t tableBuildMgtInit(STableBuilderMgt *pMgt, SBse *pBse) {
   return code;
 }
 
-int32_t tableBuildMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch) {
+int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t seq = pBatch->startSeq;
@@ -292,7 +305,7 @@ int32_t tableBuildMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch) {
   taosThreadMutexUnlock(&pMgt->mutex);
 
   if (p == NULL) {
-    code = tableBuildMgtGetBuilder(pMgt, seq, &p);
+    code = tableBuilderMgtGetBuilder(pMgt, seq, &p);
     TSDB_CHECK_CODE(code, lino, _error);
   }
 
@@ -304,7 +317,7 @@ _error:
   }
   return code;
 }
-static int32_t tableBuildMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
+static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t        code = 0;
   int32_t        lino = 0;
   STableBuilder *pBuilder = NULL;
@@ -322,7 +335,7 @@ static int32_t tableBuildMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **
   return code;
 }
 
-int32_t tableBuildMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder) {
+int32_t tableBuilderMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder) {
   int32_t code = 0;
   char    path[TSDB_FILENAME_LEN] = {0};
 
@@ -342,7 +355,7 @@ int32_t tableBuildMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuild
   return code;
 }
 
-int32_t tableBuildMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited) {
+int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited) {
   int32_t        code = 0;
   int32_t        lino = 0;
   int8_t         flushIdx = -1;
@@ -367,7 +380,7 @@ _error:
   }
   return code;
 }
-void tableBuildMgtDestroy(STableBuilderMgt *pMgt) {
+void tableBuilderMgtDestroy(STableBuilderMgt *pMgt) {
   for (int32_t i = 0; i < 2; i++) {
     if (pMgt->p[i] != NULL) {
       tableBuildClose(pMgt->p[i], 0);

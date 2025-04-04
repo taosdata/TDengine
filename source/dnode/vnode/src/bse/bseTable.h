@@ -69,24 +69,21 @@ int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq);
 typedef struct {
   SBlock *data;
   int32_t cap;
+
 } SBlockWrapper;
 typedef struct {
-  char         name[TSDB_FILENAME_LEN];
-  TdFilePtr    pDataFile;
-  STableFooter footer;
-  SArray      *pSeqToBlock;
-  SArray      *pMetaHandle;
-  // SBlock       *pData;
-  // SBlock       *pHdata;
+  char          name[TSDB_FILENAME_LEN];
+  TdFilePtr     pDataFile;
+  STableFooter  footer;
+  SArray       *pSeqToBlock;
+  SArray       *pMetaHandle;
   SBlockWrapper pBlockWrapper;
   int32_t       blockCap;
   int8_t        compressType;
   int32_t       offset;
   int32_t       blockId;
-  // int64_t      startSeq;
-  // int64_t      lastSeq;
-  SSeqRange tableRange;
-  SSeqRange blockRange;
+  SSeqRange     tableRange;
+  SSeqRange     blockRange;
 
   SBse   *pBse;
   int32_t nRef;

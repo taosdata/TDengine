@@ -24,23 +24,28 @@ extern "C" {
 #endif
 
 typedef struct {
-  int32_t cap;
-  int32_t size;
-  void  **pCache;
+  int32_t        cap;
+  int32_t        size;
+  void         **pCache;
+  TdThreadRwlock rwlock;
 } STableCache;
 
 int32_t tableCacheOpen(int32_t cap, STableCache **p);
-int32_t tableCacheGet(STableCache *p, char *key, STableReader **pReader);
+int32_t tableCacheGet(STableCache *p, SSeqRange *key, STableReader **pReader);
+int32_t tableCachePut(STableCache *pMgt, SSeqRange *key, STableReader *pReader);
 void    tableCacheClose(STableCache *p);
 
 typedef struct {
   int32_t cap;
   int32_t size;
   void  **pCache;
+
+  TdThreadRwlock rwlock;
 } SBlockCache;
 
 int32_t blockCacheOpen(int32_t cap, SBlockCache **p);
 int32_t blockCacheGet(SBlockCache *p, char *key, SBlock **pBlock);
+int32_t blockCachePut(SBlockCache *p, char *key, SBlock *pBlock);
 void    blockCacheClose(SBlockCache *p);
 
 #ifdef __cplusplus
