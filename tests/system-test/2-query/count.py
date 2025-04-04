@@ -254,7 +254,7 @@ class TDTestCase:
     def test_count_with_sma_data(self):
         sql_file = './2-query/count_test.sql'
 
-        os.system(f'taos -f {sql_file}')
+        os.system(f'taos -Z 0 -f {sql_file}')
         tdSql.query('select count(c_1) from d2.t2 where c_1 < 10', queryTimes=1)
         tdSql.checkData(0, 0, 0)
         tdSql.query('select count(c_1), min(c_1),tbname from d2.can partition by tbname order by 3', queryTimes=1)
