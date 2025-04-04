@@ -1550,7 +1550,7 @@ deploy_grafana() {
 # Install Grafana for ubuntu/debian
 deploy_debian_grafana() {
     # Check if Grafana is already installed
-    if ! dpkg -s "grafana" &> /dev/null; then
+    if ! dpkg -s "grafana" && ! dpkg -s "grafana-enterprise" &> /dev/null; then
         echo "Downloading the latest Grafana .deb package..."
         # Download the latest Grafana .deb package
         grafana_latest_version=$1
