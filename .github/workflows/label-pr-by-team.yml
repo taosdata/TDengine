@@ -3,7 +3,6 @@ description: Label PR based on team membership
 
 on:
   pull_request:
-    # test message13
     types: [opened]
 
 jobs:
@@ -22,10 +21,8 @@ jobs:
             private_key: ${{ secrets.TAOSDATA_BOT_KEY }}
 
         - name: Add PR Labels
-          uses: taosdata/.github/.github/actions/add-pr-labels@main
+          uses: taosdata/.github/.github/actions/add-pr-labels@refactor/wangxu/pr-label
           with:
             github-token: ${{ steps.app-token.outputs.token }}
-            pr-number: ${{ github.event.pull_request.number }}
-            pr-user: ${{ github.event.pull_request.user.login }}
 
                 
