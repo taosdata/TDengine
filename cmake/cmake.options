@@ -9,9 +9,6 @@ option(
 )
 
 IF(${TD_WINDOWS})
-    # open show detail
-    set(CMAKE_VERBOSE_MAKEFILE ON)
-
     IF(NOT TD_ASTRA)
         MESSAGE("build pthread Win32")
         option(
