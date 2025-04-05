@@ -16,8 +16,6 @@ elseif(${BUILD_WITH_COS})
 
     # if(${BUILD_WITH_COS})
     #     file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
-    #     cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
-    #     cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
     # endif(${BUILD_WITH_COS})
 
     # configure_file(${CONTRIB_TMP_FILE3} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
@@ -30,7 +28,6 @@ elseif(${BUILD_WITH_COS})
     # configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
 
     # if(${BUILD_WITH_COS})
-    #     cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
     # endif(${BUILD_WITH_COS})
 
     # configure_file(${CONTRIB_TMP_FILE2} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
@@ -50,10 +47,6 @@ if(${BUILD_WITH_S3})
 # cos
 elseif(${BUILD_WITH_COS})
     message(FATAL_ERROR "freemine: not implemented yet")
-    # cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    # cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    # cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    cat("${TD_SUPPORT_DIR}/cos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_COS)
 endif()
 
@@ -122,24 +115,6 @@ if(${BUILD_WITH_S3})
 # cos
 elseif(${BUILD_WITH_COS})
     if(${TD_LINUX})
-        set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.1)
-
-        # ADD_DEFINITIONS(-DMINIXML_LIBRARY=${CMAKE_BINARY_DIR}/build/lib/libxml.a)
-        option(ENABLE_TEST "Enable the tests" OFF)
-        INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.1/include)
-
-        # MESSAGE("$ENV{HOME}/.cos-local.1/include")
-        set(CMAKE_BUILD_TYPE Release)
-        set(ORIG_CMAKE_PROJECT_NAME ${CMAKE_PROJECT_NAME})
-        set(CMAKE_PROJECT_NAME cos_c_sdk)
-
-        add_subdirectory(cos-c-sdk-v5 EXCLUDE_FROM_ALL)
-        target_include_directories(
-            cos_c_sdk
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cos-c-sdk-v5/cos_c_sdk>
-        )
-
-        set(CMAKE_PROJECT_NAME ${ORIG_CMAKE_PROJECT_NAME})
     else()
     endif(${TD_LINUX})
 endif()

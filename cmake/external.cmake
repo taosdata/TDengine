@@ -1364,3 +1364,151 @@ ExternalProject_Add(ext_azure
     VERBATIM
 )
 
+# mxml
+if(${TD_LINUX})
+    set(ext_mxml_static libmxml.a)
+elseif(${TD_DARWIN})
+    set(ext_mxml_static libmxml.a)
+elseif(${TD_WINDOWS})
+    set(ext_mxml_static mxml.lib)
+endif()
+INIT_EXT(ext_mxml
+    INC_DIR          include
+    LIB              lib/${ext_mxml_static}
+)
+# GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
+# GIT_TAG v2.12
+get_from_local_repo_if_exists("https://github.com/michaelrsweet/mxml.git")
+ExternalProject_Add(ext_mxml
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG v2.12
+    GIT_SHALLOW TRUE
+    PREFIX "${_base}"
+    BUILD_IN_SOURCE TRUE
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    PATCH_COMMAND ""
+    CONFIGURE_COMMAND
+        COMMAND ./configure --prefix=${_ins} --enable-shared=no
+    BUILD_COMMAND
+        COMMAND make DESTDIR=${_ins}
+    INSTALL_COMMAND
+        COMMAND make DESTDIR=${_ins} install
+        # TODO: why refresh every time? this is really annoying!
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_mxml)     # this is for github workflow in cache-miss step.
+
+# apr
+if(${TD_LINUX})
+    set(ext_apr_static libapr-1.a)
+elseif(${TD_DARWIN})
+    set(ext_apr_static libapr-1.a)
+elseif(${TD_WINDOWS})
+    set(ext_apr_static apr-1.lib)
+endif()
+INIT_EXT(ext_apr
+    INC_DIR          include/apr-1
+    LIB              lib/${ext_apr_static}
+)
+# URL https://dlcdn.apache.org//apr/apr-1.7.4.tar.gz
+# URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
+get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-1.7.5.tar.gz")
+ExternalProject_Add(ext_apr
+    URL ${_url}
+    URL_HASH SHA256=3375fa365d67bcf945e52b52cba07abea57ef530f40b281ffbe977a9251361db
+    # GIT_SHALLOW TRUE
+    PREFIX "${_base}"
+    BUILD_IN_SOURCE TRUE
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    PATCH_COMMAND ""
+    CONFIGURE_COMMAND
+        COMMAND ./configure --prefix=${_ins} --enable-shared=no
+    BUILD_COMMAND
+        COMMAND make            # NOTE: do NOT specify DESTDIR=
+    INSTALL_COMMAND
+        COMMAND make install    # NOTE: do NOT specify DESTDIR=
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_apr)
+
+# apr-util
+if(${TD_LINUX})
+    set(ext_aprutil_static libaprutil-1.a)
+elseif(${TD_DARWIN})
+    set(ext_aprutil_static libaprutil-1.a)
+elseif(${TD_WINDOWS})
+    set(ext_aprutil_static aprutil-1.lib)
+endif()
+INIT_EXT(ext_aprutil
+    INC_DIR          include/apr-1
+    LIB              lib/${ext_aprutil_static}
+)
+# URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
+# URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
+get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz")
+ExternalProject_Add(ext_aprutil
+    URL ${_url}
+    URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
+    # GIT_SHALLOW TRUE
+    DEPENDS ext_apr
+    PREFIX "${_base}"
+    BUILD_IN_SOURCE TRUE
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    PATCH_COMMAND ""
+    CONFIGURE_COMMAND
+        COMMAND ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
+    BUILD_COMMAND
+        COMMAND make            # NOTE: do NOT specify DESTDIR=
+    INSTALL_COMMAND
+        COMMAND make install    # NOTE: do NOT specify DESTDIR=
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_aprutil)
+
+# cos
+if(${TD_LINUX})
+    set(ext_cos_static libcos-1.a)
+elseif(${TD_DARWIN})
+    set(ext_cos_static libcos-1.a)
+elseif(${TD_WINDOWS})
+    set(ext_cos_static cos-1.lib)
+    set(_c_flags_list)
+endif()
+INIT_EXT(ext_cos
+    INC_DIR          include
+    LIB              lib/${ext_cos_static}
+)
+# GIT_REPOSITORY https://github.com/tencentyun/cos-c-sdk-v5.git
+# GIT_TAG v5.0.16
+get_from_local_repo_if_exists("https://github.com/tencentyun/cos-c-sdk-v5.git")
+ExternalProject_Add(ext_cos
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG v5.0.16
+    GIT_SHALLOW TRUE
+    DEPENDS ext_curl ext_mxml ext_aprutil
+    PREFIX "${_base}"
+    BUILD_IN_SOURCE TRUE
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DAPR_INCLUDE_DIR:STRING=${ext_apr_inc_dir}
+    CMAKE_ARGS -DAPR_UTIL_INCLUDE_DIR:STRING=${ext_aprutil_inc_dir}
+    CMAKE_ARGS -DMINIXML_INCLUDE_DIR:STRING=${ext_mxml_inc_dir}
+    CMAKE_ARGS -DCURL_INCLUDE_DIR:STRING=${ext_curl_inc_dir}
+    CMAKE_ARGS -DMINIXML_LIBRARY:STRING=${ext_mxml_libs}
+    PATCH_COMMAND
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/cos.CMakeLists.txt.in" "${ext_cos_source}/CMakeLists.txt"
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_cos)
+
