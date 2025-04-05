@@ -77,12 +77,12 @@ typedef struct TdDir {
 
 #else
 
-#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #ifndef TD_ASTRA
+#include <dlfcn.h>
 #include <wordexp.h>
 #endif
 
@@ -659,7 +659,7 @@ _OVER:
   return code;
 }
 
-
+#ifndef TD_ASTRA
 void* taosLoadDll(const char* fileName) {
 #if defined(WINDOWS)
   void* handle = LoadLibraryA(fileName);
@@ -709,3 +709,4 @@ void* taosLoadDllFunc(void* handle, const char* funcName) {
 
   return fptr;
 }
+#endif
