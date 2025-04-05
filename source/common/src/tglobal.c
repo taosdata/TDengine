@@ -122,7 +122,7 @@ bool    tsEnableWhiteList = false;  // ip white list cfg
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
 int32_t tsArbCheckSyncIntervalSec = 3;
-int32_t tsArbSetAssignedTimeoutSec = 10;
+int32_t tsArbSetAssignedTimeoutSec = 14;
 
 // dnode
 int64_t tsDndStart = 0;
