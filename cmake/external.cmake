@@ -1273,6 +1273,10 @@ if(NOT ${TD_WINDOWS})        # {
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DLIBXML2_WITH_PYTHON:BOOL=OFF
         CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )

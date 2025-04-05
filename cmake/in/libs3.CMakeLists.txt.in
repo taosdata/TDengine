@@ -47,10 +47,11 @@ set_target_properties(libs3 PROPERTIES
     PUBLIC_HEADER "inc/libs3.h"
 )
 
+find_package(Threads REQUIRED)
 add_executable(s3
   src/s3.c
 )
-target_link_libraries(s3 PRIVATE libs3)
+target_link_libraries(s3 PRIVATE libs3 ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(testsimplexml
   src/testsimplexml.c
