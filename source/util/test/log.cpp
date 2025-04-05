@@ -48,6 +48,20 @@ TEST(log, check_log_refactor) {
 }
 
 extern char *tsLogOutput;
+static void *taosLogCrashMockFunc(void *param) {
+  printf("%s entry\n", __func__);
+  setThreadName("logCrashMockThread");
+  writeCrashLogToFile(0, nullptr, (char *)"unit_test_diff_thread", 0, 0);
+  printf("%s end\n", __func__);
+  return NULL;
+}
+static void *taosLogCrashReportFunc(void *param) {
+  printf("%s entry\n", __func__);
+  setThreadName("logCrashReportThread");
+  checkAndPrepareCrashInfo();
+  printf("%s end\n", __func__);
+  return NULL;
+}
 TEST(log, misc) {
   // taosInitLog
   const char *path = TD_TMP_DIR_PATH "td";
@@ -57,7 +71,7 @@ TEST(log, misc) {
   EXPECT_EQ(taosInitLog("taoslog", 1, true), 0);
 
   taosOpenNewSlowLogFile();
-  taosLogObjSetToday(INT64_MIN);
+  taosLogObjSetToday(0);
   taosPrintSlowLog("slow log test");
 
   // test taosInitLogOutput
@@ -92,8 +106,8 @@ TEST(log, misc) {
   taosAssertDebug(false, __FILE__, __LINE__, 0, "test_assert_false_with_core");
   tsAssert = true;
 
-  // test taosLogCrashInfo, taosReadCrashInfo and taosReleaseCrashLogFile
 #ifdef USE_REPORT
+  // test taosLogCrashInfo, taosReadCrashInfo and taosReleaseCrashLogFile
   char  nodeType[16] = "nodeType";
   char *pCrashMsg = (char *)taosMemoryCalloc(1, 16);
   EXPECT_NE(pCrashMsg, nullptr);
@@ -134,6 +148,19 @@ TEST(log, misc) {
   pFile = taosOpenFile(crashInfo, TD_FILE_WRITE);
   EXPECT_NE(pFile, nullptr);
   taosReleaseCrashLogFile(pFile, true);
+
+  // test initCrashLogWriter/writeCrashLogToFile
+  EXPECT_EQ(initCrashLogWriter(), 0);
+  writeCrashLogToFile(0, nullptr, (char *)"unit_test_same_thread", 0, 0);
+
+  TdThread     mockThread, reportThread;
+  TdThreadAttr threadAttr;
+  EXPECT_EQ(taosThreadAttrInit(&threadAttr), 0);
+  EXPECT_EQ(taosThreadCreate(&mockThread, &threadAttr, taosLogCrashMockFunc, NULL), 0);
+  EXPECT_EQ(taosThreadCreate(&reportThread, &threadAttr, taosLogCrashReportFunc, NULL), 0);
+  EXPECT_EQ(taosThreadJoin(mockThread, NULL), 0);
+  EXPECT_EQ(taosThreadJoin(reportThread, NULL), 0);
+  EXPECT_EQ(taosThreadAttrDestroy(&threadAttr), 0);
 #endif
   // clean up
   taosRemoveDir(path);
