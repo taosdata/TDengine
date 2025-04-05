@@ -190,7 +190,7 @@ endif()
 
 # lemon
 if(${BUILD_WITH_LEMON})
-    if(${TD_ACORE})
+    if(${TD_ASTRA})
         set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
     else()
         find_program(C_COMPILER_LEMON NAMES gcc)
@@ -219,11 +219,13 @@ IF(NOT result EQUAL "0")
     message(FATAL_ERROR "CMake step for dowloading dependencies failed: ${result}")
 ENDIF()
 
-execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
-    RESULT_VARIABLE result)
-IF(NOT result EQUAL "0")
-    message(FATAL_ERROR "CMake step for building dependencies failed: ${result}")
+IF(NOT ${TD_ASTRA})
+    execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
+        RESULT_VARIABLE result)
+    IF(NOT result EQUAL "0")
+        message(FATAL_ERROR "CMake step for building dependencies failed: ${result}")
+    ENDIF()
 ENDIF()
 
 # ================================================================================================
