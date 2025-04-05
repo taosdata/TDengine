@@ -579,6 +579,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_UPDATE_ANODE_STMT:
       code = makeNode(type, sizeof(SUpdateAnodeStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_XNODE_STMT:
+      code = makeNode(type, sizeof(SCreateXnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_STMT:
+      code = makeNode(type, sizeof(SDropXnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_XNODE_OPTIONS:
+      code = makeNode(type, sizeof(SXnodeOptions), &pNode);
+      break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = makeNode(type, sizeof(SCreateIndexStmt), &pNode);
       break;
@@ -683,6 +692,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+    case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -1504,7 +1514,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
+    case QUERY_NODE_DROP_XNODE_STMT:    // no pointer field
       break;
+    case QUERY_NODE_CREATE_XNODE_STMT: {
+      SXnodeOptions* pOptions = ((SCreateXnodeStmt*)pNode)->pOptions;
+      nodesDestroyNode((SNode*)pOptions);
+      break;
+    }
+    case QUERY_NODE_XNODE_OPTIONS: {
+      SXnodeOptions* pOptions = (SXnodeOptions*)pNode;
+      // nodesDestroyList(pOptions->pProtocol);
+      break;
+    }
     case QUERY_NODE_CREATE_INDEX_STMT: {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
