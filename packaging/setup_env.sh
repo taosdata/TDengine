@@ -1550,11 +1550,11 @@ deploy_grafana() {
 # Install Grafana for ubuntu/debian
 deploy_debian_grafana() {
     # Check if Grafana is already installed
-    if ! dpkg -s "grafana" &> /dev/null; then
+    if ! dpkg -s "grafana" && ! dpkg -s "grafana-enterprise" &> /dev/null; then
         echo "Downloading the latest Grafana .deb package..."
         # Download the latest Grafana .deb package
         grafana_latest_version=$1
-        wget https://dl.grafana.com/enterprise/release/grafana-enterprise_${grafana_latest_version}_amd64.deb -O grafana.deb
+        wget https://dl.grafana.com/oss/release/grafana_${grafana_latest_version}_amd64.deb -O grafana.deb
         # install the required fontconfig package
         install_package adduser libfontconfig1 musl
         echo "Installing Grafana..."
@@ -1586,7 +1586,7 @@ deploy_redhat_grafana() {
         echo "Downloading the latest Grafana .rpm package..."
         # Download the latest Grafana .rpm package
         grafana_latest_version=$1
-        wget https://dl.grafana.com/enterprise/release/grafana-enterprise-${grafana_latest_version}-1.x86_64.rpm -O grafana.rpm
+        wget https://dl.grafana.com/oss/release/grafana-${grafana_latest_version}-1.x86_64.rpm -O grafana.rpm
 
         # Install the required fontconfig package
         yum install -y fontconfig
