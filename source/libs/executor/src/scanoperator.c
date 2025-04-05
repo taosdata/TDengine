@@ -1463,7 +1463,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
   QRY_PARAM_CHECK(ppRes);
-
+  qTrace("%s call", __FUNCTION__);
   if (pOperator->pOperatorGetParam) {
     pOperator->dynamicTask = true;
     if (isDynVtbScan(pOperator)) {
@@ -2725,6 +2725,7 @@ int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowI
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  qTrace("%s child_table_name:%s,groupId:%"PRIu64, __func__, pBlock->info.parTbName, pBlock->info.id.groupId);
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -3771,7 +3772,7 @@ static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
   SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
-  qDebug("stream scan started, %s", id);
+  qDebug("%s stream scan started, %s, recoverStep:%d", __FUNCTION__, id, pStreamInfo->recoverStep);
 
   if (pVtableInfos != NULL && pStreamInfo->recoverStep != STREAM_RECOVER_STEP__NONE) {
     qError("stream vtable source scan should not have recovery step: %d", pStreamInfo->recoverStep);

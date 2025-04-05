@@ -878,6 +878,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   if (pResult != pSrcBlock) {
     pResult->info.id.groupId = pSrcBlock->info.id.groupId;
     memcpy(pResult->info.parTbName, pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
+    qTrace("%s, parName:%s,groupId:%"PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, pResult->info.id.groupId);
   }
 
   // if the source equals to the destination, it is to create a new column as the result of scalar

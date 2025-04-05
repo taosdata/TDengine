@@ -870,7 +870,7 @@ int32_t streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
-  stDebug("s-task:%s acquire task, refId:%" PRId64, p->id.idStr, p->id.refId);
+  stTrace("s-task:%s acquire task, refId:%" PRId64, p->id.idStr, p->id.refId);
   *pTask = p;
   return TSDB_CODE_SUCCESS;
 }
@@ -901,7 +901,7 @@ int32_t streamMetaAcquireTaskUnsafe(SStreamMeta* pMeta, STaskId* pId, SStreamTas
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
-  stDebug("s-task:%s acquire task, refId:%" PRId64, p->id.idStr, p->id.refId);
+  stTrace("s-task:%s acquire task, refId:%" PRId64, p->id.idStr, p->id.refId);
   *pTask = p;
   return TSDB_CODE_SUCCESS;
 }
@@ -920,7 +920,7 @@ void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask)
 
   int32_t taskId = pTask->id.taskId;
   int64_t refId = pTask->id.refId;
-  stDebug("s-task:0x%x release task, refId:%" PRId64, taskId, pTask->id.refId);
+  stTrace("s-task:0x%x release task, refId:%" PRId64, taskId, pTask->id.refId);
   int32_t ret = taosReleaseRef(streamTaskRefPool, pTask->id.refId);
   if (ret) {
     stError("s-task:0x%x failed to release task refId:%" PRId64, taskId, refId);

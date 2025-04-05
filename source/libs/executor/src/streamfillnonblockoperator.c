@@ -193,6 +193,8 @@ void doBuildNonblockFillResult(SOperatorInfo* pOperator, SStreamFillSupporter* p
       pBlock->info.parTbName[0] = 0;
     } else {
       memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+      qTrace("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, pBlock->info.id.groupId);
+      pInfo->stateStore.streamStateFreeVal(tbname);
     }
   }
 
