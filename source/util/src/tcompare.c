@@ -65,7 +65,8 @@ int32_t setChkInDecimalHash(const void* pLeft, const void* pRight) {
 }
 
 int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight) {
-  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 16) ? 1 : 0;
+  const SDecimalCompareCtx *pCtxL = pLeft, *pCtxR = pRight;
+  return NULL == taosHashGet((SHashObj *)(pCtxR->pData), pCtxL->pData, tDataTypes[pCtxL->type].bytes) ? 1 : 0;
 }
 
 int32_t compareChkInString(const void *pLeft, const void *pRight) {
@@ -187,7 +188,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
     return 1;
   }
 
-  if (FLT_EQUAL(p1, p2)) {
+  if (DBL_EQUAL(p1, p2)) {
     return 0;
   }
   return FLT_GREATER(p1, p2) ? 1 : -1;
@@ -1363,11 +1364,11 @@ void DestroyRegexCache(){
   }
   taosWLockLatch(&sRegexCache.mutex);
   sRegexCache.exit = true;
+  taosWUnLockLatch(&sRegexCache.mutex);
   taosHashCleanup(sRegexCache.regexHash);
   sRegexCache.regexHash = NULL;
   taosTmrCleanUp(sRegexCache.regexCacheTmr);
   sRegexCache.regexCacheTmr = NULL;
-  taosWUnLockLatch(&sRegexCache.mutex);
 }
 
 int32_t checkRegexPattern(const char *pPattern) {

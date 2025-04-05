@@ -37,6 +37,7 @@ description: 可配置压缩算法
 | float/double                         | disabled/delta-d          | delta-d     | lz4/zlib/zstd/xz/tsz | lz4  | medium |
 | binary/nchar                         | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
 | bool                                 | disabled/bit-packing      | bit-packing | lz4/zlib/zstd/xz     | zstd | medium |
+| decimal                              | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
 
 
 ## SQL 语法
@@ -44,7 +45,7 @@ description: 可配置压缩算法
 ### 建表时指定压缩
 
 ```sql
-CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other cerate_definition]...])
+CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other create_definition]...])
 ```
 
 **参数说明**

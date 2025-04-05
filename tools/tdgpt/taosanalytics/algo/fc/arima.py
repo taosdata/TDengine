@@ -68,24 +68,6 @@ class _ArimaService(AbstractForecastService):
         fc = model.predict(n_periods=fc_rows, return_conf_int=self.return_conf,
                            alpha=self.conf)
 
-        # plt.plot(source_data, label='training')
-        # plt.plot(xrange, actual_data, label='actual')
-
-        # fc_list = fc.tolist()
-        # fc_without_diff = restore_from_diff(self.list, fc_list, 2)
-        # print(fc_without_diff)
-
-        # plt.plot(xrange, fc_without_diff, label='fc')
-
-        # residuals = pd.DataFrame(model.arima_res_.resid)
-        # wn = is_white_noise(residuals)
-        # print("residual is white noise:", wn)
-
-        # fig, ax = plt.subplots(1, 2)
-        # residuals.plot(title="Residuals", ax=ax[0])
-        # residuals.plot(kind='kde', title='Density', ax=ax[1])
-        # plt.show()
-
         res1 = [fc[0].tolist(), fc[1][:, 0].tolist(),
                 fc[1][:, 1].tolist()] if self.return_conf else [fc.tolist()]
 
@@ -101,11 +83,14 @@ class _ArimaService(AbstractForecastService):
         if self.list is None or len(self.list) < self.period:
             raise ValueError("number of input data is less than the periods")
 
-        if self.fc_rows <= 0:
+        if len(self.list) > 3000:
+            raise ValueError("number of input data is too large")
+
+        if self.rows <= 0:
             raise ValueError("fc rows is not specified yet")
 
-        res, mse, model_info = self.__do_forecast_helper(self.fc_rows)
-        insert_ts_list(res, self.start_ts, self.time_step, self.fc_rows)
+        res, mse, model_info = self.__do_forecast_helper(self.rows)
+        insert_ts_list(res, self.start_ts, self.time_step, self.rows)
 
         return {
             "mse": mse,

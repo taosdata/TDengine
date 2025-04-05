@@ -88,38 +88,6 @@ struct termios oldtio;
 
 typedef struct FILE TdCmd;
 
-#ifdef BUILD_NO_CALL
-void* taosLoadDll(const char* filename) {
-#if defined(WINDOWS)
-  return NULL;
-#elif defined(_TD_DARWIN_64)
-  return NULL;
-#else
-  void* handle = dlopen(filename, RTLD_LAZY);
-  if (!handle) {
-    // printf("load dll:%s failed, error:%s", filename, dlerror());
-    return NULL;
-  }
-
-  // printf("dll %s loaded", filename);
-
-  return handle;
-#endif
-}
-
-void taosCloseDll(void* handle) {
-#if defined(WINDOWS)
-  return;
-#elif defined(_TD_DARWIN_64)
-  return;
-#else
-  if (handle) {
-    dlclose(handle);
-  }
-#endif
-}
-#endif
-
 int32_t taosSetConsoleEcho(bool on) {
 #if defined(WINDOWS)
   HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);

@@ -565,7 +565,7 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_CONDITION(ret == NULL, code, lino, END, true);
 
-    tqTrace("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
+    tqTrace("iterator data block in hash continue, progress:%d/%d, total queried tables:%d, uid:%"PRId64, pReader->nextBlk, blockSz, taosHashGetSize(pReader->tbIdHash), uid);
     pReader->nextBlk++;
   }
 
@@ -593,7 +593,7 @@ bool tqNextDataBlockFilterOut(STqReader* pReader, SHashObj* filterOutUids) {
     uid = pSubmitTbData->uid;
     void* ret = taosHashGet(filterOutUids, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_NULL(ret, code, lino, END, true);
-    tqTrace("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
+    tqTrace("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64, pReader->nextBlk, blockSz, uid);
     pReader->nextBlk++;
   }
   tqReaderClearSubmitMsg(pReader);
@@ -1200,7 +1200,7 @@ int32_t tqReaderSetTbUidList(STqReader* pReader, const SArray* tbUidList, const 
   }
 
   tqDebug("s-task:%s %d tables are set to be queried target table", id, (int32_t)taosArrayGetSize(tbUidList));
-  return tqCollectPhysicalTables(pReader, id);
+  return TSDB_CODE_SUCCESS;
 }
 
 void tqReaderAddTbUidList(STqReader* pReader, const SArray* pTableUidList) {
@@ -1498,8 +1498,7 @@ static int32_t tqCollectPhysicalTables(STqReader* pReader, const char* idstr) {
   pScanInfo->cacheHit = 0;
 
   pVirtualTables = pScanInfo->pVirtualTables;
-  if (taosHashGetSize(pVirtualTables) == 0 || taosHashGetSize(pReader->tbIdHash) == 0 ||
-      taosArrayGetSize(pReader->pColIdList) == 0) {
+  if (taosHashGetSize(pVirtualTables) == 0 || taosArrayGetSize(pReader->pColIdList) == 0) {
     goto _end;
   }
 
@@ -1507,13 +1506,10 @@ static int32_t tqCollectPhysicalTables(STqReader* pReader, const char* idstr) {
   TSDB_CHECK_NULL(pPhysicalTables, code, lino, _end, terrno);
   taosHashSetFreeFp(pPhysicalTables, destroySourceScanTables);
 
-  pIter = taosHashIterate(pReader->tbIdHash, NULL);
+  pIter = taosHashIterate(pVirtualTables, NULL);
   while (pIter != NULL) {
     int64_t vTbUid = *(int64_t*)taosHashGetKey(pIter, NULL);
-
-    px = taosHashGet(pVirtualTables, &vTbUid, sizeof(int64_t));
-    TSDB_CHECK_NULL(px, code, lino, _end, terrno);
-    SArray* pColInfos = *(SArray**)px;
+    SArray* pColInfos = *(SArray**)pIter;
     TSDB_CHECK_NULL(pColInfos, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
     // Traverse all required columns and collect corresponding physical tables
@@ -1548,7 +1544,7 @@ static int32_t tqCollectPhysicalTables(STqReader* pReader, const char* idstr) {
         j++;
       }
     }
-    pIter = taosHashIterate(pReader->tbIdHash, pIter);
+    pIter = taosHashIterate(pVirtualTables, pIter);
   }
 
   pScanInfo->pPhysicalTables = pPhysicalTables;
@@ -1574,9 +1570,8 @@ _end:
 
 static void freeTableSchemaCache(const void* key, size_t keyLen, void* value, void* ud) {
   if (value) {
-    SSchemaWrapper** ppSchemaWrapper = value;
-    tDeleteSchemaWrapper(*ppSchemaWrapper);
-    *ppSchemaWrapper = NULL;
+    SSchemaWrapper* pSchemaWrapper = value;
+    tDeleteSchemaWrapper(pSchemaWrapper);
   }
 }
 
@@ -1686,8 +1681,8 @@ int32_t tqRetrieveVTableDataBlock(STqReader* pReader, SSDataBlock** pRes, const 
     SColumnInfoData* pOutCol = taosArrayGet(pBlock->pDataBlock, j);
     TSDB_CHECK_NULL(pOutCol, code, lino, _end, terrno);
     if (i >= nColInfos) {
-      tqInfo("%s has %d column info, but vtable column %d is missing, id: %s", __func__, nColInfos, pOutCol->info.colId,
-             idstr);
+      tqTrace("%s has %d column info, but vtable column %d is missing, id: %s", __func__, nColInfos,
+              pOutCol->info.colId, idstr);
       colDataSetNNULL(pOutCol, 0, numOfRows);
       j++;
       continue;
@@ -1699,17 +1694,26 @@ int32_t tqRetrieveVTableDataBlock(STqReader* pReader, SSDataBlock** pRes, const 
       i++;
       continue;
     } else if (pCol->vColId > pOutCol->info.colId) {
-      tqInfo("%s does not find column info for vtable column %d, closest vtable column is %d, id: %s", __func__,
-             pOutCol->info.colId, pCol->vColId, idstr);
+      tqTrace("%s does not find column info for vtable column %d, closest vtable column is %d, id: %s", __func__,
+              pOutCol->info.colId, pCol->vColId, idstr);
       colDataSetNNULL(pOutCol, 0, numOfRows);
       j++;
       continue;
     }
 
-    // copy data from physical table to the result block of virtual table
+    // skip this column if it is from another physical table
     if (pCol->pTbUid != pTbUid) {
-      // skip this column since it is from another physical table
-    } else if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      tqTrace("skip column %d of virtual table %" PRId64 " since it is from table %" PRId64
+              ", current block table %" PRId64 ", id: %s",
+              pCol->vColId, vTbUid, pCol->pTbUid, pTbUid, idstr);
+      colDataSetNNULL(pOutCol, 0, numOfRows);
+      i++;
+      j++;
+      continue;
+    }
+
+    // copy data from physical table to the result block of virtual table
+    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       // try to find the corresponding column data of physical table
       SColData* pColData = NULL;
       for (int32_t k = 0; k < nInputCols; ++k) {
@@ -1848,7 +1852,7 @@ bool tqNextVTableSourceBlockImpl(STqReader* pReader, const char* idstr) {
         return true;
       }
     }
-    tqTrace("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz,
+    tqTrace("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64, pReader->nextBlk, blockSz,
             pTbUid);
     pReader->nextBlk++;
   }
@@ -1860,7 +1864,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     tqError("%s failed at line %d since %s, id: %s", __func__, lino, tstrerror(code), idstr);
   }
-  return (code == TSDB_CODE_SUCCESS);
+  return false;
 }
 
 bool tqReaderIsQueriedSourceTable(STqReader* pReader, uint64_t uid) {

@@ -7,6 +7,10 @@ slug: /tdengine-reference/components/taosx
 import Image from '@theme/IdealImage';
 import imgTdx from '../../assets/taosx-01.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 taosX is a core component of TDengine Enterprise, providing the capability of zero-code data access. taosX supports two modes of operation: service mode and command line mode. This section discusses how to use taosX in these two ways. To use taosX, you must first install the TDengine Enterprise package.
 
 ## Command Line Mode

@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "tutil.h"
 #include "vnd.h"
 
 #define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                    \
@@ -543,6 +544,18 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
           qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
         }
         break;
+      case TDMT_VND_VSUBTABLES_META:
+        // error code has been set into reqMsg, no need to handle it here.
+        if (TSDB_CODE_SUCCESS != vnodeGetVSubtablesMeta(pVnode, &reqMsg)) {
+          qWarn("vnodeGetVSubtablesMeta failed, msgType:%d", req->msgType);
+        }
+        break;
+      case TDMT_VND_VSTB_REF_DBS:
+        // error code has been set into reqMsg, no need to handle it here.
+        if (TSDB_CODE_SUCCESS != vnodeGetVStbRefDbs(pVnode, &reqMsg)) {
+          qWarn("vnodeGetVStbRefDbs failed, msgType:%d", req->msgType);
+        }
+        break;
       default:
         qError("invalid req msgType %d", req->msgType);
         reqMsg.code = TSDB_CODE_INVALID_MSG;
@@ -617,16 +630,17 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
   SVCTableRefCols*           pTb = NULL;
   int32_t                    refColsNum = 0;
   char                       tbFName[TSDB_TABLE_FNAME_LEN];
-  
+  SSHashObj*                 pSrcTbls = NULL;
+
   SArray *pList = taosArrayInit(10, sizeof(uint64_t));
   QUERY_CHECK_NULL(pList, code, line, _return, terrno);
-  
+
   QUERY_CHECK_CODE(pHandle->api.metaFn.getChildTableList(pHandle->vnode, suid, pList), line, _return);
 
   size_t num = taosArrayGetSize(pList);
   *ppRes = taosArrayInit(num, POINTER_BYTES);
   QUERY_CHECK_NULL(*ppRes, code, line, _return, terrno);
-  SSHashObj* pSrcTbls = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pSrcTbls = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(pSrcTbls, code, line, _return, terrno);
 
   for (int32_t i = 0; i < num; ++i) {
@@ -655,7 +669,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
     pTb->uid = mr.me.uid;
     pTb->numOfColRefs = refColsNum;
     pTb->refCols = (SRefColInfo*)(pTb + 1);
-    
+
     refColsNum = 0;
     tSimpleHashClear(pSrcTbls);
     for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
@@ -673,14 +687,14 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
         QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
       }
-      
+
       refColsNum++;
     }
 
     pTb->numOfSrcTbls = tSimpleHashGetSize(pSrcTbls);
     QUERY_CHECK_NULL(taosArrayPush(*ppRes, &pTb), code, line, _return, terrno);
     pTb = NULL;
-    
+
     pHandle->api.metaReaderFn.clearReader(&mr);
     readerInit = false;
   }
@@ -694,13 +708,88 @@ _return:
   taosArrayDestroy(pList);
   taosMemoryFree(pTb);
   tSimpleHashCleanup(pSrcTbls);
-  
+
   if (code) {
     qError("%s failed since %s", __func__, tstrerror(code));
   }
   return code;
 }
 
+int32_t vnodeReadVStbRefDbs(SReadHandle* pHandle, int64_t suid, SArray** ppRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SMetaReader                mr = {0};
+  bool                       readerInit = false;
+  SSHashObj*                 pDbNameHash = NULL;
+  SArray*                    pList = NULL;
+
+  pList = taosArrayInit(10, sizeof(uint64_t));
+  QUERY_CHECK_NULL(pList, code, line, _return, terrno);
+
+  *ppRes = taosArrayInit(10, POINTER_BYTES);
+  QUERY_CHECK_NULL(*ppRes, code, line, _return, terrno)
+  
+  // lookup in cache
+  code = pHandle->api.metaFn.metaGetCachedRefDbs(pHandle->vnode, suid, *ppRes);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  if (taosArrayGetSize(*ppRes) > 0) {
+    // found in cache
+    goto _return;
+  } else {
+    code = pHandle->api.metaFn.getChildTableList(pHandle->vnode, suid, pList);
+    QUERY_CHECK_CODE(code, line, _return);
+
+    size_t num = taosArrayGetSize(pList);
+    pDbNameHash = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    QUERY_CHECK_NULL(pDbNameHash, code, line, _return, terrno);
+
+    for (int32_t i = 0; i < num; ++i) {
+      uint64_t* id = taosArrayGet(pList, i);
+      QUERY_CHECK_NULL(id, code, line, _return, terrno);
+
+      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+      readerInit = true;
+
+      code = pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id);
+      QUERY_CHECK_CODE(code, line, _return);
+
+      for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
+        if (mr.me.colRef.pColRef[j].hasRef) {
+          if (NULL == tSimpleHashGet(pDbNameHash, mr.me.colRef.pColRef[j].refDbName, strlen(mr.me.colRef.pColRef[j].refDbName))) {
+            char *refDbName = taosStrdup(mr.me.colRef.pColRef[j].refDbName);
+            QUERY_CHECK_NULL(refDbName, code, line, _return, terrno);
+
+            QUERY_CHECK_NULL(taosArrayPush(*ppRes, &refDbName), code, line, _return, terrno);
+
+            code = tSimpleHashPut(pDbNameHash, refDbName, strlen(refDbName), NULL, 0);
+            QUERY_CHECK_CODE(code, line, _return);
+          }
+        }
+      }
+
+      pHandle->api.metaReaderFn.clearReader(&mr);
+      readerInit = false;
+    }
+
+    code = pHandle->api.metaFn.metaPutRefDbsToCache(pHandle->vnode, suid, *ppRes);
+    QUERY_CHECK_CODE(code, line, _return);
+  }
+
+_return:
+
+  if (readerInit) {
+    pHandle->api.metaReaderFn.clearReader(&mr);
+  }
+
+  taosArrayDestroy(pList);
+  tSimpleHashCleanup(pDbNameHash);
+
+  if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
+}
 
 int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t        code = 0;
@@ -729,7 +818,7 @@ int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     qError("tSerializeSVSubTablesRsp failed, error:%d", rspSize);
     goto _return;
   }
-  pRsp = rpcMallocCont(rspSize);
+  pRsp = taosMemoryCalloc(1, rspSize);
   if (pRsp == NULL) {
     code = terrno;
     qError("rpcMallocCont %d failed, error:%d", rspSize, terrno);
@@ -754,9 +843,71 @@ _return:
     qError("vnd get virtual subtables failed cause of %s", tstrerror(code));
   }
 
+  *pMsg = rspMsg;
+  
   tDestroySVSubTablesRsp(&rsp);
 
-  tmsgSendRsp(&rspMsg);
+  //tmsgSendRsp(&rspMsg);
+
+  return code;
+}
+
+int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t        code = 0;
+  int32_t        rspSize = 0;
+  SVStbRefDbsReq req = {0};
+  SVStbRefDbsRsp rsp = {0};
+  SRpcMsg        rspMsg = {0};
+  void          *pRsp = NULL;
+  int32_t        line = 0;
+
+  if (tDeserializeSVStbRefDbsReq(pMsg->pCont, pMsg->contLen, &req)) {
+    code = terrno;
+    qError("tDeserializeSVSubTablesReq failed");
+    goto _return;
+  }
+
+  SReadHandle handle = {.vnode = pVnode};
+  initStorageAPI(&handle.api);
+
+  code = vnodeReadVStbRefDbs(&handle, req.suid, &rsp.pDbs);
+  QUERY_CHECK_CODE(code, line, _return);
+  rsp.vgId = TD_VID(pVnode);
+
+  rspSize = tSerializeSVStbRefDbsRsp(NULL, 0, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVStbRefDbsRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+  pRsp = taosMemoryCalloc(1, rspSize);
+  if (pRsp == NULL) {
+    code = terrno;
+    qError("rpcMallocCont %d failed, error:%d", rspSize, terrno);
+    goto _return;
+  }
+  rspSize = tSerializeSVStbRefDbsRsp(pRsp, rspSize, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVStbRefDbsRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+
+_return:
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType;
+
+  if (code) {
+    qError("vnd get virtual stb ref db failed cause of %s", tstrerror(code));
+  }
+
+  *pMsg = rspMsg;
+
+  tDestroySVStbRefDbsRsp(&rsp);
 
   return code;
 }
@@ -1158,18 +1309,14 @@ int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64
   return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
 }
 
-int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
-  SVnode *pVnodeObj = pVnode;
-  if (pVnodeObj == NULL) {
-    return TSDB_CODE_VND_NOT_EXIST;
-  }
+static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisInfo *pInfo) {
   int32_t code = 0;
   char    path[TSDB_FILENAME_LEN] = {0};
 
   char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
   int64_t dirSize[4];
 
-  vnodeGetPrimaryDir(pVnodeObj->path, pVnodeObj->diskPrimary, pVnodeObj->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
   int32_t offset = strlen(path);
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
@@ -1183,13 +1330,24 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
     dirSize[i] = size;
   }
 
-  pInfo->l1Size = dirSize[0] - dirSize[3];
+  pInfo->l1Size = 0;
   pInfo->walSize = dirSize[1];
   pInfo->metaSize = dirSize[2];
   pInfo->cacheSize = dirSize[3];
+  return code;
+}
+int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SVnode *pVnodeObj = pVnode;
+  if (pVnodeObj == NULL) {
+    return TSDB_CODE_VND_NOT_EXIST;
+  }
+  code = vnodeGetDBPrimaryInfo(pVnode, pInfo);
+  if (code != 0) goto _exit;
 
-  code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
-
+  code = tsdbGetFsSize(pVnodeObj->pTsdb, pInfo);
+_exit:
   return code;
 }
 

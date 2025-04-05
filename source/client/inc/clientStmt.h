@@ -64,7 +64,7 @@ typedef struct SStmtBindInfo {
   int32_t  sBindLastIdx;
   int8_t   tbType;
   bool     tagsCached;
-  bool     preCtbname;
+  uint8_t  tbNameFlag;
   void    *boundTags;
   char     tbName[TSDB_TABLE_FNAME_LEN];
   char     tbFName[TSDB_TABLE_FNAME_LEN];
@@ -131,7 +131,7 @@ typedef struct SStmtQueue {
   bool        stopQueue;
   SStmtQNode* head;
   SStmtQNode* tail;
-  uint64_t    qRemainNum;
+  int64_t       qRemainNum;
   TdThreadMutex mutex;
   TdThreadCond  waitCond;
 } SStmtQueue;

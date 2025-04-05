@@ -120,7 +120,7 @@ DSN 描述字符串基本结构如下：
 - **database**：指定默认连接的数据库名，可选参数。
 - **params**：其他可选参数。
 
-一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
+一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`，表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
 
 #### TaosBuilder
 
@@ -312,7 +312,7 @@ ResultSet 结构体提供了结果集的一些方法，可以用来获取结果�
 
 - `fn fields(&self) -> &[Field]`
 
-  - **接口说明**：获取字段信息。见下文 Feild 结构体描述。
+  - **接口说明**：获取字段信息。见下文 Field 结构体描述。
   - **返回值**：字段信息数组的引用。
 
 - `fn summary(&self) -> (usize, usize)`
@@ -346,9 +346,9 @@ ResultSet 结构体提供了结果集的一些方法，可以用来获取结果�
   - **接口说明**：将结果集转换为值的二维向量。
   - **返回值**：成功时返回值的二维向量，失败时返回错误，类型为 `Result<Vec<Vec<Value>>, Error>`。
 
-#### Feild
+#### Field
 
-Feild 结构体提供了字段信息的一些方法。
+Field 结构体提供了字段信息的一些方法。
 
 - `pub const fn empty() -> Field`
 
@@ -468,7 +468,7 @@ Stmt 结构体提供了参数绑定相关功能，用于实现高效写入。
 
 ### 数据订阅
 
-数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder， 消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
+数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder，消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
 
 #### TmqBuilder
 

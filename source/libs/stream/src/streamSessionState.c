@@ -151,10 +151,16 @@ SRowBuffPos* createSessionWinBuff(SStreamFileState* pFileState, SSessionKey* pKe
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   pNewPos->needFree = true;
   pNewPos->beFlushed = true;
+  int32_t len = getRowStateRowSize(pFileState);
   if (p) {
-    memcpy(pNewPos->pRowBuff, p, *pVLen);
+    if (*pVLen > len){
+      qError("[StreamInternal] read key:[skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],session window buffer is too small, *pVLen:%d, len:%d", pKey->win.skey, pKey->win.ekey, pKey->groupId, *pVLen, len);
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }else{
+      memcpy(pNewPos->pRowBuff, p, *pVLen);
+    }
   } else {
-    int32_t len = getRowStateRowSize(pFileState);
     memset(pNewPos->pRowBuff, 0, len);
   }
 
@@ -1283,9 +1289,7 @@ int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin
   rangeKey.pUIds = tSimpleHashInit(8, hashFn);
   code = putRangeIdInfo(&rangeKey, gpId, uId);
   QUERY_CHECK_CODE(code, lino, _end);
-  if (index < 0) {
-    index = 0;
-  }
+  index++;
   taosArrayInsert(pRangeArray, index, &rangeKey);
 
 _end:
@@ -1379,7 +1383,8 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
   SStreamStateCur* pCur = NULL;
   SArray* pRangeArray = pTsDataState->pScanRanges;
   if (taosArrayGetSize(pRangeArray) > 0) {
-    (*pRange) = *(SScanRange*) taosArrayPop(pRangeArray);
+    (*pRange) = *(SScanRange*) taosArrayGet(pRangeArray, 0);
+    taosArrayRemove(pRangeArray, 0);
     goto _end;
   }
 

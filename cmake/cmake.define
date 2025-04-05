@@ -97,14 +97,10 @@ ELSE()
     SET(TD_TAOS_TOOLS TRUE)
 ENDIF()
 
-SET(TAOS_LIB taos)
+SET(TAOS_LIB taos) 
 SET(TAOS_LIB_STATIC taos_static)
-
-IF(${TD_WINDOWS})
-    SET(TAOS_LIB_PLATFORM_SPEC taos_static)
-ELSE()
-    SET(TAOS_LIB_PLATFORM_SPEC taos)
-ENDIF()
+SET(TAOS_NATIVE_LIB taosnative)
+SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 
 # build TSZ by default
 IF("${TSZ_ENABLED}" MATCHES "false")
@@ -121,11 +117,11 @@ IF(TD_WINDOWS)
 
     IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
         MESSAGE("${Green} will build Release version! ${ColourReset}")
-        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
+        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MT")
 
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
-        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
+        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
@@ -151,6 +147,7 @@ IF(TD_WINDOWS)
 
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
+    SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
 
 ELSE()
     IF(${TD_DARWIN})

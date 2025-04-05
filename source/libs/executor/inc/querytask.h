@@ -77,6 +77,7 @@ typedef struct {
   char*                 stbFullName;         // used to generate dest child table name
   bool                  newSubTableRule;     // used to generate dest child table name
   STaskNotifyEventStat* pNotifyEventStat;    // used to store notify event statistics
+  SArray              * pVTables;            // used to store merge info for merge task, SArray<SVCTableMergeInfo>
 } SStreamTaskInfo;
 
 struct SExecTaskInfo {

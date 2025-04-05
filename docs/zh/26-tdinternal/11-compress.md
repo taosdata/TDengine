@@ -42,7 +42,7 @@ TDengine 引擎为浮点数类型数据提供了无损压缩和有损压缩两�
 
 ## 传输压缩
 
-TDengine 在数据传输过程中提供了压缩功能，以减少网络带宽的消耗。使用原生连接从客户端（如 taosc）向服务器传输数据时，可以通过配置压缩传输来节省带宽。在配置文件 taos.cfg 中，可以设置 compressMsgSize 选项来实现这一目标。可配置的值有以下3 个。
+TDengine 在数据传输过程中提供了压缩功能，以减少网络带宽的消耗。使用原生连接从客户端（如 taosc）向服务器传输数据时，可以通过配置压缩传输来节省带宽。在配置文件 taos.cfg 中，可以设置 compressMsgSize 选项来实现这一目标。可配置的值有以下 3 个。
 - 0：表示禁用压缩传输。
 - 1：表示启用压缩传输，但仅对大于 1KB 的数据包进行压缩。
 - 2：表示启用压缩传输，对所有数据包进行压缩。
@@ -50,7 +50,7 @@ TDengine 在数据传输过程中提供了压缩功能，以减少网络带宽�
 在使用 RESTful 和 WebSocket 连接与 taosAdapter 通信时，taosAdapter 支持行业标准的压缩协议，允许连接端根据行业标准协议开启或关闭传输过程中的压缩。以下是具体的实现方式：
 - RESTful 接口使用压缩：客户端在 HTTP 请求头部指定 Accept-Encoding 来告知服务器可接受的压缩类型，如 gzip、deflate 等。服务器在返回结果时，会在 ContentEncoding 头部中指定所使用的压缩算法，并返回压缩过的数据。
 - WebSocket 接口使用压缩：可以参考 WebSocket 协议标准文档 RFC7692，了解如何在 WebSocket 连接中实现压缩。
-- 数据备份迁移工具 taosX 与 taosX Agent 之间的通信也可以开启压缩传输。在agent.toml 配置文件中，设置压缩开关选项 compression=true 即可启用压缩功能。
+- 数据备份迁移工具 taosX 与 taosX Agent 之间的通信也可以开启压缩传输。在 agent.toml 配置文件中，设置压缩开关选项 compression=true 即可启用压缩功能。
 
 ## 压缩流程
 

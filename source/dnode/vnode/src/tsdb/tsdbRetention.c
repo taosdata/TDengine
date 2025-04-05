@@ -692,13 +692,13 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
     int32_t r = taosStatFile(fobj->fname, &size, &mtime, NULL);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
       if (pCfg->s3Compact && lcn < 0) {
-        extern int32_t tsdbAsyncCompact(STsdb * tsdb, const STimeWindow *tw, bool sync);
+        extern int32_t tsdbAsyncCompact(STsdb * tsdb, const STimeWindow *tw, bool sync,bool s3Migrate);
 
         STimeWindow win = {0};
         tsdbFidKeyRange(fset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
 
         tsdbInfo("vgId:%d, async compact begin lcn: %d.", TD_VID(rtner->tsdb->pVnode), lcn);
-        code = tsdbAsyncCompact(rtner->tsdb, &win, pCfg->sttTrigger == 1);
+        code = tsdbAsyncCompact(rtner->tsdb, &win, pCfg->sttTrigger == 1, true);
         tsdbInfo("vgId:%d, async compact end lcn: %d.", TD_VID(rtner->tsdb->pVnode), lcn);
         goto _exit;
         return code;
@@ -761,33 +761,5 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   return code;
 }
 
-static int32_t tsdbGetS3SizeImpl(STsdb *tsdb, int64_t *size) {
-  int32_t code = 0;
-
-  SVnodeCfg *pCfg = &tsdb->pVnode->config;
-  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
-
-  STFileSet *fset;
-  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
-    if (fobj) {
-      int32_t lcn = fobj->f->lcn;
-      if (lcn > 1) {
-        *size += ((lcn - 1) * chunksize);
-      }
-    }
-  }
-
-  return code;
-}
 #endif
 
-int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
-  int32_t code = 0;
-#ifdef USE_S3
-  (void)taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbGetS3SizeImpl(tsdb, size);
-  (void)taosThreadMutexUnlock(&tsdb->mutex);
-#endif
-  return code;
-}

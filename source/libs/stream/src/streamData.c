@@ -110,6 +110,7 @@ int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t
 
     pDataBlock->info.type = pRetrieve->streamBlockType;
     pDataBlock->info.childId = pReq->upstreamChildId;
+    pDataBlock->info.id.uid = be64toh(pRetrieve->useconds);
   }
 
   pData->blocks = pArray;
@@ -318,7 +319,7 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t interv
 
   SStreamTrigger* p = NULL;
   int64_t         ts = taosGetTimestamp(pInterval->precision);
-  int64_t         skey = pLatestWindow->skey + interval;
+  int64_t         skey = pLatestWindow->skey + pInterval->sliding;
 
   int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
   if (code) {
@@ -334,7 +335,7 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t interv
   }
 
   p->pBlock->info.window.skey = skey;
-  p->pBlock->info.window.ekey = TMAX(ts, skey + interval);
+  p->pBlock->info.window.ekey = TMAX(ts, skey + pInterval->interval);
   p->pBlock->info.type = STREAM_GET_RESULT;
 
   stDebug("s-task:%s force_window_close trigger block generated, window range:%" PRId64 "-%" PRId64, id,

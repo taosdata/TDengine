@@ -90,19 +90,19 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   pMsg->destId = *destRaftId;
   TAOS_CHECK_RETURN(syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg));
 
-  int32_t nRef = 0;
+  int64_t nRef = 0;
   if (pSyncNode != NULL) {
-    nRef = atomic_add_fetch_32(&pSyncNode->sendCount, 1);
+    nRef = atomic_add_fetch_64(&pSyncNode->sendCount, 1);
     if (nRef <= 0) {
-      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+      sError("vgId:%d, send count is %" PRId64, pSyncNode->vgId, nRef);
     }
   }
 
   SSyncLogReplMgr* mgr = syncNodeGetLogReplMgr(pSyncNode, (SRaftId*)destRaftId);
   if (mgr != NULL) {
-    nRef = atomic_add_fetch_32(&mgr->sendCount, 1);
+    nRef = atomic_add_fetch_64(&mgr->sendCount, 1);
     if (nRef <= 0) {
-      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+      sError("vgId:%d, send count is %" PRId64, pSyncNode->vgId, nRef);
     }
   }
 
@@ -139,8 +139,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
 
     // send msg
     TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
-    STraceId* trace = &(rpcMsg.info.traceId);
-    sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
+    sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
     syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
     int32_t ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
     if (ret != 0) {

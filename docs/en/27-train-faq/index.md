@@ -316,3 +316,14 @@ Directly querying from child table is fast. The query from super table with TAG 
 
 ### 35 How to view data compression ratio indicators?
 Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details [Click Here](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed)
+
+### 36 Why didn't my configuration parameter take effect even though I modified the configuration file?
+
+**Problem Description:**
+In TDengine versions 3.3.5.0 and above, some users might encounter an issue: they modify a configuration parameter in `taos.cfg`, but after restarting, the parameter doesn't seem to take effect, and no errors are found in the logs.
+
+**Problem Reason:**
+This is because TDengine versions 3.3.5.0 and above support persisting dynamically modified configuration parameters. This means that parameters you change dynamically using the `ALTER` command will remain effective even after a restart. Therefore, when restarting, TDengine versions 3.3.5.0 and above will, by default, load configuration parameters (except for `dataDir` itself) from the `dataDir`, rather than using the parameters configured in `taos.cfg`.
+
+**Problem Solution:**
+If you understand the feature of persistent configuration parameters but still wish to load configuration parameters from the configuration file upon restart, you can add `forceReadConfig 1` to the configuration file. This will force TDengine to read configuration parameters from the file.

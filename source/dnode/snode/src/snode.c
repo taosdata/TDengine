@@ -100,6 +100,7 @@ int32_t sndInit(SSnode *pSnode) {
 
 void sndClose(SSnode *pSnode) {
   stopRsync();
+
   streamMetaNotifyClose(pSnode->pMeta);
   if (streamMetaCommit(pSnode->pMeta) != 0) {
     sndError("failed to commit stream meta");
@@ -168,6 +169,10 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
       return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
     case TDMT_STREAM_TASK_RESUME:
       return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
+    case TDMT_STREAM_TASK_STOP:
+      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
+    case TDMT_STREAM_TASK_START:
+      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
     case TDMT_STREAM_TASK_UPDATE_CHKPT:
       return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, true, pMsg->pCont);
     case TDMT_STREAM_CONSEN_CHKPT:
@@ -175,5 +180,4 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     default:
       return TSDB_CODE_INVALID_MSG;
   }
-  return 0;
 }

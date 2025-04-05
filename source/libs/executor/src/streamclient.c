@@ -98,7 +98,7 @@ static int32_t doProcessSql(SStreamRecParam* pParam, SJson** ppJsonResult) {
   curlRes = curl_easy_setopt(pCurl, CURLOPT_POSTFIELDS, pParam->pSql);
   QUERY_CHECK_CONDITION(curlRes == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
-  qTrace("===stream=== sql:%s", pParam->pSql);
+  qDebug("===stream=== sql:%s", pParam->pSql);
 
   curlRes = curl_easy_setopt(pCurl, CURLOPT_FOLLOWLOCATION, 1L);
   QUERY_CHECK_CONDITION(curlRes == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
@@ -110,7 +110,11 @@ static int32_t doProcessSql(SStreamRecParam* pParam, SJson** ppJsonResult) {
   QUERY_CHECK_CONDITION(curlRes == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
   curlRes = curl_easy_perform(pCurl);
-  QUERY_CHECK_CONDITION(curlRes == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+  if (curlRes != CURLE_OK) {
+    qError("error: unable to request data from %s.since %s. res code:%d", pParam->pUrl, curl_easy_strerror(curlRes),
+           (int32_t)curlRes);
+    QUERY_CHECK_CONDITION(curlRes == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+  }
 
 _end:
   if (pHeaders != NULL) {
@@ -222,8 +226,16 @@ static int32_t jsonToDataCell(const SJson* pJson, SResultCellData* pCell) {
   return code;
 }
 
+static int32_t getColumnIndex(SSHashObj* pMap, int32_t colId) {
+  void* pVal  = tSimpleHashGet(pMap, &colId, sizeof(int32_t));
+  if (pVal == NULL) {
+    return -1;
+  }
+  return *(int32_t*)pVal;
+}
+
 static int32_t doTransformFillResult(const SJson* pJsonResult, SArray* pRangeRes, void* pEmptyRow, int32_t size,
-                                     int32_t* pOffsetInfo, int32_t numOfCols) {
+                                     int32_t* pOffsetInfo, int32_t numOfCols, SSHashObj* pMap) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -239,12 +251,20 @@ static int32_t doTransformFillResult(const SJson* pJsonResult, SArray* pRangeRes
       SSliceRowData* pRowData = taosMemoryCalloc(1, sizeof(TSKEY) + size);
       pRowData->key = INT64_MIN;
       memcpy(pRowData->pRowVal, pEmptyRow, size);
-      for (int32_t j = 0; j < cols && j < numOfCols; ++j) {
-        SJson* pJsonCell = tjsonGetArrayItem(pRow, j);
-        QUERY_CHECK_NULL(pJsonCell, code, lino, _end, TSDB_CODE_FAILED);
-
+      int32_t colOffset = 0;
+      for (int32_t j = 0; j < numOfCols; ++j) {
         SResultCellData* pDataCell = getSliceResultCell((SResultCellData*)pRowData->pRowVal, j, pOffsetInfo);
         QUERY_CHECK_NULL(pDataCell, code, lino, _end, TSDB_CODE_FAILED);
+
+        int32_t colIndex = getColumnIndex(pMap, j);
+        if (colIndex == -1 || colIndex >= cols) {
+          qDebug("invalid result columm index:%d", colIndex);
+          pDataCell->isNull = true;
+          continue;
+        }
+
+        SJson* pJsonCell = tjsonGetArrayItem(pRow, colIndex);
+        QUERY_CHECK_NULL(pJsonCell, code, lino, _end, TSDB_CODE_FAILED);
 
         code = jsonToDataCell(pJsonCell, pDataCell);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -278,8 +298,35 @@ int32_t streamClientGetFillRange(SStreamRecParam* pParam, SWinKey* pKey, SArray*
   SJson* pJsRes = NULL;
   code = doProcessSql(pParam, &pJsRes);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = doTransformFillResult(pJsRes, pRangeRes, pEmptyRow, size, pOffsetInfo, numOfCols);
+  code = doTransformFillResult(pJsRes, pRangeRes, pEmptyRow, size, pOffsetInfo, numOfCols, pParam->pColIdMap);
   QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t streamClientCheckCfg(SStreamRecParam* pParam) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  const char* pTestSql = "select name, ntables, status from information_schema.ins_databases;";
+  (void)memset(pParam->pSql, 0, pParam->sqlCapcity);
+  tstrncpy(pParam->pSql, pTestSql, pParam->sqlCapcity);
+
+  SJson* pJsRes = NULL;
+  code = doProcessSql(pParam, &pJsRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  SJson* jArray = tjsonGetObjectItem(pJsRes, "data");
+  QUERY_CHECK_NULL(jArray, code, lino, _end, TSDB_CODE_FAILED);
+
+  int32_t rows = tjsonGetArraySize(jArray);
+  if (rows < 2) {
+    code = TSDB_CODE_INVALID_CFG_VALUE;
+    qError("invalid taos adapter config value");
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -295,6 +342,10 @@ int32_t streamClientGetResultRange(SStreamRecParam* pParam, SSHashObj* pRangeMap
 }
 int32_t streamClientGetFillRange(SStreamRecParam* pParam, SWinKey* pKey, SArray* pRangeRes, void* pEmptyRow, int32_t size, int32_t* pOffsetInfo, int32_t numOfCols) {
   return TSDB_CODE_FAILED;
+}
+
+int32_t streamClientCheckCfg(SStreamRecParam* pParam) {
+    return TSDB_CODE_FAILED;
 }
 
 #endif

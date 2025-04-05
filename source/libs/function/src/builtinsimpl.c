@@ -3957,6 +3957,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
     }
     key.groupId = pSrcBlock->info.id.groupId;
     key.ts = taosGetInt64Aligned(colDataGetData(pColInfo, rowIndex));
+    key.numInGroup = pCtx->pExpr->pExpr->_function.bindExprID;
   }
 
   char* buf = NULL;

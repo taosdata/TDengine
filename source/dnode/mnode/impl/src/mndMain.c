@@ -429,9 +429,8 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % 5 == 0) {
     mndStreamConsensusChkpt(pMnode);
   }
-#endif
-#ifdef USE_REPORT
-  if (sec % tsTelemInterval == (TMIN(86400, (tsTelemInterval - 1)))) {
+
+  if (tsTelemInterval > 0 && sec % tsTelemInterval == 0) {
     mndPullupTelem(pMnode);
   }
 #endif
@@ -474,19 +473,18 @@ static void *mndThreadFp(void *param) {
   while (1) {
     lastTime++;
     taosMsleep(100);
+
     if (mndGetStop(pMnode)) break;
     if (lastTime % 10 != 0) continue;
+
+    if (mnodeIsNotLeader(pMnode)) {
+      mTrace("timer not process since mnode is not leader");
+      continue;
+    }
 
     int64_t sec = lastTime / 10;
     mndDoTimerCheckTask(pMnode, sec);
 
-    int64_t minCron = minCronTime();
-    if (sec % minCron == 0 && mnodeIsNotLeader(pMnode)) {
-      // not leader, do nothing
-      mTrace("timer not process since mnode is not leader, reason: %s", tstrerror(terrno));
-      terrno = 0;
-      continue;
-    }
     mndDoTimerPullupTask(pMnode, sec);
   }
 
@@ -856,11 +854,11 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   const STraceId *trace = &pMsg->info.traceId;
-  mGTrace("vgId:1, sync msg:%p will be processed, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  mGTrace("vgId:1, process sync msg:%p, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t code = syncProcessMsg(pMgmt->sync, pMsg);
   if (code != 0) {
-    mGError("vgId:1, failed to process sync msg:%p type:%s, reason: %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
+    mGError("vgId:1, failed to process sync msg:%p type:%s since %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
             tstrerror(code), code);
   }
 

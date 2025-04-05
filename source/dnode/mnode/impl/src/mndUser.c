@@ -338,7 +338,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   if (mndEnableIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
     ver = 0;
   }
-  mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
+  mDebug("ip-white-list on mnode ver: %" PRId64, ver);
   return ver;
 }
 
@@ -1873,7 +1873,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
   }
 
-  mInfo("user:%s, start to create, createdb:%d, is_import:%d", createReq.user, createReq.isImport, createReq.createDb);
+  mInfo("user:%s, start to create, createdb:%d, is_import:%d", createReq.user, createReq.createDb, createReq.isImport);
 
 #ifndef TD_ENTERPRISE
   if (createReq.isImport == 1) {

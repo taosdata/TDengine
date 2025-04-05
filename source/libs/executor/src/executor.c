@@ -141,8 +141,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
                                 const char* id) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN &&
-      pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
       return TSDB_CODE_APP_ERROR;
@@ -273,6 +272,15 @@ int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchem
 
 _end:
   return code;
+}
+
+void qSetStreamMergeInfo(qTaskInfo_t tinfo, SArray* pVTables) {
+  if (tinfo == 0 || pVTables == NULL) {
+    return;
+  }
+
+  SStreamTaskInfo* pStreamInfo = &((SExecTaskInfo*)tinfo)->streamInfo;
+  pStreamInfo->pVTables = pVTables;
 }
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
@@ -624,6 +632,13 @@ void destroyOperatorParam(SOperatorParam* pParam) {
   }
 
   // TODO
+}
+
+void qDestroyOperatorParam(SOperatorParam* pParam) {
+  if (NULL == pParam) {
+    return;
+  }
+  freeOperatorParam(pParam, OP_GET_PARAM);
 }
 
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
@@ -1005,7 +1020,7 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitDuration) {
   }
 
   if (waitDuration > 0) {
-    qDebug("%s sync killed execTask, and waiting for %.2fs", GET_TASKID(pTaskInfo), waitDuration/1000.0);
+    qDebug("%s sync killed execTask, and waiting for at most %.2fs", GET_TASKID(pTaskInfo), waitDuration/1000.0);
   } else {
     qDebug("%s async killed execTask", GET_TASKID(pTaskInfo));
   }
@@ -1033,6 +1048,11 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitDuration) {
     }
   }
 
+  int64_t et = taosGetTimestampMs() - st;
+  if (et < waitDuration) {
+    qInfo("%s  waiting %.2fs for executor stopping", GET_TASKID(pTaskInfo), et / 1000.0);
+    return TSDB_CODE_SUCCESS;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1127,6 +1147,9 @@ _end:
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
+  if (tinfo == NULL){
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   QUERY_CHECK_CONDITION((pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM), code, lino, _end,
                         TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);

@@ -33,7 +33,7 @@ toc_max_heading_level: 4
 
 ### 数据采集点
 
-数据采集点是指在一定的预设时间周期内或受到特定事件触发时，负责采集物理量的硬件或软件设备。一个数据采集点可以同时采集一个或多个采集量，但这些采集量都是在同一时刻获取的，并拥有相同的时间戳。对于结构复杂的设备，通常会有多个数据采集点，每个数据采集点的采集周期可能各不相同，它们之间完全独立，互不干扰。以一辆汽车为例，可能有专门的数据采集点用于采集 GPS，有的数据采集点负责监控发动机状态，还有的数据采集点则专注于车内环境的监测。这样，一辆汽车就包含了 3个不同类型的数据采集点。在智能电表的示例中，d1001、d1002、d1003、d1004 等标识符即代表了不同的数据采集点。
+数据采集点是指在一定的预设时间周期内或受到特定事件触发时，负责采集物理量的硬件或软件设备。一个数据采集点可以同时采集一个或多个采集量，但这些采集量都是在同一时刻获取的，并拥有相同的时间戳。对于结构复杂的设备，通常会有多个数据采集点，每个数据采集点的采集周期可能各不相同，它们之间完全独立，互不干扰。以一辆汽车为例，可能有专门的数据采集点用于采集 GPS，有的数据采集点负责监控发动机状态，还有的数据采集点则专注于车内环境的监测。这样，一辆汽车就包含了 3 个不同类型的数据采集点。在智能电表的示例中，d1001、d1002、d1003、d1004 等标识符即代表了不同的数据采集点。
 
 ### 表
 
@@ -57,11 +57,11 @@ toc_max_heading_level: 4
 
 ### 超级表
 
-采用“一个数据采集点一张表”的设计虽然有助于针对性地管理每个采集点，但随着设备数量不断增加表的数量也会急剧增加，这给数据库管理和数据分析带来了挑战。在进行跨数据采集点的聚合操作时，用户需要面对大量的表，工作变得异常繁重。
+TDengine 采用“一个数据采集点一张表”的设计虽然有利于高效地管理每个数据采集点，但随着设备数量不断增加，表的数量也会急剧增加，这给表的管理以及表之间的聚合带来了巨大的挑战。
 
-为了解决这个问题，TDengine 引入超级表（Super Table，简称为 STable）的概念。超级表是一种数据结构，它能够将某一特定类型的数据采集点聚集在一起，形成一张逻辑上的统一表。这些数据采集点具有相同的表结构，但各自的静态属性（如标签）可能不同。创建超级表时，除了定义采集量以外，还需定义超级表的标签。一张超级表至少包含一个时间戳列、一个或多个采集量列以及一个或多个标签列。此外，超级表的标签可以灵活地进行增加、修改或删除操作。
+为了解决这个问题，TDengine 引入超级表（Super Table，简称为 STable）的概念。超级表是一种数据结构，它能将某一特定类型的数据采集点聚集在一起，形成一张逻辑上的统一表。这些数据采集点具有相同的表结构，但各自的静态属性（如标签）可能不同。创建超级表时，除了定义采集量的结构之外，还需定义超级表的标签。一张超级表至少包含一个时间戳列、一个或多个采集量列以及一个或多个标签列。此外，超级表的标签可以灵活地进行增加、修改或删除操作。
 
-在 TDengine 中，表代表具体的数据采集点，而超级表则代表一组具有相同属性的数据采集点集合。以智能电表为例，我们可以为该类型的电表创建一张超级表，其中包含了所有智能电表的共有属性和采集量。这种设计不仅简化了表的管理，还便于进行跨数据采集点的聚合操作，从而提高数据处理的效率。
+在 TDengine 中，表代表具体的数据采集点，而超级表则代表一组具有相同属性的数据采集点集合。以智能电表为例，我们可以为该类型的电表创建一张超级表，其中包含了所有智能电表的共有属性，包括动态的时序数据以及静态的标签数据。这种设计不仅简化了表的管理，还便于进行跨数据采集点的聚合操作，从而提高数据处理的效率。
 
 ### 子表
 
@@ -77,6 +77,19 @@ toc_max_heading_level: 4
 
 ![数据模型示意图](./data-model.png)
 
+### 虚拟表
+
+“一个数据采集点一张表”以及“超级表”的设计解决了工业和物联网等场景下的大多数时序数据管理和分析难题。但在真实的场景中，一个设备往往有多种传感器，数据采集频次还相差很大。比如对于一台风机，电气参数、环境参数、机械参数，各自的传感器和采集频次完全不一样。因此很难用一张表来描述一台设备，往往需要多张表。当需要综合多个传感器的数据进行分析计算时，只能通过多级关联查询的方式来进行，而这往往会导致易用性和性能方面的问题。从用户的角度来看，“一个设备一张表”更为直观、容易操作。但如果建模之初，直接采用“一个设备一张表的”的设计，由于采集频次的不同，会导致每一个具体时间戳，大量的列是空值，降低存储和查询的效率。
+
+为了解决这个问题，TDengine 引入虚拟表（Virtual Table，简称为 VTable）的概念。虚拟表是一种不存储实际数据而可以用于分析计算的表，数据来源为其它真实存储数据的子表、普通表，通过将各个原始表的不同列的数据按照时间戳排序、对齐、合并的方式来生成虚拟表。同真实表类似，虚拟表也可以分为虚拟超级表、虚拟子表、虚拟普通表。虚拟超级表可以是一个设备或一组分析计算所需数据的完整集合，每个虚拟子表可以根据需要引用相同或不同的列，因此可以灵活地根据业务需要进行定义，最终达到“千人千面”的效果。虚拟表不能写入、删除数据，在查询使用上和真实表相同。TDengine 支持虚拟超级表、虚拟子表、虚拟普通表上的任何查询。唯一的区别在于虚拟表的数据是每次查询计算时动态生成的，只有一个查询中引用的列才会被合并进虚拟表中，因此同一个虚拟表在不同的查询中所呈现以及扫描的数据可能是完全不同的。
+
+虚拟超级表的主要功能特点包括。
+1. 列选择与拼接：用户可以从多个原始表中选择指定的列，按需组合到一张虚拟表中，形成统一的数据视图。
+2. 基于时间戳对齐：以时间戳为依据对数据进行对齐，如果多个表在相同时间戳下存在数据，则对应列的值组合成同一行；若部分表在该时间戳下无数据，则对应列填充为 NULL。
+3. 动态更新：虚拟表根据原始表的数据变化自动更新，确保数据的实时性。虚拟表不需实际存储，计算在生成时动态完成。
+
+通过引入虚拟表的概念，TDengine 可以非常方便的管理更大更复杂的设备数据。无论每个采集点如何建模（单列 or 多列），无论这些采集点的数据是分布在一个或多个库中，都可以通过定义虚拟表的方式跨库跨表任意指定数据源，通过虚拟超级表的方式进行跨数据采集点、跨分析的聚合运算，从此“一个设备一张表”彻底成为现实。
+
 ### 库
 
 库是 TDengine 中用于管理一组表的集合。TDengine 允许一个运行实例包含多个库，并且每个库都可以配置不同的存储策略。由于不同类型的数据采集点通常具有不同的数据特征，如数据采集频率、数据保留期限、副本数量、数据块大小等。为了在各种场景下确保 TDengine 能够发挥最大效率，建议将具有不同数据特征的超级表创建在不同的库中。
@@ -85,17 +98,17 @@ toc_max_heading_level: 4
 
 ### 时间戳
 
-时间戳在时序数据处理中扮演着至关重要的角色，特别是在应用程序需要从多个不同时区访问数据库时，这一问题变得更加复杂。在深入了解 TDengine 如何处理时间戳与时区之前，我们先介绍以下几个基本概念。
-- 本地日期时间：指特定地区的当地时间，通常表示为 yyyy-MM-dd hh:mm:ss.SSS 格式的字符串。这种时间表示不包含任何时区信息，如 “2021-07-21 12:00:00.000”。
-- 时区：地球上不同地理位置的标准时间。协调世界时（Universal Time Coordinated，UTC）或格林尼治时间是国际时间标准，其他时区通常表示为相对于 UTC 的偏移量，如 “UTC+8” 代表东八区时间。 UTC 时间戳：表示自 UNIX 纪元（即 UTC 时间 1970 年 1 月 1 日 0 点）起经过的毫秒数。例如，“1700000000000” 对应的日期时间是 “2023-11-14 22:13:20（UTC+0）”。 在 TDengine 中保存时序数据时，实际上保存的是 UTC 时间戳。TDengine 在写入数据时，时间戳的处理分为如下两种情况。
-- RFC-3339 格式：当使用这种格式时，TDengine 能够正确解析带有时区信息的时间字符串为 UTC 时间戳。例如，“2018-10-03T14:38:05.000+08:00” 会被转换为 UTC 时间戳。
+时间戳在时序数据处理中扮演着至关重要的角色，特别是在应用程序需要从多个不同时区访问数据库时，这一问题变得更加复杂。在深入了解 TDengine 如何处理时间戳与时区之前，先介绍以下几个基本概念。
+- 本地日期时间：指特定地区的当地时间，通常表示为 yyyy-MM-dd hh:mm:ss.SSS 格式的字符串。这种时间表示不包含任何时区信息，如“2021-07-21 12:00:00.000”。
+- 时区：地球上不同地理位置的标准时间。协调世界时（Universal Time Coordinated，UTC）或格林尼治时间是国际时间标准，其他时区通常表示为相对于 UTC 的偏移量，如 "UTC+8" 代表东八区时间。UTC 时间戳：表示自 UNIX 纪元（即 UTC 时间 1970 年 1 月 1 日 0 点）起经过的毫秒数。例如，“1700000000000”对应的日期时间是“2023-11-14 22:13:20（UTC+0）”。在 TDengine 中保存时序数据时，实际上保存的是 UTC 时间戳。TDengine 在写入数据时，时间戳的处理分为如下两种情况。
+- RFC-3339 格式：当使用这种格式时，TDengine 能够正确解析带有时区信息的时间字符串为 UTC 时间戳。例如，“2018-10-03T14:38:05.000+08:00”会被转换为 UTC 时间戳。
 - 非 RFC-3339 格式：如果时间字符串不包含时区信息，TDengine 将使用应用程序所在的时区设置自动将时间转换为 UTC 时间戳。
 
 在查询数据时，TDengine 客户端会根据应用程序当前的时区设置，自动将保存的 UTC 时间戳转换成本地时间进行显示，确保用户在不同时区下都能看到正确的时间信息。
 
 ## 数据建模
 
-本节用智能电表做例子，简要的介绍如何在 TDengine 里使用 SQL 创建数据库、超级表、表的基本操作。
+本节以智能电表为例，介绍如何在 TDengine 里使用 SQL 创建数据库、超级表、表的基本操作。
 
 ### 创建数据库
 
@@ -215,3 +228,303 @@ TDengine 支持灵活的数据模型设计，包括多列模型和单列模型�
 尽管 TDengine 推荐使用多列模型，因为这种模型在写入效率和存储效率方面通常更优，但在某些特定场景下，单列模型可能更为适用。例如，当一个数据采集点的采集量种类经常发生变化时，如果采用多列模型，就需要频繁修改超级表的结构定义，这会增加应用程序的复杂性。在这种情况下，采用单列模型可以简化应用程序的设计和管理，因为它允许独立地管理和扩展每个物理量的超级表。
 
 总之，TDengine 提供了灵活的数据模型选项，用户可以根据实际需求和场景选择最适合的模型，以优化性能和管理复杂性。
+
+### 创建虚拟表
+
+无论是选择单列模型还是多列模型，TDengine 都可以通过使用虚拟表进行跨表的运算。为智能电表为例，这里介绍虚拟表的两种使用场景：
+
+1. 单源多维度时序聚合
+2. 跨源采集量对比分析
+
+#### 单源多维度时序聚合
+在单源多维度时序聚合场景中，“单源”并非指单一物理表，而是指来自**同一数据采集点**下的多个单列时序数据表。这些数据因业务需求或其他限制被拆分为多个单列存储的表，但通过设备标签和时间基准保持逻辑一致性。虚拟表在此场景中的作用是将一个采集点中“纵向“拆分的数据，还原为完整的“横向”状态。
+例如，在建模时采用了单列模型，对于电流、电压和相位这 3 种物理量，分别建立 3 张超级表。在这种场景下，用户可以通过虚拟表将这 3 种不同的采集量聚合到一张表中，以便进行统一的查询和分析。
+
+创建单列模型的超级表的 SQL 如下：
+
+```sql
+
+CREATE STABLE current_stb (
+    ts timestamp, 
+    current float
+) TAGS (
+    device_id varchar(64),
+    location varchar(64), 
+    group_id int
+);
+
+CREATE STABLE voltage_stb (
+    ts timestamp, 
+    voltage int
+) TAGS (
+    device_id varchar(64),
+    location varchar(64), 
+    group_id int
+);
+ 
+CREATE STABLE phase_stb (
+    ts timestamp, 
+    phase float
+) TAGS (
+    device_id varchar(64),
+    location varchar(64), 
+    group_id int
+);
+```
+
+假设有 d1001、d1002、d1003、d1004 四个设备，为四个设备的电流、电压、相位采集量分别创建子表，SQL 如下：
+
+```sql
+create table current_d1001 using current_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table current_d1002 using current_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table current_d1003 using current_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table current_d1004 using current_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+
+create table voltage_d1001 using voltage_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table voltage_d1002 using voltage_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table voltage_d1003 using voltage_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table voltage_d1004 using voltage_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+
+create table phase_d1001 using phase_stb(deviceid, location, group_id) tags("d1001", "California.SanFrancisco", 2);
+create table phase_d1002 using phase_stb(deviceid, location, group_id) tags("d1002", "California.SanFrancisco", 3);
+create table phase_d1003 using phase_stb(deviceid, location, group_id) tags("d1003", "California.LosAngeles", 3);
+create table phase_d1004 using phase_stb(deviceid, location, group_id) tags("d1004", "California.LosAngeles", 2);
+```
+
+可通过一张虚拟超级表来将这三种采集量聚合到一张表中，创建虚拟超级表 SQL 如下：
+
+```sql
+CREATE STABLE meters_v (
+    ts timestamp, 
+    current float, 
+    voltage int, 
+    phase float
+) TAGS (
+    location varchar(64), 
+    group_id int
+) VIRTUAL 1;
+```
+
+并且对四个设备 d1001、d1002、d1003、d1004 分别创建虚拟子表，SQL 如下：
+
+```sql
+CREATE VTABLE d1001_v (
+    current from current_d1001.current,
+    voltage from voltage_d1001.voltage, 
+    phase from phase_d1001.phase
+) 
+USING meters_v 
+TAGS (
+    "California.SanFrancisco", 
+    2
+);
+       
+CREATE VTABLE d1002_v (
+    current from current_d1002.current,
+    voltage from voltage_d1002.voltage, 
+    phase from phase_d1002.phase
+) 
+USING meters_v 
+TAGS (
+    "California.SanFrancisco", 
+    3
+);
+       
+CREATE VTABLE d1003_v (
+    current from current_d1003.current,
+    voltage from voltage_d1003.voltage, 
+    phase from phase_d1003.phase
+) 
+USING meters_v 
+TAGS (
+    "California.LosAngeles", 
+    3
+);
+       
+CREATE VTABLE d1004_v (
+    current from current_d1004.current,
+    voltage from voltage_d1004.voltage, 
+    phase from phase_d1004.phase
+) 
+USING meters_v 
+TAGS (
+    "California.LosAngeles", 
+    2
+);
+```
+
+以设备 d1001 为例，假设 d1001 设备的电流、电压、相位数据如下：
+
+<table>
+    <tr>
+        <th colspan="2" align="center">current_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">voltage_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">phase_d1001</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Voltage</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Phase</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">219</td>
+        <td align="center">1538548685000</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">218</td>
+        <td align="center">1538548695000</td>
+        <td align="center">0.33</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">221</td>
+        <td align="center">1538548696800</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697100</td>
+        <td align="center">220</td>
+        <td align="center">1538548697200</td>
+        <td align="center">0.32</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697800</td>
+        <td align="center">222</td>
+        <td align="center">1538548697800</td>
+        <td align="center">0.33</td>
+    </tr>
+</table>
+
+虚拟表 d1001_v 中的数据如下：
+
+|   Timestamp    | Current |  Voltage  |  Phase  |
+|:--------------:|:-------:|:---------:|:-------:|
+| 1538548685000  |  10.3   |    219    |  0.31   |
+| 1538548695000  |  12.6   |    218    |  0.33   |
+| 1538548696800  |  12.3   |    221    |  0.31   |
+| 1538548697100  |  12.1   |    220    |  NULL   |
+| 1538548697200  |  NULL   |   NULL    |  0.32   |
+| 1538548697700  |  11.8   |   NULL    |  NULL   |
+| 1538548697800  |  NULL   |    222    |  0.33   |
+
+#### 跨源采集量对比分析
+
+在跨源采集量对比分析中，“跨源”指数据来自**不同数据采集点**。在不同数据采集点中提取具有可比语义的采集量，通过虚拟表将这些采集量按照时间戳进行对齐和合并，并进行对比分析。
+例如，用户可以将来自不同设备的电流数据聚合到一张虚拟表中，以便进行电流数据的对比分析。
+
+以分析 d1001、d1002、d1003、d1004 四个设备的电流数据为例，创建虚拟表的 SQL 如下：
+
+```sql
+CREATE VTABLE current_v (
+    ts timestamp,
+    d1001_current float from current_d1001.current,
+    d1002_current float from current_d1002.current, 
+    d1003_current float from current_d1003.current,
+    d1004_current float from current_d1004.current
+);
+```
+
+假设 d1001, d1002, d1003, d1004 四个设备的电流数据如下：
+
+<table>
+    <tr>
+        <th colspan="2" align="center">d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1002</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1003</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1004</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.7</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.2</td>
+        <td align="center">1538548685000</td>
+        <td align="center">12.4</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.9</td>
+        <td align="center">1538548695000</td>
+        <td align="center">10.8</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.3</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.4</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">10.1</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">12.2</td>
+        <td align="center">1538548697100</td>
+        <td align="center">11.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">11.7</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697700</td>
+        <td align="center">11.4</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.6</td>
+    </tr>
+</table>
+
+虚拟表 current_v 中的数据如下：
+
+|   Timestamp    | d1001_current | d1002_current | d1003_current | d1004_current |
+|:--------------:|:-------------:|:-------------:|:-------------:|:-------------:|
+| 1538548685000  |     10.3      |     11.7      |     11.2      |     12.4      |
+| 1538548695000  |     12.6      |     11.9      |     10.8      |     11.3      |
+| 1538548696800  |     12.3      |     12.4      |     12.3      |     10.1      |
+| 1538548697100  |     12.1      |     NULL      |     11.1      |     NULL      |
+| 1538548697200  |     NULL      |     12.2      |     NULL      |     11.7      |
+| 1538548697700  |     11.8      |     11.4      |     NULL      |     NULL      |
+| 1538548697800  |     NULL      |     NULL      |     12.1      |     12.6      |
+

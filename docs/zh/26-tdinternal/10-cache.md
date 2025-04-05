@@ -16,7 +16,7 @@ TDengine 采用了一种创新的时间驱动缓存管理策略，亦称为写�
 创建数据库时的两个关键参数 `vgroups` 和 `buffer` 分别决定了数据库中的数据由多少个 vgroup 进行处理，以及为每个 vnode 分配多少写入缓存。通过合理配置这两个
 参数，用户可以根据实际需求调整数据库的性能和存储容量，从而实现最佳的性能和成本效益。
 
-例 如， 下面的 SQL 创建了包含 10 个 vgroup，每个 vnode 占 用 256MB 内存的数据库。
+例 如，下面的 SQL 创建了包含 10 个 vgroup，每个 vnode 占 用 256MB 内存的数据库。
 ```sql
 CREATE DATABASE POWER VGROUPS 10 BUFFER 256 CACHEMODEL 'NONE' PAGES 128 PAGESIZE 16;
 ```
