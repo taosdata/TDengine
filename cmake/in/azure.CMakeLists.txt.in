@@ -4,10 +4,6 @@ project(
   td_azure_sdk
 )
 
-# lib_azure_sdk
-# set(AZURE_DIR "${TD_CONTRIB_DIR}/azure-sdk-for-cpp-azure-storage-blobs_12.13.0-beta.1")
-# set(AZURE_SDK_LIBRARY_DIR "${AZURE_DIR}/sdk")
-
 set(AZURE_SDK_LIBRARY_DIR sdk)
 
 file(GLOB AZURE_SDK_SRC
@@ -37,6 +33,10 @@ set(AZURE_SDK_INCLUDES
 
 add_library(td_azure_sdk STATIC ${AZURE_SDK_UNIFIED_SRC})
 target_compile_definitions(td_azure_sdk PRIVATE BUILD_CURL_HTTP_TRANSPORT_ADAPTER)
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  target_compile_features(td_azure_sdk PRIVATE cxx_std_20)
+endif()
+
 target_include_directories(td_azure_sdk
   PUBLIC
     ${AZURE_SDK_INCLUDES}

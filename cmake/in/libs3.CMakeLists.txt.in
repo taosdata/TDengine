@@ -29,7 +29,13 @@ target_include_directories(libs3
     ${LIBXML2_INCLUDE}
     ${ZLIB_INCLUDE}
 )
-target_link_libraries(libs3 PRIVATE
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  find_library(CORE_FOUNDATION CoreFoundation)
+  find_library(SYSTEM_CONFIGURATION SystemConfiguration)
+  target_link_libraries(libs3 PRIVATE ${CORE_FOUNDATION} ${SYSTEM_CONFIGURATION})
+  target_link_libraries(libs3 PRIVATE iconv)
+endif()
+target_link_libraries(libs3 PUBLIC
   ${CURL_LIBS}
   ${OPENSSL_LIBS}
   ${CRYPTO_LIBS}
