@@ -35,23 +35,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   target_link_libraries(libs3 PRIVATE ${CORE_FOUNDATION} ${SYSTEM_CONFIGURATION})
   target_link_libraries(libs3 PRIVATE iconv)
 endif()
+find_package(Threads REQUIRED)
 target_link_libraries(libs3 PUBLIC
   ${CURL_LIBS}
   ${OPENSSL_LIBS}
   ${CRYPTO_LIBS}
-	${LIBXML2_LIBS}
+  ${LIBXML2_LIBS}
   ${ZLIB_LIBS}
   m
+  dl
+  ${CMAKE_THREAD_LIBS_INIT}
 )
 set_target_properties(libs3 PROPERTIES
-    PUBLIC_HEADER "inc/libs3.h"
+  PUBLIC_HEADER "inc/libs3.h"
 )
 
-find_package(Threads REQUIRED)
 add_executable(s3
   src/s3.c
 )
-target_link_libraries(s3 PRIVATE libs3 ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(s3 PRIVATE libs3)
 
 add_executable(testsimplexml
   src/testsimplexml.c
