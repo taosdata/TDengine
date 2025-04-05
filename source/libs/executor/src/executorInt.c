@@ -1194,7 +1194,7 @@ void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
 
   taosArrayDestroy(pParam->pChildren);
 
-  taosMemoryFree(pParam->value);
+  taosMemoryFreeClear(pParam->value);
 
   taosMemoryFree(pParam);
 }
