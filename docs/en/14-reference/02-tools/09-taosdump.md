@@ -125,6 +125,7 @@ for any corresponding short options.
 
 - Restore data files from a specified path: use the `-i` parameter along with the data file path. As mentioned earlier, the same directory should not be used to back up different data sets, nor should the same path be used to back up the same data set multiple times, otherwise, the backup data will cause overwriting or multiple backups.
 - taosdump supports data recovery to a new database name with the parameter `-W`, please refer to the command line parameter description for details.
+- Supports importing data of unchanged columns when there are changes in the TAG/COLUMN columns of both super tables and ordinary tables (supported in version 3.3.6.0 and above).
 
 :::tip
 taosdump internally uses the TDengine stmt binding API to write restored data, currently using 16384 as a batch for writing. If there are many columns in the backup data, it may cause a "WAL size exceeds limit" error, in which case you can try adjusting the `-B` parameter to a smaller value.
