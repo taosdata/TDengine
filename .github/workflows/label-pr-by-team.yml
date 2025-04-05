@@ -21,7 +21,7 @@ jobs:
             private_key: ${{ secrets.TAOSDATA_BOT_KEY }}
 
         - name: Add PR Labels
-          uses: taosdata/.github/.github/actions/add-pr-labels@refactor/wangxu/pr-label
+          uses: taosdata/.github/.github/actions/add-pr-labels@main
           with:
             github-token: ${{ steps.app-token.outputs.token }}
 
