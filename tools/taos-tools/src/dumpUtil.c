@@ -928,39 +928,6 @@ bool idxInBindCols(int16_t idx, TableDes* tableDes) {
     return false;
 }
 
-
-/*
-
-// found 
-bool fieldInBindList(char *field, TableDes* tableDes) {
-    // check valid
-    if (field == NULL || tableDes == NULL) {
-        return false;
-    }
-
-    // find in list
-    for (int32_t i = 0 ; i < tableDes->columns; i++) {
-        if (strcmp(tableDes->cols[i].field, field) == 0) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-// truncate filename
-void removeFileName(char *path) {
-    int len = strlen(path);
-    for (int i = len - 1; i >= 0; i--) {
-        if (path[i] == '/' || path[i] == '\\') {
-            path[i] = '\0';
-            break;
-        }
-    }
-}
-*/
-
 //
 // if avro folder changed, need have new stbChange*
 //
