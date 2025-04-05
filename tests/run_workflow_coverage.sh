@@ -31,9 +31,12 @@ function lcovFunc {
     # collect data
     lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
 
+    cat coverage.info | grep "SF:"
 
     # remove exclude paths 
     lcov --remove coverage.info \
+        '${TDENGINE_DIR}/contrib/*' \
+        '${TDENGINE_DIR}/tests/*' \
         '*/contrib/*' '*/test/*' '*/passwdTest.c'  '*/taosc_test/*' '*/taoscTest.cpp' '*/packaging/*' '*/taos-tools/deps/*' '*/taosadapter/*' '*/TSZ/*' \
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c' '/*/enterprise/*' '*/docs/*' '*/sim/*'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
@@ -47,7 +50,7 @@ function lcovFunc {
         '*/streamsessionnonblockoperator.c' '*/streameventnonblockoperator.c' '*/streamstatenonblockoperator.c' '*/streamfillnonblockoperator.c' \
         '*/streamclient.c' '*/cos_cp.c' '*/cos.c' '*/trow.c' '*/trow.h' '*/tsdbSnapshot.c' '*/smaTimeRange.c' \
         '*/metaSma.c' '*/mndDump.c' '*/td_block_blob_client.cpp' \
-        --rc lcov_branch_coverage=1 -o coverage.info
+        --rc lcov_branch_coverage=1 -v -o coverage.info
 
     # generate result
     echo "generate result"
@@ -64,7 +67,8 @@ function lcovFunc {
     # push result to https://app.codecov.io/
     pip install codecov
     #codecov -t b0e18192-e4e0-45f3-8942-acab64178afe -f $TDENGINE_DIR/coverage.info  -b $BRANCH
-    codecov -t b0e18192-e4e0-45f3-8942-acab64178afe -f coverage.info  -b $BRANCH -X gcov #如果覆盖率数据已经由其他工具（如 lcov）生成，可以通过 -X gcov 禁用 gcov 的自动收集，以避免冲突或冗余。
+    codecov -t b0e18192-e4e0-45f3-8942-acab64178afe -f coverage.info  -b $BRANCH -X gcov 
+    #如果覆盖率数据已经由其他工具（如 lcov）生成，可以通过 -X gcov 禁用 gcov 的自动收集，以避免冲突或冗余。
 }
 
 
