@@ -1148,12 +1148,8 @@ static int getDumpDbCount() {
         return -1;
     }
 
-    if (3 == g_majorVersionOfClient) {
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+    snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
                  "SELECT name FROM information_schema.ins_databases");
-    } else {
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN, "SHOW DATABASES");
-    }
 
     int32_t code = -1;
 
@@ -1278,21 +1274,13 @@ static int64_t getTbCountOfStbNative(const char *dbName, const char *stbName) {
         return -1;
     }
 
-    if (3 == g_majorVersionOfClient) {
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "SELECT COUNT(*) FROM (SELECT DISTINCT(TBNAME) "
-                 "FROM `%s`.%s%s%s)"
-                : "SELECT COUNT(*) FROM (SELECT DISTINCT(TBNAME) "
-                 "FROM %s.%s%s%s)",
-                dbName, g_escapeChar, stbName, g_escapeChar);
-    } else {
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "SELECT COUNT(TBNAME) FROM `%s`.%s%s%s"
-                : "SELECT COUNT(TBNAME) FROM %s.%s%s%s",
-                dbName, g_escapeChar, stbName, g_escapeChar);
-    }
+    snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+            g_args.db_escape_char
+            ? "SELECT COUNT(*) FROM (SELECT DISTINCT(TBNAME) "
+                "FROM `%s`.%s%s%s)"
+            : "SELECT COUNT(*) FROM (SELECT DISTINCT(TBNAME) "
+                "FROM %s.%s%s%s)",
+            dbName, g_escapeChar, stbName, g_escapeChar);
     debugPrint("get stable child count %s", command);
 
     int64_t count = 0;
@@ -2402,10 +2390,9 @@ static void dumpCreateDbClause(
         }
 
         char single_stable_model[32] = {0};
-        if (3 == g_majorVersionOfClient) {
-            sprintf(cache, "SINGLE_STABLE_MODEL %d",
-                    dbInfo->single_stable_model?1:0);
-        }
+        sprintf(cache, "SINGLE_STABLE_MODEL %d",
+                dbInfo->single_stable_model?1:0);
+
 
         if (dbInfo->replica) {
             pstr += sprintf(pstr, "REPLICA %d ", dbInfo->replica);
@@ -5585,8 +5572,8 @@ static int64_t dumpInAvroDataImpl(
         if (0 != (code = taos_stmt_bind_param_batch(stmt,
                 (TAOS_MULTI_BIND *)bindArray))) {
             errorPrint("%s() LN%d stmt_bind_param_batch() failed! "
-                        "reason: %s\n",
-                        __func__, __LINE__, taos_stmt_errstr(stmt));
+                        "reason: %s %s\n",
+                        __func__, __LINE__, taos_stmt_errstr(stmt), tbName);
             countFailureAndFree(bindArray, nBindCols, &failed, tbName);
             continue;
         }
@@ -5624,7 +5611,7 @@ static int64_t dumpInAvroDataImpl(
     // last batch execute
     if (0 != (count % g_args.data_batch)) {
         if (0 != (code = taos_stmt_execute(stmt))) {
-            errorPrint("error last execute taos_stmt_execute. errstr=%s\n", taos_stmt_errstr(stmt));
+            errorPrint("error last execute taos_stmt_execute. errstr=%s tbName=%s\n", taos_stmt_errstr(stmt), tbName);
             failed++;
         } else {
             success += count % g_args.data_batch;
@@ -7349,19 +7336,12 @@ static int64_t fillTbNameArr(
         return -1;
     }
 
-    if (3 == g_majorVersionOfClient) {
-        snprintf(command2, TSDB_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "SELECT DISTINCT(TBNAME) FROM `%s`.%s%s%s "
-                : "SELECT DISTINCT(TBNAME) FROM %s.%s%s%s ",
-                dbInfo->name, g_escapeChar, stable, g_escapeChar);
-    } else {
-        snprintf(command2, TSDB_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "SELECT TBNAME FROM `%s`.%s%s%s"
-                : "SELECT TBNAME FROM %s.%s%s%s",
-                dbInfo->name, g_escapeChar, stable, g_escapeChar);
-    }
+
+    snprintf(command2, TSDB_MAX_ALLOWED_SQL_LEN,
+            g_args.db_escape_char
+            ? "SELECT DISTINCT(TBNAME) FROM `%s`.%s%s%s "
+            : "SELECT DISTINCT(TBNAME) FROM %s.%s%s%s ",
+            dbInfo->name, g_escapeChar, stable, g_escapeChar);
 
     debugPrint("%s() LN%d, run command <%s>.\n",
                 __func__, __LINE__, command2);
@@ -7961,7 +7941,7 @@ static int64_t dumpTableBelongStb(
         TAOS **taos_v,
         SDbInfo *dbInfo, char *stbName,
         const TableDes *stbTableDes,
-        char *ntbName) {
+        char *childName) {
     int64_t count = 0;
 
     char dumpFilename[MAX_PATH_LEN] = {0};
@@ -7980,7 +7960,7 @@ static int64_t dumpTableBelongStb(
                 dumpFilename,
                 dbInfo->name,
                 stbName,
-                ntbName);
+                childName);
         if (-1 == ret) {
             errorPrint("%s() LN%d, failed to open file %s\n",
                     __func__, __LINE__, dumpFilename);
@@ -7988,7 +7968,7 @@ static int64_t dumpTableBelongStb(
         }
     } else {
         if (0 != generateFilename(AVRO_UNKNOWN,
-                    dumpFilename, dbInfo, NULL, ntbName, 0)) {
+                    dumpFilename, dbInfo, NULL, childName, 0)) {
             return -1;
         }
         fp = fopen(dumpFilename, "w");
@@ -8001,7 +7981,7 @@ static int64_t dumpTableBelongStb(
         }
     }
 
-    if (0 == strlen(ntbName)) {
+    if (0 == strlen(childName)) {
         errorPrint("%s() LN%d, pass wrong tbname\n", __func__, __LINE__);
         if (NULL != fp) {
             fclose(fp);
@@ -8015,7 +7995,7 @@ static int64_t dumpTableBelongStb(
             true,
             stbName,
             stbTableDes,
-            ntbName,
+            childName,
             getPrecisionByString(dbInfo->precision),
             dumpFilename,
             fp);
@@ -9257,30 +9237,11 @@ static int64_t dumpNTablesOfDb(TAOS **taos_v, SDbInfo *dbInfo) {
 
     TAOS_RES *res;
     int32_t code = -1;
-
-    if (3 == g_majorVersionOfClient) {
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                "SELECT TABLE_NAME,STABLE_NAME "
-                " FROM information_schema.ins_tables WHERE db_name='%s'",
-                dbInfo->name);
-    } else {
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                g_args.db_escape_char
-                ? "USE `%s`"
-                : "USE %s",
-                dbInfo->name);
-        res = taosQuery(*taos_v, command, &code);
-        if (code != 0) {
-            errorPrint("invalid database %s, reason: %s\n",
-                    dbInfo->name, taos_errstr(res));
-            taos_free_result(res);
-            free(command);
-            return 0;
-        }
-        taos_free_result(res);
-
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN, "SHOW TABLES");
-    }
+ 
+    snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+            "SELECT TABLE_NAME,STABLE_NAME "
+            " FROM information_schema.ins_tables WHERE db_name='%s'",
+            dbInfo->name);
 
     res = taosQuery(*taos_v, command, &code);
     if (code != 0) {
@@ -9301,14 +9262,8 @@ static int64_t dumpNTablesOfDb(TAOS **taos_v, SDbInfo *dbInfo) {
             continue;
         }
 
-        if (3 == g_majorVersionOfClient) {
-            if (0 != lengths[1]) {
-                continue;
-            }
-        } else {
-            if (0 != lengths[3]) {
-                continue;
-            }
+        if (0 != lengths[1]) {
+            continue;
         }
 
         char ntable[TSDB_TABLE_NAME_LEN] = {0};
@@ -9839,12 +9794,9 @@ static int fillDbInfoNative(void *taos) {
         errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
         return -1;
     }
-    if (3 == g_majorVersionOfClient) {
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-                 "SELECT * FROM information_schema.ins_databases");
-    } else {
-        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN, "SHOW DATABASES");
-    }
+
+    snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+                "SELECT * FROM information_schema.ins_databases");
 
     int32_t code = -1;
     TAOS_RES *res = taosQuery(taos, command, &code);
@@ -9896,9 +9848,7 @@ static int fillDbInfoNative(void *taos) {
                 break;
             }
 
-            if (3 == g_majorVersionOfClient) {
-                fillDbExtraInfoV3Native(taos, dbName, dbIndex);
-            }
+            fillDbExtraInfoV3Native(taos, dbName, dbIndex);
 
             dbIndex++;
 
