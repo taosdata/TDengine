@@ -32,6 +32,7 @@
 #include "tanalytics.h"
 #include "tcol.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "ttime.h"
 #include "decimal.h"
 
@@ -4319,7 +4320,9 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
   }
   (*pVgsInfo)->numOfVgroups = ndnode;
   for (int32_t i = 0; i < ndnode; ++i) {
-    memcpy(&((*pVgsInfo)->vgroups[i].epSet), taosArrayGet(pDnodes, i), sizeof(SEpSet));
+    SDNodeAddr* pDnodeAddr = taosArrayGet(pDnodes, i);
+    (*pVgsInfo)->vgroups[i].vgId = pDnodeAddr->nodeId;
+    memcpy(&((*pVgsInfo)->vgroups[i].epSet), &pDnodeAddr->epSet, sizeof(SEpSet));
   }
   return TSDB_CODE_SUCCESS;
 }
