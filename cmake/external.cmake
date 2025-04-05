@@ -830,6 +830,8 @@ if(NOT ${TD_WINDOWS})       # {
         # debugging github working flow
         # CHK_NAME         SSL
     )
+    list(SUBLIST ext_ssl_libs 0 1 ext_ssl_lib_ssl)
+    list(SUBLIST ext_ssl_libs 1 1 ext_ssl_lib_crypto)
     # URL https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz
     # URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
     get_from_local_if_exists("https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz")
@@ -1243,3 +1245,122 @@ if(TD_TAOS_TOOLS)
     )
     add_dependencies(build_externals ext_avro)     # this is for github workflow in cache-miss step.
 endif()
+
+
+# libxml2
+if(${TD_LINUX})
+    set(ext_libxml2_static libxml2.a)
+elseif(${TD_DARWIN})
+    set(ext_libxml2_static libxml2.a)
+elseif(${TD_WINDOWS})
+    set(ext_libxml2_static libxml2.lib)
+endif()
+INIT_EXT(ext_libxml2
+    INC_DIR          include/libxml2
+    LIB              lib/${ext_libxml2_static}
+)
+# URL https://github.com/GNOME/libxml2/archive/refs/tags/v2.10.4.tar.gz
+# URL_HASH SHA256=6f6fb27f91bb65f9d7196e3c616901b3e18a7dea31ccc2ae857940b125faa780
+get_from_local_repo_if_exists("https://github.com/GNOME/libxml2.git")
+ExternalProject_Add(ext_libxml2
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG v2.14.0
+    GIT_SHALLOW TRUE
+    PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+    CMAKE_ARGS -DLIBXML2_WITH_PYTHON:BOOL=OFF
+    CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_libxml2)     # this is for github workflow in cache-miss step.
+
+# libs3
+if(${TD_LINUX})
+    set(ext_libs3_static libs3.a)
+elseif(${TD_DARWIN})
+    set(ext_libs3_static libs3.a)
+elseif(${TD_WINDOWS})
+    set(ext_libs3_static libs3.lib)
+endif()
+INIT_EXT(ext_libs3
+    INC_DIR          include
+    LIB              lib/${ext_libs3_static}
+    CHK_NAME         ZLIB
+)
+string(JOIN " " _ssl_libs ${ext_ssl_libs})
+# GIT_REPOSITORY https://github.com/bji/libs3
+get_from_local_repo_if_exists("https://github.com/bji/libs3")
+ExternalProject_Add(ext_libs3
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG 98f667b248a7288c1941582897343171cfdf441c
+    GIT_SHALLOW FALSE
+    DEPENDS ext_libxml2 ext_curl ext_zlib
+    PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
+    CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
+    CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
+    CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
+    CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
+    CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
+    CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
+    CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
+    CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+    PATCH_COMMAND
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/libs3.CMakeLists.txt.in ${ext_libs3_source}/CMakeLists.txt
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_libs3)     # this is for github workflow in cache-miss step.
+
+# azure
+if(${TD_LINUX})
+    set(ext_azure_static libtd_azure_sdk.a)
+elseif(${TD_DARWIN})
+    set(ext_azure_static libtd_azure_sdk.a)
+elseif(${TD_WINDOWS})
+    set(ext_azure_static td_azure_sdk.lib)
+endif()
+INIT_EXT(ext_azure
+    INC_DIR          include
+    LIB              lib/${ext_azure_static}
+    CHK_NAME         ZLIB
+)
+# URL https://github.com/Azure/azure-sdk-for-cpp/archive/refs/tags/azure-storage-blobs_12.13.0-beta.1.tar.gz
+# URL_HASH SHA256=3eca486fd60e3522d0a633025ecd652a71515b1e944799b2e8ee31fd590305a9
+get_from_local_if_exists("https://github.com/Azure/azure-sdk-for-cpp/archive/refs/tags/azure-storage-blobs_12.13.0-beta.1.tar.gz")
+ExternalProject_Add(ext_azure
+    URL ${_url}
+    URL_HASH SHA256=3eca486fd60e3522d0a633025ecd652a71515b1e944799b2e8ee31fd590305a9
+    # GIT_SHALLOW TRUE
+    DEPENDS ext_libxml2 ext_curl ext_zlib
+    PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
+    CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
+    CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
+    CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
+    CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
+    CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
+    CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
+    CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
+    CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+    PATCH_COMMAND
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/azure.CMakeLists.txt.in" "${ext_azure_source}/CMakeLists.txt"
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+

@@ -7,7 +7,7 @@ function(cat IN_FILE OUT_FILE)
 endfunction(cat IN_FILE OUT_FILE)
 
 if(${BUILD_WITH_S3})
-    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
+    # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
 
 elseif(${BUILD_WITH_COS})
     message(FATAL_ERROR "freemine: not implemented yet")
@@ -45,10 +45,6 @@ configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # s3
 if(${BUILD_WITH_S3})
-    message(FATAL_ERROR "freemine: not implemented yet")
-    cat("${TD_SUPPORT_DIR}/xml2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    cat("${TD_SUPPORT_DIR}/libs3_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    cat("${TD_SUPPORT_DIR}/azure_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_S3)
 
 # cos
@@ -120,7 +116,7 @@ if(${BUILD_WITH_UV})
 endif(${BUILD_WITH_UV})
 
 if(${BUILD_WITH_S3})
-    INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)
+    # INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)
     MESSAGE("build with s3: ${BUILD_WITH_S3}")
 
 # cos
@@ -149,12 +145,7 @@ elseif(${BUILD_WITH_COS})
 endif()
 
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
-  set(ORIG_CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
-  string(REPLACE " -Werror " " " CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-  add_subdirectory(xml2-cmake)
-  set(CMAKE_C_FLAGS ${ORIG_CMAKE_C_FLAGS})
-
-  add_subdirectory(azure-cmake)
+  # add_subdirectory(azure-cmake)
 endif()
 
 IF(TD_LINUX)
