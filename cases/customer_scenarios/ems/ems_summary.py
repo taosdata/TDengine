@@ -6,7 +6,7 @@ from taostest.util.common import TDCom
 import re
 import requests
 from taostest.util.rest import TDRest
-
+import time
 class EMSQuery(TDCase):
     def init(self):
         self._remote: Remote = Remote(self.logger)
@@ -21,6 +21,7 @@ class EMSQuery(TDCase):
         self.detail_log_path = f'{self.log_path}/details'
         self.summary_log_path = f'{self.log_path}/summary'
         self._remote.cmd("localhost", [f'mkdir -p {self.detail_log_path}', f'mkdir -p {self.summary_log_path}'])
+        self.timeout = 20  # Maximum wait time in seconds
         self.dbname = "center_db"
         self.report_file = f'{self.log_path}/perf_report_{self.case_config["test_start_time"]}.txt'
         self.test_robot_url = (
@@ -83,14 +84,57 @@ class EMSQuery(TDCase):
                     insert_res_list.append(data)
         return insert_res_list
 
-    def get_compression_ratio(self):
-        self.tdRest.request(f'flush database {self.dbname};')
-        # self.tdRest.request(data=f"show table distributed center_db.site_topic6_mqtt_u2_193;")
-        self.tdRest.request(f'show {self.dbname}.disk_info;')
+    # def get_compression_ratio(self):
+    #     self.tdRest.request(f'flush database {self.dbname};')
+    #     # self.tdRest.request(data=f"show table distributed center_db.site_topic6_mqtt_u2_193;")
+    #     self.tdRest.request(f'show {self.dbname}.disk_info;')
 
-        query_res = self.tdRest.resp['data'][0][0]
-        compression_ratio = query_res.split("=")[1].replace("[", "").replace("]", "") + "%"
-        return compression_ratio
+    #     query_res = self.tdRest.resp['data'][0][0]
+    #     compression_ratio = query_res.split("=")[1].replace("[", "").replace("]", "") + "%"
+    #     return compression_ratio
+
+    def get_compression_ratio(self):
+
+        # Flush the database first
+        self.tdRest.request(f'flush database {self.dbname};')
+
+        # Retry logic with self.timeout
+        start_time = time.time()
+        stable_threshold = 3  # Number of consecutive stable readings required
+        stable_count = 0
+        last_ratio = None
+        compression_ratio = None
+
+        while time.time() - start_time < self.timeout:
+            # Query disk info
+            self.tdRest.request(f'show {self.dbname}.disk_info;')
+
+            # Check response structure and data
+            if self.tdRest.resp.get('code') == 0 and self.tdRest.resp.get('data'):
+                query_res = self.tdRest.resp['data'][0][0]
+                if 'Compress_radio' in query_res:
+                    ratio_str = query_res.split("=")[1].replace("[", "").replace("]", "")
+
+                    # Skip NULL values
+                    if ratio_str == 'NULL':
+                        continue
+
+                    # Check if ratio has changed
+                    if ratio_str != last_ratio:
+                        last_ratio = ratio_str
+                        stable_count = 0
+                    else:
+                        stable_count += 1
+
+                    # Return when ratio is stable
+                    if stable_count >= stable_threshold:
+                        return f"{ratio_str}%"
+
+            # Wait for next check (keeping your exponential backoff logic)
+            time.sleep(min(1, self.timeout - (time.time() - start_time)))
+
+        # Return final result (last seen ratio or NULL)
+        return f"{last_ratio}%" if last_ratio is not None else "NULL%"
 
     def get_grafana_url(self):
         return self.case_config['grafana_url']
