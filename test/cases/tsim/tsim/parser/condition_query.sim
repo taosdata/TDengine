@@ -1,0 +1,2736 @@
+
+sql use cdb;
+
+print "column test"
+sql select * from stb1
+if $rows != 29 then
+  return -1
+endi
+sql select * from stb1 where c1 > 0
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where c8 > 0
+sql select * from stb1 where c7 in (0,2,3,1);
+sql select * from stb1 where c8 in (true);
+sql select * from stb1 where c8 in (1,2);
+sql select * from stb1 where t2 in (3.0);
+sql select ts,c1,c7 from stb1 where c7 > false
+sql select * from stb1 where c1 > NULL;
+sql select * from stb1 where c1 = NULL;
+sql_error select * from stb1 where c1 LIKE '%1';
+sql_error select * from stb1 where c2 LIKE '%1';
+sql_error select * from stb1 where c3 LIKE '%1';
+sql_error select * from stb1 where c4 LIKE '%1';
+sql_error select * from stb1 where c5 LIKE '%1';
+sql_error select * from stb1 where c6 LIKE '%1';
+sql_error select * from stb1 where c7 LIKE '%1';
+sql select * from stb1 where c1 = 'NULL';
+sql select * from stb1 where c2 > 'NULL';
+sql select * from stb1 where c3 <> 'NULL';
+sql select * from stb1 where c4 != 'null';
+sql select * from stb1 where c5 >= 'null';
+sql select * from stb1 where c6 <= 'null';
+sql select * from stb1 where c7 < 'nuLl';
+sql select * from stb1 where c8 < 'nuLl';
+sql select * from stb1 where c9 > 'nuLl';
+sql_error select * from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b;
+sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 or b.c1 < 60;
+sql select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and ((a.c1 > 50 and a.c1 < 60) or (b.c2 > 60));
+sql select * from stb1 where 'c2' is null;
+sql select * from stb1 where 'c2' is not null;
+
+sql select * from stb1 where c2 > 3.0 or c2 < 60;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c2 > 3.0 or c2 < 60 and c2 > 50;
+if $rows != 25 then
+  return -1
+endi
+sql select * from stb1 where (c2 > 3.0 or c2 < 60) and c2 > 50;
+if $rows != 8 then
+  return -1
+endi
+
+sql select * from stb1 where (c2 > 3.0 or c2 < 60) and c2 > 50 and (c2 != 53 and c2 != 63);
+if $rows != 6 then
+  return -1
+endi
+
+sql select * from stb1 where (c2 > 3.0 or c2 < 60) and c2 > 50 and (c2 != 53 or c2 != 63);
+if $rows != 8 then
+  return -1
+endi
+
+sql select * from stb1 where (c3 > 3.0 or c3 < 60) and c3 > 50 and (c3 != 53 or c3 != 63);
+if $rows != 8 then
+  return -1
+endi
+
+sql select * from stb1 where (c4 > 3.0 or c4 < 60) and c4 > 50 and (c4 != 53 or c4 != 63);
+if $rows != 8 then
+  return -1
+endi
+
+sql select * from stb1 where (c5 > 3.0 or c5 < 60) and c5 > 50 and (c5 != 53 or c5 != 63);
+if $rows != 8 then
+  return -1
+endi
+
+sql select * from stb1 where (c6 > 3.0 or c6 < 60) and c6 > 50 and (c6 != 53 or c6 != 63);
+if $rows != 8 then
+  return -1
+endi
+
+sql select * from stb1 where c8 = '51';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 != '51';
+if $rows != 27 then
+  return -1
+endi
+
+#xxx
+sql select * from stb1 where c8 = '51' and c8 != '51';
+if $rows != 0 then
+  return -1
+endi
+
+#xxx
+sql select * from stb1 where c8 = '51' or c8 != '51';
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where c9 = '51';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c9 != '51';
+if $rows != 27 then
+  return -1
+endi
+
+sql select * from stb1 where c9 = '51' and c9 != '51';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c9 = '51' or c9 != '51';
+if $rows != 28 then
+  return -1
+endi
+
+sql select ts,c1,c7 from stb1 where c7 = false order by ts
+if $rows != 14 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data11 != 4 then
+  return -1
+endi
+if $data12 != 0 then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data21 != 13 then
+  return -1
+endi
+if $data22 != 0 then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data32 != 0 then
+  return -1
+endi
+
+sql select ts,c1,c7 from stb1 where c7 = true order by ts
+if $rows != 14 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 1 then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data21 != 11 then
+  return -1
+endi
+if $data22 != 1 then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data31 != 12 then
+  return -1
+endi
+if $data32 != 1 then
+  return -1
+endi
+
+
+sql select * from stb1 where c8 = '51' or c8 = '4' order by ts
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data11 != 51 then
+  return -1
+endi
+
+
+sql select * from stb1 where c1 > 50 and c1 > 53
+if $rows != 5 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or c1 > 53
+if $rows != 8 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and c1 > 53 and c1 < 52
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or c1 > 53 or c1 < 51
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and c1 > 53 or c1 < 51
+if $rows != 25 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or c1 > 53 and c1 < 51
+if $rows != 8 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and c1 > 53 and c1 > 51 and c1 > 54
+if $rows != 4 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and c1 > 53 and c1 > 51 or c1 > 54
+if $rows != 5 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and c1 > 53 and c1 < 51 or c1 > 54
+if $rows != 4 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and c1 > 53 or c1 < 51 and c1 > 54
+if $rows != 5 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and c1 > 53 or c1 > 51 and c1 < 54
+if $rows != 7 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or c1 > 53 and c1 < 51 and c1 > 54
+if $rows != 8 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and c1 > 53 or c1 < 51 or c1 > 54
+if $rows != 25 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or c1 > 53 and c1 < 51 or c1 > 54
+if $rows != 8 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or c1 > 53 or c1 < 51 and c1 > 54
+if $rows != 8 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or c1 > 53 or c1 > 51 and c1 > 54
+if $rows != 8 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or c1 > 53 or c1 < 51 or c1 > 54
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 50 and c1 > 53) and c1 < 52
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and (c1 > 53 and c1 < 52)
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53) or c1 < 51
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 or c1 < 51)
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 and c1 > 53) or c1 < 51
+if $rows != 25 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and (c1 > 53 or c1 < 51)
+if $rows != 5 then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53) and c1 < 51
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 and c1 < 51)
+if $rows != 8 then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 and c1 > 53) and (c1 < 51 and c1 > 54)
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 and c1 > 53 and c1 < 51) and c1 > 54
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and (c1 > 53 and c1 < 51) and c1 > 54
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and (c1 > 53 and c1 < 51 or c1 > 54)
+if $rows != 4 then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 and c1 > 53) or (c1 < 51 and c1 > 54) order by ts
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and (c1 > 53 or c1 < 51) and c1 > 54
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 and c1 > 53 or c1 < 51) and c1 > 54
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and (c1 > 53 or c1 < 51 and c1 > 54) order by ts
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53) and (c1 < 51 and c1 > 54) order by ts
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 and c1 < 51 and c1 > 54) order by ts
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53 and c1 < 51) and c1 > 54 order by ts
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 and c1 < 51) and c1 > 54 order by ts
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 and c1 > 53) or (c1 < 51 or c1 > 54) order by ts
+if $rows != 25 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and (c1 > 53 or c1 < 51 or c1 > 54) order by ts
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 and c1 > 53 or c1 < 51) or c1 > 54 order by ts
+if $rows != 25 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 and (c1 > 53 or c1 < 51) or c1 > 54 order by ts
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53) and (c1 < 51 or c1 > 54) order by ts
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 and c1 < 51 or c1 > 54) order by ts
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53 and c1 < 51) or c1 > 54 order by ts
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 and c1 < 51) or c1 > 54 order by ts
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53) or (c1 < 51 and c1 > 54) order by ts
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53 or c1 < 51) and c1 > 54 order by ts
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 or c1 < 51 and c1 > 54) order by ts
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 or c1 < 51) and c1 > 54 order by ts
+if $rows != 8 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 62 or (c1 > 53 or c1 < 51) and c1 > 54 order by ts
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53) or (c1 < 51 or c1 > 54) order by ts
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 or c1 < 51 or c1 > 54) order by ts
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 50 or c1 > 53 or c1 < 51) or c1 > 54 order by ts
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 50 or (c1 > 53 or c1 < 51) or c1 > 54 order by ts
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+sql select ts,c1 from stb1 where (c1 > 60 or c1 < 10 or (c1 > 20 and c1 < 30)) and ts > '2021-05-05 18:19:00.000' and ts < '2021-05-05 18:19:25.000' and c1 != 21 and c1 != 22 order by ts
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:10.000@ then
+  return -1
+endi
+if $data31 != 23 then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
+if $data41 != 24 then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data51 != 61 then
+  return -1
+endi
+
+
+sql select * from stb1 where (c1 > 40 or c1 < 20) and (c2 < 53 or c2 >= 63) and c3 > 1 and c3 < 5 order by ts
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 52 or c1 < 10) and (c2 > 1 and c2 < 61) order by ts
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data31 != 53 then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data41 != 54 then
+  return -1
+endi
+
+sql select * from stb1 where (c3 > 52 or c3 < 10) and (c4 > 1 and c4 < 61) and (c5 = 2 or c6 = 3.0 or c6 = 4.0 or c6 = 53) order by ts
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data31 != 53 then
+  return -1
+endi
+
+sql select * from stb1 where c1 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select * from stb1 where c2 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select * from stb1 where c3 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select * from stb1 where c4 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select * from stb1 where c5 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select * from stb1 where c6 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select * from stb1 where c7 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select * from stb1 where c8 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+#xxx
+sql select * from stb1 where c8 like '1' order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+
+#xxx
+sql select * from stb1 where c8 like '1%' and c8 like '%1' order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+#xxx
+sql select * from stb1 where c8 like '1' and c8 like '2' order by ts;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c9 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+sql select * from stb1 where c1 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c2 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c3 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c4 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c5 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c6 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c7 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c8 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c9 is not null order by ts;
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+sql select * from stb1 where c1 > 63 or c1 is null order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+if $data01 != 64 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+sql select * from stb1 where c1 is null and c2 is null order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select * from stb1 where c1 is null and c2 is null and c3 is not null order by ts;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 is null and c2 is null and ts > '2021-05-05 18:19:00.000' and ts < '2021-05-05 18:19:28.000' order by ts;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c1 is null and c1 > 0;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c1 is null or c1 is not null or c1 > 1;
+if $rows != 29 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 is null or c1 > 40) and c1 < 44 order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:16.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:17.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:18.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 in (11,21,31,41) and c1 in (11,42) order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 in ('11','21','31','41') and c8 in ('11','42') order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 60 and c2 > 40) or (c1 > 62 and c2 > 50) order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 = 3 or c1 = 5 or c1 >= 44 and c1 <= 52 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:19.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 LIKE '%1' order by ts;
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:16.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data60 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where c9 LIKE '%1' order by ts;
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:16.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data60 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+sql select * from stb1 where (c8 LIKE '%1' or c9 like '_2') and (c5 > 50 or c6 > 30) and ( c8 like '3_' or c9 like '4_') and (c4 <= 31 or c4 >= 42) order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:17.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 in (1,3) order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c3 in (11,22) order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c4 in (3,33) order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c5 in (3,33) and c8 in ('22','55');
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c5 in (3,33) and c8 in ('33','54') order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c5 in (3,33) or c8 in ('22','54') order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (c9 in ('3','1','2','4','5') or c9 in ('33','11','22','44','55')) and c9 in ('1','3','11','13') order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+sql select * from stb2 where (u1 in (1) or u2 in (5,6)) and (u3 in (3,6) or u4 in (7,8)) and ts2 in ('2021-05-05 18:28:02.000','2021-05-05 18:28:15.000','2021-05-05 18:28:01.000') order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+
+sql select * from stb2 where u2 in (2) and u3 in (1,2,3) and u4 in (1,2,4,5) and u1 > 3 and u1 < 6 and u1 != 4 order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+
+sql select avg(c1) from tb1 where (c1 > 12 or c2 > 10) and (c3 < 12 or c3 > 13) ;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 12.500000000 then
+  return -1
+endi
+
+sql select count(c1),sum(c3) from tb1 where ((c7 = true and c6 > 2) or (c1 > 10 or c3 < 3)) and ((c8 like '1%') or (c9 like '%2' or c9 like '%3')) interval(5s);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3 then
+  return -1
+endi
+if $data01 != 14 then
+  return -1
+endi
+if $data10 != 3 then
+  return -1
+endi
+if $data11 != 39 then
+  return -1
+endi
+
+sql select * from stb1 where c8 = 'null';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c8 = 'NULL';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c9 = 'null';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c9 = 'NULL';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c2 in (0,1) order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+sql select * from stb1 where c6 in (0,2,3,1) order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+sql select ts,c1 from (select * from stb1 where (c1 > 60 or c1 < 10) and (c7 = true or c5 > 2 and c5 < 63)) where (c3 > 61 or c3 < 3) order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+
+sql select a.* from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 order by ts;
+sql select a.* from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+
+sql select a.ts,a.c1,a.c8,a.c9 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 and b.c1 < 60 order by ts;
+sql select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 and b.c1 < 60 order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:20.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.c1 < 10 or a.c1 > 30) and (b.u1 < 5 or b.u1 > 5) order by a.ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+sql_error select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.c1 < 10 or a.c1 > 30) and (b.u1 < 5 or b.u1 > 5) order by ts;
+
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by a.ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:10.000@ then
+  return -1
+endi
+sql_error select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by ts;
+sql select a.ts,a.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by ts;
+
+sql select * from stb1 where c1 is null and c1 is not null;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c1 is null or c1 is not null;
+if $rows != 29 then
+  return -1
+endi
+sql select * from stb1 where c1 is null or c1 > 20 or c1 < 25;
+if $rows != 29 then
+  return -1
+endi
+sql select * from stb1 where (c1 > 20 or c1 < 25) and c1 is null;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 20 or c1 < 25) and (c1 > 62 or c1 < 3) order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 > 11 and c1 != 11 and c1 != 14 and c1 < 14 order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+sql select * from stb1 where (c1 > 60 or c1 < 4 or c1 > 10 and c1 < 20 and c1 != 13 or c1 < 2 or c1 > 50) order by ts
+if $rows != 14 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 > 62 or c1 >= 62 order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 > 62 and c1 >= 62 order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 >= 62 and c1 != 62 order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 >= 62 or c1 != 62;
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where c1 >= 62 and c1 = 62;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 > 62 and c1 != 62 order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 > 62 and c1 = 62;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c1 is not null and c1 is not null;
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where c1 is not null or c1 is not null;
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where c1 is null and c1 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 is null or c1 is null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c2 > 3 and c2 < 3;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c2 = 3;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c2 > 3 and c2 <= 3;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where c2 >= 3 and c2 <= 3 order by ts;
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (c2 in (1,2,3,4) or c2 in (11,12,13,14)) and c2 != 11 and c2 >2 and c2 != 14 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 60 or c1 < 4 or c1 > 10 and c1 < 20 and c1 != 13 or c1 < 2 or c1 > 50) and (c1 != 51 and c1 <= 54 and c1 != 54 and c1 >=1 and c1 != 1) and (c1 >= 11 and c1 <=52 and c1 != 52 and c1 != 11);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 > 1 and c1 is not null and c1 < 5;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+
+sql select * from (select * from stb1 where c2 > 10 and c6 < 40) where c9 in ('11','21','31') order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 > 40 and c2 > 50 and c3 > 62 or c1 < 2 and c2 < 3 order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 3 and c2 > 4) or (c1 < 60 and c2 < 30);
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 3 and c2 > 4) or (c1 < 60 and c2 < 30) or (c1 is null and c2 is null);
+if $rows != 29 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 3 and c2 > 4) or (c1 < 60 and c3 < 30) or (c1 is null and c2 is null);
+if $rows != 29 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 60 and c2 < 63) or (c1 >62 and c3 < 30) or (c1 is null and c2 is null) order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 between 60 and 9999999999 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 9999999999;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 < 9999999999;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c1 = 9999999999;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 <> 9999999999;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c4 < -9999999999;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c4 > -9999999999;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c4 = -9999999999;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c4 <> -9999999999;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c5 in (-9999999999);
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c5 in (9999999999);
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c5 in (-9999999999,3,4,9999999999) order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+
+sql select * from stb3 where c1 > 3 and c1 < 2 order by ts;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb3 where c1 is null order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-06-05 18:19:28.000@ then
+  return -1
+endi
+if $data10 != @21-06-06 18:19:28.000@ then
+  return -1
+endi
+if $data20 != @21-07-05 18:19:28.000@ then
+  return -1
+endi
+if $data30 != @21-07-06 18:19:28.000@ then
+  return -1
+endi
+
+sql select * from stb3 where c1 is not null order by ts;
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-01-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-01-06 18:19:00.000@ then
+  return -1
+endi
+if $data20 != @21-02-05 18:19:01.000@ then
+  return -1
+endi
+if $data30 != @21-02-06 18:19:01.000@ then
+  return -1
+endi
+if $data40 != @21-03-05 18:19:02.000@ then
+  return -1
+endi
+if $data50 != @21-03-06 18:19:02.000@ then
+  return -1
+endi
+if $data60 != @21-04-05 18:19:03.000@ then
+  return -1
+endi
+if $data70 != @21-04-06 18:19:03.000@ then
+  return -1
+endi
+
+
+sql select * from stb3 where c1 > 11 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-02-06 18:19:01.000@ then
+  return -1
+endi
+if $data10 != @21-03-06 18:19:02.000@ then
+  return -1
+endi
+if $data20 != @21-04-06 18:19:03.000@ then
+  return -1
+endi
+if $data30 != @21-05-06 18:19:28.000@ then
+  return -1
+endi
+
+sql select * from stb3 where c1 is not null or c1 is null order by ts;
+if $rows != 14 then
+  return -1
+endi
+
+sql select ts,c1 from stb4 where c1 = 200 order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.199@ then
+  return -1
+endi
+
+sql select ts,c1 from stb4 where c1 != 200;
+if $rows != 5999 then
+  return -1
+endi
+
+
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= 200 and c2 > 500 and c3 < 800 and c4 between 33 and 37 and c4 != 35 and c2 < 555 and c1 < 339 and c1 in (331,333,335) order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.330@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:00.332@ then
+  return -1
+endi
+if $data20 != @21-07-10 01:00:00.334@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 > -3 and c1 < 5 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.000@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:00.001@ then
+  return -1
+endi
+if $data20 != @21-07-10 01:00:00.002@ then
+  return -1
+endi
+if $data30 != @21-07-10 01:00:00.003@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= 2 and c1 < 5 order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.001@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:00.002@ then
+  return -1
+endi
+if $data20 != @21-07-10 01:00:00.003@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= -3 and c1 < 1300 order by ts;
+if $rows != 1299 then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= 1298 and c1 < 1300 or c2 > 210 and c2 < 213 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.010@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:00.011@ then
+  return -1
+endi
+if $data20 != @21-07-13 01:00:00.097@ then
+  return -1
+endi
+if $data30 != @21-07-13 01:00:00.098@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= -3;
+if $rows != 6000 then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 < 1400;
+if $rows != 1399 then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 < 1100;
+if $rows != 1099 then
+  return -1
+endi
+
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 in(10,100, 1100,3300) and c1 != 10 order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.099@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:01.099@ then
+  return -1
+endi
+if $data20 != @21-07-16 01:00:00.899@ then
+  return -1
+endi
+
+
+print "ts test"
+
+sql select ts,c1,c7 from stb1 where ts != '2021-05-05 18:19:27'
+sql select ts,c1,c7 from stb1 where ts > '2021-05-05 18:19:03.000' or ts < '2021-05-05 18:19:02.000';
+sql select ts,c1,c7 from stb1 where ts > '2021-05-05 18:19:03.000' and ts > '2021-05-05 18:19:20.000' and ts != '2021-05-05 18:19:22.000';
+sql_error select * from stb1 where ts2 like '2021-05-05%';
+sql select ts,c1,c2 from stb1 where (ts > '2021-05-05 18:19:25.000' or ts < '2021-05-05 18:19:05.000') and ts > '2021-05-05 18:19:01.000' and ts < '2021-05-05 18:19:27.000';
+sql select ts,c1,c2 from stb1 where (ts > '2021-05-05 18:19:20.000' or ts < '2021-05-05 18:19:05.000') and ts != '2021-05-05 18:19:25.000';
+sql select ts,c1,c2 from stb1 where ((ts >= '2021-05-05 18:19:05.000' and ts <= '2021-05-05 18:19:10.000') or (ts >= '2021-05-05 18:19:15.000' and ts <= '2021-05-05 18:19:20.000') or (ts >= '2021-05-05 18:19:11.000' and ts <= '2021-05-05 18:19:14.000'));
+sql select ts,c1,c2 from stb1 where ts >= '2021-05-05 18:19:25.000' or ts < '2021-05-05 18:19:24.000';
+sql select * from stb1 where ts is null;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where ts is not null and ts is null;
+if $rows != 0 then
+  return -1
+endi
+
+sql select ts,c1,c2 from stb1 where ts >= '2021-05-05 18:19:25.000' and ts < '2021-05-05 18:19:10.000';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where ts > '2021-05-05 18:19:03.000' and ts < '2021-05-05 18:19:02';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from stb1 where ts is not null;
+if $rows != 29 then
+  return -1
+endi
+
+sql select * from stb1 where ts is not null or ts is null;
+if $rows != 29 then
+  return -1
+endi
+
+sql select ts,c1,c2 from stb1 where ts >= '2021-05-05 18:19:25.000' or ts < '2021-05-05 18:19:25.000';
+if $rows != 29 then
+  return -1
+endi
+
+sql select ts,c1,c2 from stb1 where ts >= '2021-05-05 18:19:25.000' and ts < '2021-05-05 18:19:26.000';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+sql select ts,c1,c2 from stb1 where ts >= '2021-05-05 18:19:25.000' or ts < '2021-05-05 18:19:28.000';
+if $rows != 29 then
+  return -1
+endi
+sql select ts,c1,c2 from stb1 where ts >= '2021-05-05 18:19:25.000' or ts > '2021-05-05 18:19:27.000' order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+
+sql select ts,c1,c2 from stb1 where ts > '2021-05-05 18:19:20.000' or ts < '2021-05-05 18:19:05.000' or ts != '2021-05-05 18:19:25.000';
+if $rows != 29 then
+  return -1
+endi
+
+sql select ts,c1,c2 from stb1 where ts >= '2021-05-05 18:19:25.000' or ts <> '2021-05-05 18:19:25.000';
+if $rows != 29 then
+  return -1
+endi
+
+sql select ts,c1,c2 from stb1 where ((ts >= '2021-05-05 18:19:05.000' and ts <= '2021-05-05 18:19:10.999') or (ts >= '2021-05-05 18:19:15.000' and ts <= '2021-05-05 18:19:20.000') or (ts >= '2021-05-05 18:19:11.000' and ts <= '2021-05-05 18:19:14.999')) order by ts;
+if $rows != 16 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+
+sql select ts,c1,c2 from stb1 where (ts >= '2021-05-05 18:19:05.000' and ts <= '2021-05-05 18:19:10.000') or (ts >= '2021-05-05 18:19:12.000' and ts <= '2021-05-05 18:19:14.000') or (ts >= '2021-05-05 18:19:08.000' and ts <= '2021-05-05 18:19:17.000') order by ts;
+if $rows != 13 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+
+sql  select ts,c1,c2 from stb1 where (ts >= '2021-05-05 18:19:05.000' and ts <= '2021-05-05 18:19:10.000') or (ts >= '2021-05-05 18:19:02.000' and ts <= '2021-05-05 18:19:03.000') or (ts >= '2021-05-05 18:19:01.000' and ts <= '2021-05-05 18:19:08.000') order by ts;
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+
+sql  select ts,c1,c2 from stb1 where ((ts >= '2021-05-05 18:19:08.000' and ts <= '2021-05-05 18:19:10.000') or (ts >= '2021-05-05 18:19:02.000' and ts <= '2021-05-05 18:19:03.000') or (ts >= '2021-05-05 18:19:05.000' and ts <= '2021-05-05 18:19:06.000') or (ts >= '2021-05-05 18:19:03.000' and ts <= '2021-05-05 18:19:12.000')) and (ts >= '2021-05-05 18:19:10.000') order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:10.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+
+sql select ts,c1,c7 from stb1 where ts > '2021-05-05 18:19:25.000' and ts != '2021-05-05 18:19:18' order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+
+
+sql select * from stb1 where ts > '2021-05-05 18:19:03.000' and ts > '2021-05-05 18:19:25' order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+
+sql select * from stb1 where ts < '2021-05-05 18:19:03.000' and ts < '2021-05-05 18:19:25' order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+
+sql select * from stb1 where ts > '2021-05-05 18:19:23.000' and ts < '2021-05-05 18:19:25';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+
+sql select * from stb1 where ts > '2021-05-05 18:19:03.000' or ts > '2021-05-05 18:19:25' order by ts;
+if $rows != 25 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+
+sql select * from stb1 where ts < '2021-05-05 18:19:03.000' or ts < '2021-05-05 18:19:25' order by ts;
+if $rows != 25 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+
+sql select * from stb1 where ts > '2021-05-05 18:19:23.000' or ts < '2021-05-05 18:19:25' order by ts;
+if $rows != 29 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (ts > '2021-05-05 18:19:23.000' or ts < '2021-05-05 18:19:25') and (ts > '2021-05-05 18:19:23.000' and ts < '2021-05-05 18:19:26') order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (ts > '2021-05-05 18:19:23.000' or ts < '2021-05-05 18:19:25') and (ts > '2021-05-05 18:19:23.000' or ts > '2021-05-05 18:19:26') order by ts;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+
+
+sql select * from stb2 where ts2 in ('2021-05-05 18:28:03','2021-05-05 18:28:05','2021-05-05 18:28:08') order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+
+sql select * from stb2 where t3 in ('2021-05-05 18:38:38','2021-05-05 18:38:28','2021-05-05 18:38:08') and ts2 in ('2021-05-05 18:28:04','2021-05-05 18:28:04','2021-05-05 18:28:03') order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+
+#sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.ts < '2021-05-05 18:19:03.000' or a.ts >= '2021-05-05 18:19:13.000') and (b.ts >= '2021-05-05 18:19:01.000' and b.ts <= '2021-05-05 18:19:14.000') order by a.ts;
+#if $rows != 4 then
+#  return -1
+#endi
+#if $data00 != @21-05-05 18:19:01.000@ then
+#  return -1
+#endi
+#if $data10 != @21-05-05 18:19:02.000@ then
+#  return -1
+#endi
+#if $data20 != @21-05-05 18:19:13.000@ then
+#  return -1
+#endi
+#if $data30 != @21-05-05 18:19:14.000@ then
+#  return -1
+#endi
+#
+#sql select a.ts,c.ts,b.c1,c.u1,c.u2 from (select * from stb1) a, (select * from stb1) b, (select * from stb2) c where a.ts=b.ts and b.ts=c.ts and a.ts <= '2021-05-05 18:19:12.000' and b.ts >= '2021-05-05 18:19:06.000' and c.ts >= '2021-05-05 18:19:08.000' and c.ts <= '2021-05-05 18:19:11.000' and a.ts != '2021-05-05 18:19:10.000';
+#if $rows != 3 then
+#  return -1
+#endi
+#if $data00 != @21-05-05 18:19:08.000@ then
+#  return -1
+#endi
+#if $data10 != @21-05-05 18:19:09.000@ then
+#  return -1
+#endi
+#if $data20 != @21-05-05 18:19:11.000@ then
+#  return -1
+#endi
+
+sql select ts,c1,c2,c8 from (select * from stb1) where (ts <= '2021-05-05 18:19:06.000' or ts >= '2021-05-05 18:19:13.000') and (ts >= '2021-05-05 18:19:02.000' and ts <= '2021-05-05 18:19:14.000') and ts != '2021-05-05 18:19:04.000' order by ts;
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c8 from (select * from stb1) where (ts <= '2021-05-05 18:19:03.000' or ts > '2021-05-05 18:19:26.000' or ts = '2021-05-05 18:19:26.000') and ts != '2021-05-05 18:19:03.000' and ts != '2021-05-05 18:19:26.000' order by ts;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
+
+print "tbname test"
+sql select * from stb1 where tbname like '%3' and tbname like '%4';
+
+sql select * from stb1 where tbname like 'tb%';
+if $rows != 29 then
+  return -1
+endi
+
+sql select * from stb1 where tbname like '%2' order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:10.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
+
+print "tag test"
+sql select * from stb1 where t1 in (1,2) and t1 in (2,3) order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:10.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
+
+sql select * from stb2 where t1 in (1,2) and t2 in (2) and t3 in ('2021-05-05 18:58:57.000');
+if $rows != 0 then
+  return -1
+endi
+
+print "join test"
+sql_error select * from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts =tb2_1.ts;
+sql select tb1.ts from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts > '2021-05-05 18:19:03.000' and tb2_1.ts < '2021-05-05 18:19:06.000' order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+sql select tb1.ts,tb1.*,tb2_1.* from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts > '2021-05-05 18:19:03.000' and tb2_1.u1 < 5 order by tb1.ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+
+sql select tb1.ts,tb1.*,tb2_1.* from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts >= '2021-05-05 18:19:03.000' and tb1.c7=false and tb2_1.u3>4 order by tb1.ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+
+sql select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 order by stb1.ts;
+if $rows != 9 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data60 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data70 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+if $data80 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
+
+sql select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 and stb1.c1 > 2 and stb2.u1 <=4 order by stb1.ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+
+print "column&ts test"
+sql select count(*) from stb1 where ts > 0 or c1 > 0;
+sql select * from stb1 where ts > '2021-05-05 18:19:03.000' and ts < '2021-05-05 18:19:20.000' and (c1 > 23 or c1 < 14) and c7 in (true) and c8 like '%2' order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:17.000@ then
+  return -1
+endi
+
+print "column&tbname test"
+sql  select count(*) from stb1 where tbname like 'tb%' or c1 > 0;
+sql select * from stb1 where tbname like '%3' and c6 < 34 and c5 != 33 and c4 > 31;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+
+print "column&tag test"
+sql select * from stb1 where t1 > 0 or c1 > 0
+sql select * from stb1 where c1 > 0 or t1 > 0
+sql select * from stb1 where t1 > 0 or c1 > 0 or t1 > 1
+sql select * from stb1 where c1 > 0 or t1 > 0 or c1 > 1
+sql select * from stb1 where t1 > 0 and c1 > 0 or t1 > 1
+sql select * from stb1 where c1 > 0 or t1 > 0 and c1 > 1
+sql select * from stb1 where c1 > 0 or t1 > 0 and c1 > 1
+sql select * from stb1 where t1 > 0 or t1 > 0 and c1 > 1
+sql select * from stb1 where (c1 > 0 and t1 > 0 ) or (t1 > 1 and c1 > 3)
+sql select * from stb1 where (c1 > 0 and t1 > 0 ) or t1 > 1
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.t1=b.t1;
+
+sql select * from stb1 where c1 < 63 and t1 > 5
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+sql select * from stb1 where t1 > 3 and t1 < 5 and c1 != 42 and c1 != 44 order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:16.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:18.000@ then
+  return -1
+endi
+sql select * from stb1 where t1 > 1 and c1 > 21 and t1 < 3 and c1 < 24 and t1 != 3 and c1 != 23;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 1 and (t1 > 3 or t1 < 2) and (c2 > 2 and c2 < 62 and t1 != 4) and (t1 > 2 and t1 < 6) and c7 = true and c8 like '%2' order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1!=31 and c1 !=32 and c1 <> 63 and c1 <>1 and c1 <> 21 and c1 <> 2 and c7 <> true and c8 <> '3' and c9 <> '4' and c2<>13 and c3 <> 23 and c4 <> 33 and c5 <> 34 and c6 <> 43 and c2 <> 53 and t1 <> 5 and t2 <>4 order by ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:07.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+
+print "column&join test"
+sql_error select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.c1 > 0;
+
+
+print "ts&tbname test"
+sql select count(*) from stb1 where ts > 0 or tbname like 'tb%';
+
+print "ts&tag test"
+sql select count(*) from stb1 where ts > 0 or t1 > 0;
+
+sql select * from stb2 where t1!=1 and t2=2 and t3 in ('2021-05-05 18:58:58.000') and ts < '2021-05-05 18:19:13.000' order by ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+
+print "ts&join test"
+sql_error select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts > 0;
+sql select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts and (tb1.ts > '2021-05-05 18:19:05.000' or tb1.ts < '2021-05-05 18:19:03.000' or tb1.ts > 0);
+
+
+print "tbname&tag test"
+sql select * from stb1 where tbname like 'tb%' and (t1=1 or t2=2 or t3=3) and t1 > 2 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:15.000@ then
+  return -1
+endi
+
+print "tbname&join test"
+
+print "tag&join test"
+
+
+
+
+
+print "column&ts&tbname test"
+sql select count(*) from stb1 where tbname like 'tb%' or c1 > 0 or ts > 0;
+
+print "column&ts&tag test"
+sql select count(*) from stb1 where t1 > 0 or c1 > 0 or ts > 0;
+sql select count(*) from stb1 where c1 > 0 or t1 > 0 or ts > 0;
+
+sql select * from stb1 where (t1 > 0 or t1 > 2 ) and ts > '2021-05-05 18:19:10.000' and (c1 > 1 or c1 > 3) and (c6 > 40 or c6 < 30) and (c8 like '%3' or c8 like '_4') and (c9 like '1%' or c9 like '6%' or (c9 like '%3' and c9 != '23')) and ts > '2021-05-05 18:19:22.000' and ts <= '2021-05-05 18:19:26.000' order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+sql select * from stb1 where ts > '2021-05-05 18:19:00.000' and c1 > 2 and t1 != 1 and c2 >= 23 and t2 >= 3 and c3 < 63 and c7 = false and t3 > 3 and t3 < 6 and c8 like '4%' and ts < '2021-05-05 18:19:19.000' and c2 > 40 and c3 != 42 order by ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:18.000@ then
+  return -1
+endi
+print "column&ts&join test"
+
+print "column&tbname&tag test"
+sql select count(*) from stb1 where c1 > 0 or tbname in ('tb1') or t1 > 0;
+
+print "column&tbname&join test"
+print "column&tag&join test"
+print "ts&tbname&tag test"
+sql select count(*) from stb1 where ts > 0 or tbname in ('tb1') or t1 > 0;
+
+print "ts&tbname&join test"
+print "ts&tag&join test"
+print "tbname&tag&join test"
+
+
+
+
+print "column&ts&tbname&tag test"
+sql select * from stb1 where (tbname like 'tb%' or ts > '2021-05-05 18:19:01.000') and (t1 > 5 or t1 < 4) and c1 > 0;
+sql select * from stb1 where (ts > '2021-05-05 18:19:01.000') and (ts > '2021-05-05 18:19:02.000' or t1 > 3) and (t1 > 5 or t1 < 4) and c1 > 0;
+sql select ts,c1,c7 from stb1 where ts > '2021-05-05 18:19:03.000' or ts > '2021-05-05 18:19:20.000' and c1 > 0 and t1 > 0;
+
+
+print "column&ts&tbname&join test"
+print "column&ts&tag&join test"
+print "column&tbname&tag&join test"
+print "ts&tbname&tag&join test"
+
+
+print "column&ts&tbname&tag&join test"
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

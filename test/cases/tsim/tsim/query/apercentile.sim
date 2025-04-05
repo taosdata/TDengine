@@ -1,0 +1,36 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists test2;
+sql create database test2;
+sql use test2;
+sql create table s(ts timestamp,v double) tags(id nchar(16));
+sql create table t using s tags('11') ;
+sql insert into t values(now,null);
+sql select APERCENTILE(v,50,'t-digest') as k from s where ts > now-1d and ts < now interval(1h);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+
+sql select APERCENTILE(v,50) as k from s where ts > now-1d and ts < now interval(1h);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+
+sql select APERCENTILE(v,50) as k from s where ts > now-1d and ts < now interval(1h);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

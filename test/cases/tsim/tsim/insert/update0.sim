@@ -1,0 +1,231 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database
+sql create database d0 keep 365000d,365000d,365000d
+sql use d0
+
+print =============== create super table
+sql create table if not exists stb (ts timestamp, c1 int) tags (city binary(20),district binary(20));
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+sql create table ct1 using stb tags("BeiJing", "ChaoYang")
+sql create table ct2 using stb tags("BeiJing", "HaiDian")
+
+sql show tables
+if $rows != 2 then
+  return -1
+endi
+
+print =============== step3-1 insert records into ct1
+sql insert into ct1 values('2022-05-03 16:59:00.010', 10);
+sql insert into ct1 values('2022-05-03 16:59:00.011', 11);
+sql insert into ct1 values('2022-05-03 16:59:00.016', 16);
+sql insert into ct1 values('2022-05-03 16:59:00.016', 17);
+sql insert into ct1 values('2022-05-03 16:59:00.020', 20);
+sql insert into ct1 values('2022-05-03 16:59:00.016', 18);
+sql insert into ct1 values('2022-05-03 16:59:00.021', 21);
+sql insert into ct1 values('2022-05-03 16:59:00.022', 22);
+
+print =============== step3-1 query records of ct1 from memory
+sql select * from ct1;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+print $data30 $data31
+print $data40 $data41
+print $data50 $data51
+
+if $rows != 6 then
+  print rows $rows != 6
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data21 != 18 then
+  print data21 $data21 != 18
+  return -1
+endi
+
+if $data51 != 22 then
+  print data51 $data51 != 22
+  return -1
+endi
+
+print =============== step3-1 insert records into ct2
+sql insert into ct2 values('2022-03-02 16:59:00.010', 1),('2022-03-02 16:59:00.010',11),('2022-04-01 16:59:00.011',2),('2022-04-01 16:59:00.011',5),('2022-03-06 16:59:00.013',7);
+sql insert into ct2 values('2022-03-02 16:59:00.010', 3),('2022-03-02 16:59:00.010',33),('2022-04-01 16:59:00.011',4),('2022-04-01 16:59:00.011',6),('2022-03-06 16:59:00.013',8);
+sql insert into ct2 values('2022-03-02 16:59:00.010', 103),('2022-03-02 16:59:00.010',303),('2022-04-01 16:59:00.011',40),('2022-04-01 16:59:00.011',60),('2022-03-06 16:59:00.013',80);
+
+print =============== step3-1 query records of ct2 from memory
+sql select * from ct2;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $rows != 3 then
+  print rows $rows != 3
+  return -1
+endi
+
+if $data01 != 303 then
+  print data01 $data01 != 303
+  return -1
+endi
+
+if $data11 != 80 then
+  print data11 $data11 != 80
+  return -1
+endi
+
+if $data21 != 60 then
+  print data21 $data21 != 60
+  return -1
+endi
+
+#==================== reboot to trigger commit data to file
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print =============== step3-2 query records of ct1 from file
+sql select * from ct1;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+print $data30 $data31
+print $data40 $data41
+print $data50 $data51
+
+if $rows != 6 then
+  print rows $rows != 6
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data21 != 18 then
+  print data21 $data21 != 18
+  return -1
+endi
+
+if $data51 != 22 then
+  print data51 $data51 != 22
+  return -1
+endi
+
+print =============== step3-2 query records of ct2 from file
+sql select * from ct2;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $rows != 3 then
+  print rows $rows != 3
+  return -1
+endi
+
+if $data01 != 303 then
+  print data01 $data01 != 303
+  return -1
+endi
+
+if $data11 != 80 then
+  print data11 $data11 != 80
+  return -1
+endi
+
+if $data21 != 60 then
+  print data21 $data21 != 60
+  return -1
+endi
+
+print =============== step3-3 query records of ct1 from memory and file(merge)
+sql insert into ct1 values('2022-05-03 16:59:00.010', 100);
+sql insert into ct1 values('2022-05-03 16:59:00.022', 200);
+sql insert into ct1 values('2022-05-03 16:59:00.016', 160);
+
+sql select * from ct1;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+print $data30 $data31
+print $data40 $data41
+print $data50 $data51
+
+if $rows != 6 then
+  print rows $rows != 6
+  return -1
+endi
+
+if $data01 != 100 then
+  print data01 $data01 != 100
+  return -1
+endi
+
+if $data21 != 160 then
+  print data21 $data21 != 160
+  return -1
+endi
+
+if $data51 != 200 then
+  print data51 $data51 != 200
+  return -1
+endi
+
+print =============== step3-3 query records of ct2 from memory and file(merge)
+sql insert into ct2(ts) values('2022-04-02 16:59:00.016');
+sql insert into ct2 values('2022-03-06 16:59:00.013', NULL);
+sql insert into ct2 values('2022-03-01 16:59:00.016', 10);
+sql insert into ct2(ts) values('2022-04-01 16:59:00.011');
+sql select * from ct2;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+print $data30 $data31
+print $data40 $data41
+
+if $rows != 5 then
+  print rows $rows != 5
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data11 != 303 then
+  print data11 $data11 != 303
+  return -1
+endi
+
+if $data21 != NULL then
+  print data21 $data21 != NULL
+  return -1
+endi
+
+if $data31 != 60 then
+  print data31 $data31 != 60
+  return -1
+endi
+
+if $data41 != NULL then
+  print data41 $data41 != NULL
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

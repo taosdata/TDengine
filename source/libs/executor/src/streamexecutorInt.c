@@ -17,7 +17,15 @@
 
 #include "executorInt.h"
 #include "operator.h"
+#include "cmdnodes.h"
 #include "tdatablock.h"
+
+#define UPDATE_OPERATOR_INFO       BIT_FLAG_MASK(0)
+#define FILL_HISTORY_OPERATOR      BIT_FLAG_MASK(1)
+#define RECALCULATE_OPERATOR       BIT_FLAG_MASK(2)
+#define SEMI_OPERATOR              BIT_FLAG_MASK(3)
+#define FINAL_OPERATOR             BIT_FLAG_MASK(4)
+#define SINGLE_OPERATOR            BIT_FLAG_MASK(5)
 
 #define NOTIFY_EVENT_NAME_CACHE_LIMIT_MB 16
 
@@ -34,13 +42,13 @@ typedef struct SStreamNotifyEvent {
 
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type) {
   if (type != STREAM_GET_ALL && type != STREAM_CHECKPOINT) {
-    pBasicInfo->updateOperatorInfo = true;
+    BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO);
   }
 }
 
-bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo) { return pBasicInfo->updateOperatorInfo; }
+bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo) { return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO); }
 
-void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo) { pBasicInfo->updateOperatorInfo = false; }
+void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo) { BIT_FLAG_UNSET_MASK(pBasicInfo->operatorFlag, UPDATE_OPERATOR_INFO); }
 
 static void destroyStreamWindowEvent(void* ptr) {
   SStreamNotifyEvent* pEvent = (SStreamNotifyEvent*)ptr;
@@ -109,8 +117,20 @@ _end:
 }
 
 int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   pBasicInfo->primaryPkIndex = -1;
-  pBasicInfo->updateOperatorInfo = false;
+  pBasicInfo->operatorFlag = 0;
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pBasicInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pBasicInfo->pUpdated = taosArrayInit(1024, sizeof(SResultWindowInfo));
+  QUERY_CHECK_NULL(pBasicInfo->pUpdated, code, lino, _end, terrno);
+
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pBasicInfo->pSeDeleted = tSimpleHashInit(32, hashFn);
+  
   const char* windowType = NULL;
   if (IS_NORMAL_INTERVAL_OP(pOperator)) {
     windowType = "Time";
@@ -125,10 +145,50 @@ int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperato
   } else {
     return TSDB_CODE_SUCCESS;
   }
-  return initStreamNotifyEventSupp(&pBasicInfo->notifyEventSup, windowType, pOperator->resultInfo.capacity);
+  code = initStreamNotifyEventSupp(&pBasicInfo->notifyEventSup, windowType, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR);
+}
+
+bool isHistoryOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR);
+}
+
+bool needBuildAllResult(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FILL_HISTORY_OPERATOR) || BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
+}
+
+void setSemiOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
+}
+
+bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SEMI_OPERATOR);
 }
 
 void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
+  blockDataDestroy(pBasicInfo->pCheckpointRes);
+  pBasicInfo->pCheckpointRes = NULL;
+
+  tSimpleHashCleanup(pBasicInfo->pSeDeleted);
+  pBasicInfo->pSeDeleted = NULL;
+
+  blockDataDestroy(pBasicInfo->pDelRes);
+  pBasicInfo->pDelRes = NULL;
+  taosArrayDestroyP(pBasicInfo->pUpdated, destroyFlusedPos);
+  pBasicInfo->pUpdated = NULL;
+
+  pBasicInfo->pTsDataState = NULL;
+
   destroyStreamNotifyEventSupp(&pBasicInfo->notifyEventSup);
 }
 
@@ -853,3 +913,32 @@ _end:
   }
   return code;
 }
+
+void setFinalOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
+}
+
+bool isFinalOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
+}
+
+void setRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+void unsetRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_UNSET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
+}
+
+bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
+}
+

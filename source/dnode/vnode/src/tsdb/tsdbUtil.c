@@ -615,9 +615,9 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
     }
   } else if (pRow->type == TSDBROW_COL_FMT) {
     if (iCol == 0) {
-      *pColVal =
-          COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID,
-                        ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pRow->pBlockData->aTSKEY[pRow->iRow]}));
+      SValue val = {.type = TSDB_DATA_TYPE_TIMESTAMP};
+      VALUE_SET_TRIVIAL_DATUM(&val, pRow->pBlockData->aTSKEY[pRow->iRow]);
+      *pColVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, val);
     } else {
       SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
 
@@ -715,9 +715,9 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
     return tRowIterNext(pIter->pIter);
   } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
     if (pIter->iColData == 0) {
-      pIter->cv = COL_VAL_VALUE(
-          PRIMARYKEY_TIMESTAMP_COL_ID,
-          ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]}));
+      SValue val = {.type = TSDB_DATA_TYPE_TIMESTAMP};
+      VALUE_SET_TRIVIAL_DATUM(&val, pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]);
+      pIter->cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, val);
       ++pIter->iColData;
       return &pIter->cv;
     }
@@ -754,8 +754,9 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
     // ts
     jCol = 0;
     pTColumn = &pTSchema->columns[jCol++];
-
-    *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = key.ts}));
+    SValue val = {.type = pTColumn->type};
+    VALUE_SET_TRIVIAL_DATUM(&val, key.ts);
+    *pColVal = COL_VAL_VALUE(pTColumn->colId, val);
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
       code = terrno;
       return code;
@@ -776,7 +777,8 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       }
 
       tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
-      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
+      bool usepData = IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL;
+      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && usepData) {
         uint8_t *pVal = pColVal->value.pData;
 
         pColVal->value.pData = NULL;
@@ -819,7 +821,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
       if (key.version > pMerger->version) {
         if (!COL_VAL_IS_NONE(pColVal)) {
-          if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
+          if (IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
             SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
             if (!pTColVal) return terrno;
             if (!COL_VAL_IS_NULL(pColVal)) {
@@ -842,7 +844,8 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       } else if (key.version < pMerger->version) {
         SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
         if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
-          if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
+          bool usepData = IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL;
+          if ((!COL_VAL_IS_NULL(pColVal)) && usepData) {
             code = tRealloc(&tColVal->value.pData, pColVal->value.nData);
             if (code) return code;
 
@@ -878,7 +881,7 @@ int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema) {
 void tsdbRowMergerClear(SRowMerger *pMerger) {
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type) || pTColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
       tFree(pTColVal->value.pData);
     }
   }
@@ -890,7 +893,7 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
   int32_t numOfCols = taosArrayGetSize(pMerger->pArray);
   for (int32_t iCol = 1; iCol < numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type) || pTColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
       tFree(pTColVal->value.pData);
     }
   }
@@ -1573,11 +1576,23 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
 int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
   int32_t code;
 
-  if ((code = tBufferPutI16v(buffer, pColAgg->colId))) return code;
-  if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->sum))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->max))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->min))) return code;
+  if (pColAgg->colId & DECIMAL_AGG_FLAG) {
+    if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
+    if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Sum[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Sum[1]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Max[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Max[1]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Min[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Min[1]))) return code;
+    if ((code = tBufferPutU8(buffer, pColAgg->overflow))) return code;
+  } else {
+    if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
+    if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->sum))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->max))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->min))) return code;
+  }
 
   return 0;
 }
@@ -1585,11 +1600,22 @@ int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
 int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg) {
   int32_t code;
 
-  if ((code = tBufferGetI16v(br, &pColAgg->colId))) return code;
+  if ((code = tBufferGetI32v(br, &pColAgg->colId))) return code;
   if ((code = tBufferGetI16v(br, &pColAgg->numOfNull))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->min))) return code;
+  if (pColAgg->colId & DECIMAL_AGG_FLAG) {
+    pColAgg->colId &= 0xFFFF;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Sum[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Sum[1]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Max[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Max[1]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Min[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Min[1]))) return code;
+    if ((code = tBufferGetU8(br, &pColAgg->overflow))) return code;
+  } else {
+    if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->min))) return code;
+  }
 
   return 0;
 }

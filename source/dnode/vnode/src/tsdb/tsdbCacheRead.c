@@ -77,7 +77,8 @@ static int32_t saveOneRowForLastRaw(SLastCol* pColVal, SCacheRowsReader* pReader
       TSDB_CHECK_CODE(code, lino, _end);
     }
   } else {
-    code = colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
+    code = colDataSetVal(pColInfoData, numOfRows, VALUE_GET_DATUM(&pVal->value, pColVal->colVal.value.type),
+                         !COL_VAL_IS_VALUE(pVal));
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
@@ -166,7 +167,8 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
           memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
           p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
         } else {
-          memcpy(p->buf, &pColVal->colVal.value.val, pReader->pSchema->columns[slotId].bytes);
+          memcpy(p->buf, VALUE_GET_DATUM(&pColVal->colVal.value, pColVal->colVal.value.type),
+                 pReader->pSchema->columns[slotId].bytes);
           p->bytes = pReader->pSchema->columns[slotId].bytes;
         }
       }
@@ -543,7 +545,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
       }
 
-      if (IS_VAR_DATA_TYPE(pCol->type)) {
+      if (IS_VAR_DATA_TYPE(pCol->type) || pCol->type == TSDB_DATA_TYPE_DECIMAL) {
         p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
         TSDB_CHECK_NULL(p.colVal.value.pData, code, lino, _end, terrno);
       }
@@ -601,7 +603,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
                 memcpy(p->rowKey.pks[j].pData, pColVal->rowKey.pks[j].pData, pColVal->rowKey.pks[j].nData);
                 p->rowKey.pks[j].nData = pColVal->rowKey.pks[j].nData;
               } else {
-                p->rowKey.pks[j].val = pColVal->rowKey.pks[j].val;
+                valueCloneDatum(p->rowKey.pks + j, pColVal->rowKey.pks + j, p->rowKey.pks[j].type);
               }
             }
 
@@ -628,7 +630,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               goto _end;
             }
 
-            if (!IS_VAR_DATA_TYPE(pColVal->colVal.value.type)) {
+            if (!IS_VAR_DATA_TYPE(pColVal->colVal.value.type) && pColVal->colVal.value.type != TSDB_DATA_TYPE_DECIMAL) {
               p->colVal = pColVal->colVal;
             } else {
               if (COL_VAL_IS_VALUE(&pColVal->colVal)) {

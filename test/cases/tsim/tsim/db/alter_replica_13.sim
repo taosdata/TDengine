@@ -1,0 +1,220 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+sql connect
+
+print =============== step1: create dnodes
+sql create dnode $hostname port 7200
+
+$x = 0
+step1:
+	$ = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+
+print =============== step2: create database
+sql create database db vgroups 4
+sql select * from information_schema.ins_databases
+if $rows != 3 then
+  return -1
+endi
+if $data(db)[4] != 1 then
+  return -1
+endi
+
+# vnodes
+sql select * from information_schema.ins_dnodes
+if $data(2)[2] != 4 then
+  return -1
+endi
+
+# v1_dnode
+sql show db.vgroups
+if $data(2)[3] != 2 then
+  return -1
+endi
+
+sql_error alter database db replica 3
+
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 binary(16)) comment "abd"
+sql create table db.ctb0 using db.stb tags(100, "100")
+sql create table db.ctb1 using db.stb tags(101, "101")
+sql create table db.ctb2 using db.stb tags(102, "102")
+sql create table db.ctb3 using db.stb tags(103, "103")
+sql create table db.ctb4 using db.stb tags(104, "104")
+sql create table db.ctb5 using db.stb tags(105, "105")
+sql create table db.ctb6 using db.stb tags(106, "106")
+sql create table db.ctb7 using db.stb tags(107, "107")
+sql create table db.ctb8 using db.stb tags(108, "108")
+sql create table db.ctb9 using db.stb tags(109, "109")
+sql insert into db.ctb0 values(now, 0, "0")
+sql insert into db.ctb1 values(now, 1, "1")
+sql insert into db.ctb2 values(now, 2, "2")
+sql insert into db.ctb3 values(now, 3, "3")
+sql insert into db.ctb4 values(now, 4, "4")
+sql insert into db.ctb5 values(now, 5, "5")
+sql insert into db.ctb6 values(now, 6, "6")
+sql insert into db.ctb7 values(now, 7, "7")
+sql insert into db.ctb8 values(now, 8, "8")
+sql insert into db.ctb9 values(now, 9, "9")
+sql flush database db;
+
+print =============== step3: create dnodes
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+
+$x = 0
+step3:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> rows: $rows
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data24 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step3
+endi
+if $data(2)[4] != ready then
+  goto step3
+endi
+if $data(3)[4] != ready then
+  goto step3
+endi
+if $data(4)[4] != ready then
+  goto step3
+endi
+
+print ============= step4: alter database
+sql alter database db replica 3
+$wt = 0
+stepwt1:
+ 	$wt = $wt + 1
+ 	sleep 1000
+ 	if $wt == 200 then
+ 	  print ====> dnode not ready!
+ 		return -1
+ 	endi
+sql show transactions
+if $rows != 0 then
+  print wait 1 seconds to alter
+  goto stepwt1
+endi
+
+sql show db.vgroups
+print ---> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ---> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data27 $data28 $data29
+print ---> $data10 $data11 $data12 $data13 $data14 $data15 $data26 $data37 $data38 $data39
+print ---> $data10 $data11 $data12 $data13 $data14 $data15 $data36 $data47 $data48 $data49
+
+$leaderIndex = 0
+
+$x = 0
+step4:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+
+sql show db.vgroups
+print ===> rows: $rows
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+if $data[0][4] == leader then
+  $leaderIndex = 1
+endi
+if $data[0][6] == leader then
+  $leaderIndex = 2
+endi
+if $data[0][8] == leader then
+  $leaderIndex = 3
+endi
+
+if $$leaderIndex == 0 then
+  goto step4
+endi
+
+print leaderIndex ==> $leaderIndex
+
+print ============= step5: result
+$i = 0
+while $i < 10
+  $i = $i + 1
+
+  sleep 1000
+  $leaderIndex2 = 0
+  sql show db.vgroups
+  print ===> loop: $i | v0: $data03 $data04 | v1: $data05 $data06 | v2:  $data07 $data08 
+  if $data[0][4] == leader then
+    $leaderIndex2 = 1
+  endi
+  if $data[0][6] == leader then
+    $leaderIndex2 = 2
+  endi
+  if $data[0][8] == leader then
+    $leaderIndex2 = 3
+  endi
+
+  print leaderIndex2 ==> $leaderIndex2
+  if $leaderIndex2 != $leaderIndex then
+    return -1
+  endi
+
+endw 
+
+print ============= step5: check data
+sql select * from db.ctb0
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from db.ctb1
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from db.ctb2
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from db.stb
+if $rows != 10 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT

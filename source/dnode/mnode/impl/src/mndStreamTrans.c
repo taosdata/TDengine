@@ -16,7 +16,7 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 
-#define MAX_CHKPT_EXEC_ELAPSED (600*1000)  // 600s
+#define MAX_CHKPT_EXEC_ELAPSED (600*1000*3)  // 600s
 
 typedef struct SKeyInfo {
   void   *pKey;
@@ -127,7 +127,7 @@ static int32_t doStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, cons
 
     if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
       if ((strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) && (strcmp(pTransName, MND_STREAM_TASK_RESET_NAME) != 0) &&
-          (strcmp(pTransName, MND_STREAM_RESTART_NAME) != 0)) {
+          (strcmp(pTransName, MND_STREAM_STOP_NAME) != 0)) {
         mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamId,
               tInfo.name);
         return TSDB_CODE_MND_TRANS_CONFLICT;
@@ -137,7 +137,8 @@ static int32_t doStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, cons
     } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) || (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0) ||
                (strcmp(tInfo.name, MND_STREAM_TASK_RESET_NAME) == 0) ||
                (strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) ||
-               strcmp(tInfo.name, MND_STREAM_RESTART_NAME) == 0) {
+               (strcmp(tInfo.name, MND_STREAM_CHKPT_CONSEN_NAME) == 0) ||
+               strcmp(tInfo.name, MND_STREAM_STOP_NAME) == 0) {
       mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamId,
             tInfo.name);
       return TSDB_CODE_MND_TRANS_CONFLICT;
@@ -152,7 +153,7 @@ static int32_t doStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, cons
 // * Transactions of different streams are not related. Here only check the conflict of transaction for a given stream.
 // For a given stream:
 // 1. checkpoint trans is conflict with any other trans except for the drop and reset trans.
-// 2. create/drop/reset/update trans are conflict with any other trans.
+// 2. create/drop/reset/update/chkpt-consensus trans are conflict with any other trans.
 int32_t mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, const char *pTransName, bool lock) {
   if (lock) {
     streamMutexLock(&execInfo.lock);
@@ -266,7 +267,7 @@ _over:
   }
 
   terrno = 0;
-  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64 "", pStream->name, pRaw, pStream,
+  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64, pStream->name, pRaw, pStream,
          pStream->checkpointId);
   return pRaw;
 }

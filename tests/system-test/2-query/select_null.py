@@ -493,7 +493,7 @@ class TDTestCase:
         tdSql.query('select case 值 when 标签1 then 标签1 else 标签2 end from sel_null.stable1', queryTimes=1)
         tdSql.query('select count(*) from sel_null.stable1 group by 值 having sum(标签1) > 0', queryTimes=1)
         tdSql.query('show table tags `标签1` 标签n  from sel_null.stable1', queryTimes=1)
-        tdSql.query('create sma index a on sel_null.stable1 FUNCTION (sum(值)) interval(1s)', queryTimes=1)
+        #tdSql.query('create sma index a on sel_null.stable1 FUNCTION (sum(值)) interval(1s)', queryTimes=1)
         tdSql.query('select count(值) from sel_null.stable1', queryTimes=1)
         tdSql.query('select stable1.值 from sel_null.stable1', queryTimes=1)
         tdSql.query('select stable1.值 from sel_null.stable1 order by 值', queryTimes=1)

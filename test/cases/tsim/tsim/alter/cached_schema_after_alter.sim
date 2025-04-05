@@ -1,0 +1,117 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$db = csaa_db
+$stb = csaastb
+$tb1 = csaatb1
+$tb2 = csaatb2
+
+$ts0 = 1537146000000
+$delta = 600000
+print ========== cached_schema_after_alter.sim
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+print ====== create tables
+sql use $db
+
+sql create table $stb (ts timestamp, c1 int) tags(t1 int)
+sql create table $tb1 using $stb tags( 1 )
+sql create table $tb2 using $stb tags( 2 )
+
+sql_error alter table $tb1 add column c0 int
+sql alter table $stb add column c2 int
+
+sql insert into $tb2 values ( $ts0 , 1, 1)
+sql select * from $stb
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+
+sql select * from $tb2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+sql use $db
+sql select * from $stb
+print select * from $stb ==> $data00 $data01 $data02
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+
+sql select * from $tb2
+print select * from $tb2 ==> $data00 $data01 $data02
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+
+$ts = $ts0 + $delta
+sql insert into $tb2 values ( $ts , 2, 2)
+sql select * from $stb order by ts asc
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 2 then
+  return -1
+endi
+
+sql select * from $tb2 order by ts asc
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

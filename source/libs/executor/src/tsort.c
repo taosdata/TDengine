@@ -1316,7 +1316,7 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
     int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize);
     int32_t ret = taosReadFromCFile(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
     if (ret != 1) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       return terrno;
     }
     pRegion->bufLen = readBytes;
@@ -1342,7 +1342,7 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
     int32_t     ret = taosReadFromCFile(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
     if (ret != 1) {
       taosMemoryFreeClear(*ppRow);
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       return terrno;
     }
     memcpy(*ppRow + szThisBlock, pRegion->buf, rowLen - szThisBlock);
@@ -1366,7 +1366,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
     taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
     pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+b");
     if (pMemFile->pTdFile == NULL) {
-      code = terrno = TAOS_SYSTEM_ERROR(errno);
+      code = terrno = TAOS_SYSTEM_ERROR(ERRNO);
     }
   }
   if (code == TSDB_CODE_SUCCESS) {
@@ -1490,7 +1490,7 @@ static int32_t tsortCloseRegion(SSortHandle* pHandle) {
   if (writeBytes > 0) {
     int32_t ret = fwrite(pMemFile->writeBuf, writeBytes, 1, pMemFile->pTdFile);
     if (ret != 1) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       return terrno;
     }
     pMemFile->bRegionDirty = false;
@@ -1540,7 +1540,7 @@ static int32_t saveBlockRowToExtRowsMemFile(SSortHandle* pHandle, SSDataBlock* p
       int32_t writeBytes = pMemFile->currRegionOffset - (pMemFile->writeFileOffset - pRegion->fileOffset);
       int32_t ret = fwrite(pMemFile->writeBuf, writeBytes, 1, pMemFile->pTdFile);
       if (ret !=  1) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
         return terrno;
       }
       pMemFile->writeFileOffset = pRegion->fileOffset + pMemFile->currRegionOffset;
@@ -2929,6 +2929,11 @@ void tsortGetValue(STupleHandle* pVHandle, int32_t colIndex, void** pVal) {
   }
 }
 
+void tsortGetColumnInfo(STupleHandle* pVHandle, int32_t colIndex, SColumnInfoData** pColInfo) {
+  *pColInfo = TARRAY_GET_ELEM(pVHandle->pBlock->pDataBlock, colIndex);
+}
+
+size_t tsortGetColNum(STupleHandle* pVHandle) { return blockDataGetNumOfCols(pVHandle->pBlock); }
 uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
 void tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pBlockInfo) { *pBlockInfo = pVHandle->pBlock->info; }
 

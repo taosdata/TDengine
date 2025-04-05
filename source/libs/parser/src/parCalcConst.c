@@ -118,6 +118,39 @@ static int32_t calcConstCondition(SCalcConstContext* pCxt, SNode** pNode) {
   return code;
 }
 
+static EDealRes rewriteCalcConstValue(SNode** pNode, void* pContext) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  int32_t                lino = 0;
+  SCalcConstContext* pCtx = (SCalcConstContext*)pContext;
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  } else if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
+    SOperatorNode* pOp = (SOperatorNode*)*pNode;
+    if (OP_TYPE_EQUAL == pOp->opType && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOp->pLeft)->resType.type || TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOp->pRight)->resType.type)) {
+      code = calcConstNode(&pOp->pLeft);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = calcConstNode(&pOp->pRight);
+      }
+      
+      goto _end;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstCondition(pCtx, pNode);
+  }
+  
+_end:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    return DEAL_RES_ERROR;
+  }
+  
+  return DEAL_RES_IGNORE_CHILD;
+}
+
 static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pTable)) {
@@ -127,13 +160,32 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
     }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+      SNode* pCond = NULL;
       code = rewriteConditionForFromTable(pCxt, pJoin->pLeft);
       if (TSDB_CODE_SUCCESS == code) {
         code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
       }
       if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
+        code = rewriteCondition(pCxt, &pJoin->pOnCond);
+      }
+      if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
+        nodesRewriteExpr(&pJoin->pOnCond, rewriteCalcConstValue, pCxt);
+      }
+
+/*
+      if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
+        code = nodesCloneNode(pJoin->pOnCond, &pCond);
+      }
+      if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
         code = calcConstCondition(pCxt, &pJoin->pOnCond);
       }
+      if (TSDB_CODE_SUCCESS == code && pJoin->pOnCond && QUERY_NODE_VALUE == nodeType(pJoin->pOnCond)) {
+        nodesDestroyNode(pJoin->pOnCond);
+        pJoin->pOnCond = pCond;
+        pCond = NULL;
+      }
+      nodesDestroyNode(pCond);
+*/
       // todo empty table
       break;
     }
@@ -207,6 +259,7 @@ static int32_t findAndReplaceNode(SCalcConstContext* pCxt, SNode** pRoot, SNode*
 
 static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool dual, SNode** pNew) {
   SArray* pAssociation = NULL;
+  
   if (NULL != ((SExprNode*)pProject)->pAssociation) {
     pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation, NULL);
     if (NULL == pAssociation) {
@@ -214,7 +267,7 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
     }
   }
 
-  char    aliasName[TSDB_COL_NAME_LEN] = {0};
+  char    aliasName[TSDB_COL_NAME_LEN] = {0}, srcTable[TSDB_TABLE_NAME_LEN] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
   if (dual) {
     code = scalarCalculateConstantsFromDual(pProject, pNew);
@@ -227,8 +280,16 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
       for (int32_t i = 0; i < size; ++i) {
         SAssociationNode* pAssNode = taosArrayGet(pAssociation, i);
         SNode**           pCol = pAssNode->pPlace;
+        if (((SExprNode*)pAssNode->pAssociationNode)->joinSrc) {
+          //((SExprNode*)pAssNode->pAssociationNode)->constValue = true;
+          continue;
+        }
+        
         if (*pCol == pAssNode->pAssociationNode) {
           tstrncpy(aliasName, ((SExprNode*)*pCol)->aliasName, TSDB_COL_NAME_LEN);
+          if (QUERY_NODE_COLUMN == nodeType(*pCol)) {
+            tstrncpy(srcTable, ((SColumnNode*)*pCol)->tableAlias, TSDB_TABLE_NAME_LEN);
+          }
           SArray* pOrigAss = NULL;
           TSWAP(((SExprNode*)*pCol)->pAssociation, pOrigAss);
           nodesDestroyNode(*pCol);
@@ -236,6 +297,9 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
           code = nodesCloneNode(*pNew, pCol);
           if (TSDB_CODE_SUCCESS == code) {
             tstrncpy(((SExprNode*)*pCol)->aliasName, aliasName, TSDB_COL_NAME_LEN);
+            if (srcTable[0]) {
+              tstrncpy(((SExprNode*)*pCol)->srcTable, srcTable, TSDB_TABLE_NAME_LEN);
+            }
             TSWAP(pOrigAss, ((SExprNode*)*pCol)->pAssociation);
           }
           taosArrayDestroy(pOrigAss);
@@ -301,7 +365,7 @@ static int32_t createConstantValue(SValueNode** ppNode) {
 static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   SNode* pProj = NULL;
   WHERE_EACH(pProj, pSelect->pProjectionList) {
-    if (subquery && !pSelect->isDistinct && !pSelect->tagScan && isUselessCol((SExprNode*)pProj)) {
+    if (subquery && !pSelect->isDistinct && !pSelect->tagScan && isUselessCol((SExprNode*)pProj) && (pSelect->pFromTable && nodeType(pSelect->pFromTable) != QUERY_NODE_VIRTUAL_TABLE)) {
       ERASE_NODE(pSelect->pProjectionList);
       continue;
     }

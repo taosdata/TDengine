@@ -1,5 +1,0 @@
-BasedOnStyle: LLVM
-AlignConsecutiveMacros: true
-ColumnLimit: 90
-IndentCaseLabels: true
-IndentWidth: 4

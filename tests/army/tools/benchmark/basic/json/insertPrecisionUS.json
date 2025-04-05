@@ -13,7 +13,7 @@
             "dbinfo": {
                 "name": "test",
                 "drop": "yes",
-                "precision": "us",
+                "precision ": "us",
                 "vgroups": 2
             },
             "super_tables": [

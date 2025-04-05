@@ -81,29 +81,29 @@ class TDTestCase:
         # create error stream
         tdLog.info("create error stream")
         sleep(10)
-        tdSql.error(
-            f"create stream itp_force_error_1  trigger force_window_close  IGNORE EXPIRED 1 IGNORE UPDATE 0 into itp_force_error_1 as  select _irowts,tbname,_isfilled,interp(c1,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
+        tdSql.execute(
+            f"create stream itp_force_error_0  trigger force_window_close  IGNORE EXPIRED 1 IGNORE UPDATE 0 into itp_force_error_0_s as  select _irowts,tbname,_isfilled,interp(c1,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
+        )
+        tdSql.execute(
+            f"create stream itp_force_error_1  trigger force_window_close  IGNORE EXPIRED 0 IGNORE UPDATE 1 into itp_force_error_1_s as  select _irowts,tbname,_isfilled,interp(c1,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
         )
         tdSql.error(
-            f"create stream itp_force_error_1  trigger force_window_close  IGNORE EXPIRED 0 IGNORE UPDATE 1 into itp_force_error_1 as  select _irowts,tbname,_isfilled,interp(c1,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
+            f"create stream itp_force_error_2  trigger at_once  IGNORE EXPIRED 0 IGNORE UPDATE 1 into itp_force_error_2_s as  select _irowts,tbname,_isfilled,interp(c1,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
         )
         tdSql.error(
-            f"create stream itp_force_error_1  trigger at_once  IGNORE EXPIRED 0 IGNORE UPDATE 1 into itp_force_error_1 as  select _irowts,tbname,_isfilled,interp(c1,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
+            f"create stream itp_force_error_3  trigger force_window_close  IGNORE EXPIRED 1 IGNORE UPDATE 0 into itp_force_error_3_s as  select _irowts,tbname,_isfilled,interp(c11,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
         )
         tdSql.error(
-            f"create stream itp_force_error_1  trigger force_window_close  IGNORE EXPIRED 1 IGNORE UPDATE 0 into itp_force_error_1 as  select _irowts,tbname,_isfilled,interp(c11,1) from  {self.stb_name}   partition by tbname   every(5s)   fill(prev) ;"
-        )
-        tdSql.error(
-            f"create stream itp_1d_next_error_1  trigger force_window_close FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t1 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
+            f"create stream itp_1d_next_error_0  trigger force_window_close FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t0 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
         )
         tdSql.error(
             f"create stream itp_1d_next_error_1  trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t1 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
         )
         tdSql.error(
-            f"create stream itp_1d_next_error_1  trigger window_close FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t1 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
+            f"create stream itp_1d_next_error_2  trigger window_close FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t2 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
         )
         tdSql.error(
-            f"create stream itp_1d_next_error_1  trigger max_delay 5s FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t1 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
+            f"create stream itp_1d_next_error_3  trigger max_delay 5s FILL_HISTORY 1 IGNORE EXPIRED 1 IGNORE UPDATE 1 into itp_1d_next_error_t3 as select _irowts,tbname,_isfilled,interp(current) from {self.stb_name} where groupid=100 partition by every(5s) fill(next) ;"
         )
 
         # function name : interp

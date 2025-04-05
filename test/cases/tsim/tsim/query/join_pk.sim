@@ -1,0 +1,56 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database test;
+sql use test;
+sql create table st(ts timestamp, f int) tags(t int);
+sql insert into ct1 using st tags(1) values(now, 0)(now+1s, 1)
+sql insert into ct2 using st tags(2) values(now+2s, 2)(now+3s, 3)
+sql select * from (select _wstart - 1s as ts, count(*) as num1 from st interval(1s)) as t1 inner join (select _wstart as ts, count(*) as num2 from st interval(1s)) as t2 on t1.ts = t2.ts
+
+if $rows != 3 then
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+
+if $data21 != 1 then 
+  return -1
+endi
+if $data03 != 1 then
+  return -1
+endi
+
+if $data13 != 1 then 
+  return -1
+endi
+if $data23 != 1 then
+  return -1
+endi
+sql select * from (select _wstart - 1d as ts, count(*) as num1 from st interval(1s)) as t1 inner join (select _wstart as ts, count(*) as num2 from st interval(1s)) as t2 on t1.ts = t2.ts
+
+sql select * from (select _wstart + 1a as ts, count(*) as num1 from st interval(1s)) as t1 inner join (select _wstart as ts, count(*) as num2 from st interval(1s)) as t2 on t1.ts = t2.ts
+
+sql_error select * from (select _wstart *  3 as ts, count(*) as num1 from st interval(1s)) as t1 inner join (select _wstart as ts, count(*) as num2 from st interval(1s)) as t2 on t1.ts = t2.ts
+
+sql create table sst(ts timestamp, ts2 timestamp, f int) tags(t int);
+sql insert into sct1 using sst tags(1) values('2023-08-07 13:30:56', '2023-08-07 13:30:56', 0)('2023-08-07 13:30:57', '2023-08-07 13:30:57', 1)
+sql insert into sct2 using sst tags(2) values('2023-08-07 13:30:58', '2023-08-07 13:30:58', 2)('2023-08-07 13:30:59', '2023-08-07 13:30:59', 3)
+sql select * from (select ts - 1s as jts from sst) as t1 inner join (select ts-1s as jts from sst) as t2 on t1.jts = t2.jts
+if $rows != 4 then
+  return -1
+endi
+sql select * from (select ts - 1s as jts from sst) as t1 inner join (select ts as jts from sst) as t2 on t1.jts = t2.jts
+if $rows != 3 then
+  return -1
+endi
+sql_error select * from (select ts2 - 1s as jts from sst) as t1 inner join (select ts2 as jts from sst) as t2 on t1.jts = t2.jts
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+

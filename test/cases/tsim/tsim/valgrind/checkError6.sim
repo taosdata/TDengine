@@ -1,0 +1,199 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start -v
+sql connect
+
+print =============== step1: create drop select * from information_schema.ins_dnodes
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ---> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ---> $data00 $data01 $data02 $data03 $data04 $data05
+if $rows != 1 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+
+$tbPrefix = tb
+$tbNum = 5
+$rowNum = 10
+
+print =============== step2: prepare data
+sql create database db vgroups 2
+sql use db
+sql create table if not exists stb (ts timestamp, tbcol int, tbcol2 float, tbcol3 double, tbcol4 binary(30), tbcol5 binary(30)) tags (tgcol int unsigned)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using stb tags( $i )
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x , $x , $x , "abcd1234=-+*" , "123456 0" ) 
+    $x = $x + 1
+  endw 
+
+  $cc = $x * 60000
+  $ms = 1601481600000 + $cc
+  sql insert into $tb values ($ms , NULL , NULL , NULL , NULL , NULL ) 
+  $i = $i + 1
+endw 
+
+print =============== step3: tb
+sql select avg(tbcol) from tb1
+sql select avg(tbcol) from tb1 where ts <= 1601481840000
+sql select avg(tbcol) as b from tb1
+sql select avg(tbcol) as b from tb1 interval(1d)
+sql select avg(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select bottom(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select top(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select percentile(tbcol, 2) from tb1 where ts <= 1601481840000 
+sql select leastsquares(tbcol, 1, 1) as b from tb1 where ts <= 1601481840000
+sql show table distributed tb1
+sql select count(1) from tb1
+sql select count(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select diff(tbcol) from tb1 where ts <= 1601481840000 
+sql select diff(tbcol) from tb1 where tbcol > 5 and tbcol < 20 order by ts
+sql select first(tbcol), last(tbcol) as b from tb1 where ts <= 1601481840000 interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from tb1 where ts <= 1601481840000 partition by tgcol order by tgcol
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from tb1 where ts <= 1601481840000 partition by tgcol interval(1m) 
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0,0,0,0,0)
+sql select last_row(*) from tb1 where tbcol > 5 and tbcol < 20
+sql select _wstart, _wend, _wduration, _qstart, _qend,  count(*) from tb1 interval(10s, 2s) sliding(10s)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0,0,0,0,0)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0,0,0,0,0) order by tgcol desc
+sql select log(tbcol), abs(tbcol), pow(tbcol, 2), sqrt(tbcol), sin(tbcol), cos(tbcol), tan(tbcol), asin(tbcol), acos(tbcol), atan(tbcol), ceil(tbcol), floor(tbcol), round(tbcol), atan(tbcol) from tb1
+sql select length("abcd1234"), char_length("abcd1234=-+*") from tb1
+sql select tbcol4, length(tbcol4), lower(tbcol4), upper(tbcol4), ltrim(tbcol4), rtrim(tbcol4), concat(tbcol4, tbcol5), concat_ws('_', tbcol4, tbcol5), substr(tbcol4, 1, 4)  from tb1
+sql select * from tb1 where tbcol not in (1,2,3,null);
+sql select * from tb1 where tbcol + 3 <> null;
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0,0,0,0,0)
+sql select tbcol5 - tbcol3 from tb1
+
+print =============== step4: stb
+sql select avg(tbcol) as c from stb
+sql select avg(tbcol) as c from stb where ts <= 1601481840000
+sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
+sql select avg(tbcol) as c from stb interval(1m)
+sql select avg(tbcol) as c from stb interval(1d)
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 interval(1m)
+sql select avg(tbcol) as c from stb group by tgcol
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql show table distributed stb
+sql select count(1) from stb
+sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+#sql select diff(tbcol) from stb where ts <= 1601481840000 
+sql select first(tbcol), last(tbcol) as c from stb group by tgcol
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0,0,0,0,0)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 and tgcol = 1 partition by tgcol interval(1m) fill(value, 0,0,0,0,0) order by tgcol desc
+sql select last_row(tbcol), stddev(tbcol) from stb where tbcol > 5 and tbcol < 20 group by tgcol
+sql select _wstart, _wend, _wduration, _qstart, _qend,  count(*) from stb interval(10s, 2s) sliding(10s)
+sql select log(tbcol), abs(tbcol), pow(tbcol, 2), sqrt(tbcol), sin(tbcol), cos(tbcol), tan(tbcol), asin(tbcol), acos(tbcol), atan(tbcol), ceil(tbcol), floor(tbcol), round(tbcol), atan(tbcol) from stb
+sql select length("abcd1234"), char_length("abcd1234=-+*") from stb
+sql select tbcol4, length(tbcol4), lower(tbcol4), upper(tbcol4), ltrim(tbcol4), rtrim(tbcol4), concat(tbcol4, tbcol5), concat_ws('_', tbcol4, tbcol5), substr(tbcol4, 1, 4)  from stb
+sql select * from stb where tbcol not in (1,2,3,null);
+sql select * from stb where tbcol + 3 <> null;
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from stb where tbcol = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol interval(1d)
+sql select _wstart, count(*) from tb1 session(ts, 1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0,0,0,0,0)
+sql select tbcol5 - tbcol3 from stb
+
+sql select spread( tbcol2 )/44, spread(tbcol2), 0.204545455 * 44 from stb;
+sql select min(tbcol) * max(tbcol) /4, sum(tbcol2) * apercentile(tbcol2, 20), apercentile(tbcol2, 33) + 52/9 from stb;
+sql select distinct(tbname), tgcol from stb;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
+
+print =============== step5: explain
+sql explain analyze select ts from stb where -2;
+sql explain analyze select ts from tb1;
+sql explain analyze select ts from stb order by ts;
+sql explain analyze select * from information_schema.ins_stables;
+sql explain analyze select count(*),sum(tbcol) from tb1;
+sql explain analyze select count(*),sum(tbcol) from stb;
+sql explain analyze select count(*),sum(tbcol) from stb group by tbcol;
+sql explain analyze select * from information_schema.ins_stables;
+sql explain analyze verbose true select * from information_schema.ins_stables where db_name='db2';
+sql explain analyze verbose true select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0,0,0,0,0)
+sql explain select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0,0,0,0,0)
+
+print =============== step6: in cast
+sql select 1+1n;
+sql select cast(1 as timestamp)+1n;
+sql select cast(1 as timestamp)+1y;
+sql select * from tb1 where ts in ('2018-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);
+sql select * from tb1 where tbcol2 in (257);
+sql select * from tb1 where tbcol3 in (2, 257);
+sql select * from stb where ts in ('2018-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);
+sql select * from stb where tbcol2 in (257);
+sql select * from stb where tbcol3 in (2, 257);
+
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 
+
+print =============== restart
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start -v
+
+$x = 0
+steps: 
+	$x = $x + 1
+	sleep 500
+	if $x == 50 then
+		return -1
+	endi
+sql select avg(tbcol) as c from stb -x steps
+
+sql select avg(tbcol) as c from stb where ts <= 1601481840000
+sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
+sql select avg(tbcol) as c from stb interval(1m)
+sql select avg(tbcol) as c from stb interval(1d)
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 interval(1m)
+sql select avg(tbcol) as c from stb group by tgcol
+sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql show table distributed stb
+sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+#sql select diff(tbcol) from stb where ts <= 1601481840000 
+sql select first(tbcol), last(tbcol) as c from stb group by tgcol
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
+sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), sum(tbcol), stddev(tbcol) from stb where ts <= 1601481840000 partition by tgcol interval(1m)
+sql select last_row(tbcol), stddev(tbcol) from stb where tbcol > 5 and tbcol < 20 group by tgcol
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 

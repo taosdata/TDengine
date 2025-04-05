@@ -80,6 +80,7 @@ typedef struct SFillInfo {
   SFillTagColInfo* pTags;     // tags value for filling gap
   const char*      id;
   SExecTaskInfo*   pTaskInfo;
+  int8_t           isFilled;
 } SFillInfo;
 
 typedef struct SResultCellData {

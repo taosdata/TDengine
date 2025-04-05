@@ -1,0 +1,102 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_to_db
+$tbPrefix = m_to_tb
+$mtPrefix = m_to_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select top(tbcol, 1) from $tb
+print ===> $data00
+if $data00 != 19 then
+  return -1
+endi
+
+print =============== step3
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select top(tbcol, 1) from $tb where ts <= $ms
+print ===> $data00
+if $data00 != 4 then
+  return -1
+endi
+
+print =============== step4
+sql select top(tbcol, 1) as b from $tb
+print ===> $data00
+if $data00 != 19 then
+  return -1
+endi
+
+print =============== step5
+sql select top(tbcol, 2) as b from $tb
+print ===> $data00  $data10
+if $data00 != 18 then
+  return -1
+endi
+if $data10 != 19 then
+  return -1
+endi
+
+print =============== step6
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select top(tbcol, 2) as b from $tb where ts <= $ms
+print ===> $data00  $data10
+if $data00 != 3 then
+  return -1
+endi
+if $data10 != 4 then
+  return -1
+endi
+
+sql select top(tbcol, 122) as b from $tb -x step6
+	return -1
+step6:
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

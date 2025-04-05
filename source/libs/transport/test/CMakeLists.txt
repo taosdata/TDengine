@@ -38,20 +38,20 @@ target_include_directories(transportTest
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries(transportTest
+DEP_ext_gtest(transportTest)
+target_link_libraries(transportTest PRIVATE
   os
   util
   common
-  gtest_main
   transport
   function
 )
 
-target_link_libraries(transUT
+DEP_ext_gtest(transUT)
+target_link_libraries(transUT PRIVATE
   os
   util
   common
-  gtest_main
   transport
 )
 
@@ -61,11 +61,11 @@ target_include_directories(transUT
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries(transUT2
+DEP_ext_gtest(transUT2)
+target_link_libraries(transUT2 PRIVATE
   os
   util
   common
-  gtest_main
   transport
 )
 
@@ -81,11 +81,11 @@ target_include_directories(svrBench
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries(svrBench
+DEP_ext_gtest(svrBench)
+target_link_libraries(svrBench PRIVATE
   os
   util
   common
-  gtest_main
   transport
 )
 
@@ -101,19 +101,19 @@ target_include_directories(httpBench
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries(cliBench
+DEP_ext_gtest(cliBench)
+target_link_libraries(cliBench PRIVATE
   os
   util
   common
-  gtest_main
   transport
 )
 
-target_link_libraries(httpBench
+DEP_ext_gtest(httpBench)
+target_link_libraries(httpBench PRIVATE
   os
   util
   common
-  gtest_main
   transport
 )
 

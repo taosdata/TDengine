@@ -15,6 +15,10 @@ import imgStep08 from '../../assets/influxdb-08.png';
 import imgStep09 from '../../assets/influxdb-09.png';
 import imgStep10 from '../../assets/influxdb-10.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create a data migration task through the Explorer interface to migrate data from InfluxDB to the current TDengine cluster.
 
 ## Feature Overview

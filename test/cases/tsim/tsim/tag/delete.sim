@@ -1,0 +1,821 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = ta_de_db
+$tbPrefix = ta_de_tb
+$mtPrefix = ta_de_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+
+sql create database $db
+sql use $db
+
+print =============== step2
+$i = 2
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int)
+sql create table $tb using $mt tags( 1, 2 )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol2 = 2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+
+print =============== step3
+$i = 3
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint)
+sql create table $tb using $mt tags( 1, 2 )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol2 = 2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+
+print =============== step4
+$i = 4
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float)
+sql create table $tb using $mt tags( 1, 2 )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol2 < 3
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2.00000 then
+  return -1
+endi
+
+sql describe $tb
+if $data21 != BIGINT then
+  return -1
+endi
+if $data31 != FLOAT then
+  return -1
+endi
+if $data23 != TAG then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol1 -x step40
+  return -1
+step40:
+
+print =============== step5
+$i = 5
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10))
+sql create table $tb using $mt tags( 1, '2' )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol2 = '2'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1.000000000 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol1 -x step50
+  return -1
+step50:
+
+print =============== step6
+$i = 6
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int, tgcol3 tinyint)
+sql create table $tb using $mt tags( 1, 2, 3 )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol2 = 2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol3
+
+print =============== step7
+$i = 7
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 tinyint, tgcol3 binary(10))
+sql create table $tb using $mt tags( 1, 2, '3' )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol3 = '3'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+
+sql describe $tb
+if $data21 != SMALLINT then
+  return -1
+endi
+if $data31 != TINYINT then
+  return -1
+endi
+if $data41 != VARCHAR then
+  return -1
+endi
+if $data22 != 2 then
+  return -1
+endi
+if $data32 != 1 then
+  return -1
+endi
+if $data42 != 10 then
+  return -1
+endi
+if $data23 != TAG then
+  return -1
+endi
+if $data33 != TAG then
+  return -1
+endi
+if $data43 != TAG then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol3
+
+print =============== step8
+$i = 8
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bigint, tgcol2 float, tgcol3 binary(10))
+sql create table $tb using $mt tags( 1, 2, '3' )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol3 = '3'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2.00000 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol3
+
+print =============== step9
+$i = 9
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 double, tgcol2 binary(10), tgcol3 binary(10))
+sql create table $tb using $mt tags( 1, '2', '3' )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol2 = 2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1.000000000 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol3
+sql alter table $mt drop tag tgcol2
+
+print =============== step10
+$i = 10
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 binary(10), tgcol3 binary(10), tgcol4 binary(10))
+sql create table $tb using $mt tags( '1', '2', '3', '4' )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol4 = '4'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+if $data05 != 4 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol3
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol4
+
+print =============== step11
+$i = 11
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int, tgcol3 smallint, tgcol4 float, tgcol5 binary(10))
+sql create table $tb using $mt tags( 1, 2, 3, 4, '5' )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol1 = 1
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+if $data05 != 4.00000 then
+  return -1
+endi
+if $data06 != 5 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol3
+sql alter table $mt drop tag tgcol5
+
+print =============== step12
+$i = 12
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 smallint, tgcol3 float, tgcol4 double, tgcol5 binary(10), tgcol6 binary(20))
+sql create table $tb using $mt tags( 1, 2, 3, 4, '5', '6' )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol1 = 1
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 3.00000 then
+  return -1
+endi
+if $data05 != 4.000000000 then
+  return -1
+endi
+if $data06 != 5 then
+  return -1
+endi
+if $data07 != 6 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol3
+sql alter table $mt drop tag tgcol5
+sql alter table $mt drop tag tgcol6
+
+print =============== step13
+$i = 13
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20))
+sql create table $tb using $mt tags( '1', 2, 3, '4', 5, '6' )
+sql insert into $tb values(now, 1)
+sql select * from $mt where tgcol1 = '1'
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+if $data05 != 4 then
+  return -1
+endi
+if $data06 != 5.000000000 then
+  return -1
+endi
+if $data07 != 6 then
+  return -1
+endi
+
+sql alter table $mt drop tag tgcol3
+sql alter table $mt drop tag tgcol4
+sql alter table $mt drop tag tgcol6
+
+print =============== step2
+$i = 2
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = 1
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step2
+  return -1
+step2:
+
+print =============== step3
+$i = 3
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = 1
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step3
+  return -1
+step3:
+
+print =============== step4
+$i = 4
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = 1
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step4
+  return -1
+step4:
+
+print =============== step5
+$i = 5
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = 1
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1.000000000 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = '1' -x step5
+  return -1
+step5:
+
+print =============== step6
+$i = 6
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = 1
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step51
+  return -1
+step51:
+sql select * from $mt where tgcol3 = 1 -x step52
+  return -1
+step52:
+
+print =============== step7
+$i = 7
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = 1
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step71
+  return -1
+step71:
+sql select * from $mt where tgcol3 = 1 -x step72
+  return -1
+step72:
+
+print =============== step8
+$i = 8
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = 1
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step81
+  return -1
+step81:
+sql select * from $mt where tgcol3 = 1 -x step82
+  return -1
+step82:
+
+print =============== step9
+$i = 9
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = 1
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1.000000000 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol3 = 1 -x step91
+  return -1
+step91:
+sql select * from $mt where tgcol2 = 1 -x step92
+  return -1
+step92:
+
+print =============== step10
+$i = 10
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol1 = '1'
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+if $data05 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step101
+  return -1
+step101:
+sql select * from $mt where tgcol3 = 1 -x step102
+  return -1
+step102:
+sql select * from $mt where tgcol4 = 1 -x step103
+  return -1
+step103:
+
+print =============== step11
+$i = 11
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol4=4
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 4.00000 then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+if $data05 != null then
+  return -1
+endi
+if $data06 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step111
+  return -1
+step111:
+sql select * from $mt where tgcol3 = 1 -x step112
+  return -1
+step112:
+sql select * from $mt where tgcol5 = 1 -x step113
+  return -1
+step113:
+
+print =============== step12
+$i = 12
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql select * from $mt where tgcol4 = 4
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 4.000000000 then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+if $data05 != null then
+  return -1
+endi
+if $data06 != null then
+  return -1
+endi
+if $data07 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol2 = 1 -x step120
+  return -1
+step120:
+sql select * from $mt where tgcol3 = 1 -x step121
+  return -1
+step121:
+sql select * from $mt where tgcol5 = 1 -x step122
+  return -1
+step122:
+sql select * from $mt where tgcol6 = 1 -x step123
+  return -1
+step123:
+
+print =============== step13
+$i = 13
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql reset query cache
+sql select * from $mt where tgcol2 = 2
+print $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 2 then
+  return -1
+endi
+if $data04 != 5.000000000 then
+  return -1
+endi
+if $data05 != null then
+  return -1
+endi
+if $data06 != null then
+  return -1
+endi
+if $data07 != null then
+  return -1
+endi
+
+sql select * from $mt where tgcol3 = 1 -x step130
+  return -1
+step130:
+sql select * from $mt where tgcol4 = 1 -x step131
+  return -1
+step131:
+sql select * from $mt where tgcol6 = 1 -x step133
+  return -1
+step133:
+
+print =============== step14
+$i = 14
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 bigint)
+sql create table $tb using $mt tags( 1, 1 )
+sql insert into $tb values(now, 1)
+
+sql alter table xxmt drop tag tag1 -x step141
+  return -1
+step141:
+sql alter table $tb drop tag tag1 -x step142
+  return -1
+step142:
+sql alter table $mt drop tag tag1 -x step143
+  return -1
+step143:
+
+sql alter table $mt drop tag tagcol1 -x step144
+  return -1
+step144:
+
+sql alter table $mt drop tag tgcol2
+sql alter table $mt drop tag tgcol1 -x step145
+  return -1
+step145:
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

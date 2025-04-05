@@ -1,0 +1,198 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+sql connect
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+if $data(4)[4] != ready then
+  goto step1
+endi
+
+$replica = 3
+$vgroups = 1
+$retentions = -:7d,15s:21d,1m:365d
+
+print ============= create database
+sql create database db replica $replica vgroups $vgroups retentions $retentions
+
+$loop_cnt = 0
+check_db_ready:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 100 then
+  print ====> db not ready!
+	return -1
+endi
+sql select * from information_schema.ins_databases
+print ===> rows: $rows
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6] $data[2][7] $data[2][8] $data[2][9] $data[2][6] $data[2][11] $data[2][12]  $data[2][13]  $data[2][14]  $data[2][15]  $data[2][16]  $data[2][17]  $data[2][18]  $data[2][19]
+if $rows != 3 then
+  return -1
+endi
+if $data[2][15] != ready then
+  goto check_db_ready
+endi
+
+sql use db
+
+$loop_cnt = 0
+check_vg_ready:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 300 then
+  print ====> vgroups not ready!
+	return -1
+endi
+
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][10] $data[0][11]
+
+if $rows != $vgroups then
+  return -1
+endi
+
+if $data[0][4] == leader then
+   if $data[0][6] == follower then
+      if $data[0][8] == follower then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
+      endi
+   endi
+elif $data[0][6] == leader then
+   if $data[0][4] == follower then
+      if $data[0][8] == follower then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
+      endi
+   endi
+elif $data[0][8] == leader then
+   if $data[0][4] == follower then
+      if $data[0][6] == follower then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
+      endi
+   endi
+else
+   goto check_vg_ready
+endi
+
+
+vg_ready:
+print ====>  create stable/child table
+sql create table stb (ts timestamp, c1 float, c2 float, c3 double) tags (t1 int) rollup(sum) watermark 3s,3s max_delay 3s,3s
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+sql create table ct1 using stb tags(1000)
+
+
+print ===> stop dnode4
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+sleep 3000
+
+
+print ===> write 0-50 records
+$ms = 0
+$cnt = 0
+while $cnt < 50
+   $ms = $cnt . m 
+   sql insert into ct1 values (now + $ms , $cnt , 2.1, 3.1) 
+   $cnt = $cnt + 1
+ endw  
+print ===> flush database db
+sql flush database db;
+sleep 5000
+
+print ===> write 51-100 records
+while $cnt < 100
+   $ms = $cnt . m 
+   sql insert into ct1 values (now + $ms , $cnt , 2.1, 3.1) 
+   $cnt = $cnt + 1
+ endw  
+
+print ===> flush database db
+sql flush database db;
+sleep 5000
+
+
+print ===> stop dnode1 dnode2 dnode3
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+
+########################################################
+print ===> start dnode1 dnode2 dnode3 dnode4
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+sleep 3000
+
+print =============== query data of level 1
+sql connect
+sql use db
+
+sql select * from ct1 where ts > now - 1d
+print rows of level 1: $rows
+print $data00 $data01 $data02
+if $rows != 100 then
+  return -1
+endi
+
+print =============== sleep 5s to wait the result
+sleep 5000
+
+print =============== query data of level 2
+sql select * from ct1 where ts > now - 10d
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+if $rows != 100 then
+  print rows of level 2: $rows
+endi
+
+print =============== query data of level 3
+sql select * from ct1
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+if $rows != 100 then
+  print rows of level 3: $rows
+endi

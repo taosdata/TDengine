@@ -1,0 +1,132 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== columnValues.sim
+
+sql drop database if exists db
+sql create database db
+sql use db
+
+sql drop table if exists mt_unsigned;
+
+sql create table mt_unsigned (ts timestamp, a tinyint unsigned, b smallint unsigned, c int unsigned, d bigint unsigned, e tinyint, f smallint, g int, h bigint, j bool) tags (t1 tinyint unsigned, t2 smallint unsigned, t3 int unsigned, t4 bigint unsigned, t5 tinyint, t6 smallint, t7 int, t8 bigint);
+sql create table mt_unsigned_1 using mt_unsigned tags(0, 0, 0, 0, 0, 0, 0, 0);
+
+sql alter table mt_unsigned_1 set tag t1=138;
+sql alter table mt_unsigned_1 set tag t2=32769;
+sql alter table mt_unsigned_1 set tag t3=294967295;
+sql alter table mt_unsigned_1 set tag t4=446744073709551615;
+sql insert into mt_unsigned_1 values (now, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+sql select t1,t2,t3,t4 from mt_unsigned_1
+if $rows != 1 then
+ return -1
+endi
+print $data01, $data02, $data03
+if $data01 != 32769 then
+  return -1
+endi
+if $data02 != 294967295 then
+  return -1
+endi
+if $data03 != 446744073709551615 then
+  return -1
+endi
+
+sql_error sql alter table mt_unsigned_1 set tag t1 = 999;
+sql_error sql alter table mt_unsigned_1 set tag t2 = 95535;
+sql_error sql alter table mt_unsigned_1 set tag t3 = 8294967295l;
+sql_error sql alter table mt_unsigned_1 set tag t4 = 19446744073709551615;
+
+sql_error create table mt_unsigned_2 using mt_unsigned tags(-1, 0, 0, 0, 0, 0, 0, 0);
+sql_error create table mt_unsigned_3 using mt_unsigned tags(0, -1, 0, 0, 0, 0, 0, 0);
+sql_error create table mt_unsigned_4 using mt_unsigned tags(0, 0, -1, 0, 0, 0, 0, 0);
+sql_error create table mt_unsigned_5 using mt_unsigned tags(0, 0, 0, -1, 0, 0, 0, 0);
+
+sql create table mt_unsigned_21 using mt_unsigned tags(255, 0, 0, 0, 0, 0, 0, 0);
+sql create table mt_unsigned_31 using mt_unsigned tags(0, 65535, 0, 0, 0, 0, 0, 0);
+sql create table mt_unsigned_41 using mt_unsigned tags(0, 0, 4294967295, 0, 0, 0, 0, 0);
+sql create table mt_unsigned_51 using mt_unsigned tags(0, 0, 0, 18446744073709551615, 0, 0, 0, 0);
+
+sql_error create table mt_unsigned_2 using mt_unsigned tags(999, 0, 0, 0, 0, 0, 0, 0);
+sql_error create table mt_unsigned_3 using mt_unsigned tags(0, 95535, 0, 0, 0, 0, 0, 0);
+sql_error create table mt_unsigned_4 using mt_unsigned tags(0, 0, 5294967295l, 0, 0, 0, 0, 0);
+sql_error create table mt_unsigned_5 using mt_unsigned tags(0, 0, 0, 28446744073709551615u, 0, 0, 0, 0);
+
+sql alter table mt_unsigned_1 set tag t1=NULL;
+sql alter table mt_unsigned_1 set tag t2=NULL;
+sql alter table mt_unsigned_1 set tag t3=NULL;
+sql alter table mt_unsigned_1 set tag t4=NULL;
+sql select t1,t2,t3,t4 from mt_unsigned_1
+if $rows != 1 then
+  return -1;
+endi
+
+if $data01 != NULL then
+  return -1
+endi
+
+if $data02 != NULL then
+  return -1
+endi
+
+if $data03 != NULL then
+  return -1
+endi
+
+sql insert into mt_unsigned_1 values(now+1s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+2s, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+sql_error insert into mt_unsigned_1 values(now+3s, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql_error insert into mt_unsigned_1 values(now+4s, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql_error insert into mt_unsigned_1 values(now+5s, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL);
+sql_error insert into mt_unsigned_1 values(now+6s, NULL, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+7s, 255, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+8s, NULL, 65535, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+9s, NULL, NULL, 4294967295, NULL, NULL, NULL, NULL, NULL, NULL);
+sql insert into mt_unsigned_1 values(now+10s, NULL, NULL, NULL, 18446744073709551615, NULL, NULL, NULL, NULL, NULL);
+
+sql select count(a),count(b),count(c),count(d), count(e) from mt_unsigned_1
+if $rows != 1 then
+  return -1
+endi
+
+if $data01 != 3 then
+  return -1
+endi
+
+sql select a+b+c from mt_unsigned_1 where a is null;
+if $rows != 4 then
+  return -1
+endi
+
+sql select count(*), a from mt_unsigned_1 group by a;
+if $rows != 4 then
+  return -1
+endi
+
+sql select count(*), b from mt_unsigned_1 group by b;
+if $rows != 4 then
+  return -1
+endi
+
+
+sql select count(*), c from mt_unsigned_1 group by c;
+if $rows != 4 then
+  return -1
+endi
+
+
+sql select count(*), d from mt_unsigned_1 group by d;
+if $rows != 4 then
+  return -1
+endi
+
+## todo insert more rows and chec it
+sql select first(a),count(b),last(c),sum(b),spread(d),avg(c),min(b),max(a),stddev(a) from mt_unsigned_1;
+if $rows != 1 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

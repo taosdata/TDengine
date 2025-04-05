@@ -1112,12 +1112,13 @@ END:
   return code;
 }
 
-static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic) {
+static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic, bool deleteConsumer) {
   if (pMnode == NULL || pTrans == NULL || cgroup == NULL || topic == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   void           *pIter = NULL;
   SMqConsumerObj *pConsumer = NULL;
+  SMqConsumerObj *pConsumerNew = NULL;
   int             code = 0;
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
@@ -1130,18 +1131,27 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
       continue;
     }
 
-    bool found = checkTopic(pConsumer->assignedTopics, topic);
-    if (found){
-      mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
-             topic, pConsumer->consumerId, pConsumer->cgroup);
-      code = TSDB_CODE_MND_CGROUP_USED;
-      goto END;
+    if (deleteConsumer) {
+      MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
+      MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
+      tDeleteSMqConsumerObj(pConsumerNew);
+      pConsumerNew = NULL;
+    } else {
+      bool found = checkTopic(pConsumer->assignedTopics, topic);
+      if (found){
+        mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
+               topic, pConsumer->consumerId, pConsumer->cgroup);
+        code = TSDB_CODE_MND_CGROUP_USED;
+        goto END;
+      }
     }
+
 
     sdbRelease(pMnode->pSdb, pConsumer);
   }
 
 END:
+  tDeleteSMqConsumerObj(pConsumerNew);
   sdbRelease(pMnode->pSdb, pConsumer);
   sdbCancelFetch(pMnode->pSdb, pIter);
   return code;
@@ -1173,7 +1183,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   }
 
   taosWLockLatch(&pSub->lock);
-  if (taosHashGetSize(pSub->consumerHash) != 0) {
+  if (!dropReq.force && taosHashGetSize(pSub->consumerHash) != 0) {
     code = TSDB_CODE_MND_CGROUP_USED;
     mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, tstrerror(code));
     goto END;
@@ -1185,7 +1195,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   mndTransSetDbName(pTrans, pSub->dbName, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   MND_TMQ_RETURN_CHECK(sendDeleteSubToVnode(pMnode, pSub, pTrans));
-  MND_TMQ_RETURN_CHECK(mndCheckConsumerByGroup(pMnode, pTrans, dropReq.cgroup, dropReq.topic));
+  MND_TMQ_RETURN_CHECK(mndCheckConsumerByGroup(pMnode, pTrans, dropReq.cgroup, dropReq.topic, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndSetDropSubCommitLogs(pMnode, pTrans, pSub));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
 
@@ -1409,7 +1419,7 @@ END:
   return code;
 }
 
-int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName) {
+int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName, bool force) {
   if (pMnode == NULL || pTrans == NULL || topicName == NULL) return TSDB_CODE_INVALID_PARA;
   SSdb            *pSdb = pMnode->pSdb;
   int32_t          code = 0;
@@ -1428,7 +1438,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     }
 
     // iter all vnode to delete handle
-    if (taosHashGetSize(pSub->consumerHash) != 0) {
+    if (!force && taosHashGetSize(pSub->consumerHash) != 0) {
       code = TSDB_CODE_MND_IN_REBALANCE;
       goto END;
     }

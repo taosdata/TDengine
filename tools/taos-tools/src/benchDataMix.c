@@ -151,6 +151,16 @@ uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64
     case TSDB_DATA_TYPE_DOUBLE:
         sprintf(val, "%f", tmpDoubleImpl(fd, 0, *k));
         break;
+    case TSDB_DATA_TYPE_DECIMAL: {
+        Decimal128 dec = tmpDecimal128Impl(fd, 0, *k);
+        decimal128ToString(&dec, fd->precision, fd->scale, val, sizeof(val));
+        break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL64: {
+        Decimal64 dec = tmpDecimal64Impl(fd, 0, *k);
+        decimal64ToString(&dec, fd->precision, fd->scale, val, sizeof(val));
+        break;
+    }
     // binary nchar
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:

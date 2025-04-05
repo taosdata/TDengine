@@ -1,0 +1,35 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================ dnode1 start
+$i = 0
+$dbPrefix = db
+$tbPrefix = tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+sql_error create table txx (ts timestamp compress 'xxx', f int)
+sql_error create table txx (ts timestamp compress 'disabled' level 'xxx', f int)
+sql_error create table txx (ts timestamp compress 'disabled' level 'h', f int compress 'tsz')
+sql_error create table txx (ts timestamp compress 'disabled' level 'h', f int compress 'tsz')
+sql create table txx1 (ts timestamp compress 'disabled' level 'h', f int compress 'lz4')
+sql create table txx2 (ts timestamp compress 'disabled' level 'h', f int compress 'zlib')
+sql create table txx3 (ts timestamp compress 'disabled' level 'h', f int compress 'xz')
+sql create table txx4 (ts timestamp compress 'disabled' level 'h', f int compress 'zstd')
+
+
+sql alter table txx4 add column tt int compress 'xz' level 'h'
+sql alter table txx4 drop column tt 
+
+sql create stable sp(ts timestamp, c int) tags(t int)
+sql alter table sp add column c1 int compress 'zstd' 
+sql alter table sp drop column c1 
+
+sql alter stable sp add column c1 int compress 'zstd' 
+sql alter stable sp drop column c1 
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

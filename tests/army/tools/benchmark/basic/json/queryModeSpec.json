@@ -10,7 +10,7 @@
 	"query_times": 100,
 	"query_mode": "taosc",
 	"specified_table_query": {
-		"concurrent": 3,
+		"threads": 3,
 		"sqls": [
 			{
 				"sql": "select last_row(*) from meters"

@@ -13,6 +13,10 @@ import imgStep06 from '../../assets/opentsdb-06.png';
 import imgStep07 from '../../assets/opentsdb-07.png';
 import imgStep08 from '../../assets/opentsdb-08.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create a data migration task through the Explorer interface to migrate data from OpenTSDB to the current TDengine cluster.
 
 ## Overview

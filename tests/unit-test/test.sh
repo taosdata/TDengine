@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# set -x 
 function usage() {
     echo "$0"
     echo -e "\t -e enterprise edition"
@@ -24,24 +24,36 @@ while getopts "e:h" opt; do
     esac
 done
 
-script_dir=`dirname $0`
-cd ${script_dir}
-PWD=`pwd`
+script_dir=$(dirname "$0")
+cd "${script_dir}"
+PWD=$(pwd)
 
 if [ $ent -eq 0 ]; then
     cd ../../debug
 else
     cd ../../../debug
 fi
-
+PWD=$(pwd)
+echo "PWD: $PWD"
 set -e
 
 pgrep taosd || taosd >> /dev/null 2>&1 &
 
 sleep 10
 
-ctest -E "cunit_test" -j8
+# Run ctest and capture output and return code
+ctest_output="unit-test.log"
+ctest -E "cunit_test" -j8 2>&1 | tee "$ctest_output"
+ctest_ret=${PIPESTATUS[0]}
 
-ret=$?
-exit $ret
+# Read the captured output
+ctest_output=$(cat "$ctest_output")
 
+# Check if ctest failed or no tests were found
+if [ $ctest_ret -ne 0 ]; then
+    echo "ctest failed, failing the script."
+    exit 1
+elif echo "$ctest_output" | grep -q "No tests were found"; then
+    echo "No tests were found, failing the script."
+    exit 1
+fi

@@ -1,0 +1,112 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1
+sql drop database if exists db1;
+sql create database db1 vgroups 3;
+sql use db1;
+sql create stable st1 (ts timestamp, f1 int) tags(tg1 int);
+sql create table tb1 using st1 tags(1);
+sql create table tb2 using st1 tags(2);
+sql create table tb3 using st1 tags(3);
+sql create table tb4 using st1 tags(4);
+sql create table tb5 using st1 tags(5);
+sql create table tb6 using st1 tags(6);
+sql create table tb7 using st1 tags(7);
+sql create table tb8 using st1 tags(8);
+
+sql insert into tb1 values ('2022-07-10 16:31:01', 1);
+sql insert into tb2 values ('2022-07-10 16:31:02', 2);
+sql insert into tb3 values ('2022-07-10 16:31:03', 3);
+sql insert into tb4 values ('2022-07-10 16:31:04', 4);
+sql insert into tb5 values ('2022-07-10 16:31:05', 5);
+sql insert into tb6 values ('2022-07-10 16:31:06', 6);
+sql insert into tb7 values ('2022-07-10 16:31:07', 7);
+sql insert into tb8 values ('2022-07-10 16:31:08', 8);
+
+sql select * from tb1 where tbname in ('tb1');
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+sql select * from tb1 where tbname in ('tb1','tb1');
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+sql select * from tb1 where tbname in ('tb1','tb2','tb1');
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+sql select * from tb1 where tbname in ('tb1','tb2','st1');
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+sql select * from tb1 where tbname = 'tb1';
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+sql select * from tb1 where tbname > 'tb1';
+if $rows != 0 then
+  return -1
+endi
+sql select * from st1 where tbname in ('tb1');
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+sql select * from st1 where tbname in ('tb1','tb1');
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+sql select * from st1 where tbname in ('tb1','tb2','tb1');
+if $rows != 2 then
+  return -1
+endi
+sql select * from st1 where tbname in ('tb1','tb2','st1');
+if $rows != 2 then
+  return -1
+endi
+sql select * from st1 where tbname = 'tb1';
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+sql select * from st1 where tbname > 'tb1';
+if $rows != 7 then
+  return -1
+endi
+
+sql select * from st1 where tbname in('tb1') and tbname in ('tb2');
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from st1 where tbname in ('tb1') and tbname != 'tb1';
+if $rows != 0 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

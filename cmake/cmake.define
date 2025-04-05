@@ -1,17 +1,24 @@
-cmake_minimum_required(VERSION 3.0)
 set(CMAKE_VERBOSE_MAKEFILE FALSE)
 set(TD_BUILD_TAOSA_INTERNAL FALSE)
 set(TD_BUILD_KEEPER_INTERNAL FALSE)
 
 # set output directory
-SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
-SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
+SET(TD_BUILD_DIR ${PROJECT_BINARY_DIR}/build)
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${TD_BUILD_DIR}/bin)
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${TD_BUILD_DIR}/lib)
+if(${TD_WINDOWS})
+    # adapt to the rule of DLL searching on Windows
+    SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${TD_BUILD_DIR}/bin)
+else()
+    # better set rpath to $ORIGIN/../lib accordingly
+    SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${TD_BUILD_DIR}/lib)
+endif()
 SET(TD_TESTS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/test)
 
 MESSAGE(STATUS "Project source directory: " ${PROJECT_SOURCE_DIR})
 MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
-MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
-MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
+MESSAGE(STATUS "Project executable files output path: " ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+MESSAGE(STATUS "Project library files output path: " ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY})
 
 IF(NOT DEFINED TD_GRANT)
     SET(TD_GRANT FALSE)
@@ -99,12 +106,8 @@ ENDIF()
 
 SET(TAOS_LIB taos)
 SET(TAOS_LIB_STATIC taos_static)
-
-IF(${TD_WINDOWS})
-    SET(TAOS_LIB_PLATFORM_SPEC taos_static)
-ELSE()
-    SET(TAOS_LIB_PLATFORM_SPEC taos)
-ENDIF()
+SET(TAOS_NATIVE_LIB taosnative)
+SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 
 # build TSZ by default
 IF("${TSZ_ENABLED}" MATCHES "false")
@@ -116,19 +119,15 @@ ELSE()
     set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz")
 ENDIF()
 
-# force set all platform to JEMALLOC_ENABLED = false
-# SET(JEMALLOC_ENABLED OFF)
-
 IF(TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
 
     IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
         MESSAGE("${Green} will build Release version! ${ColourReset}")
-        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
-
+        # NOTE: let cmake to choose default compile options
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
-        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
+        # NOTE: let cmake to choose default compile options
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
@@ -152,8 +151,44 @@ IF(TD_WINDOWS)
         SET(CMAKE_CXX_FLAGS_DEBUG "" CACHE STRING "" FORCE)
     ENDIF()
 
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
+    set(_c_cxx_flags_list
+        /W3 /WX
+        /wd4311
+        /wd4312
+        /wd4022
+        /wd4013
+        /wd4090
+        /wd4996
+        /wd4819
+        /wd4101
+        /wd4244
+        /wd4267
+        /wd4098
+        /wd4047
+        /wd4133
+        /wd4715
+        /wd4018
+        /wd4716
+        /wd4305
+        /wd4102
+        /wd4146
+        /wd4005
+        /wd4273
+        /wd4068
+        /wd4003
+        /wd4081
+        /wd4113
+        /wd4477
+        /wd4293
+        /wd4805
+        /wd4334
+        /wd4307
+        /wd4200
+        /wd4309
+    )
+    string(JOIN " " _c_cxx_flags ${_c_cxx_flags_list})
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
 
 ELSE()
     IF(${TD_DARWIN})
@@ -253,19 +288,27 @@ ELSE()
     ELSEIF(${BUILD_RELEASE})
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
+    elseif(TD_LINUX)
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-stringop-overread")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null -Wno-stringop-overread")
+    elseif(TD_DARWIN)
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wno-reserved-user-defined-literal -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations -Wno-literal-conversion -Wno-writable-strings -Wno-unused-value -Wno-format -Wno-null-conversion")
     ELSE()
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-reserved-user-defined-literal -g3 -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
+        message(FATAL_ERROR "not implemented yet")
     ENDIF()
 ENDIF()
 
-
-IF(TD_LINUX)
+IF(TD_LINUX_64)
+    # NOTE: need to test
     IF(${JEMALLOC_ENABLED})
-        MESSAGE(STATUS "JEMALLOC_ENABLED Enabled")
+        MESSAGE(STATUS "JEMALLOC Enabled")
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=attributes")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=attributes")
+        SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
+        ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib)
     ELSE()
-        MESSAGE(STATUS "JEMALLOC_ENABLED Disabled")
+        MESSAGE(STATUS "JEMALLOC Disabled")
+        SET(LINK_JEMALLOC "")
     ENDIF()
 ENDIF()

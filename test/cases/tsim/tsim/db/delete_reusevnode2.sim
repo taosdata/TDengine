@@ -1,0 +1,65 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1
+
+sql create database db;
+sql use db
+
+$tbPrefix = t
+$i = 0
+while $i < 10
+
+  sql create table st (ts timestamp, i int) tags(j int);
+  $tb = $tbPrefix . $i
+  $tb = $tb . a
+
+    $tb1 = $tb . 1
+    sql create table $tb1 using st tags(1)
+    sql insert into  $tb1 values(now, 1);
+
+    $tb1 = $tb . 2
+    sql create table $tb1 using st tags(1)
+    sql insert into  $tb1 values(now, 1);
+
+    $tb1 = $tb . 3
+    sql create table $tb1 using st tags(1)
+    sql insert into  $tb1 values(now, 1);
+
+    $tb1 = $tb . 4
+    sql create table $tb1 using st tags(1)
+    sql insert into  $tb1 values(now, 1);
+
+    $tb1 = $tb . 5
+    sql create table $tb1 using st tags(1)
+    sql insert into  $tb1 values(now, 1);
+
+    $tb1 = $tb . 6
+    sql create table $tb1 using st tags(1)
+    sql insert into  $tb1 values(now, 1);
+
+    $tb1 = $tb . 7
+    sql create table $tb1 using st tags(1)
+    sql insert into  $tb1 values(now, 1);
+
+    $tb1 = $tb . 8
+    sql create table $tb1 using st tags(1)
+    sql insert into  $tb1 values(now, 1);
+
+  sql drop table st
+
+  print times $i
+  $i = $i + 1
+
+endw
+
+print ======== step2
+sql drop database db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,78 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_di_db
+$tbPrefix = m_di_tb
+$mtPrefix = m_di_mt
+$ntPrefix = m_di_nt
+$tbNum = 1
+$rowNum = 2000
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$nt = $ntPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+sql create table $nt (ts timestamp, tbcol int)
+$x = 0
+while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $nt values ($ms , $x )
+    $x = $x + 1
+endw
+
+sql flush database $db
+
+
+sql select * from information_schema.ins_disk_usage 
+sql select sum(vgroup_id) from information_schema.ins_disk_usage 
+sql select sum(wal) from information_schema.ins_disk_usage 
+sql select sum(data1) from information_schema.ins_disk_usage 
+sql select sum(data2) from information_schema.ins_disk_usage 
+sql select sum(data3) from information_schema.ins_disk_usage 
+sql select sum(cache_rdb) from information_schema.ins_disk_usage 
+sql select sum(table_meta) from information_schema.ins_disk_usage 
+sql select sum(s3) from information_schema.ins_disk_usage 
+sql select sum(raw_data) from information_schema.ins_disk_usage 
+
+print $data00
+print $rawDataSize
+print $rows
+
+sql use $db
+sql show disk_info
+
+#sql drop database $db
+#sql select * from information_schema.ins_disk_usage 
+#if $rows != 0 then 
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

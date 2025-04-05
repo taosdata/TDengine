@@ -1,0 +1,709 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$vgroups  = 4
+$dbNamme  = db
+
+print =============== create database $dbNamme vgroups $vgroups
+sql create database $dbNamme vgroups $vgroups
+sql select * from information_schema.ins_databases
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+#print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+
+sql use $dbNamme
+
+print =============== create super table
+sql create table stb (ts timestamp, c1 binary(128), c2 nchar(128)) tags (t1 binary(128), t2 nchar(128))
+
+print =============== create child table and normal table, insert data
+sql create table ctb0 using stb tags("tag-binary-0" , "tag-nchar-0" )
+sql create table ntb0 (ts timestamp, c1 binary(128), c2 nchar(128))
+sql insert into ctb0 values ("2022-01-01 00:00:00.000" , "lenByte0=11" , "lenByte0=44" )
+sql insert into ntb0 values ("2022-01-01 00:00:00.000" , "lenByte0=11" , "lenByte0=44" )
+sql insert into ctb0 values ("2022-01-01 00:00:00.001" , "lenByte01=12" , "lenByte01=48" )
+sql insert into ntb0 values ("2022-01-01 00:00:00.001" , "lenByte01=12" , "lenByte01=48" )
+sql insert into ctb0 values ("2022-01-01 00:00:00.002" , "lenChar01=12" , "lenChar01=48" )
+sql insert into ntb0 values ("2022-01-01 00:00:00.002" , "lenChar01=12" , "lenChar01=48" )
+sql insert into ctb0 values ("2022-01-01 00:00:00.003" , "lenChar0001=14" , "lenChar0001=56" )
+sql insert into ntb0 values ("2022-01-01 00:00:00.003" , "lenChar0001=14" , "lenChar0001=56" )
+
+sql create table ctb1 using stb tags("tag-binary-1" , "tag-nchar-1" )
+sql create table ntb1 (ts timestamp, c1 binary(128), c2 nchar(128))
+sql insert into ctb1 values ("2022-01-01 00:00:00.000" , "ABCD1234" , "ABCD1234" )
+sql insert into ntb1 values ("2022-01-01 00:00:00.000" , "ABCD1234" , "ABCD1234" )
+sql insert into ctb1 values ("2022-01-01 00:00:00.001" , "AaBbCcDd1234" , "AaBbCcDd1234" )
+sql insert into ntb1 values ("2022-01-01 00:00:00.001" , "AaBbCcDd1234" , "AaBbCcDd1234" )
+
+sql create table ctb2 using stb tags("tag-binary-2" , "tag-nchar-2" )
+sql create table ntb2 (ts timestamp, c1 binary(128), c2 nchar(128))
+sql insert into ctb2 values ("2022-01-01 00:00:00.000" , "abcd1234" , "abcd1234" )
+sql insert into ntb2 values ("2022-01-01 00:00:00.000" , "abcd1234" , "abcd1234" )
+sql insert into ctb2 values ("2022-01-01 00:00:00.001" , "AaBbCcDd1234" , "AaBbCcDd1234" )
+sql insert into ntb2 values ("2022-01-01 00:00:00.001" , "AaBbCcDd1234" , "AaBbCcDd1234" )
+
+sql create table ctb3 using stb tags("tag-binary-3" , "tag-nchar-3" )
+sql create table ntb3 (ts timestamp, c1 binary(128), c2 nchar(128))
+sql insert into ctb3 values ("2022-01-01 00:00:00.000" , "  abcd  1234  " , "  abcd  1234  " )
+sql insert into ntb3 values ("2022-01-01 00:00:00.000" , "  abcd  1234  " , "  abcd  1234  " )
+
+sql create table stb2 (ts timestamp, c1 binary(128), c2 nchar(128), c3 binary(128), c4 nchar(128)) tags (t1 binary(128), t2 nchar(128), t3 binary(128), t4 nchar(128))
+sql create table ctb4 using stb2 tags("tag-binary-4" , "tag-nchar-4", "tag-binary-4" , "tag-nchar-4")
+sql create table ntb4 (ts timestamp, c1 binary(128), c2 nchar(128), c3 binary(128), c4 nchar(128))
+sql insert into ctb4 values ("2022-01-01 00:00:00.000" , " ab 12 " , " ab 12 " , " cd 34 " , " cd 34 "  )
+sql insert into ntb4 values ("2022-01-01 00:00:00.000" , " ab 12 " , " ab 12 " , " cd 34 " , " cd 34 "  )
+
+sql create table ctb5 using stb tags("tag-binary-5" , "tag-nchar-5")
+sql create table ntb5 (ts timestamp, c1 binary(128), c2 nchar(128))
+sql insert into ctb5 values ("2022-01-01 00:00:00.000" , "0123456789" , "0123456789" )
+sql insert into ntb5 values ("2022-01-01 00:00:00.000" , "0123456789" , "0123456789" )
+sql insert into ctb5 values ("2022-01-01 00:00:00.001" , NULL , NULL )
+sql insert into ntb5 values ("2022-01-01 00:00:00.001" , NULL , NULL )
+
+sql create table stb3 (ts timestamp, c1 binary(64), c2 nchar(64), c3 nchar(64) ) tags (t1 nchar(64))
+sql create table ctb6 using stb3 tags("tag-nchar-6")
+sql create table ntb6 (ts timestamp, c1 binary(64), c2 nchar(64), c3 nchar(64) )
+sql insert into ctb6 values ("2022-01-01 00:00:00.000" , "0123456789" , "中文测试1" , "中文测试2" )
+sql insert into ntb6 values ("2022-01-01 00:00:00.000" , "0123456789" , "中文测试01", "中文测试01" )
+sql insert into ctb6 values ("2022-01-01 00:00:00.001" , NULL , NULL, NULL )
+sql insert into ntb6 values ("2022-01-01 00:00:00.001" , NULL , NULL, NULL )
+
+$loop_test = 0
+loop_test_pos:
+
+print ====> length
+print ====> select c1, length(c1), c2, length(c2) from ctb0
+sql select c1, length(c1), c2, length(c2) from ctb0
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 11 then
+  return -1
+endi
+if $data03 != 44 then
+  return -1
+endi
+if $data11 != 12 then
+  return -1
+endi
+if $data13 != 48 then
+  return -1
+endi
+
+print ====> select c1, length(c1), c2, length(c2) from ntb0
+sql select c1, length(c1), c2, length(c2) from ntb0
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 11 then
+  return -1
+endi
+if $data03 != 44 then
+  return -1
+endi
+if $data11 != 12 then
+  return -1
+endi
+if $data13 != 48 then
+  return -1
+endi
+
+print ====> select length("abcd1234"), char_length("abcd1234=-+*") from ntb0
+sql select length("abcd1234"), char_length("abcd1234=-+*") from ntb0
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 8 then
+  return -1
+endi
+if $data01 != 12 then
+  return -1
+endi
+
+print ====> select c2 ,length(c2), char_length(c2) from ctb6
+sql select c2 ,length(c2), char_length(c2) from ctb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 20 then
+  return -1
+endi
+if $data02 != 5 then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+print ====> select c2 ,length(c2),char_length(c2) from ntb6
+sql select c2 ,length(c2),char_length(c2) from ntb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 24 then
+  return -1
+endi
+if $data02 != 6 then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+print ====> select c2 ,lower(c2), upper(c2) from ctb6
+sql select c2 ,lower(c2), upper(c2) from ctb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 中文测试1 then
+  return -1
+endi
+if $data02 != 中文测试1 then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+print ====> select c2 ,lower(c2), upper(c2) from ntb6
+sql select c2 ,lower(c2), upper(c2) from ntb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 中文测试01 then
+  return -1
+endi
+if $data02 != 中文测试01 then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+print ====> select c2, ltrim(c2), ltrim(c2) from ctb6
+sql select c2, ltrim(c2), ltrim(c2) from ctb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 中文测试1 then
+  return -1
+endi
+if $data02 != 中文测试1 then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+print ====> select c2, ltrim(c2), ltrim(c2) from ntb6
+sql select c2, ltrim(c2), ltrim(c2) from ntb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 中文测试01 then
+  return -1
+endi
+if $data02 != 中文测试01 then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+print ====> select c2, c3 , concat(c2,c3) from ctb6
+sql select c2, c3 , concat(c2,c3) from ctb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data02 != 中文测试1中文测试2 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+
+print ====> select c2, c3 , concat(c2,c3) from ntb6
+sql select c2, c3 , concat(c2,c3) from ntb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data02 != 中文测试01中文测试01 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+
+print ====> select c2, c3 , concat_ws('_', c2, c3) from ctb6
+sql select c2, c3 , concat_ws('_', c2, c3) from ctb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data02 != 中文测试1_中文测试2 then
+  return -1
+endi
+# if $data12 != NULL then
+#   return -1
+# endi
+
+print ====> select c2, c3 , concat_ws('_', c2, c3) from ntb6
+sql select c2, c3 , concat_ws('_', c2, c3) from ntb6
+print ====> rows: $rows
+print ====> $data00 $data01 $data02
+print ====> $data10 $data11 $data12
+if $rows != 2 then
+  return -1
+endi
+if $data02 != 中文测试01_中文测试01 then
+  return -1
+endi
+# if $data12 != NULL then
+#   return -1
+# endi
+
+print ====> select  c2, substr(c2,1, 4) from ctb6
+sql select  c2, substr(c2,1, 4) from ctb6
+print ====> rows: $rows
+print ====> $data00 $data01
+print ====> $data10 $data11
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 中文测试1 then
+  return -1
+endi
+if $data01 != 中文测试 then
+  return -1
+endi
+# if $data11 != NULL then
+#   return -1
+# endi
+
+print ====> select  c2, substr(c2,1, 4) from ntb6
+sql select  c2, substr(c2,1, 4) from ntb6
+print ====> rows: $rows
+print ====> $data00 $data01
+print ====> $data10 $data11
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 中文测试01 then
+  return -1
+endi
+if $data01 != 中文测试 then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+#sql_error select c1, length(t1), c2, length(t2) from ctb0
+
+print ====> char_length
+print ====> select c1, char_length(c1), c2, char_length(c2) from ctb0
+sql select c1, char_length(c1), c2, char_length(c2) from ctb0
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data21 != 12 then
+  return -1
+endi
+if $data23 != 12 then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data33 != 14 then
+  return -1
+endi
+
+print ====> select c1, char_length(c1), c2, char_length(c2) from ntb0
+sql select c1, char_length(c1), c2, char_length(c2) from ntb0
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+print ====> $data20 $data21 $data22 $data23 $data24 $data25
+print ====> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data21 != 12 then
+  return -1
+endi
+if $data23 != 12 then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data33 != 14 then
+  return -1
+endi
+
+#sql_error select c1, char_length(t1), c2, char_length(t2) from ctb0
+
+print ====> lower
+sql select c1, lower(c1), c2, lower(c2), lower("abcdEFGH=-*&%") from ntb1
+print ====> select c1, lower(c1), c2, lower(c2), lower("abcdEFGH=-*&%") from ctb1
+sql select c1, lower(c1), c2, lower(c2), lower("abcdEFGH=-*&%") from ctb1
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data01 != abcd1234 then
+  return -1
+endi
+if $data03 != abcd1234 then
+  return -1
+endi
+if $data04 != abcdefgh=-*&% then
+  return -1
+endi
+if $data11 != aabbccdd1234 then
+  return -1
+endi
+if $data13 != aabbccdd1234 then
+  return -1
+endi
+if $data14 != abcdefgh=-*&% then
+  return -1
+endi
+
+#sql_error select c1, lower(t1), c2, lower(t2) from ctb1
+
+print ====> upper
+sql select c1, upper(c1), c2, upper(c2), upper("abcdEFGH=-*&%") from ntb2
+print ====> select c1, upper(c1), c2, upper(c2), upper("abcdEFGH=-*&%") from ctb2
+sql select c1, upper(c1), c2, upper(c2), upper("abcdEFGH=-*&%") from ctb2
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data01 != ABCD1234 then
+  return -1
+endi
+if $data03 != ABCD1234 then
+  return -1
+endi
+if $data04 != ABCDEFGH=-*&% then
+  return -1
+endi
+if $data11 != AABBCCDD1234 then
+  return -1
+endi
+if $data13 != AABBCCDD1234 then
+  return -1
+endi
+if $data14 != ABCDEFGH=-*&% then
+  return -1
+endi
+
+#sql_error select c1, upper(t1), c2, upper(t2) from ctb2
+
+print ====> ltrim
+sql select c1, ltrim(c1), c2, ltrim(c2), ltrim("  abcdEFGH  =-*&%  ") from ntb3
+print ====> select c1, ltrim(c1), c2, ltrim(c2), ltrim("  abcdEFGH  =-*&%  ") from ctb3
+sql select c1, ltrim(c1), c2, ltrim(c2), ltrim("  abcdEFGH  =-*&%  ") from ctb3
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 1 then
+  return -1
+endi
+if $data01 != @abcd  1234  @ then
+  return -1
+endi
+if $data03 != @abcd  1234  @ then
+  return -1
+endi
+if $data04 != @abcdEFGH  =-*&%  @ then
+  return -1
+endi
+
+#sql_error select c1, ltrim(t1), c2, ltrim(t2) from ctb3
+
+
+print ====> rtrim
+sql select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ntb3
+print ====> select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ctb3
+sql select c1, rtrim(c1), c2, rtrim(c2), rtrim("  abcdEFGH  =-*&%  ") from ctb3
+print ====> rows: $rows
+print ====> [ $data00 ] [ $data01 ] [ $data02 ] [ $data03 ] [ $data04 ] [ $data05 ] [ $data06 ]
+print ====> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 1 then
+  return -1
+endi
+if $data01 != @  abcd  1234@ then
+  return -1
+endi
+if $data03 != @  abcd  1234@ then
+  return -1
+endi
+if $data04 != @  abcdEFGH  =-*&%@ then
+  return -1
+endi
+
+#sql_error select c1, rtrim(t1), c2, rtrim(t2) from ctb3
+
+print ====> concat
+sql select c1, c3, concat(c1, c3), c2, c4, concat(c2, c4), concat("binary+", c1, c3), concat("nchar+", c2, c4) from ntb4
+print ====> select c1, c3, concat(c1, c3), c2, c4, concat(c2, c4), concat("binary+", c1, c3), concat("nchar+", c2, c4) from ctb4
+sql select c1, c3, concat(c1, c3), c2, c4, concat(c2, c4), concat("binary+", c1, c3), concat("nchar+", c2, c4) from ctb4
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05 $data06
+print ====> $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $rows != 1 then
+  return -1
+endi
+if $data02 != @ ab 12  cd 34 @ then
+  return -1
+endi
+if $data05 != @ ab 12  cd 34 @ then
+  return -1
+endi
+if $data06 != @binary+ ab 12  cd 34 @ then
+  return -1
+endi
+if $data07 != @nchar+ ab 12  cd 34 @ then
+  return -1
+endi
+
+sql select c1, c3, concat("bin-", c1, "-a1-", "a2-", c3, "-a3-", "a4-", "END"), c2, c4, concat("nchar-", c2, "-a1-", "-a2-", c4, "-a3-", "a4-", "END") from ntb4
+print ====> select c1, c3, concat("bin-", c1, "-a1-", "a2-", c3, "-a3-", "a4-", "END"), c2, c4, concat("nchar-", c2, "-a1-", "a2-", c4, "-a3-", "a4-", "END") from ctb4
+sql select c1, c3, concat("bin-", c1, "-a1-", "a2-", c3, "-a3-", "a4-", "END"), c2, c4, concat("nchar-", c2, "-a1-", "a2-", c4, "-a3-", "a4-", "END") from ctb4
+print ====> rows: $rows
+print ====> [ $data00 ] [ $data01 ] [ $data02 ] [ $data03 ] [ $data04 ] [ $data05 ] [ $data06 ]
+print ====> $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $rows != 1 then
+  return -1
+endi
+if $data02 != @bin- ab 12 -a1-a2- cd 34 -a3-a4-END@ then
+  return -1
+endi
+if $data05 != @nchar- ab 12 -a1-a2- cd 34 -a3-a4-END@ then
+  return -1
+endi
+
+#sql_error select c1, c2, concat(c1, c2), c3, c4, concat(c3, c4) from ctb4
+#sql_error select t1, t2, concat(t1, t2), t3, t4, concat(t3, t4) from ctb4
+#sql_error select t1, t3, concat(t1, t3), t2, t4, concat(t2, t4) from ctb4
+
+print ====> concat_ws
+sql select c1, c3, concat_ws("*", c1, c3), c2, c4, concat_ws("*", c2, c4), concat_ws("*", "binary+", c1, c3), concat_ws("*", "nchar+", c2, c4) from ntb4
+print ====> select c1, c3, concat_ws("*", c1, c3), c2, c4, concat_ws("*", c2, c4), concat_ws("*", "binary+", c1, c3), concat_ws("*", "nchar+", c2, c4) from ctb4
+sql select c1, c3, concat_ws("*", c1, c3), c2, c4, concat_ws("*", c2, c4), concat_ws("*", "binary+", c1, c3), concat_ws("*", "nchar+", c2, c4) from ctb4
+print ====> rows: $rows
+print ====> $data00 $data01 $data02 $data03 $data04 $data05 $data06
+print ====> $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $rows != 1 then
+  return -1
+endi
+if $data02 != @ ab 12 * cd 34 @ then
+  return -1
+endi
+if $data05 != @ ab 12 * cd 34 @ then
+  return -1
+endi
+if $data06 != @binary+* ab 12 * cd 34 @ then
+  return -1
+endi
+if $data07 != @nchar+* ab 12 * cd 34 @ then
+  return -1
+endi
+
+print ====> select c1, c3, concat_ws("*", "b0", c1, "b1", c3, "b2", "E0", "E1", "E2"), c2, c4, concat_ws("*", "n0", c2, c4, "n1", c2, c4, "n2", "END") from ctb4
+sql select c1, c3, concat_ws("*", "b0", c1, "b1", c3, "b2", "E0", "E1", "E2"), c2, c4, concat_ws("*", "n0", c2, c4, "n1", c2, c4, "n2", "END") from ctb4
+print ====> rows: $rows
+print ====> [ $data00 ] [ $data01 ] [ $data02 ] [ $data03 ] [ $data04 ] [ $data05 ] [ $data06 ]
+print ====> $data10 $data11 $data12 $data13 $data14 $data15 $data16
+if $rows != 1 then
+  return -1
+endi
+if $data02 != @b0* ab 12 *b1* cd 34 *b2*E0*E1*E2@ then
+  return -1
+endi
+if $data05 != @n0* ab 12 * cd 34 *n1* ab 12 * cd 34 *n2*END@ then
+  return -1
+endi
+
+#sql_error select c1, c2, concat_ws("*", c1, c2), c3, c4, concat_ws("*", c3, c4) from ctb4
+#sql_error select t1, t2, concat_ws("*", t1, t2), t3, t4, concat_ws("*", t3, t4) from ctb4
+#sql_error select t1, t3, concat_ws("*", t1, t3), t2, t4, concat_ws("*", t2, t4) from ctb4
+
+
+print ====> substr
+#sql select c1, substr(c1, 3, 3), substr(c1, -5, 3), c2, substr(c2, 3, 3), substr(c2, -5, 3), substr("abcdefg", 3, 3), substr("abcdefg", -3, 3) from ntb5
+#print ====> select c1, substr(c1, 3, 3), substr(c1, -5, 3), c2, substr(c2, 3, 3), substr(c2, -5, 3), substr("abcdefg", 3, 3), substr("abcdefg", -3, 3) from ctb5
+#sql select c1, substr(c1, 3, 3), substr(c1, -5, 3), c2, substr(c2, 3, 3), substr(c2, -5, 3), substr("abcdefg", 3, 3), substr("abcdefg", -3, 3) from ctb5
+#print ====> rows: $rows
+#print ====> $data00 $data01 $data02 $data03 $data04 $data05 $data06
+#print ====> $data10 $data11 $data12 $data13 $data14 $data15 $data16
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data01 != 345 then
+#  return -1
+#endi
+#if $data02 != 456 then
+#  return -1
+#endi
+#if $data04 != 345 then
+#  return -1
+#endi
+#if $data05 != 456 then
+#  return -1
+#endi
+#if $data06 != def then
+#  return -1
+#endi
+#if $data07 != efg then
+#  return -1
+#endi
+#if $data11 != NULL then
+#  return -1
+#endi
+#if $data12 != NULL then
+#  return -1
+#endi
+#if $data14 != NULL then
+#  return -1
+#endi
+#if $data15 != NULL then
+#  return -1
+#endi
+#if $data16 != def then
+#  return -1
+#endi
+#if $data17 != efg then
+#  return -1
+#endi
+#
+#sql select c1, substr(c1, 3), substr(c1, -5), c2, substr(c2, 3), substr(c2, -5), substr("abcdefg", 3), substr("abcdefg", -3) from ntb5
+#print ====> select c1, substr(c1, 3), substr(c1, -5), c2, substr(c2, 3), substr(c2, -5), substr("abcdefg", 3), substr("abcdefg", -3) from ctb5
+#sql select c1, substr(c1, 3), substr(c1, -5), c2, substr(c2, 3), substr(c2, -5), substr("abcdefg", 3), substr("abcdefg", -3) from ctb5
+#print ====> rows: $rows
+#print ====> $data00 $data01 $data02 $data03 $data04 $data05 $data06
+#print ====> $data10 $data11 $data12 $data13 $data14 $data15 $data16
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data01 != 3456789 then
+#  return -1
+#endi
+#if $data02 != 456789 then
+#  return -1
+#endi
+#if $data04 != 3456789 then
+#  return -1
+#endi
+#if $data05 != 456789 then
+#  return -1
+#endi
+#if $data06 != defg then
+#  return -1
+#endi
+#if $data07 != efg then
+#  return -1
+#endi
+#if $data11 != NULL then
+#  return -1
+#endi
+#if $data12 != NULL then
+#  return -1
+#endi
+#if $data14 != NULL then
+#  return -1
+#endi
+#if $data15 != NULL then
+#  return -1
+#endi
+#if $data16 != defg then
+#  return -1
+#endi
+#if $data17 != efg then
+#  return -1
+#endi
+
+#sql_error select t1, substr(t1, 3, 2), substr(t1, -3, 2), t2, substr(t2, 3, 2), substr(t2, -3, 2) from ctb5
+
+if $loop_test == 0 then
+  print =============== stop and restart taosd
+  system sh/exec.sh -n dnode1 -s stop -x SIGINT
+  system sh/exec.sh -n dnode1 -s start
+
+  $loop_cnt = 0
+  check_dnode_ready_0:
+  	$loop_cnt = $loop_cnt + 1
+  	sleep 200
+  	if $loop_cnt == 10 then
+  	  print ====> dnode not ready!
+  		return -1
+  	endi
+  sql select * from information_schema.ins_dnodes
+  print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
+  if $data00 != 1 then
+    return -1
+  endi
+  if $data04 != ready then
+    goto check_dnode_ready_0
+  endi
+
+  $loop_test = 1
+  goto loop_test_pos
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

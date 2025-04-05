@@ -4,7 +4,7 @@ title: 可视化管理工具
 toc_max_heading_level: 4
 ---
 
-为方便用户更高效地使用和管理 TDengine，TDengine 3.0 版本推出了一个全新的可视化组件—taosExplorer。这个组件旨在帮助用户在不熟悉 SQL 的情况下，也能轻松管理 TDengine 集群。通过 taosExplorer，用户可以轻松查看 TDengine 的运行状态、浏览数据、配置数据源、实现流计算和数据订阅等功能。此外，用户还可以利用taosExplorer 进行数据的备份、复制和同步操作，以及配置用户的各种访问权限。这些功能极大地简化了数据库的使用过程，提高了用户体验。
+为方便用户更高效地使用和管理 TDengine，TDengine 3.0 版本推出了一个全新的可视化组件 taosExplorer。这个组件旨在帮助用户在不熟悉 SQL 的情况下，也能轻松管理 TDengine 集群。通过 taosExplorer，用户可以轻松查看 TDengine 的运行状态、浏览数据、配置数据源、实现流计算和数据订阅等功能。此外，用户还可以利用 taosExplorer 进行数据的备份、复制和同步操作，以及配置用户的各种访问权限。这些功能极大地简化了数据库的使用过程，提高了用户体验。
 
 本节介绍可视化管理的基本功能。
 
@@ -30,7 +30,7 @@ toc_max_heading_level: 4
 
 ## 数据浏览器
 
-点击功能列表的“数据浏览器”入口，在“数据浏览器”中可以创建和删除数据库、创建和删除超级表和子表，执行SQL语句，查看SQL语句的执行结果。此外，超级管理员还有对数据库的管理权限，其他用户不提供该功能。如下图所示：
+点击功能列表的“数据浏览器”入口，在“数据浏览器”中可以创建和删除数据库、创建和删除超级表和子表，执行 SQL 语句，查看 SQL 语句的执行结果。此外，超级管理员还有对数据库的管理权限，其他用户不提供该功能。如下图所示：
 
 ![explorer-01-explorer-entry.jpeg](./pic/explorer-01-explorer-entry.jpeg "进入数据浏览器页面")
 
@@ -38,7 +38,7 @@ toc_max_heading_level: 4
 
 下面通过创建数据库，来熟悉数据浏览器页面的功能和操作，接下来看创建数据库的两种方式：
 
-1. 通过点击图中的 + 号，跳转到创建数据数库页面，点击 创建 按钮，如下图：
+1. 通过点击图中的 + 号，跳转到创建数据数库页面，点击“创建”按钮，如下图：
 
 第一步 点击 + 号；
 ![explorer-02-createDbentry.jpeg](./pic/explorer-02-createDbentry.jpeg "点开 + 号创建数据库")
@@ -50,7 +50,7 @@ toc_max_heading_level: 4
 弟三步 点击“创建”按钮之后，如下图左边出现数据库名称则创建数据库成功。
 ![explorer-05-createDbtest01.jpeg](./pic/explorer-05-createDbtest01.jpeg "创建数据库 test01")
 
-2. 通过在 Sql 编辑器中数据 sql 语句，点击 执行 按钮，如下图：
+2. 通过在 SQL 编辑器中数据 sql 语句，点击 执行 按钮，如下图：
 
 第一步 输入 sql 语句；
 ![explorer-06-sqlCreateDb.jpeg](./pic/explorer-06-sqlCreateDb.jpeg "通过 sql 创建数据库")
@@ -201,11 +201,11 @@ toc_max_heading_level: 4
 ## 工具
 
 通过 “工具” 页面，用户可以了解如下 TDengine 周边工具的使用方法。
-- TDengine CLI。
-- taosBenchmark。
-- taosdump。
-- TDengine 与 BI 工具的集成，例如 Google Data Studio、Power BI、永洪 BI 等。
-- TDengine 与 Grafana、Seeq 的集成。
+- TDengine CLI
+- taosBenchmark
+- taosdump
+- TDengine 与 BI 工具的集成，例如 Google Data Studio、Power BI、永洪 BI 等
+- TDengine 与 Grafana、Seeq 的集成
 
 ## 系统管理
 
@@ -238,7 +238,7 @@ toc_max_heading_level: 4
 ### 慢 SQL
 点击“系统管理”后，点击“慢 SQL”标签页，可以查看慢 SQL 执行语句日志统计与明细。
 
-- 慢 SQL 明细：默认展示的是开始执行时间是一天内和执行耗时大于等于10秒的数据
+- 慢 SQL 明细：默认展示的是开始执行时间是一天内和执行耗时大于等于 10 秒的数据
 ![management-01-slowsql.jpeg](./pic/management-01-slowsql.jpeg)
 - 慢 SQL 统计：默认展示所有的数据，可根据开始执行时间进行过滤
 ![management-02-slowsql.jpeg](./pic/management-02-slowsql.jpeg)

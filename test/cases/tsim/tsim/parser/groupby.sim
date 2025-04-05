@@ -1,0 +1,750 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = group_db
+$tbPrefix = group_tb
+$mtPrefix = group_mt
+$tbNum = 8
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+
+print =============== groupby.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$tstart = 100000
+
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$tstart = 100000
+
+sql drop database if exists $db -x step1
+step1:
+sql create database if not exists $db keep 36500
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
+
+$half = $tbNum / 2
+
+$i = 0
+while $i < $half
+  $tb = $tbPrefix . $i
+  $tg2 = ' . abc
+  $tg2 = $tg2 . '
+
+  $nextSuffix = $i + $half
+  $tb1 = $tbPrefix . $nextSuffix
+
+  sql create table $tb using $mt tags( $i , $tg2 )
+  sql create table $tb1 using $mt tags( $nextSuffix , $tg2 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ($tstart , $c , $c , $x , $x , $c , $c , $c , $binary , $nchar ) $tb1 values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 100000
+endw
+
+$i1 = 1
+$i2 = 0
+
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$dbPrefix = group_db
+$tbPrefix = group_tb
+$mtPrefix = group_mt
+
+$tb1 = $tbPrefix . $i1
+$tb2 = $tbPrefix . $i2
+$ts1 = $tb1 . .ts
+$ts2 = $tb2 . .ts
+
+print ===============================groupby_operation
+sql select count(*),c1 from group_tb0 where c1 < 20 group by c1 order by c1;
+if $row != 20 then
+ return -1
+endi
+
+if $data00 != 10 then
+ return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data10 != 10 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+sql select first(ts),c1 from group_tb0 where c1 < 20 group by c1 order by c1;
+if $row != 20 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data90 != @70-01-01 08:01:40.009@ then
+  return -1
+endi
+
+if $data91 != 9 then
+  return -1
+endi
+
+sql select first(ts), ts, c1 from group_tb0 where c1 < 20 group by c1 order by c1;
+print $row
+if $row != 20 then
+  return -1
+endi
+
+if $data00 != $data01 then
+  return -1
+endi
+
+if $data10 != $data11 then
+   return -1
+endi
+
+if $data20 != $data21 then
+   return -1
+endi
+
+if $data90 != $data91 then
+   return -1
+endi
+
+if $data02 != 0 then
+   return -1
+endi
+
+if $data12 != 1 then
+   return -1
+endi
+
+if $data92 != 9 then
+   return -1
+endi
+
+sql select sum(c1), c1, avg(c1), min(c1), max(c2) from group_tb0 where c1 < 20 group by c1 order by c1;
+if $row != 20 then
+  return -1
+endi
+
+if $data00 != 0 then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+print $data02
+if $data02 != 0.000000000 then
+  return -1
+endi
+
+if $data03 != 0 then
+  return -1
+endi
+
+print $data04
+if $data04 != 0.00000 then
+  return -1
+endi
+
+if $data10 != 10 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+print $data12
+if $data12 != 1.000000000 then
+  return -1
+endi
+
+if $data13 != 1 then
+  return -1
+endi
+
+if $data14 != 1.00000 then
+  print expect 1.00000, actual:$data14
+  return -1
+endi
+
+sql_error select sum(c1), ts, c1 from group_tb0 where c1<20 group by c1;
+sql       select first(ts), ts, c2 from group_tb0 where c1 < 20 group by c1;
+sql_error select sum(c3), ts, c2 from group_tb0 where c1 < 20 group by c1;
+sql_error select sum(c3), first(ts), c2 from group_tb0 where c1 < 20 group by c1;
+sql       select first(c3), ts, c1, c2 from group_tb0 where c1 < 20 group by c1;
+sql_error select first(c3), last(c3), ts, c1 from group_tb0 where c1 < 20 group by c1;
+sql_error select ts from group_tb0 group by c1;
+
+#===========================interval=====not support======================
+sql_error select count(*), c1 from group_tb0 where c1<20 interval(1y) group by c1;
+#=====tbname must be the first in the group by clause=====================
+sql select count(*) from group_tb0 where c1 < 20 group by c1, tbname;
+
+#super table group by normal columns
+sql select count(*), c1 from group_mt0 where c1< 20 group by c1 order by c1;
+if $row != 20 then
+  return -1
+endi
+
+if $data00 != 80 then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data10 != 80 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data90 != 80 then
+  return -1
+endi
+
+if $data91 != 9 then
+  return -1
+endi
+
+sql select first(c1), c1, ts from group_mt0 where c1<20 group by c1 order by c1;
+if $row != 20 then
+  return -1
+endi
+
+if $data00 != $data01 then
+  return -1
+endi
+
+if $data02 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data10 != $data11 then
+  return -1
+endi
+
+if $data12 != @70-01-01 08:01:40.001@ then
+  return -1
+endi
+
+if $data20 != $data21 then
+  return -1
+endi
+
+if $data22 != @70-01-01 08:01:40.002@ then
+  return -1
+endi
+
+if $data90 != $data91 then
+  return -1
+endi
+
+if $data92 != @70-01-01 08:01:40.009@ then
+  return -1
+endi
+
+sql select first(c1), last(ts), first(ts), last(c1),c1,sum(c1),avg(c1),count(*) from group_mt0 where c1<20 group by c1 order by c1;
+if $row != 20 then
+  return -1
+endi
+
+if $data00 != $data03 then
+  return -1
+endi
+
+if $data01 != @70-01-01 08:01:40.900@ then
+  return -1
+endi
+
+if $data02 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data07 != 80 then
+  return -1
+endi
+
+if $data10 != $data13 then
+  return -1
+endi
+
+if $data11 != @70-01-01 08:01:40.901@ then
+  return -1
+endi
+
+if $data12 != @70-01-01 08:01:40.001@ then
+  return -1
+endi
+
+if $data17 != 80 then
+  return -1
+endi
+
+if $data90 != $data93 then
+  return -1
+endi
+
+if $data91 != @70-01-01 08:01:40.909@ then
+  return -1
+endi
+
+if $data92 != @70-01-01 08:01:40.009@ then
+  return -1
+endi
+
+if $data97 != 80 then
+  return -1
+endi
+
+if $data95 != 720 then
+  return -1
+endi
+
+if $data94 != 9 then
+  return -1
+endi
+
+sql select c1,sum(c1),avg(c1),count(*) from group_mt0 where c1<5 group by c1 order by c1;
+if $row != 5 then
+  return -1
+endi
+
+if $data00 != 0 then
+  return -1
+endi
+
+if $data11 != 80 then
+  return -1
+endi
+
+sql select first(c1), last(ts), first(ts), last(c1),sum(c1),avg(c1),count(*),tbname from group_mt0 where c1<20 group by tbname, c1 order by c1;
+if $row != 160 then
+  return -1
+endi
+
+print $data00
+if $data00 != 0 then
+  return -1
+endi
+
+if $data01 != @70-01-01 08:01:40.900@ then
+  return -1
+endi
+
+print $data01
+if $data02 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data03 != 0 then
+  return -1
+endi
+
+if $data04 != 0 then
+  return -1
+endi
+
+if $data06 != 10 then
+  return -1
+endi
+
+
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 order by c4;
+if $rows != 1000 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data02 !=  @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data03 != 0 then
+  return -1
+endi
+
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 slimit 1;
+if $rows != 1 then
+  return -1
+endi
+
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 slimit 20 soffset 990;
+if $rows != 10 then
+  return -1
+endi
+
+sql select count(*),first(ts),last(ts),min(c3),max(c3),sum(c3),avg(c3),sum(c4)/count(c4) from group_tb1 group by c4;
+if $rows != 1000 then
+  return -1
+endi
+
+print ---------------------------------> group by binary|nchar data add cases
+sql select count(*) from group_tb1 group by c8;
+if $rows != 100 then
+  return -1
+endi
+
+sql select count(*),sum(c4), count(c4), sum(c4)/count(c4) from group_tb1 group by c8 order by c8;
+if $rows != 100 then
+  return -1
+endi
+
+if $data00 != 10 then
+  return -1
+endi
+
+if $data01 != 4500 then
+  return -1
+endi
+
+if $data02 != 10 then
+  return -1
+endi
+
+if $data03 != 450.000000000 then
+  print expect 450.000000000 , acutal $data03
+  return -1
+endi
+
+if $data10 != 10 then
+  return -1
+endi
+
+if $data11 != 4510 then
+  return -1
+endi
+
+if $data13 != 451.000000000 then
+  return -1
+endi
+
+print ====================> group by normal column + slimit + soffset
+sql select count(*), c8 from group_mt0 group by c8 limit 100 offset 0;
+if $rows != 100 then
+  return -1
+endi
+
+sql select sum(c2),c8,avg(c2), sum(c2)/count(*) from group_mt0 partition by c8 slimit 2 soffset 99
+if $rows != 1 then
+  return -1
+endi
+
+#if $data00 != 2160.000000000 then
+#  return -1
+#endi
+
+#if $data01 != @binary27@ then
+#  return -1
+#endi
+
+#if $data02 != 27.000000000 then
+#  return -1
+#endi
+
+#if $data03 != 27.000000000 then
+#  return -1
+#endi
+
+print ============>td-1765
+sql select percentile(c4, 49),min(c4),max(c4),avg(c4),stddev(c4) from group_tb0 group by c8 order by c8;
+if $rows != 100 then
+  return -1
+endi
+
+if $data00 != 441.000000000 then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data02 != 900 then
+  return -1
+endi
+
+if $data03 != 450.000000000 then
+  return -1
+endi
+
+if $data04 != 287.228132327 then
+  return -1
+endi
+
+if $data10 != 442.000000000 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data12 != 901 then
+  return -1
+endi
+
+if $data13 != 451.000000000 then
+  return -1
+endi
+
+if $data14 != 287.228132327 then
+  return -1
+endi
+
+print ================>td-2090
+sql select leastsquares(c2, 1, 1) from group_tb1  group by c8 order by c8;;
+if $rows != 100 then
+ return -1
+endi
+
+if $data00 != @{slop:0.000000, intercept:0.000000}@ then
+  return -1
+endi
+
+if $data10 != @{slop:0.000000, intercept:1.000000}@ then
+  return -1
+endi
+
+if $data90 != @{slop:0.000000, intercept:17.000000}@ then
+  return -1
+endi
+
+#=========================== group by multi tags ======================
+sql create table st (ts timestamp, c int) tags (t1 int, t2 int, t3 int, t4 int);
+sql create table t1 using st tags(1, 1, 1, 1);
+sql create table t2 using st tags(1, 2, 2, 2);
+sql insert into t1 values ('2020-03-27 04:11:16.000', 1)('2020-03-27 04:11:17.000', 2) ('2020-03-27 04:11:18.000', 3) ('2020-03-27 04:11:19.000', 4) ;
+sql insert into t1 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.000', 2) ('2020-03-27 04:51:18.000', 3) ('2020-03-27 05:10:19.000', 4) ;
+sql insert into t2 values ('2020-03-27 04:11:16.000', 1)('2020-03-27 04:11:17.000', 2) ('2020-03-27 04:11:18.000', 3) ('2020-03-27 04:11:19.000', 4) ;
+sql insert into t2 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.000', 2) ('2020-03-27 04:51:18.000', 3) ('2020-03-27 05:10:19.000', 4) ;
+
+print =================>TD-2665
+sql_error create table txx as select avg(c) as t from st;
+sql_error create table txx1 as select avg(c) as t from t1;
+
+sql select stddev(c),stddev(c) from st group by c order by c;
+if $rows != 4 then
+  return -1
+endi
+
+print =================>TD-2236
+sql select first(ts),last(ts) from t1 group by c order by c;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != @20-03-27 04:11:16.000@ then
+  return -1
+endi
+
+if $data01 != @20-03-27 04:21:16.000@ then
+  return -1
+endi
+
+if $data10 != @20-03-27 04:11:17.000@ then
+  return -1
+endi
+
+if $data11 != @20-03-27 04:31:17.000@ then
+  return -1
+endi
+
+if $data20 != @20-03-27 04:11:18.000@ then
+  return -1
+endi
+
+if $data21 != @20-03-27 04:51:18.000@ then
+  return -1
+endi
+
+if $data30 != @20-03-27 04:11:19.000@ then
+  return -1
+endi
+
+if $data31 != @20-03-27 05:10:19.000@ then
+  return -1
+endi
+
+print ===============>
+sql select stddev(c),c from st where t2=1 or t2=2  group by c order by c;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != 0.000000000 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data10 != 0.000000000 then
+  return -1
+endi
+
+if $data11 != 2 then
+  return -1
+endi
+
+if $data20 != 0.000000000 then
+  return -1
+endi
+
+if $data21 != 3 then
+  return -1
+endi
+
+if $data30 != 0.000000000 then
+  return -1
+endi
+
+if $data31 != 4 then
+  return -1
+endi
+
+sql_error select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,c;
+print select _wstart, irate(c), tbname, t1, t2 from st where t1=1 and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732' partition by tbname,t1,t2 interval(1m) sliding(15s) order by tbname;
+sql select _wstart, irate(c), tbname, t1, t2 from st where t1=1 and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732' partition by tbname,t1,t2 interval(1m) sliding(15s) order by tbname;
+print $rows
+if $rows != 40 then
+  return -1
+endi
+
+if $data02 != t1 then
+  return -1
+endi
+if $data03 != 1 then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+
+if $data12 != t1 then
+  return -1
+endi
+if $data13 != 1 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+
+sql select _wstart, irate(c), tbname, t1, t2 from st where t1=1 and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732' partition by tbname, t1, t2 interval(1m) sliding(15s) order by tbname desc,_wstart asc limit 1;
+if $rows != 1 then
+  return -1
+endi
+
+if $data01 != 1.000000000 then
+  print expect 1.000000000, actual: $data01
+  return -1
+endi
+if $data02 != t2 then
+  return -1
+endi
+if $data03 != 1 then
+  return -1
+endi
+if $data04 != 2 then
+  return -1
+endi
+
+sql create table m1 (ts timestamp, k int, f1 int) tags(a int);
+sql create table tm0 using m1 tags(0);
+sql create table tm1 using m1 tags(1);
+
+sql insert into tm0 values('2020-1-1 1:1:1', 1, 10);
+sql insert into tm0 values('2020-1-1 1:1:2', 1, 20);
+sql insert into tm1 values('2020-2-1 1:1:1', 2, 10);
+sql insert into tm1 values('2020-2-1 1:1:2', 2, 20);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql use group_db0;
+
+print =========================>TD-4894
+sql select count(*),k from m1 group by k order by k;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 2 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data10 != 2 then
+  return -1
+endi
+
+if $data11 != 2 then
+  return -1
+endi
+
+sql select count(*) from m1 group by tbname,k,f1;
+sql select count(*) from m1 group by tbname,k,a;
+sql select count(*) from m1 group by k, tbname;
+sql select count(*) from m1 group by k,f1;
+sql select count(*) from tm0 group by tbname;
+sql select count(*) from tm0 group by a;
+sql select count(*) from tm0 group by k,f1;
+sql_error select count(*),f1 from m1 group by tbname,k;
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

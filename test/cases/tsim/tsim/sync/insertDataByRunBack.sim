@@ -1,0 +1,68 @@
+
+sql connect
+
+print ================ insert data
+$dbNamme  = db
+$ctbPrefix = ctb
+$ntbPrefix = ntb
+$tbNum    = 10
+$rowNum   = 10
+$tstart   = 1640966400000  # 2022-01-01 00:00:00.000
+
+sql use $dbNamme
+
+$loop_cnt = 0
+loop_insert:
+print ====> loop insert data, but once check if there is stop insert flag in interaction talbe from main thread
+sql select * from interaction
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3]
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3]
+if $rows == 2 then
+  if $data[1][1] == stop then 
+    goto end_insert
+  elif $data[0][1] == stop then 
+    goto end_insert
+  endi
+endi
+
+$i = 0
+while $i < $tbNum
+  $ctb = $ctbPrefix . $i
+  $ntb = $ntbPrefix . $i
+  
+  $x = 0
+  while $x < $rowNum
+    $binary = ' . binary
+    $binary = $binary . $i
+    $binary = $binary . '
+
+    sql insert into $ctb values ($tstart , $i , $x , $binary )
+    sql insert into $ntb values ($tstart , 999 , 999 , 'binary-ntb' )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+  
+  $i = $i + 1
+  $tstart = 1640966400000
+endw
+
+if $loop_cnt == 0 then 
+  print ====> notify main to working for insert data
+  sql insert into interaction values (now, 'working', 0, 0);
+  sql select * from interaction
+  print $data[0][0] $data[0][1] $data[0][2] $data[0][3]
+  print $data[1][0] $data[1][1] $data[1][2] $data[1][3]
+endi
+$loop_cnt = $loop_cnt + 1
+goto loop_insert
+
+end_insert:
+print ====> save insert data rows to main thread
+
+$totalRowsOfCtb = $rowNum * $loop_cnt
+$totalRowsOfStb = $totalRowsOfCtb * $tbNum
+sql insert into interaction values (now, 'end', $totalRowsOfCtb, $totalRowsOfStb );
+print ====> totalRowsOfCtb: $totalRowsOfCtb , totalRowsOfStb: $totalRowsOfStb
+
+
+

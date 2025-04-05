@@ -1,0 +1,884 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+sql connect
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+if $data(4)[4] != ready then
+  goto step1
+endi
+
+$replica = 3
+$vgroups = 5
+
+print ============= create database
+sql create database db replica $replica vgroups $vgroups
+
+$loop_cnt = 0
+check_db_ready:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 100 then
+  print ====> db not ready!
+	return -1
+endi
+sql select * from information_schema.ins_databases
+print ===> rows: $rows
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6] $data[2][7] $data[2][8] $data[2][9] $data[2][6] $data[2][11] $data[2][12]  $data[2][13]  $data[2][14]  $data[2][15]  $data[2][16]  $data[2][17]  $data[2][18]  $data[2][19]
+if $rows != 3 then
+  return -1
+endi
+if $data[2][15] != ready then
+  goto check_db_ready
+endi
+
+sql use db
+
+$loop_cnt = 0
+check_vg_ready:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 300 then
+  print ====> vgroups not ready!
+	return -1
+endi
+
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][10] $data[0][11]
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6] $data[1][7] $data[1][8] $data[1][9] $data[1][10] $data[1][11]
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6] $data[2][7] $data[2][8] $data[2][9] $data[2][10] $data[2][11]
+print $data[3][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6] $data[3][7] $data[3][8] $data[3][9] $data[3][10] $data[3][11]
+print $data[4][0] $data[4][1] $data[4][2] $data[4][3] $data[4][4] $data[4][5] $data[4][6] $data[4][7] $data[4][8] $data[4][9] $data[4][10] $data[4][11]
+if $rows != $vgroups then
+  return -1
+endi
+
+if $data[0][4] == LEADER then
+   if $data[0][6] == FOLLOWER then
+      if $data[0][8] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
+      endi
+   endi
+elif $data[0][6] == LEADER then
+   if $data[0][4] == FOLLOWER then
+      if $data[0][8] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
+      endi
+   endi
+elif $data[0][8] == LEADER then
+   if $data[0][4] == FOLLOWER then
+      if $data[0][6] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
+      endi
+   endi
+else
+   goto check_vg_ready
+endi
+
+if $data[1][4] == LEADER then
+   if $data[1][6] == FOLLOWER then
+      if $data[1][8] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][3] 
+      endi
+   endi
+elif $data[1][6] == LEADER then
+   if $data[1][4] == FOLLOWER then
+      if $data[1][8] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][5] 
+      endi
+   endi
+elif $data[1][8] == LEADER then
+   if $data[1][4] == FOLLOWER then
+      if $data[1][6] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][7] 
+      endi
+   endi
+else
+   goto check_vg_ready
+endi
+
+if $data[2][4] == LEADER then
+   if $data[2][6] == FOLLOWER then
+      if $data[2][8] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][3] 
+      endi
+   endi
+elif $data[2][6] == LEADER then
+   if $data[2][4] == FOLLOWER then
+      if $data[2][8] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][5] 
+      endi
+   endi
+elif $data[2][8] == LEADER then
+   if $data[2][4] == FOLLOWER then
+      if $data[2][6] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][7] 
+      endi
+   endi
+else
+   goto check_vg_ready
+endi
+
+if $data[3][4] == LEADER then
+   if $data[3][6] == FOLLOWER then
+      if $data[3][8] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][3] 
+      endi
+   endi
+elif $data[3][6] == LEADER then
+   if $data[3][4] == FOLLOWER then
+      if $data[3][8] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][5] 
+      endi
+   endi
+elif $data[3][8] == LEADER then
+   if $data[3][4] == FOLLOWER then
+      if $data[3][6] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][7] 
+      endi
+   endi
+else
+   goto check_vg_ready
+endi
+
+if $data[4][4] == LEADER then
+   if $data[4][6] == FOLLOWER then
+      if $data[4][8] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][3] 
+      endi
+   endi
+elif $data[4][6] == LEADER then
+   if $data[4][4] == FOLLOWER then
+      if $data[4][8] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][5] 
+      endi
+   endi
+elif $data[4][8] == LEADER then
+   if $data[4][4] == FOLLOWER then
+      if $data[4][6] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][7] 
+      endi
+   endi
+else
+   goto check_vg_ready
+endi
+
+vg_ready:
+print ====>  create stable/child table
+sql create table stb (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+$ctbPrefix = ctb
+$ntbPrefix = ntb
+$tbNum    = 10
+$i = 0
+while $i < $tbNum
+  $ctb = $ctbPrefix . $i
+  sql create table $ctb using stb tags( $i )
+  $ntb = $ntbPrefix . $i
+  sql create table $ntb (ts timestamp, c1 int, c2 float, c3 binary(10))
+  $i = $i + 1
+endw
+
+$totalTblNum = $tbNum * 2
+sleep 1000
+sql show tables
+print ====> expect $totalTblNum and infinsert $rows  in fact 
+if $rows != $totalTblNum then 
+  return -1
+endi
+
+sql connect
+print ================ insert data
+$dbNamme  = db
+$ctbPrefix = ctb
+$ntbPrefix = ntb
+$tbNum    = 10
+$rowNum   = 10
+$tstart   = 1640966400000  # 2022-01-01 00:00:00.000
+
+
+sql use $dbNamme
+
+$i = 0
+while $i < $tbNum
+  $ctb = $ctbPrefix . $i
+  $ntb = $ntbPrefix . $i
+  
+  $x = 0
+  while $x < $rowNum
+    $binary = ' . binary
+    $binary = $binary . $i
+    $binary = $binary . '
+
+    sql insert into $ctb values ($tstart , $i , $x , $binary )
+    sql insert into $ntb values ($tstart , 999 , 999 , 'binary-ntb' )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+  
+  $i = $i + 1
+  $tstart = 1640966400000
+endw
+
+print ================ create mnode
+
+
+sql create mnode on dnode 2;
+sql create mnode on dnode 3;
+
+
+$loop_cnt = 0
+check_mnode_ready_2:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 100 then
+	   print ====> first create three mnode not ready!
+	   return -1
+	endi
+sql select * from information_schema.ins_mnodes
+print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3]
+print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3]
+print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3]
+if $data[0][0] != 1 then
+  return -1
+endi
+
+if $data[0][2] != LEADER then
+  goto check_mnode_ready_2
+endi
+if $data[1][2] != FOLLOWER then
+  goto check_mnode_ready_2
+endi
+if $data[2][2] != FOLLOWER then
+  goto check_mnode_ready_2
+endi
+
+
+start_switch_leader:
+
+$switch_loop_cnt = 0
+sql show vgroups
+$dnodeId = $data[0][3]
+$dnodeId = dnode . $dnodeId
+
+switch_leader_to_offine_loop:
+
+print $dnodeId
+print ====> stop $dnodeId
+system sh/exec.sh -n $dnodeId -s stop -x SIGINT
+
+
+$loop_cnt = 0
+$loop_cnt = $loop_cnt + 1
+sleep 201
+if $loop_cnt == 300 then
+  print ====> vgroups switch fail!!!
+	return -1
+endi
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][10] $data[0][11]
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6] $data[1][7] $data[1][8] $data[1][9] $data[1][10] $data[1][11]
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6] $data[2][7] $data[2][8] $data[2][9] $data[2][10] $data[2][11]
+print $data[3][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6] $data[3][7] $data[3][8] $data[3][9] $data[3][10] $data[3][11]
+print $data[4][0] $data[4][1] $data[4][2] $data[4][3] $data[4][4] $data[4][5] $data[4][6] $data[4][7] $data[4][8] $data[4][9] $data[4][10] $data[4][11]
+if $rows != $vgroups then
+  return -1
+endi
+
+
+vg_offline_1:
+
+print ====> start $dnodeId
+system sh/exec.sh -n $dnodeId -s start
+
+$switch_loop_cnt = $switch_loop_cnt + 1
+print $switch_loop_cnt
+
+if $switch_loop_cnt == 1 then
+  sql show vgroups
+  $dnodeId = $data[1][3]
+  $dnodeId = dnode . $dnodeId
+  goto switch_leader_to_offine_loop
+elif $switch_loop_cnt == 2 then
+  sql show vgroups
+  $dnodeId = $data[2][3]
+  $dnodeId = dnode . $dnodeId
+  goto switch_leader_to_offine_loop
+elif $switch_loop_cnt == 3 then
+  sql show vgroups
+  $dnodeId = $data[3][3]
+  $dnodeId = dnode . $dnodeId
+  goto switch_leader_to_offine_loop
+elif $switch_loop_cnt == 4 then
+  sql show vgroups
+  $dnodeId = $data[4][3]  
+  $dnodeId = dnode . $dnodeId
+  goto switch_leader_to_offine_loop
+else
+  goto stop_leader_to_offine_loop
+endi
+
+stop_leader_to_offine_loop:
+
+$loop_cnt = 0
+check_vg_ready1:
+$loop_cnt = $loop_cnt + 1
+print $loop_cnt
+sleep 202
+if $loop_cnt == 300 then
+  print ====> vgroups not ready!
+	return -1
+endi
+
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][10] $data[0][11]
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6] $data[1][7] $data[1][8] $data[1][9] $data[1][10] $data[1][11]
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6] $data[2][7] $data[2][8] $data[2][9] $data[2][10] $data[2][11]
+print $data[3][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6] $data[3][7] $data[3][8] $data[3][9] $data[3][10] $data[3][11]
+print $data[4][0] $data[4][1] $data[4][2] $data[4][3] $data[4][4] $data[4][5] $data[4][6] $data[4][7] $data[4][8] $data[4][9] $data[4][10] $data[4][11]
+if $rows != $vgroups then
+  return -1
+endi
+
+if $data[0][4] == LEADER then
+   if $data[0][6] == FOLLOWER then
+      if $data[0][8] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
+      endi
+   endi
+elif $data[0][6] == LEADER then
+   if $data[0][4] == FOLLOWER then
+      if $data[0][8] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
+      endi
+   endi
+elif $data[0][8] == LEADER then
+   if $data[0][4] == FOLLOWER then
+      if $data[0][6] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
+      endi
+   endi
+else
+   goto check_vg_ready1
+endi
+
+if $data[1][4] == LEADER then
+   if $data[1][6] == FOLLOWER then
+      if $data[1][8] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][3] 
+      endi
+   endi
+elif $data[1][6] == LEADER then
+   if $data[1][4] == FOLLOWER then
+      if $data[1][8] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][5] 
+      endi
+   endi
+elif $data[1][8] == LEADER then
+   if $data[1][4] == FOLLOWER then
+      if $data[1][6] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][7] 
+      endi
+   endi
+else
+   goto check_vg_ready1
+endi
+
+if $data[2][4] == LEADER then
+   if $data[2][6] == FOLLOWER then
+      if $data[2][8] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][3] 
+      endi
+   endi
+elif $data[2][6] == LEADER then
+   if $data[2][4] == FOLLOWER then
+      if $data[2][8] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][5] 
+      endi
+   endi
+elif $data[2][8] == LEADER then
+   if $data[2][4] == FOLLOWER then
+      if $data[2][6] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][7] 
+      endi
+   endi
+else
+   goto check_vg_ready1
+endi
+
+if $data[3][4] == LEADER then
+   if $data[3][6] == FOLLOWER then
+      if $data[3][8] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][3] 
+      endi
+   endi
+elif $data[3][6] == LEADER then
+   if $data[3][4] == FOLLOWER then
+      if $data[3][8] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][5] 
+      endi
+   endi
+elif $data[3][8] == LEADER then
+   if $data[3][4] == FOLLOWER then
+      if $data[3][6] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][7] 
+      endi
+   endi
+else
+   goto check_vg_ready1
+endi
+
+if $data[4][4] == LEADER then
+   if $data[4][6] == FOLLOWER then
+      if $data[4][8] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][3] 
+      endi
+   endi
+elif $data[4][6] == LEADER then
+   if $data[4][4] == FOLLOWER then
+      if $data[4][8] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][5] 
+      endi
+   endi
+elif $data[4][8] == LEADER then
+   if $data[4][4] == FOLLOWER then
+      if $data[4][6] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][7] 
+      endi
+   endi
+else
+   goto check_vg_ready1
+endi
+
+
+print ====> final test: create stable/child table 
+sql create table stb1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)
+
+
+sql show stables
+if $rows != 2 then 
+  return -1
+endi
+
+$ctbPrefix = ctb1
+$ntbPrefix = ntb1
+$tbNum    = 10
+$i = 0
+while $i < $tbNum
+  $ctb = $ctbPrefix . $i
+  sql create table $ctb using stb1 tags( $i )
+  $ntb = $ntbPrefix . $i
+  sql create table $ntb (ts timestamp, c1 int, c2 float, c3 binary(10))
+  $i = $i + 1
+endw
+
+sleep 1000
+sql show stables
+if $rows != 2 then 
+  return -1
+endi
+
+sql show tables
+if $rows != 40 then 
+  return -1
+endi
+
+
+system sh/deploy.sh -n dnode5 -i 5
+system sh/exec.sh -n dnode5 -s start
+system sh/exec.sh -n dnode1 -s stop
+sleep 1000
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+sql create dnode $hostname port 7500
+
+$loop_cnt = 0
+check_dnode_ready3:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 100 then
+	  print ====> 5 dnode not ready!
+		return -1
+	endi
+
+sql select * from information_schema.ins_dnodes
+print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
+print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6]
+print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6]
+print ===> $rows $data[3][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6]
+print ===> $rows $data[4][0] $data[4][1] $data[4][2] $data[4][3] $data[4][4] $data[4][5] $data[4][6]
+
+if $rows != 5 then
+  return -1
+endi
+
+if $data[4][4] != ready then
+  goto check_dnode_ready3
+endi
+
+$loop_cnt = 0
+check_mnode_ready_3:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 100 then
+	   print ====> second mnode not ready!
+	   return -1
+	endi
+sql select * from information_schema.ins_mnodes
+print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3]
+print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3]
+print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3]
+if $data[0][0] != 1 then
+  return -1
+endi
+
+if $data[0][2] == LEADER then
+   if $data[1][2] != FOLLOWER then
+     goto check_mnode_ready_3
+   endi
+   if $data[2][2] != FOLLOWER then
+   goto check_mnode_ready_3
+   endi
+endi
+if $data[1][2] == LEADER then
+   if $data[0][2] != FOLLOWER then
+     goto check_mnode_ready_3
+   endi
+   if $data[2][2] != FOLLOWER then
+   goto check_mnode_ready_3
+   endi
+endi
+if $data[2][2] == LEADER then
+   if $data[1][2] != FOLLOWER then
+     goto check_mnode_ready_3
+   endi
+   if $data[0][2] != FOLLOWER then
+   goto check_mnode_ready_3
+   endi
+endi
+
+# restart clusters
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+system sh/exec.sh -n dnode5 -s stop -x SIGINT
+
+
+
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+system sh/exec.sh -n dnode5 -s start
+
+
+$loop_cnt = 0
+check_dnode_ready_2:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 10 then
+	  print ====> restart and dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
+print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6]
+print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6]
+print ===> $rows $data[3][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6]
+print ===> $rows $data[4][0] $data[4][1] $data[4][2] $data[4][3] $data[4][4] $data[4][5] $data[4][6]
+
+if $data[0][0] != 1 then
+  return -1
+endi
+
+if $data[0][4] != ready then
+  goto check_dnode_ready_2
+endi
+if $data[1][4] != ready then
+  goto check_dnode_ready_2
+endi
+if $data[2][4] != ready then
+  goto check_dnode_ready_2
+endi
+if $data[3][4] != ready then
+  goto check_dnode_ready_2
+endi
+
+sql use db;
+$ctbPrefix = ctb2
+$ntbPrefix = ntb2
+$tbNum    = 10
+$i = 0
+while $i < $tbNum
+  $ctb = $ctbPrefix . $i
+  sql create table $ctb using stb1 tags( $i )
+  $ntb = $ntbPrefix . $i
+  sql create table $ntb (ts timestamp, c1 int, c2 float, c3 binary(10))
+  $i = $i + 1
+endw
+
+sleep 1000
+sql use  db
+sql show stables
+if $rows != 2 then 
+  return -1
+endi
+
+sql show tables
+print $rows
+if $rows != 60 then 
+  return -1
+endi
+
+
+
+$replica = 3
+$vgroups = 5
+
+print ============= create database
+sql create database db1 replica $replica vgroups $vgroups
+
+$loop_cnt = 0
+check_db_ready1:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 100 then
+  print ====> db not ready!
+	return -1
+endi
+sql select * from information_schema.ins_databases
+print ===> rows: $rows
+print $data(db1)[0] $data(db1)[1] $data(db1)[2] $data(db1)[3] $data(db1)[4] $data(db1)[5] $data(db1)[6] $data(db1)[7] $data(db1)[8] $data(db1)[9] $data(db1)[6] $data(db1)[11] $data(db1)[12]  $data(db1)[13]  $data(db1)[14]  $data(db1)[15]  $data(db1)[16]  $data(db1)[17]  $data(db1)[18]  $data(db1)[19]
+if $rows != 4 then
+  return -1
+endi
+if $data(db1)[15] != ready then
+  goto check_db_ready1
+endi
+
+
+
+sql use db1
+
+$loop_cnt = 0
+check_vg_ready3:
+$loop_cnt = $loop_cnt + 1
+print $loop_cnt
+sleep 202
+if $loop_cnt == 300 then
+  print ====> vgroups not ready!
+	return -1
+endi
+
+
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][10] $data[0][11]
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3] $data[1][4] $data[1][5] $data[1][6] $data[1][7] $data[1][8] $data[1][9] $data[1][10] $data[1][11]
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3] $data[2][4] $data[2][5] $data[2][6] $data[2][7] $data[2][8] $data[2][9] $data[2][10] $data[2][11]
+print $data[3][0] $data[3][1] $data[3][2] $data[3][3] $data[3][4] $data[3][5] $data[3][6] $data[3][7] $data[3][8] $data[3][9] $data[3][10] $data[3][11]
+print $data[4][0] $data[4][1] $data[4][2] $data[4][3] $data[4][4] $data[4][5] $data[4][6] $data[4][7] $data[4][8] $data[4][9] $data[4][10] $data[4][11]
+if $rows != $vgroups then
+  return -1
+endi
+
+if $data[0][4] == LEADER then
+   if $data[0][6] == FOLLOWER then
+      if $data[0][8] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
+      endi
+   endi
+elif $data[0][6] == LEADER then
+   if $data[0][4] == FOLLOWER then
+      if $data[0][8] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
+      endi
+   endi
+elif $data[0][8] == LEADER then
+   if $data[0][4] == FOLLOWER then
+      if $data[0][6] == FOLLOWER then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
+      endi
+   endi
+else
+   goto check_vg_ready3
+endi
+
+if $data[1][4] == LEADER then
+   if $data[1][6] == FOLLOWER then
+      if $data[1][8] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][3] 
+      endi
+   endi
+elif $data[1][6] == LEADER then
+   if $data[1][4] == FOLLOWER then
+      if $data[1][8] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][5] 
+      endi
+   endi
+elif $data[1][8] == LEADER then
+   if $data[1][4] == FOLLOWER then
+      if $data[1][6] == FOLLOWER then
+         print ---- vgroup $data[1][0] leader locate on dnode $data[1][7] 
+      endi
+   endi
+else
+   goto check_vg_ready3
+endi
+
+if $data[2][4] == LEADER then
+   if $data[2][6] == FOLLOWER then
+      if $data[2][8] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][3] 
+      endi
+   endi
+elif $data[2][6] == LEADER then
+   if $data[2][4] == FOLLOWER then
+      if $data[2][8] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][5] 
+      endi
+   endi
+elif $data[2][8] == LEADER then
+   if $data[2][4] == FOLLOWER then
+      if $data[2][6] == FOLLOWER then
+         print ---- vgroup $data[2][0] leader locate on dnode $data[2][7] 
+      endi
+   endi
+else
+   goto check_vg_ready3
+endi
+
+if $data[3][4] == LEADER then
+   if $data[3][6] == FOLLOWER then
+      if $data[3][8] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][3] 
+      endi
+   endi
+elif $data[3][6] == LEADER then
+   if $data[3][4] == FOLLOWER then
+      if $data[3][8] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][5] 
+      endi
+   endi
+elif $data[3][8] == LEADER then
+   if $data[3][4] == FOLLOWER then
+      if $data[3][6] == FOLLOWER then
+         print ---- vgroup $data[3][0] leader locate on dnode $data[3][7] 
+      endi
+   endi
+else
+   goto check_vg_ready3
+endi
+
+if $data[4][4] == LEADER then
+   if $data[4][6] == FOLLOWER then
+      if $data[4][8] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][3] 
+      endi
+   endi
+elif $data[4][6] == LEADER then
+   if $data[4][4] == FOLLOWER then
+      if $data[4][8] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][5] 
+      endi
+   endi
+elif $data[4][8] == LEADER then
+   if $data[4][4] == FOLLOWER then
+      if $data[4][6] == FOLLOWER then
+         print ---- vgroup $data[4][0] leader locate on dnode $data[4][7] 
+      endi
+   endi
+else
+   goto check_vg_ready3
+endi
+
+
+$loop_cnt = 0
+check_mnode_ready_3:
+	$loop_cnt = $loop_cnt + 1
+	sleep 200
+	if $loop_cnt == 100 then
+	   print ====> third: mnode not ready!
+	   return -1
+	endi
+sql select * from information_schema.ins_mnodes
+print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3]
+print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3]
+print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3]
+if $data[0][0] != 1 then
+  return -1
+endi
+
+if $data[0][2] == LEADER then
+   if $data[1][2] != FOLLOWER then
+     goto check_mnode_ready_3
+   endi
+   if $data[2][2] != FOLLOWER then
+   goto check_mnode_ready_3
+   endi
+endi
+if $data[1][2] == LEADER then
+   if $data[0][2] != FOLLOWER then
+     goto check_mnode_ready_3
+   endi
+   if $data[2][2] != FOLLOWER then
+   goto check_mnode_ready_3
+   endi
+endi
+if $data[2][2] == LEADER then
+   if $data[1][2] != FOLLOWER then
+     goto check_mnode_ready_3
+   endi
+   if $data[0][2] != FOLLOWER then
+   goto check_mnode_ready_3
+   endi
+endi
+
+
+

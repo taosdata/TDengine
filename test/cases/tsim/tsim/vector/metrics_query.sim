@@ -1,0 +1,605 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_mq_db
+$tbPrefix = m_mq_tb
+$mtPrefix = m_mq_mt
+
+$tbNum = 10
+$rowNum = 21
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, a int, b float, c smallint, d double, e tinyint, f bigint, g binary(10), h bool) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 1
+  while $x < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (now + $ms , $x , $x , $x , $x ,  $x , 10 , '11' , true ) 
+    $x = $x + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a - f from $mt
+print ===> $data00
+if $data00 != -9.000000000 then 
+  return -1
+endi
+
+sql select f - a from $mt
+print ===> $data00
+if $data00 != 9.000000000 then 
+  return -1
+endi
+
+sql select b - f from $mt
+print ===> $data00
+if $data00 != -9.000000000 then 
+  return -1
+endi
+
+sql select f - b from $mt
+print ===> $data00
+if $data00 != 9.000000000 then 
+  return -1
+endi
+
+sql select c - f from $mt
+print ===> $data00
+if $data00 != -9.000000000 then 
+  return -1
+endi
+
+sql select d - f from $mt
+print ===> $data00
+if $data00 != -9.000000000 then 
+  return -1
+endi
+
+sql select e - f from $mt
+print ===> $data00
+if $data00 != -9.000000000 then 
+  return -1
+endi
+
+sql select f - f from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select g - f from $mt 
+sql select h - f from $mt
+sql select ts - f from $mt
+
+sql select a - e from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select b - e from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select c - e from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select d - e from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select a - d from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select b - d from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select c - d from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select a - c from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select b - c from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select a - b from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+sql select b - a from $mt
+print ===> $data00
+if $data00 != 0.000000000 then 
+  return -1
+endi
+
+print =============== step3
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a + f from $mt
+print ===> $data00
+if $data00 != 11.000000000 then 
+  return -1
+endi
+
+sql select f + a from $mt
+print ===> $data00
+if $data00 != 11.000000000 then 
+  return -1
+endi
+
+sql select b + f from $mt
+print ===> $data00
+if $data00 != 11.000000000 then 
+  return -1
+endi
+
+sql select f + b from $mt
+print ===> $data00
+if $data00 != 11.000000000 then 
+  return -1
+endi
+
+sql select c + f from $mt
+print ===> $data00
+if $data00 != 11.000000000 then 
+  return -1
+endi
+
+sql select d + f from $mt
+print ===> $data00
+if $data00 != 11.000000000 then 
+  return -1
+endi
+
+sql select e + f from $mt
+print ===> $data00
+if $data00 != 11.000000000 then 
+  return -1
+endi
+
+sql select f + f from $mt
+print ===> $data00
+if $data00 != 20.000000000 then 
+  return -1
+endi
+
+sql select a + e from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select b + e from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select c + e from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select d + e from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select a + d from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select b + d from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select c + d from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select a + c from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select b + c from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select a + b from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select b + a from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+print =============== step4
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a * f from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select f * a from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select b * f from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select f * b from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select c * f from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select d * f from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select e * f from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select f * f from $mt
+print ===> $data00
+if $data00 != 100.000000000 then 
+  return -1
+endi
+
+sql select a * e from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select b * e from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select c * e from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select d * e from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select a * d from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select b * d from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select c * d from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select a * c from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select b * c from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select a * b from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select b * a from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+print =============== step5
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select a / f from $mt
+print ===> $data00
+if $data00 != 0.100000000 then 
+  return -1
+endi
+
+sql select f / a from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select b / f from $mt
+print ===> $data00
+if $data00 != 0.100000000 then 
+  return -1
+endi
+
+sql select f / b from $mt
+print ===> $data00
+if $data00 != 10.000000000 then 
+  return -1
+endi
+
+sql select c / f from $mt
+print ===> $data00
+if $data00 != 0.100000000 then 
+  return -1
+endi
+
+sql select d / f from $mt
+print ===> $data00
+if $data00 != 0.100000000 then 
+  return -1
+endi
+
+sql select e / f from $mt
+print ===> $data00
+if $data00 != 0.100000000 then 
+  return -1
+endi
+
+sql select f / f from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select a / e from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select b / e from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select c / e from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select d / e from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select a / d from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select b / d from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select c / d from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select a / c from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select b / c from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select a / b from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+sql select b / a from $mt
+print ===> $data00
+if $data00 != 1.000000000 then 
+  return -1
+endi
+
+print =============== step6
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select (a+b+c+d+e) / f from $mt
+print ===> $data00
+if $data00 != 0.500000000 then 
+  return -1
+endi
+
+sql select f / (a+b+c+d+e) from $mt
+print ===> $data00
+if $data00 != 2.000000000 then 
+  return -1
+endi
+
+sql select (a+b+c+d+e) * f from $mt
+print ===> $data00
+if $data00 != 50.000000000 then 
+  return -1
+endi
+
+sql select f * (a+b+c+d+e) from $mt
+print ===> $data00
+if $data00 != 50.000000000 then 
+  return -1
+endi
+
+sql select (a+b+c+d+e) - f from $mt
+print ===> $data00
+if $data00 != -5.000000000 then 
+  return -1
+endi
+
+sql select f - (a+b+c+d+e) from $mt
+print ===> $data00
+if $data00 != 5.000000000 then 
+  return -1
+endi
+
+sql select (f - (a+b+c+d+e)) / f from $mt
+print ===> $data00
+if $data00 != 0.500000000 then 
+  return -1
+endi
+
+sql select (f - (a+b+c+d+e)) * f from $mt
+print ===> $data00
+if $data00 != 50.000000000 then 
+  return -1
+endi
+
+sql select (f - (a+b+c+d+e)) + f from $mt
+print ===> $data00
+if $data00 != 15.000000000 then 
+  return -1
+endi
+
+sql select (f - (a+b+c+d+e)) - f from $mt
+print ===> $data00
+if $data00 != -5.000000000 then 
+  return -1
+endi
+
+sql select (f - (a*b+c)*a + d + e) * f  as zz from $mt
+print ===> $data00
+if $data00 != 100.000000000 then 
+  return -1
+endi
+
+sql select (f - (a*b+c)*a + d + e))) * f  as zz from $mt -x step61
+  return -1
+step61:
+
+sql select (f - (a*b+c)*a + d + e))) * 2f  as zz from $mt -x step62
+  return -1
+step62:
+
+sql select (f - (a*b+c)*a + d + e))) ** f  as zz from $mt -x step63
+  return -1
+step63:
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

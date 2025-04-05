@@ -1,0 +1,121 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+#system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+system sh/exec.sh -n dnode1 -s start
+
+#---- global parameters start ----#
+$dbName     = db
+$vgroups    = 1
+$stbPrefix  = stb
+$ctbPrefix  = ctb
+$ntbPrefix  = ntb
+$stbNum     = 1
+$ctbNum     = 10
+$ntbNum     = 10
+$rowsPerCtb = 10
+$tstart     = 1640966400000  # 2022-01-01 00:00:00.000
+#---- global parameters end ----#
+
+sql connect
+print == create database $dbName vgroups $vgroups
+sql create database $dbName vgroups $vgroups
+
+#wait database ready
+$loop_cnt = 0
+check_db_ready:
+if $loop_cnt == 10 then
+  print ====> database not ready!
+  return -1
+endi
+sql select * from information_schema.ins_databases
+print ==> rows: $rows
+print ==> $data(db)[0] $data(db)[1] $data(db)[2] $data(db)[3] $data(db)[4] $data(db)[5] $data(db)[6] $data(db)[7] $data(db)[8] $data(db)[9] $data(db)[10] $data(db)[11] $data(db)[12]
+print     $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $data(db)[18] $data(db)[19] $data(db)[20]
+if $data(db)[15] != ready then
+  sleep 100
+  $loop_cnt = $loop_cnt + 1
+  goto check_db_ready  
+endi
+
+sql use $dbName
+
+print == alter database
+
+print == create super table
+sql create table $stbPrefix (ts timestamp, c1 int, c2 float, c3 binary(16)) tags (t1 int)
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+print == create child table, normal table and insert data
+$i = 0
+while $i < $ctbNum
+  $ctb = $ctbPrefix . $i
+  $ntb = $ntbPrefix . $i
+  sql create table $ctb using $stbPrefix tags( $i )
+  sql create table $ntb (ts timestamp, c1 int, c2 float, c3 binary(16))
+  $i = $i + 1
+endw
+
+print == create topics from super table
+sql create topic topic_stb_column as select ts, c3 from stb
+sql create topic topic_stb_all as select ts, c1, c2, c3 from stb
+sql create topic topic_stb_function as select ts, abs(c1), sin(c2) from stb
+
+print == create topics from child table
+sql create topic topic_ctb_column as select ts, c3 from ctb0
+sql create topic topic_ctb_all as select * from ctb0
+sql create topic topic_ctb_function as select ts, abs(c1), sin(c2) from ctb0
+
+print == create topics from normal table
+sql create topic topic_ntb_column as select ts, c3 from ntb0
+sql create topic topic_ntb_all as select * from ntb0
+sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+sql show topics
+if $rows != 9 then 
+  return -1
+endi
+
+sql drop topic topic_stb_column
+
+sql show topics
+if $rows != 8 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print == show topics 
+sql show topics
+if $rows != 8 then 
+  return -1
+endi
+
+print == drop topic
+sql drop topic topic_ctb_column
+sql drop topic topic_ntb_column
+
+print == show topics 
+sql show topics
+if $rows != 6 then 
+  return -1
+endi
+
+sql create topic topic_stable_1 as stable stb where t1 > 0
+sql create topic topic_stable_2 as stable stb where t1 > 0 and t1 < 0
+sql create topic topic_stable_3 as stable stb where 1 > 0
+sql create topic topic_stable_4 as stable stb where abs(t1) > 0
+sql_error create topic topic_stable_5 as stable stb where last(t1) > 0
+sql_error create topic topic_stable_5 as stable stb where sum(t1) > 0
+sql create topic topic_stable_6 as stable stb where tbname is not null
+sql create topic topic_stable_7 as stable stb where tbname > 'a'
+sql_error create topic topic_stable_8 as stable stb where tbname > 0 and xx < 0
+sql_error create topic topic_stable_9 as stable stb where tbname > 0 and c1 < 0
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

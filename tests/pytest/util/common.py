@@ -923,12 +923,12 @@ class TDCom:
         else:
             
             if watermark is None:
-                if trigger_mode == "max_delay":
+                if trigger_mode == "max_delay" or trigger_mode == "continuous_window_close" :
                     stream_options = f'trigger {trigger_mode} {max_delay}'
                 else:
                     stream_options = f'trigger {trigger_mode}'
             else:
-                if trigger_mode == "max_delay":
+                if trigger_mode == "max_delay" or trigger_mode == "continuous_window_close" :
                     stream_options = f'trigger {trigger_mode} {max_delay} watermark {watermark}'
                 else:
                     stream_options = f'trigger {trigger_mode} watermark {watermark}'

@@ -1,0 +1,108 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_di_db_ns
+$tbPrefix = m_di_tb
+$mtPrefix = m_di_mt
+$ntPrefix = m_di_nt
+$tbNum = 2
+$rowNum = 200
+$futureTs = 300000000000
+
+print =============== step1: create database and tables and insert data
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$nt = $ntPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db precision 'ns'
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $futureTs + $x * 100 + 43
+    $ns = $cc . b
+    sql insert into $tb values (now + $ns , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+sql create table $nt (ts timestamp, tbcol int)
+$x = 0
+while $x < $rowNum
+    $cc = $futureTs + $x * 100 + 43
+    $ns = $cc . b
+    sql insert into $nt values (now + $ns , $x )
+    $x = $x + 1
+endw
+
+print =============== step2: select count(*) from tables
+$i = 0
+$tb = $tbPrefix . $i
+
+sql select count(*) from $tb
+
+if $data00 != $rowNum then
+  print expect $rowNum, actual:$data00
+  return -1
+endi
+
+$i = 0
+$mt = $mtPrefix . $i
+sql select count(*) from $mt
+
+$mtRowNum = $tbNum * $rowNum
+if $data00 != $mtRowNum then
+  print expect $mtRowNum, actual:$data00
+  return -1
+endi
+
+$i = 0
+$nt = $ntPrefix . $i
+
+sql select count(*) from $nt
+
+if $data00 != $rowNum then
+  print expect $rowNum, actual:$data00
+  return -1
+endi
+
+print =============== step3: check nano second timestamp
+$i = 0
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql insert into $tb values (now-43b , $x )
+sql select count(*) from $tb where ts<now
+if $data00 != 1 then
+  print expected 1, actual: $data00
+endi
+
+
+print =============== step4: check interval/sliding nano second
+$i = 0
+$mt = $mtPrefix . $i
+sql_error select count(*) from $mt interval(1000b) sliding(100b)
+sql_error select count(*) from $mt interval(10000000b) sliding(99999b)
+
+sql select count(*) from $mt interval(100000000b) sliding(100000000b)
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

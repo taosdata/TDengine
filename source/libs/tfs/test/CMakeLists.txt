@@ -2,10 +2,10 @@ enable_testing()
 
 aux_source_directory(. TFS_TEST_SRC)
 add_executable(tfs_test ${TFS_TEST_SRC})
+DEP_ext_gtest(tfs_test)
 target_link_libraries(
   tfs_test
   PUBLIC tfs
-  PUBLIC gtest_main
 )
 target_include_directories(
   tfs_test

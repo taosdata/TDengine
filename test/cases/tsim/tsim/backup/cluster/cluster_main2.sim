@@ -1,0 +1,328 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode5 -c numOfMnodes -v 3
+
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode2 -c walLevel -v 1
+system sh/cfg.sh -n dnode3 -c walLevel -v 1
+system sh/cfg.sh -n dnode4 -c walLevel -v 1
+system sh/cfg.sh -n dnode5 -c walLevel -v 1
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode5 -c balanceInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c role -v 0
+system sh/cfg.sh -n dnode2 -c role -v 0
+system sh/cfg.sh -n dnode3 -c role -v 0
+system sh/cfg.sh -n dnode4 -c role -v 0
+system sh/cfg.sh -n dnode5 -c role -v 0
+
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 5000
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 5000
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 5000
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 5000
+system sh/cfg.sh -n dnode5 -c maxtablesPerVnode -v 5000
+
+system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode5 -c arbitrator -v $arbitrator
+
+print ============== step0: start tarbitrator
+system sh/exec_tarbitrator.sh -s start
+
+print ============== step1: start dnode1/dnode2/dnode3
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+sleep 2000
+sql connect
+sql create dnode $hostname2
+sql create dnode $hostname3
+sleep 2000
+
+print ============== step2: create db1 with replica 3
+$replica = 3
+$db = db1
+print create database $db replica $replica
+#sql create database $db replica 3 
+sql create database $db replica $replica
+sql use $db
+
+print ============== step3: create stable stb1
+$stb = stb1
+print create table $stb (ts timestamp, c1 int) tags(t1 int, t2 binary(16))
+sql create table $stb (ts timestamp, c1 int) tags(t1 int, t2 binary(16))
+
+print ============== step4: start others client
+run_back unique/cluster/main2_client1_0.sim
+run_back unique/cluster/main2_client1_1.sim
+run_back unique/cluster/main2_client1_2.sim
+run_back unique/cluster/main2_client1_3.sim
+run_back unique/cluster/main2_client2_0.sim
+run_back unique/cluster/main2_client2_1.sim
+run_back unique/cluster/main2_client2_2.sim
+run_back unique/cluster/main2_client2_3.sim
+run_back unique/cluster/client3.sim
+run_back unique/cluster/client4.sim
+run_back unique/cluster/client5.sim
+
+sleep 20000
+
+wait_subsim_insert_complete_create_tables:
+sql select count(tbname) from $stb
+print select count(tbname) from $stb
+print data00 $data00
+if $data00 < 1000 then
+  sleep 2000
+  goto wait_subsim_insert_complete_create_tables
+endi
+
+wait_subsim_insert_data:
+print select count(*) from $stb
+sql select count(*) from $stb
+print data00 $data00
+if $data00 < 1000 then
+  sleep 2000
+  goto wait_subsim_insert_data
+endi
+
+print wait for a while to let clients start insert data
+sleep 3000
+
+print ============== step4-1: add dnode4/dnode5 into cluster
+sql create dnode $hostname4
+sql create dnode $hostname5
+sleep 3000
+
+
+$loop_cnt = 0
+loop_cluster_do:
+print **** **** **** START loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
+print ============== step5: start dnode4/dnode5
+system sh/exec.sh -n dnode4 -s start
+system sh/exec.sh -n dnode5 -s start
+
+print ============== step6: stop dnode1
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 10000
+#sql drop dnode $hostname1
+#sleep 3000
+#system rm -rf ../../../sim/dnode1/data
+#sleep 20000
+print ============== step6-1: restart dnode1
+system sh/exec.sh -n dnode1 -s start
+sleep 10000
+
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
+print rows: $rows
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+print $data0_7  $data1_7  $data2_7  $data3_7  $data4_7
+print $data0_8  $data1_8  $data2_8  $data3_8  $data4_8
+print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
+
+print ============== step7: stop dnode2 
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 3000
+
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
+print rows: $rows
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+print $data0_7  $data1_7  $data2_7  $data3_7  $data4_7
+print $data0_8  $data1_8  $data2_8  $data3_8  $data4_8
+print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
+
+print ============== step8: restart dnode2, then wait sync end
+system sh/exec.sh -n dnode2 -s start
+sleep 20000
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
+print rows: $rows
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+print $data0_7  $data1_7  $data2_7  $data3_7  $data4_7
+print $data0_8  $data1_8  $data2_8  $data3_8  $data4_8
+print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
+
+print ============== step9: stop dnode3, then wait sync end
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+sleep 20000
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
+print rows: $rows
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+print $data0_7  $data1_7  $data2_7  $data3_7  $data4_7
+print $data0_8  $data1_8  $data2_8  $data3_8  $data4_8
+print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
+
+print ============== step10: restart dnode3, then wait sync end
+system sh/exec.sh -n dnode3 -s start
+sleep 20000
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
+print rows: $rows
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+print $data0_7  $data1_7  $data2_7  $data3_7  $data4_7
+print $data0_8  $data1_8  $data2_8  $data3_8  $data4_8
+print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
+
+print ============== step11: stop dnode4, then wait sync end
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+sleep 20000
+
+#print ============== step12: restart dnode4, then wait sync end
+#system sh/exec.sh -n dnode4 -s start
+#sleep 20000
+sql select * from information_schema.ins_mnodes
+print select * from information_schema.ins_mnodes
+print rows: $rows
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
+print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
+print $data0_7  $data1_7  $data2_7  $data3_7  $data4_7
+print $data0_8  $data1_8  $data2_8  $data3_8  $data4_8
+print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
+
+print ============== step13: alter replica 2
+sql alter database $db replica 2
+sql select * from information_schema.ins_databases
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
+print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
+
+if $data00 == db1 then
+  $replica = $data04
+elif $data10 == db1 then
+  $replica = $data14
+else then
+  print ==== db1 already not exists!!!!!
+  return -1
+endi
+
+if $replica != 2 then
+  print rplica is not modify to 2, error!!!!!!
+  return -1
+endi
+
+print ============== step14: drop dnode5, then remove data dir
+system sh/exec.sh -n dnode5 -s stop -x SIGINT
+sleep 20000
+#system rm -rf ../../../sim/dnode5/data
+
+#print ============== step14-1: drop dnode5, then remove data dir
+#sql drop dnode $hostname5
+#sleep 20000
+#system rm -rf ../../../sim/dnode5/data
+
+print ============== step15: alter replica 1
+sql alter database $db replica 1
+sql select * from information_schema.ins_databases
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
+print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
+
+if $data00 == db1 then
+  $replica = $data04
+elif $data10 == db1 then
+  $replica = $data14
+else then
+  print ==== db1 already not exists!!!!!
+  return -1
+endi
+
+if $replica != 1 then
+  print rplica is not modify to 1, error!!!!!!
+  return -1
+endi
+
+print ============== step16: alter replica 2
+sql alter database $db replica 2
+sql select * from information_schema.ins_databases
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
+print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
+
+if $data00 == db1 then
+  $replica = $data04
+elif $data10 == db1 then
+  $replica = $data14
+else then
+  print ==== db1 already not exists!!!!!
+  return -1
+endi
+
+if $replica != 2 then
+  print rplica is not modify to 2, error!!!!!!
+  return -1
+endi
+
+#print ============== step17: start dnode1 and add into cluster, then wait dnode1 ready
+#system sh/cfg.sh -n dnode1 -c first -v $hostname2
+#system sh/cfg.sh -n dnode1 -c second -v $hostname3
+#
+#system sh/exec.sh -n dnode1 -s start
+#sql create dnode $hostname1
+#sleep 20000
+
+print ============== step18: alter replica 3
+sql alter database $db replica 3
+sql select * from information_schema.ins_databases
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
+print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
+
+if $data00 == db1 then
+  $replica = $data04
+elif $data10 == db1 then
+  $replica = $data14
+else then
+  print ==== db1 already not exists!!!!!
+  return -1
+endi
+
+if $replica != 3 then
+  print rplica is not modify to 3, error!!!!!!
+  return -1
+endi
+
+print **** **** **** (loop_cnt: $loop_cnt ) end, continue...... **** **** **** ****
+$loop_cnt = $loop_cnt + 1
+goto loop_cluster_do

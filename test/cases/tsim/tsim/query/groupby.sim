@@ -1,0 +1,23 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+
+sql drop database if exists db1;
+sql create database db1;
+sql use db1;
+sql create table test(pos_time TIMESTAMP,target_id INT ,data DOUBLE) tags(scene_id BIGINT,data_stage VARCHAR(64),data_source VARCHAR(64));
+
+sql insert into _413254290_108_1001_ using test tags(108,'1001','') values(1667232060000,413254290,1);
+sql insert into _413254290_108_1001_ using test tags(108,'1001','') values(1667232061000,413254290,2);
+sql insert into _413254290_108_1001_ using test tags(108,'1001','') values(1667232062000,413254290,3);
+sql insert into _413254000_108_1001_ using test tags(109,'1001','') values(1667232060000,413254290,3);
+sql insert into _413254000_108_1001_ using test tags(109,'1001','') values(1667232062000,413254290,3);
+
+sql select target_name,max(time_diff) AS time_diff,(count(1)) AS track_count from (select tbname as target_name,diff(pos_time) time_diff from test where tbname in ('_413254290_108_1001_','_413254000_108_1001_') partition by tbname) a group by target_name;
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

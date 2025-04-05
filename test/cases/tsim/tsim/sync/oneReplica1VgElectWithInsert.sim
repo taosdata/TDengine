@@ -1,0 +1,440 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+sql connect
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+if $data(4)[4] != ready then
+  goto step1
+endi
+
+$vgroups = 1
+$replica = 1
+
+print ============= create database
+sql create database db replica $replica vgroups $vgroups
+
+$loop_cnt = 0
+check_db_ready:
+$loop_cnt = $loop_cnt + 1
+sleep 20
+if $loop_cnt == 10 then
+  print ====> db not ready!
+	return -1
+endi
+sql select * from information_schema.ins_databases
+print ===> rows: $rows
+print $data(db)[0] $data(db)[1] $data(db)[2] $data(db)[3] $data(db)[4] $data(db)[5] $data(db)[6] $data(db)[7] $data(db)[8] $data(db)[9] $data(db)[10] $data(db)[11] $data(db)[12]
+print $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $data(db)[18] $data(db)[19] $data(db)[20]
+if $rows != 3 then
+  return -1
+endi
+if $data(db)[15] != ready then
+  goto check_db_ready
+endi
+
+sql use db
+
+$loop_cnt = 0
+check_vg_ready:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 300 then
+  print ====> vgroups not ready!
+	return -1
+endi
+sql show vgroups
+print ===> rows: $rows
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[10][6] $data[0][11] $data[0][12] $data[0][13]
+if $rows != $vgroups then
+  return -1
+endi
+if $data[0][4] == leader then
+   if $data[0][6] != NULL then
+     goto check_vg_ready
+   endi
+   if $data[0][8] != NULL then
+     goto check_vg_ready
+   endi
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
+  goto vg_ready
+endi
+if $data[0][6] == leader then
+   if $data[0][4] != NULL then
+     goto check_vg_ready
+   endi
+   if $data[0][8] != NULL then
+     goto check_vg_ready
+   endi    
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
+  goto vg_ready
+endi
+if $data[0][8] == leader then
+   if $data[0][4] != NULL then
+     goto check_vg_ready
+   endi
+   if $data[0][6] != NULL then
+     goto check_vg_ready
+   endi    
+   print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
+   goto vg_ready
+else
+   goto check_vg_ready
+endi
+
+vg_ready:
+print ====>  create stable/child table
+sql create table stb (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+$ctbPrefix = ctb
+$ntbPrefix = ntb
+$tbNum    = 10
+#$rowNum   = 10
+#$tstart   = 1640966400000  # 2022-01-01 00:00:00.000
+
+$i = 0
+while $i < $tbNum
+  $ctb = $ctbPrefix . $i
+  sql create table $ctb using stb tags( $i )
+  $ntb = $ntbPrefix . $i
+  sql create table $ntb (ts timestamp, c1 int, c2 float, c3 binary(10))
+  $i = $i + 1
+endw
+
+$totalTblNum = $tbNum * 2
+sleep 1000
+sql show tables
+print ====> expect $totalTblNum and infinsert $rows  in fact 
+if $rows != $totalTblNum then 
+  return -1
+endi
+
+print ====>  create a normal table for interaction between main and back threads 
+sql create table interaction (ts timestamp, flag binary(10), childrows int, stbrows int)
+
+print ====> start to run_back to insert data
+run_back tsim/sync/insertDataByRunBack.sim
+
+
+print ====> waiting insert thread starting insert data
+waiting_insert_data:
+sql select * from interaction
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3]
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3]
+if $rows == 1 then
+  if $data[0][1] == working then 
+    goto start_switch_leader
+  endi
+endi
+goto waiting_insert_data
+
+start_switch_leader:
+
+$switch_loop_cnt = 0
+switch_leader_loop:
+
+print ====> finde vnode of leader, and stop the dnode where the vnode is located, and query stb/ntb count(*)
+sql show vgroups
+print $data(2)[0] $data(2)[1] $data(2)[2] $data(2)[3] $data(2)[4] $data(2)[5] $data(2)[6] $data(2)[7] $data(2)[8] $data(2)[9] $data(2)[10] $data(2)[11] $data(2)[12] $data(2)[13]
+if $data[0][4] == leader then
+  $dnodeId = $data[0][3]
+elif $data[0][6] == leader then
+  $dnodeId = $data[0][5]
+elif $data[0][8] == leader then
+  $dnodeId = $data[0][7]
+else 
+   print ====> no leader vnode!!!
+  return -1 
+endi
+
+$dnodeId = dnode . $dnodeId
+print ====> stop $dnodeId
+system sh/exec.sh -n $dnodeId -s stop -x SIGINT
+sleep 1000
+print ====> start $dnodeId
+system sh/exec.sh -n $dnodeId -s start
+
+$loop_cnt = 0
+check_vg_ready_2:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 300 then
+  print ====> vgroups switch fail!!!
+	return -1
+endi
+sql show vgroups
+print ===> rows: $rows
+print $data(2)[0] $data(2)[1] $data(2)[2] $data(2)[3] $data(2)[4] $data(2)[5] $data(2)[6] $data(2)[7] $data(2)[8] $data(2)[9] $data(2)[10] $data(2)[11] $data(2)[12] $data(2)[13]
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[10][6] $data[0][11] $data[0][12] $data[0][13]
+if $rows != $vgroups then
+  return -1
+endi
+if $data[0][4] == leader then
+   if $data[0][6] != NULL then
+     goto check_vg_ready_2
+   endi
+   if $data[0][8] != FOLLOWER then
+     goto check_vg_ready_2
+   endi
+   print ---- vgroup $dnodeId leader switch to dnode $data[0][3] 
+  goto vg_ready_2
+endi
+if $data[0][6] == leader then
+   if $data[0][4] != NULL then
+     goto check_vg_ready_2
+   endi
+   if $data[0][8] != FOLLOWER then
+     goto check_vg_ready_2
+   endi    
+   print ---- vgroup $dnodeId leader switch to dnode $data[0][5] 
+  goto vg_ready_2
+endi
+if $data[0][8] == leader then
+   if $data[0][4] != NULL then
+     goto check_vg_ready_2
+   endi
+   if $data[0][6] != FOLLOWER then
+     goto check_vg_ready_2
+   endi    
+   print ---- vgroup $dnodeId leader switch to dnode $data[0][7] 
+  goto vg_ready_2
+else 
+  goto check_vg_ready_2
+endi
+vg_ready_2:
+
+$switch_loop_cnt = $switch_loop_cnt + 1
+if $switch_loop_cnt < 3 then
+  goto switch_leader_loop
+endi
+
+loop_switch_end:
+
+print ====> notify insert thread to stop insert data
+sql insert into interaction values (now, 'stop', 0, 0);
+
+print ====> waiting insert thread to stop insert data
+waiting_stop_data:
+sql select * from interaction
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3]
+print $data[1][0] $data[1][1] $data[1][2] $data[1][3]
+print $data[2][0] $data[2][1] $data[2][2] $data[2][3]
+if $rows == 3 then
+  if $data[2][1] == end then 
+    $totalRowsOfCtb = $data[2][2]
+    $totalRowsOfStb = $data[2][3]
+    goto check_affected_rows
+  endi
+endi
+goto waiting_stop_data
+
+check_affected_rows:
+
+sql select count(*) from ntb0
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfCtb then 
+  return -1
+endi
+
+sql select count(*) from ctb0
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfCtb then 
+  return -1
+endi
+
+sql select count(*) from stb
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfStb then 
+  return -1
+endi
+
+print ====> stop and start all dnode(not include the dnode where mnode is located), then query
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode2 -s start
+
+$loop_cnt = 0
+check_vg_ready_1:
+$loop_cnt = $loop_cnt + 1
+sleep 200
+if $loop_cnt == 10 then
+  print ====> after restart dnode, vgroups not ready!
+	return -1
+endi
+sql show vgroups
+print ===> rows: $rows
+print $data(2)[0] $data(2)[1] $data(2)[2] $data(2)[3] $data(2)[4] $data(2)[5] $data(2)[6] $data(2)[7] $data(2)[8] $data(2)[9] $data(2)[10] $data(2)[11] $data(2)[12] $data(2)[13]
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[10][6] $data[0][11] $data[0][12] $data[0][13]
+if $rows != $vgroups then
+  return -1
+endi
+if $data[0][4] == leader then
+   if $data[0][6] != NULL then
+     goto check_vg_ready_1
+   endi
+   if $data[0][8] != FOLLOWER then
+     goto check_vg_ready_1
+   endi    
+  goto vg_ready_1
+endi
+if $data[0][6] == leader then
+   if $data[0][4] != NULL then
+     goto check_vg_ready_1
+   endi
+   if $data[0][8] != FOLLOWER then
+     goto check_vg_ready_1
+   endi    
+  goto vg_ready_1
+endi
+if $data[0][8] == leader then
+   if $data[0][4] != NULL then
+     goto check_vg_ready_1
+   endi
+   if $data[0][6] != FOLLOWER then
+     goto check_vg_ready_1
+   endi    
+  goto vg_ready_1
+endi
+vg_ready_1:
+
+print ====> after restart dnode2/dnode3/dnode4, query stb/ntb count(*)
+sql select count(*) from ntb0
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfCtb then 
+  return -1
+endi
+
+sql select count(*) from ctb0
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfCtb then 
+  return -1
+endi
+
+sql select count(*) from stb
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfStb then 
+  return -1
+endi
+
+print ====> once stop one dnode by loop, and do query every time
+$i = 2
+loop_stop_dnode:
+$dnodeId = dnode . $i
+print ====> stop $dnodeId
+system sh/exec.sh -n $dnodeId -s stop -x SIGINT
+
+check_vg_ready_3:
+sql show vgroups
+print $data(2)[0] $data(2)[1] $data(2)[2] $data(2)[3] $data(2)[4] $data(2)[5] $data(2)[6] $data(2)[7] $data(2)[8] $data(2)[9] $data(2)[10] $data(2)[11] $data(2)[12] $data(2)[13]
+if $data[0][4] == LEADER then
+  if $data[0][6] == LEADER then
+    goto check_vg_ready_3
+  endi
+  if $data[0][8] == LEADER then
+    goto check_vg_ready_3
+  endi
+  print ---- vgroup $data[0][0] leader locating dnode $data[0][5]
+elif $data[0][6] == LEADER then
+  if $data[0][4] == LEADER then
+    goto check_vg_ready_3
+  endi
+  if $data[0][8] == LEADER then
+    goto check_vg_ready_3
+  endi
+  print ---- vgroup $data[0][0] leader locating dnode $data[0][7]
+elif $data[0][8] == LEADER then
+  if $data[0][4] == LEADER then
+    goto check_vg_ready_3
+  endi
+  if $data[0][6] == LEADER then
+    goto check_vg_ready_3
+  endi
+  print ---- vgroup $data[0][0] leader locating dnode $data[0][9]
+else 
+   print ====> no leader vnode!!!
+  return -1 
+endi
+
+sql select count(*) from ntb0
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfCtb then 
+  return -1
+endi
+
+sql select count(*) from ctb0
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfCtb then 
+  return -1
+endi
+
+sql select count(*) from stb
+print rows: $rows 
+print $data[0][0]  $data[0][1]
+if $data[0][0] != $totalRowsOfStb then 
+  return -1
+endi
+
+$i = $i + 1
+if $i <= 4 then 
+  print ====> start $dnodeId
+  system sh/exec.sh -n $dnodeId -s start
+  goto loop_stop_dnode
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT

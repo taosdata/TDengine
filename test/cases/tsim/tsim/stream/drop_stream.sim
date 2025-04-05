@@ -1,0 +1,276 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+system sh/cfg.sh -n dnode2 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode3 -c supportVnodes -v 4
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== step2
+sql create dnode $hostname port 7200
+system sh/exec.sh -n dnode2 -s start
+
+$x = 0
+step2:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step2
+endi
+if $data(2)[4] != ready then
+  goto step2
+endi
+
+print ========== step3
+sql drop database if exists test;
+sql create database if not exists test vgroups 1 precision "ms" ;
+sql use test;
+sql create table test.scalar_function_stb (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(256), c12 nchar(256), c13 bool) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(256), t12 nchar(256), t13 bool) ;
+sql create table scalar_function_ct1 using scalar_function_stb tags (-38, -32456, 509722288, -1404014954778348330, 87, 8879, 3351927345, 1840080781675115605, 3.002364316200592e+38, 6.698140580387119e+37, "bktezshfyvmrmgzwrwerytfwudlblkyyxismpommiqpqsptpiucptwqutzhajxbiitqxkrpobqhgqvjlvgsudewmelpunjspurbpbbwypvgbwjfrwidrchnojtxyhrwfjwgdiabzfoujxkwcjjxjqsrnhmryjhrykldmdfiwircdfahldtrtuafzvybkihyjatiqivbtpydjtmbfddcgyzjuqidwcchtsamnwyqwvajftayyvfrmqcqygbxmxgjx", "ddlxkxhrvviwnjeqhewbercnlontwbsyevcjsocrwyupautsjkdzqbwuzsuetptgsdfyjzfkqyobkysikpaxtqqonxtocfowaehgovshwyciyzfmdmcmwaolkhdunfhwhcanetepxyppuullxnclockmadyaaufywllwburgsfxizcjgzvboydpqymlwgktslclidbcwiyyubyuvhjgwldkgxswigjkpbpslvlsbigdlmuldmtbqencbntbaohxr", False) ;
+sql create table test.scalar_function_tb1 (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(256), c12 nchar(256), c13 bool) ;
+sql create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);
+sql create table scalar_ct1 using scalar_stb tags(10);
+sql create table if not exists scalar_tb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20));
+sql create stream stb_abs_stream trigger at_once into output_abs_stb as select ts, abs(c1), abs(c2), c3 from scalar_stb partition by tbname;
+sql create stream ctb_abs_stream trigger at_once into output_abs_ctb as select ts, abs(c1), abs(c2), c3 from scalar_ct1;
+sql create stream tb_abs_stream trigger at_once into output_abs_tb as select ts, abs(c1), abs(c2), c3 from scalar_tb;
+sql create stream stb_acos_stream trigger at_once into output_acos_stb as select ts, acos(c1), acos(c2), c3 from scalar_stb partition by tbname;
+sql create stream ctb_acos_stream trigger at_once into output_acos_ctb as select ts, acos(c1), acos(c2), c3 from scalar_ct1;
+sql create stream tb_acos_stream trigger at_once into output_acos_tb as select ts, acos(c1), acos(c2), c3 from scalar_tb;
+sql create stream stb_asin_stream trigger at_once into output_asin_stb as select ts, asin(c1), asin(c2), c3 from scalar_stb partition by tbname;
+sql create stream ctb_asin_stream trigger at_once into output_asin_ctb as select ts, asin(c1), asin(c2), c3 from scalar_ct1;
+sql create stream tb_asin_stream trigger at_once into output_asin_tb as select ts, asin(c1), asin(c2), c3 from scalar_tb;
+sql create stream stb_atan_stream trigger at_once into output_atan_stb as select ts, atan(c1), atan(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_atan_stream trigger at_once into output_atan_ctb as select ts, atan(c1), atan(c2), c3 from scalar_ct1;
+# sql create stream tb_atan_stream trigger at_once into output_atan_tb as select ts, atan(c1), atan(c2), c3 from scalar_tb;
+# sql create stream stb_ceil_stream trigger at_once into output_ceil_stb as select ts, ceil(c1), ceil(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_ceil_stream trigger at_once into output_ceil_ctb as select ts, ceil(c1), ceil(c2), c3 from scalar_ct1;
+# sql create stream tb_ceil_stream trigger at_once into output_ceil_tb as select ts, ceil(c1), ceil(c2), c3 from scalar_tb;
+# sql create stream stb_cos_stream trigger at_once into output_cos_stb as select ts, cos(c1), cos(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_cos_stream trigger at_once into output_cos_ctb as select ts, cos(c1), cos(c2), c3 from scalar_ct1;
+# sql create stream tb_cos_stream trigger at_once into output_cos_tb as select ts, cos(c1), cos(c2), c3 from scalar_tb;
+# sql create stream stb_floor_stream trigger at_once into output_floor_stb as select ts, floor(c1), floor(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_floor_stream trigger at_once into output_floor_ctb as select ts, floor(c1), floor(c2), c3 from scalar_ct1;
+# sql create stream tb_floor_stream trigger at_once into output_floor_tb as select ts, floor(c1), floor(c2), c3 from scalar_tb;
+# sql create stream stb_log_stream trigger at_once into output_log_stb as select ts, log(c1, 2), log(c2, 2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_log_stream trigger at_once into output_log_ctb as select ts, log(c1, 2), log(c2, 2), c3 from scalar_ct1;
+# sql create stream tb_log_stream trigger at_once into output_log_tb as select ts, log(c1, 2), log(c2, 2), c3 from scalar_tb;
+# sql create stream stb_pow_stream trigger at_once into output_pow_stb as select ts, pow(c1, 2), pow(c2, 2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_pow_stream trigger at_once into output_pow_ctb as select ts, pow(c1, 2), pow(c2, 2), c3 from scalar_ct1;
+# sql create stream tb_pow_stream trigger at_once into output_pow_tb as select ts, pow(c1, 2), pow(c2, 2), c3 from scalar_tb;
+# sql create stream stb_round_stream trigger at_once into output_round_stb as select ts, round(c1), round(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_round_stream trigger at_once into output_round_ctb as select ts, round(c1), round(c2), c3 from scalar_ct1;
+# sql create stream tb_round_stream trigger at_once into output_round_tb as select ts, round(c1), round(c2), c3 from scalar_tb;
+# sql create stream stb_sin_stream trigger at_once into output_sin_stb as select ts, sin(c1), sin(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_sin_stream trigger at_once into output_sin_ctb as select ts, sin(c1), sin(c2), c3 from scalar_ct1;
+# sql create stream tb_sin_stream trigger at_once into output_sin_tb as select ts, sin(c1), sin(c2), c3 from scalar_tb;
+# sql create stream stb_sqrt_stream trigger at_once into output_sqrt_stb as select ts, sqrt(c1), sqrt(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_sqrt_stream trigger at_once into output_sqrt_ctb as select ts, sqrt(c1), sqrt(c2), c3 from scalar_ct1;
+# sql create stream tb_sqrt_stream trigger at_once into output_sqrt_tb as select ts, sqrt(c1), sqrt(c2), c3 from scalar_tb;
+# sql create stream stb_tan_stream trigger at_once into output_tan_stb as select ts, tan(c1), tan(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_tan_stream trigger at_once into output_tan_ctb as select ts, tan(c1), tan(c2), c3 from scalar_ct1;
+# sql create stream tb_tan_stream trigger at_once into output_tan_tb as select ts, tan(c1), tan(c2), c3 from scalar_tb;
+# sql create stream stb_char_length_stream into output_char_length_stb as select ts, char_length(c3), char_length(c4), char_length(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_char_length_stream into output_char_length_ctb as select ts, char_length(c3), char_length(c4), char_length(c5) from scalar_ct1;
+# sql create stream tb_char_length_stream into output_char_length_tb as select ts, char_length(c3), char_length(c4), char_length(c5) from scalar_tb;
+# sql create stream stb_concat_stream into output_concat_stb as select ts, concat(c3, c4), concat(c3, c5), concat(c4, c5), concat(c3, c4, c5) from scalar_stb partition by tbname;
+# sql create stream ctb_concat_stream into output_concat_ctb as select ts, concat(c3, c4), concat(c3, c5), concat(c4, c5), concat(c3, c4, c5) from scalar_ct1;
+# sql create stream tb_concat_stream into output_concat_tb as select ts, concat(c3, c4), concat(c3, c5), concat(c4, c5), concat(c3, c4, c5) from scalar_tb;
+# sql create stream stb_concat_ws_stream into output_concat_ws_stb as select ts, concat_ws("aND", c3, c4), concat_ws("and", c3, c5), concat_ws("And", c4, c5), concat_ws("AND", c3, c4, c5) from scalar_stb partition by tbname;
+# sql create stream ctb_concat_ws_stream into output_concat_ws_ctb as select ts, concat_ws("aND", c3, c4), concat_ws("and", c3, c5), concat_ws("And", c4, c5), concat_ws("AND", c3, c4, c5) from scalar_ct1;
+# sql create stream tb_concat_ws_stream into output_concat_ws_tb as select ts, concat_ws("aND", c3, c4), concat_ws("and", c3, c5), concat_ws("And", c4, c5), concat_ws("AND", c3, c4, c5) from scalar_tb;
+# sql create stream stb_length_stream into output_length_stb as select ts, length(c3), length(c4), length(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_length_stream into output_length_ctb as select ts, length(c3), length(c4), length(c5) from scalar_ct1;
+# sql create stream tb_length_stream into output_length_tb as select ts, length(c3), length(c4), length(c5) from scalar_tb;
+# sql create stream stb_lower_stream into output_lower_stb as select ts, lower(c3), lower(c4), lower(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_lower_stream into output_lower_ctb as select ts, lower(c3), lower(c4), lower(c5) from scalar_ct1;
+# sql create stream tb_lower_stream into output_lower_tb as select ts, lower(c3), lower(c4), lower(c5) from scalar_tb;
+# sql create stream stb_ltrim_stream into output_ltrim_stb as select ts, ltrim(c3), ltrim(c4), ltrim(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_ltrim_stream into output_ltrim_ctb as select ts, ltrim(c3), ltrim(c4), ltrim(c5) from scalar_ct1;
+# sql create stream tb_ltrim_stream into output_ltrim_tb as select ts, ltrim(c3), ltrim(c4), ltrim(c5) from scalar_tb;
+# sql create stream stb_rtrim_stream into output_rtrim_stb as select ts, rtrim(c3), rtrim(c4), rtrim(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_rtrim_stream into output_rtrim_ctb as select ts, rtrim(c3), rtrim(c4), rtrim(c5) from scalar_ct1;
+# sql create stream tb_rtrim_stream into output_rtrim_tb as select ts, rtrim(c3), rtrim(c4), rtrim(c5) from scalar_tb;
+# sql create stream stb_substr_stream into output_substr_stb as select ts, substr(c3, 2), substr(c3, 2, 2), substr(c4, 5, 1), substr(c5, 3, 4) from scalar_stb partition by tbname;
+# sql create stream ctb_substr_stream into output_substr_ctb as select ts, substr(c3, 2), substr(c3, 2, 2), substr(c4, 5, 1), substr(c5, 3, 4) from scalar_ct1;
+# sql create stream tb_substr_stream into output_substr_tb as select ts, substr(c3, 2), substr(c3, 2, 2), substr(c4, 5, 1), substr(c5, 3, 4) from scalar_tb;
+# sql create stream stb_upper_stream into output_upper_stb as select ts, upper(c3), upper(c4), upper(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_upper_stream into output_upper_ctb as select ts, upper(c3), upper(c4), upper(c5) from scalar_ct1;
+# sql create stream tb_upper_stream into output_upper_tb as select ts, upper(c3), upper(c4), upper(c5) from scalar_tb;
+sql insert into scalar_ct1 values (1656668180503, 100, 100.1, "beijing", "taos", "Taos");
+sql insert into scalar_ct1 values (1656668180503+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");
+sql insert into scalar_ct1 values (1656668180503+2s, 0, Null, "hebei", "TDengine", Null);
+sql insert into scalar_tb values (1656668180503, 100, 100.1, "beijing", "taos", "Taos");
+sql insert into scalar_tb values (1656668180503+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");
+sql insert into scalar_tb values (1656668180503+2s, 0, Null, "hebei", "TDengine", Null);
+sql insert into scalar_ct1 values (1656668180503+1s, -50, 50.1, "beiJing", "TDengine", "taos");
+sql insert into scalar_tb values (1656668180503+1s, -50, 50.1, "beiJing", "TDengine", "taos");
+sql insert into scalar_ct1 values (1656668180503+1s, -50, 50.1, "beiJing", "TDengine", "taos");
+sql insert into scalar_tb values (1656668180503+1s, -50, 50.1, "beiJing", "TDengine", "taos");
+
+print ========== step4
+sql drop database test;
+
+
+print ========== step5 repeat
+sql drop database if exists test;
+sql create database if not exists test vgroups 1 precision "ms" ;
+sql use test;
+sql create table test.scalar_function_stb (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(256), c12 nchar(256), c13 bool) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 binary(256), t12 nchar(256), t13 bool) ;
+sql create table scalar_function_ct1 using scalar_function_stb tags (-38, -32456, 509722288, -1404014954778348330, 87, 8879, 3351927345, 1840080781675115605, 3.002364316200592e+38, 6.698140580387119e+37, "bktezshfyvmrmgzwrwerytfwudlblkyyxismpommiqpqsptpiucptwqutzhajxbiitqxkrpobqhgqvjlvgsudewmelpunjspurbpbbwypvgbwjfrwidrchnojtxyhrwfjwgdiabzfoujxkwcjjxjqsrnhmryjhrykldmdfiwircdfahldtrtuafzvybkihyjatiqivbtpydjtmbfddcgyzjuqidwcchtsamnwyqwvajftayyvfrmqcqygbxmxgjx", "ddlxkxhrvviwnjeqhewbercnlontwbsyevcjsocrwyupautsjkdzqbwuzsuetptgsdfyjzfkqyobkysikpaxtqqonxtocfowaehgovshwyciyzfmdmcmwaolkhdunfhwhcanetepxyppuullxnclockmadyaaufywllwburgsfxizcjgzvboydpqymlwgktslclidbcwiyyubyuvhjgwldkgxswigjkpbpslvlsbigdlmuldmtbqencbntbaohxr", False) ;
+sql create table test.scalar_function_tb1 (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(256), c12 nchar(256), c13 bool) ;
+sql create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);
+sql create table scalar_ct1 using scalar_stb tags(10);
+sql create table if not exists scalar_tb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20));
+sql create stream stb_abs_stream trigger at_once into output_abs_stb as select ts, abs(c1), abs(c2), c3 from scalar_stb partition by tbname;
+sql create stream ctb_abs_stream trigger at_once into output_abs_ctb as select ts, abs(c1), abs(c2), c3 from scalar_ct1;
+sql create stream tb_abs_stream trigger at_once into output_abs_tb as select ts, abs(c1), abs(c2), c3 from scalar_tb;
+sql create stream stb_acos_stream trigger at_once into output_acos_stb as select ts, acos(c1), acos(c2), c3 from scalar_stb partition by tbname;
+sql create stream ctb_acos_stream trigger at_once into output_acos_ctb as select ts, acos(c1), acos(c2), c3 from scalar_ct1;
+sql create stream tb_acos_stream trigger at_once into output_acos_tb as select ts, acos(c1), acos(c2), c3 from scalar_tb;
+sql create stream stb_asin_stream trigger at_once into output_asin_stb as select ts, asin(c1), asin(c2), c3 from scalar_stb partition by tbname;
+sql create stream ctb_asin_stream trigger at_once into output_asin_ctb as select ts, asin(c1), asin(c2), c3 from scalar_ct1;
+sql create stream tb_asin_stream trigger at_once into output_asin_tb as select ts, asin(c1), asin(c2), c3 from scalar_tb;
+sql create stream stb_atan_stream trigger at_once into output_atan_stb as select ts, atan(c1), atan(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_atan_stream trigger at_once into output_atan_ctb as select ts, atan(c1), atan(c2), c3 from scalar_ct1;
+# sql create stream tb_atan_stream trigger at_once into output_atan_tb as select ts, atan(c1), atan(c2), c3 from scalar_tb;
+# sql create stream stb_ceil_stream trigger at_once into output_ceil_stb as select ts, ceil(c1), ceil(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_ceil_stream trigger at_once into output_ceil_ctb as select ts, ceil(c1), ceil(c2), c3 from scalar_ct1;
+# sql create stream tb_ceil_stream trigger at_once into output_ceil_tb as select ts, ceil(c1), ceil(c2), c3 from scalar_tb;
+# sql create stream stb_cos_stream trigger at_once into output_cos_stb as select ts, cos(c1), cos(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_cos_stream trigger at_once into output_cos_ctb as select ts, cos(c1), cos(c2), c3 from scalar_ct1;
+# sql create stream tb_cos_stream trigger at_once into output_cos_tb as select ts, cos(c1), cos(c2), c3 from scalar_tb;
+# sql create stream stb_floor_stream trigger at_once into output_floor_stb as select ts, floor(c1), floor(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_floor_stream trigger at_once into output_floor_ctb as select ts, floor(c1), floor(c2), c3 from scalar_ct1;
+# sql create stream tb_floor_stream trigger at_once into output_floor_tb as select ts, floor(c1), floor(c2), c3 from scalar_tb;
+# sql create stream stb_log_stream trigger at_once into output_log_stb as select ts, log(c1, 2), log(c2, 2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_log_stream trigger at_once into output_log_ctb as select ts, log(c1, 2), log(c2, 2), c3 from scalar_ct1;
+# sql create stream tb_log_stream trigger at_once into output_log_tb as select ts, log(c1, 2), log(c2, 2), c3 from scalar_tb;
+# sql create stream stb_pow_stream trigger at_once into output_pow_stb as select ts, pow(c1, 2), pow(c2, 2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_pow_stream trigger at_once into output_pow_ctb as select ts, pow(c1, 2), pow(c2, 2), c3 from scalar_ct1;
+# sql create stream tb_pow_stream trigger at_once into output_pow_tb as select ts, pow(c1, 2), pow(c2, 2), c3 from scalar_tb;
+# sql create stream stb_round_stream trigger at_once into output_round_stb as select ts, round(c1), round(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_round_stream trigger at_once into output_round_ctb as select ts, round(c1), round(c2), c3 from scalar_ct1;
+# sql create stream tb_round_stream trigger at_once into output_round_tb as select ts, round(c1), round(c2), c3 from scalar_tb;
+# sql create stream stb_sin_stream trigger at_once into output_sin_stb as select ts, sin(c1), sin(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_sin_stream trigger at_once into output_sin_ctb as select ts, sin(c1), sin(c2), c3 from scalar_ct1;
+# sql create stream tb_sin_stream trigger at_once into output_sin_tb as select ts, sin(c1), sin(c2), c3 from scalar_tb;
+# sql create stream stb_sqrt_stream trigger at_once into output_sqrt_stb as select ts, sqrt(c1), sqrt(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_sqrt_stream trigger at_once into output_sqrt_ctb as select ts, sqrt(c1), sqrt(c2), c3 from scalar_ct1;
+# sql create stream tb_sqrt_stream trigger at_once into output_sqrt_tb as select ts, sqrt(c1), sqrt(c2), c3 from scalar_tb;
+# sql create stream stb_tan_stream trigger at_once into output_tan_stb as select ts, tan(c1), tan(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_tan_stream trigger at_once into output_tan_ctb as select ts, tan(c1), tan(c2), c3 from scalar_ct1;
+# sql create stream tb_tan_stream trigger at_once into output_tan_tb as select ts, tan(c1), tan(c2), c3 from scalar_tb;
+# sql create stream stb_char_length_stream into output_char_length_stb as select ts, char_length(c3), char_length(c4), char_length(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_char_length_stream into output_char_length_ctb as select ts, char_length(c3), char_length(c4), char_length(c5) from scalar_ct1;
+# sql create stream tb_char_length_stream into output_char_length_tb as select ts, char_length(c3), char_length(c4), char_length(c5) from scalar_tb;
+# sql create stream stb_concat_stream into output_concat_stb as select ts, concat(c3, c4), concat(c3, c5), concat(c4, c5), concat(c3, c4, c5) from scalar_stb partition by tbname;
+# sql create stream ctb_concat_stream into output_concat_ctb as select ts, concat(c3, c4), concat(c3, c5), concat(c4, c5), concat(c3, c4, c5) from scalar_ct1;
+# sql create stream tb_concat_stream into output_concat_tb as select ts, concat(c3, c4), concat(c3, c5), concat(c4, c5), concat(c3, c4, c5) from scalar_tb;
+# sql create stream stb_concat_ws_stream into output_concat_ws_stb as select ts, concat_ws("aND", c3, c4), concat_ws("and", c3, c5), concat_ws("And", c4, c5), concat_ws("AND", c3, c4, c5) from scalar_stb partition by tbname;
+# sql create stream ctb_concat_ws_stream into output_concat_ws_ctb as select ts, concat_ws("aND", c3, c4), concat_ws("and", c3, c5), concat_ws("And", c4, c5), concat_ws("AND", c3, c4, c5) from scalar_ct1;
+# sql create stream tb_concat_ws_stream into output_concat_ws_tb as select ts, concat_ws("aND", c3, c4), concat_ws("and", c3, c5), concat_ws("And", c4, c5), concat_ws("AND", c3, c4, c5) from scalar_tb;
+# sql create stream stb_length_stream into output_length_stb as select ts, length(c3), length(c4), length(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_length_stream into output_length_ctb as select ts, length(c3), length(c4), length(c5) from scalar_ct1;
+# sql create stream tb_length_stream into output_length_tb as select ts, length(c3), length(c4), length(c5) from scalar_tb;
+# sql create stream stb_lower_stream into output_lower_stb as select ts, lower(c3), lower(c4), lower(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_lower_stream into output_lower_ctb as select ts, lower(c3), lower(c4), lower(c5) from scalar_ct1;
+# sql create stream tb_lower_stream into output_lower_tb as select ts, lower(c3), lower(c4), lower(c5) from scalar_tb;
+# sql create stream stb_ltrim_stream into output_ltrim_stb as select ts, ltrim(c3), ltrim(c4), ltrim(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_ltrim_stream into output_ltrim_ctb as select ts, ltrim(c3), ltrim(c4), ltrim(c5) from scalar_ct1;
+# sql create stream tb_ltrim_stream into output_ltrim_tb as select ts, ltrim(c3), ltrim(c4), ltrim(c5) from scalar_tb;
+# sql create stream stb_rtrim_stream into output_rtrim_stb as select ts, rtrim(c3), rtrim(c4), rtrim(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_rtrim_stream into output_rtrim_ctb as select ts, rtrim(c3), rtrim(c4), rtrim(c5) from scalar_ct1;
+# sql create stream tb_rtrim_stream into output_rtrim_tb as select ts, rtrim(c3), rtrim(c4), rtrim(c5) from scalar_tb;
+# sql create stream stb_substr_stream into output_substr_stb as select ts, substr(c3, 2), substr(c3, 2, 2), substr(c4, 5, 1), substr(c5, 3, 4) from scalar_stb partition by tbname;
+# sql create stream ctb_substr_stream into output_substr_ctb as select ts, substr(c3, 2), substr(c3, 2, 2), substr(c4, 5, 1), substr(c5, 3, 4) from scalar_ct1;
+# sql create stream tb_substr_stream into output_substr_tb as select ts, substr(c3, 2), substr(c3, 2, 2), substr(c4, 5, 1), substr(c5, 3, 4) from scalar_tb;
+# sql create stream stb_upper_stream into output_upper_stb as select ts, upper(c3), upper(c4), upper(c5) from scalar_stb partition by tbname;
+# sql create stream ctb_upper_stream into output_upper_ctb as select ts, upper(c3), upper(c4), upper(c5) from scalar_ct1;
+# sql create stream tb_upper_stream into output_upper_tb as select ts, upper(c3), upper(c4), upper(c5) from scalar_tb;
+sql insert into scalar_ct1 values (1656668180503, 100, 100.1, "beijing", "taos", "Taos");
+sql insert into scalar_ct1 values (1656668180503+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");
+sql insert into scalar_ct1 values (1656668180503+2s, 0, Null, "hebei", "TDengine", Null);
+sql insert into scalar_tb values (1656668180503, 100, 100.1, "beijing", "taos", "Taos");
+sql insert into scalar_tb values (1656668180503+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");
+sql insert into scalar_tb values (1656668180503+2s, 0, Null, "hebei", "TDengine", Null);
+sql insert into scalar_ct1 values (1656668180503+1s, -50, 50.1, "beiJing", "TDengine", "taos");
+sql insert into scalar_tb values (1656668180503+1s, -50, 50.1, "beiJing", "TDengine", "taos");
+sql insert into scalar_ct1 values (1656668180503+1s, -50, 50.1, "beiJing", "TDengine", "taos");
+sql insert into scalar_tb values (1656668180503+1s, -50, 50.1, "beiJing", "TDengine", "taos");
+
+print ========== step6 repeat
+sql drop database test;
+
+
+print ========== interval\session\state window
+
+sql CREATE DATABASE test1 BUFFER 96 CACHESIZE 1 CACHEMODEL 'none' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 2 SINGLE_STABLE 0;
+sql use test1;
+sql CREATE STABLE st (time TIMESTAMP, ca DOUBLE, cb DOUBLE, cc int) TAGS (ta VARCHAR(10) );
+
+print ========== create table before stream
+
+sql CREATE TABLE t1 using st TAGS ('aaa');
+sql CREATE TABLE t2 using st TAGS ('bbb');
+sql CREATE TABLE t3 using st TAGS ('ccc');
+sql CREATE TABLE t4 using st TAGS ('ddd');
+
+print ========== stable
+
+sql create stream streamd1 into streamt1 as select ca, _wstart,_wend, count(*) as total from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca interval(60m) fill(null);
+sql create stream streamd2 into streamt2 as select ca, _wstart,_wend, count(*), max(ca), max(cb) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca interval(60m) fill(linear);
+sql create stream streamd3 into streamt3 as select ca, _wstart,_wend, count(*) as total from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca session(time, 60m);
+sql create stream streamd4 into streamt4 as select ta, _wstart,_wend, count(*) as total from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ta session(time, 60m);
+sql_error create stream streamd5 into streamt5 as select ca, _wstart,_wend, count(*) as total from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca state_window(cc);
+sql_error create stream streamd6 into streamt6 as select ta, _wstart,_wend, count(*) as total from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ta state_window(cc);
+
+print ========== table
+
+sql create stream streamd7 into streamt7 as select ca, _wstart,_wend, count(*) as total from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca interval(60m) fill(null);
+sql create stream streamd8 into streamt8 as select ca, _wstart,_wend, count(*), max(ca), max(cb) from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca interval(60m) fill(linear);
+sql create stream streamd9 into streamt9 as select ca, _wstart,_wend, count(*) as total from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca session(time, 60m);
+sql create stream streamd10 into streamt10 as select ta, _wstart,_wend, count(*) as total from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ta session(time, 60m);
+sql create stream streamd11 into streamt11 as select ca, _wstart,_wend, count(*) as total from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca state_window(cc);
+sql create stream streamd12 into streamt12 as select ta, _wstart,_wend, count(*) as total from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ta state_window(cc);
+
+print ========== create table after stream
+sql CREATE TABLE t5 using st TAGS ('eee');
+sql CREATE TABLE t6 using st TAGS ('fff');
+sql CREATE TABLE t7 using st TAGS ('ggg');
+sql CREATE TABLE t8 using st TAGS ('fff');
+
+sleep 1000
+print ========== drop stream
+sql drop stream if exists streamd1;
+sql drop stream if exists streamd2;
+sql drop stream if exists streamd3;
+sql drop stream if exists streamd4;
+#sql drop stream if exists streamd5;
+#sql drop stream if exists streamd6;
+sql drop stream if exists streamd7;
+sql drop stream if exists streamd8;
+sql drop stream if exists streamd9;
+sql drop stream if exists streamd10;
+sql drop stream if exists streamd11;
+sql drop stream if exists streamd12;
+print ========== step7
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT

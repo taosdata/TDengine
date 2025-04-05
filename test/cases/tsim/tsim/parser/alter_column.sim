@@ -1,0 +1,84 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_alt_db
+$tbPrefix = m_alt_tb
+$mtPrefix = m_alt_mt
+$tbNum = 10
+$rowNum = 5
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== alter.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database if exists $db
+sql create database $db
+sql use $db
+##### alter table test, simeplest case
+sql create table tb (ts timestamp, c1 int, c2 binary(10), c3 nchar(10))
+sql insert into tb values (now, 1, "1", "1")
+sql alter table tb modify column c2 binary(20);
+sql alter table tb modify column c3 nchar(20);
+
+
+sql create stable stb (ts timestamp, c1 int, c2 binary(10), c3 nchar(10)) tags(id1 int, id2 binary(10), id3 nchar(10))
+sql create table tb1 using stb tags(1, "a", "b")
+sql insert into tb1 values (now, 1, "1", "1")
+sql alter stable stb modify column c2 binary(20);
+sql alter table stb modify column c2 binary(30);
+sql alter stable stb modify column c3 nchar(20);
+sql alter table stb modify column c3 nchar(30);
+sql alter table stb modify tag id2 binary(11);
+sql_error alter stable stb modify tag id2 binary(11);
+sql alter table stb modify tag id3 nchar(11);
+sql_error alter stable stb modify tag id3 nchar(11);
+
+##### ILLEGAL OPERATIONS
+
+# try dropping columns that are defined in metric
+sql_error alter table tb modify column c1 binary(10);
+sql_error alter table tb modify column c1 double;
+sql_error alter table tb modify column c2 int;
+sql_error alter table tb modify column c2 binary(10);
+sql_error alter table tb modify column c2 binary(9);
+sql_error alter table tb modify column c2 binary(-9);
+sql_error alter table tb modify column c2 binary(0);
+sql_error alter table tb modify column c2 binary(65436);
+sql_error alter table tb modify column c2 nchar(30);
+sql_error alter table tb modify column c3 double;
+sql_error alter table tb modify column c3 nchar(10);
+sql_error alter table tb modify column c3 nchar(0);
+sql_error alter table tb modify column c3 nchar(-1);
+sql_error alter table tb modify column c3 binary(80);
+sql_error alter table tb modify column c3 nchar(17000);
+sql_error alter table tb modify column c3 nchar(100), c2 binary(30);
+sql_error alter table tb modify column c1 nchar(100), c2 binary(30);
+sql_error alter stable tb modify column c2 binary(30);
+sql_error alter table tb modify tag c2 binary(30);
+sql_error alter table stb modify tag id2 binary(10);
+sql_error alter table stb modify tag id2 nchar(30);
+sql_error alter stable stb modify tag id2 binary(10);
+sql_error alter stable stb modify tag id2 nchar(30);
+sql_error alter table stb modify tag id3 nchar(10);
+sql_error alter table stb modify tag id3 binary(30);
+sql_error alter stable stb modify tag id3 nchar(10);
+sql_error alter stable stb modify tag id3 binary(30);
+sql_error alter stable stb modify tag id1 binary(30);
+sql_error alter stable stb modify tag c1 binary(30);
+
+
+sql_error alter table tb1 modify column c2 binary(30);
+sql_error alter table tb1 modify column c3 nchar(30);
+sql_error alter table tb1 modify tag id2 binary(30);
+sql_error alter table tb1 modify tag id3 nchar(30);
+sql_error alter stable tb1 modify tag id2 binary(30);
+sql_error alter stable tb1 modify tag id3 nchar(30);
+sql_error alter stable tb1 modify column c2 binary(30);
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

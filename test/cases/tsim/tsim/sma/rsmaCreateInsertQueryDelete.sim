@@ -1,0 +1,540 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print =============== create database with retentions
+sql create database d0 retentions -:7d,10s:21d,15s:365d vgroups 1;
+sql use d0
+
+print =============== create super table and register rsma
+sql create table if not exists stb (ts timestamp, c1 float, c2 double) tags (city binary(20),district binary(20)) rollup(sum) max_delay 1s,1s;
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+sql create table ct1 using stb tags("BeiJing", "ChaoYang");
+
+sql show tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== insert data and trigger rollup
+sql insert into ct1 values(now, 10, NULL);
+sql insert into ct1 values(now+60m, 1, NULL);
+sql insert into ct1 values(now+120m, 100, NULL);
+
+print =============== wait 7 seconds for results
+sleep 7000
+
+print =============== select * from retention level 2 from memory
+sql select * from ct1;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+if $rows != 3 then
+  print retention level 2 file rows $rows != 3
+  return -1
+endi
+
+if $data01 != 10.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data11 != 1.00000 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+if $data21 != 100.00000 then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 1 from memory
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+
+if $rows != 3 then
+  print retention level 2 file rows $rows != 3
+  return -1
+endi
+
+if $data01 != 10.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data11 != 1.00000 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+if $data21 != 100.00000 then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 0 from memory
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+
+if $rows != 3 then
+  print retention level 2 file rows $rows != 3
+  return -1
+endi
+
+if $data01 != 10.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data11 != 1.00000 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+if $data21 != 100.00000 then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+
+print =============== delete row 0
+sql delete from ct1 where ts < now;
+sql delete from ct1 where ts < now;
+sql delete from ct1 where ts < now;
+print =============== wait 7 seconds for results
+sleep 7000
+
+print =============== select * from retention level 2 from memory after delete row 0
+sql select * from ct1;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+
+if $rows != 2 then
+  print retention level 2 file rows $rows != 2
+  return -1
+endi
+
+if $data01 != 1.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data11 != 100.00000 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 1 from memory after delete row 0
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+
+if $rows != 2 then
+  print retention level 2 file rows $rows != 2
+  return -1
+endi
+
+if $data01 != 1.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data11 != 100.00000 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 0 from memory after delete row 0
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+
+if $rows != 2 then
+  print retention level 2 file rows $rows != 2
+  return -1
+endi
+
+if $data01 != 1.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data11 != 100.00000 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+
+print =============== delete row 1
+sql delete from ct1 where ts < now;
+sql delete from ct1 where ts < now;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 60m;
+
+print =============== wait 7 seconds for results
+sleep 7000
+
+print =============== select * from retention level 2 from memory after delete row 1
+sql select * from ct1;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 1 from memory after delete row 1
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 0 from memory after delete row 1
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+#===================================================================
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print =============== wait 7 seconds for results after reboot
+sleep 7000
+
+print =============== select * from retention level 2 from memory after reboot
+sql select * from ct1;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 1 from memory after reboot
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 0 from memory after reboot
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+#==================== flush database to trigger commit data to file
+sql flush database d0;
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print =============== select * from retention level 2 from file
+sql select * from ct1 where ts > now-365d;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 1 from file
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+print =============== select * from retention level 0 from file
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01 $data02
+
+if $rows != 1 then
+  print retention level 2 file rows $rows != 1
+  return -1
+endi
+
+if $data01 != 100.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+
+print =============== delete row 2
+sql delete from ct1 where ts < now;
+sql delete from ct1 where ts < now;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now + 120m;
+sql delete from ct1 where ts < now + 200m;
+sql delete from ct1 where ts < now + 300m;
+sql delete from ct1 where ts < now + 60m;
+sql delete from ct1 where ts < now;
+
+print =============== wait 7 seconds for results
+sleep 7000
+
+print =============== select * from retention level 2 from memory after delete row 2
+sql select * from ct1;
+print $data00 $data01 $data02
+
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+print =============== select * from retention level 1 from memory after delete row 2
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01 $data02
+
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+print =============== select * from retention level 0 from memory after delete row 2
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01 $data02
+
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+#===================================================================
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print =============== wait 7 seconds for results after reboot
+sleep 7000
+
+print =============== select * from retention level 2 from memory after delete row 2
+sql select * from ct1;
+print $data00 $data01 $data02
+
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+print =============== select * from retention level 1 from memory after delete row 2
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01 $data02
+
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+print =============== select * from retention level 0 from memory after delete row 2
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01 $data02
+
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+print =============== check delete multiple tables
+sql create table ct2 using stb tags("BeiJing", "HaiDian");
+sql create table ct3 using stb tags("ShangHai", "PuDong");
+
+sql insert into ct2 values(now, 10, NULL);
+sql insert into ct2 values(now+60m, 1, NULL);
+sql insert into ct2 values(now+120m, 100, NULL);
+sql insert into ct3 values(now, 10, NULL);
+sql insert into ct3 values(now+60m, 1, NULL);
+sql insert into ct3 values(now+120m, 100, NULL);
+
+print =============== wait 7 seconds for results
+sleep 7000
+
+print =============== select * from retention level 2 from memory
+sql select * from ct2;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+if $rows != 3 then
+  print retention level 2 file rows $rows != 3
+  return -1
+endi
+
+if $data01 != 10.00000 then
+  return -1
+endi
+if $data02 != NULL then
+  return -1
+endi
+if $data11 != 1.00000 then
+  return -1
+endi
+if $data12 != NULL then
+  return -1
+endi
+if $data21 != 100.00000 then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+
+sql delete from ct1 where ts < now + 120m;
+sql delete from ct3 where ts < now;
+sql delete from ct2 where ts < now + 60m;
+sql delete from ct2 where ts < now + 120m;
+sql delete from ct3 where ts < now + 60m;
+sql delete from ct3 where ts < now + 120m;
+sql delete from ct3 where ts < now;
+
+print =============== wait 7 seconds for results
+sleep 7000
+
+print =============== select * from retention level 2 from memory after delete ct2
+sql select * from ct2;
+print $data00 $data01 $data02
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+print =============== select * from retention level 1 from memory after delete ct3
+sql select * from ct3 where ts > now - 8d;
+print $data00 $data01 $data02
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+
+#===================================================================
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#===================================================================
+system sh/exec.sh -n dnode1 -s start
+print =============== wait 7 seconds for results after reboot
+sleep 7000
+
+print =============== select * from retention level 1 from memory after delete ct2
+sql select * from ct2  where ts > now - 8d;
+print $data00 $data01 $data02
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+print =============== select * from retention level 2 from memory after delete ct3
+sql select * from ct3 where ts > now - 365d;
+print $data00 $data01 $data02
+if $rows != 0 then
+  print retention level 2 file rows $rows != 0
+  return -1
+endi
+
+#===================================================================
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#===================================================================

@@ -4,7 +4,7 @@ sidebar_label: taosdump
 toc_max_heading_level: 4
 ---
 
-taosdump 是为开源用户提供的 TDengine 数据备份/恢复工具，备份数据文件采用标准 [ Apache AVRO ](https://avro.apache.org/) 格式，方便与外界生态交换数据。taosdump 提供多种数据备份及恢复选项来满足不同需求，可通过 --help 查看支持的全部选项。
+taosdump 是为开源用户提供的 TDengine 数据备份/恢复工具，备份数据文件采用标准 [Apache AVRO](https://avro.apache.org/) 格式，方便与外界生态交换数据。taosdump 提供多种数据备份及恢复选项来满足不同需求，可通过 --help 查看支持的全部选项。
 
 ## 工具获取
 
@@ -75,7 +75,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -L, --loose-mode           Using loose mode if the table name and column name
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
-  -Q, --dot-replace          Repalce dot character with underline character in
+  -Q, --dot-replace          Replace dot character with underline character in
                              the table name.(Version 2.5.3).
   -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is 8
   -W, --rename=RENAME-LIST   Rename database name with new name during

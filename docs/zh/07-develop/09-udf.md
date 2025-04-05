@@ -107,7 +107,7 @@ int32_t scalarfn_destroy() {
 ```
 ### 聚合函数模板
 
-用C语言开发聚合函数的模板如下。
+用 C 语言开发聚合函数的模板如下。
 ```c
 #include "taos.h"
 #include "taoserror.h"
@@ -237,7 +237,7 @@ typedef struct SUdfInterBuf {
 
 #### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/bit_and.c)
 
-bit_add 实现多列的按位与功能。如果只有一列，返回这一列。bit_add 忽略空值。
+bit_and 实现多列的按位与功能。如果只有一列，返回这一列。bit_and 忽略空值。
 
 <details>
 <summary>bit_and.c</summary>
@@ -287,18 +287,52 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 
 </details>
 
+#### 聚合函数示例3 切分字符串求平均值 [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/extract_avg.c)
+
+`extract_avg` 函数是将一个逗号分隔的字符串数列转为一组数值，统计所有行的结果，计算最终平均值。实现时需注意:
+- `interBuf->numOfResult` 需要返回 1 或者 0，不能用于 count 计数。
+- count 计数可使用额外的缓存，例如 `SumCount` 结构体。
+- 字符串的获取需使用`varDataVal`。
+
+创建表：
+```bash
+create table scores(ts timestamp, varStr varchar(128));
+```
+创建自定义函数：
+```bash
+create aggregate function extract_avg as '/root/udf/libextract_avg.so' outputtype double bufsize 16 language 'C'; 
+```
+使用自定义函数：
+```bash
+select extract_avg(valStr) from scores;
+```
+
+生成 `.so` 文件
+```bash
+gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
+```
+
+<details>
+<summary>extract_avg.c</summary>
+
+```c
+{{#include tests/script/sh/extract_avg.c}}
+```
+
+</details>
+
 ## 用 Python 语言开发 UDF
 
 ### 准备环境
   
 准备环境的具体步骤如下：
-- 第1步，准备好 Python 运行环境。
-- 第2步，安装 Python 包 taospyudf。命令如下。
+- 第 1 步，准备好 Python 运行环境。本地编译安装 python 注意打开 `--enable-shared` 选项，不然后续安装 taospyudf 会因无法生成共享库而导致失败。
+- 第 2 步，安装 Python 包 taospyudf。命令如下。
     ```shell
     pip3 install taospyudf
     ```
-- 第3步，执行命令 ldconfig。
-- 第4步，启动 taosd 服务。
+- 第 3 步，执行命令 ldconfig。
+- 第 4 步，启动 taosd 服务。
 
 安装过程中会编译 C++ 源码，因此系统上要有 cmake 和 gcc。编译生成的 libtaospyudf.so 文件自动会被复制到 /usr/local/lib/ 目录，因此如果是非 root 用户，安装时需加 sudo。安装完可以检查这个目录是否有了这个文件:
 
@@ -323,7 +357,7 @@ def process(input: datablock) -> tuple[output_type]:
 ```
 
 主要参数说明如下：
-- input:datablock 类似二维矩阵，通过成员方法 data(row, col) 读取位于 row 行、col 列的 python 对象
+- input:datablock 类似二维矩阵，通过成员方法 data(row, col) 读取位于 row 行、col 列的 Python 对象
 - 返回值是一个 Python 对象元组，每个元素类型为输出类型。
 
 #### 聚合函数接口
@@ -389,7 +423,7 @@ def finish(buf: bytes) -> output_type:
 
 ### 数据类型映射
 
-下表描述了TDengine SQL 数据类型和 Python 数据类型的映射。任何类型的 NULL 值都映射成 Python 的 None 值。
+下表描述了 TDengine SQL 数据类型和 Python 数据类型的映射。任何类型的 NULL 值都映射成 Python 的 None 值。
 
 |  **TDengine SQL数据类型**   | **Python数据类型** |
 | :-----------------------: | ------------ |
@@ -405,7 +439,7 @@ def finish(buf: bytes) -> output_type:
 
 本文内容由浅入深包括 5 个示例程序，同时也包含大量实用的 debug 技巧。
 
-注意：**UDF 内无法通过 print 函数输出日志，需要自己写文件或用 python 内置的 logging 库写文件**。
+注意：**UDF 内无法通过 print 函数输出日志，需要自己写文件或用 Python 内置的 logging 库写文件**。
 
 #### 示例一
 
@@ -472,10 +506,10 @@ taos> select myfun(v1, v2) from t;
 DB error: udf function execution failure (0.011088s)
 ```
 
-不幸的是执行失败了，什么原因呢？查看 udfd 进程的日志。
+不幸的是执行失败了，什么原因呢？查看 taosudf 进程的日志。
 
 ```shell
-tail -10 /var/log/taos/udfd.log
+tail -10 /var/log/taos/taosudf.log
 ```
 
 发现以下错误信息。
@@ -605,7 +639,7 @@ Query OK, 4 row(s) in set (0.010653s)
 #### 示例四
 
 编写一个 UDF，输入一个时间戳，输出距离这个时间最近的下一个周日。比如今天是 2023-05-25， 则下一个周日是 2023-05-28。
-完成这个函数要用到第三方库 momen。先安装这个库。
+完成这个函数要用到第三方库 moment。先安装这个库。
 
 ```shell
 pip3 install moment
@@ -652,7 +686,7 @@ tail -20 taospyudf.log
 2023-05-25 11:42:34.541 ERROR [1679419] [PyUdf::PyUdf@217] py udf load module failure. error ModuleNotFoundError: No module named 'moment'
 ```
 
-这是因为 “moment” 所在位置不在 python udf 插件默认的库搜索路径中。怎么确认这一点呢？通过以下命令搜索 taospyudf.log。
+这是因为 “moment” 所在位置不在 Python udf 插件默认的库搜索路径中。怎么确认这一点呢？通过以下命令搜索 taospyudf.log。
 
 ```shell
 grep 'sys path' taospyudf.log  | tail -1
@@ -664,7 +698,7 @@ grep 'sys path' taospyudf.log  | tail -1
 2023-05-25 10:58:48.554 INFO  [1679419] [doPyOpen@592] python sys path: ['', '/lib/python38.zip', '/lib/python3.8', '/lib/python3.8/lib-dynload', '/lib/python3/dist-packages', '/var/lib/taos//.udf']
 ```
 
-发现 python udf 插件默认搜索的第三方库安装路径是： /lib/python3/dist-packages，而 moment 默认安装到了 /usr/local/lib/python3.8/dist-packages。下面我们修改 python udf 插件默认的库搜索路径。
+发现 Python udf 插件默认搜索的第三方库安装路径是： /lib/python3/dist-packages，而 moment 默认安装到了 /usr/local/lib/python3.8/dist-packages。下面我们修改 Python udf 插件默认的库搜索路径。
 先打开 python3 命令行，查看当前的 sys.path。
 
 ```python
@@ -754,7 +788,7 @@ create or replace aggregate function myspread as '/root/udf/myspread.py' outputt
 
 这个 SQL 语句与创建标量函数的 SQL 语句有两个重要区别。
 1. 增加了 aggregate 关键字
-2. 增加了 bufsize 关键字，用来指定存储中间结果的内存大小，这个数值可以大于实际使用的数值。本例中间结果是两个浮点数组成的 tuple，序列化后实际占用大小只有 32 个字节，但指定的 bufsize 是128，可以用 python 命令行打印实际占用的字节数
+2. 增加了 bufsize 关键字，用来指定存储中间结果的内存大小，这个数值可以大于实际使用的数值。本例中间结果是两个浮点数组成的 tuple，序列化后实际占用大小只有 32 个字节，但指定的 bufsize 是128，可以用 Python 命令行打印实际占用的字节数
 
 ```python
 >>> len(pickle.dumps((12345.6789, 23456789.9877)))

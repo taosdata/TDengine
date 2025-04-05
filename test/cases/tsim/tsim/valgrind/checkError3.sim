@@ -1,0 +1,109 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== step1: create drop select * from information_schema.ins_dnodes
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ---> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ---> $data00 $data01 $data02 $data03 $data04 $data05
+if $rows != 1 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+
+print =============== step2: create db
+sql create database d1 vgroups 3 buffer 3
+sql select * from information_schema.ins_databases
+sql use d1
+sql show vgroups
+
+print =============== step3: create show stable, include all type
+sql create table if not exists stb (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(16), c9 nchar(16), c10 timestamp, c11 tinyint unsigned, c12 smallint unsigned, c13 int unsigned, c14 bigint unsigned) tags (t1 bool, t2 tinyint, t3 smallint, t4 int, t5 bigint, t6 float, t7 double, t8 binary(16), t9 nchar(16), t10 timestamp, t11 tinyint unsigned, t12 smallint unsigned, t13 int unsigned, t14 bigint unsigned)
+sql create stable if not exists stb_1 (ts timestamp, c1 int) tags (j int)
+sql create table stb_2 (ts timestamp, c1 int) tags (t1 int)
+sql create stable stb_3 (ts timestamp, c1 int) tags (t1 int)
+sql show stables
+if $rows != 4 then 
+  return -1
+endi
+sql show stables like 'stb'
+
+print =============== step4: ccreate child table
+sql create table c1 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql create table c2 using stb tags(false, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 2', 'child tbl 2', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== step5: insert data
+sql insert into c1 values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql insert into c1 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+2s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql insert into c2 values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+sql insert into c2 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) (now+2s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
+
+print =============== step6: alter insert
+sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now-1s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
+sql insert into c3 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1', 'child tbl 1', '2022-02-25 18:00:00.000', 10, 20, 30, 40) 
+
+print ===============  restart
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start -v
+
+print =============== stepa: query data
+
+$x = 0
+steps: 
+	$x = $x + 1
+	sleep 500
+	if $x == 50 then
+		return -1
+	endi
+sql select * from c1 -x steps
+
+sql select * from stb
+sql select * from stb_1
+sql select ts, c1, c2, c3 from c1
+sql select ts, c1, c2, c3 from stb
+sql select ts, c1 from stb_2
+sql select ts, c1, t1 from c1
+sql select ts, c1, t1 from stb
+sql select ts, c1, t1 from stb_2
+
+print =============== stepb: count
+sql select count(*) from c1;
+sql select count(*) from stb;
+sql select count(ts), count(c1), count(c2), count(c3) from c1
+sql select count(ts), count(c1), count(c2), count(c3) from stb
+
+print =============== stepc: func
+sql select first(ts), first(c1), first(c2), first(c3) from c1
+sql select min(c2), min(c3), min(c4) from c1
+sql select max(c2), max(c3), max(c4) from c1
+sql select sum(c2), sum(c3), sum(c4) from c1
+
+_OVER:
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 2 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 

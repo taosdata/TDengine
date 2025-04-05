@@ -1,0 +1,112 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================ dnode1 start
+$i = 0
+$dbPrefix = cp_cp_db
+$tbPrefix = cp_cp_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+$N = 2000
+
+print =============== step1
+sql create database $db
+sql use $db
+
+sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bigint, str binary(256))
+
+$count = 0
+while $count < $N
+   $ms = 1591200000000 + $count
+   sql insert into $tb values( $ms , 1, 0, $count , $count , $count ,'it is a string')
+   $count = $count + 1
+endw
+
+sql select * from $tb
+if $rows != $N then
+  return -1
+endi
+
+print =============== step2
+$i = 1
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+
+sql create table $tb (ts timestamp, f float, d double, str binary(256))
+
+$count = 0
+while $count < $N
+   $ms = 1591286400000 + $count
+   sql insert into $tb values(  $ms , $count , $count ,'it is a string')
+   $count = $count + 1
+endw
+
+sql select * from $tb
+if $rows != $N then
+  return -1
+endi
+
+print =============== step3
+$i = 2
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+
+sql create table $tb (ts timestamp, b bool, t tinyint, s smallint, i int, big bigint, f float, d double, str binary(256))
+
+$count = 0
+while $count < $N
+   $ms = 1591372800000 + $count
+   sql insert into $tb values(  $ms , 1 , 0 , $count , $count , $count , $count , $count ,'it is a string')
+   $count = $count + 1
+endw
+
+sql select * from $tb
+if $rows != $N then
+  return -1
+endi
+
+print =============== step4
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print =============== step5
+$i = 0
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+sql use $db
+sql select * from $tb
+print select * from $tb ==> $rows points
+if $rows != $N then
+  return -1
+endi
+
+$i = 1
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+sql use $db
+sql select * from $tb
+print select * from $tb ==> $rows points
+if $rows != $N then
+  return -1
+endi
+
+$i = 2
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+sql use $db
+sql select * from $tb
+print select * from $tb ==> $rows points
+if $rows != $N then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

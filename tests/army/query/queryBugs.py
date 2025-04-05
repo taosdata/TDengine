@@ -325,12 +325,97 @@ class TDTestCase(TBase):
         tdSql.query("select * from t1 where ts > '2025-01-01 00:00:00';")
         tdSql.checkRows(0)
 
+    def FIX_TS_6058(self):
+        tdSql.execute("create database iot_60j_production_eqp;")
+        tdSql.execute("create table iot_60j_production_eqp.realtime_data_collections (device_time TIMESTAMP, item_value VARCHAR(64), \
+            upload_time TIMESTAMP) tags(bu_id VARCHAR(64), district_id VARCHAR(64), factory_id VARCHAR(64), production_line_id VARCHAR(64), \
+            production_processes_id VARCHAR(64), work_center_id VARCHAR(64), station_id VARCHAR(64), device_name VARCHAR(64), item_name VARCHAR(64));")
+    
+        sub1 = " SELECT '实际速度' as name, 0 as rank, '当月' as cycle,\
+                 CASE \
+                    WHEN COUNT(item_value) = 0 THEN NULL\
+                    ELSE AVG(CAST(item_value AS double))\
+                    END AS item_value\
+                FROM iot_60j_production_eqp.realtime_data_collections\
+                WHERE device_time >= TO_TIMESTAMP(CONCAT(substring(TO_CHAR(today  ,'YYYY-MM-dd'), 1,7), '-01 00:00:00'), 'YYYY-mm-dd')\
+                AND item_name = 'Premixer_SpindleMotor_ActualSpeed' "
+         
+        sub2 = " SELECT  '实际速度' as name, 3 as rank, TO_CHAR(TODAY(),'YYYY-MM-dd') as cycle,\
+                 CASE \
+                    WHEN COUNT(item_value) = 0 THEN NULL\
+                    ELSE AVG(CAST(item_value AS double))\
+                    END AS item_value\
+                FROM iot_60j_production_eqp.realtime_data_collections\
+                WHERE device_time >= TODAY()-1d and device_time <= now()\
+                AND item_name = 'Premixer_SpindleMotor_ActualSpeed' "
+                  
+        sub3 = " SELECT  '设定速度' as name, 1 as rank, CAST(CONCAT('WEEK-',CAST(WEEKOFYEAR(TODAY()-1w) as VARCHAR)) as VARCHAR) as cycle,\
+                 CASE \
+                    WHEN COUNT(item_value) = 0 THEN NULL\
+                    ELSE AVG(CAST(item_value AS double))\
+                    END AS item_value\
+                FROM iot_60j_production_eqp.realtime_data_collections\
+                where \
+                item_name = 'Premixer_SpindleMotor_SettingSpeed'\
+                      AND (\
+                        (WEEKDAY(now) = 0 AND  device_time >= today()-8d and device_time <= today()-1d) OR\
+                        (WEEKDAY(now) = 1 AND  device_time >= today()-9d and device_time <= today()-2d) OR\
+                        (WEEKDAY(now) = 2 AND  device_time >= today()-10d and device_time <= today()-3d) OR\
+                        (WEEKDAY(now) = 3 AND  device_time >= today()-11d and device_time <= today()-4d) OR\
+                        (WEEKDAY(now) = 4 AND  device_time >= today()-12d and device_time <= today()-5d) OR\
+                        (WEEKDAY(now) = 5 AND  device_time >= today()-13d and device_time <= today()-6d) OR\
+                        (WEEKDAY(now) = 6 AND  device_time >= today()-14d and device_time <= today()-7d)\
+                    ) "   
+                    
+        sub4 = " SELECT  '设定速度2' as name, 1 as rank, CAST(CONCAT('WEEK-',CAST(WEEKOFYEAR(TODAY()-1w) as VARCHAR)) as VARCHAR(5000)) as cycle,\
+                 CASE \
+                    WHEN COUNT(item_value) = 0 THEN NULL\
+                    ELSE AVG(CAST(item_value AS double))\
+                    END AS item_value\
+                FROM iot_60j_production_eqp.realtime_data_collections\
+                where \
+                item_name = 'Premixer_SpindleMotor_SettingSpeed'\
+                      AND (\
+                        (WEEKDAY(now) = 0 AND  device_time >= today()-8d and device_time <= today()-1d) OR\
+                        (WEEKDAY(now) = 1 AND  device_time >= today()-9d and device_time <= today()-2d) OR\
+                        (WEEKDAY(now) = 2 AND  device_time >= today()-10d and device_time <= today()-3d) OR\
+                        (WEEKDAY(now) = 3 AND  device_time >= today()-11d and device_time <= today()-4d) OR\
+                        (WEEKDAY(now) = 4 AND  device_time >= today()-12d and device_time <= today()-5d) OR\
+                        (WEEKDAY(now) = 5 AND  device_time >= today()-13d and device_time <= today()-6d) OR\
+                        (WEEKDAY(now) = 6 AND  device_time >= today()-14d and device_time <= today()-7d)\
+                    ) "      
+        for uiontype in ["union" ,"union all"]:
+            repeatLines = 1
+            if uiontype == "union":
+                repeatLines = 0
+            for i in range(1, 10):
+                tdLog.debug(f"test: realtime_data_collections {i} times...")
+                tdSql.query(f"select name,cycle,item_value from ( {sub1} {uiontype} {sub2} {uiontype} {sub3}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub1} {uiontype} {sub2} {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub2} {uiontype} {sub4} {uiontype} {sub1}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1} {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4)
+                tdSql.query(f"select name,cycle,item_value from ( {sub2} {uiontype} {sub3} {uiontype} {sub1} {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub4} {uiontype} {sub1} {uiontype} {sub2}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub4} {uiontype} {sub1} {uiontype} {sub2}  {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4 + repeatLines)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1} {uiontype} {sub2}  {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4 + repeatLines)
+            
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
         
         self.ts5946()
-
         # TD BUGS
         self.FIX_TD_30686()
         self.FIX_TD_31684()
@@ -340,6 +425,7 @@ class TDTestCase(TBase):
         self.FIX_TS_5143()
         self.FIX_TS_5239()
         self.FIX_TS_5984()
+        self.FIX_TS_6058()
 
         tdLog.success(f"{__file__} successfully executed")
 

@@ -1,0 +1,44 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_dt_db
+$tbPrefix = lm_dt_tb
+$db = $dbPrefix
+$tb = $tbPrefix
+
+print =============== step1
+sql create database $db
+$table = lm_dt_db.lm_dt_tb
+
+print =============== step2
+sql create table $table (ts timestamp, speed int) 
+
+print =============== step3
+sql insert into $table values (now, 1)
+
+print =============== step4
+sql select * from $table
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+print =============== step5
+sql describe $table
+
+print =============== step6
+sql drop table $table
+
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

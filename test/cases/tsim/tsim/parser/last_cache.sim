@@ -1,0 +1,67 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+$db = testdb
+sql drop database if exists $db
+sql create database $db cachemodel 'last_value'
+sql use $db
+
+sql create stable st2 (ts timestamp, f1 int, f2 double, f3 binary(10), f4 timestamp) tags (id int)
+sql create table tb1 using st2 tags (1);
+sql create table tb2 using st2 tags (2);
+sql create table tb3 using st2 tags (3);
+sql create table tb4 using st2 tags (4);
+sql create table tb5 using st2 tags (1);
+sql create table tb6 using st2 tags (2);
+sql create table tb7 using st2 tags (3);
+sql create table tb8 using st2 tags (4);
+sql create table tb9 using st2 tags (5);
+sql create table tba using st2 tags (5);
+sql create table tbb using st2 tags (5);
+sql create table tbc using st2 tags (5);
+sql create table tbd using st2 tags (5);
+sql create table tbe using st2 tags (5);
+
+sql insert into tb1 values ("2021-05-09 10:10:10", 1, 2.0, '3',  -1000)
+sql insert into tb1 values ("2021-05-10 10:10:11", 4, 5.0, NULL, -2000)
+sql insert into tb1 values ("2021-05-12 10:10:12", 6,NULL, NULL, -3000)
+
+sql insert into tb2 values ("2021-05-09 10:11:13",-1,-2.0,'-3',  -1001)
+sql insert into tb2 values ("2021-05-10 10:11:14",-4,-5.0, NULL, -2001)
+sql insert into tb2 values ("2021-05-11 10:11:15",-6,  -7, '-8', -3001)
+
+sql insert into tb3 values ("2021-05-09 10:12:17", 7, 8.0, '9' , -1002)
+sql insert into tb3 values ("2021-05-09 10:12:17",10,11.0, NULL, -2002)
+sql insert into tb3 values ("2021-05-09 10:12:18",12,NULL, NULL, -3002)
+
+sql insert into tb4 values ("2021-05-09 10:12:19",13,14.0,'15' , -1003)
+sql insert into tb4 values ("2021-05-10 10:12:20",16,17.0, NULL, -2003)
+sql insert into tb4 values ("2021-05-11 10:12:21",18,NULL, NULL, -3003)
+
+sql insert into tb5 values ("2021-05-09 10:12:22",19,  20, '21', -1004)
+sql insert into tb6 values ("2021-05-11 10:12:23",22,  23, NULL, -2004)
+sql insert into tb7 values ("2021-05-10 10:12:24",24,NULL, '25', -3004)
+sql insert into tb8 values ("2021-05-11 10:12:25",26,NULL, '27', -4004)
+
+sql insert into tb9 values ("2021-05-09 10:12:26",28,  29, '30', -1005)
+sql insert into tba values ("2021-05-10 10:12:27",31,  32, NULL, -2005)
+sql insert into tbb values ("2021-05-10 10:12:28",33,NULL, '35', -3005)
+sql insert into tbc values ("2021-05-11 10:12:29",36,  37, NULL, -4005)
+sql insert into tbd values ("2021-05-11 10:12:29",NULL,NULL,NULL,NULL )
+
+run tsim/parser/last_cache_query.sim
+
+sql flush database $db
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+system sh/exec.sh -n dnode1 -s start
+
+run tsim/parser/last_cache_query.sim
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+
+

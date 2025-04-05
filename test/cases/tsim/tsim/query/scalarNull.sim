@@ -1,0 +1,86 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1
+sql create database db1 vgroups 3;
+sql use db1;
+sql select * from information_schema.ins_databases;
+sql create stable st1 (ts timestamp, f1 int, f2 binary(200)) tags(t1 int);
+sql create table tb1 using st1 tags(1);
+sql insert into tb1 values ('2022-04-26 15:15:00', 1, "a");
+sql insert into tb1 values ('2022-04-26 15:15:01', 2, "b");
+sql insert into tb1 values ('2022-04-26 15:15:02', 3, "c");
+sql insert into tb1 values ('2022-04-26 15:15:03', 4, "d");
+sql insert into tb1 values ('2022-04-26 15:15:04', 5, "e");
+sql insert into tb1 values ('2022-04-26 15:15:05', 6, "f");
+sql insert into tb1 values ('2022-04-26 15:15:06', null, null);
+sql insert into tb1 values ('2022-04-26 15:15:07', null, "g");
+sql insert into tb1 values ('2022-04-26 15:15:08', 7, null);
+
+sql select * from tb1 where f1 in (1,2,3);
+if $rows != 3 then
+  return -1
+endi
+sql select * from tb1 where f1 <>3;
+if $rows != 6 then
+  return -1
+endi
+sql select * from tb1 where f1 in (1,2,3,null);
+if $rows != 3 then
+  return -1
+endi
+sql select * from tb1 where f1 not in (1,2,3,null);
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where f1 in (null);
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where f1 = null;
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where f1 <> null;
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where f1 + 3 <> null;
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where f1+1 <>3+null;
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where f1+1*null <>3+null;
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where null;
+print $rows
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where null = null;
+if $rows != 0 then
+  return -1
+endi
+sql select * from tb1 where null <> null;
+if $rows != 0 then
+  return -1
+endi
+
+#TODO: ENABLE IT
+#sql select * from tb1 where not (null <> null);
+#if $rows != 9 then
+#  return -1
+#endi
+
+
+#TODO: MOVE IT TO NORMAL CASE
+sql_error select * from tb1 where not (null);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

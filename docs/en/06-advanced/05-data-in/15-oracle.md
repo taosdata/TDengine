@@ -12,6 +12,10 @@ import imgStep05 from '../../assets/oracle-database-05.png';
 import imgStep06 from '../../assets/oracle-database-06.png';
 import imgStep07 from '../../assets/oracle-database-07.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, migrating data from Oracle to the current TDengine cluster.
 
 ## Feature Overview

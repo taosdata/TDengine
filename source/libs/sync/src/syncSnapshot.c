@@ -1012,7 +1012,7 @@ _SEND_REPLY:;
   pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
 
   // send msg
-  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver end");
+  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver end", &rpcMsg.info.traceId);
   if ((code = syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg)) != 0) {
     sRError(pReceiver, "snapshot receiver send rsp failed since %s", tstrerror(code));
     TAOS_RETURN(code);
@@ -1029,7 +1029,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &pMsg->srcId)) {
-    syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "not in my config");
+    syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "not in my config", &pRpcMsg->info.traceId);
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
     TAOS_RETURN(code);
   }
@@ -1256,14 +1256,14 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &pMsg->srcId)) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "maybe replica already dropped");
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "maybe replica already dropped", &pRpcMsg->info.traceId);
     TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
   }
 
   // get sender
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, &pMsg->srcId);
   if (pSender == NULL) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "sender is null");
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "sender is null", &pRpcMsg->info.traceId);
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
   }
 

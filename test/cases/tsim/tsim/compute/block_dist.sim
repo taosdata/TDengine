@@ -1,0 +1,104 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_di_db
+$tbPrefix = m_di_tb
+$mtPrefix = m_di_mt
+$ntPrefix = m_di_nt
+$tbNum = 1
+$rowNum = 2000
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$nt = $ntPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+sql create table $nt (ts timestamp, tbcol int)
+$x = 0
+while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $nt values ($ms , $x )
+    $x = $x + 1
+endw
+
+sql flush database $db
+
+print =============== step2
+$i = 0
+$tb = $tbPrefix . $i
+
+#sql select _block_dist() from $tb
+print show table distributed $tb
+sql show table distributed $tb
+
+print $rows
+if $rows == 0 then
+  return -1
+endi
+
+print =============== step3
+$i = 0
+$mt = $mtPrefix . $i
+#sql select _block_dist() from $mt
+
+print show table distributed $mt
+sql show table distributed $mt
+
+if $rows == 0 then
+  return -1
+endi
+
+print =============== step4
+$i = 0
+$nt = $ntPrefix . $i
+
+#sql select _block_dist() from $nt
+print show table distributed $nt
+
+#if $rows == 0 then
+#  return -1
+#endi
+
+print ============== TD-5998
+sql_error select _block_dist() from (select * from $nt)
+sql_error select _block_dist() from (select * from $mt)
+
+print ============== TD-22140 & TD-22165
+sql_error show table distributed information_schema.ins_databases
+sql_error show table distributed performance_schema.perf_apps
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

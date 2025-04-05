@@ -650,7 +650,7 @@ bool checkTopic(SArray *topics, char *topicName){
   return false;
 }
 
-static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName){
+static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName, bool deleteConsumer){
   if (pMnode == NULL || pTrans == NULL || topicName == NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -658,24 +658,34 @@ static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *top
   SSdb           *pSdb    = pMnode->pSdb;
   void           *pIter = NULL;
   SMqConsumerObj *pConsumer = NULL;
+  SMqConsumerObj *pConsumerNew = NULL;
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
     if (pIter == NULL) {
       break;
     }
 
-    bool found = checkTopic(pConsumer->assignedTopics, topicName);
-    if (found){
-      mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
-             topicName, pConsumer->consumerId, pConsumer->cgroup);
-      code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-      goto END;
+    if (deleteConsumer) {
+      MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
+      MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
+      tDeleteSMqConsumerObj(pConsumerNew);
+      pConsumerNew = NULL;
+    } else {
+      bool found = checkTopic(pConsumer->assignedTopics, topicName);
+      if (found){
+        mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
+               topicName, pConsumer->consumerId, pConsumer->cgroup);
+        code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+        goto END;
+      }
     }
 
     sdbRelease(pSdb, pConsumer);
   }
 
 END:
+  tDeleteSMqConsumerObj(pConsumerNew);
   sdbRelease(pSdb, pConsumer);
   sdbCancelFetch(pSdb, pIter);
   return code;
@@ -760,8 +770,8 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
   MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));
-  MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name));
-  MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name));
+  MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
+  MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
 
   if (pTopic->ntbUid != 0) {
     MND_TMQ_RETURN_CHECK(mndDropCheckInfoByTopic(pMnode, pTrans, pTopic));

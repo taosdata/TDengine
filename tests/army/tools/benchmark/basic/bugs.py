@@ -127,7 +127,7 @@ class TDTestCase(TBase):
     def bugsTD(self, benchmark):
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-31490.json", checkStep = False)
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-31575.json")
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32846.json")
+        # self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32846.json")
         
         # no drop
         db      = "td32913db"

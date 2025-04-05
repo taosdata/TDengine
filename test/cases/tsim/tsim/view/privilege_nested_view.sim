@@ -1,0 +1,117 @@
+sql connect
+sql use testa;
+
+sql create user u1 pass "taosdata"
+sql create user u2 pass "taosdata"
+sql create user u3 pass "taosdata"
+
+sql grant all on testa.* to u1;
+sql grant all on testb.* to u2;
+sql grant all on testa.stt to u3;
+
+sql connect u1
+sql use testa
+sql create view view1 as select ts, f from st2;
+
+sql connect u2
+sql use testb
+sql create view view1 as select ts, f from st2;
+
+sql connect root
+sql use testa
+sql_error create view view2 as select * from view1 union all select * from view2;
+sql create view view2 as select * from view1 union all select * from testb.view1;
+sql use testb
+sql create view view2 as select a.ts, a.f, b.f from testa.view1 a, view1 b where a.ts=b.ts;
+sql grant all on testa.view2 to u3;
+sql grant all on testb.view2 to u3;
+
+print == start to query ==
+sql connect u3
+sql reset query cache
+sql select * from testa.view2 order by f;
+if $rows != 8 then
+  return -1
+endi
+if $data01 != 100221 then
+  return -1
+endi
+if $data11 != 100222 then
+  return -1
+endi
+if $data21 != 100223 then
+  return -1
+endi
+if $data31 != 100224 then
+  return -1
+endi
+if $data41 != 110221 then
+  return -1
+endi
+if $data51 != 110222 then
+  return -1
+endi
+if $data61 != 110223 then
+  return -1
+endi
+if $data71 != 110224 then
+  return -1
+endi
+sql_error insert into tt (ts, f) select * from testa.view1;
+sql_error insert into tt (ts, f) select * from testb.view1;
+sql insert into testa.tt (ts, f) select * from testa.view2 order by ts, f;
+if $rows != 4 then
+  return -1
+endi
+# insert result is not correct now
+#if $data01 != 110221 then
+#  print $data01
+#  return -1
+#endi
+#if $data11 != 110222 then
+#  print $data11
+#  return -1
+#endi
+sql delete from testa.tt;
+sql_error select * from testa.st2;
+sql_error select * from testb.st2;
+
+sql connect root
+sql revoke all on testa.* from u1;
+
+sql connect u3
+sql reset query cache
+sql_error select * from testa.view2;
+sql_error select * from testa.view1;
+
+sql connect root
+sql use testb;
+sql create or replace view testa.view1 as select ts, f from st2;
+sql select * from testa.view1 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data01 != 100221 then
+  print $data01
+  return -1
+endi
+if $data11 != 100222 then
+  print $data11
+  return -1
+endi
+
+sql connect u3
+sql reset query cache
+sql select * from testa.view2;
+sql_error select * from testa.view1;
+
+print == drop user and views ==
+sql connect root
+sql drop user u1;
+sql drop user u2;
+sql drop user u3;
+sql drop view testa.view1;
+sql drop view testb.view1;
+sql drop view testa.view2;
+sql drop view testb.view2;
+

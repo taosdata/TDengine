@@ -14,18 +14,18 @@ taosd 是 TDengine 集群中最主要的服务组件，本节介绍手动部署 
 
 #### 1. 清除数据
 
-如果搭建集群的物理节点中存在之前的测试数据或者装过其他版本（如 1.x/2.x）的TDengine，请先将其删除，并清空所有数据。
+如果搭建集群的物理节点中存在之前的测试数据或者装过其他版本（如 1.x/2.x）的 TDengine，请先将其删除，并清空所有数据。
 
 #### 2. 检查环境
 
 在进行 TDengine 集群部署之前，全面检查所有 dnode 以及应用程序所在物理节点的网络设置至关重要。以下是检查步骤：
 
 - 第 1 步，在每个物理节点上执行 hostname -f 命令，以查看并确认所有节点的hostname 是唯一的。对于应用程序驱动所在的节点，这一步骤可以省略。
-- 第 2 步，在每个物理节点上执行 ping host 命令，其中 host 是其他物理节点的 hostname。这一步骤旨在检测当前节点与其他物理节点之间的网络连通性。如果发现无法 ping 通，请立即检查网络和 DNS 设置。对于 Linux 操作系统，请检查 /etc/hosts 文件；对于 Windows 操作系统，请检查C:\Windows\system32\drivers\etc\hosts 文件。网络不通畅将导致无法组建集群，请务必解决此问题。
-- 第 3 步，在应用程序运行的物理节点上重复上述网络检测步骤。如果发现网络不通畅，应用程序将无法连接到 taosd 服务。此时，请仔细检查应用程序所在物理节点的DNS 设置或 hosts 文件，确保其配置正确无误。
+- 第 2 步，在每个物理节点上执行 ping host 命令，其中 host 是其他物理节点的 hostname。这一步骤旨在检测当前节点与其他物理节点之间的网络连通性。如果发现无法 ping 通，请立即检查网络和 DNS 设置。对于 Linux 操作系统，请检查 /etc/hosts 文件；对于 Windows 操作系统，请检查 `C:\Windows\system32\drivers\etc\hosts` 文件。网络不通畅将导致无法组建集群，请务必解决此问题。
+- 第 3 步，在应用程序运行的物理节点上重复上述网络检测步骤。如果发现网络不通畅，应用程序将无法连接到 taosd 服务。此时，请仔细检查应用程序所在物理节点的 DNS 设置或 hosts 文件，确保其配置正确无误。
 - 第 4 步，检查端口，确保集群中所有主机在端口 6030 上的 TCP 能够互通。
 
-通过以上步骤，你可以确保所有节点在网络层面顺利通信，从而为成功部署TDengine 集群奠定坚实基础
+通过以上步骤，你可以确保所有节点在网络层面顺利通信，从而为成功部署 TDengine 集群奠定坚实基础
 
 #### 3. 安装
 
@@ -77,7 +77,7 @@ taos> show dnodes;
 create dnode "h2.taosdata.com:6030"
 ```
 
-将新 dnode 的 endpoint 添加进集群的 endpoint 列表。需要为 `fqdn:port` 加上双引号，否则运行时出错。请注意将示例的 h2.taosdata.com:6030 替换为这个新 dnode 的 endpoint。然后执行如下 SQL 查看新节点是否成功加入。若要加入的 dnode 当前处于离线状态，请参考本节后面的 “常见问题”部分进行解决。
+将新 dnode 的 endpoint 添加进集群的 endpoint 列表。需要为 `fqdn:port` 加上双引号，否则运行时出错。请注意将示例的 h2.taosdata.com:6030 替换为这个新 dnode 的 endpoint。然后执行如下 SQL 查看新节点是否成功加入。若要加入的 dnode 当前处于离线状态，请参考本节后面的“常见问题”部分进行解决。
 
 ```shell
 show dnodes;
@@ -115,7 +115,7 @@ create mnode on dnode <dnodeId>
 
 1. 安装
 
-TDengine Enterprise 安装完成后，即可使用 taosAdapter。如果想在不同的服务器上分别部署 taosAdapter，需要在这些服务器上都安装 TDengine Enterprise。
+TDengine 安装完成后，即可使用 taosAdapter。如果想在不同的服务器上分别部署 taosAdapter，需要在这些服务器上都安装 TDengine。
 
 2. 单一实例部署
 
@@ -202,7 +202,7 @@ http {
 
 ### 部署 taosKeeper
 
-如果要想使用 TDegnine 的监控功能，taosKeeper 是一个必要的组件，关于监控请参考[TDinsight](../../reference/components/tdinsight)，关于部署 taosKeeper 的细节请参考[taosKeeper参考手册](../../reference/components/taoskeeper)。
+如果要想使用 TDegnine 的监控功能，taosKeeper 是一个必要的组件，关于监控请参考 [TDinsight](../../reference/components/tdinsight)，关于部署 taosKeeper 的细节请参考 [taosKeeper 参考手册](../../reference/components/taoskeeper)。
 
 ### 部署 taosX
 
@@ -210,11 +210,11 @@ http {
 
 ### 部署 taosX-Agent
 
-有些数据源如 Pi, OPC 等，因为网络条件和数据源访问的限制，taosX 无法直接访问数据源，这种情况下需要部署一个代理服务 taosX-Agent，关于它的详细说明和部署请参考企业版参考手册。
+有些数据源如 PI、OPC 等，因为网络条件和数据源访问的限制，taosX 无法直接访问数据源，这种情况下需要部署一个代理服务 taosX-Agent，关于它的详细说明和部署请参考企业版参考手册。
 
 ### 部署 taos-Explorer
 
-TDengine 提供了可视化管理 TDengine 集群的能力，要想使用图形化界面需要部署 taos-Explorer 服务，关于它的详细说明和部署请参考[taos-Explorer 参考手册](../../reference/components/explorer)
+TDengine 提供了可视化管理 TDengine 集群的能力，要想使用图形化界面需要部署 taos-Explorer 服务，关于它的详细说明和部署请参考 [taos-Explorer 参考手册](../../reference/components/explorer)
 
 
 ## Docker 部署
@@ -299,14 +299,14 @@ echo 127.0.0.1 tdengine |sudo tee -a /etc/hosts
 taos -h tdengine -P 6030
 ```
 
-如果 TAOS_FQDN 被设置为与所在主机名相同，则效果与“在 host 网络模式下启动TDengine”相同。
+如果 TAOS_FQDN 被设置为与所在主机名相同，则效果与“在 host 网络模式下启动 TDengine”相同。
 
 ## Kubernetes 部署
 
 作为面向云原生架构设计的时序数据库，TDengine 本身就支持 Kubernetes 部署。这里介绍如何使用 YAML 文件从头一步一步创建一个可用于生产使用的高可用 TDengine 集群，并重点介绍 Kubernetes 环境下 TDengine 的常用操作。本小节要求读者对 Kubernetes 有一定的了解，可以熟练运行常见的 kubectl 命令，了解 statefulset、service、pvc 等概念，对这些概念不熟悉的读者，可以先参考 Kubernetes 的官网进行学习。
 为了满足高可用的需求，集群需要满足如下要求：
-- 3 个及以上 dnode ：TDengine 的同一个 vgroup 中的多个 vnode ，不允许同时分布在一个 dnode ，所以如果创建 3 副本的数据库，则 dnode 数大于等于 3
-- 3 个 mnode ：mnode 负责整个集群的管理工作，TDengine 默认是一个 mnode。如果这个 mnode 所在的 dnode 掉线，则整个集群不可用。
+- 3 个及以上 dnode：TDengine 的同一个 vgroup 中的多个 vnode，不允许同时分布在一个 dnode ，所以如果创建 3 副本的数据库，则 dnode 数大于等于 3
+- 3 个 mnode：mnode 负责整个集群的管理工作，TDengine 默认是一个 mnode。如果这个 mnode 所在的 dnode 掉线，则整个集群不可用。
 - 数据库的 3 副本：TDengine 的副本配置是数据库级别，所以数据库 3 副本可满足在 3 个 dnode 的集群中，任意一个 dnode 下线，都不影响集群的正常使用。如果下线 dnode 个数为 2 时，此时集群不可用，因为 RAFT 无法完成选举。（企业版：在灾难恢复场景，任一节点数据文件损坏，都可以通过重新拉起 dnode 进行恢复）
 
 ### 前置条件
@@ -342,7 +342,7 @@ spec:
 
 ### 有状态服务 StatefulSet
 
-根据 Kubernetes 对各类部署的说明，我们将使用 StatefulSet 作为 TDengine 的部署资源类型。 创建文件 tdengine.yaml，其中 replicas 定义集群节点的数量为 3。节点时区为中国（Asia/Shanghai），每个节点分配 5G 标准（standard）存储，你也可以根据实际情况进行相应修改。
+根据 Kubernetes 对各类部署的说明，我们将使用 StatefulSet 作为 TDengine 的部署资源类型。 创建文件 tdengine.yaml，其中 replicas 定义集群节点的数量为 3。节点时区为中国（Asia/Shanghai），每个节点分配 5GB 标准（standard）存储，你也可以根据实际情况进行相应修改。
 
 请特别注意 startupProbe 的配置，在 dnode 的 Pod 掉线一段时间后，再重新启动，这个时候新上线的 dnode 会短暂不可用。如果 startupProbe 配置过小，Kubernetes 会认为该 Pod 处于不正常的状态，并尝试重启该 Pod，该 dnode 的 Pod 会频繁重启，始终无法恢复到正常状态。
 

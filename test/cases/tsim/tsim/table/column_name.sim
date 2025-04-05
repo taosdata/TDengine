@@ -1,0 +1,83 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_cm_db
+$tbPrefix = lm_cm_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+
+sql drop table dd -x step0
+	return -1
+step0:
+
+sql create table $tb(ts timestamp, int) -x step1
+	return -1
+step1:
+
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step2
+sql create table $tb (ts timestamp, s int) 
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop table $tb
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step3
+sql create table $tb (ts timestamp, a0123456789 int) 
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop table $tb
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step4
+sql create table $tb (ts timestamp, a0123456789012345678901234567890123456789 int) 
+sql drop table $tb
+
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step5
+sql create table $tb (ts timestamp, a0123456789 int)
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+sql insert into $tb values (now , 1)
+sql select * from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

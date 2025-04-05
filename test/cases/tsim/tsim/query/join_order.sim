@@ -1,0 +1,136 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database db1 vgroups 1;
+sql use db1;
+sql create stable sta (ts timestamp, col1 int) tags(t1 int);
+sql create table tba1 using sta tags(1);
+
+sql insert into tba1 values ('2023-11-17 16:29:00', 1);
+sql insert into tba1 values ('2023-11-17 16:29:02', 3);
+sql insert into tba1 values ('2023-11-17 16:29:03', 4);
+sql insert into tba1 values ('2023-11-17 16:29:04', 5);
+
+
+sql select a.*,b.* from tba1 a, (select * from tba1 order by ts) b where a.ts=b.ts;
+if $rows != 4 then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts) a, tba1 b where a.ts=b.ts;
+if $rows != 4 then
+  return -1
+endi
+sql select a.*,b.* from tba1 a, (select * from tba1 order by ts desc) b where a.ts=b.ts;
+if $rows != 4 then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts desc) a, tba1 b where a.ts=b.ts;
+if $rows != 4 then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts) a, (select * from tba1 order by ts) b where a.ts=b.ts;
+if $rows != 4 then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts desc) a, (select * from tba1 order by ts desc) b where a.ts=b.ts;
+if $rows != 4 then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts) a, (select * from tba1 order by ts desc) b where a.ts=b.ts;
+if $rows != 4 then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts desc) a, (select * from tba1 order by ts) b where a.ts=b.ts;
+if $rows != 4 then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts desc) a, (select * from tba1 order by ts) b where a.ts=b.ts order by a.ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts desc) a, (select * from tba1 order by ts) b where a.ts=b.ts order by a.ts desc;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts) a, (select * from tba1 order by ts) b where a.ts=b.ts order by a.ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:00.000@ then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts) a, (select * from tba1 order by ts) b where a.ts=b.ts order by a.ts desc;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts limit 2) a, (select * from tba1 order by ts desc limit 2) b where a.ts=b.ts order by a.ts desc;
+if $rows != 0 then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts limit 3) a, (select * from tba1 order by ts desc limit 3) b where a.ts=b.ts order by a.ts desc;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+
+sql select a.*,b.* from (select * from tba1 order by ts limit 3) a, (select * from tba1 order by ts desc limit 3) b where a.ts=b.ts order by a.ts;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+
+sql select a.*,b.* from tba1 a, (select * from tba1 order by ts desc limit 3) b where a.ts=b.ts order by a.ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+sql select a.*,b.* from tba1 a, (select * from tba1 order by ts limit 3) b where a.ts=b.ts order by a.ts desc limit 2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+
+sql select a.*,b.* from (select * from tba1 order by ts limit 3) a, tba1 b where a.ts=b.ts order by a.ts desc;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
+sql select a.*,b.* from (select * from tba1 order by ts desc limit 3) a, tba1 b where a.ts=b.ts order by a.ts desc;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:04.000@ then
+  return -1
+endi
+
+sql select a.*,b.* from (select * from tba1 order by ts desc limit 3) a, tba1 b where a.ts=b.ts order by a.ts;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:02.000@ then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

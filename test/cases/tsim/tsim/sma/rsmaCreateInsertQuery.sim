@@ -1,0 +1,187 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print =============== create database with retentions
+sql create database d0 retentions -:7d,10s:21d,15s:365d;
+sql use d0
+
+print =============== create super table and register rsma
+sql create table if not exists stb (ts timestamp, c1 int) tags (city binary(20),district binary(20)) rollup(min);
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+sql create table ct1 using stb tags("BeiJing", "ChaoYang");
+
+sql show tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== insert data and trigger rollup
+sql insert into ct1 values(now, 10);
+sql insert into ct1 values(now+1s, 1);
+sql insert into ct1 values(now+2s, 100);
+
+print =============== wait maxdelay 15+2 seconds for results
+sleep 17000
+
+print =============== select * from retention level 2 from memory
+sql select * from ct1;
+print $data00 $data01
+if $rows > 2 then
+  print retention level 2 file rows $rows > 2
+  return -1
+endi
+
+
+if $data01 != 1 then
+  if $data01 != 10 then
+    print =============> $data01
+    print retention level 2 file result $data01 != 1 or 10
+  return -1
+  endi
+endi
+
+print =============== select * from retention level 1 from memory
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01
+if $rows > 2 then
+  print retention level 1 file rows $rows > 2
+  return -1
+endi
+
+if $data01 != 1 then
+  if $data01 != 10 then
+    print retention level 1 file result $data01 != 1 or 10
+  return -1
+  endi
+endi
+
+print =============== select * from retention level 0 from memory
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $rows < 1 then
+  print retention level 0 file rows $rows < 1
+  return -1
+endi
+
+if $data01 != 10 then
+  print retention level 0 file result $data01 != 10
+  return -1
+endi
+
+#===================================================================
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print =============== wait maxdelay 15+2 seconds for results after reboot
+sleep 17000
+
+print =============== select * from retention level 2 from memory after reboot
+sql select * from ct1;
+print $data00 $data01
+if $rows > 2 then
+  print retention level 2 file rows $rows > 2
+  return -1
+endi
+
+
+if $data01 != 1 then
+  if $data01 != 10 then
+    print =============> $data01
+    print retention level 2 file result $data01 != 1 or 10
+  return -1
+  endi
+endi
+
+print =============== select * from retention level 1 from memory after reboot
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01
+if $rows > 2 then
+  print retention level 1 file rows $rows > 2
+  return -1
+endi
+
+if $data01 != 1 then
+  if $data01 != 10 then
+    print retention level 1 file result $data01 != 1 or 10
+  return -1
+  endi
+endi
+
+print =============== select * from retention level 0 from memory after reboot
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
+if $rows < 1 then
+  print retention level 0 file rows $rows < 1
+  return -1
+endi
+
+if $data01 != 10 then
+  print retention level 0 file result $data01 != 10
+  return -1
+endi
+
+#==================== flush database to trigger commit data to file
+sql flush database d0;
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print =============== select * from retention level 2 from file
+sql select * from ct1;
+print $data00 $data01
+if $rows > 2 then
+  print retention level 2 file rows $rows > 2
+  return -1
+endi
+
+if $data01 != 1 then
+  if $data01 != 10 then
+    print retention level 2 file result $data01 != 1 or 10
+  return -1
+  endi
+endi
+
+print =============== select * from retention level 1 from file
+sql select * from ct1 where ts > now-8d;
+print $data00 $data01
+if $rows > 2 then
+  print retention level 1 file rows $rows > 2
+  return -1
+endi
+
+if $data01 != 1 then
+  if $data01 != 10 then
+    print retention level 1 file result $data01 != 1 or 10
+  return -1
+  endi
+endi
+
+print =============== select * from retention level 0 from file
+sql select * from ct1 where ts > now-3d;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+if $rows < 1 then
+  print retention level 0 file rows $rows < 1
+  return -1
+endi
+
+if $data01 != 10 then
+  print retention level 0 file result $data01 != 10
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

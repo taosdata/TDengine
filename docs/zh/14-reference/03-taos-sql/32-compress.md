@@ -4,7 +4,7 @@ sidebar_label: 可配置压缩
 description: 可配置压缩算法
 ---
 
-从 TDengine 3.3.0.0 版本开始，TDengine 提供了更高级的压缩功能，用户可以在建表时针对每一列配置是否进行压缩、以及使用的压缩算法和压缩级别。
+从 v3.3.0.0 开始，TDengine 提供了更高级的压缩功能，用户可以在建表时针对每一列配置是否进行压缩、以及使用的压缩算法和压缩级别。
 
 ## 压缩术语定义
 
@@ -15,7 +15,7 @@ description: 可配置压缩算法
 
 ### 压缩级别
 
-在本文中特指二级压缩算法内部的级别，比如zstd，至少8个level可选，每个level 下都有不同表现，本质是压缩率、压缩速度、解压速度之间的 tradeoff，为了避免选择困难，特简化定义为如下三种级别：
+在本文中特指二级压缩算法内部的级别，比如 zstd，至少 8 个 level 可选，每个 level 下都有不同表现，本质是压缩率、压缩速度、解压速度之间的 tradeoff，为了避免选择困难，特简化定义为如下三种级别：
 
 - high：压缩率最高，压缩速度和解压速度相对最差。
 - low：压缩速度和解压速度最好，压缩率相对最低。
@@ -23,9 +23,9 @@ description: 可配置压缩算法
 
 ### 压缩算法列表
 
-- 编码算法列表（一级压缩):simple8b, bit-packing,delta-i, delta-d, disabled  
+- 编码算法列表（一级压缩）：simple8b、bit-packing、delta-i、delta-d、disabled  
 
-- 压缩算法列表(二级压缩): lz4、zlib、zstd、tsz、xz、disabled
+- 压缩算法列表（二级压缩）：lz4、zlib、zstd、tsz、xz、disabled
 
 - 各个数据类型的默认压缩算法列表和适用范围
 
@@ -37,6 +37,7 @@ description: 可配置压缩算法
 | float/double                         | disabled/delta-d          | delta-d     | lz4/zlib/zstd/xz/tsz | lz4  | medium |
 | binary/nchar                         | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
 | bool                                 | disabled/bit-packing      | bit-packing | lz4/zlib/zstd/xz     | zstd | medium |
+| decimal                              | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
 
 
 ## SQL 语法
@@ -44,15 +45,15 @@ description: 可配置压缩算法
 ### 建表时指定压缩
 
 ```sql
-CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other cerate_definition]...])
+CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other create_definition]...])
 ```
 
 **参数说明**
 
 - tabname：超级表或者普通表名称
-- encode_type: 一级压缩，具体参数见上面列表
-- compress_type: 二级压缩,具体参数见上面列表
-- level: 特指二级压缩的级别，默认值为medium, 支持简写为 'h'/'l'/'m'
+- encode_type：一级压缩，具体参数见上面列表
+- compress_type：二级压缩，具体参数见上面列表
+- level：特指二级压缩的级别，默认值为 medium，支持简写为 'h'、'l'、'm'
 
 **功能说明**
 
@@ -67,8 +68,8 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 
 **参数说明**
 
-- tabName: 表名，可以为超级表、普通表
-- colName: 待更改压缩算法的列, 只能为普通列
+- tabName：表名，可以为超级表、普通表
+- colName：待更改压缩算法的列，只能为普通列
 
 **功能说明**
 
@@ -87,4 +88,4 @@ DESCRIBE [dbname.]tabName
 ## 兼容性
 
 - 完全兼容已经存在的数据
-- 从更低版本升级到 3.3.0.0 后不能回退
+- 从更低版本升级到 v3.3.0.0 后不能回退

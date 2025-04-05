@@ -1,0 +1,91 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = ta_co_db
+$tbPrefix = ta_co_tb
+$mtPrefix = ta_co_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql create database $db
+sql use $db
+
+$i = 0
+sql create table $mt (ts timestamp, tbcol int, tbcol2 binary(10)) TAGS(tgcol int, tgcol2 binary(10))
+
+print =============== step2
+
+$i = 0
+$tb = $tbPrefix . $i
+sql create table $tb using $mt tags(  0,  '0' )
+
+$i = 1
+$tb = $tbPrefix . $i
+sql create table $tb using $mt tags(  1,   '1'  )
+
+$i = 2
+$tb = $tbPrefix . $i
+sql create table $tb using $mt tags( '2', '2' )
+
+$i = 3
+$tb = $tbPrefix . $i
+sql create table $tb using $mt tags( '3',  '3' )
+
+sql show tables
+if $rows != 4 then
+  return -1
+endi
+
+print =============== step3
+
+$i = 0
+$tb = $tbPrefix . $i
+sql insert into $tb values(now,  0,  '0')
+
+$i = 1
+$tb = $tbPrefix . $i
+sql insert into $tb values(now,  1,   '1'  )
+
+$i = 2
+$tb = $tbPrefix . $i
+sql insert into $tb values(now, '2', '2')
+
+$i = 3
+$tb = $tbPrefix . $i
+sql insert into $tb values(now, '3',  '3')
+
+print =============== step4
+sql select * from $mt where tgcol2 = '1'
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step5
+sql select * from $mt
+if $rows != 4 then
+  return -1
+endi
+
+sql select * from $mt where tgcol = 1
+if $rows != 1 then
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

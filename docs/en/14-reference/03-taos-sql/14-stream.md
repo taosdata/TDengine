@@ -11,11 +11,11 @@ import imgStream from './assets/stream-processing-01.png';
 ```sql
 CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
 stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE]
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE | CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
- FILL_HISTORY   [0|1]
+ FILL_HISTORY   [0|1] [ASYNC]
  IGNORE UPDATE  [0|1]
 }
 
@@ -127,6 +127,13 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 
 If the stream task is completely outdated and you no longer want it to monitor or process data, you can manually delete it. The computed data will still be retained.
 
+Tips:
+- When enabling fill_history, creating a stream requires finding the boundary point of historical data. If there is a lot of historical data, it may cause the task of creating a stream to take a long time. In this case, you can use fill_history 1 async (supported since version 3.3.6.0) , then the task of creating a stream can be processed in the background. The statement of creating a stream can be returned immediately without blocking subsequent operations. async only takes effect when fill_history 1 is used, and creating a stream with fill_history 0 is very fast and does not require asynchronous processing.
+
+- Show streams can be used to view the progress of background stream creation (ready status indicates success, init status indicates stream creation in progress, failed status indicates that the stream creation has failed, and the message column can be used to view the reason for the failure. In the case of failed stream creation, the stream can be deleted and rebuilt).
+
+- Besides, do not create multiple streams asynchronously at the same time, as transaction conflicts may cause subsequent streams to fail.
+
 ## Deleting Stream Computing
 
 ```sql
@@ -157,6 +164,7 @@ For non-window computations, the trigger of stream computing is real-time; for w
 2. WINDOW_CLOSE: Triggered when the window closes (window closure is determined by event time, can be used in conjunction with watermark)
 3. MAX_DELAY time: Trigger computation if the window closes. If the window does not close, and the time since it has not closed exceeds the time specified by max delay, then trigger computation.
 4. FORCE_WINDOW_CLOSE: Based on the current time of the operating system, only compute and push the results of the currently closed window. The window is only computed once at the moment of closure and will not be recalculated subsequently. This mode currently only supports INTERVAL windows (does not support sliding); FILL_HISTORY must be 0, IGNORE EXPIRED must be 1, IGNORE UPDATE must be 1; FILL only supports PREV, NULL, NONE, VALUE.
+5. CONTINUOUS_WINDOW_CLOSE: Results are output when the window is closed. Modifying or deleting data does not immediately trigger a recalculation. Instead, periodic recalculations are performed every rec_time_val duration. If rec_time_val is not specified, the recalculation period is 60 minutes. If the recalculation time exceeds rec_time_val, the next recalculation will be automatically initiated after the current one is completed. Currently, this mode only supports INTERVAL windows. If the FILL clause is used, relevant information of the adapter needs to be configured, including adapterFqdn, adapterPort, and adapterToken. The adapterToken is a string obtained by Base64-encoding `{username}:{password}`. For example, after encoding `root:taosdata`, the result is `cm9vdDp0YW9zZGF0YQ==`.
 
 Since the closure of the window is determined by event time, if the event stream is interrupted or continuously delayed, the event time cannot be updated, which may result in not obtaining the latest computation results.
 
@@ -524,6 +532,24 @@ These fields are present only when "windowType" is "Count".
 #### Fields for Window Invalidation
 
 Due to scenarios such as data disorder, updates, or deletions during stream computing, windows that have already been generated might be removed or their results need to be recalculated. In such cases, a notification with the eventType "WINDOW_INVALIDATION" is sent to inform which windows have been invalidated.
+
 For events with "eventType" as "WINDOW_INVALIDATION", the following fields are included:
 1. "windowStart": A long integer timestamp representing the start time of the window.
 1. "windowEnd": A long integer timestamp representing the end time of the window.
+
+## Support for Virtual Tables in Stream Computing
+
+Starting with v3.3.6.0, stream computing can use virtual tables—including virtual regular tables, virtual sub-tables, and virtual super tables—as data sources for computation. The syntax is identical to that for non‑virtual tables.
+
+However, because the behavior of virtual tables differs from that of non‑virtual tables, the following restrictions apply when using stream computing:
+
+1. The schema of virtual regular tables/virtual sub-tables involved in stream computing cannot be modified.
+1. During stream computing, if the data source corresponding to a column in a virtual table is changed, the stream computation will not pick up the change; it will still read from the old data source.
+1. During stream computing, if the original table corresponding to a column in a virtual table is deleted and later a new table with the same name and a column with the same name is created, the stream computation will not read data from the new table.
+1. The watermark for stream computing must be 0; otherwise, an error will occur during creation.
+1. If the data source for stream computing is a virtual super table, sub-tables that are added after the stream computing task starts will not participate in the computation.
+1. The timestamps of different underlying tables in a virtual table may not be completely consistent; merging the data might produce null values, and interpolation is currently not supported.
+1. Out-of-order data, updates, or deletions are not handled. In other words, when creating a stream, you cannot specify `ignore update 0` or `ignore expired 0`; otherwise, an error will be reported.
+1. Historical data computation is not supported. That is, when creating a stream, you cannot specify `fill_history 1`; otherwise, an error will be reported.
+1. The trigger modes MAX_DELAY, CONTINUOUS_WINDOW_CLOSE and FORCE_WINDOW_CLOSE are not supported.
+1. The COUNT_WINDOW type is not supported.

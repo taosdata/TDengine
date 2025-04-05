@@ -1,0 +1,302 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== init env
+sql drop database if exists test;
+sql create database test vgroups 1;
+sql use test;
+sql create stable st1(ts timestamp, i int) tags(id int, loc varchar(20));
+sql create table st1s1 using st1 tags(1, 'beijing');
+sql create table st1s2 using st1 tags(2, 'shanghai');
+sql insert into st1s1 values(now, 1) st1s2 values(now, 2);
+sql create stable st2(ts timestamp, i int) tags(id int, loc varchar(20));
+sql create table st2s1 using st2 tags(1, 'beijing');
+sql create table st2s2 using st2 tags(2, 'shanghai');
+sql insert into st2s1 values(now, 1) st2s2 values(now, 2);
+sql create user wxy pass 'taosdata';
+
+print =============== case 1: database unauthorized and table unauthorized
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql_error select * from test.st1;
+sql_error insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+
+print =============== case 2: database unauthorized and table read privilege
+sql close
+sql connect
+
+sql grant read on test.st1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1;
+if $rows != 2 then 
+  return -1
+endi
+sql_error insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 3: database unauthorized and table read privilege with condition
+sql close
+sql connect
+
+sql revoke read on test.st1 from wxy;
+sql grant read on test.st1 with id = 1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1; 
+if $rows != 1 then 
+  return -1
+endi
+sql_error insert into test.st1s1 values(now, 10);
+sql_error insert into test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 4: database unauthorized and table write privilege
+sql close
+sql connect
+
+sql revoke read on test.st1 with id = 1 from wxy;
+sql grant write on test.st1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql_error select tbname, * from test.st1; 
+sql insert into test.st1s1 values(now, 10);
+sql insert into test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 5: database unauthorized and table write privilege with condition
+sql close
+sql connect
+
+sql revoke write on test.st1 from wxy;
+sql grant write on test.st1 with id = 1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql_error select tbname, * from test.st1; 
+sql insert into test.st1s1 values(now, 10);
+sql insert into test.st1s3 using test.st1 tags(1, 'dachang') values(now, 100);
+sql_error insert into test.st1s2 values(now, 20);
+sql_error insert into test.st1s4 using test.st1 tags(3, 'dachang') values(now, 300);
+sql_error select * from test.st2; 
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 6: database read privilege and table unauthorized
+sql close
+sql connect
+
+sql revoke write on test.st1 with id = 1 from wxy;
+sql grant read on test.* to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1;
+if $rows != 6 then 
+  return -1
+endi
+sql_error insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql select * from test.st2; 
+if $rows != 2 then 
+  return -1
+endi
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 7: database read privilege and table read privilege
+sql close
+sql connect
+
+sql grant read on test.st1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1; 
+if $rows != 6 then 
+  return -1
+endi
+sql_error insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql select * from test.st2; 
+if $rows != 2 then 
+  return -1
+endi
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 8: database read privilege and table read privilege with condition
+sql close
+sql connect
+
+sql revoke read on test.st1 from wxy;
+sql grant read on test.st1 with id = 1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1; 
+if $rows != 4 then 
+  return -1
+endi
+sql_error insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql select * from test.st2; 
+if $rows != 2 then 
+  return -1
+endi
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 9: database read privilege and table write privilege
+sql close
+sql connect
+
+sql revoke read on test.st1 with id = 1 from wxy;
+sql grant write on test.st1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1;
+if $rows != 6 then 
+  return -1
+endi
+sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql select * from test.st2;
+if $rows != 2 then 
+  return -1
+endi
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 10: database read privilege and table write privilege with condition
+sql close
+sql connect
+
+sql revoke write on test.st1 from wxy;
+sql grant write on test.st1 with id = 1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1;
+if $rows != 8 then 
+  return -1
+endi
+sql insert into test.st1s1 values(now, 10);
+sql_error insert into test.st1s2 values(now, 20);
+sql select * from test.st2;
+if $rows != 2 then 
+  return -1
+endi
+sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 11: database write privilege and table unauthorized
+sql close
+sql connect
+
+sql revoke read on test.* from wxy;
+sql revoke write on test.st1 with id = 1 from wxy;
+sql grant write on test.* to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql_error select * from test.st1; 
+sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 12: database write privilege and table read privilege
+sql close
+sql connect
+
+sql grant read on test.st1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1; 
+if $rows != 11 then 
+  return -1
+endi
+sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 13: database write privilege and table read privilege with condition
+sql close
+sql connect
+
+sql revoke read on test.st1 from wxy;
+sql grant read on test.st1 with id = 1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql select * from test.st1; 
+if $rows != 8 then 
+  return -1
+endi
+sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 14: database write privilege and table write privilege
+sql close
+sql connect
+
+sql revoke read on test.st1 with id = 1 from wxy;
+sql grant write on test.st1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql_error select * from test.st1; 
+sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+print =============== case 15: database write privilege and table write privilege with condition
+sql close
+sql connect
+
+sql revoke write on test.st1 from wxy;
+sql grant write on test.st1 with id = 1 to wxy;
+
+sql close
+sql connect wxy
+
+sql reset query cache;
+sql_error select * from test.st1; 
+sql insert into test.st1s1 values(now, 10);
+sql_error insert into test.st1s2 values(now, 20);
+sql_error select * from test.st2; 
+sql insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

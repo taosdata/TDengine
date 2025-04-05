@@ -1,0 +1,138 @@
+sql connect
+
+$dbPrefix = slm_alt_tg_db
+
+print ========== slimit1_query.sim
+# make sure the data in each table crosses a file block boundary
+$rowNum = 300
+$ts0 = 1537146000000
+$delta = 600000
+$db = $dbPrefix
+
+sql use $db
+
+#### partition by t2,t1 + slimit
+sql select count(*) from stb partition by t2,t1 slimit 5 soffset 6
+if $rows != 3 then
+  return -1
+endi
+
+## desc
+sql select count(*),t2,t1 from stb partition by t2,t1 order by t2,t1 asc  slimit 5 soffset 0
+if $rows != 9 then
+  return -1
+endi
+if $data00 != 300 then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+if $data10 != 300 then
+  return -1
+endi
+if $data11 != 0 then
+  return -1
+endi
+if $data12 != 1 then
+  return -1
+endi
+if $data20 != 300 then
+  return -1
+endi
+if $data21 != 0 then
+  return -1
+endi
+if $data22 != 2 then
+  return -1
+endi
+if $data30 != 300 then
+  return -1
+endi
+if $data31 != 1 then
+  return -1
+endi
+if $data32 != 3 then
+  return -1
+endi
+if $data40 != 300 then
+  return -1
+endi
+if $data41 != 1 then
+  return -1
+endi
+if $data42 != 4 then
+  return -1
+endi
+
+### empty result set
+sql select count(*) from stb partition by t2,t1 order by t2 asc slimit 0 soffset 0
+if $rows != 0 then
+  return -1
+endi
+
+sql select count(*) from stb partition by t2,t1 order by t2 asc slimit 5 soffset 10
+if $rows != 0 then
+  return -1
+endi
+
+#### partition by t2 + slimit
+sql select t2, count(*) from stb partition by t2 order by t2 asc slimit 2 soffset 0
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data20 != 2 then
+  return -1
+endi
+if $data01 != 900 then
+  return -1
+endi
+if $data11 != 900 then
+  return -1
+endi
+if $data21 != 1200 then
+  return -1
+endi
+
+sql select t2, count(*) from stb partition by t2 order by t2 desc slimit 2 soffset 0
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data20 != 0 then
+  return -1
+endi
+if $data01 != 1200 then
+  return -1
+endi
+if $data11 != 900 then
+  return -1
+endi
+if $data21 != 900 then
+  return -1
+endi
+
+sql select count(*) from stb partition by t2 order by t2 asc slimit 2 soffset 1
+if $rows != 0 then
+  return -1
+endi
+
+sql select count(*) from stb partition by t2 order by t2 desc slimit 2 soffset 1
+if $rows != 0 then
+  return -1
+endi
+

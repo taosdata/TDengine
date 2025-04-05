@@ -285,7 +285,7 @@ static void        initLog() {
 
          if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
            printf("failed to open log file in directory:%s\n", tsLogDir);
-  }
+         }
 }
 class IndexEnv : public ::testing::Test {
  protected:

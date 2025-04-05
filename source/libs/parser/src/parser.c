@@ -292,7 +292,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
 }
 
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                            const struct SMetaData* pMetaData, SQuery* pQuery) {
+                            struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
@@ -371,6 +371,8 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableIndex);
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
+  taosArrayDestroy(pCatalogReq->pVSubTable);
+  taosArrayDestroy(pCatalogReq->pVStbRefDbs);
 }
 
 void tfreeSParseQueryRes(void* p) {
@@ -398,7 +400,7 @@ void qDestroyParseContext(SParseContext* pCxt) {
 void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode((SNode*)pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
-  return extractResultSchema(pRoot, numOfCols, pSchema);
+  return extractResultSchema(pRoot, numOfCols, pSchema, NULL);
 }
 
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {

@@ -1,0 +1,271 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+system sh/cfg.sh -n dnode1 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode2 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode3 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode4 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode5 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+#system sh/exec.sh -n dnode5 -s start
+sql connect
+sql create user u1 pass 'taosdata'
+
+print =============== step1 create dnode2
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+sql create dnode $hostname port 7500
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+print ===> $data40 $data41 $data42 $data43 $data44 $data45
+if $rows != 5 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+if $data(4)[4] != ready then
+  goto step1
+endi
+#if $data(5)[4] != ready then
+#  goto step1
+#endi
+
+print =============== step2: create db
+sql create database d1 vgroups 1 replica 3
+
+# dnode not exist
+sql_error redistribute vgroup 3 dnode 6 dnode 3 dnode 4 
+# vgroup not exist
+sql_error redistribute vgroup 3 dnode 5 dnode 3 dnode 4 
+# un changed
+# sql_error redistribute vgroup 2 dnode 2 dnode 3 dnode 4
+# no enought vnodes
+sql_error redistribute vgroup 2 dnode 1 dnode 3 dnode 4 
+# offline vnodes
+sql_error redistribute vgroup 2 dnode 5 dnode 3 dnode 4 
+# Invalid replica
+sql_error redistribute vgroup 2 dnode 5 
+sql_error redistribute vgroup 2 dnode 5 dnode 3 
+sql_error redistribute vgroup 2 dnode 2 dnode 3 
+sql_error redistribute vgroup 2 dnode 2 dnode 2 
+sql_error redistribute vgroup 3 dnode 2 dnode 2 
+sql_error redistribute vgroup 2 dnode 2 dnode 2 dnode 3 
+
+system sh/exec.sh -n dnode5 -s start
+$x = 0
+step2:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+print ===> $data40 $data41 $data42 $data43 $data44 $data45
+if $rows != 5 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step2
+endi
+if $data(2)[4] != ready then
+  goto step2
+endi
+if $data(3)[4] != ready then
+  goto step2
+endi
+if $data(4)[4] != ready then
+  goto step2
+endi
+if $data(5)[4] != ready then
+  goto step2
+endi
+
+print =============== step3: create database
+$leaderExist = 0
+$leaderVnode = 0
+$follower1 = 0
+$follower2 = 0
+
+$x = 0
+step3:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+if $rows != 1 then
+  return -1
+endi
+if $data(2)[4] == leader then
+  $leaderExist = 1
+  $leaderVnode = 2
+  $follower1 = 3
+  $follower2 = 4
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+  $leaderVnode = 3
+  $follower1 = 2
+  $follower2 = 4
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+  $leaderVnode = 4
+  $follower1 = 2
+  $follower2 = 3
+endi
+if  $leaderExist != 1 then
+  goto step3
+endi
+
+print leader $leaderVnode
+print follower1 $follower1
+print follower2 $follower2
+
+sql use d1
+sql create table d1.st (ts timestamp, i int) tags (j int)
+sql create table d1.c1 using st tags(1)
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step31: 
+print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
+sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step32: 
+print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
+sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step33: 
+print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step34: 
+print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
+sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step34: 
+print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode $follower1
+sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode $follower1
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step36: 
+print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
+sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step37: 
+print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step38: 
+print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
+sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step39: 
+print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode $follower2
+sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode $follower2
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+system sh/exec.sh -n dnode5 -s stop -x SIGINT

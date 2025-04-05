@@ -1,0 +1,147 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================ dnode1 start
+
+$i = 0
+$dbPrefix = ob_vg_db
+$tbPrefix = ob_vg_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =================== step 1
+sql create database $db vgroups 4
+sql use $db
+sql show vgroups
+if $rows != 4 then 
+  return -1
+endi
+
+sql create table table1 (ts timestamp, speed int)
+sql create table table2 (ts timestamp, speed int)
+sql create table table3 (ts timestamp, speed int)
+sql create table table4 (ts timestamp, speed int)
+sql show vgroups
+if $rows != 4 then 
+  return -1
+endi
+
+sql create table table5 (ts timestamp, speed int)
+sql create table table6 (ts timestamp, speed int)
+sql create table table7 (ts timestamp, speed int)
+sql create table table8 (ts timestamp, speed int)
+sql show vgroups
+if $rows != 4 then 
+  return -1
+endi
+
+sql create table table9 (ts timestamp, speed int)
+sql create table table10 (ts timestamp, speed int)
+sql create table table11 (ts timestamp, speed int)
+sql create table table12 (ts timestamp, speed int)
+sql show vgroups
+if $rows != 4 then 
+  return -1
+endi
+
+sql create table table13 (ts timestamp, speed int)
+sql show vgroups
+if $rows != 4 then 
+  return -1
+endi
+
+sql drop table table13
+sql show vgroups
+if $rows != 4 then 
+  return -1
+endi
+
+sql create table table13 (ts timestamp, speed int)
+sql show vgroups
+if $rows != 4 then 
+  return -1
+endi
+
+print =================== step 2
+$i = 1
+$db = $dbPrefix . $i
+
+sql create database $db vgroups 2
+sql use $db
+sql show vgroups
+if $rows != 2 then 
+  return -1
+endi
+
+$i = 0
+$db = $dbPrefix . $i
+sql drop database $db
+
+$i = 1
+$db = $dbPrefix . $i
+sql use $db
+sql create table table2 (ts timestamp, speed int)
+sql show vgroups
+if $rows != 2 then 
+  return -1
+endi
+
+sql drop table table2
+sql show vgroups
+if $rows != 2 then 
+  return -1
+endi
+
+sql create table table1 (ts timestamp, speed int)
+sql create table table2 (ts timestamp, speed int)
+sql create table table3 (ts timestamp, speed int)
+sql create table table4 (ts timestamp, speed int)
+sql drop table table1
+sql show vgroups
+if $rows != 2 then 
+  return -1
+endi
+
+print =================== step 3
+$i = 0
+$db = $dbPrefix . $i
+sql create database $db
+sql use $db
+sql create table table1 (ts timestamp, speed int)
+
+$i = 2
+$db = $dbPrefix . $i
+sql create database $db
+sql use $db
+sql create table table3 (ts timestamp, speed int)
+
+$i = 3
+$db = $dbPrefix . $i
+sql create database $db
+sql use $db
+sql create table table4 (ts timestamp, speed int)
+
+$i = 4
+$db = $dbPrefix . $i
+sql create database $db
+sql use $db
+
+sql select * from information_schema.ins_databases
+if $rows != 7 then 
+  return -1
+endi
+
+$i = 0
+while $i < 5
+  $db = $dbPrefix . $i  
+  sql drop database $db 
+  $i = $i + 1
+endw
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

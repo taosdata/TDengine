@@ -8,8 +8,15 @@ if(TD_ENTERPRISE)
 endif()
 
 add_library(common STATIC ${COMMON_SRC})
-
+DEP_ext_cjson(common)
 add_dependencies(common lemon_sql)
+
+target_include_directories(common
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/utils/TSZ/sz/inc      # TODO: tweak for defines.h, potential cyclic-dependencies, and need to be refactored!!!
+    PUBLIC
+        ${CMAKE_BINARY_DIR}/source/libs/parser    # TODO: tweak for taos_lemon_token.h, potential cyclic-dependencies!!!
+)
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
@@ -80,21 +87,15 @@ if(${TD_WINDOWS})
   )
 
 else()
-  find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-
   target_link_libraries(
     common
-
-    PUBLIC ${CURL_LIBRARY}
-    PUBLIC ${SSL_LIBRARY}
-    PUBLIC ${CRYPTO_LIBRARY}
 
     PUBLIC os
     PUBLIC util
     INTERFACE api
   )
+  DEP_ext_curl(common)
+  DEP_ext_ssl(common)
 endif()
 
 if(${BUILD_S3})

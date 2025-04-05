@@ -1,0 +1,220 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================ dnode1 start
+
+$i = 0
+$dbPrefix = ob_tb_db
+$tbPrefix = ob_tb_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql drop database $db -x step1
+step1:
+sql create database $db
+
+print =============== step2-3-4
+sql use $db
+
+$i = 1
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val tinyint, val2 tinyint)
+sql insert into $tb values(now, 1, 1)
+sql select * from $tb
+if $data01 != 1 then 
+  return -1
+endi
+
+$i = 2
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val smallint, val2 smallint)
+sql insert into $tb values(now, 2, 2)
+sql select * from $tb
+if $data01 != 2 then 
+  return -1
+endi
+
+$i = 3
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val int, val2 int)
+sql insert into $tb values(now, 3, 3)
+sql select * from $tb
+if $data01 != 3 then 
+  return -1
+endi
+
+$i = 4
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val bigint, val2 bigint)
+sql insert into $tb values(now, 4, 4)
+sql select * from $tb
+if $data01 != 4 then 
+  return -1
+endi
+
+$i = 5
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val float, val2 float)
+sql insert into $tb values(now, 5, 5)
+sql select * from $tb
+print ==> $data01 $data02
+if $data01 != 5.00000 then
+  return -1
+endi
+
+$i = 6
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val double, val2 double)
+sql insert into $tb values(now, 6, 6)
+sql select * from $tb
+print ==> $data01 $data02
+if $data01 != 6.000000000 then 
+  return -1
+endi
+
+$i = 7
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val binary(20), val2 binary(20))
+sql insert into $tb values(now, '7', '7')
+sql select * from $tb
+if $data01 != 7 then 
+  return -1
+endi
+
+print =============== step5
+sql show tables
+if $rows != 7 then 
+  return -1
+endi
+
+$i = 1
+while $i < 8
+  $tb = $tbPrefix . $i  
+  sql drop table $tb 
+  $i = $i + 1
+endw
+
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step6-9
+$i = 1
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val tinyint, val2 tinyint)
+sql select * from $tb
+if $rows != 0 then 
+  return -1
+endi
+sql insert into $tb values(now, 1, 1)
+sql select * from $tb
+if $data01 != 1 then 
+  return -1
+endi
+
+$i = 2
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val smallint, val2 smallint)
+sql select * from $tb
+if $rows != 0 then 
+  return -1
+endi
+sql insert into $tb values(now, 2, 2)
+sql select * from $tb
+if $data01 != 2 then 
+  return -1
+endi
+
+$i = 3
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val int, val2 int)
+sql select * from $tb
+if $rows != 0 then 
+  return -1
+endi
+sql insert into $tb values(now, 3, 3)
+sql select * from $tb
+if $data01 != 3 then 
+  return -1
+endi
+
+$i = 4
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val bigint, val2 bigint)
+sql select * from $tb
+if $rows != 0 then 
+  return -1
+endi
+sql insert into $tb values(now, 4, 4)
+sql select * from $tb
+if $data01 != 4 then 
+  return -1
+endi
+
+$i = 5
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val float, val2 float)
+sql select * from $tb
+if $rows != 0 then 
+  return -1
+endi
+sql insert into $tb values(now, 5, 5)
+sql select * from $tb
+print ==> $data01 $data02
+if $data01 != 5.00000 then
+  return -1
+endi
+
+$i = 6
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val double, val2 double)
+sql select * from $tb
+if $rows != 0 then 
+  return -1
+endi
+sql insert into $tb values(now, 6, 6)
+sql select * from $tb
+print ==> $data01 $data02
+if $data01 != 6.000000000 then 
+  return -1
+endi
+
+$i = 7
+$tb = $tbPrefix  . $i
+sql create table $tb (ts timestamp, val binary(20), val2 binary(20))
+sql select * from $tb
+if $rows != 0 then 
+  return -1
+endi
+sql insert into $tb values(now, '7', '7')
+sql select * from $tb
+if $data01 != 7 then 
+  return -1
+endi
+
+print =============== step10
+$tb = $tbPrefix  . $i
+sql_error create table $tb (ts timestamp, val tinyint, val2 tinyint) 
+sql show tables
+if $rows != 7 then
+  return -1
+endi
+
+print =============== step11
+sql_error create table $tb (ts timestamp, val float, val2 double)
+sql show tables
+if $rows != 7 then
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

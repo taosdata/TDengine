@@ -1,0 +1,375 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database db;
+sql use db;
+sql create table t (ts timestamp, i int);
+sql create table st1 (ts timestamp, f1 int) tags(t1 int);
+sql create table st2 (ts timestamp, f2 int) tags(t2 int);
+sql create table t1 using st1 tags(1);
+sql create table t2 using st2 tags(1);
+
+sql insert into t1 values(1575880055000, 1);
+sql insert into t1 values(1575880059000, 1);
+sql insert into t1 values(1575880069000, 1);
+sql insert into t2 values(1575880055000, 2);
+
+sql select st1.ts, st1.f1, st2.f2 from db.st1, db.st2 where st1.t1=st2.t2 and st1.ts=st2.ts
+
+print ==============select with user-defined columns
+sql select 'abc' as f, ts,f1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != @abc@ then
+  return -1
+endi
+
+if $data01 != @19-12-09 16:27:35.000@ then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+sql select 'abc', ts, f1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data01 != @19-12-09 16:27:35.000@ then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+if $data10 != @abc@ then
+  return -1
+endi
+
+sql select 'abc' from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != @abc@ then
+  return -1
+endi
+
+sql select 'abc' as f1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != @abc@ then
+  return -1
+endi
+
+sql select 1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != 1 then
+  return -1
+endi
+
+sql select 1 as f1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+sql select 1 as f, f1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+sql select 1.123 as f, f1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 1.123000000 then
+  print expect 1.123000000 , actual:$data00
+  return -1
+endi
+
+if $data10 != 1.123000000 then
+  print expect 1.123000000 , actual:$data10
+  return -1
+endi
+
+sql select 1, f1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data10 != 1 then
+  return -1
+endi
+
+sql select 1.2391, f1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 1.239100000 then
+  print expect 1.239100000 actual: $data00
+  return -1
+endi
+
+if $data10 != 1.239100000 then
+  print expect 1.239100000 actual: $data00
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+print ===================== user-defined columns with agg functions
+sql select 1 as t, count(*) from t1
+if $rows != 1 then
+ return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 3 then
+  return -1
+endi
+
+sql select 1, sum(f1) from t1
+if $rows != 1 then
+ return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 3 then
+  return -1
+endi
+
+sql select 1,2,3, sum(f1)*99, 4,5,6,7,8,9,10 from t1
+if $rows != 1 then
+ return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 2 then
+  return -1
+endi
+
+if $data02 != 3 then
+  return -1
+endi
+
+if $data03 != 297.000000000  then
+  print expect 297.000000000, actual:$data03
+  return -1
+endi
+
+sql select sum(f1)*avg(f1)+12, 1,2,3,4,5,6,7,8,9,10 from t1
+if $rows != 1 then
+ return -1
+endi
+
+if $data00 != 15.000000000 then
+  print expect 15.000000000 actual:$data00
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != 2 then
+  return -1
+endi
+
+sql select 1.2987, f1, 'k' from t1 where f1=1
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 1.298700000 then
+  print expect 1.298700000 actual:$data00
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != @k@ then
+  return -1
+endi
+
+print ====================user-defined columns with union
+sql select f1, 'f1' from t1 union all select f1, 'f1' from t1;
+if $rows != 6 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != @f1@ then
+  return -1
+endi
+
+if $data10 != 1 then
+  return -1
+endi
+
+if $data11 != @f1@ then
+  return -1
+endi
+
+print =====================udc with join
+sql select st1.ts, st1.f1, st2.f2, 'abc', 1.9827 from db.st1, db.st2 where st1.t1=st2.t2 and st1.ts=st2.ts
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @19-12-09 16:27:35.000@ then
+  print expect @19-12-09 16:27:35.000@ actual:$data00
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != 2 then
+  return -1
+endi
+
+if $data03 != @abc@ then
+  return -1
+endi
+
+if $data04 != 1.982700000 then
+  print expect 1.982700000 actual:$data04
+  return -1
+endi
+
+print ======================udc with interval
+sql select count(*), 'uuu' from t1 interval(1s);
+if $rows != 3 then
+  return -1
+endi
+
+print ======================udc with tags
+sql select distinct t1,'abc',tbname from st1
+if $rows != 1 then
+  return -1
+endi
+
+if $data01 != @abc@ then
+  return -1
+endi
+
+if $data02 != @t1@ then
+  return -1
+endi
+
+print ======================udc with arithmetic
+sql select 1+1 from t1
+if $rows != 3 then
+  return -1
+endi
+
+sql select 0.1 + 0.2 from t1
+if $rows != 3 then
+  return -1
+endi
+
+print =============================> td-2036
+if $data00 != 0.300000000 then
+  print expect: 0.300000000, actual:$data00
+  return -1
+endi
+
+print =============================> td-3996
+sql select 'abc' as res from t1 where f1 < 0
+if $rows != 0 then
+  return -1
+endi
+
+print ======================udc with normal column group by
+sql_error select from t1
+sql_error select abc from t1
+sql_error select abc as tu from t1
+
+print ========================> td-1756
+sql select * from t1 where ts>now-1y
+sql select * from t1 where ts>now-1n
+
+print ========================> td-1752
+sql select * from db.st2 where t2 < 200 and t2 is not null;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @19-12-09 16:27:35.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+
+sql select * from db.st2 where t2 > 200 or t2 is null;
+if $rows != 0 then
+  return -1
+endi
+sql select * from st2 where t2 < 200 and t2 is null;
+if $rows != 0 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

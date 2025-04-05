@@ -1,0 +1,665 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1
+sql create database d4
+sql use d4
+sql create table tb (ts timestamp, a int, b smallint, c tinyint, d int, e bigint, f float, g double, h binary(10))
+sql insert into tb values(now-28d, 1, 2, 3, 4, 5, 6, 7, 8)
+sql select * from tb order by ts desc
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 2 then
+  return -1
+endi
+if $data03 != 3 then
+  return -1
+endi
+if $data04 != 4 then
+  return -1
+endi
+if $data05 != 5 then
+  return -1
+endi
+if $data06 != 6.00000 then
+  return -1
+endi
+if $data07 != 7.000000000 then
+  return -1
+endi
+if $data08 != 8 then
+  return -1
+endi
+
+print ======== step2
+sql_error alter table tb add column b smallint
+sql_error alter table tb add column b int
+sql alter table tb drop column b
+sql insert into tb values(now-25d, 2, 3, 4, 5, 6, 7, 8)
+sql select * from tb order by ts desc
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 3 then
+  return -1
+endi
+if $data03 != 4 then
+  return -1
+endi
+if $data04 != 5 then
+  return -1
+endi
+if $data05 != 6.00000 then
+  return -1
+endi
+if $data06 != 7.000000000 then
+  return -1
+endi
+if $data07 != 8 then
+  return -1
+endi
+if $data08 != null then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data12 != 3 then
+  return -1
+endi
+if $data13 != 4 then
+  return -1
+endi
+if $data14 != 5 then
+  return -1
+endi
+if $data15 != 6.00000 then
+  return -1
+endi
+if $data16 != 7.000000000 then
+  return -1
+endi
+if $data17 != 8 then
+  return -1
+endi
+if $data18 != null then
+  return -1
+endi
+
+print ======== step3
+sql alter table tb drop column c
+sql insert into tb values(now-22d, 3, 4, 5, 6, 7, 8)
+sql select * from tb order by ts desc
+if $rows != 3 then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data02 != 4 then
+  return -1
+endi
+if $data03 != 5 then
+  return -1
+endi
+if $data04 != 6.00000 then
+  return -1
+endi
+if $data05 != 7.000000000 then
+  return -1
+endi
+if $data06 != 8 then
+  return -1
+endi
+if $data07 != null then
+  return -1
+endi
+if $data08 != null then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 4 then
+  return -1
+endi
+if $data13 != 5 then
+  return -1
+endi
+if $data14 != 6.00000 then
+  return -1
+endi
+if $data15 != 7.000000000 then
+  return -1
+endi
+if $data16 != 8 then
+  return -1
+endi
+if $data17 != null then
+  return -1
+endi
+if $data18 != null then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+if $data22 != 4 then
+  return -1
+endi
+if $data23 != 5 then
+  return -1
+endi
+if $data24 != 6.00000 then
+  return -1
+endi
+if $data25 != 7.000000000 then
+  return -1
+endi
+if $data26 != 8 then
+  return -1
+endi
+if $data27 != null then
+  return -1
+endi
+if $data28 != null then
+  return -1
+endi
+
+print ======== step4
+sql alter table tb drop column d
+sql alter table tb drop column e
+sql insert into tb values(now-19d, -19, 6, 3, 0)
+sql select * from tb order by ts desc
+if $rows != 4 then
+  return -1
+endi
+if $data01 != -19 then
+  return -1
+endi
+if $data02 != 6.00000 then
+  return -1
+endi
+if $data03 != 3.000000000 then
+  return -1
+endi
+if $data04 != 0 then
+  return -1
+endi
+if $data05 != null then
+  return -1
+endi
+if $data06 != null then
+  return -1
+endi
+if $data07 != null then
+  return -1
+endi
+if $data08 != null then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data12 != 6.00000 then
+  return -1
+endi
+if $data13 != 7.000000000 then
+  return -1
+endi
+if $data14 != 8 then
+  return -1
+endi
+if $data15 != null then
+  return -1
+endi
+if $data16 != null then
+  return -1
+endi
+if $data17 != null then
+  return -1
+endi
+if $data18 != null then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 6.00000 then
+  return -1
+endi
+if $data23 != 7.000000000 then
+  return -1
+endi
+if $data24 != 8 then
+  return -1
+endi
+if $data25 != null then
+  return -1
+endi
+if $data26 != null then
+  return -1
+endi
+if $data27 != null then
+  return -1
+endi
+if $data28 != null then
+  return -1
+endi
+if $data31 != 1 then
+  return -1
+endi
+if $data32 != 6.00000 then
+  return -1
+endi
+if $data33 != 7.000000000 then
+  return -1
+endi
+if $data34 != 8 then
+  return -1
+endi
+if $data35 != null then
+  return -1
+endi
+if $data36 != null then
+  return -1
+endi
+if $data37 != null then
+  return -1
+endi
+if $data38 != null then
+  return -1
+endi
+
+print ======== step5
+sql alter table tb drop column g
+sql insert into tb values(now-16d, -16, 9, 5)
+sql select count(f) from tb
+if $data00 != 5 then
+  return -1
+endi
+sql select * from tb order by ts desc
+if $rows != 5 then
+  return -1
+endi
+if $data01 != -16 then
+  return -1
+endi
+if $data02 != 9.00000 then
+  return -1
+endi
+if $data03 != 5 then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+if $data05 != null then
+  return -1
+endi
+if $data06 != null then
+  return -1
+endi
+if $data07 != null then
+  return -1
+endi
+if $data08 != null then
+  return -1
+endi
+if $data11 != -19 then
+  return -1
+endi
+if $data12 != 6.00000 then
+  return -1
+endi
+if $data13 != 0 then
+  return -1
+endi
+if $data14 != null then
+  return -1
+endi
+if $data15 != null then
+  return -1
+endi
+if $data16 != null then
+  return -1
+endi
+if $data17 != null then
+  return -1
+endi
+if $data18 != null then
+  return -1
+endi
+if $data21 != 3 then
+  return -1
+endi
+if $data22 != 6.00000 then
+  return -1
+endi
+if $data23 != 8 then
+  return -1
+endi
+if $data24 != null then
+  return -1
+endi
+if $data25 != null then
+  return -1
+endi
+if $data26 != null then
+  return -1
+endi
+if $data27 != null then
+  return -1
+endi
+if $data28 != null then
+  return -1
+endi
+if $data31 != 2 then
+  return -1
+endi
+if $data32 != 6.00000 then
+  return -1
+endi
+if $data33 != 8 then
+  return -1
+endi
+if $data34 != null then
+  return -1
+endi
+if $data35 != null then
+  return -1
+endi
+if $data36 != null then
+  return -1
+endi
+if $data37 != null then
+  return -1
+endi
+if $data38 != null then
+  return -1
+endi
+if $data41 != 1 then
+  return -1
+endi
+if $data42 != 6.00000 then
+  return -1
+endi
+if $data43 != 8 then
+  return -1
+endi
+if $data44 != null then
+  return -1
+endi
+if $data45 != null then
+  return -1
+endi
+if $data46 != null then
+  return -1
+endi
+if $data47 != null then
+  return -1
+endi
+if $data48 != null then
+  return -1
+endi
+
+print ======== step6
+sql alter table tb drop column f
+sql insert into tb values(now-13d, -13, 7)
+sql select * from tb order by ts desc
+if $rows != 6 then
+  return -1
+endi
+if $data01 != -13 then
+  return -1
+endi
+if $data11 != -16 then
+  return -1
+endi
+if $data12 != 5 then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+if $data04 != null then
+  return -1
+endi
+if $data05 != null then
+  return -1
+endi
+if $data06 != null then
+  return -1
+endi
+if $data07 != null then
+  return -1
+endi
+if $data08 != null then
+  return -1
+endi
+if $data21 != -19 then
+  return -1
+endi
+if $data22 != 0 then
+  return -1
+endi
+if $data23 != null then
+  return -1
+endi
+if $data24 != null then
+  return -1
+endi
+if $data25 != null then
+  return -1
+endi
+if $data26 != null then
+  return -1
+endi
+if $data27 != null then
+  return -1
+endi
+if $data28 != null then
+  return -1
+endi
+if $data31 != 3 then
+  return -1
+endi
+if $data32 != 8 then
+  return -1
+endi
+if $data33 != null then
+  return -1
+endi
+if $data34 != null then
+  return -1
+endi
+if $data35 != null then
+  return -1
+endi
+if $data36 != null then
+  return -1
+endi
+if $data37 != null then
+  return -1
+endi
+if $data38 != null then
+  return -1
+endi
+if $data41 != 2 then
+  return -1
+endi
+if $data42 != 8 then
+  return -1
+endi
+if $data43 != null then
+  return -1
+endi
+if $data44 != null then
+  return -1
+endi
+if $data45 != null then
+  return -1
+endi
+if $data46 != null then
+  return -1
+endi
+if $data47 != null then
+  return -1
+endi
+if $data48 != null then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
+if $data52 != 8 then
+  return -1
+endi
+if $data53 != null then
+  return -1
+endi
+if $data54 != null then
+  return -1
+endi
+if $data55 != null then
+  return -1
+endi
+if $data57 != null then
+  return -1
+endi
+if $data58 != null then
+  return -1
+endi
+
+print ======== step7
+sql alter table tb drop column h
+sql insert into tb values(now-10d, -10)
+sql select * from tb order by ts desc
+if $rows != 7 then
+  return -1
+endi
+print data01 = $data01
+if $data01 != -10 then
+  return -1
+endi
+if $data02 != null then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+if $data11 != -13 then
+  return -1
+endi
+if $data12 != null then
+  return -1
+endi
+if $data21 != -16 then
+  return -1
+endi
+if $data22 != null then
+  return -1
+endi
+if $data31 != -19 then
+  return -1
+endi
+if $data32 != null then
+  return -1
+endi
+if $data33 != null then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data42 != null then
+  return -1
+endi
+if $data51 != 2 then
+  return -1
+endi
+if $data52 != null then
+  return -1
+endi
+if $data53 != null then
+  return -1
+endi
+if $data61 != 1 then
+  return -1
+endi
+if $data62 != null then
+  return -1
+endi
+
+sql_error alter table tb drop column a
+
+print ======== step9
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+sql select * from tb order by ts desc
+if $rows != 7 then
+  return -1
+endi
+if $data01 != -10 then
+  return -1
+endi
+if $data02 != null then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+if $data11 != -13 then
+  return -1
+endi
+if $data12 != null then
+  return -1
+endi
+if $data21 != -16 then
+  return -1
+endi
+if $data22 != null then
+  return -1
+endi
+if $data31 != -19 then
+  return -1
+endi
+if $data32 != null then
+  return -1
+endi
+if $data33 != null then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data42 != null then
+  return -1
+endi
+if $data51 != 2 then
+  return -1
+endi
+if $data52 != null then
+  return -1
+endi
+if $data53 != null then
+  return -1
+endi
+if $data61 != 1 then
+  return -1
+endi
+if $data62 != null then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,161 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database with different precision
+sql create database d0 keep 365
+sql create database d1 keep 365 precision 'ms'
+sql create database d2 keep 365 precision 'us'
+sql create database d3 keep 365 precision 'ns'
+
+sql select * from information_schema.ins_databases
+if $rows != 6 then
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+
+sql create table if not exists d0.stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table if not exists d1.stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table if not exists d2.stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table if not exists d3.stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
+sql create table if not exists d0.ntb (ts timestamp, c1 int, c2 float, c3 double)
+sql create table if not exists d1.ntb (ts timestamp, c1 int, c2 float, c3 double)
+sql create table if not exists d2.ntb (ts timestamp, c1 int, c2 float, c3 double)
+sql create table if not exists d3.ntb (ts timestamp, c1 int, c2 float, c3 double)
+
+sql create table d0.ct1 using d0.stb tags(1000)
+sql create table d1.ct1 using d1.stb tags(1000)
+sql create table d2.ct1 using d2.stb tags(1000)
+sql create table d3.ct1 using d3.stb tags(1000)
+sql create table d0.ct2 using d0.stb tags(1000)
+sql create table d1.ct2 using d1.stb tags(1000)
+sql create table d2.ct2 using d2.stb tags(1000)
+sql create table d3.ct2 using d3.stb tags(1000)
+
+
+sql insert into d0.ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into d1.ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into d2.ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into d3.ct1 values(now+0s, 10, 2.0, 3.0)
+sql insert into d0.ct2 values(now+0s, 10, 2.0, 3.0)
+sql insert into d1.ct2 values(now+0s, 10, 2.0, 3.0)
+sql insert into d2.ct2 values(now+0s, 10, 2.0, 3.0)
+sql insert into d3.ct2 values(now+0s, 10, 2.0, 3.0)
+sql insert into d0.ntb values(now+0s, 10, 2.0, 3.0)
+sql insert into d1.ntb values(now+0s, 10, 2.0, 3.0)
+sql insert into d2.ntb values(now+0s, 10, 2.0, 3.0)
+sql insert into d3.ntb values(now+0s, 10, 2.0, 3.0)
+
+
+print =============== query data from super table
+sql select count(*) from d0.stb
+if $data00 != 2 then
+  return -1
+endi
+sql select count(*) from d1.stb
+if $data00 != 2 then
+  return -1
+endi
+sql select count(*) from d2.stb
+if $data00 != 2 then
+  return -1
+endi
+sql select count(*) from d3.stb
+if $data00 != 2 then
+  return -1
+endi
+
+print =============== delete from child table
+sql delete from d0.ct1 where ts < now()
+sql delete from d1.ct1 where ts < now()
+sql delete from d2.ct1 where ts < now()
+sql delete from d3.ct1 where ts < now()
+
+
+print =============== query data from super table
+sql select count(*) from d0.stb
+if $data00 != 1 then
+  return -1
+endi
+sql select count(*) from d1.stb
+if $data00 != 1 then
+  return -1
+endi
+sql select count(*) from d2.stb
+if $data00 != 1 then
+  return -1
+endi
+sql select count(*) from d3.stb
+if $data00 != 1 then
+  return -1
+endi
+print =============== query data from normal table
+sql select count(*) from d0.ntb
+if $data00 != 1 then
+  return -1
+endi
+sql select count(*) from d1.ntb
+if $data00 != 1 then
+  return -1
+endi
+sql select count(*) from d2.ntb
+if $data00 != 1 then
+  return -1
+endi
+sql select count(*) from d3.ntb
+if $data00 != 1 then
+  return -1
+endi
+
+print =============== delete from super table
+sql delete from d0.stb where ts < now()
+sql delete from d1.stb where ts < now()
+sql delete from d2.stb where ts < now()
+sql delete from d3.stb where ts < now()
+
+print =============== query data from super table
+sql select count(*) from d0.stb
+if $data00 != 0 then
+  return -1
+endi
+sql select count(*) from d1.stb
+if $data00 != 0 then
+  return -1
+endi
+sql select count(*) from d2.stb
+if $data00 != 0 then
+  return -1
+endi
+sql select count(*) from d3.stb
+if $data00 != 0 then
+  return -1
+endi
+
+print =============== delete from normal table
+sql delete from d0.ntb where ts < now()
+sql delete from d1.ntb where ts < now()
+sql delete from d2.ntb where ts < now()
+sql delete from d3.ntb where ts < now()
+
+print =============== query data from normal table
+sql select count(*) from d0.ntb
+if $data00 != 0 then
+  return -1
+endi
+sql select count(*) from d1.ntb
+if $data00 != 0 then
+  return -1
+endi
+sql select count(*) from d2.ntb
+if $data00 != 0 then
+  return -1
+endi
+sql select count(*) from d3.ntb
+if $data00 != 0 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

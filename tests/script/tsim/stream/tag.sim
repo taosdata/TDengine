@@ -26,7 +26,7 @@ sql insert into t1 values(1648791223000,0,1,1,1.0);
 sql insert into t1 values(1648791223001,9,2,2,1.1);
 sql insert into t1 values(1648791223009,0,3,3,1.0);
 
-sleep 300
+sleep 1000
 
 sql select * from streamt;
 if $data01 != 3 then

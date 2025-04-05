@@ -1,0 +1,9 @@
+$i = 1
+$loops = 10
+while $i <= $loops
+  print ====== repeat: $i
+  run tsim/parser/alter.sim
+  $i = $i + 1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

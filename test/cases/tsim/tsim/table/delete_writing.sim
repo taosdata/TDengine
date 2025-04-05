@@ -1,0 +1,29 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database db 
+sql create table db.tb (ts timestamp, i int)
+sql insert into db.tb values(now, 1)
+
+print ======== start back
+run_back tsim/table/back_insert.sim
+sleep 1000
+
+print ======== step1 
+$x = 1 	
+while $x < 10
+
+    print drop table times $x
+	sql drop table db.tb -x step1
+	step1:
+
+	sql create table db.tb (ts timestamp, i int)
+
+	sleep 1000
+	
+	$x = $x + 1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

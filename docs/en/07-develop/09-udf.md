@@ -298,13 +298,53 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 
 </details>
 
+#### Aggregate Function Example 3 Split string and calculate average value [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/extract_avg.c)
+
+The `extract_avg` function converts a comma-separated string sequence into a set of numerical values, counts the results of all rows, and calculates the final average. Note when implementing:
+- `interBuf->numOfResult` needs to return 1 or 0 and cannot be used for count.
+- Count can use additional caches, such as the `SumCount` structure.
+- Use `varDataVal` to obtain the string.
+
+Create table:
+
+```shell
+create table scores(ts timestamp, varStr varchar(128));
+```
+
+Create custom function:
+
+```shell
+create aggregate function extract_avg as '/root/udf/libextract_avg.so' outputtype double bufsize 16 language 'C'; 
+```
+
+Use custom function:
+
+```shell
+select extract_avg(valStr) from scores;
+```
+
+Generate `.so` file
+```bash
+gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
+```
+
+<details>
+<summary>max_vol.c</summary>
+
+```c
+{{#include tests/script/sh/max_vol.c}}
+```
+
+</details>
+
+
 ## Developing UDFs in Python Language
 
 ### Environment Setup
 
 The specific steps to prepare the environment are as follows:
 
-- Step 1, prepare the Python runtime environment.
+- Step 1, prepare the Python runtime environment. If you compile and install Python locally, be sure to enable the `--enable-shared` option, otherwise the subsequent installation of taospyudf will fail due to failure to generate a shared library.
 - Step 2, install the Python package taospyudf. The command is as follows.
 
     ```shell
@@ -495,10 +535,10 @@ taos> select myfun(v1, v2) from t;
 DB error: udf function execution failure (0.011088s)
 ```
 
-Unfortunately, the execution failed. What could be the reason? Check the udfd process logs.
+Unfortunately, the execution failed. What could be the reason? Check the taosudf process logs.
 
 ```shell
-tail -10 /var/log/taos/udfd.log
+tail -10 /var/log/taos/taosudf.log
 ```
 
 Found the following error messages.

@@ -90,6 +90,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_DEGREES,
   FUNCTION_TYPE_RADIANS,
   FUNCTION_TYPE_TRUNCATE,
+  FUNCTION_TYPE_GREATEST,
+  FUNCTION_TYPE_LEAST,
 
   // string function
   FUNCTION_TYPE_LENGTH = 1500,
@@ -157,6 +159,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_FORECAST_ROWTS,
   FUNCTION_TYPE_COLS,
   FUNCTION_TYPE_IROWTS_ORIGIN,
+  FUNCTION_TYPE_GROUP_ID,
+  FUNCTION_TYPE_IS_WINDOW_FILLED,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -275,6 +279,7 @@ bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsLastFunc(int32_t funcId);
 bool fmIsForecastFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
@@ -298,6 +303,7 @@ bool fmIsElapsedFunc(int32_t funcId);
 bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);
+bool fmIsGroupIdFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);

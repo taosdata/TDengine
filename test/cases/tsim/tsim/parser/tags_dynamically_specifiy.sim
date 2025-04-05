@@ -1,0 +1,99 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$db = dytag_db
+$tbNum = 10
+$rowNum = 5
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== tags_dynamically_specify.sim
+$i = 0
+
+sql drop database if exists $db
+sql create database $db
+sql use $db
+
+sql create table stb (ts timestamp, c1 binary(10), c2 int, c3 float) tags (t1 binary(10), t2 int, t3 float)
+
+sql insert into tb1 using stb (t1) tags ('tag1') values ( now + 1s, 'binary1', 1, 1.1)
+sql insert into tb2 using stb (t2) tags (2)      values ( now + 2s, 'binary2', 2, 2.2)
+sql insert into tb3 using stb (t3) tags (3.3)    values ( now + 3s, 'binary3', 3, 3.3)
+
+sql insert into tb4 (ts, c1, c2) using stb (t1, t2) tags ('tag4', 4)   values ( now + 4s, 'binary4', 4)
+sql insert into tb5 (ts, c1, c3) using stb (t1, t3) tags ('tag5', 11.11) values ( now + 5s, 'binary5', 5.5)
+sql insert into tb6 (ts, c1, c3) using stb tags ('tag5', 6, 11.11) values ( now + 5s, 'binary6', 6.6)
+sql insert into tb7 (ts, c1, c2, c3) using stb tags ('tag5', 7, 11.11) values ( now + 5s, 'binary7', 7, 7.7)
+sql select * from stb order by ts asc
+if $rows != 7 then
+  return -1
+endi
+
+sql_error insert into tb11 using stb (t1) tags () values ( now + 1s, 'binary1', 1, 1.1)
+sql_error insert into tb12 using stb (t1, t3) tags () values ( now + 1s, 'binary1', 1, 1.1)
+sql_error insert into tb13 using stb (t1, t2, t3) tags (8, 9.13, 'ac') values ( now + 1s, 'binary1', 1, 1.1)
+sql_error insert into tb14 using stb () tags (2)  values ( now + 2s, 'binary2', 2, 2.2)
+sql_error insert into tb15 using stb (t2, t3) tags (3.3)    values ( now + 3s, 'binary3', 3, 3.3)
+sql_error insert into tb16 (ts, c1, c2) using stb (t1, t2) tags ('tag4', 4)   values ( now + 4s, 'binary4')
+sql_error insert into tb17 (ts, c1, c3) using stb (t1, t3) tags ('tag5', 11.11, 5) values ( now + 5s, 'binary5', 5.5)
+sql_error insert into tb18 (ts, c1, c3) using stb tags ('tag5', 16) values ( now + 5s, 'binary6', 6.6)
+sql_error insert into tb19 (ts, c1, c2, c3) using stb tags (19, 'tag5', 91.11) values ( now + 5s, 'binary7', 7, 7.7)
+
+sql create table stbx (ts timestamp, c1 binary(10), c2 int, c3 float) tags (t1 binary(10), t2 int, t3 float)
+sql insert into tb100 (ts, c1, c2, c3) using stbx (t1, t2, t3) tags ('tag100', 100, 100.123456) values ( now + 10s, 'binary100', 100, 100.9) tb101 (ts, c1, c2, c3) using stbx (t1, t2, t3) tags ('tag101', 101, 101.9) values ( now + 10s, 'binary101', 101, 101.9) tb102 (ts, c1, c2, c3) using stbx (t1, t2, t3) tags ('tag102', 102, 102.9) values ( now + 10s, 'binary102', 102, 102.9)
+
+sql select * from stbx order by t1
+if $rows != 3 then
+  return -1
+endi
+
+if $data04 != tag100 then
+  return -1
+endi
+
+if $data05 != 100 then
+  return -1
+endi
+
+if $data06 != 100.12346 then
+  print "expect: 100.12346, act: $data06"
+  return -1
+endi
+
+sql create table stby (ts timestamp, c1 binary(10), c2 int, c3 float) tags (t1 binary(10), t2 int, t3 float)
+sql reset query cache
+sql insert into tby1 using stby (t1) tags ('tag1') values ( now + 1s, 'binary1', 1, 1.1)
+sql insert into tby2 using stby (t2) tags (2)      values ( now + 2s, 'binary2', 2, 2.2)
+sql insert into tby3 using stby (t3) tags (3.3)    values ( now + 3s, 'binary3', 3, 3.3)
+sql insert into tby4 (ts, c1, c2) using stby (t1, t2) tags ('tag4', 4)   values ( now + 4s, 'binary4', 4)
+sql insert into tby5 (ts, c1, c3) using stby (t1, t3) tags ('tag5', 11.11) values ( now + 5s, 'binary5', 5.5)
+sql insert into tby6 (ts, c1, c3) using stby tags ('tag5', 6, 11.11) values ( now + 5s, 'binary6', 6.6)
+sql insert into tby7 (ts, c1, c2, c3) using stby tags ('tag5', 7, 11.11) values ( now + 5s, 'binary7', 7, 7.7)
+sql select * from stby order by ts asc
+if $rows != 7 then
+  return -1
+endi
+
+sql reset query cache
+sql insert into tby1 using stby (t1) tags ('tag1') values ( now + 1s, 'binary1y', 1, 1.1)
+sql insert into tby2 using stby (t2) tags (2)      values ( now + 2s, 'binary2y', 2, 2.2)
+sql insert into tby3 using stby (t3) tags (3.3)    values ( now + 3s, 'binary3y', 3, 3.3)
+sql insert into tby4 (ts, c1, c2) using stby (t1, t2) tags ('tag4', 4)   values ( now + 4s, 'binary4y', 4)
+sql insert into tby5 (ts, c1, c3) using stby (t1, t3) tags ('tag5', 11.11) values ( now + 5s, 'binary5y', 5.5)
+sql insert into tby6 (ts, c1, c3) using stby tags ('tag5', 6, 11.11) values ( now + 5s, 'binary6y', 6.6)
+sql insert into tby7 (ts, c1, c2, c3) using stby tags ('tag5', 7, 11.11) values ( now + 5s, 'binary7y', 7, 7.7)
+
+sql select * from stby order by ts asc
+if $rows != 14 then
+  return -1
+endi
+
+print ===============================> td-1765
+sql create table m1(ts timestamp, k int) tags(a binary(4), b nchar(4));
+sql create table tm0 using m1 tags('abcd', 'abcd');
+sql_error alter table tm0 set tag b = 'abcd1';
+sql_error alter table tm0 set tag a = 'abcd1';
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

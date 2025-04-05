@@ -1,0 +1,325 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database
+sql create database d0 keep 365000d,365000d,365000d
+sql use d0
+
+print =============== create super table
+sql create table if not exists stb (ts timestamp, c1 int unsigned, c2 double, c3 binary(10), c4 nchar(10), c5 double) tags (city binary(20),district binary(20));
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+sql create table ct1 using stb tags("BeiJing", "ChaoYang")
+sql create table ct2 using stb tags("BeiJing", "HaiDian")
+
+sql show tables
+if $rows != 2 then
+  return -1
+endi
+
+print =============== step3-1 insert records into ct1
+sql insert into ct1 values('2022-05-03 16:59:00.010', 10, 20, 'n','n',30);
+sql insert into ct1 values('2022-05-03 16:59:00.011', 'null', 'null', 'N',"N",30);
+sql insert into ct1 values('2022-05-03 16:59:00.012', 'null', 'null', 'Nul','NUL',30);
+sql insert into ct1 values('2022-05-03 16:59:00.013', NULL, 'null', 'Null',null,30);
+sql insert into ct1 values('2022-05-03 16:59:00.014', NULL, 'NuLL', 'Null',NULL,30);
+
+sql_error insert into ct1 values('2022-05-03 16:59:00.015', NULL, 20, 'Null',NUL,30);
+sql_error insert into ct1 values('2022-05-03 16:59:00.015', NULL, 20, 'Null',NU,30);
+sql_error insert into ct1 values('2022-05-03 16:59:00.015', NULL, 20, 'Null',Nu,30);
+sql_error insert into ct1 values('2022-05-03 16:59:00.015', NULL, 20, 'Null',N,30);
+sql_error insert into ct1 values('2022-05-03 16:59:00.015', N, 20, 'Null',NULL,30);
+sql_error insert into ct1 values('2022-05-03 16:59:00.015', Nu, 20, 'Null',NULL,30);
+sql_error insert into ct1 values('2022-05-03 16:59:00.015', Nul, 20, 'Null',NULL,30);
+
+print =============== step3-1 query records of ct1 from memory
+sql select * from ct1;
+print $data00 $data01 $data02  $data03  $data04  $data05
+print $data10 $data11 $data12  $data13  $data14  $data15
+print $data20 $data21 $data22  $data23  $data24  $data25
+print $data30 $data31 $data32  $data33  $data34  $data35
+print $data40 $data41 $data42  $data43  $data44  $data45
+
+if $rows != 5 then
+  print rows $rows != 5
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data02 != 20.000000000 then
+  print data02 $data02 != 20.000000000
+  return -1
+endi
+
+if $data03 != n then
+  print data03 $data03 != n
+  return -1
+endi
+
+if $data04 != n then
+  print data04 $data04 != n
+  return -1
+endi
+
+if $data05 != 30.000000000 then
+  print data05 $data05 != 30.000000000
+  return -1
+endi
+
+if $data11 != NULL then
+  print data11 $data11 != NULL
+  return -1
+endi
+
+if $data12 != NULL then
+  print data12 $data12 != NULL
+  return -1
+endi
+
+if $data13 != N then
+  print data13 $data13 != N
+  return -1
+endi
+
+if $data14 != N then
+  print data14 $data14 != N
+  return -1
+endi
+
+if $data15 != 30.000000000 then
+  print data15 $data15 != 30.000000000
+  return -1
+endi
+
+if $data21 != NULL then
+  print data21 $data21 != NULL
+  return -1
+endi
+
+if $data22 != NULL then
+  print data22 $data22 != NULL
+  return -1
+endi
+
+if $data23 != Nul then
+  print data23 $data23 != Nul
+  return -1
+endi
+
+if $data24 != NUL then
+  print data24 $data24 != NUL
+  return -1
+endi
+
+if $data25 != 30.000000000 then
+  print data25 $data25 != 30.000000000
+  return -1
+endi
+
+if $data31 != NULL then
+  print data31 $data31 != NULL
+  return -1
+endi
+
+if $data32 != NULL then
+  print data32 $data32 != NULL
+  return -1
+endi
+
+if $data33 != Null then
+  print data33 $data33 != Null
+  return -1
+endi
+
+if $data34 != NULL then
+  print data34 $data34 != NULL
+  return -1
+endi
+
+if $data35 != 30.000000000 then
+  print data35 $data35 != 30.000000000
+  return -1
+endi
+
+if $data41 != NULL then
+  print data41 $data41 != NULL
+  return -1
+endi
+
+if $data42 != NULL then
+  print data42 $data42 != NULL
+  return -1
+endi
+
+if $data43 != Null then
+  print data43 $data43 != Null
+  return -1
+endi
+
+if $data44 != NULL then
+  print data44 $data44 != NULL
+  return -1
+endi
+
+if $data45 != 30.000000000 then
+  print data45 $data45 != 30.000000000
+  return -1
+endi
+
+#==================== reboot to trigger commit data to file
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print =============== step3-2 query records of ct1 from file
+sql select * from ct1;
+print $data00 $data01 $data02  $data03  $data04  $data05
+print $data10 $data11 $data12  $data13  $data14  $data15
+print $data20 $data21 $data22  $data23  $data24  $data25
+print $data30 $data31 $data32  $data33  $data34  $data35
+print $data40 $data41 $data42  $data43  $data44  $data45
+
+if $rows != 5 then
+  print rows $rows != 5
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data02 != 20.000000000 then
+  print data02 $data02 != 20.000000000
+  return -1
+endi
+
+if $data03 != n then
+  print data03 $data03 != n
+  return -1
+endi
+
+if $data04 != n then
+  print data04 $data04 != n
+  return -1
+endi
+
+if $data05 != 30.000000000 then
+  print data05 $data05 != 30.000000000
+  return -1
+endi
+
+if $data11 != NULL then
+  print data11 $data11 != NULL
+  return -1
+endi
+
+if $data12 != NULL then
+  print data12 $data12 != NULL
+  return -1
+endi
+
+if $data13 != N then
+  print data13 $data13 != N
+  return -1
+endi
+
+if $data14 != N then
+  print data14 $data14 != N
+  return -1
+endi
+
+if $data15 != 30.000000000 then
+  print data15 $data15 != 30.000000000
+  return -1
+endi
+
+if $data21 != NULL then
+  print data21 $data21 != NULL
+  return -1
+endi
+
+if $data22 != NULL then
+  print data22 $data22 != NULL
+  return -1
+endi
+
+if $data23 != Nul then
+  print data23 $data23 != Nul
+  return -1
+endi
+
+if $data24 != NUL then
+  print data24 $data24 != NUL
+  return -1
+endi
+
+if $data25 != 30.000000000 then
+  print data25 $data25 != 30.000000000
+  return -1
+endi
+
+if $data31 != NULL then
+  print data31 $data31 != NULL
+  return -1
+endi
+
+if $data32 != NULL then
+  print data32 $data32 != NULL
+  return -1
+endi
+
+if $data33 != Null then
+  print data33 $data33 != Null
+  return -1
+endi
+
+if $data34 != NULL then
+  print data34 $data34 != NULL
+  return -1
+endi
+
+if $data35 != 30.000000000 then
+  print data35 $data35 != 30.000000000
+  return -1
+endi
+
+if $data41 != NULL then
+  print data41 $data41 != NULL
+  return -1
+endi
+
+if $data42 != NULL then
+  print data42 $data42 != NULL
+  return -1
+endi
+
+if $data43 != Null then
+  print data43 $data43 != Null
+  return -1
+endi
+
+if $data44 != NULL then
+  print data44 $data44 != NULL
+  return -1
+endi
+
+if $data45 != 30.000000000 then
+  print data45 $data45 != 30.000000000
+  return -1
+endi
+
+sql_error insert into ct1 using stb tags('a', 'b') values ('2022-06-26 13:00:00', 1) ct11 using sta tags('c', 'b#) values ('2022-06-26 13:00:01', 2);
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

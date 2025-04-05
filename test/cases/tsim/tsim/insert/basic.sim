@@ -1,0 +1,67 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = d
+$tbPrefix = t
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql drop database -x step1
+step1:
+sql create database $db vgroups 2 precision 'ns'
+sql use $db
+sql create table $tb (ts timestamp, speed int)
+
+$x = 0
+while $x < 110
+  $cc = $x * 60000
+  $ms = 1601481600000000000 + $cc
+
+  sql insert into $tb values ($ms , $x )
+  $x = $x + 1
+endw
+
+print =============== step 2
+$x = 0
+while $x < 110
+  $cc = $x * 60000
+  $ms = 1551481600000000000 + $cc
+
+  sql insert into $tb values ($ms , $x )
+  $x = $x + 1
+endw
+
+sql select * from $tb
+
+print $rows points data are retrieved
+if $rows != 220 then
+  return -1
+endi
+
+# error
+print $data1
+print $data[1000][1]
+print $data[1][1000]
+print $data[1000][1000]
+$a1 = 0
+$a2 = 0
+$a3 = $a1 % $a2
+$a4 = $a1 / $a2
+print $a3 
+
+$val = \\\1
+print ====> $val
+
+sql_slow select * from $tb 
+
+sql close
+sql connect
+sql close
+sql connect root
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

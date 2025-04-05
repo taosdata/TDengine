@@ -1,0 +1,79 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== create database
+sql create database db
+sql select * from information_schema.ins_databases
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+print =============== create normal table
+sql create table db.n1 (ts timestamp, i int)
+sql select * from information_schema.ins_tables where db_name = 'db'
+if $rows != 1 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+print =============== create super table
+sql create table db.st (ts timestamp, i int) tags (j int)
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 1 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+print =============== create child table
+sql create table db.c1 using db.st tags(1)
+sql create table db.c2 using db.st tags(2)
+sql select * from information_schema.ins_tables where db_name = 'db'
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data22
+print $data20 $data11 $data22
+
+print =============== insert data
+sql insert into db.n1 values(now+1s, 1)
+sql insert into db.n1 values(now+2s, 2)
+sql insert into db.n1 values(now+3s, 3)
+
+print =============== query data
+sql select * from db.n1
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01
+print $data10 $data11
+print $data20 $data11
+
+if $data01 != 1 then 
+  return -1
+endi
+
+if $data11 != 2 then 
+  return -1
+endi
+
+if $data21 != 3 then 
+  return -1
+endi
+
+print =============== drop stable
+sql drop table db.st
+sql select * from information_schema.ins_stables where db_name = 'db'
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

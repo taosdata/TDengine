@@ -29,7 +29,7 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-  mnode scheduler sdb wal transport cjson sync monitor executor qworker stream parser audit monitorfw
+  mnode scheduler sdb wal transport sync monitor executor qworker stream parser audit monitorfw
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_GEOS
 #include <geos_c.h>
 #include "geosWrapper.h"
 #include "geomFunc.h"
@@ -385,3 +386,4 @@ int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t containsProperlyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return geomRelationFunction(pInput, pOutput, false, doContainsProperly);
 }
+#endif

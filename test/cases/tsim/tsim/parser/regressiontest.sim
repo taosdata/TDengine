@@ -1,0 +1,197 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = reg_db
+$tb = tb
+$rowNum = 8200
+
+$ts0 = 1537146000000
+$delta = 100
+print ========== reg.sim
+$i = 0
+$db = $dbPrefix . $i
+
+sql drop database if exists $db -x step1
+step1:
+sql create database $db vgroups 1 cachemodel 'last_row'
+
+sql use $db
+sql create table $tb (ts timestamp, c1 int)
+
+$i = 0
+$ts = $ts0
+
+$x = 0
+while $x < $rowNum
+$xs = $x * $delta
+$ts = $ts0 + $xs
+sql insert into $tb values ( $ts , $x )
+$x = $x + 1
+endw
+
+sql flush database $db
+
+sql delete from $tb where ts=1537146000000
+sql delete from $tb where ts=1537146409500
+
+print =========================> TS-2410
+sql select * from  $tb limit 20 offset 4090
+print $data00
+print $data10
+print $data20
+print $data30
+print $data40
+print $data50
+print $data60
+print $data70
+print $data80
+print $data90
+
+if $data40 != @18-09-17 09:06:49.600@ then
+ return -1
+endi
+
+sql select * from $tb order by ts desc;
+if $rows != 8198 then
+  return -1
+endi
+
+sql drop database if exists $db -x step1
+sql create database $db vgroups 1;
+
+sql use $db
+sql create stable st1 (ts timestamp, c  int) tags(a  int);
+sql create table t1 using st1 tags(1);
+sql create table t2 using st1 tags(2);
+
+$i = 0
+$ts = 1674977959000
+$rowNum = 200
+
+$x = 0
+while $x < $rowNum
+$xs = $x * $delta
+$ts = $ts0 + $xs
+sql insert into t1 values ( $ts , $x )
+sql insert into t2 values ( $ts + 1000a, $x )
+$x = $x + 1
+$ts = $ts + 1000
+endw
+
+sql flush database $db
+
+print ===========================>  TD-22077  && TD-21877
+
+sql insert into t1 values('2018-09-17 09:00:26', 26);
+sql insert into t2 values('2018-09-17 09:00:25', 25);
+
+sql insert into t2 values('2018-09-17 09:00:30', 30);
+sql flush  database reg_db0;
+
+sql delete from st1 where ts<='2018-9-17 09:00:26';
+sql select * from st1;
+
+sql drop table t1
+sql drop table t2
+
+print =========================================>TD-22196
+sql create table t1 using st1 tags(1);
+
+$i = 0
+$ts = 1674977959000
+$rowNum = 200
+
+$x = 0
+while $x < $rowNum
+$xs = $x * $delta
+$ts = $ts0 + $xs
+sql insert into t1 values ( $ts , $x )
+$x = $x + 1
+$ts = $ts + 1000
+endw
+
+sql flush database $db
+sql select min(c),max(c) from t1
+if $data00 != 0 then
+   return -1
+endi
+
+if $data01 != 199 then
+  return -1
+endi
+
+sql drop table t1
+
+$rowNum = 8200
+$ts0 = 1537146000000
+sql create table t1 (ts timestamp, c1 int)
+
+$i = 0
+$ts = $ts0
+
+$x = 0
+while $x < $rowNum
+$xs = $x * $delta
+$ts = $ts0 + $xs
+sql insert into t1 values ( $ts , $x )
+$x = $x + 1
+endw
+
+sql delete from t1 where ts<=1537146409500
+
+sql flush database $db
+
+print ======================================>TS-2639
+sql show table distributed t1;
+
+print =====================================>TD-22007
+sql select count(*) from t1 interval(10a)
+sql drop table t1
+
+sql create table st1 (ts timestamp, k int) tags(a int);
+sql insert into t1 using st1 tags(1) values('2020-1-1 10:10:10', 0);
+sql insert into t2 using st1 tags(1) values('2020-1-1 10:10:11', 1);
+sql insert into t3 using st1 tags(1) values('2020-1-1 10:10:12', 2);
+sql insert into t4 using st1 tags(1) values('2020-1-1 10:10:13', 3);
+sql insert into t5 using st1 tags(1) values('2020-1-1 10:10:14', 4);
+sql insert into t6 using st1 tags(2) values('2020-1-1 10:10:15', 5);
+sql insert into t7 using st1 tags(2) values('2020-1-1 10:10:16', 6);
+sql insert into t8 using st1 tags(2) values('2020-1-1 10:10:17', 7);
+sql insert into t9 using st1 tags(2) values('2020-1-1 10:10:18', 8);
+sql insert into t10 using st1 tags(2) values('2020-1-1 10:10:19', 9);
+
+sql select count(*) from st1
+if $data00 != 10 then
+  return -1
+endi
+
+sql select last_row(*) from st1 group by a order by a desc
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-01-01 10:10:19.000@ then
+  return -1
+endi
+
+if $data01 != 9 then
+  return -1
+endi
+
+if $data10 != @20-01-01 10:10:14.000@ then
+  return -1
+endi
+
+if $data11 != 4 then
+  return -1
+endi
+
+print ===============================================> TS-2613
+sql select * from information_schema.ins_databases limit 1 offset 1;
+if $rows != 1 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

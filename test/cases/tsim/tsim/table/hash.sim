@@ -1,0 +1,84 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+#=========== prepare
+#sql create database d1 vgroups 2
+sql create database d1 vgroups 2 table_prefix 3 table_suffix 2
+sql select * from information_schema.ins_databases
+print $data(d1)[25] $data(d1)[26]
+if $data(d1)[25] != 3 then
+  return -1
+endi
+if $data(d1)[26] != 2 then
+  return -1
+endi
+
+sql use d1;
+sql create table st (ts timestamp, i int) tags (j int);
+sql create table st_ct_1 using st tags(3) st_ct_2 using st tags(4) st_ct_3 using st tags(5) st_ct_4 using st tags(6) st_ct_5 using st tags(7)
+sql insert into st_ct_1 values(now+1s, 1)
+sql insert into st_ct_1 values(now+2s, 2)
+sql insert into st_ct_1 values(now+3s, 3)
+sql insert into st_ct_2 values(now+1s, 1)
+sql insert into st_ct_2 values(now+2s, 2)
+sql insert into st_ct_2 values(now+3s, 3)
+sql insert into st_ct_3 values(now+1s, 1)
+sql insert into st_ct_3 values(now+2s, 2)
+sql insert into st_ct_3 values(now+3s, 2)
+sql insert into st_ct_4 values(now+1s, 1)
+sql insert into st_ct_4 values(now+2s, 2)
+sql insert into st_ct_4 values(now+3s, 2)
+sql insert into st_ct_5 values(now+1s, 1)
+sql insert into st_ct_5 values(now+2s, 2)
+sql insert into st_ct_5 values(now+3s, 2)
+
+# check query
+sql select * from st
+if $rows != 15 then 
+  return -1
+endi
+
+# check table vgroup
+sql select *  from information_schema.ins_tables where db_name = 'd1'
+if $data(st_ct_1)[6] != 2 then
+  return -1
+endi
+if $data(st_ct_2)[6] != 2 then
+  return -1
+endi
+if $data(st_ct_3)[6] != 2 then
+  return -1
+endi
+if $data(st_ct_4)[6] != 2 then
+  return -1
+endi
+if $data(st_ct_5)[6] != 2 then
+  return -1
+endi
+
+# check invalid table name
+sql create table c1 using st tags(3)
+sql create table c12 using st tags(3)
+sql create table c123 using st tags(3)
+sql create table c1234 using st tags(3)
+sql create table c12345 using st tags(3)
+sql select *  from information_schema.ins_tables where db_name = 'd1'
+if $data(c1)[6] != 2 then
+  return -1
+endi
+if $data(c12)[6] != 3 then
+  return -1
+endi
+if $data(c123)[6] != 2 then
+  return -1
+endi
+if $data(c1234)[6] != 3 then
+  return -1
+endi
+if $data(c12345)[6] != 3 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

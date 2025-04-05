@@ -1,0 +1,22 @@
+[Unit]
+Description=TaosANode Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PATH=/usr/lib/taos/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/local/taos/taosanode/bin/start.sh
+ExecStop=/usr/local/taos/taosanode/bin/stop.sh
+TimeoutStartSec=0
+TimeoutStopSec=120s
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+StandardOutput=null
+Restart=always
+StartLimitBurst=6
+StartLimitInterval=60s
+
+[Install]
+WantedBy=multi-user.target

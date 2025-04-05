@@ -42,7 +42,7 @@ int32_t tfsInitTier(STfsTier *pTier, int32_t level) {
   (void)memset(pTier, 0, sizeof(STfsTier));
 
   if (taosThreadSpinInit(&pTier->lock, 0) != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   pTier->level = level;

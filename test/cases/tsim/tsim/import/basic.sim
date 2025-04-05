@@ -1,0 +1,120 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database ibadb
+sql use ibadb
+sql create table tb(ts timestamp, i int)
+
+print ================= step1
+
+sql import into tb values(1564641710000, 10000)
+sql select * from tb;
+if $rows != 1 then 
+  return -1
+endi
+
+print ================= step2
+sql insert into tb values(1564641708000, 8000)
+sql select * from tb;
+if $rows != 2 then 
+  return -1
+endi
+
+print ================= step3
+sql insert into tb values(1564641720000, 20000)
+sql select * from tb;
+if $rows != 3 then 
+  return -1
+endi
+
+print ================= step4
+sql import into tb values(1564641708000, 8000)
+sql import into tb values(1564641715000, 15000)
+sql import into tb values(1564641730000, 30000)
+sql select * from tb;
+if $rows != 5 then 
+  return -1
+endi
+
+print ================= step5
+sql insert into tb values(1564641708000, 8000)
+sql insert into tb values(1564641714000, 14000)
+sql insert into tb values(1564641725000, 25000)
+sql insert into tb values(1564641740000, 40000)
+sql select * from tb;
+if $rows != 8 then 
+  return -1
+endi
+
+print ================= step6
+sql import into tb values(1564641707000, 7000)
+sql import into tb values(1564641712000, 12000)
+sql import into tb values(1564641723000, 23000)
+sql import into tb values(1564641734000, 34000)
+sql import into tb values(1564641750000, 50000)
+sql select * from tb;
+if $rows != 13 then 
+  return -1
+endi
+
+print ================= step7
+sql import into tb values(1564641707001, 7001)
+sql import into tb values(1564641712001, 12001)
+sql import into tb values(1564641723001, 23001)
+sql import into tb values(1564641734001, 34001)
+sql import into tb values(1564641750001, 50001)
+sql select * from tb;
+if $rows != 18 then 
+  return -1
+endi
+
+print ================= step8
+sql insert into tb values(1564641708002, 8002)
+sql insert into tb values(1564641714002, 14002)
+sql insert into tb values(1564641725002, 25002)
+sql insert into tb values(1564641900000, 200000)
+sql select * from tb;
+if $rows != 22 then 
+  return -1
+endi
+
+print ================= step9 only insert last one
+sql import into tb values(1564641705000, 5000)(1564641718000, 18000)(1564642400000, 700000)
+sql select * from tb;
+if $rows != 25 then
+  return -1
+endi
+
+print ================= step10
+sql import into tb values(1564641705000, 5000)(1564641718000, 18000)(1564642400000, 70000)
+sql select * from tb;
+if $rows != 25 then
+  return -1
+endi
+
+print ================= step11
+sql import into tb values(1564642400000, 700000)
+sql select * from tb;
+if $rows != 25 then
+  return -1
+endi
+
+print ================= step12
+sql import into tb values(1564641709527, 9527)(1564641709527, 9528)
+sql select * from tb;
+print rows=> $rows
+if $rows != 26 then
+  return -1
+endi
+
+print ================= step13
+sql import into tb values(1564641709898, 9898)(1564641709897, 9897)
+sql select * from tb;
+print rows=> $rows
+if $rows != 28 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

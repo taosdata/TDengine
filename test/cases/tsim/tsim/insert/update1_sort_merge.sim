@@ -1,0 +1,821 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== test case: merge duplicated rows in taosc and taosd
+print =============== create database
+sql drop database if exists d0
+sql create database d0 keep 365000d,365000d,365000d
+sql use d0
+
+print =============== create super table
+sql create table if not exists stb (ts timestamp, c1 int unsigned, c2 double, c3 binary(10), c4 nchar(10), c5 double) tags (city binary(20),district binary(20));
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+sql create table ct1 using stb tags("BeiJing", "ChaoYang")
+sql create table ct2 using stb tags("BeiJing", "HaiDian")
+sql create table ct3 using stb tags("BeiJing", "PingGu")
+sql create table ct4 using stb tags("BeiJing", "YanQing")
+
+sql show tables
+if $rows != 4 then
+  print rows $rows != 4
+  return -1
+endi
+
+print =============== step 1 insert records into ct1 - taosd merge
+sql insert into ct1(ts,c1,c2) values('2022-05-03 16:59:00.010', 10, 20);
+sql insert into ct1(ts,c1,c2,c3,c4) values('2022-05-03 16:59:00.011', 11, NULL, 'binary', 'nchar');
+sql insert into ct1 values('2022-05-03 16:59:00.016', 16, NULL, NULL, 'nchar', NULL);
+sql insert into ct1 values('2022-05-03 16:59:00.016', 17, NULL, NULL, 'nchar', 170);
+sql insert into ct1 values('2022-05-03 16:59:00.020', 20, NULL, NULL, 'nchar', 200);
+sql insert into ct1 values('2022-05-03 16:59:00.016', 18, NULL, NULL, 'nchar', 180);
+sql insert into ct1 values('2022-05-03 16:59:00.021', 21, NULL, NULL, 'nchar', 210);
+sql insert into ct1 values('2022-05-03 16:59:00.022', 22, NULL, NULL, 'nchar', 220);
+
+print =============== step 2 insert records into ct1/ct2 - taosc merge for 2022-05-03 16:59:00.010
+sql insert into ct1(ts,c1,c2) values('2022-05-03 16:59:00.010', 10,10), ('2022-05-03 16:59:00.010',20,10.0), ('2022-05-03 16:59:00.010',30,NULL) ct2(ts,c1) values('2022-05-03 16:59:00.010',10), ('2022-05-03 16:59:00.010',20) ct1(ts,c2) values('2022-05-03 16:59:00.010',10), ('2022-05-03 16:59:00.010',100) ct1(ts,c3) values('2022-05-03 16:59:00.010','bin1'), ('2022-05-03 16:59:00.010','bin2') ct1(ts,c4,c5) values('2022-05-03 16:59:00.010',NULL,NULL), ('2022-05-03 16:59:00.010','nchar4',1000.01) ct2(ts,c2,c3,c4,c5) values('2022-05-03 16:59:00.010',20,'xkl','zxc',10);
+
+print =============== step 3 insert records into ct3
+sql insert into ct3(ts,c1,c5) values('2022-05-03 16:59:00.020', 10,10);
+sql insert into ct3(ts,c1,c5) values('2022-05-03 16:59:00.021', 10,10), ('2022-05-03 16:59:00.021',20,20.0);
+sql insert into ct3(ts,c1,c5) values('2022-05-03 16:59:00.022', 30,30), ('2022-05-03 16:59:00.022',40,40.0),('2022-05-03 16:59:00.022',50,50.0);
+sql insert into ct3(ts,c1,c5) values('2022-05-03 16:59:00.023', 60,60), ('2022-05-03 16:59:00.023',70,70.0),('2022-05-03 16:59:00.023',80,80.0), ('2022-05-03 16:59:00.023',90,90.0);
+sql insert into ct3(ts,c1,c5) values('2022-05-03 16:59:00.024', 100,100), ('2022-05-03 16:59:00.025',110,110.0),('2022-05-03 16:59:00.025',120,120.0), ('2022-05-03 16:59:00.025',130,130.0);
+sql insert into ct3(ts,c1,c5) values('2022-05-03 16:59:00.030', 140,140), ('2022-05-03 16:59:00.030',150,150.0),('2022-05-03 16:59:00.031',160,160.0), ('2022-05-03 16:59:00.030',170,170.0), ('2022-05-03 16:59:00.031',180,180.0);
+sql insert into ct3(ts,c1,c5) values('2022-05-03 16:59:00.042', 190,190), ('2022-05-03 16:59:00.041',200,200.0),('2022-05-03 16:59:00.040',210,210.0);
+sql insert into ct3(ts,c1,c5) values('2022-05-03 16:59:00.050', 220,220), ('2022-05-03 16:59:00.051',230,230.0),('2022-05-03 16:59:00.052',240,240.0);
+
+print =============== step 4 insert records into ct4
+sql insert into ct4(ts,c1,c3,c4) values('2022-05-03 16:59:00.020', 10,'b0','n0');
+sql insert into ct4(ts,c1,c3,c4) values('2022-05-03 16:59:00.021', 20,'b1','n1'), ('2022-05-03 16:59:00.021',30,'b2','n2');
+sql insert into ct4(ts,c1,c3,c4) values('2022-05-03 16:59:00.022', 40,'b3','n3'), ('2022-05-03 16:59:00.022',40,'b4','n4'),('2022-05-03 16:59:00.022',50,'b5','n5');
+sql insert into ct4(ts,c1,c3,c4) values('2022-05-03 16:59:00.023', 60,'b6','n6'), ('2022-05-03 16:59:00.024',70,'b7','n7'),('2022-05-03 16:59:00.024',80,'b8','n8'), ('2022-05-03 16:59:00.023',90,'b9','n9');
+
+
+
+print =============== step 5 query records of ct1 from memory(taosc and taosd merge)
+sql select * from ct1;
+print $data00 $data01 $data02 $data03 $data04 $data05
+print $data10 $data11 $data12 $data13 $data14 $data15
+print $data20 $data21 $data22 $data23 $data24 $data25
+print $data30 $data31 $data32 $data33 $data34 $data35
+print $data40 $data41 $data42 $data43 $data44 $data45
+print $data50 $data51 $data52 $data53 $data54 $data55
+
+if $rows != 6 then
+  print rows $rows != 6
+  return -1
+endi
+
+if $data01 != 30 then
+  print data01 $data01 != 30
+  return -1
+endi
+
+if $data02 != 100.000000000 then
+  print data02 $data02 != 100.000000000
+  return -1
+endi
+
+if $data03 != bin2 then
+  print data03 $data03 != bin2
+  return -1
+endi
+
+if $data04 != nchar4 then
+  print data04 $data04 != nchar4
+  return -1
+endi
+
+if $data05 != 1000.010000000 then
+  print data05 $data05 != 1000.010000000
+  return -1
+endi
+
+if $data11 != 11 then
+  print data11 $data11 != 11
+  return -1
+endi
+
+if $data12 != NULL then
+  print data12 $data12 != NULL
+  return -1
+endi
+
+if $data13 != binary then
+  print data13 $data13 != binary
+  return -1
+endi
+
+if $data14 != nchar then
+  print data14 $data14 != nchar
+  return -1
+endi
+
+if $data15 != NULL then
+  print data15 $data15 != NULL
+  return -1
+endi
+
+if $data51 != 22 then
+  print data51 $data51 != 22
+  return -1
+endi
+
+if $data52 != NULL then
+  print data52 $data52 != NULL
+  return -1
+endi
+
+if $data53 != NULL then
+  print data53 $data53 != NULL
+  return -1
+endi
+
+if $data54 != nchar then
+  print data54 $data54 != nchar
+  return -1
+endi
+
+if $data55 != 220.000000000 then
+  print data55 $data55 != 220.000000000
+  return -1
+endi
+
+
+print =============== step 6 query records of ct2 from memory(taosc and taosd merge)
+sql select * from ct2;
+print $data00 $data01 $data02 $data03 $data04 $data05
+
+if $rows != 1 then
+  print rows $rows != 1
+  return -1
+endi
+
+if $data01 != 20 then
+  print data01 $data01 != 20
+  return -1
+endi
+
+if $data02 != 20.000000000 then
+  print data02 $data02 != 20.000000000
+  return -1
+endi
+
+if $data03 != xkl then
+  print data03 $data03 != xkl
+  return -1
+endi
+
+if $data04 != zxc then
+  print data04 $data04 != zxc
+  return -1
+endi
+
+if $data05 != 10.000000000 then
+  print data05 $data05 != 10.000000000
+  return -1
+endi
+
+print =============== step 7 query records of ct3 from memory
+sql select * from ct3;
+print $data00 $data01 $data02 $data03 $data04 $data05
+print $data10 $data11 $data12 $data13 $data14 $data15
+print $data20 $data21 $data22 $data23 $data24 $data25
+print $data30 $data31 $data32 $data33 $data34 $data35
+print $data40 $data41 $data42 $data43 $data44 $data45
+print $data50 $data51 $data52 $data53 $data54 $data55
+print $data60 $data61 $data62 $data63 $data64 $data65
+print $data70 $data71 $data72 $data73 $data74 $data75
+print $data80 $data81 $data82 $data83 $data84 $data85
+print $data90 $data91 $data92 $data93 $data94 $data95
+print $data[10][0] $data[10][1] $data[10][2] $data[10][3] $data[10][4] $data[10][5]
+print $data[11][0] $data[11][1] $data[11][2] $data[11][3] $data[11][4] $data[11][5]
+print $data[12][0] $data[12][1] $data[12][2] $data[12][3] $data[12][4] $data[12][5]
+print $data[13][0] $data[13][1] $data[13][2] $data[13][3] $data[13][4] $data[13][5]
+
+if $rows != 14 then
+  print rows $rows != 14
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data11 != 20 then
+  print data11 $data1 != 20
+  return -1
+endi
+
+if $data21 != 50 then
+  print data21 $data21 != 50
+  return -1
+endi
+
+if $data31 != 90 then
+  print data31 $data31 != 90
+  return -1
+endi
+
+if $data41 != 100 then
+  print data41 $data41 != 100
+  return -1
+endi
+
+if $data51 != 130 then
+  print data51 $data51 != 130
+  return -1
+endi
+
+if $data61 != 170 then
+  print data61 $data61 != 170
+  return -1
+endi
+
+if $data71 != 180 then
+  print data71 $data71 != 180
+  return -1
+endi
+
+if $data81 != 210 then
+  print data81 $data81 != 210
+  return -1
+endi
+
+if $data91 != 200 then
+  print data91 $data91 != 200
+  return -1
+endi
+
+if $data[10][1] != 190 then
+  print data[10][1] $data[10][1] != 190
+  return -1
+endi
+
+if $data[11][1] != 220 then
+  print data[11][1] $data[11][1] != 220
+  return -1
+endi
+
+if $data[12][1] != 230 then
+  print data[12][1] $data[12][1] != 230
+  return -1
+endi
+
+if $data[13][1] != 240 then
+  print data[13][1] $data[13][1] != 240
+  return -1
+endi
+
+if $data05 != 10.000000000 then
+  print data05 $data05 != 10.000000000
+  return -1
+endi
+
+if $data15 != 20.000000000 then
+  print data15 $data5 != 20.000000000
+  return -1
+endi
+
+if $data25 != 50.000000000 then
+  print data25 $data25 != 50.000000000
+  return -1
+endi
+
+if $data35 != 90.000000000 then
+  print data35 $data35 != 90.000000000
+  return -1
+endi
+
+if $data45 != 100.000000000 then
+  print data45 $data45 != 100.000000000
+  return -1
+endi
+
+if $data55 != 130.000000000 then
+  print data55 $data55 != 130.000000000
+  return -1
+endi
+
+if $data65 != 170.000000000 then
+  print data65 $data65 != 170.000000000
+  return -1
+endi
+
+if $data75 != 180.000000000 then
+  print data75 $data75 != 180.000000000
+  return -1
+endi
+
+if $data85 != 210.000000000 then
+  print data85 $data85 != 210.000000000
+  return -1
+endi
+
+if $data95 != 200.000000000 then
+  print data95 $data95 != 200.000000000
+  return -1
+endi
+
+if $data[10][5] != 190.000000000 then
+  print data[10][5] $data[10][5] != 190.000000000
+  return -1
+endi
+
+if $data[11][5] != 220.000000000 then
+  print data[11][5] $data[11][5] != 220.000000000
+  return -1
+endi
+
+if $data[12][5] != 230.000000000 then
+  print data[12][5] $data[12][5] != 230.000000000
+  return -1
+endi
+
+if $data[13][5] != 240.000000000 then
+  print data[13][5] $data[13][5] != 240.000000000
+  return -1
+endi
+
+
+print =============== step 8 query records of ct4 from memory
+sql select * from ct4;
+print $data00 $data01 $data02 $data03 $data04 $data05
+print $data10 $data11 $data12 $data13 $data14 $data15
+print $data20 $data21 $data22 $data23 $data24 $data25
+print $data30 $data31 $data32 $data33 $data34 $data35
+print $data40 $data41 $data42 $data43 $data44 $data45
+
+
+if $rows != 5 then
+  print rows $rows != 5
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data11 != 30 then
+  print data11 $data11 != 30
+  return -1
+endi
+
+if $data21 != 50 then
+  print data21 $data21 != 50
+  return -1
+endi
+
+if $data31 != 90 then
+  print data31 $data31 != 90
+  return -1
+endi
+
+if $data41 != 80 then
+  print data41 $data41 != 80
+  return -1
+endi
+
+if $data03 != b0 then
+  print data03 $data03 != b0
+  return -1
+endi
+
+if $data13 != b2 then
+  print data13 $data13 != b2
+  return -1
+endi
+
+if $data23 != b5 then
+  print data23 $data23 != b5
+  return -1
+endi
+
+if $data33 != b9 then
+  print data33 $data33 != b9
+  return -1
+endi
+
+if $data43 != b8  then
+  print data43 $data43 != b8
+  return -1
+endi
+
+if $data04 != n0 then
+  print data04 $data04 != n0
+  return -1
+endi
+
+if $data14 != n2 then
+  print data14 $data14 != n2
+  return -1
+endi
+
+if $data24 != n5 then
+  print data24 $data24 != n5
+  return -1
+endi
+
+if $data34 != n9 then
+  print data34 $data34 != n9
+  return -1
+endi
+
+if $data44 != n8 then
+  print data44 $data44 != n8
+  return -1
+endi
+
+#==================== reboot to trigger commit data to file
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+
+
+print =============== step 9 query records of ct1 from file
+sql select * from ct1;
+print $data00 $data01 $data02 $data03 $data04 $data05
+print $data10 $data11 $data12 $data13 $data14 $data15
+print $data20 $data21 $data22 $data23 $data24 $data25
+print $data30 $data31 $data32 $data33 $data34 $data35
+print $data40 $data41 $data42 $data43 $data44 $data45
+print $data50 $data51 $data52 $data53 $data54 $data55
+
+if $rows != 6 then
+  print rows $rows != 6
+  return -1
+endi
+
+if $data01 != 30 then
+  print data01 $data01 != 30
+  return -1
+endi
+
+if $data02 != 100.000000000 then
+  print data02 $data02 != 100.000000000
+  return -1
+endi
+
+if $data03 != bin2 then
+  print data03 $data03 != bin2
+  return -1
+endi
+
+if $data04 != nchar4 then
+  print data04 $data04 != nchar4
+  return -1
+endi
+
+if $data05 != 1000.010000000 then
+  print data05 $data05 != 1000.010000000
+  return -1
+endi
+
+if $data11 != 11 then
+  print data11 $data11 != 11
+  return -1
+endi
+
+if $data12 != NULL then
+  print data12 $data12 != NULL
+  return -1
+endi
+
+if $data13 != binary then
+  print data13 $data13 != binary
+  return -1
+endi
+
+if $data14 != nchar then
+  print data14 $data14 != nchar
+  return -1
+endi
+
+if $data15 != NULL then
+  print data15 $data15 != NULL
+  return -1
+endi
+
+if $data51 != 22 then
+  print data51 $data51 != 22
+  return -1
+endi
+
+if $data52 != NULL then
+  print data52 $data52 != NULL
+  return -1
+endi
+
+if $data53 != NULL then
+  print data53 $data53 != NULL
+  return -1
+endi
+
+if $data54 != nchar then
+  print data54 $data54 != nchar
+  return -1
+endi
+
+if $data55 != 220.000000000 then
+  print data55 $data55 != 220.000000000
+  return -1
+endi
+
+
+print =============== step 10 query records of ct2 from file
+sql select * from ct2;
+print $data00 $data01 $data02 $data03 $data04 $data05
+
+if $rows != 1 then
+  print rows $rows != 1
+  return -1
+endi
+
+if $data01 != 20 then
+  print data01 $data01 != 20
+  return -1
+endi
+
+if $data02 != 20.000000000 then
+  print data02 $data02 != 20.000000000
+  return -1
+endi
+
+if $data03 != xkl then
+  print data03 $data03 != xkl
+  return -1
+endi
+
+if $data04 != zxc then
+  print data04 $data04 != zxc
+  return -1
+endi
+
+if $data05 != 10.000000000 then
+  print data05 $data05 != 10.000000000
+  return -1
+endi
+
+print =============== step 11 query records of ct3 from file
+sql select * from ct3;
+print $data00 $data01 $data02 $data03 $data04 $data05
+print $data10 $data11 $data12 $data13 $data14 $data15
+print $data20 $data21 $data22 $data23 $data24 $data25
+print $data30 $data31 $data32 $data33 $data34 $data35
+print $data40 $data41 $data42 $data43 $data44 $data45
+print $data50 $data51 $data52 $data53 $data54 $data55
+print $data60 $data61 $data62 $data63 $data64 $data65
+print $data70 $data71 $data72 $data73 $data74 $data75
+print $data80 $data81 $data82 $data83 $data84 $data85
+print $data90 $data91 $data92 $data93 $data94 $data95
+print $data[10][0] $data[10][1] $data[10][2] $data[10][3] $data[10][4] $data[10][5]
+print $data[11][0] $data[11][1] $data[11][2] $data[11][3] $data[11][4] $data[11][5]
+print $data[12][0] $data[12][1] $data[12][2] $data[12][3] $data[12][4] $data[12][5]
+print $data[13][0] $data[13][1] $data[13][2] $data[13][3] $data[13][4] $data[13][5]
+
+if $rows != 14 then
+  print rows $rows != 14
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data11 != 20 then
+  print data11 $data1 != 20
+  return -1
+endi
+
+if $data21 != 50 then
+  print data21 $data21 != 50
+  return -1
+endi
+
+if $data31 != 90 then
+  print data31 $data31 != 90
+  return -1
+endi
+
+if $data41 != 100 then
+  print data41 $data41 != 100
+  return -1
+endi
+
+if $data51 != 130 then
+  print data51 $data51 != 130
+  return -1
+endi
+
+if $data61 != 170 then
+  print data61 $data61 != 170
+  return -1
+endi
+
+if $data71 != 180 then
+  print data71 $data71 != 180
+  return -1
+endi
+
+if $data81 != 210 then
+  print data81 $data81 != 210
+  return -1
+endi
+
+if $data91 != 200 then
+  print data91 $data91 != 200
+  return -1
+endi
+
+if $data[10][1] != 190 then
+  print data[10][1] $data[10][1] != 190
+  return -1
+endi
+
+if $data[11][1] != 220 then
+  print data[11][1] $data[11][1] != 220
+  return -1
+endi
+
+if $data[12][1] != 230 then
+  print data[12][1] $data[12][1] != 230
+  return -1
+endi
+
+if $data[13][1] != 240 then
+  print data[13][1] $data[13][1] != 240
+  return -1
+endi
+
+if $data05 != 10.000000000 then
+  print data05 $data05 != 10.000000000
+  return -1
+endi
+
+if $data15 != 20.000000000 then
+  print data15 $data5 != 20.000000000
+  return -1
+endi
+
+if $data25 != 50.000000000 then
+  print data25 $data25 != 50.000000000
+  return -1
+endi
+
+if $data35 != 90.000000000 then
+  print data35 $data35 != 90.000000000
+  return -1
+endi
+
+if $data45 != 100.000000000 then
+  print data45 $data45 != 100.000000000
+  return -1
+endi
+
+if $data55 != 130.000000000 then
+  print data55 $data55 != 130.000000000
+  return -1
+endi
+
+if $data65 != 170.000000000 then
+  print data65 $data65 != 170.000000000
+  return -1
+endi
+
+if $data75 != 180.000000000 then
+  print data75 $data75 != 180.000000000
+  return -1
+endi
+
+if $data85 != 210.000000000 then
+  print data85 $data85 != 210.000000000
+  return -1
+endi
+
+if $data95 != 200.000000000 then
+  print data95 $data95 != 200.000000000
+  return -1
+endi
+
+if $data[10][5] != 190.000000000 then
+  print data[10][5] $data[10][5] != 190.000000000
+  return -1
+endi
+
+if $data[11][5] != 220.000000000 then
+  print data[11][5] $data[11][5] != 220.000000000
+  return -1
+endi
+
+if $data[12][5] != 230.000000000 then
+  print data[12][5] $data[12][5] != 230.000000000
+  return -1
+endi
+
+if $data[13][5] != 240.000000000 then
+  print data[13][5] $data[13][5] != 240.000000000
+  return -1
+endi
+
+
+print =============== step 12 query records of ct4 from file
+sql select * from ct4;
+print $data00 $data01 $data02 $data03 $data04 $data05
+print $data10 $data11 $data12 $data13 $data14 $data15
+print $data20 $data21 $data22 $data23 $data24 $data25
+print $data30 $data31 $data32 $data33 $data34 $data35
+print $data40 $data41 $data42 $data43 $data44 $data45
+
+
+if $rows != 5 then
+  print rows $rows != 5
+  return -1
+endi
+
+if $data01 != 10 then
+  print data01 $data01 != 10
+  return -1
+endi
+
+if $data11 != 30 then
+  print data11 $data11 != 30
+  return -1
+endi
+
+if $data21 != 50 then
+  print data21 $data21 != 50
+  return -1
+endi
+
+if $data31 != 90 then
+  print data31 $data31 != 90
+  return -1
+endi
+
+if $data41 != 80 then
+  print data41 $data41 != 80
+  return -1
+endi
+
+if $data03 != b0 then
+  print data03 $data03 != b0
+  return -1
+endi
+
+if $data13 != b2 then
+  print data13 $data13 != b2
+  return -1
+endi
+
+if $data23 != b5 then
+  print data23 $data23 != b5
+  return -1
+endi
+
+if $data33 != b9 then
+  print data33 $data33 != b9
+  return -1
+endi
+
+if $data43 != b8  then
+  print data43 $data43 != b8
+  return -1
+endi
+
+if $data04 != n0 then
+  print data04 $data04 != n0
+  return -1
+endi
+
+if $data14 != n2 then
+  print data14 $data14 != n2
+  return -1
+endi
+
+if $data24 != n5 then
+  print data24 $data24 != n5
+  return -1
+endi
+
+if $data34 != n9 then
+  print data34 $data34 != n9
+  return -1
+endi
+
+if $data44 != n8 then
+  print data44 $data44 != n8
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

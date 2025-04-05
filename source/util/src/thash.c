@@ -46,7 +46,10 @@ struct SHashNode {
   uint32_t   keyLen;    // length of the key
   uint16_t   refCount;  // reference count
   int8_t     removed;   // flag to indicate removed
-  char       data[];
+#ifdef TD_ASTRA_32
+  uint32_t paddingAligned;
+#endif
+  char data[];
 };
 
 typedef struct SHashEntry {
@@ -56,9 +59,9 @@ typedef struct SHashEntry {
 } SHashEntry;
 
 struct SHashObj {
-  SHashEntry      **hashList;
-  size_t            capacity;      // number of slots
   int64_t           size;          // number of elements in hash table
+  size_t            capacity;      // number of slots
+  SHashEntry      **hashList;
   _hash_fn_t        hashFp;        // hash function
   _equal_fn_t       equalFp;       // equal function
   _hash_free_fn_t   freeFp;        // hash node free callback function

@@ -94,7 +94,7 @@ The sink task is responsible for receiving the output results from the agg task 
 The above three types of tasks each play their roles in the stream computing architecture, distributed at different levels. Clearly, the number of source tasks directly depends on the number of vnodes, with each source task independently handling the data in its vnode without interference from other source tasks, and there are no sequential constraints. However, it is worth noting that if the final stream computing results converge to one table, then only one sink task will be deployed on the vnode where that table is located. The collaborative relationship between these three types of tasks is shown in the following diagram, together forming the complete execution process of stream computing tasks.
 
 <figure>
-<Image img={imgStep02} alt="Relationships between tasks"/>
+<Image img={imgStep03} alt="Relationships between tasks"/>
 <figcaption>Figure 3. Relationships between tasks</figcaption>
 </figure>
 

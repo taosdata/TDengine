@@ -1,0 +1,715 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1
+sql create database d1
+sql use d1
+sql create table tb (ts timestamp, a int)
+sql insert into tb values(now-28d, -28)
+sql insert into tb values(now-27d, -27)
+sql insert into tb values(now-26d, -26)
+sql select * from tb
+if $rows != 3 then
+  return -1
+endi
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+
+print ======== step2
+sql alter table tb add column b smallint
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != b then
+  return -1
+endi
+if $data21 != SMALLINT then
+  return -1
+endi
+
+print ======== step3
+sql alter table tb add column c tinyint
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != b then
+  return -1
+endi
+if $data21 != SMALLINT then
+  return -1
+endi
+if $data30 != c then
+  return -1
+endi
+if $data31 != TINYINT then
+  return -1
+endi
+
+print ======== step4
+sql alter table tb add column d int
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != b then
+  return -1
+endi
+if $data21 != SMALLINT then
+  return -1
+endi
+if $data30 != c then
+  return -1
+endi
+if $data31 != TINYINT then
+  return -1
+endi
+if $data40 != d then
+  return -1
+endi
+if $data41 != INT then
+  return -1
+endi
+
+print ======== step5
+sql alter table tb add column e bigint
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != b then
+  return -1
+endi
+if $data21 != SMALLINT then
+  return -1
+endi
+if $data30 != c then
+  return -1
+endi
+if $data31 != TINYINT then
+  return -1
+endi
+if $data40 != d then
+  return -1
+endi
+if $data41 != INT then
+  return -1
+endi
+if $data50 != e then
+  return -1
+endi
+if $data51 != BIGINT then
+  return -1
+endi
+
+print ======== step6
+sql alter table tb add column f float
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != b then
+  return -1
+endi
+if $data21 != SMALLINT then
+  return -1
+endi
+if $data30 != c then
+  return -1
+endi
+if $data31 != TINYINT then
+  return -1
+endi
+if $data40 != d then
+  return -1
+endi
+if $data41 != INT then
+  return -1
+endi
+if $data50 != e then
+  return -1
+endi
+if $data51 != BIGINT then
+  return -1
+endi
+if $data60 != f then
+  return -1
+endi
+if $data61 != FLOAT then
+  return -1
+endi
+
+print ======== step7
+sql alter table tb add column g double
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != b then
+  return -1
+endi
+if $data21 != SMALLINT then
+  return -1
+endi
+if $data30 != c then
+  return -1
+endi
+if $data31 != TINYINT then
+  return -1
+endi
+if $data40 != d then
+  return -1
+endi
+if $data41 != INT then
+  return -1
+endi
+if $data50 != e then
+  return -1
+endi
+if $data51 != BIGINT then
+  return -1
+endi
+if $data60 != f then
+  return -1
+endi
+if $data61 != FLOAT then
+  return -1
+endi
+if $data70 != g then
+  return -1
+endi
+if $data71 != DOUBLE then
+  return -1
+endi
+
+print ======== step8
+sql alter table tb add column h binary(10)
+sql select * from tb
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != b then
+  return -1
+endi
+if $data21 != SMALLINT then
+  return -1
+endi
+if $data30 != c then
+  return -1
+endi
+if $data31 != TINYINT then
+  return -1
+endi
+if $data40 != d then
+  return -1
+endi
+if $data41 != INT then
+  return -1
+endi
+if $data50 != e then
+  return -1
+endi
+if $data51 != BIGINT then
+  return -1
+endi
+if $data60 != f then
+  return -1
+endi
+if $data61 != FLOAT then
+  return -1
+endi
+if $data70 != g then
+  return -1
+endi
+if $data71 != DOUBLE then
+  return -1
+endi
+if $data80 != h then
+  return -1
+endi
+if $data81 != VARCHAR then
+  return -1
+endi
+if $data82 != 10 then
+  return -1
+endi
+
+print ======== step9
+print ======== step10
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+sql use d1
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != b then
+  return -1
+endi
+if $data21 != SMALLINT then
+  return -1
+endi
+if $data30 != c then
+  return -1
+endi
+if $data31 != TINYINT then
+  return -1
+endi
+if $data40 != d then
+  return -1
+endi
+if $data41 != INT then
+  return -1
+endi
+if $data50 != e then
+  return -1
+endi
+if $data51 != BIGINT then
+  return -1
+endi
+if $data60 != f then
+  return -1
+endi
+if $data61 != FLOAT then
+  return -1
+endi
+if $data70 != g then
+  return -1
+endi
+if $data71 != DOUBLE then
+  return -1
+endi
+if $data80 != h then
+  return -1
+endi
+if $data81 != VARCHAR then
+  return -1
+endi
+if $data82 != 10 then
+  return -1
+endi
+
+print ======== step11
+sql alter table drop column a -x step111
+  return -1
+step111:
+
+sql alter table drop column ts -x step112
+  return -1
+step112:
+
+sql alter table drop column cdfg -x step113
+  return -1
+step113:
+
+sql alter table add column a -x step114
+  return -1
+step114:
+
+sql alter table add column b -x step115
+  return -1
+step115:
+
+print ======== step12
+sql alter table tb drop column b
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != c then
+  return -1
+endi
+if $data21 != TINYINT then
+  return -1
+endi
+if $data30 != d then
+  return -1
+endi
+if $data31 != INT then
+  return -1
+endi
+if $data40 != e then
+  return -1
+endi
+if $data41 != BIGINT then
+  return -1
+endi
+if $data50 != f then
+  return -1
+endi
+if $data51 != FLOAT then
+  return -1
+endi
+if $data60 != g then
+  return -1
+endi
+if $data61 != DOUBLE then
+  return -1
+endi
+if $data70 != h then
+  return -1
+endi
+if $data71 != VARCHAR then
+  return -1
+endi
+if $data72 != 10 then
+  return -1
+endi
+
+print ======== step13
+sql alter table tb drop column c
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != d then
+  return -1
+endi
+if $data21 != INT then
+  return -1
+endi
+if $data30 != e then
+  return -1
+endi
+if $data31 != BIGINT then
+  return -1
+endi
+if $data40 != f then
+  return -1
+endi
+if $data41 != FLOAT then
+  return -1
+endi
+if $data50 != g then
+  return -1
+endi
+if $data51 != DOUBLE then
+  return -1
+endi
+if $data60 != h then
+  return -1
+endi
+if $data61 != VARCHAR then
+  return -1
+endi
+if $data62 != 10 then
+  return -1
+endi
+
+print ======== step14
+sql alter table tb drop column d
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != e then
+  return -1
+endi
+if $data21 != BIGINT then
+  return -1
+endi
+if $data30 != f then
+  return -1
+endi
+if $data31 != FLOAT then
+  return -1
+endi
+if $data40 != g then
+  return -1
+endi
+if $data41 != DOUBLE then
+  return -1
+endi
+if $data50 != h then
+  return -1
+endi
+if $data51 != VARCHAR then
+  return -1
+endi
+if $data52 != 10 then
+  return -1
+endi
+
+print ======== step15
+sql alter table tb drop column e
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != f then
+  return -1
+endi
+if $data21 != FLOAT then
+  return -1
+endi
+if $data30 != g then
+  return -1
+endi
+if $data31 != DOUBLE then
+  return -1
+endi
+if $data40 != h then
+  return -1
+endi
+if $data41 != VARCHAR then
+  return -1
+endi
+if $data42 != 10 then
+  return -1
+endi
+
+print ======== step16
+sql alter table tb drop column f
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != g then
+  return -1
+endi
+if $data21 != DOUBLE then
+  return -1
+endi
+if $data30 != h then
+  return -1
+endi
+if $data31 != VARCHAR then
+  return -1
+endi
+if $data32 != 10 then
+  return -1
+endi
+
+print ======== step17
+sql alter table tb drop column g
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != h then
+  return -1
+endi
+if $data21 != VARCHAR then
+  return -1
+endi
+if $data22 != 10 then
+  return -1
+endi
+
+print ============= step18
+sql alter table tb drop column h
+sql describe tb
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data10 != a then
+  return -1
+endi
+if $data11 != INT then
+  return -1
+endi
+if $data20 != null then
+  return -1
+endi
+
+print =============== error for normal table
+sql create table tb2023(ts timestamp, f int);
+sql_error alter table tb2023 add column v varchar(65518);
+sql_error alter table tb2023 add column v varchar(65531);
+sql_error alter table tb2023 add column v varchar(65535);
+sql alter table tb2023 add column v varchar(65517);
+sql_error alter table tb2023 modify column v varchar(65518);
+sql desc tb2023
+sql alter table tb2023 drop column v
+sql_error alter table tb2023 add column v nchar(16380);
+sql alter table tb2023 add column v nchar(16379);
+sql_error alter table tb2023 modify column v nchar(16380);
+sql desc tb2023
+
+print =============== modify column for normal table
+sql create table ntb_ts3841(ts timestamp, c0 varchar(64000));
+sql alter table ntb_ts3841 modify column c0 varchar(64001);
+sql create table ntb1_ts3841(ts timestamp, c0 nchar(15000));
+sql alter table ntb1_ts3841 modify column c0 nchar(15001);
+
+print =============== error for super table
+sql create table stb2023(ts timestamp, f int) tags(t1 int);
+sql_error alter table stb2023 add column v varchar(65518);
+sql_error alter table stb2023 add column v varchar(65531);
+sql_error alter table stb2023 add column v varchar(65535);
+sql alter table stb2023 add column v varchar(65517);
+sql_error alter table stb2023 modify column v varchar(65518);
+sql desc stb2023
+sql alter table stb2023 drop column v
+sql_error alter table stb2023 add column v nchar(16380);
+sql alter table stb2023 add column v nchar(16379);
+sql_error alter table stb2023 modify column v nchar(16380);
+sql desc stb2023
+
+print =============== modify column/tag for super table
+sql create table stb_ts3841(ts timestamp, c0 varchar(64000)) tags(t1 binary(16380));
+sql alter table stb_ts3841 modify column c0 varchar(64001);
+sql alter table stb_ts3841 modify tag t1 binary(16381);
+sql alter table stb_ts3841 modify tag t1 binary(16382);
+sql_error alter table stb_ts3841 modify tag t1 binary(16383);
+
+sql create table stb1_ts3841(ts timestamp, c0 nchar(15000)) tags(t1 nchar(4093));
+sql alter table stb1_ts3841 modify column c0 nchar(15001);
+sql alter table stb1_ts3841 modify tag t1 nchar(4094);
+sql alter table stb1_ts3841 modify tag t1 nchar(4095);
+sql_error alter table stb1_ts3841 modify tag t1 nchar(4096);
+sql_error alter table stb1_ts3841 modify tag t1 binary(16382);
+
+print ======= over
+sql drop database d1
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

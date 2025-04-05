@@ -1,0 +1,65 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c keepColumnName -v 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database test;
+sql use test;
+sql CREATE STABLE bw_yc_h_substation_mea (ts TIMESTAMP, create_date VARCHAR(50), create_time VARCHAR(30), load_time TIMESTAMP, sum_p_value FLOAT, sum_sz_value FLOAT, sum_gl_ys FLOAT, sum_g_value FLOAT) TAGS (id VARCHAR(50), name NCHAR(200), datasource VARCHAR(50), sys_flag VARCHAR(50));
+sql CREATE STABLE aw_yc_h_substation_mea (ts TIMESTAMP, create_date VARCHAR(50), create_time VARCHAR(30), load_time TIMESTAMP, sum_p_value FLOAT, sum_sz_value FLOAT, sum_gl_ys FLOAT, sum_g_value FLOAT) TAGS (id VARCHAR(50), name NCHAR(200), datasource VARCHAR(50), sys_flag VARCHAR(50));
+sql CREATE STABLE dw_yc_h_substation_mea (ts TIMESTAMP, create_date VARCHAR(50), create_time VARCHAR(30), load_time TIMESTAMP, sum_p_value FLOAT, sum_sz_value FLOAT, sum_gl_ys FLOAT, sum_g_value FLOAT) TAGS (id VARCHAR(50), name NCHAR(200), datasource VARCHAR(50), sys_flag VARCHAR(50));
+sql insert into t1 using dw_yc_h_substation_mea tags('1234567890','testa','0021001','abc01') values(now,'2023-03-27','00:01:00',now,2.3,3.3,4.4,5.5);
+sql insert into t2 using dw_yc_h_substation_mea tags('2234567890','testb','0022001','abc02') values(now,'2023-03-27','00:01:00',now,2.3,2.3,2.4,2.5);
+sql insert into t3 using aw_yc_h_substation_mea tags('2234567890','testc','0023001','abc03') values(now,'2023-03-27','00:15:00',now,2.3,2.3,2.4,2.5);
+sql insert into t4 using bw_yc_h_substation_mea tags('4234567890','testd','0021001','abc03') values(now,'2023-03-27','00:45:00',now,2.3,2.3,2.4,2.5);
+sql insert into t5 using bw_yc_h_substation_mea tags('5234567890','testd','0021001','abc03') values(now,'2023-03-27','00:00:00',now,2.3,2.3,2.4,2.5);
+sql select t.ts,t.id,t.name,t.create_date,t.create_time,t.datasource,t.sum_p_value from (select ts,id,name,create_date,create_time,datasource,sum_p_value from bw_yc_h_substation_mea where create_date='2023-03-27' and substr(create_time,4,2) in ('00','15','30','45') union all select ts,id,name,create_date,create_time,datasource,sum_p_value from aw_yc_h_substation_mea where create_date='2023-03-27' and substr(create_time,4,2) in ('00','15','30','45') union all select ts,id,name,create_date,create_time,datasource,sum_p_value from dw_yc_h_substation_mea where create_date='2023-03-27' and substr(create_time,4,2) in ('00','15','30','45'))  t where t.datasource='0021001' and t.id='4234567890' order by t.create_time;
+
+if $rows != 1 then
+  return -1
+endi
+if $data01 != @4234567890@ then
+  return -1
+endi
+if $data05 != @0021001@ then
+  return -1
+endi
+
+sql create table st (ts timestamp, f int) tags (t int);
+sql insert into ct1 using st tags(1) values(now, 1)(now+1s, 2)
+sql insert into ct2 using st tags(2) values(now+2s, 3)(now+3s, 4)
+sql select count(*) from (select * from ct1 union all select * from ct2)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select count(*) from (select * from ct1 union select * from ct2)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+
+sql create table ctcount(ts timestamp, f int);
+sql insert into ctcount(ts) values(now)(now+1s);
+sql select count(*) from (select f from ctcount);
+print $data00
+if $data00 != 2 then
+  return -1
+endi
+sql select count(*) from (select f, f from ctcount)
+print $data00
+if $data00 != 2 then
+  return -1
+endi
+sql select count(*) from (select last(ts), first(ts) from ctcount);
+print $data00
+if $data00 != 1 then
+  return -1
+endi
+sql_error select f from (select f, f from ctcount);
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

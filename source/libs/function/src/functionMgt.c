@@ -148,6 +148,7 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
 }
 
 int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
+#ifdef USE_UDF
   if (!fmIsUserDefinedFunc(funcId)) {
     return TSDB_CODE_FAILED;
   }
@@ -156,6 +157,9 @@ int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->process = udfAggProcess;
   pFpSet->finalize = udfAggFinalize;
   return TSDB_CODE_SUCCESS;
+#else
+  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
+#endif
 }
 
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
@@ -248,6 +252,13 @@ bool fmIsLastRowFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_LAST_ROW == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsLastFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_LAST == funcMgtBuiltins[funcId].type;
 }
 
 bool fmIsNotNullOutputFunc(int32_t funcId) {
@@ -432,6 +443,7 @@ int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFu
 
   (*ppFunc)->hasPk = pSrcFunc->hasPk;
   (*ppFunc)->pkBytes = pSrcFunc->pkBytes;
+  (*ppFunc)->pSrcFuncRef = pSrcFunc;
 
   (void)snprintf((*ppFunc)->functionName, sizeof((*ppFunc)->functionName), "%s", pName);
   (*ppFunc)->pParameterList = pParameterList;
@@ -642,7 +654,7 @@ static int32_t fmCreateStateMergeFunc(SFunctionNode* pFunc, SFunctionNode** pSta
     SNodeList* pParams = NULL;
     int32_t    code = nodesCloneList(pFunc->pParameterList, &pParams);
     if (!pParams) return code;
-    code = createFunction(funcMgtBuiltins[pFunc->funcId].pMergeFunc, pParams, pStateMergeFunc);
+    code = createFunctionWithSrcFunc(funcMgtBuiltins[pFunc->funcId].pMergeFunc, pFunc, pParams, pStateMergeFunc);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyList(pParams);
       return code;
@@ -717,4 +729,11 @@ bool fmIsRowTsOriginFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_IROWTS_ORIGIN == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsGroupIdFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_GROUP_ID == funcMgtBuiltins[funcId].type;
 }

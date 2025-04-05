@@ -13,6 +13,7 @@
 import os
 import json
 import frame
+import frame.eos
 import frame.etool
 from frame.log import *
 from frame.cases import *
@@ -79,12 +80,16 @@ class TDTestCase(TBase):
                 cmdVG = arr[1]
 
         # vgropus
+        vgroups = None
         try:
             if cmdVG != None:
                 # command special vgroups first priority
                 vgroups = cmdVG
             else:
-                vgroups = data["databases"][0]["dbinfo"]["vgroups"]
+                dbinfo = data["databases"][0]["dbinfo"]
+                for key,value in dbinfo.items():
+                    if key.strip().lower() == "vgroups":
+                        vgroups = value
         except:
             vgroups = None
 
@@ -109,7 +114,6 @@ class TDTestCase(TBase):
                 tdLog.info(f" vgroups real={tdSql.getData(0,0)} expect={vgroups}")
                 tdSql.checkData(0, 0, vgroups, True)
 
-
     # bugs ts
     def checkVGroups(self, benchmark):
         # vgroups with command line set
@@ -117,12 +121,24 @@ class TDTestCase(TBase):
         # vgroups with json file
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertBasic.json", "", True)
 
+
+    def checkInsertManyStb(self):
+        # many stb
+        self.benchInsert("./tools/benchmark/basic/json/insertManyStb.json")
+    
     def run(self):
-        benchmark = etool.benchMarkFile()
+        # check env
+        cmd = f"pip3 list"
+        output, error, code = eos.run(cmd)
+        tdLog.info("output: >>>%s<<<" % output)
+
+        benchmark = frame.etool.benchMarkFile()
 
         # vgroups
         self.checkVGroups(benchmark)
 
+        # check many stable
+        self.checkInsertManyStb()
 
     def stop(self):
         tdSql.close()

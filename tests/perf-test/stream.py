@@ -100,7 +100,7 @@ def do_multi_insert(index, total, host, user, passwd, conf, tz):
 class StreamStarter:
     def __init__(self) -> None:
         self.sql = None
-        self.host='ubuntu'
+        self.host='localhost'
         self.user = 'root'
         self.passwd = 'taosdata'
         self.conf = '/etc/taos/taos.cfg'
@@ -110,7 +110,7 @@ class StreamStarter:
         json_data = {
             "filetype": "insert",
             "cfgdir": "/etc/taos/cfg",
-            "host": "ubuntu",
+            "host": "localhost",
             "port": 6030,
             "rest_port": 6041,
             "user": "root",
@@ -151,13 +151,13 @@ class StreamStarter:
                             "insert_mode": "taosc",
                             "interlace_rows": 400,
                             "tcp_transfer": "no",
-                            "insert_rows": 1000,
+                            "insert_rows": 50000,
                             "partial_col_num": 0,
                             "childtable_limit": 0,
                             "childtable_offset": 0,
                             "rows_per_tbl": 0,
                             "max_sql_len": 1024000,
-                            "disorder_ratio": 0,
+                            "disorder_ratio": 30,
                             "disorder_range": 1000,
                             "keep_trying": -1,
                             "timestamp_step": 1000,
@@ -320,20 +320,22 @@ class StreamStarter:
             host=self.host, user=self.user, password=self.passwd, config=self.conf, timezone=self.tz
         )
 
-        time.sleep(10)
+        time.sleep(20)
 
         print("start to connect db")
         cursor = conn.cursor()
 
         cursor.execute('use stream_test')
 
-        sql = "create stream str1 ignore update 0 into str1_dst as select _wstart as wstart, min(c1),max(c2), count(c3)  from stream_test.stb partition by cast(t1 as int) t1,tbname interval(5s)"
+        # sql = "create stream str1 trigger continuous_window_close ignore expired 0 ignore update 0 into str1_dst as select _wstart as wstart, min(c1),max(c2), count(c3), tbname  from stream_test.stb partition by tbname interval(5s)"
+        sql = "create stream str1 trigger continuous_window_close ignore expired 0 ignore update 0 into str1_dst as select _wstart as wstart, min(c1),max(c2), count(c3)  from stream_test.stb interval(5s)"
         cursor.execute(sql)
+      
 
         print("create stream completed, start to monitor system load")
         conn.close()
 
-        loader = MonitorSystemLoad('taosd', 80)
+        loader = MonitorSystemLoad('taosd', 600)
         loader.get_proc_status()
 
     def do_query_then_insert(self):
@@ -408,6 +410,6 @@ class StreamStarter:
         loader.get_proc_status()
 
 if __name__ == "__main__":
-    # StreamStarter().do_start()
+    StreamStarter().do_start()
     # StreamStarter().do_query_then_insert()
-    StreamStarter().multi_insert()
+    # StreamStarter().multi_insert()

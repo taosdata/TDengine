@@ -14,6 +14,10 @@ import imgStep7 from '../../assets/tdengine-3-07.png';
 import imgStep8 from '../../assets/tdengine-3-08.png';
 import imgStep9 from '../../assets/tdengine-3-09.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This document describes how to use Explorer to subscribe to data from another cluster to this cluster.
 
 ## Preparation
