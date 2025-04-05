@@ -1247,268 +1247,270 @@ if(TD_TAOS_TOOLS)
 endif()
 
 
-# libxml2
-if(${TD_LINUX})
-    set(ext_libxml2_static libxml2.a)
-elseif(${TD_DARWIN})
-    set(ext_libxml2_static libxml2.a)
-elseif(${TD_WINDOWS})
-    set(ext_libxml2_static libxml2.lib)
-endif()
-INIT_EXT(ext_libxml2
-    INC_DIR          include/libxml2
-    LIB              lib/${ext_libxml2_static}
-)
-# URL https://github.com/GNOME/libxml2/archive/refs/tags/v2.10.4.tar.gz
-# URL_HASH SHA256=6f6fb27f91bb65f9d7196e3c616901b3e18a7dea31ccc2ae857940b125faa780
-get_from_local_repo_if_exists("https://github.com/GNOME/libxml2.git")
-ExternalProject_Add(ext_libxml2
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG v2.14.0
-    GIT_SHALLOW TRUE
-    PREFIX "${_base}"
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
-    CMAKE_ARGS -DLIBXML2_WITH_PYTHON:BOOL=OFF
-    CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
-add_dependencies(build_externals ext_libxml2)     # this is for github workflow in cache-miss step.
+if(NOT ${TD_WINDOWS})        # {
+    # libxml2
+    if(${TD_LINUX})
+        set(ext_libxml2_static libxml2.a)
+    elseif(${TD_DARWIN})
+        set(ext_libxml2_static libxml2.a)
+    elseif(${TD_WINDOWS})
+        set(ext_libxml2_static libxml2.lib)
+    endif()
+    INIT_EXT(ext_libxml2
+        INC_DIR          include/libxml2
+        LIB              lib/${ext_libxml2_static}
+    )
+    # URL https://github.com/GNOME/libxml2/archive/refs/tags/v2.10.4.tar.gz
+    # URL_HASH SHA256=6f6fb27f91bb65f9d7196e3c616901b3e18a7dea31ccc2ae857940b125faa780
+    get_from_local_repo_if_exists("https://github.com/GNOME/libxml2.git")
+    ExternalProject_Add(ext_libxml2
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG v2.14.0
+        GIT_SHALLOW TRUE
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+        CMAKE_ARGS -DLIBXML2_WITH_PYTHON:BOOL=OFF
+        CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_libxml2)     # this is for github workflow in cache-miss step.
 
-# libs3
-if(${TD_LINUX})
-    set(ext_libs3_static libs3.a)
-elseif(${TD_DARWIN})
-    set(ext_libs3_static libs3.a)
-elseif(${TD_WINDOWS})
-    set(ext_libs3_static libs3.lib)
-endif()
-INIT_EXT(ext_libs3
-    INC_DIR          include
-    LIB              lib/${ext_libs3_static}
-    CHK_NAME         ZLIB
-)
-string(JOIN " " _ssl_libs ${ext_ssl_libs})
-# GIT_REPOSITORY https://github.com/bji/libs3
-get_from_local_repo_if_exists("https://github.com/bji/libs3")
-ExternalProject_Add(ext_libs3
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG 98f667b248a7288c1941582897343171cfdf441c
-    GIT_SHALLOW FALSE
-    DEPENDS ext_libxml2 ext_curl ext_zlib
-    PREFIX "${_base}"
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
-    CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
-    CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
-    CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
-    CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
-    CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
-    CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
-    CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
-    CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
-    PATCH_COMMAND
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/libs3.CMakeLists.txt.in ${ext_libs3_source}/CMakeLists.txt
-    BUILD_COMMAND
-        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-    INSTALL_COMMAND
-        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
-add_dependencies(build_externals ext_libs3)     # this is for github workflow in cache-miss step.
+    # libs3
+    if(${TD_LINUX})
+        set(ext_libs3_static libs3.a)
+    elseif(${TD_DARWIN})
+        set(ext_libs3_static libs3.a)
+    elseif(${TD_WINDOWS})
+        set(ext_libs3_static libs3.lib)
+    endif()
+    INIT_EXT(ext_libs3
+        INC_DIR          include
+        LIB              lib/${ext_libs3_static}
+        CHK_NAME         ZLIB
+    )
+    string(JOIN " " _ssl_libs ${ext_ssl_libs})
+    # GIT_REPOSITORY https://github.com/bji/libs3
+    get_from_local_repo_if_exists("https://github.com/bji/libs3")
+    ExternalProject_Add(ext_libs3
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 98f667b248a7288c1941582897343171cfdf441c
+        GIT_SHALLOW FALSE
+        DEPENDS ext_libxml2 ext_curl ext_zlib
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
+        CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
+        CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
+        CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
+        CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
+        CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
+        CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
+        CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
+        CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+        PATCH_COMMAND
+          COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/libs3.CMakeLists.txt.in ${ext_libs3_source}/CMakeLists.txt
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_libs3)     # this is for github workflow in cache-miss step.
 
-# azure
-if(${TD_LINUX})
-    set(ext_azure_static libtd_azure_sdk.a)
-elseif(${TD_DARWIN})
-    set(ext_azure_static libtd_azure_sdk.a)
-elseif(${TD_WINDOWS})
-    set(ext_azure_static td_azure_sdk.lib)
-endif()
-INIT_EXT(ext_azure
-    INC_DIR          include
-    LIB              lib/${ext_azure_static}
-    CHK_NAME         ZLIB
-)
-# URL https://github.com/Azure/azure-sdk-for-cpp/archive/refs/tags/azure-storage-blobs_12.13.0-beta.1.tar.gz
-# URL_HASH SHA256=3eca486fd60e3522d0a633025ecd652a71515b1e944799b2e8ee31fd590305a9
-get_from_local_if_exists("https://github.com/Azure/azure-sdk-for-cpp/archive/refs/tags/azure-storage-blobs_12.13.0-beta.1.tar.gz")
-ExternalProject_Add(ext_azure
-    URL ${_url}
-    URL_HASH SHA256=3eca486fd60e3522d0a633025ecd652a71515b1e944799b2e8ee31fd590305a9
-    # GIT_SHALLOW TRUE
-    DEPENDS ext_libxml2 ext_curl ext_zlib
-    PREFIX "${_base}"
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
-    CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
-    CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
-    CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
-    CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
-    CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
-    CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
-    CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
-    CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
-    PATCH_COMMAND
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/azure.CMakeLists.txt.in" "${ext_azure_source}/CMakeLists.txt"
-    BUILD_COMMAND
-        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-    INSTALL_COMMAND
-        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
+    # azure
+    if(${TD_LINUX})
+        set(ext_azure_static libtd_azure_sdk.a)
+    elseif(${TD_DARWIN})
+        set(ext_azure_static libtd_azure_sdk.a)
+    elseif(${TD_WINDOWS})
+        set(ext_azure_static td_azure_sdk.lib)
+    endif()
+    INIT_EXT(ext_azure
+        INC_DIR          include
+        LIB              lib/${ext_azure_static}
+        CHK_NAME         ZLIB
+    )
+    # URL https://github.com/Azure/azure-sdk-for-cpp/archive/refs/tags/azure-storage-blobs_12.13.0-beta.1.tar.gz
+    # URL_HASH SHA256=3eca486fd60e3522d0a633025ecd652a71515b1e944799b2e8ee31fd590305a9
+    get_from_local_if_exists("https://github.com/Azure/azure-sdk-for-cpp/archive/refs/tags/azure-storage-blobs_12.13.0-beta.1.tar.gz")
+    ExternalProject_Add(ext_azure
+        URL ${_url}
+        URL_HASH SHA256=3eca486fd60e3522d0a633025ecd652a71515b1e944799b2e8ee31fd590305a9
+        # GIT_SHALLOW TRUE
+        DEPENDS ext_libxml2 ext_curl ext_zlib
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
+        CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
+        CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
+        CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
+        CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
+        CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
+        CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
+        CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
+        CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/azure.CMakeLists.txt.in" "${ext_azure_source}/CMakeLists.txt"
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
 
-# mxml
-if(${TD_LINUX})
-    set(ext_mxml_static libmxml.a)
-elseif(${TD_DARWIN})
-    set(ext_mxml_static libmxml.a)
-elseif(${TD_WINDOWS})
-    set(ext_mxml_static mxml.lib)
-endif()
-INIT_EXT(ext_mxml
-    INC_DIR          include
-    LIB              lib/${ext_mxml_static}
-)
-# GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
-# GIT_TAG v2.12
-get_from_local_repo_if_exists("https://github.com/michaelrsweet/mxml.git")
-ExternalProject_Add(ext_mxml
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG v2.12
-    GIT_SHALLOW TRUE
-    PREFIX "${_base}"
-    BUILD_IN_SOURCE TRUE
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    PATCH_COMMAND ""
-    CONFIGURE_COMMAND
-        COMMAND ./configure --prefix=${_ins} --enable-shared=no
-    BUILD_COMMAND
-        COMMAND make DESTDIR=${_ins}
-    INSTALL_COMMAND
-        COMMAND make DESTDIR=${_ins} install
-        # TODO: why refresh every time? this is really annoying!
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
-add_dependencies(build_externals ext_mxml)     # this is for github workflow in cache-miss step.
+    # mxml
+    if(${TD_LINUX})
+        set(ext_mxml_static libmxml.a)
+    elseif(${TD_DARWIN})
+        set(ext_mxml_static libmxml.a)
+    elseif(${TD_WINDOWS})
+        set(ext_mxml_static mxml.lib)
+    endif()
+    INIT_EXT(ext_mxml
+        INC_DIR          include
+        LIB              lib/${ext_mxml_static}
+    )
+    # GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
+    # GIT_TAG v2.12
+    get_from_local_repo_if_exists("https://github.com/michaelrsweet/mxml.git")
+    ExternalProject_Add(ext_mxml
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG v2.12
+        GIT_SHALLOW TRUE
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND ""
+        CONFIGURE_COMMAND
+            COMMAND ./configure --prefix=${_ins} --enable-shared=no
+        BUILD_COMMAND
+            COMMAND make DESTDIR=${_ins}
+        INSTALL_COMMAND
+            COMMAND make DESTDIR=${_ins} install
+            # TODO: why refresh every time? this is really annoying!
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_mxml)     # this is for github workflow in cache-miss step.
 
-# apr
-if(${TD_LINUX})
-    set(ext_apr_static libapr-1.a)
-elseif(${TD_DARWIN})
-    set(ext_apr_static libapr-1.a)
-elseif(${TD_WINDOWS})
-    set(ext_apr_static apr-1.lib)
-endif()
-INIT_EXT(ext_apr
-    INC_DIR          include/apr-1
-    LIB              lib/${ext_apr_static}
-)
-# URL https://dlcdn.apache.org//apr/apr-1.7.4.tar.gz
-# URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
-get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-1.7.5.tar.gz")
-ExternalProject_Add(ext_apr
-    URL ${_url}
-    URL_HASH SHA256=3375fa365d67bcf945e52b52cba07abea57ef530f40b281ffbe977a9251361db
-    # GIT_SHALLOW TRUE
-    PREFIX "${_base}"
-    BUILD_IN_SOURCE TRUE
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    PATCH_COMMAND ""
-    CONFIGURE_COMMAND
-        COMMAND ./configure --prefix=${_ins} --enable-shared=no
-    BUILD_COMMAND
-        COMMAND make            # NOTE: do NOT specify DESTDIR=
-    INSTALL_COMMAND
-        COMMAND make install    # NOTE: do NOT specify DESTDIR=
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
-add_dependencies(build_externals ext_apr)
+    # apr
+    if(${TD_LINUX})
+        set(ext_apr_static libapr-1.a)
+    elseif(${TD_DARWIN})
+        set(ext_apr_static libapr-1.a)
+    elseif(${TD_WINDOWS})
+        set(ext_apr_static apr-1.lib)
+    endif()
+    INIT_EXT(ext_apr
+        INC_DIR          include/apr-1
+        LIB              lib/${ext_apr_static}
+    )
+    # URL https://dlcdn.apache.org//apr/apr-1.7.4.tar.gz
+    # URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
+    get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-1.7.5.tar.gz")
+    ExternalProject_Add(ext_apr
+        URL ${_url}
+        URL_HASH SHA256=3375fa365d67bcf945e52b52cba07abea57ef530f40b281ffbe977a9251361db
+        # GIT_SHALLOW TRUE
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND ""
+        CONFIGURE_COMMAND
+            COMMAND ./configure --prefix=${_ins} --enable-shared=no
+        BUILD_COMMAND
+            COMMAND make            # NOTE: do NOT specify DESTDIR=
+        INSTALL_COMMAND
+            COMMAND make install    # NOTE: do NOT specify DESTDIR=
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_apr)
 
-# apr-util
-if(${TD_LINUX})
-    set(ext_aprutil_static libaprutil-1.a)
-elseif(${TD_DARWIN})
-    set(ext_aprutil_static libaprutil-1.a)
-elseif(${TD_WINDOWS})
-    set(ext_aprutil_static aprutil-1.lib)
-endif()
-INIT_EXT(ext_aprutil
-    INC_DIR          include/apr-1
-    LIB              lib/${ext_aprutil_static}
-)
-# URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
-# URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
-get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz")
-ExternalProject_Add(ext_aprutil
-    URL ${_url}
-    URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
-    # GIT_SHALLOW TRUE
-    DEPENDS ext_apr
-    PREFIX "${_base}"
-    BUILD_IN_SOURCE TRUE
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    PATCH_COMMAND ""
-    CONFIGURE_COMMAND
-        COMMAND ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
-    BUILD_COMMAND
-        COMMAND make            # NOTE: do NOT specify DESTDIR=
-    INSTALL_COMMAND
-        COMMAND make install    # NOTE: do NOT specify DESTDIR=
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
-add_dependencies(build_externals ext_aprutil)
+    # apr-util
+    if(${TD_LINUX})
+        set(ext_aprutil_static libaprutil-1.a)
+    elseif(${TD_DARWIN})
+        set(ext_aprutil_static libaprutil-1.a)
+    elseif(${TD_WINDOWS})
+        set(ext_aprutil_static aprutil-1.lib)
+    endif()
+    INIT_EXT(ext_aprutil
+        INC_DIR          include/apr-1
+        LIB              lib/${ext_aprutil_static}
+    )
+    # URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
+    # URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
+    get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz")
+    ExternalProject_Add(ext_aprutil
+        URL ${_url}
+        URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
+        # GIT_SHALLOW TRUE
+        DEPENDS ext_apr
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND ""
+        CONFIGURE_COMMAND
+            COMMAND ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
+        BUILD_COMMAND
+            COMMAND make            # NOTE: do NOT specify DESTDIR=
+        INSTALL_COMMAND
+            COMMAND make install    # NOTE: do NOT specify DESTDIR=
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_aprutil)
 
-# cos
-if(${TD_LINUX})
-    set(ext_cos_static libcos-1.a)
-elseif(${TD_DARWIN})
-    set(ext_cos_static libcos-1.a)
-elseif(${TD_WINDOWS})
-    set(ext_cos_static cos-1.lib)
-    set(_c_flags_list)
-endif()
-INIT_EXT(ext_cos
-    INC_DIR          include
-    LIB              lib/${ext_cos_static}
-)
-# GIT_REPOSITORY https://github.com/tencentyun/cos-c-sdk-v5.git
-# GIT_TAG v5.0.16
-get_from_local_repo_if_exists("https://github.com/tencentyun/cos-c-sdk-v5.git")
-ExternalProject_Add(ext_cos
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG v5.0.16
-    GIT_SHALLOW TRUE
-    DEPENDS ext_curl ext_mxml ext_aprutil
-    PREFIX "${_base}"
-    BUILD_IN_SOURCE TRUE
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    CMAKE_ARGS -DAPR_INCLUDE_DIR:STRING=${ext_apr_inc_dir}
-    CMAKE_ARGS -DAPR_UTIL_INCLUDE_DIR:STRING=${ext_aprutil_inc_dir}
-    CMAKE_ARGS -DMINIXML_INCLUDE_DIR:STRING=${ext_mxml_inc_dir}
-    CMAKE_ARGS -DCURL_INCLUDE_DIR:STRING=${ext_curl_inc_dir}
-    CMAKE_ARGS -DMINIXML_LIBRARY:STRING=${ext_mxml_libs}
-    PATCH_COMMAND
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/cos.CMakeLists.txt.in" "${ext_cos_source}/CMakeLists.txt"
-    BUILD_COMMAND
-        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-    INSTALL_COMMAND
-        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
-add_dependencies(build_externals ext_cos)
+    # cos
+    if(${TD_LINUX})
+        set(ext_cos_static libcos-1.a)
+    elseif(${TD_DARWIN})
+        set(ext_cos_static libcos-1.a)
+    elseif(${TD_WINDOWS})
+        set(ext_cos_static cos-1.lib)
+        set(_c_flags_list)
+    endif()
+    INIT_EXT(ext_cos
+        INC_DIR          include
+        LIB              lib/${ext_cos_static}
+    )
+    # GIT_REPOSITORY https://github.com/tencentyun/cos-c-sdk-v5.git
+    # GIT_TAG v5.0.16
+    get_from_local_repo_if_exists("https://github.com/tencentyun/cos-c-sdk-v5.git")
+    ExternalProject_Add(ext_cos
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG v5.0.16
+        GIT_SHALLOW TRUE
+        DEPENDS ext_curl ext_mxml ext_aprutil
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DAPR_INCLUDE_DIR:STRING=${ext_apr_inc_dir}
+        CMAKE_ARGS -DAPR_UTIL_INCLUDE_DIR:STRING=${ext_aprutil_inc_dir}
+        CMAKE_ARGS -DMINIXML_INCLUDE_DIR:STRING=${ext_mxml_inc_dir}
+        CMAKE_ARGS -DCURL_INCLUDE_DIR:STRING=${ext_curl_inc_dir}
+        CMAKE_ARGS -DMINIXML_LIBRARY:STRING=${ext_mxml_libs}
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/cos.CMakeLists.txt.in" "${ext_cos_source}/CMakeLists.txt"
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_cos)
+endif()                      # }
 
