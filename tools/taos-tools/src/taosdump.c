@@ -5585,8 +5585,8 @@ static int64_t dumpInAvroDataImpl(
         if (0 != (code = taos_stmt_bind_param_batch(stmt,
                 (TAOS_MULTI_BIND *)bindArray))) {
             errorPrint("%s() LN%d stmt_bind_param_batch() failed! "
-                        "reason: %s\n",
-                        __func__, __LINE__, taos_stmt_errstr(stmt));
+                        "reason: %s %s\n",
+                        __func__, __LINE__, taos_stmt_errstr(stmt), tbName);
             countFailureAndFree(bindArray, nBindCols, &failed, tbName);
             continue;
         }
@@ -5624,7 +5624,7 @@ static int64_t dumpInAvroDataImpl(
     // last batch execute
     if (0 != (count % g_args.data_batch)) {
         if (0 != (code = taos_stmt_execute(stmt))) {
-            errorPrint("error last execute taos_stmt_execute. errstr=%s\n", taos_stmt_errstr(stmt));
+            errorPrint("error last execute taos_stmt_execute. errstr=%s tbName=%s\n", taos_stmt_errstr(stmt), tbName);
             failed++;
         } else {
             success += count % g_args.data_batch;
@@ -7961,7 +7961,7 @@ static int64_t dumpTableBelongStb(
         TAOS **taos_v,
         SDbInfo *dbInfo, char *stbName,
         const TableDes *stbTableDes,
-        char *ntbName) {
+        char *childName) {
     int64_t count = 0;
 
     char dumpFilename[MAX_PATH_LEN] = {0};
@@ -7980,7 +7980,7 @@ static int64_t dumpTableBelongStb(
                 dumpFilename,
                 dbInfo->name,
                 stbName,
-                ntbName);
+                childName);
         if (-1 == ret) {
             errorPrint("%s() LN%d, failed to open file %s\n",
                     __func__, __LINE__, dumpFilename);
@@ -7988,7 +7988,7 @@ static int64_t dumpTableBelongStb(
         }
     } else {
         if (0 != generateFilename(AVRO_UNKNOWN,
-                    dumpFilename, dbInfo, NULL, ntbName, 0)) {
+                    dumpFilename, dbInfo, NULL, childName, 0)) {
             return -1;
         }
         fp = fopen(dumpFilename, "w");
@@ -8001,7 +8001,7 @@ static int64_t dumpTableBelongStb(
         }
     }
 
-    if (0 == strlen(ntbName)) {
+    if (0 == strlen(childName)) {
         errorPrint("%s() LN%d, pass wrong tbname\n", __func__, __LINE__);
         if (NULL != fp) {
             fclose(fp);
@@ -8015,7 +8015,7 @@ static int64_t dumpTableBelongStb(
             true,
             stbName,
             stbTableDes,
-            ntbName,
+            childName,
             getPrecisionByString(dbInfo->precision),
             dumpFilename,
             fp);
