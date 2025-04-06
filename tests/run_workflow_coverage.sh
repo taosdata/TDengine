@@ -35,8 +35,8 @@ function lcovFunc {
 
     # remove exclude paths 
     lcov --remove coverage.info \
-        '${TDENGINE_DIR}/contrib/*' \
-        '${TDENGINE_DIR}/tests/*' \
+        '/home/TDinternal/community/contrib/*' \
+        '/home/TDinternal/community/tests/*' \
         '*/contrib/*' '*/test/*' '*/passwdTest.c'  '*/taosc_test/*' '*/taoscTest.cpp' '*/packaging/*' '*/taos-tools/deps/*' '*/taosadapter/*' '*/TSZ/*' \
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c' '/*/enterprise/*' '*/docs/*' '*/sim/*'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
