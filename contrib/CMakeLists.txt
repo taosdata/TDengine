@@ -1,44 +1,13 @@
 # ================================================================================================
 # Download
 # ================================================================================================
-function(cat IN_FILE OUT_FILE)
-    file(READ ${IN_FILE} CONTENTS)
-    file(APPEND ${OUT_FILE} "${CONTENTS}")
-endfunction(cat IN_FILE OUT_FILE)
 
 if(${BUILD_WITH_S3})
     # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
 
 elseif(${BUILD_WITH_COS})
     message(FATAL_ERROR "freemine: not implemented yet")
-    # set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
-    # configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
-
-    # if(${BUILD_WITH_COS})
-    #     file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
-    # endif(${BUILD_WITH_COS})
-
-    # configure_file(${CONTRIB_TMP_FILE3} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
-    # execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-    #     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
-    # execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-    #     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
-
-    # set(CONTRIB_TMP_FILE2 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in2")
-    # configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
-
-    # if(${BUILD_WITH_COS})
-    # endif(${BUILD_WITH_COS})
-
-    # configure_file(${CONTRIB_TMP_FILE2} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
-    # execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-    #     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
-    # execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-    #     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 endif()
-
-set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
-configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # s3
 if(${BUILD_WITH_S3})
@@ -66,20 +35,6 @@ IF(${TD_DARWIN})
 ENDIF()
 
 # # download dependencies
-# configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
-# execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-#     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
-#     RESULT_VARIABLE result)
-# IF(NOT result EQUAL "0")
-#     message(FATAL_ERROR "CMake step for dowloading dependencies failed: ${result}")
-# ENDIF()
-# 
-# execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-#     WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
-#     RESULT_VARIABLE result)
-# IF(NOT result EQUAL "0")
-#     message(FATAL_ERROR "CMake step for building dependencies failed: ${result}")
-# ENDIF()
 
 # ================================================================================================
 # Build
