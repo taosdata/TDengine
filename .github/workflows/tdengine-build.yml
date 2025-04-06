@@ -192,6 +192,8 @@ jobs:
           call .\build.bat install
           echo %PATH%
           dir C:\TDengine
+          set PATH=%PATH%;C:\TDengine
+          echo %PATH%
           where taos.exe
           where taosd.exe
           where taosadapter.exe
