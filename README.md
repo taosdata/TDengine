@@ -1,12 +1,3 @@
-<p align="center">
-  <a href="https://tdengine.com" target="_blank">
-  <img
-    src="docs/assets/tdengine.svg"
-    alt="TDengine"
-    width="500"
-  />
-  </a>
-</p>
 
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/tdengine/taosd-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
@@ -41,7 +32,6 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 5. [Try TDengine](#5-try-tdengine)
 6. [Developing with TDengine](#6-developing-with-tdengine)
 7. [Contribute to TDengine](#7-contribute-to-tdengine)
-8. [Join the TDengine Community](#8-join-the-tdengine-community)
 
 # 1. What is TDengine？
 
@@ -378,12 +368,3 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 # 7. Contribute to TDengine
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
-
-# 8. Join the TDengine Community
-
-For more information about TDengine, you can follow us on social media and join our Discord server:
-
-- [Discord](https://discord.com/invite/VZdSuUg4pS)
-- [Twitter](https://twitter.com/TDengineDB)
-- [LinkedIn](https://www.linkedin.com/company/tdengine/)
-- [YouTube](https://www.youtube.com/@tdengine)
