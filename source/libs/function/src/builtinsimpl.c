@@ -2407,9 +2407,10 @@ EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
     } else {
       pResult->pkData = NULL;
     }
-    if (pResult->ts < pBlockInfo->window.skey) {
+    int64_t rts = taosGetInt64Aligned(&pResult->ts);
+    if (rts < pBlockInfo->window.skey) {
       return FUNC_DATA_REQUIRED_NOT_LOAD;
-    } else if (pResult->ts == pBlockInfo->window.skey) {
+    } else if (rts == pBlockInfo->window.skey) {
       if (NULL == pResult->pkData) {
         return FUNC_DATA_REQUIRED_NOT_LOAD;
       }
@@ -2782,7 +2783,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   }
 #else
   int64_t* pts = (int64_t*)pInput->pPTS->pData;
-
+  int64_t  rts = taosGetInt64Aligned(&pInfo->ts);
 #if 0
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
       if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
@@ -2824,7 +2825,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         chosen = i + 3;
       }
 
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+      if (pResInfo->numOfRes == 0 || rts < cts) {
         char*   data = colDataGetData(pInputCol, chosen);
         int32_t code = doSaveCurrentVal(pCtx, chosen, cts, NULL, type, data);
         if (code != TSDB_CODE_SUCCESS) {
@@ -2857,8 +2858,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       if (pCtx->hasPrimaryKey) {
         pkData = colDataGetData(pkCol, i);
       }
-      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i] ||
-          (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+      if (pResInfo->numOfRes == 0 || rts < pts[i] ||
+          (rts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
         char*   data = colDataGetData(pInputCol, i);
         int32_t code = doSaveCurrentVal(pCtx, i, pts[i], pkData, type, data);
         if (code != TSDB_CODE_SUCCESS) {
