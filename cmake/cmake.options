@@ -189,18 +189,19 @@ option(
 )
 
 option(
-    BUILD_WITH_ANALYSIS
-    "If build with analysis"
-    ON
-)
-
-option(
     BUILD_WITH_LZMA2
     "If build with lzma2"
     ON
 )
 
 ENDIF ()
+
+# NOTE: only ON under TD_LINUX
+option(
+    BUILD_WITH_ANALYSIS
+    "If build with analysis"
+    ${TD_LINUX}
+)
 
 # NOTE: set option variable in this ways is not a good practice
 # TODO: we currently disable this in order to test S3/COS
