@@ -13,7 +13,7 @@ on:
       - 'packaging/**'
       - 'tests/**'
       - '**/*.md'
-      - '.github/workflows/**'
+      - 'test/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -84,7 +84,6 @@ jobs:
         uses: lukka/get-cmake@latest
         with:
           cmakeVersion: 3.31.6
-          
       - name: Build and install TDengine
         run: |
           mkdir debug && cd debug

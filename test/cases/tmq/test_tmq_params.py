@@ -1,12 +1,6 @@
-import pytest
-import sys
 import time
-import os
-import threading
 from taos.tmq import Consumer
 from new_test_framework.utils import tdLog, tdSql, tdCom
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from tmqCommon import *
 
 class TestTmqParams:

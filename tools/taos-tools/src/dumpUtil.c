@@ -601,6 +601,7 @@ bool schemaNoChanged(RecordSchema *recordSchema, TableDes *tableDesSrv) {
     return true;
 }
 
+
 // find field same in server
 bool findFieldInServer(ColDes *colDes, TableDes * tableDes) {
     for (int32_t i = 0; i < tableDes->columns + tableDes->tags ; i++) {
@@ -699,7 +700,6 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
     // gen part str
     pStbChange->strCols = genPartStr(pStbChange->tableDes->cols, 0,    newc);
     pStbChange->strTags = genPartStr(pStbChange->tableDes->cols, newc, newt);
-
     pStbChange->schemaChanged = true;
     // show change log
     infoPrint("stb:%s have schema changed. server col:%d tag:%d local col:%d tag:%d\n", 

@@ -2,14 +2,14 @@
 toc_max_heading_level: 4
 sidebar_label: Java
 title: TDengine Java Connector
-description: TDengine Java 连接器基于标准 JDBC API 实现, 并提供原生连接与 REST连接两种连接器。
+description: TDengine Java 连接器基于标准 JDBC API 实现，并提供原生连接与 REST 连接两种连接器。
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import RequestId from "./_request_id.mdx";
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口.
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。
 
 :::info
 TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
@@ -152,14 +152,14 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | GEOMETRY          | byte[]               ||
 | DECIMAL           | java.math.BigDecimal ||
 
-**注意**：由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
-GEOMETRY类型是little endian字节序的二进制数据，符合WKB规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
-WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
-对于java连接器，可以使用jts库来方便的创建GEOMETRY类型对象，序列化后写入TDengine，这里有一个样例[Geometry示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
+**注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用。请用 VARBINARY 类型代替。  
+GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
+WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
+对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
 
 ## 示例程序汇总
 
-示例程序源码位于 `TDengine/docs/examples/JDBC` 下:
+示例程序源码位于 `TDengine/docs/examples/JDBC` 下：
 
 - JDBCDemo：JDBC 示例源程序。
 - connectionPools：HikariCP, Druid, dbcp, c3p0 等连接池中使用 taos-jdbcdriver。
@@ -236,12 +236,12 @@ JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/
 
 **使用 TDengine 客户端驱动配置文件建立连接**  
 
-当使用 JDBC 原生连接连接 TDengine 集群时，可以使用 TDengine 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。 此时在 JDBC url 中不指定 `hostname` 和 `port`。 
+当使用 JDBC 原生连接连接 TDengine 集群时，可以使用 TDengine 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `hostname` 和 `port`。 
 配置如 `jdbc:TAOS://:/power?user=root&password=taosdata`。  
 在 TDengine 客户端驱动配置文件中指定 firstEp 和 secondEp，jdbc 会使用客户端的配置文件，建立连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
 TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
 
-> **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg ，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
+> **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 **WebSocket 连接**  
 使用 JDBC WebSocket 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
@@ -254,8 +254,8 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- httpConnectTimeout：连接超时时间，单位 ms， 默认值为 60000。
-- messageWaitTimeout：消息超时时间, 单位 ms， 默认值为 60000。 
+- httpConnectTimeout：连接超时时间，单位 ms，默认值为 60000。
+- messageWaitTimeout：消息超时时间，单位 ms，默认值为 60000。 
 - useSSL：连接中是否使用 SSL。
 - timezone：客户端使用的时区，连接上生效，默认值为系统时区。推荐不设置，使用系统时区性能更好。
 
@@ -272,7 +272,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- httpConnectTimeout：连接超时时间，单位 ms， 默认值为 60000。
+- httpConnectTimeout：连接超时时间，单位 ms，默认值为 60000。
 - httpSocketTimeout：socket 超时时间，单位 ms，默认值为 60000。
 - useSSL：连接中是否使用 SSL。
 - httpPoolSize：REST 并发请求大小，默认 20。
@@ -299,13 +299,13 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 - TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
-- TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
+- TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE：
-    - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持POSIX标准的部分规范，如UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
+    - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持 POSIX 标准的部分规范，如 UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
     - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。
-- TSDBDriver.HTTP_CONNECT_TIMEOUT：连接超时时间，单位 ms， 默认值为 60000。仅在 REST 连接时生效。
+- TSDBDriver.HTTP_CONNECT_TIMEOUT：连接超时时间，单位 ms，默认值为 60000。仅在 REST 连接时生效。
 - TSDBDriver.HTTP_SOCKET_TIMEOUT：socket 超时时间，单位 ms，默认值为 60000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
-- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT：消息超时时间, 单位 ms， 默认值为 60000。 仅 WebSocket 连接下有效。
+- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT：消息超时时间，单位 ms，默认值为 60000。仅 WebSocket 连接下有效。
 - TSDBDriver.PROPERTY_KEY_USE_SSL：连接中是否使用 SSL。仅在 WebSocket/REST 连接时生效。
 - TSDBDriver.HTTP_POOL_SIZE：REST 并发请求大小，默认 20。
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION：传输过程是否启用压缩。仅在使用 REST/WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
@@ -314,7 +314,7 @@ properties 中的配置参数如下：
 
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION：关闭 SSL 证书验证 。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION：关闭 SSL 证书验证。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
 
 - TSDBDriver.PROPERTY_KEY_APP_NAME：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
 - TSDBDriver.PROPERTY_KEY_APP_IP：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。  
@@ -526,11 +526,11 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
 #### 标准接口
 
 - `Statement createStatement() throws SQLException`
-  - **接口说明**：创建一个 `Statement` 对象来执行 SQL 语句。`Statement` 接口详细说明见下文 执行SQL。
+  - **接口说明**：创建一个 `Statement` 对象来执行 SQL 语句。`Statement` 接口详细说明见下文`执行 SQL`。
   - **返回值**：创建的 `Statement` 对象。
   - **异常**：操作失败抛出 `SQLException` 异常。
 - `PreparedStatement prepareStatement(String sql) throws SQLException`
-  - **接口说明**：创建一个 `PreparedStatement` 对象来执行给定的 SQL 语句，`PreparedStatement` 接口详细说明见下文 执行SQL。
+  - **接口说明**：创建一个 `PreparedStatement` 对象来执行给定的 SQL 语句，`PreparedStatement` 接口详细说明见下文`执行 SQL`。
   - **参数说明**：
     - `sql`：预编译的 SQL 语句。
   - **返回值**：创建的 `PreparedStatement` 对象。
@@ -1388,7 +1388,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 
-其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `void subscribe(Collection<String> topics) throws SQLException`
   - **接口说明**：订阅一组主题。
@@ -1527,6 +1527,6 @@ ReferenceDeserializer 和 MapDeserializer 的接口不会被用户直接调用�
 
 ## 附录
 
-taos-jdbcdriver Javadoc：[taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)  
-JDBC Javadoc：[JDBC Reference doc](https://docs.oracle.com/javase/8/docs/api/java/sql/package-summary.html)
+taos-jdbcdriver Javadoc:[taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)  
+JDBC Javadoc:[JDBC Reference doc](https://docs.oracle.com/javase/8/docs/api/java/sql/package-summary.html)
 

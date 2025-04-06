@@ -44,11 +44,11 @@ priv_level : {
 | 用户     | 描述                               | 权限说明                        |
 | -------- | --------------------------------- | -- |
 | 超级用户 | 只有 root 是超级用户               |<br/>DB 外部：所有操作权限，例如 user、dnode、udf、qnode 等的 CRUD <br/>DB 权限：包括创建、删除、修改 Option、移动 Vgruop、读、写、Enable/Disable 用户  |
-| 普通用户 | 除 root 以外的其它用户均为普通用户 | <br/>在可读的 DB 中：普通用户可以进行读操作 select、describe、show、subscribe <br/>在可写 DB 的内部，用户可以进行写操作，创建、删除、修改超级表，创建、删除、修改子表，创建、删除、修改 topic。写入数据 <br/>被限制系统信息时，不可进行如下操作 show dnode、mnode、vgroups、qnode、snode、修改用户包括自身密码、`show db` 时只能看到自己的 db，并且不能看到 vgroups、副本、cache等信息 <br/>无论是否被限制系统信息，都可以管理 udf，可以创建 DB、自己创建的 DB 具备所有权限、非自己创建的 DB，参照读、写列表中的权限 |
+| 普通用户 | 除 root 以外的其它用户均为普通用户 | <br/>在可读的 DB 中：普通用户可以进行读操作 select、describe、show、subscribe <br/>在可写 DB 的内部，用户可以进行写操作，创建、删除、修改超级表，创建、删除、修改子表，创建、删除、修改 topic。写入数据 <br/>被限制系统信息时，不可进行如下操作 show dnode、mnode、vgroups、qnode、snode、修改用户包括自身密码、`show db` 时只能看到自己的 db，并且不能看到 vgroups、副本、cache 等信息 <br/>无论是否被限制系统信息，都可以管理 udf，可以创建 DB、自己创建的 DB 具备所有权限、非自己创建的 DB，参照读、写列表中的权限 |
 
 ## 消息订阅授权
 
-任意用户都可以在自己拥有读权限的数据库上创建 topic。超级用户 root 可以在任意数据库上创建 topic。每个 topic 的订阅权限都可以被独立授权给任何用户，不管该用户是否拥有该数据库的访问权限。删除 topic 只能由 root 用户或者该 topic 的创建者进行。topic 只能由超级用户、topic的创建者或者被显式授予 subscribe 权限的用户订阅。
+任意用户都可以在自己拥有读权限的数据库上创建 topic。超级用户 root 可以在任意数据库上创建 topic。每个 topic 的订阅权限都可以被独立授权给任何用户，不管该用户是否拥有该数据库的访问权限。删除 topic 只能由 root 用户或者该 topic 的创建者进行。topic 只能由超级用户、topic 的创建者或者被显式授予 subscribe 权限的用户订阅。
 
 具体的 SQL 语法如下：
 

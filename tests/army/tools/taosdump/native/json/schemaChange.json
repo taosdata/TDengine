@@ -20,6 +20,7 @@
                 {
                     "name": "meters1",
                     "child_table_exists": "no",
+
                     "childtable_count": 1,
                     "insert_rows": 100,
                     "childtable_prefix": "d",

@@ -10,7 +10,6 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-import pytest
 import time
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes

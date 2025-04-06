@@ -237,13 +237,13 @@ Custom variables can reference other custom variables, for example, one variable
 
 ##### Adding a Query Type Variable
 
-In the Dashboard configuration, select 【Variables】, then click 【New variable】:
+In the Dashboard configuration, select **Variables**, then click **New variable**:
 
 1. In the "Name" field, enter your variable name, here we set the variable name as `selected_groups`.
-2. In the 【Select variable type】dropdown menu, select "Query" (query).
+2. In the **Select variable type** dropdown menu, select "Query" (query).
 Depending on the selected variable type, configure the corresponding options. For example, if you choose "Query", you need to specify the data source and the query statement to obtain the variable values. Here, we take smart meters as an example, set the query type, select the data source, and configure the SQL as `select distinct(groupid) from power.meters where groupid < 3 and ts > $from and ts < $to;`
-3. After clicking 【Run Query】at the bottom, you can see the variable values generated based on your configuration in the "Preview of values" section.
-4. Other configurations are not detailed here; after completing the configuration, click the 【Apply】button at the bottom of the page, then click 【Save dashboard】in the upper right corner to save.
+3. After clicking **Run Query** at the bottom, you can see the variable values generated based on your configuration in the "Preview of values" section.
+4. Other configurations are not detailed here; after completing the configuration, click the **Apply** button at the bottom of the page, then click **Save dashboard** in the upper right corner to save.
 
 After completing the above steps, we have successfully added a new custom variable `$selected_groups` in the Dashboard. We can later reference this variable in the Dashboard's queries through `$selected_groups`.
 
@@ -254,9 +254,9 @@ We can also add another custom variable to reference this `selected_groups` vari
 We can customize the time window interval to better fit business needs.
 
 1. In the "Name" field, enter the variable name as `interval`.
-2. In the 【Select variable type】dropdown menu, select "Interval" (interval).
-3. In the 【Interval options】enter `1s,2s,5s,10s,15s,30s,1m`.
-4. Other configurations are not detailed here; after completing the configuration, click the 【Apply】button at the bottom of the page, then click 【Save dashboard】in the upper right corner to save.
+2. In the **Select variable type** dropdown menu, select "Interval" (interval).
+3. In the **Interval options** enter `1s,2s,5s,10s,15s,30s,1m`.
+4. Other configurations are not detailed here; after completing the configuration, click the **Apply** button at the bottom of the page, then click **Save dashboard** in the upper right corner to save.
 
 After completing the above steps, we have successfully added a new custom variable `$interval` in the Dashboard. We can later reference this variable in the Dashboard's queries through `$interval`.
 
@@ -280,7 +280,7 @@ Detailed introduction to the above features can be found at [Distinguished Queri
 ### Creating a Dashboard
 
 With the foundational knowledge from earlier, we can configure a time-series data display Dashboard based on the TDengine data source.  
-Create a Dashboard on the Grafana main interface, click on 【Add Query】 to enter the panel query page:
+Create a Dashboard on the Grafana main interface, click on **Add Query** to enter the panel query page:
 
 <figure>
 <Image img={imgStep01} alt=""/>

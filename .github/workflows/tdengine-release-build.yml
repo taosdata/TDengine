@@ -78,7 +78,7 @@ jobs:
       - name: Get CMake
         uses: lukka/get-cmake@latest
         with:
-          cmakeVersion: 3.31.6          
+          cmakeVersion: 3.31.6
 
       - name: Build and install TDengine
         run: |

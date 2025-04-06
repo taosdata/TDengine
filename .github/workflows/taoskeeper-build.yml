@@ -31,7 +31,6 @@ jobs:
         uses: lukka/get-cmake@latest
         with:
           cmakeVersion: 3.31.6
-          
       - name: Install TDengine
         run: |
           mkdir debug
