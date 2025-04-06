@@ -267,11 +267,11 @@ typedef struct {
 } SDbInfo;
 
 enum enAVROTYPE {
-    AVRO_TBTAGS = 0,
-    AVRO_NTB,
-    AVRO_DATA,
-    AVRO_UNKNOWN,
-    AVRO_INVALID
+    enAVRO_TBTAGS = 0,
+    enAVRO_NTB,
+    enAVRO_DATA,
+    enAVRO_UNKNOWN,
+    enAVRO_INVALID
 };
 
 //
@@ -319,7 +319,7 @@ typedef struct DBChange {
 } DBChange;
 
 
-typedef enum enAVROTYPE AVROTYPE;
+typedef enum enAVROTYPE enAVROTYPE;
 
 typedef struct {
     pthread_t threadID;
@@ -338,7 +338,7 @@ typedef struct {
     int64_t   ntbFailed;
     int64_t   recSuccess;
     int64_t   recFailed;
-    AVROTYPE  avroType;
+    enAVROTYPE  avroType;
     char      dbPath[MAX_DIR_LEN];
     DBChange  *pDbChange;
 } threadInfo;

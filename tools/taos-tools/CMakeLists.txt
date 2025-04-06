@@ -44,13 +44,14 @@ ADD_SUBDIRECTORY(src)
 
 ADD_DEPENDENCIES(taosBenchmark toolscJson)
 
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.sh")
-    INSTALL(CODE "execute_process(COMMAND bash ${MAKE_INSTALL_SH} ${CMAKE_BINARY_DIR})")
-ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.bat")
-    INSTALL(CODE "execute_process(COMMAND ${MAKE_INSTALL_SH} :needAdmin ${PROJECT_SOURCE_DIR} ${PROJECT_BINARY_DIR} Windows)")
-ENDIF ()
+# NOTE: seems conflict with cmake/cmake.install
+# IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+#     SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.sh")
+#     INSTALL(CODE "execute_process(COMMAND bash ${MAKE_INSTALL_SH} ${CMAKE_BINARY_DIR})")
+# ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+#     SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.bat")
+#     INSTALL(CODE "execute_process(COMMAND ${MAKE_INSTALL_SH} :needAdmin ${PROJECT_SOURCE_DIR} ${PROJECT_BINARY_DIR} Windows)")
+# ENDIF ()
 
 # add test
 IF(TD_LINUX)
