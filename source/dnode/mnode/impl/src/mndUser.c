@@ -2937,6 +2937,10 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
             sqlLen = tsnprintf(*sql, bufSz, "'%s'", varDataVal(pNode->datum.p));
             (*sql)[bufSz - 1] = '\'';
           }
+        } else {
+          if (nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen) != 0) {
+            sqlLen = tsnprintf(*sql, bufSz, "error");
+          }
         }
 
         nodesDestroyNode(pAst);
