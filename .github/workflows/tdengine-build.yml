@@ -166,8 +166,8 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
-          call .\build.bat gen -G "NMake Makefiles JOM"
-          call .\build.bat bld --target build_externals -v
+          .\build.bat gen -G "NMake Makefiles JOM"
+          .\build.bat bld --target build_externals -v
 
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
@@ -187,9 +187,9 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
-          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM"
-          call .\build.bat bld -v
-          call .\build.bat install
+          .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM"
+          .\build.bat bld -v
+          .\build.bat install
           echo %PATH%
           dir C:\TDengine
           set PATH=%PATH%;C:\TDengine
