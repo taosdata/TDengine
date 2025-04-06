@@ -2556,7 +2556,7 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
     pInfo->pkData = pInfo->buf + pInfo->bytes;
   }
 
-  pInfo->ts = currentTs;
+  taosSetInt64Aligned(&pInfo->ts, currentTs);
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -2678,8 +2678,8 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
       pkData = colDataGetData(pkCol, i);
     }
     TSKEY cts = pts[i];
-    if (pResInfo->numOfRes == 0 || pInfo->ts > cts ||
-        (pInfo->ts == cts && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+    TSKEY pts = taosGetInt64Aligned(&pInfo->ts);
+    if (pResInfo->numOfRes == 0 || pts > cts || (pts == cts && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
       int32_t code = doSaveCurrentVal(pCtx, i, cts, pkData, pInputCol->info.type, data);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
