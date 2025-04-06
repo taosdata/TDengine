@@ -677,7 +677,7 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
     if (newc == 0) {
         // col must not zero
         errorPrint("backup data schema no same column with server table:%s local col num:%d server col num:%d\n", 
-                   tableDesSrv->name, recordSchema->tableDes->columns, tableDesSrv->columns);
+            crossDes->name, recordSchema->tableDes->columns, crossDes->columns);
         freeTbDes(crossDes, true);           
         return -1;
     }
@@ -691,7 +691,7 @@ int32_t localCrossServer(DBChange *pDbChange, StbChange *pStbChange, RecordSchem
     // set new
     crossDes->columns = newc;
     crossDes->tags    = newt;
-    strncpy(crossDes->name, localDes->name, sizeof(localDes->name) - 1);
+    strcpy(crossDes->name, localDes->name);
 
     // save crossDes to StbChange
     pStbChange->tableDes = crossDes;
@@ -753,6 +753,7 @@ int32_t AddStbChanged(DBChange *pDbChange, const char* dbName, TAOS *taos, Recor
         return -1;
     }
     freeTbDes(tableDesSrv, true);
+    tableDesSrv = NULL;
     
     // set out
     if (ppStbChange) {
@@ -762,8 +763,11 @@ int32_t AddStbChanged(DBChange *pDbChange, const char* dbName, TAOS *taos, Recor
     // add to DbChange hashMap
     if (!hashMapInsert(&pDbChange->stbMap, stbName, pStbChange)) {
         errorPrint("%s() LN%d add hashMap failed, db:%s stb:%s !\n", __func__, __LINE__, dbName, stbName);
+        if (pStbChange->tableDes) {
+            freeTbDes(pStbChange->tableDes, true);
+            pStbChange->tableDes = NULL;
+        }
         free(pStbChange);
-        freeTbDes(tableDesSrv, true);
         return -1;
     }
 
@@ -923,39 +927,6 @@ bool idxInBindCols(int16_t idx, TableDes* tableDes) {
 
     return false;
 }
-
-
-/*
-
-// found 
-bool fieldInBindList(char *field, TableDes* tableDes) {
-    // check valid
-    if (field == NULL || tableDes == NULL) {
-        return false;
-    }
-
-    // find in list
-    for (int32_t i = 0 ; i < tableDes->columns; i++) {
-        if (strcmp(tableDes->cols[i].field, field) == 0) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-// truncate filename
-void removeFileName(char *path) {
-    int len = strlen(path);
-    for (int i = len - 1; i >= 0; i--) {
-        if (path[i] == '/' || path[i] == '\\') {
-            path[i] = '\0';
-            break;
-        }
-    }
-}
-*/
 
 //
 // if avro folder changed, need have new stbChange*
