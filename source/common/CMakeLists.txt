@@ -100,20 +100,10 @@ endif()
 
 if(${BUILD_S3})
   if(${BUILD_WITH_S3})
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
-    find_library(S3_LIBRARY s3)
-    target_link_libraries(
-      common
-
-      # s3
-      PUBLIC ${S3_LIBRARY}
-      PUBLIC ${CURL_LIBRARY}
-      PUBLIC ${SSL_LIBRARY}
-      PUBLIC ${CRYPTO_LIBRARY}
-      PUBLIC _libxml2
-    )
-
+    DEP_ext_libs3(common)
+    DEP_ext_curl(common)
+    DEP_ext_ssl(common)
+    DEP_ext_libxml2(common)
     add_definitions(-DUSE_S3)
   endif()
 

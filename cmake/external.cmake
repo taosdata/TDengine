@@ -1284,16 +1284,15 @@ if(NOT ${TD_WINDOWS})        # {
 
     # libs3
     if(${TD_LINUX})
-        set(ext_libs3_static libs3.a)
+        set(ext_libs3_static liblibs3.a)
     elseif(${TD_DARWIN})
-        set(ext_libs3_static libs3.a)
+        set(ext_libs3_static liblibs3.a)
     elseif(${TD_WINDOWS})
         set(ext_libs3_static libs3.lib)
     endif()
     INIT_EXT(ext_libs3
         INC_DIR          include
         LIB              lib/${ext_libs3_static}
-        CHK_NAME         ZLIB
     )
     string(JOIN " " _ssl_libs ${ext_ssl_libs})
     # GIT_REPOSITORY https://github.com/bji/libs3
@@ -1337,7 +1336,6 @@ if(NOT ${TD_WINDOWS})        # {
     INIT_EXT(ext_azure
         INC_DIR          include
         LIB              lib/${ext_azure_static}
-        CHK_NAME         ZLIB
     )
     # URL https://github.com/Azure/azure-sdk-for-cpp/archive/refs/tags/azure-storage-blobs_12.13.0-beta.1.tar.gz
     # URL_HASH SHA256=3eca486fd60e3522d0a633025ecd652a71515b1e944799b2e8ee31fd590305a9
@@ -1368,6 +1366,7 @@ if(NOT ${TD_WINDOWS})        # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_dependencies(build_externals ext_azure)     # this is for github workflow in cache-miss step.
 
     # mxml
     if(${TD_LINUX})

@@ -202,42 +202,50 @@ option(
 
 ENDIF ()
 
-IF(NOT TD_ENTERPRISE)
-MESSAGE("switch s3 off with community version")
-set(BUILD_S3 OFF)
-set(BUILD_WITH_S3 OFF)
-set(BUILD_WITH_COS OFF)
-set(BUILD_WITH_ANALYSIS OFF)
+# NOTE: set option variable in this ways is not a good practice
+# TODO: we currently disable this in order to test S3/COS
+IF(FALSE AND NOT TD_ENTERPRISE)
+  MESSAGE("switch s3 off with community version")
+  set(BUILD_S3 OFF)
+  set(BUILD_WITH_S3 OFF)
+  set(BUILD_WITH_COS OFF)
+  set(BUILD_WITH_ANALYSIS OFF)
 ENDIF ()
 
-IF(${BUILD_WITH_ANALYSIS})
+# NOTE: set option variable in this ways is not a good practice
+# TODO: we currently disable this in order to test S3/COS
+IF(FALSE AND ${BUILD_WITH_ANALYSIS})
     message("build with analysis")
     set(BUILD_S3 ON)
     set(BUILD_WITH_S3 ON)
 ENDIF()
 
-IF(${TD_LINUX})
+# NOTE: set option variable in this ways is not a good practice
+# TODO: we currently disable this in order to test S3/COS
+IF(FALSE AND ${TD_LINUX})
     set(BUILD_WITH_ANALYSIS ON)
 ENDIF()
 
 IF(${BUILD_S3})
 
-IF(${BUILD_WITH_S3})
+  IF(${BUILD_WITH_S3})
 
-add_definitions(-DUSE_S3)
-option(BUILD_WITH_COS "If build with cos" OFF)
+    add_definitions(-DUSE_S3)
+    # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
+    option(BUILD_WITH_COS "If build with cos" OFF)
+
+  ELSE ()
+
+    # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
+    option(BUILD_WITH_COS "If build with cos" ON)
+
+  ENDIF ()
 
 ELSE ()
 
-option(BUILD_WITH_COS "If build with cos" ON)
+  option(BUILD_WITH_S3 "If build with s3" OFF)
 
-ENDIF ()
-
-ELSE ()
-
-option(BUILD_WITH_S3 "If build with s3" OFF)
-
-option(BUILD_WITH_COS "If build with cos" OFF)
+  option(BUILD_WITH_COS "If build with cos" OFF)
 
 ENDIF ()
 
@@ -321,3 +329,8 @@ option(
    "If build thirdpart from source"
    OFF
 )
+
+message(STATUS "BUILD_S3:${BUILD_S3}")
+message(STATUS "BUILD_WITH_S3:${BUILD_WITH_S3}")
+message(STATUS "BUILD_WITH_COS:${BUILD_WITH_COS}")
+

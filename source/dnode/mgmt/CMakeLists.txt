@@ -18,7 +18,10 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
 )
 
-if(TD_ENTERPRISE)
+target_link_libraries(taosd PUBLIC dnode crypt)
+
+# TODO: we currently enable this in order to test S3/COS
+if(TRUE OR TD_ENTERPRISE)
   if(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
   elseif(${BUILD_WITH_COS})
@@ -26,4 +29,3 @@ if(TD_ENTERPRISE)
   endif()
 endif()
 
-target_link_libraries(taosd dnode crypt)
