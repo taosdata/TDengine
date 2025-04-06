@@ -2931,14 +2931,19 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       }
 
       if (nodesStringToNode(value, &pAst) == 0) {
-        if (nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen) != 0) {
-          sqlLen = 5;
-          (void)tsnprintf(*sql, bufSz, "error");
+        if (pAst->type == QUERY_NODE_VALUE) {
+          SValueNode *pNode = (SValueNode *)pAst;
+          if (pNode->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
+            sqlLen = tsnprintf(*sql, bufSz, "'%s'", varDataVal(pNode->datum.p));
+            (*sql)[bufSz - 1] = '\'';
+          }
         }
+
         nodesDestroyNode(pAst);
-      } else {
-        sqlLen = 5;
-        (void)tsnprintf(*sql, bufSz, "error");
+      }
+
+      if (sqlLen == 0) {
+        sqlLen = tsnprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);
