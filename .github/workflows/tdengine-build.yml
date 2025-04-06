@@ -166,16 +166,8 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
-          # TODO: later we'll use ./build.bat
-          cmake -B debug                       ^
-            -G "NMake Makefiles JOM"           ^
-            -DBUILD_TOOLS=true                 ^
-            -DBUILD_KEEPER=true                ^
-            -DBUILD_HTTP=false                 ^
-            -DBUILD_TEST=true                  ^
-            -DWEBSOCKET=true                   ^
-            -DBUILD_DEPENDENCY_TESTS=false
-          cmake --build debug --target build_externals -j4
+          .\build.bat gen
+          .\build.bat bld --target build_externals -v
 
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
@@ -195,18 +187,16 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
-          # TODO: later we'll use ./build.bat
-          cmake -B debug                       ^
-            -G "NMake Makefiles JOM"           ^
-            -DBUILD_TOOLS=true                 ^
-            -DBUILD_KEEPER=true                ^
-            -DBUILD_HTTP=false                 ^
-            -DBUILD_TEST=true                  ^
-            -DWEBSOCKET=true                   ^
-            -DBUILD_DEPENDENCY_TESTS=false     ^
-            -DTD_EXTERNALS_USE_ONLY:BOOL=ON
-          cmake --build debug -j4 -v
-          cmake --install debug
+          .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          .\build.bat bld -v
+          .\build.bat install
+          echo %PATH%
+          where taos.exe
+          where taosd.exe
+          where taosadapter.exe
+          where taoskeeper.exe
+          taosd.exe --help
+          taosadapter.exe --help
 
       - name: Statistics ldd
         if: runner.os == 'Linux'
