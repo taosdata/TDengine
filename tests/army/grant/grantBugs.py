@@ -31,7 +31,9 @@ class TDTestCase(TBase):
 
             "CREATE DATABASE IF NOT EXISTS `test2`",
             "CREATE USER `user1` PASS 'taosdata'",
-            "CREATE TABLE IF NOT EXISTS `test2`.`meters2` (ts timestamp, v1 int) tags(t1 int)"
+            "CREATE TABLE IF NOT EXISTS `test2`.`meters2` (ts timestamp, v1 int) tags(t1 int)",
+
+            "CREATE USER `read_user` PASS 'taosdata'"
         ]
         tdSql.executes(sqls)
 
@@ -48,6 +50,14 @@ class TDTestCase(TBase):
         tdSql.query(sql2_verify)
         tdSql.checkRows(1)
         tdSql.checkData(0, 4, '(`test2`.`meters2`.`t1` = 1)')
+
+        # TS-6276
+        sql3 = "GRANT read ON `_xTest2`.`meters` WITH 't1 in (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)' TO `read_user`";
+        tdSql.query(sql3)
+        sql3_verify = "select * from information_schema.ins_user_privileges where user_name='read_user' and privilege='read' and db_name='_xTest2' and table_name='meters'"
+        tdSql.query(sql3_verify)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 4, "t1 in (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
 
     # run
     def run(self):
