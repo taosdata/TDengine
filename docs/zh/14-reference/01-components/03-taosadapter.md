@@ -393,7 +393,7 @@ taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDeng
 
 使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
 
-## 监控指标
+## taosAdapter 监控指标
 
 taosAdapter 目前仅采集 RESTful/WebSocket 相关请求的监控指标，其他接口暂无监控指标。
 
