@@ -382,6 +382,9 @@ void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
     sdbFreeRow(pSdb, pRow, true);
   }
+  if (ref < 0) {
+    mError("row:%p, ref:%d, type:%s", pRow, ref, sdbTableName(type));
+  }
 
   if (lock) {
     sdbUnLock(pSdb, type);
