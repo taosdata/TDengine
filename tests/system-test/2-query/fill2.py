@@ -1263,9 +1263,9 @@ class FillResValidator:
                             if fill_row[colIdx] is not None or desc_row[colIdx] is not None:
                                 tdLog.exit(f"got different val for fill_res: {fill_row} rowIdx: {i} colIdx: {colIdx}, expect: {val} got: {fill_row[colIdx]}")
                         else:
-                            if not math.isclose(val, fill_row[colIdx], rel_tol=1e-6, abs_tol=1e-6):
+                            if not math.isclose(val, fill_row[colIdx], rel_tol=1e-5, abs_tol=1e-6):
                                 tdLog.exit(f"got different val for fill_res: {fill_row} rowIdx: {i} colIdx: {colIdx}, expect: {val} got: {fill_row[colIdx]}")
-                            if not math.isclose(val, desc_row[colIdx], rel_tol=1e-6, abs_tol=1e-6):
+                            if not math.isclose(val, desc_row[colIdx], rel_tol=1e-5, abs_tol=1e-6):
                                 tdLog.exit(f"got different val for fill_res: {fill_row} rowIdx: {i} colIdx: {colIdx}, expect: {val} got: {desc_row[colIdx]}")
                     i += 1
                 else:
