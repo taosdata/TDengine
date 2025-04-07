@@ -1534,12 +1534,13 @@ EOF
 
 # Install Grafana using a downloaded .deb package
 deploy_grafana() {
+    LATEST_VERSION=$(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s https://api.github.com/repos/grafana/grafana/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
     if [ -f /etc/debian_version ]; then
         # Debian or Ubuntu
-        deploy_debian_grafana
+        deploy_debian_grafana "$LATEST_VERSION"
     elif [ -f /etc/redhat-release ]; then
         # Red Hat or CentOS
-        deploy_redhat_grafana
+        deploy_redhat_grafana "$LATEST_VERSION"
     else
         echo "Unsupported Linux distribution."
         exit 1
@@ -1549,12 +1550,13 @@ deploy_grafana() {
 # Install Grafana for ubuntu/debian
 deploy_debian_grafana() {
     # Check if Grafana is already installed
-    if ! dpkg -s "grafana" &> /dev/null; then
+    if ! dpkg -s "grafana" && ! dpkg -s "grafana-enterprise" &> /dev/null; then
         echo "Downloading the latest Grafana .deb package..."
         # Download the latest Grafana .deb package
-        wget https://dl.grafana.com/oss/release/grafana_latest_amd64.deb -O grafana.deb
+        grafana_latest_version=$1
+        wget https://dl.grafana.com/oss/release/grafana_${grafana_latest_version}_amd64.deb -O grafana.deb
         # install the required fontconfig package
-        install_package libfontconfig1
+        install_package adduser libfontconfig1 musl
         echo "Installing Grafana..."
         # Install the .deb package
         dpkg -i grafana.deb
@@ -1583,7 +1585,8 @@ deploy_redhat_grafana() {
     if ! rpm -q grafana &> /dev/null; then
         echo "Downloading the latest Grafana .rpm package..."
         # Download the latest Grafana .rpm package
-        wget https://dl.grafana.com/oss/release/grafana-8.5.2-1.x86_64.rpm -O grafana.rpm
+        grafana_latest_version=$1
+        wget https://dl.grafana.com/oss/release/grafana-${grafana_latest_version}-1.x86_64.rpm -O grafana.rpm
 
         # Install the required fontconfig package
         yum install -y fontconfig
