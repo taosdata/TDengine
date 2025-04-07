@@ -49,17 +49,17 @@ TEST(log, check_log_refactor) {
 
 extern char *tsLogOutput;
 static void *taosLogCrashMockFunc(void *param) {
-  printf("%s entry\n", __func__);
+  printf("%s:%d entry\n", __func__, __LINE__);
   setThreadName("logCrashMockThread");
   writeCrashLogToFile(0, nullptr, (char *)"unit_test_diff_thread", 0, 0);
-  printf("%s end\n", __func__);
+  printf("%s:%d end\n", __func__, __LINE__);
   return NULL;
 }
 static void *taosLogCrashReportFunc(void *param) {
-  printf("%s entry\n", __func__);
+  printf("%s:%d entry\n", __func__, __LINE__);
   setThreadName("logCrashReportThread");
   checkAndPrepareCrashInfo();
-  printf("%s end\n", __func__);
+  printf("%s:%d end\n", __func__, __LINE__);
   return NULL;
 }
 TEST(log, misc) {
