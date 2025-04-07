@@ -33,3 +33,9 @@ title: 巡检工具
  - 在脚本执行期间，必须保证能通过RESTful远程连接TDengine服务。
  - 集群节点之间的SSH服务必须启用。如果无法启动SSH服务，则只能通过local模式在每个节点上单独运行工具。
 
+```mdx-code-block
+import DocCardList from '@theme/DocCardList';
+import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
+
+<DocCardList items={useCurrentSidebarCategory().items}/>
+```
