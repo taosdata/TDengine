@@ -4980,11 +4980,11 @@ void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
 typedef struct {
-  const char* fileName;
-} SVImportFileReq;
+  char fileName[PATH_MAX];
+} SVLoadFileReq;
 
-int32_t tEncodeVImportFileReq(SEncoder* pCoder, const SVImportFileReq* pReq);
-int32_t tDecodeVImportFileReq(SDecoder* pCoder, SVImportFileReq* pReq);
+int32_t tEncodeVLoadFileReq(SEncoder* pCoder, const SVLoadFileReq* pReq);
+int32_t tDecodeVLoadFileReq(SDecoder* pCoder, SVLoadFileReq* pReq);
 
 typedef struct {
   int32_t code;

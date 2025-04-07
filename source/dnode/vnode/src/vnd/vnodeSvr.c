@@ -611,7 +611,7 @@ static int32_t vnodeProcessImportFileReq(SVnode *pVnode, int64_t ver, void *pReq
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
-  SVImportFileReq req = {0};
+  SVLoadFileReq   req = {0};
   SDecoder        decoder = {0};
 
   tDecoderInit(&decoder, (uint8_t *)pReq, len);

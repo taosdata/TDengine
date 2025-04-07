@@ -1883,4 +1883,4 @@ column_name_list(A) ::= NK_ID(B).                                               
 column_name_list(A) ::= column_name_list(B) NK_DOT NK_ID(C).                      { A = setColumnName(pCxt, B, C); }
 
 /********************************************** load file **********************************************************/
-cmd ::= LOAD INTO NK_STRING(A) FILE NK_STRING(B).                                 { pCxt->pRootNode = createLoadFileStmt(pCxt, &A, &B); }
+cmd ::= LOAD INTO db_name(A) FILE NK_STRING(B).                                 { pCxt->pRootNode = createLoadFileStmt(pCxt, &A, &B); }

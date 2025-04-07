@@ -19155,9 +19155,88 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void destroyVgDataBlock(void *arg) {
+  SVgDataBlocks* pVgData = *(SVgDataBlocks**)arg;
+  taosMemoryFree(pVgData->pData);
+  taosMemoryFree(pVgData);
+}
+
 static int32_t serializeLoadFile(SLoadFileStmt* pStmt, SArray* pVgs, SArray** pOutput) {
-  // TODO
-  return 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SArray* pBufArray = taosArrayInit(taosArrayGetSize(pVgs), sizeof(void*));
+  if (NULL == pBufArray) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pVgs); i++) {
+    SVgroupInfo* pVg = (SVgroupInfo*)taosArrayGet(pVgs, i);
+    SVLoadFileReq req = {0};
+
+    memcpy(req.fileName, pStmt->fileName, sizeof(req.fileName));
+
+    // Encode
+    SEncoder encoder = {0};
+    void*    buffer = NULL;
+    int32_t  bufferSize = 0;
+
+    tEncodeSize(tEncodeVLoadFileReq, &req, bufferSize, code);
+    if (code) {
+      goto _exit;
+    }
+
+    bufferSize += sizeof(SMsgHead);
+    buffer = taosMemoryMalloc(bufferSize);
+    if (NULL == buffer) {
+      code = terrno;
+      goto _exit;
+    }
+
+    *(SMsgHead*)buffer = (SMsgHead){
+        .vgId = htonl(pVg->vgId),
+        .contLen = htonl(bufferSize),
+    };
+
+    void* p = (char*)buffer + sizeof(SMsgHead);
+    tEncoderInit(&encoder, p, bufferSize - sizeof(SMsgHead));
+    code = tEncodeVLoadFileReq(&encoder, &req);
+    if (code) {
+      goto _exit;
+    }
+    tEncoderClear(&encoder);
+
+    // Serialize load info
+    SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+    if (NULL == pVgData) {
+      taosMemoryFreeClear(buffer);
+      code = terrno;
+      goto _exit;
+    }
+
+    *pVgData = (SVgDataBlocks){
+        .vg = *pVg,
+        .numOfTables = 0,
+        .size = bufferSize,
+        .pData = buffer,
+    };
+
+    // Push to buffer
+    if (NULL == taosArrayPush(pBufArray, &pVgData)) {
+      taosMemoryFree(buffer);
+      taosMemoryFree(pVgData);
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+_exit:
+  if (code) {
+    taosArrayDestroyP(pBufArray, destroyVgDataBlock);
+    *pOutput = NULL;
+  } else {
+    *pOutput = pBufArray;
+  }
+  return code;
 }
 
 static int32_t rewriteLoadFileStmt(STranslateContext* pCxt, SQuery* pQuery) {
@@ -19183,7 +19262,7 @@ static int32_t rewriteLoadFileStmt(STranslateContext* pCxt, SQuery* pQuery) {
   // Rewrite to vnode modify op
   code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
   if (code) {
-    destroyCreateTbReqArray(pBufArray);
+    taosArrayDestroyP(pBufArray, destroyVgDataBlock);
   }
   taosArrayDestroy(pVgs);
   return code;
