@@ -33,6 +33,9 @@ static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *p
 static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
 int32_t        tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch);
 
+static void tableReadeFree(void *pReader);
+static void blockWrapperFree(void *pBlockWrapper);
+
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -132,6 +135,15 @@ _error:
 int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileSet) {
   return tableReaderMgtAddLiveFileSet(pMgt->pReaderMgt, pLiveFileSet);
 }
+
+static void tableReadeFree(void *pReader) {
+  STableReader *p = (STableReader *)pReader;
+  if (p != NULL) {
+    tableReadClose(p);
+  }
+}
+static void blockFree(void *pBlock) { taosMemFree(pBlock); }
+
 int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -144,10 +156,10 @@ int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse) {
   }
   int32_t cap = BSE_GET_BLOCK_SIZE(pBse);
 
-  code = blockCacheOpen(cap, &pReader->pBatchCache);
+  code = blockCacheOpen(48, blockFree, &pReader->pBlockCache);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableCacheOpen(cap, &pReader->pTableCache);
+  code = tableCacheOpen(32, tableReadeFree, &pReader->pTableCache);
   TSDB_CHECK_CODE(code, lino, _error);
 
   pReader->pBse = pBse;
@@ -162,7 +174,7 @@ _error:
 void tableReaderMgtCleanup(STableReaderMgt *pReader) {
   taosArrayDestroy(pReader->pFileList);
   tableCacheClose(pReader->pTableCache);
-  blockCacheClose(pReader->pBatchCache);
+  blockCacheClose(pReader->pBlockCache);
   taosThreadMutexDestroy(&pReader->mutex);
 }
 
@@ -189,20 +201,26 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
   int32_t       idx = findTargetTable(pReaderMgt->pFileList, seq);
   if (idx > 0 && idx < taosArrayGetSize(pReaderMgt->pFileList)) {
     SBseLiveFileInfo *pInfo = taosArrayGet(pReaderMgt->pFileList, idx);
-    if (pInfo->sseq <= seq && pInfo->eseq >= seq) {
-      char name[TSDB_FILENAME_LEN] = {0};
+    SSeqRange         range = {.sseq = pInfo->sseq, .eseq = pInfo->eseq};
+    if (inSeqRange(&range, seq)) {
+      STableReader *pReader = NULL;
+      code = tableCacheGet(pReaderMgt->pTableCache, &range, &pReader);
+      if (code != 0) {
+        char name[TSDB_FILENAME_LEN] = {0};
+        bseBuildFullName((SBse *)pReaderMgt->pBse, pInfo->name, name);
 
-      bseBuildFullName((SBse *)pReaderMgt->pBse, pInfo->name, name);
-      code = tableReadOpen(name, &pReader);
-      TSDB_CHECK_CODE(code, lino, _error);
+        code = tableReadOpen(name, &pReader, pReaderMgt);
+        TSDB_CHECK_CODE(code, lino, _error);
 
+        code = tableCachePut(pReaderMgt->pTableCache, &range, pReader);
+        if (code != 0) {
+          bseError("failed to put table reader to cache since %s at line %d", tstrerror(code), lino);
+          tableReadClose(pReader);
+          TSDB_CHECK_CODE(code, lino, _error);
+        }
+      }
       code = tableReadGet(pReader, seq, pValue, len);
       TSDB_CHECK_CODE(code, lino, _error);
-
-      code = tableReadClose(pReader);
-      TSDB_CHECK_CODE(code, lino, _error);
-
-      pReader = NULL;
     }
   }
 _error:

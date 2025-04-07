@@ -26,26 +26,29 @@ extern "C" {
 typedef struct {
   int32_t        cap;
   int32_t        size;
-  void         **pCache;
+  void          *pCache;
   TdThreadRwlock rwlock;
 } STableCache;
 
-int32_t tableCacheOpen(int32_t cap, STableCache **p);
+typedef void (*CacheFreeFn)(void *p);
+int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p);
 int32_t tableCacheGet(STableCache *p, SSeqRange *key, STableReader **pReader);
 int32_t tableCachePut(STableCache *pMgt, SSeqRange *key, STableReader *pReader);
+int32_t tableCacheRemove(STableCache *pMgt, SSeqRange *key);
 void    tableCacheClose(STableCache *p);
 
 typedef struct {
   int32_t cap;
   int32_t size;
-  void  **pCache;
+  void   *pCache;
 
   TdThreadRwlock rwlock;
 } SBlockCache;
 
-int32_t blockCacheOpen(int32_t cap, SBlockCache **p);
-int32_t blockCacheGet(SBlockCache *p, char *key, SBlock **pBlock);
-int32_t blockCachePut(SBlockCache *p, char *key, SBlock *pBlock);
+int32_t blockCacheOpen(int32_t cap, CacheFreeFn fn, SBlockCache **p);
+int32_t blockCacheGet(SBlockCache *p, SSeqRange *key, SBlock **pBlock);
+int32_t blockCachePut(SBlockCache *p, SSeqRange *key, SBlock *pBlock);
+int32_t blockCacheRemove(SBlockCache *p, SSeqRange *key);
 void    blockCacheClose(SBlockCache *p);
 
 #ifdef __cplusplus

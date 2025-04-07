@@ -38,13 +38,13 @@ typedef struct {
 typedef struct {
   SArray       *pFileList;
   STableCache  *pTableCache;
-  SBlockCache  *pBatchCache;
+  SBlockCache  *pBlockCache;
   TdThreadMutex mutex;
   SBse         *pBse;
 } STableReaderMgt;
 
 typedef struct {
-  void *pBse;
+  void            *pBse;
   STableBuilderMgt pBuilderMgt[1];
   STableReaderMgt  pReaderMgt[1];
 } STableMgt;

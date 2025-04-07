@@ -69,7 +69,7 @@ int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq);
 typedef struct {
   SBlock *data;
   int32_t cap;
-
+  int8_t  type;
 } SBlockWrapper;
 typedef struct {
   char          name[TSDB_FILENAME_LEN];
@@ -96,10 +96,10 @@ typedef struct {
   STableFooter footer;
   SArray      *pSeqToBlock;
   SArray      *pMetaHandle;
-  // SBlockWrapper pBlockWrapper;
-  // SBlockWrapper pHBlockWrapper;
+
   int32_t blockCap;
   int32_t fileSize;
+  void   *pReaderMgt;
 } STableReader;
 
 typedef struct {
@@ -120,7 +120,7 @@ int32_t tableBuildClose(STableBuilder *p, int8_t commited);
 void    tableBuildClear(STableBuilder *p);
 int32_t tableBuildOpenFile(STableBuilder *p);
 
-int32_t tableReadOpen(char *name, STableReader **pReader);
+int32_t tableReadOpen(char *name, STableReader **pReader, void *pReaderMgt);
 int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
 int32_t tableReadClose(STableReader *p);
 

@@ -14,6 +14,7 @@
  */
 
 #include "bseTable.h"
+#include "bseTableMgt.h"
 
 // block handle func
 static int32_t blkHandleEncode(SBlkHandle *pHandle, char *buf);
@@ -582,7 +583,9 @@ static int32_t tableReadLoadMeta(STableReader *p) {
   int32_t lino = 0;
 
   SBlockWrapper wrapper = {0};
+  wrapper.type = BSE_TABLE_META_TYPE;
   code = tableReadLoadBlock(p, p->footer.metaHandle, &wrapper);
+
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (blockGetType(wrapper.data) != BSE_TABLE_META_TYPE) {
@@ -627,7 +630,7 @@ _error:
   }
   return code;
 }
-int32_t tableReadOpen(char *name, STableReader **pReader) {
+int32_t tableReadOpen(char *name, STableReader **pReader, void *pReaderMgt) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -649,6 +652,7 @@ int32_t tableReadOpen(char *name, STableReader **pReader) {
   p->blockCap = 1024;
 
   memcpy(p->name, name, strlen(name));
+  p->pReaderMgt = pReaderMgt;
 
   code = tableReadOpenImpl(p);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -680,11 +684,31 @@ int32_t tableReadLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = blockWrapperInit(blkWrapper, pHandle->size);
-  TSDB_CHECK_CODE(code, lino, _error);
+  STableReaderMgt *pRdMgt = p->pReaderMgt;
+  SSeqRange        range = pHandle->range;
 
-  code = tableLoadBlock(p->pDataFile, pHandle, blkWrapper, NULL);
-  TSDB_CHECK_CODE(code, lino, _error);
+  if (blkWrapper->type == BSE_TABLE_DATA_TYPE) {
+    SBlock *pBlock = NULL;
+    code = blockCacheGet(pRdMgt->pBlockCache, &range, &pBlock);
+    if (code == TSDB_CODE_NOT_FOUND) {
+      code = blockWrapperInit(blkWrapper, pHandle->size);
+      TSDB_CHECK_CODE(code, lino, _error);
+      code = tableLoadBlock(p->pDataFile, pHandle, blkWrapper, NULL);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      code = blockCachePut(pRdMgt->pBlockCache, &range, blkWrapper->data);
+      TSDB_CHECK_CODE(code, lino, _error);
+    } else if (code == TSDB_CODE_SUCCESS) {
+      blkWrapper->data = pBlock;
+      blkWrapper->cap = pHandle->size;
+    }
+  } else {
+    code = blockWrapperInit(blkWrapper, pHandle->size);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    code = tableLoadBlock(p->pDataFile, pHandle, blkWrapper, NULL);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
 
 _error:
   if (code != 0) {
@@ -699,11 +723,15 @@ int32_t tableReadSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, uin
   int32_t code = 0;
 
   SBlockWrapper wrapper = {0};
+  wrapper.type = BSE_TABLE_DATA_TYPE;
+
   code = tableReadLoadBlock(p, pHandle, &wrapper);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = blockSeek(wrapper.data, seq, pValue, len);
   TSDB_CHECK_CODE(code, lino, _error);
+
+  wrapper.data = NULL;
 _error:
   if (code != 0) {
     bseError("failed to seek data from table reader since %s at line %d", tstrerror(code), lino);
