@@ -154,7 +154,7 @@ class TDTestCase(TBase):
         # only native support csv import
         if mode == "":
             self.taos(f'{mode} -s "delete from {db}.d0" ')
-            self.taos(f'{mode} -s "insert into {db}.d0 file d0.csv" ')
+            self.taos(f'{mode} -Z 0 -s "insert into {db}.d0 file d0.csv" ')
         
         sql = f"select count(*) from {db}.d0"
         self.taos(f'{mode} -B -s "{sql}" ')
@@ -342,8 +342,8 @@ class TDTestCase(TBase):
     def checkModeVersion(self):    
 
         # check default conn mode        
-        #DEFAULT_CONN = "WebSocket"
-        DEFAULT_CONN = "Native"
+        DEFAULT_CONN = "WebSocket"
+        # DEFAULT_CONN = "Native"
 
         # results
         results = [
