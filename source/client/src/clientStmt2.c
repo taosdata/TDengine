@@ -1585,6 +1585,12 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
                                     pStmt->taos->optionInfo.charsetCxt);
       param->tblData.isOrdered = (*pDataBlock)->ordered;
       param->tblData.isDuplicateTs = (*pDataBlock)->duplicateTs;
+      if (!param->tblData.isOrdered) {
+        tscInfo("table %s is unordered", pStmt->bInfo.tbFName);
+      }
+      if (param->tblData.isDuplicateTs) {
+        tscInfo("table %s has duplicate ts", pStmt->bInfo.tbFName);
+      }
     } else {
       if (colIdx == -1) {
         if (pStmt->sql.bindRowFormat) {

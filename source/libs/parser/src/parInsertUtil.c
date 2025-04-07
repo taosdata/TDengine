@@ -639,10 +639,12 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     }
   }
 
-  if (!pTbData->isOrdered) {
-    code = tRowSort(pTbCtx->pData->aRowP);
-  }
+  // if (!pTbData->isOrdered) {
+  parserTrace("uid:%" PRId64 ", table data is disordered", pTbCtx->pMeta->uid);
+  code = tRowSort(pTbCtx->pData->aRowP);
+  // }
   if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
+    parserTrace("uid:%" PRId64 ", table data is DuplicateTs", pTbCtx->pMeta->uid);
     code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
   }
 
