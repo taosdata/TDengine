@@ -578,6 +578,9 @@ static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
   if(pScan->pVgroupList == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  if(TSDB_SYSTEM_TABLE != pScan->tableType) {
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t code = nodesMakeList(pDnodeConds);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
