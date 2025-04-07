@@ -281,7 +281,7 @@ List the software and tools required to work on the project.
 
 You can  set up the prerequisite software by following the step-by-step instructions.
 
-### 3.1.1 Install the required package
+### 3.3.1 Install the required package
 
 Download Visual Studio from the following link:
 
@@ -335,7 +335,7 @@ Enter in PowerShell to check if the installation is correct:
 go version
 ```
 
-Configuring Go environment variables:
+Configure Go environment variables:
 
 ```cmd
 go env -w GO111MODULE=on
@@ -477,7 +477,7 @@ make install
 <summary>Detailed steps to build on macOS</summary>
 
 
-Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and MacOS Big Sur.
 Clone TDinternal repository to a local directory (for example, /root).
 
 ```shell
@@ -564,7 +564,7 @@ ll /root/TDinternal/community/release
 ```
 </details>
 
-## 5.2 Packaing on macOS
+## 5.2 Package on macOS
 <details>
 
 <summary>Detailed steps to package on macOS</summary>
@@ -585,7 +585,7 @@ ll /root/TDinternal/community/release
 ```
 </details>
 
-## 5.3 Packaing on Windows
+## 5.3 Package on Windows
 <details>
 
 <summary>Detailed steps to package on Windows</summary>
@@ -814,7 +814,7 @@ bash test.sh
 
 #### 8.3.1.3 How to add new cases? 
 
-The Google test framwork is used for unit testing to specific function module, please refer to steps below to add a new test case:
+The Google test framework is used for unit testing to specific function module, please refer to steps below to add a new test case:
 
 ##### a. Create test case file and develop the test scripts
 
@@ -841,7 +841,7 @@ Use the add_test command to add new compiled test cases into CI test collection,
 
 ### 8.3.2 System Test
 
-System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different gruops in the future.
+System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different groups in the future.
 
 #### 8.3.2.1 How to run a single test case?
 
@@ -912,7 +912,7 @@ cd tests
 #### 8.3.3.3 How to add new cases?
 
 > **NOTE:**
-> TSIM test framwork is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#832-system-test) for details.
+> TSIM test framework is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#832-system-test) for details.
 
 
 ### 8.3.4 Smoke Test
@@ -963,7 +963,7 @@ cd tests
 
 #### 8.3.6.2 How to add new cases?
 
-Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test) and [Legacy Test](#833-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
+Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test) and [Legacy Test](#833-legacy-test) sections for detailed steps to add new test cases, when new cases are added in above tests, they will be run automatically by CI test.
 
 ### 8.3.7 TSBS Test
 
@@ -971,7 +971,7 @@ Please refer to [TSBS Test](https://github.com/taosdata/TDengine/blob/main/tests
 
 ### 8.3.8 TestNG Test
 
-TestNG Test is another test framwork which developed by python, functionally speaking, it's a supplement for system test, and also run longer time than system test for stability testing purposes.
+TestNG Test is another test framework which developed by python, functionally speaking, it's a supplement for system test, and also run longer time than system test for stability testing purposes.
 
 #### 8.3.8.1 How to run tests?
 
