@@ -150,7 +150,7 @@ jobs:
         id: cache-ext
         with:
           path: ${{ github.workspace }}/.externals
-          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-build-ext-v2 # this is tailing cache-version-tick
+          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-build-ext-v3 # this is tailing cache-version-tick
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
         name: Build externals on Linux and macOS
@@ -166,8 +166,8 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
-          .\build.bat gen -G "NMake Makefiles JOM"
-          .\build.bat bld --target build_externals -v
+          call .\build.bat gen -G "NMake Makefiles JOM"
+          call .\build.bat bld --target build_externals -v
 
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
@@ -187,9 +187,9 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
-          .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM"
-          .\build.bat bld -v
-          .\build.bat install
+          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM"
+          call .\build.bat bld -v
+          call .\build.bat install
           echo %PATH%
           dir C:\TDengine
           set PATH=%PATH%;C:\TDengine
@@ -212,11 +212,6 @@ jobs:
         run: |
           find ${{ github.workspace }}/debug/build/lib -type f -name "*.dylib" -print0 | xargs -0 otool -L || true
           find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 otool -L || true
-
-      - name: Statistics size
-        run: |
-          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lhrS
-          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lhrS
 
       - name: Start taosd on Linux and macOS
         if: runner.os != 'Windows'
