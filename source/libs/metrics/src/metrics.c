@@ -17,7 +17,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <time.h>
-#include "../inc/tmetrics.h"
+#include "metricsInt.h"
 #include "os.h"
 #include "osTimezone.h"
 #include "taoserror.h"
@@ -38,8 +38,8 @@ static TdThread        gMetricsThread;
 static bool            gMetricsRunning = false;
 static int64_t         gLastCollectTime = 0;
 
-static void  tmetrics_collect_metrics_callback(void* param, void* tmrId);
-static void* tmetrics_async_writer_fn(void* arg);
+static void             tmetrics_collect_metrics_callback(void* param, void* tmrId);
+static void*            tmetrics_async_writer_fn(void* arg);
 static SWriteMetricsEx* tmetrics_get_or_init_vnode_metrics(int32_t vgId);
 
 static void tmetrics_init_metric_def(SMetric* metric, const char* name, const char* description, EMetricType type,
