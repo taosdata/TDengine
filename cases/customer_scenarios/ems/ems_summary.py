@@ -117,6 +117,7 @@ class EMSQuery(TDCase):
 
                     # Skip NULL values
                     if ratio_str == 'NULL':
+                        time.sleep(0.5)
                         continue
 
                     # Check if ratio has changed
