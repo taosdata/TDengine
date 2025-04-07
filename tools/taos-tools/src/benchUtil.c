@@ -420,6 +420,20 @@ void closeBenchConn(SBenchConn* conn) {
     tmfree(conn);
 }
 
+int32_t queryDbExecRest(char *command, char* dbName, int precision,
+                    int iface, int protocol, bool tcp, int sockfd) {
+    int32_t code = postProceSql(command,
+                         dbName,
+                         precision,
+                         iface,
+                         protocol,
+                         g_arguments->port,
+                         tcp,
+                         sockfd,
+                         NULL);
+    return code;
+}
+
 int32_t queryDbExecCall(SBenchConn *conn, char *command) {
     int32_t code = 0;
     TAOS_RES *res = taos_query(conn->taos, command);
