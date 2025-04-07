@@ -58,30 +58,30 @@ typedef struct SStreamTriggerTask {
 #define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM TRACE ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-#define ST_TASK_FLOG(param, ...)                                                                          \
-  stFatal("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param, \
-          gTaskTypeStr[pStreamTask->type], pStreamTask->vgId, pStreamTask->streamId, pStreamTask->taskId, \
-          pStreamTask->cmdId, __VA_ARGS__)
-#define ST_TASK_ELOG(param, ...)                                                                          \
-  stError("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param, \
-          gTaskTypeStr[pStreamTask->type], pStreamTask->vgId, pStreamTask->streamId, pStreamTask->taskId, \
-          pStreamTask->cmdId, __VA_ARGS__)
-#define ST_TASK_WLOG(param, ...)                                                                         \
-  stWarn("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param, \
-         gTaskTypeStr[pStreamTask->type], pStreamTask->vgId, pStreamTask->streamId, pStreamTask->taskId, \
-         pStreamTask->cmdId, __VA_ARGS__)
-#define ST_TASK_ILOG(param, ...)                                                                         \
-  stInfo("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param, \
-         gTaskTypeStr[pStreamTask->type], pStreamTask->vgId, pStreamTask->streamId, pStreamTask->taskId, \
-         pStreamTask->cmdId, __VA_ARGS__)
-#define ST_TASK_DLOG(param, ...)                                                                          \
-  stDebug("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param, \
-          gTaskTypeStr[pStreamTask->type], pStreamTask->vgId, pStreamTask->streamId, pStreamTask->taskId, \
-          pStreamTask->cmdId, __VA_ARGS__)
-#define ST_TASK_TLOG(param, ...)                                                                          \
-  stTrace("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param, \
-          gTaskTypeStr[pStreamTask->type], pStreamTask->vgId, pStreamTask->streamId, pStreamTask->taskId, \
-          pStreamTask->cmdId, __VA_ARGS__)
+#define ST_TASK_FLOG(param, ...)                                                                                      \
+  stFatal("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+          ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
+#define ST_TASK_ELOG(param, ...)                                                                                      \
+  stError("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+          ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
+#define ST_TASK_WLOG(param, ...)                                                                                     \
+  stWarn("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+         gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+         ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
+#define ST_TASK_ILOG(param, ...)                                                                                     \
+  stInfo("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+         gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+         ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
+#define ST_TASK_DLOG(param, ...)                                                                                      \
+  stDebug("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+          ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
+#define ST_TASK_TLOG(param, ...)                                                                                      \
+  stTrace("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRId64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
+          ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
 
 #ifdef __cplusplus
 }
