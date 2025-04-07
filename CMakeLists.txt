@@ -29,12 +29,9 @@ endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 add_subdirectory(contrib)
-enable_testing()
 
-if(${BUILD_TEST})
-  include(CTest)
-  enable_testing()
-endif(${BUILD_TEST})
+include(CTest)
+enable_testing()
 
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
