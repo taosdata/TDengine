@@ -139,7 +139,7 @@ int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileSet) {
 static void tableReadeFree(void *pReader) {
   STableReader *p = (STableReader *)pReader;
   if (p != NULL) {
-    tableReadClose(p);
+    tableReaderClose(p);
   }
 }
 static void blockFree(void *pBlock) { taosMemFree(pBlock); }
@@ -209,17 +209,17 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
         char name[TSDB_FILENAME_LEN] = {0};
         bseBuildFullName((SBse *)pReaderMgt->pBse, pInfo->name, name);
 
-        code = tableReadOpen(name, &pReader, pReaderMgt);
+        code = tableReaderOpen(name, &pReader, pReaderMgt);
         TSDB_CHECK_CODE(code, lino, _error);
 
         code = tableCachePut(pReaderMgt->pTableCache, &range, pReader);
         if (code != 0) {
           bseError("failed to put table reader to cache since %s at line %d", tstrerror(code), lino);
-          tableReadClose(pReader);
+          tableReaderClose(pReader);
           TSDB_CHECK_CODE(code, lino, _error);
         }
       }
-      code = tableReadGet(pReader, seq, pValue, len);
+      code = tableReaderGet(pReader, seq, pValue, len);
       TSDB_CHECK_CODE(code, lino, _error);
     }
   }
@@ -228,7 +228,7 @@ _error:
     bseError("failed to seek table pReaderMgt since %s at line %d", tstrerror(code), lino);
   }
   if (pReader != NULL) {
-    tableReadClose(pReader);
+    tableReaderClose(pReader);
   }
   return code;
 }
@@ -327,7 +327,7 @@ int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch) {
     TSDB_CHECK_CODE(code, lino, _error);
   }
 
-  code = tableBuildPutBatch(p, pBatch);
+  code = tableBuilderPutBatch(p, pBatch);
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {
@@ -346,7 +346,7 @@ static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t 
   taosThreadMutexUnlock(&pMgt->mutex);
 
   if (pBuilder && inSeqRange(&pBuilder->tableRange, seq)) {
-    code = tableBuildGet(pBuilder, seq, pValue, len);
+    code = tableBuilderGet(pBuilder, seq, pValue, len);
   } else {
     code = TSDB_CODE_OUT_OF_RANGE;  //  continue to read from reader
   }
@@ -361,7 +361,7 @@ int32_t tableBuilderMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBui
   bseBuildDataName(pMgt->pBse, seq, path);
 
   STableBuilder *p = NULL;
-  code = tableBuildOpen(path, &p, pBse);
+  code = tableBuilderOpen(path, &p, pBse);
   if (code != 0) {
     return code;
   }
@@ -387,7 +387,7 @@ int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, i
 
   taosThreadMutexUnlock(&pMgt->mutex);
   if (pBuilder != NULL) {
-    code = tableBuildCommit(pBuilder, pInfo);
+    code = tableBuilderCommit(pBuilder, pInfo);
     TSDB_CHECK_CODE(code, lino, _error);
 
     *commited = 1;
@@ -401,7 +401,7 @@ _error:
 void tableBuilderMgtDestroy(STableBuilderMgt *pMgt) {
   for (int32_t i = 0; i < 2; i++) {
     if (pMgt->p[i] != NULL) {
-      tableBuildClose(pMgt->p[i], 0);
+      tableBuilderClose(pMgt->p[i], 0);
     }
   }
   taosThreadMutexDestroy(&pMgt->mutex);

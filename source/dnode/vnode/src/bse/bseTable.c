@@ -50,19 +50,19 @@ static void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
 static int32_t metaBlockAdd(SBlock *p, SBlkHandle *pInfo);
 
 // STable builder func
-static FORCE_INLINE int32_t tableBuildGetBlockSize(STableBuilder *p);
+static FORCE_INLINE int32_t tableBuilderGetBlockSize(STableBuilder *p);
 
-static void    tableBuildUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo);
-static void    tableBuildResetBlockRange(STableBuilder *p);
-static void    tableBuildResetRange(STableBuilder *p);
-static int32_t tableBuildLoadBlock(STableBuilder *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper);
-static int32_t tabldBuildSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len);
+static void    tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo);
+static void    tableBuilderResetBlockRange(STableBuilder *p);
+static void    tableBuilderResetRange(STableBuilder *p);
+static int32_t tableBuilderLoadBlock(STableBuilder *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper);
+static int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len);
+
 // STable pReaderMgt func
-static int32_t tableReadLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper);
-static int32_t tableReadSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len);
-static int32_t tableReadMayResizeLoadBuf(STableReader *p, int32_t size);
+static int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper);
+static int32_t tableReaderSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len);
 
-static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk, SBlockWrapper *phBlk);
+static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk);
 
 /*---block formate----*/
 //---datatype--|---len---|--data---|--rawdatasize---|--compressType---|---checksum---|
@@ -92,13 +92,14 @@ static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrappe
     (type) = *(int8_t *)((char *)(p) + len - BLOCK_TAIL_LEN + sizeof(int32_t)); \
   } while (0);
 
-static int32_t tabldBuildSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len) {
+static int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue,
+                                    int32_t *len) {
   int32_t code = 0;
   int32_t lino = 0;
 
   SBlockWrapper blockWrapper;
 
-  code = tableBuildLoadBlock(p, pHandle, &blockWrapper);
+  code = tableBuilderLoadBlock(p, pHandle, &blockWrapper);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = blockSeek(blockWrapper.data, seq, pValue, len);
@@ -112,13 +113,13 @@ _error:
   return code;
 }
 
-int32_t tableBuildLoadBlock(STableBuilder *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper) {
+int32_t tableBuilderLoadBlock(STableBuilder *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper) {
   int32_t code = 0;
   int32_t lino = 0;
   code = blockWrapperInit(pBlkWrapper, pHandle->size);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableLoadBlock(p->pDataFile, pHandle, pBlkWrapper, NULL);
+  code = tableLoadBlock(p->pDataFile, pHandle, pBlkWrapper);
 _error:
   if (code != 0) {
     bseError("failed to load block from table builder since %s at line %d", tstrerror(code), lino);
@@ -126,7 +127,7 @@ _error:
   return code;
 }
 
-int32_t tableBuildOpen(char *path, STableBuilder **pBuilder, SBse *pBse) {
+int32_t tableBuilderOpen(char *path, STableBuilder **pBuilder, SBse *pBse) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -155,15 +156,15 @@ int32_t tableBuildOpen(char *path, STableBuilder **pBuilder, SBse *pBse) {
   p->compressType = BSE_GET_COMPRESS_TYPE(pBse);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  tableBuildResetRange(p);
+  tableBuilderResetRange(p);
 
-  tableBuildResetBlockRange(p);
+  tableBuilderResetBlockRange(p);
   *pBuilder = p;
 
   return code;
 _error:
   if (code != 0) {
-    (void)tableBuildClose(p, 0);
+    (void)tableBuilderClose(p, 0);
     bseError("failed to open table builder since %s at line %d", tstrerror(code), lino);
   }
   return code;
@@ -181,7 +182,7 @@ int32_t tableBuildShouldOpenFile(STableBuilder *p) {
   }
   return 0;
 }
-int32_t tableBuildOpenFile(STableBuilder *p) {
+int32_t tableBuilderOpenFile(STableBuilder *p) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -225,7 +226,7 @@ _error:
   return code;
 }
 
-int32_t tableBuildFlush(STableBuilder *p, int8_t type) {
+int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -281,7 +282,7 @@ int32_t tableBuildFlush(STableBuilder *p, int8_t type) {
   p->offset += len;
   if (type == BSE_TABLE_DATA_TYPE) {
     taosArrayPush(p->pMetaHandle, &handle);
-    tableBuildResetBlockRange(p);
+    tableBuilderResetBlockRange(p);
   } else if (type == BSE_TABLE_META_TYPE) {
     p->footer.metaHandle[0] = handle;
   } else if (type == BSE_TABLE_INDEX_TYPE) {
@@ -302,7 +303,7 @@ int32_t tableBuildUpdateRange(STableBuilder *p, SBlockItemInfo *pInfo) {
   SSeqRange *pRange = &p->tableRange;
   if (pRange->sseq == -1) {
     pRange->sseq = pInfo->seq;
-    code = tableBuildOpenFile(p);
+    code = tableBuilderOpenFile(p);
     if (code != 0) {
       return code;
     }
@@ -310,25 +311,25 @@ int32_t tableBuildUpdateRange(STableBuilder *p, SBlockItemInfo *pInfo) {
   pRange->eseq = pInfo->seq;
   return code;
 }
-static void tableBuildResetRange(STableBuilder *p) {
+static void tableBuilderResetRange(STableBuilder *p) {
   p->tableRange.sseq = -1;
   p->tableRange.eseq = -1;
 }
 
-static void tableBuildUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo) {
+static void tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo) {
   SSeqRange *pRange = &p->blockRange;
   if (pRange->sseq == -1) {
     pRange->sseq = pInfo->seq;
   }
   pRange->eseq = pInfo->seq;
 }
-static void tableBuildResetBlockRange(STableBuilder *p) {
+static void tableBuilderResetBlockRange(STableBuilder *p) {
   p->blockRange.sseq = -1;
   p->blockRange.eseq = -1;
 }
 
 /*|seq len value|seq len value| seq len value| seq len value|*/
-int32_t tableBuildPutBatch(STableBuilder *p, SBseBatch *pBatch) {
+int32_t tableBuilderPutBatch(STableBuilder *p, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t len = 0, offset = 0;
@@ -340,16 +341,16 @@ int32_t tableBuildPutBatch(STableBuilder *p, SBseBatch *pBatch) {
       TSDB_CHECK_CODE(code, lino, _error);
     }
 
-    if (blockEsimateSize(p->pBlockWrapper.data, len + pInfo->size) <= tableBuildGetBlockSize(p)) {
+    if (blockEsimateSize(p->pBlockWrapper.data, len + pInfo->size) <= tableBuilderGetBlockSize(p)) {
       i++;
       len += pInfo->size;
-      tableBuildUpdateBlockRange(p, pInfo);
+      tableBuilderUpdateBlockRange(p, pInfo);
       continue;
     } else {
       if (len > 0) {
         offset += blockAppendBatch(p->pBlockWrapper.data, pBatch->buf + offset, len);
       }
-      code = tableBuildFlush(p, BSE_TABLE_DATA_TYPE);
+      code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE);
       TSDB_CHECK_CODE(code, lino, _error);
       len = 0;
     }
@@ -363,7 +364,7 @@ _error:
   }
   return code;
 }
-int32_t tableBuildPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len) {
+int32_t tableBuilderPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len) {
   int32_t        code = 0;
   int32_t        lino = 0;
   SBlockItemInfo info = {.size = len, .seq = *seq};
@@ -373,8 +374,8 @@ int32_t tableBuildPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t le
   // seqlen + valuelen + value
 
   int32_t extra = sizeof(*seq) + len + sizeof(len);
-  if (blockEsimateSize(p->pBlockWrapper.data, extra) >= tableBuildGetBlockSize(p)) {
-    code = tableBuildFlush(p, BSE_TABLE_DATA_TYPE);
+  if (blockEsimateSize(p->pBlockWrapper.data, extra) >= tableBuilderGetBlockSize(p)) {
+    code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE);
     TSDB_CHECK_CODE(code, lino, _error);
   }
 
@@ -402,7 +403,7 @@ static int32_t findTargetBlock(SArray *pMetaHandle, int64_t seq) {
   SBlkHandle handle = {.range = {.sseq = seq, .eseq = seq}};
   return taosArraySearchIdx(pMetaHandle, &handle, compareFunc, TD_LE);
 }
-int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len) {
+int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len) {
   if (p == NULL) {
     return TSDB_CODE_NOT_FOUND;
   }
@@ -417,7 +418,7 @@ int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *l
         return TSDB_CODE_NOT_FOUND;
       }
       pHandle = taosArrayGet(p->pMetaHandle, idx);
-      return tabldBuildSeekData(p, pHandle, seq, value, len);
+      return tableBuilderSeekData(p, pHandle, seq, value, len);
     }
   } else {
     return blockSeek(p->pBlockWrapper.data, seq, value, len);
@@ -480,24 +481,24 @@ int32_t tableBuildGenCommitInfo(STableBuilder *p, SBseLiveFileInfo *pInfo) {
 
   return code;
 }
-int32_t tableBuildCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
+int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tableBuildFlush(p, BSE_TABLE_DATA_TYPE);
+  code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableBuildAddMetaBlock(p);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableBuildFlush(p, BSE_TABLE_META_TYPE);
+  code = tableBuilderFlush(p, BSE_TABLE_META_TYPE);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableBuildAddFooter(p);
   TSDB_CHECK_CODE(code, lino, _error);
 
   tableBuildGenCommitInfo(p, pInfo);
-  tableBuildClear(p);
+  tableBuilderClear(p);
 
   return code;
 _error:
@@ -509,9 +510,9 @@ _error:
   return code;
 }
 
-static FORCE_INLINE int32_t tableBuildGetBlockSize(STableBuilder *p) { return p->blockCap; }
+static FORCE_INLINE int32_t tableBuilderGetBlockSize(STableBuilder *p) { return p->blockCap; }
 
-int32_t tableBuildClose(STableBuilder *p, int8_t commited) {
+int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
   int32_t code = 0;
   blockWrapperCleanup(&p->pBlockWrapper);
   taosArrayDestroy(p->pSeqToBlock);
@@ -520,7 +521,7 @@ int32_t tableBuildClose(STableBuilder *p, int8_t commited) {
   taosMemFree(p);
   return code;
 }
-void tableBuildClear(STableBuilder *p) {
+void tableBuilderClear(STableBuilder *p) {
   blockWrapperClear(&p->pBlockWrapper);
   taosCloseFile(&p->pDataFile);
   p->tableRange.sseq = -1;
@@ -578,13 +579,14 @@ _error:
   }
   return code;
 }
+
 static int32_t tableReadLoadMeta(STableReader *p) {
   int32_t code = 0;
   int32_t lino = 0;
 
   SBlockWrapper wrapper = {0};
   wrapper.type = BSE_TABLE_META_TYPE;
-  code = tableReadLoadBlock(p, p->footer.metaHandle, &wrapper);
+  code = tableReaderLoadBlock(p, p->footer.metaHandle, &wrapper);
 
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -630,7 +632,7 @@ _error:
   }
   return code;
 }
-int32_t tableReadOpen(char *name, STableReader **pReader, void *pReaderMgt) {
+int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -661,13 +663,13 @@ int32_t tableReadOpen(char *name, STableReader **pReader, void *pReaderMgt) {
 
 _error:
   if (code != 0) {
-    tableReadClose(p);
+    tableReaderClose(p);
     bseError("failed to open table pReaderMgt file %s since %s at line %d", name, tstrerror(code), lino);
   }
   return code;
 }
 
-int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len) {
+int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t     code = 0;
   SBlkHandle *pHandle = NULL;
   // opt later
@@ -677,10 +679,10 @@ int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *le
   }
 
   pHandle = taosArrayGet(p->pMetaHandle, idx);
-  return tableReadSeekData(p, pHandle, seq, pValue, len);
+  return tableReaderSeekData(p, pHandle, seq, pValue, len);
 }
 
-int32_t tableReadLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *blkWrapper) {
+int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *blkWrapper) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -693,7 +695,7 @@ int32_t tableReadLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *
     if (code == TSDB_CODE_NOT_FOUND) {
       code = blockWrapperInit(blkWrapper, pHandle->size);
       TSDB_CHECK_CODE(code, lino, _error);
-      code = tableLoadBlock(p->pDataFile, pHandle, blkWrapper, NULL);
+      code = tableLoadBlock(p->pDataFile, pHandle, blkWrapper);
       TSDB_CHECK_CODE(code, lino, _error);
 
       code = blockCachePut(pRdMgt->pBlockCache, &range, blkWrapper->data);
@@ -706,7 +708,7 @@ int32_t tableReadLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *
     code = blockWrapperInit(blkWrapper, pHandle->size);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    code = tableLoadBlock(p->pDataFile, pHandle, blkWrapper, NULL);
+    code = tableLoadBlock(p->pDataFile, pHandle, blkWrapper);
     TSDB_CHECK_CODE(code, lino, _error);
   }
 
@@ -718,14 +720,14 @@ _error:
   return code;
 }
 
-int32_t tableReadSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len) {
+int32_t tableReaderSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t lino = 0;
   int32_t code = 0;
 
   SBlockWrapper wrapper = {0};
   wrapper.type = BSE_TABLE_DATA_TYPE;
 
-  code = tableReadLoadBlock(p, pHandle, &wrapper);
+  code = tableReaderLoadBlock(p, pHandle, &wrapper);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = blockSeek(wrapper.data, seq, pValue, len);
@@ -739,7 +741,7 @@ _error:
   blockWrapperCleanup(&wrapper);
   return code;
 }
-int32_t tableReadClose(STableReader *p) {
+int32_t tableReaderClose(STableReader *p) {
   if (p == NULL) return 0;
   int32_t code = 0;
 
@@ -888,7 +890,7 @@ int32_t footerDecode(STableFooter *pFooter, char *buf) {
   return code;
 }
 
-static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlkW, SBlockWrapper *pHelpBlkW) {
+static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlkW) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SBlock  *pBlk = pBlkW->data;

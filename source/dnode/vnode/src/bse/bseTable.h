@@ -110,19 +110,19 @@ typedef struct {
   char    name[TSDB_FILENAME_LEN];
 } SBseLiveFileInfo;
 
-int32_t tableBuildOpen(char *path, STableBuilder **pBuilder, SBse *pBse);
-int32_t tableBuildPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len);
-int32_t tableBuildPutBatch(STableBuilder *p, SBseBatch *pBatch);
-int32_t tableBuildGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len);
-int32_t tableBuildFlush(STableBuilder *p, int8_t type);
-int32_t tableBuildCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
-int32_t tableBuildClose(STableBuilder *p, int8_t commited);
-void    tableBuildClear(STableBuilder *p);
-int32_t tableBuildOpenFile(STableBuilder *p);
+int32_t tableBuilderOpen(char *path, STableBuilder **pBuilder, SBse *pBse);
+int32_t tableBuilderPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len);
+int32_t tableBuilderPutBatch(STableBuilder *p, SBseBatch *pBatch);
+int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len);
+int32_t tableBuilderFlush(STableBuilder *p, int8_t type);
+int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
+int32_t tableBuilderClose(STableBuilder *p, int8_t commited);
+void    tableBuilderClear(STableBuilder *p);
+int32_t tableBuilderOpenFile(STableBuilder *p);
 
-int32_t tableReadOpen(char *name, STableReader **pReader, void *pReaderMgt);
-int32_t tableReadGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
-int32_t tableReadClose(STableReader *p);
+int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt);
+int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
+int32_t tableReaderClose(STableReader *p);
 
 #ifdef __cplusplus
 }

@@ -39,29 +39,6 @@ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
-// void tqWriteOffset() {
-//   TdFilePtr pFile = taosOpenFile(TQ_OFFSET_NAME, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
-
-//   STqOffset offset = {.val = {.type = TMQ_OFFSET__LOG, .version = 8923}};
-//   strcpy(offset.subKey, "testtest");
-//   int32_t    bodyLen;
-//   int32_t    code;
-//   tEncodeSize(tEncodeSTqOffset, &offset, bodyLen, code);
-//   int32_t totLen = INT_BYTES + bodyLen;
-//   void*   buf = taosMemoryCalloc(1, totLen);
-//   void*   abuf = POINTER_SHIFT(buf, INT_BYTES);
-
-//   *(int32_t*)buf = htonl(bodyLen);
-//   SEncoder encoder;
-//   tEncoderInit(&encoder, (uint8_t*)abuf, bodyLen);
-//   tEncodeSTqOffset(&encoder, &offset);
-//   taosWriteFile(pFile, buf, totLen);
-
-//   taosMemoryFree(buf);
-
-//   taosCloseFile(&pFile);
-// }
-
 static void initLog() {
     dDebugFlag = 143;
     vDebugFlag = 0;
@@ -141,7 +118,9 @@ TEST(bseCase, openTest) {
 
     
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+
     putData(bse, 1000, 100, &data);
+    getData(bse, &data);
 
     bseCommit(bse);
     getData(bse, &data);

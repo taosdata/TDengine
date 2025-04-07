@@ -24,10 +24,9 @@ extern "C" {
 #endif
 
 typedef struct {
-  int32_t        cap;
-  int32_t        size;
-  void          *pCache;
-  TdThreadRwlock rwlock;
+  int32_t cap;
+  int32_t size;
+  void   *pCache;
 } STableCache;
 
 typedef void (*CacheFreeFn)(void *p);
@@ -42,7 +41,6 @@ typedef struct {
   int32_t size;
   void   *pCache;
 
-  TdThreadRwlock rwlock;
 } SBlockCache;
 
 int32_t blockCacheOpen(int32_t cap, CacheFreeFn fn, SBlockCache **p);
