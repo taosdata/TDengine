@@ -525,7 +525,7 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs) {
           pSupp->inputPrecision = pTsNode->node.resType.precision;
           pSupp->inputValSlot = pValNode->slotId;
           pSupp->inputValType = pValNode->node.resType.type;
-          tstrncpy(pSupp->algoOpt, "algo=arima", TSDB_ANALYTIC_ALGO_OPTION_LEN);
+          tstrncpy(pSupp->algoOpt, "algo=holtwinters", TSDB_ANALYTIC_ALGO_OPTION_LEN);
         } else {
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
