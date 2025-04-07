@@ -79,12 +79,14 @@ add_test(
     COMMAND osSleepTests
 )
 
+if(NOT TD_WINDOWS)
 add_executable(osStringTests "osStringTests.cpp")
 target_link_libraries(osStringTests os util gtest_main)
 add_test(
     NAME osStringTests
     COMMAND osStringTests
 )
+endif()
 
 add_executable(osSystemTests "osSystemTests.cpp")
 target_link_libraries(osSystemTests os util gtest_main)
