@@ -1,6 +1,7 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """forecast helper methods"""
+import time
 
 import numpy as np
 import pandas as pd
@@ -23,10 +24,12 @@ def do_forecast(input_list, ts_list, algo_name, params):
     s.set_input_list(input_list, ts_list)
     s.set_params(params)
 
+    start = time.time()
     app_logger.log_inst.debug("start to do forecast")
+
     res = s.execute()
 
-    app_logger.log_inst.debug("forecast done")
+    app_logger.log_inst.debug("forecast done, elapsed time:%.2fms", (time.time() - start) * 1000)
 
     res["period"] = s.period
     res["algo"] = algo_name
