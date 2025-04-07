@@ -112,7 +112,7 @@ class EMSQuery(TDCase):
             # Check response structure and data
             if self.tdRest.resp.get('code') == 0 and self.tdRest.resp.get('data'):
                 query_res = self.tdRest.resp['data'][0][0]
-                if 'Compress_radio' in query_res or 'Compress_ratio in query_res':
+                if 'Compress_radio' in query_res or 'Compress_ratio' in query_res:
                     ratio_str = query_res.split("=")[1].replace("[", "").replace("]", "")
 
                     # Skip NULL values
