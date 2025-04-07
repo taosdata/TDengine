@@ -302,6 +302,7 @@ void initArgument() {
     g_arguments->keep_trying = 0;
     g_arguments->trying_interval = 0;
     g_arguments->iface = TAOSC_IFACE;
+    g_arguments->rest_server_ver_major = -1;
     g_arguments->inputted_vgroups = -1;
 
     g_arguments->mistMode = false;

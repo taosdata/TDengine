@@ -767,6 +767,7 @@ typedef struct SArguments_S {
     uint64_t            insert_interval;
     bool                demo_mode;
     bool                aggr_func;
+    struct sockaddr_in  serv_addr;
     uint64_t            totalChildTables;
     uint64_t            actualChildTables;
     uint64_t            autoCreatedChildTables;
@@ -790,6 +791,7 @@ typedef struct SArguments_S {
     int32_t             keep_trying;
     uint32_t            trying_interval;
     int                 iface;
+    int                 rest_server_ver_major;
     bool                check_sql;
     int                 suit;  // see define SUIT_
     int16_t             inputted_vgroups;
@@ -938,10 +940,18 @@ void    tmfclose(FILE *fp);
 int64_t fetchResult(TAOS_RES *res, char *filePath);
 void    prompt(bool NonStopMode);
 void    ERROR_EXIT(const char *msg);
+int     getServerVersionRest(int16_t rest_port);
+int     postProceSql(char *sqlstr, char* dbName, int precision, int iface,
+                    int protocol, uint16_t rest_port, bool tcp,
+                    int sockfd, char* filePath);
 int     queryDbExecCall(SBenchConn *conn, char *command);
+int     queryDbExecRest(char *command, char* dbName, int precision,
+                    int iface, int protocol, bool tcp, int sockfd);
 SBenchConn* initBenchConn();
 void    closeBenchConn(SBenchConn* conn);
 int     regexMatch(const char *s, const char *reg, int cflags);
+int     convertHostToServAddr(char *host, uint16_t port,
+                              struct sockaddr_in *serv_addr);
 int     getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
                                     char ** childTblNameOfSuperTbl,
                                     int64_t childTblCountOfSuperTbl);

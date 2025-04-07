@@ -191,25 +191,45 @@ static int getSuperTableFromServer(SDataBase* database, SSuperTable* stbInfo) {
 static int queryDbExec(SDataBase *database,
                        SSuperTable *stbInfo, char *command) {
     int ret = 0;
-    SBenchConn* conn = initBenchConn();
-    if (NULL == conn) {
-        ret = -1;
-    } else {
-        ret = queryDbExecCall(conn, command);
-        int32_t trying = g_arguments->keep_trying;
-        while (ret && trying) {
-            infoPrint("will sleep %"PRIu32" milliseconds then re-execute command: %s\n",
-                        g_arguments->trying_interval, command);
-            toolsMsleep(g_arguments->trying_interval);
-            ret = queryDbExecCall(conn, command);
-            if (trying != -1) {
-                trying--;
-            }
+    if (isRest(stbInfo->iface)) {
+        if (0 != convertServAddr(stbInfo->iface, false, 1)) {
+            errorPrint("%s", "Failed to convert server address\n");
+            return -1;
         }
-        if (0 != ret) {
+        int sockfd = createSockFd();
+        if (sockfd < 0) {
             ret = -1;
+        } else {
+            ret = queryDbExecRest(command,
+                              database->dbName,
+                              database->precision,
+                              stbInfo->iface,
+                              stbInfo->lineProtocol,
+                              stbInfo->tcpTransfer,
+                              sockfd);
+            destroySockFd(sockfd);
         }
-        closeBenchConn(conn);
+    } else {
+        SBenchConn* conn = initBenchConn();
+        if (NULL == conn) {
+            ret = -1;
+        } else {
+            ret = queryDbExecCall(conn, command);
+            int32_t trying = g_arguments->keep_trying;
+            while (ret && trying) {
+                infoPrint("will sleep %"PRIu32" milliseconds then re-execute command: %s\n",
+                          g_arguments->trying_interval, command);
+                toolsMsleep(g_arguments->trying_interval);
+                ret = queryDbExecCall(conn, command);
+                if (trying != -1) {
+                    trying--;
+                }
+            }
+            if (0 != ret) {
+                ret = -1;
+            }
+            closeBenchConn(conn);
+        }
     }
 
     return ret;
@@ -4509,11 +4529,31 @@ int insertTestProcess() {
     // if only one stable, global iface same with stable->iface
     changeGlobalIface();
 
+    // move from loop to here
+    if (isRest(g_arguments->iface)) {
+        if (0 != convertServAddr(g_arguments->iface,
+                                 false,
+                                 1)) {
+            return -1;
+        }
+    }    
+
     //loop create database 
     for (int i = 0; i < g_arguments->databases->size; i++) {
         SDataBase * database = benchArrayGet(g_arguments->databases, i);
 
         if (database->drop && !(g_arguments->supplementInsert)) {
+            if (database->superTbls && database->superTbls->size > 0) {
+                SSuperTable * stbInfo = benchArrayGet(database->superTbls, 0);
+                if (stbInfo && isRest(stbInfo->iface)) {
+                    if (0 != convertServAddr(stbInfo->iface,
+                                             stbInfo->tcpTransfer,
+                                             stbInfo->lineProtocol)) {
+                        return -1;
+                    }
+                }
+            }
+
             if (createDatabase(database)) {
                 errorPrint("failed to create database (%s)\n",
                         database->dbName);

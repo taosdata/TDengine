@@ -168,6 +168,51 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
     return 0;
 }
 
+int convertHostToServAddr(char *host, uint16_t port,
+        struct sockaddr_in *serv_addr) {
+    if (!host) {
+        errorPrint("%s", "convertHostToServAddr host is null.");
+        return -1;
+    }
+    debugPrint("convertHostToServAddr(host: %s, port: %d)\n", host,
+            port);
+#ifdef WINDOWS
+    WSADATA wsaData;
+    int ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (ret) {
+        return ret;
+    }
+#endif
+    struct hostent *server = gethostbyname(host);
+    if ((server == NULL) || (server->h_addr == NULL)) {
+        errorPrint("%s", "no such host");
+        return -1;
+    }
+    memset(serv_addr, 0, sizeof(struct sockaddr_in));
+    serv_addr->sin_family = AF_INET;
+    serv_addr->sin_port = htons(port);
+
+#ifdef WINDOWS
+    struct addrinfo  hints = {0};
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    struct addrinfo *pai = NULL;
+
+    if (!getaddrinfo(server->h_name, NULL, &hints, &pai)) {
+        serv_addr->sin_addr.s_addr =
+               ((struct sockaddr_in *) pai->ai_addr)->sin_addr.s_addr;
+        freeaddrinfo(pai);
+    }
+    WSACleanup();
+#else
+    serv_addr->sin_addr.s_addr = inet_addr(host);
+    memcpy(&(serv_addr->sin_addr.s_addr), server->h_addr, server->h_length);
+#endif
+    return 0;
+}
+
+
 void prompt(bool nonStopMode) {
     if (!g_arguments->answer_yes) {
         g_arguments->in_prompt = true;
