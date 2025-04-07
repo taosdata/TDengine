@@ -261,6 +261,8 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 stbInfo->iface = STMT_IFACE;
             } else if (0 == strcasecmp(arg, "stmt2")) {
                 stbInfo->iface = STMT2_IFACE;
+            } else if (0 == strcasecmp(arg, "rest")) {
+                stbInfo->iface = REST_IFACE;
             } else if (0 == strcasecmp(arg, "sml")
                     || 0 == strcasecmp(arg, "sml-line")) {
                 stbInfo->iface = SML_IFACE;
@@ -273,6 +275,19 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 stbInfo->lineProtocol = TSDB_SML_JSON_PROTOCOL;
             } else if (0 == strcasecmp(arg, "sml-taosjson")) {
                 stbInfo->iface = SML_IFACE;
+                stbInfo->lineProtocol = SML_JSON_TAOS_FORMAT;
+            } else if (0 == strcasecmp(arg, "sml-rest")
+                   || (0 == strcasecmp(arg, "sml-rest-line"))) {
+                stbInfo->iface        = SML_REST_IFACE;
+                stbInfo->lineProtocol = TSDB_SML_LINE_PROTOCOL;
+            } else if (0 == strcasecmp(arg, "sml-rest-telnet")) {
+                stbInfo->iface        = SML_REST_IFACE;
+                stbInfo->lineProtocol = TSDB_SML_TELNET_PROTOCOL;
+            } else if (0 == strcasecmp(arg, "sml-rest-json")) {
+                stbInfo->iface        = SML_REST_IFACE;
+                stbInfo->lineProtocol = TSDB_SML_JSON_PROTOCOL;
+            } else if (0 == strcasecmp(arg, "sml-rest-taosjson")) {
+                stbInfo->iface        = SML_REST_IFACE;
                 stbInfo->lineProtocol = SML_JSON_TAOS_FORMAT;
             } else {
                 errorPrint(

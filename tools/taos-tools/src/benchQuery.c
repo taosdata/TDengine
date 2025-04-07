@@ -23,45 +23,57 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
     }
 
     // execute sql
+    uint32_t threadID = pThreadInfo->threadID;
     char dbName[TSDB_DB_NAME_LEN] = {0};
     TOOLS_STRNCPY(dbName, g_queryInfo.dbName, TSDB_DB_NAME_LEN);
 
-    // query
-    TAOS *taos = pThreadInfo->conn->taos;
-    int64_t rows  = 0;
-    TAOS_RES *res = taos_query(taos, command);
-    int code = taos_errno(res);
-    if (res == NULL || code) {
-        // failed query
-        errorPrint("failed to execute sql:%s, "
-                    "code: 0x%08x, reason:%s\n",
-                    command, code, taos_errstr(res));
-        ret = -1;
+    if (g_queryInfo.iface == REST_IFACE) {
+        int retCode = postProceSql(command, g_queryInfo.dbName, 0, REST_IFACE,
+                                   0, g_arguments->port, false,
+                                   pThreadInfo->sockfd, pThreadInfo->filePath);
+        if (0 != retCode) {
+            errorPrint("====restful return fail, threadID[%u]\n",
+                       threadID);
+            ret = -1;
+        }
     } else {
-        // succ query
-        if (record)
-            rows = fetchResult(res, pThreadInfo->filePath);
-    }
+        // query
+        TAOS *taos = pThreadInfo->conn->taos;
+        int64_t rows  = 0;
+        TAOS_RES *res = taos_query(taos, command);
+        int code = taos_errno(res);
+        if (res == NULL || code) {
+            // failed query
+            errorPrint("failed to execute sql:%s, "
+                        "code: 0x%08x, reason:%s\n",
+                        command, code, taos_errstr(res));
+            ret = -1;
+        } else {
+            // succ query
+            if (record)
+                rows = fetchResult(res, pThreadInfo->filePath);
+        }
 
-    // free result
-    if (res) {
-        taos_free_result(res);
-    }
-    debugPrint("query sql:%s rows:%"PRId64"\n", command, rows);
+        // free result
+        if (res) {
+            taos_free_result(res);
+        }
+        debugPrint("query sql:%s rows:%"PRId64"\n", command, rows);
 
-    // record count
-    if (ret ==0) {
-        // succ
-        if (record) 
-            pThreadInfo->nSucc ++;
-    } else {
-        // fail
-        if (record)
-            pThreadInfo->nFail ++;
+        // record count
+        if (ret ==0) {
+            // succ
+            if (record) 
+                pThreadInfo->nSucc ++;
+        } else {
+            // fail
+            if (record)
+                pThreadInfo->nFail ++;
 
-        // continue option
-        if (YES_IF_FAILED == g_arguments->continueIfFail) {
-            ret = 0; // force continue
+            // continue option
+            if (YES_IF_FAILED == g_arguments->continueIfFail) {
+                ret = 0; // force continue
+            }
         }
     }
 
@@ -1065,6 +1077,20 @@ void totalQuery(int64_t spends) {
 
 int queryTestProcess() {
     prompt(0);
+
+    if (REST_IFACE == g_queryInfo.iface) {
+        encodeAuthBase64();
+    }
+
+    // covert addr
+    if (g_queryInfo.iface == REST_IFACE) {
+        if (convertHostToServAddr(g_arguments->host,
+                    g_arguments->port + TSDB_PORT_HTTP,
+                    &(g_arguments->serv_addr)) != 0) {
+            errorPrint("%s", "convert host to server address\n");
+            return -1;
+        }
+    }    
 
     // kill sql for executing seconds over "kill_slow_query_threshold"
     if (g_queryInfo.iface == TAOSC_IFACE && g_queryInfo.killQueryThreshold) {

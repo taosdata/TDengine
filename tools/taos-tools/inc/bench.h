@@ -275,9 +275,11 @@ enum enumSYNC_MODE { SYNC_MODE, ASYNC_MODE, MODE_BUT };
 
 enum enum_TAOS_INTERFACE {
     TAOSC_IFACE,
+    REST_IFACE,
     STMT_IFACE,
     STMT2_IFACE,
     SML_IFACE,
+    SML_REST_IFACE,    
     INTERFACE_BUT
 };
 
@@ -985,6 +987,9 @@ int  insertTestProcess();
 void postFreeResource();
 int queryTestProcess();
 int subscribeTestProcess();
+int convertServAddr(int iface, bool tcp, int protocol);
+int createSockFd();
+void destroySockFd(int sockfd);
 
 void printVersion();
 int32_t benchParseSingleOpt(int32_t key, char* arg);
@@ -1030,6 +1035,9 @@ void resetBindV(TAOS_STMT2_BINDV *bindv, int32_t capacity, int32_t tagCnt, int32
 void clearBindV(TAOS_STMT2_BINDV *bindv);
 void freeBindV(TAOS_STMT2_BINDV *bindv);
 void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols);
+
+// IFace is rest return True
+bool isRest(int32_t iface);
 
 // get group index about dbname.tbname
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
