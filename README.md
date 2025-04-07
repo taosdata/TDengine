@@ -302,7 +302,7 @@ Download and install msys2 from the following link, then set path for msys2(like
 https://mirrors.tuna.tsinghua.edu.cn/msys2/distrib/x86_64/
 ```
 
-Configuring msys2 path:
+Configure msys2 path:
 
 ```cmd
 setx PATH "%PATH%;C:\msys64\usr\bin" /M
