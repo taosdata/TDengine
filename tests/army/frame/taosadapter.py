@@ -135,6 +135,7 @@ class TAdapter:
         self.log_dir = os.path.join(self.path,"sim","dnode1","log")
         self.cfg_dir = os.path.join(self.path,"sim","dnode1","cfg")
         self.cfg_path = os.path.join(self.cfg_dir,"taosadapter.toml")
+        self.taosc_cfg_dir = os.path.join(self.path,"sim","psim","cfg")
 
         cmd = f"touch {self.cfg_path}"
         if os.system(cmd) != 0:
@@ -162,9 +163,9 @@ class TAdapter:
             tdLog.info(f"taosadapter found: {bin_path}")
 
         if platform.system().lower() == 'windows':
-            cmd = f"mintty -h never {bin_path} -c {self.cfg_path} --taosConfigDir {self.cfg_dir}"
+            cmd = f"mintty -h never {bin_path} -c {self.cfg_path} --taosConfigDir {self.taosc_cfg_dir}"
         else:
-            cmd = f"nohup {bin_path} -c {self.cfg_path} --taosConfigDir {self.cfg_dir} > /dev/null & "
+            cmd = f"nohup {bin_path} -c {self.cfg_path} --taosConfigDir {self.taosc_cfg_dir} > /dev/null & "
 
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
@@ -208,9 +209,9 @@ class TAdapter:
             tdLog.exit("taosadapter is not deployed")
 
         if platform.system().lower() == 'windows':
-            cmd = f"mintty -h never {bin_path} -c {self.cfg_dir} --taosConfigDir {self.cfg_dir}"
+            cmd = f"mintty -h never {bin_path} -c {self.cfg_dir} --taosConfigDir {self.taosc_cfg_dir}"
         else:
-            cmd = f"nohup {bin_path} -c {self.cfg_path} --taosConfigDir {self.cfg_dir} > /dev/null & "
+            cmd = f"nohup {bin_path} -c {self.cfg_path} --taosConfigDir {self.taosc_cfg_dir} > /dev/null & "
 
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
