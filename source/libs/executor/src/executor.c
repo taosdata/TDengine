@@ -626,14 +626,6 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo) { return ((SExecTaskInfo*)tinfo)->dynamicTask; }
 
-void destroyOperatorParam(SOperatorParam* pParam) {
-  if (NULL == pParam) {
-    return;
-  }
-
-  // TODO
-}
-
 void qDestroyOperatorParam(SOperatorParam* pParam) {
   if (NULL == pParam) {
     return;
@@ -642,8 +634,7 @@ void qDestroyOperatorParam(SOperatorParam* pParam) {
 }
 
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
-  destroyOperatorParam(((SExecTaskInfo*)tinfo)->pOpParam);
-  ((SExecTaskInfo*)tinfo)->pOpParam = pParam;
+  TSWAP(pParam, ((SExecTaskInfo*)tinfo)->pOpParam);
   ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
 
