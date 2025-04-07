@@ -94,5 +94,3 @@ if(${BUILD_DEPENDENCY_TESTS})
     add_subdirectory(test EXCLUDE_FROM_ALL)
 endif(${BUILD_DEPENDENCY_TESTS})
 
-add_subdirectory(TSZ)
-

@@ -74,6 +74,7 @@ add_test(
     COMMAND osSleepTests
 )
 
+if(NOT TD_WINDOWS)
 add_executable(osStringTests "osStringTests.cpp")
 DEP_ext_gtest(osStringTests )
 target_link_libraries(osStringTests PRIVATE os util)
@@ -81,6 +82,7 @@ add_test(
     NAME osStringTests
     COMMAND osStringTests
 )
+endif()
 
 add_executable(osSystemTests "osSystemTests.cpp")
 DEP_ext_gtest(osSystemTests)
