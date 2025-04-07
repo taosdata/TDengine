@@ -6,15 +6,15 @@ app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 _model_list = [
-    'chronos-bolt-tiny',  # 9M parameters, based on t5-efficient-tiny
-    'chronos-bolt-mini',  # 21M parameters, based on	t5-efficient-mini
-    'chronos-bolt-small',  # 48M parameters, based on	t5-efficient-small
-    'chronos-bolt-base',  # 205M parameters, based on	t5-efficient-base
+    'amazon/chronos-bolt-tiny',  # 9M parameters, based on t5-efficient-tiny
+    'amazon/chronos-bolt-mini',  # 21M parameters, based on	t5-efficient-mini
+    'amazon/chronos-bolt-small',  # 48M parameters, based on t5-efficient-small
+    'amazon/chronos-bolt-base',  # 205M parameters, based on t5-efficient-base
 ]
 
 model = BaseChronosPipeline.from_pretrained(
     _model_list[0],
-    device_map=device,  # use "cpu" for CPU inference
+    device_map=device,
     torch_dtype=torch.bfloat16,
 )
 
