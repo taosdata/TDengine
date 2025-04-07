@@ -18,6 +18,8 @@
 #include "tsdbFS2.h"
 #include "vnd.h"
 
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
+
 typedef struct {
   STsdb  *tsdb;
   int32_t szPage;
@@ -678,8 +680,6 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
     int32_t r = taosStatFile(fobj->fname, &size, &mtime, NULL);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
       if (pCfg->s3Compact && lcn < 0) {
-        extern int32_t tsdbAsyncCompact(STsdb * tsdb, const STimeWindow *tw, bool s3Migrate);
-
         STimeWindow win = {0};
         tsdbFidKeyRange(fset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
 
