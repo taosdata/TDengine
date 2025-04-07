@@ -10,7 +10,7 @@ TDengine 的安装部署对环境系统有一定的依赖和要求，安装部�
 
 ## 安装件检查工具使用方法
 
-工具支持通过help参数查看支持的语法
+工具支持通过 help 参数查看支持的语法
 
 ```help
 Usage: taosprecheck [OPTIONS]
@@ -29,18 +29,18 @@ Options:
 
 ### 参数详细说明
 
-- `model`：预配置工具运行模式，分为local和ssh。安装环境的多节点间支持SSH通信，可选择ssh模式，在任意节点上运行预配置工具，会依次对所有节点环境完成预配置操作。反之，节点间不支持SSH通信时，可选择local模式，仅对工具运行所在机器完成预配置操作，默认为local模式。
-- `config`：预配置工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置config参数时配置文件默认路径为工具运行当前目录。
-- `check-perf`：是否监测磁盘写入性能，若置为True则会基于perf或dd性能测试工具对环境的磁盘进行简单的写入性能测试并生成测试报告，默认为False
-- `backend`：后台运行预配置工具，选择True后预配置工具在自动在后台运行，默认为False。
+- `model`：预配置工具运行模式，分为 local 和 ssh。安装环境的多节点间支持 SSH 通信，可选择 ssh 模式，在任意节点上运行预配置工具，会依次对所有节点环境完成预配置操作。反之，节点间不支持 SSH 通信时，可选择 local 模式，仅对工具运行所在机器完成预配置操作，默认为 local 模式。
+- `config`：预配置工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认路径为工具运行当前目录。
+- `check-perf`：是否监测磁盘写入性能，若置为 True 则会基于 perf 或 dd 性能测试工具对环境的磁盘进行简单的写入性能测试并生成测试报告，默认为 False
+- `backend`：后台运行预配置工具，选择 True 后预配置工具在自动在后台运行，默认为 False。
 - `version`：打印预配置工具版本信息。
 
 ### 配置文件使用说明
 
 ```config
-# 安装部署TDengine的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后可不用配置password信息
+# 安装部署 TDengine 的环境信息，支持免密登录和 SSH 登录两种方式，当环境配置了免密登录后可不用配置 password 信息
 [test_env]
-# 节点间通过SSH协议访问
+# 节点间通过 SSH 协议访问
 firstep=192.168.0.1||fqdn=tdengine1||username=root||password=123456||port=22
 secondep=192.168.0.2||fqdn=tdengine2||username=root||password=123456||port=22
 dnode3=192.168.0.3||fqdn=tdengine3||username=root||username=123456||port=22
@@ -59,17 +59,17 @@ tz=Asia/Shanghai
 firewall=inactive
 selinux=inactive
 
-# coredump配置，工具会按照下面配置coredump的生成路径
+# coredump 配置，工具会按照下面配置 coredump 的生成路径
 [coredump]
 kernel.core_pattern=/data/taos/core/core-%%e-%%p
 
-# /etc/sysctl.conf中系统参数，工具会按照下面配置修改系统参数值
+# /etc/sysctl.conf 中系统参数，工具会按照下面配置修改系统参数值
 [sys_vars:/etc/sysctl.conf]
 fs.nr_open=2147483584
 fs.file-max=2147483584
 net.ipv4.ip_local_port_range=10000 65534
 
-# /etc/security/limits.conf中系统参数，工具会按照下面配置修改系统参数值
+# /etc/security/limits.conf 中系统参数，工具会按照下面配置修改系统参数值
 [sys_vars:/etc/security/limits.conf]
 * soft nproc=65536
 * soft nofile=2147483584
@@ -103,37 +103,37 @@ app12=wget
 
 | **检查项目** | **详细说明** |
 |:--|:----------|
-| **CPU配置** | CPU型号、核数 |
+| **CPU 配置** | CPU 型号、核数 |
 | **内存配置** | 物理内存和虚拟内存大小 |
-| **磁盘配置** | 磁盘空间、磁盘类型、磁盘挂载信息、fstab信息和当前磁盘使用情况 |
-| **网络配置** | SSH服务状态、22端口是否可用和网络贷款 |   
-| **系统配置** | 系统名称、当前时区配置、防火墙和SElinux服务状态 | 
-| **coredump配置** | coredump路径是否配置 | 
-| **域名解析配置** | /etd/hosts文件是否包含安装TDengine集群所有节点的域名解析信息 | 
+| **磁盘配置** | 磁盘空间、磁盘类型、磁盘挂载信息、fsblk 信息和当前磁盘使用情况 |
+| **网络配置** | SSH 服务状态、22 端口是否可用和网络贷款 |   
+| **系统配置** | 系统名称、当前时区配置、防火墙和 SElinux 服务状态 | 
+| **coredump 配置** | coredump 路径是否配置 | 
+| **域名解析配置** | /etd/hosts 文件是否包含安装 TDengine 集群所有节点的域名解析信息 | 
 | **预安装软件** | 指定的原装软件是否已安装，若安装记录其版本 |
-| **SWAP配置** | SWAP状态和SWAP的当前配置 |
-| **KYSEC配置** | KYSEC服务是否关闭，该项检查仅针对麒麟系统 |
+| **SWAP 配置** | SWAP 状态和 SWAP 的当前配置 |
+| **KYSEC 配置** | KYSEC 服务是否关闭，该项检查仅针对麒麟系统 |
 | **系统参数配置** | 检查系统参数值是否与配置文件中指定系统参数的配置一致 |
 | **时间同步配置** | 时间同步工具是否安装并计算各节点间的时间偏差，精确到秒 |
 
 ## 结果文件
-安装前检查工具运行后会在工具运行当前目录下生成precheck_report.md和precheck_advice.md两个文件，其中precheck_report.md包含了检查结果，precheck_advice.md包含了基于检查结果的一些环境配置建议。
+安装前检查工具运行后会在工具运行当前目录下生成 precheck_report.md 和 precheck_advice.md 两个文件，其中 precheck_report.md 包含了检查结果，precheck_advice.md 包含了基于检查结果的一些环境配置建议。
 
 ## 应用示例
 
-在工具所在节点以local模式执行安装前检查
+在工具所在节点以 local 模式执行安装前检查
 ```
 ./taosprecheck
 ```
-以SSH模式在所有节点执行安装前检查
+以 SSH 模式在所有节点执行安装前检查
 ```
 ./taosprecheck -m ssh
 ```
-指定配置文件并以SSH模式在所有节点执行安装前检查
+指定配置文件并以 SSH 模式在所有节点执行安装前检查
 ```
 ./taosprecheck -m ssh -f /path_to_file/precheck.cfg
 ```
-以SSH模式在所有节点执行安装前检查，包括检查磁盘写入性能
+以 SSH 模式在所有节点执行安装前检查，包括检查磁盘写入性能
 ```
 ./taosprecheck -m ssh -c true
 ```

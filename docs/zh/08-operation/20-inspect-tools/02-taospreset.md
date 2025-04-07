@@ -10,7 +10,7 @@ TDengine 的安装部署对环境系统有一定的依赖和要求，安装部�
 
 ## 预配置工具使用方法
 
-工具支持通过help参数查看支持的语法
+工具支持通过 help 参数查看支持的语法
 
 ```help
 Usage: taospreset [OPTIONS]
@@ -28,18 +28,18 @@ Options:
 
 ### 参数详细说明
 
-- `model`：预配置工具运行模式，分为local和ssh。安装环境的多节点间支持SSH通信，可选择ssh模式，在任意节点上运行预配置工具，会依次对所有节点环境完成预配置操作。反之，节点间不支持SSH通信时，可选择local模式，仅对工具运行所在机器完成预配置操作，默认为local模式。
-- `config`：预配置工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置config参数时配置文件默认路径为工具运行当前目录。
-- `backend`：后台运行预配置工具，选择True后预配置工具在自动在后台运行，默认为False。
-- `disable-kysec`：是否关闭Kylin Security服务，KySec是麒麟系统的安全模块框架，类似于 SELinux、AppArmor、Trusted Computing 的集合体，主要用于增强系统安全性。默认为False
+- `model`：预配置工具运行模式，分为 local 和 ssh。安装环境的多节点间支持 SSH 通信，可选择 ssh 模式，在任意节点上运行预配置工具，会依次对所有节点环境完成预配置操作。反之，节点间不支持 SSH 通信时，可选择 local 模式，仅对工具运行所在机器完成预配置操作，默认为 local 模式。
+- `config`：预配置工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认路径为工具运行当前目录。
+- `backend`：后台运行预配置工具，选择 True 后预配置工具在自动在后台运行，默认为 False。
+- `disable-kysec`：是否关闭 Kylin Security 服务，KySec 是麒麟系统的安全模块框架，类似于 SELinux、AppArmor、Trusted Computing 的集合体，主要用于增强系统安全性。默认为 False
 - `version`：打印预配置工具版本信息。
 
 ### 配置文件使用说明
 
 ```config
-# 安装部署TDengine的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后可不用配置password信息
+# 安装部署 TDengine 的环境信息，支持免密登录和 SSH 登录两种方式，当环境配置了免密登录后可不用配置 password 信息
 [test_env]
-# 节点间通过SSH协议访问
+# 节点间通过 SSH 协议访问
 firstep=192.168.0.1||fqdn=tdengine1||username=root||password=123456||port=22
 secondep=192.168.0.2||fqdn=tdengine2||username=root||password=123456||port=22
 dnode3=192.168.0.3||fqdn=tdengine3||username=root||username=123456||port=22
@@ -58,17 +58,17 @@ tz=Asia/Shanghai
 firewall=inactive
 selinux=inactive
 
-# coredump配置，工具会按照下面配置coredump的生成路径
+# coredump 配置，工具会按照下面配置 coredump 的生成路径
 [coredump]
 kernel.core_pattern=/data/taos/core/core-%%e-%%p
 
-# /etc/sysctl.conf中系统参数，工具会按照下面配置修改系统参数值
+# /etc/sysctl.conf 中系统参数，工具会按照下面配置修改系统参数值
 [sys_vars:/etc/sysctl.conf]
 fs.nr_open=2147483584
 fs.file-max=2147483584
 net.ipv4.ip_local_port_range=10000 65534
 
-# /etc/security/limits.conf中系统参数，工具会按照下面配置修改系统参数值
+# /etc/security/limits.conf 中系统参数，工具会按照下面配置修改系统参数值
 [sys_vars:/etc/security/limits.conf]
 * soft nproc=65536
 * soft nofile=2147483584
@@ -89,30 +89,30 @@ root hard stack=65536
 |:--|:----------|
 | **配置系统时区**   | 配置系统时区为用户预设定时区 |
 | **关闭防火墙** | 关闭系统的防火墙服务 |
-| **关闭SElinux服务**   | 关闭系统SElinux服务 |
+| **关闭 SElinux 服务**   | 关闭系统 SElinux 服务 |
 | **配置系统参数**   | 配置用户预设定的系统参数 |   
-| **配置coredump**   | 配置coredump生成目录并开启服务 | 
-| **修改机器Hostname**   | 当机器Hostanme为默认的localhost时更新为配置文件中预设定的FQDN | 
-| **配置域名解析**   | 将配置文件中安装节点的FQDN和IP配置到/etd/hosts文件 | 
+| **配置 coredump**   | 配置 coredump 生成目录并开启服务 | 
+| **修改机器 Hostname**   | 当机器 Hostanme 为默认的 localhost 时更新为配置文件中预设定的 FQDN | 
+| **配置域名解析**   | 将配置文件中安装节点的 FQDN 和 IP 配置到 /etd/hosts 文件 | 
 
 ## 结果文件
-安装前预配置工具运行后会在工具运行当前目录下生成preset_report.md文件，其中包含了预配置工具修改的具体项目。
+安装前预配置工具运行后会在工具运行当前目录下生成 preset_report.md 文件，其中包含了预配置工具修改的具体项目。
 
 ## 应用示例
 
-在工具所在节点以local模式执行安装前预配置
+在工具所在节点以 local 模式执行安装前预配置
 ```
 ./taospreset 
 ```
-以SSH模式在所有节点执行安装前预配置
+以 SSH 模式在所有节点执行安装前预配置
 ```
 ./taospreset -m ssh
 ```
-指定配置文件并以SSH模式在所有节点执行安装前预配置
+指定配置文件并以 SSH 模式在所有节点执行安装前预配置
 ```
 ./taospreset -m ssh -f /path_to_file/preset.cfg
 ```
-以SSH模式在所有节点执行安装前预配置并关闭Kylin Security服务
+以 SSH 模式在所有节点执行安装前预配置并关闭 Kylin Security 服务
 ```
 ./taospreset -m ssh -d true
 ```
