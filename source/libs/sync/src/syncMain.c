@@ -86,6 +86,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
 int32_t syncStart(int64_t rid) {
   int32_t    code = 0;
+  int32_t    vgId = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
@@ -93,6 +94,7 @@ int32_t syncStart(int64_t rid) {
     sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
     TAOS_RETURN(code);
   }
+  vgId = pSyncNode->vgId;
   sInfo("vgId:%d, begin to start sync", pSyncNode->vgId);
 
   if ((code = syncNodeRestore(pSyncNode)) < 0) {
@@ -109,7 +111,7 @@ int32_t syncStart(int64_t rid) {
 
   syncNodeRelease(pSyncNode);
 
-  sInfo("vgId:%d, sync started", pSyncNode->vgId);
+  sInfo("vgId:%d, sync started", vgId);
 
   TAOS_RETURN(code);
 
