@@ -682,6 +682,101 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
   return tableReaderSeekData(p, pHandle, seq, pValue, len);
 }
 
+typedef struct {
+  int64_t seq;
+  int32_t offset;
+} SValueMeta;
+
+int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta) {
+  int32_t         code = 0;
+  SBlockWithMeta *p = taosMemCalloc(1, sizeof(SBlockWithMeta));
+  if (p == NULL) {
+    return terrno;
+  }
+  p->pBlock = pBlock;
+
+  // uint8_t *data = (uint8_t *)pBlock->data;
+  // uint8_t *end = data + pBlock->len;
+  p->pMeta = taosArrayInit(8, sizeof(SValueMeta));
+  if (p->pMeta == NULL) {
+    code = terrno;
+    goto _error;
+  }
+
+  uint8_t *p1 = (uint8_t *)pBlock->data;
+  uint8_t *p2 = (uint8_t *)p1;
+  while (p2 - p1 < pBlock->len) {
+    int64_t    k;
+    int32_t    vlen = 0;
+    SValueMeta meta = {0};
+    int32_t    offset = 0;
+    p2 = taosDecodeVariantI64((void **)p2, &k);
+    offset = p2 - p1;
+    p2 = taosDecodeVariantI32((void **)p2, &vlen);
+
+    meta.seq = k;
+    meta.offset = offset;
+    if (taosArrayPush(p->pMeta, &meta) == NULL) {
+      code = terrno;
+      goto _error;
+    }
+    p2 += vlen;
+  }
+
+  *pMeta = p;
+_error:
+  if (code != 0) {
+    bseError("failed to init block with meta since %s", tstrerror(code));
+    blockWithMetaCleanup(p);
+  }
+  return code;
+}
+
+int32_t blockWithMetaCleanup(SBlockWithMeta *p) {
+  if (p == NULL) return 0;
+  taosArrayDestroy(p->pMeta);
+  taosMemFree(p);
+  return 0;
+}
+
+static int comprareFunc(const void *pLeft, const void *pRight) {
+  SValueMeta *p1 = (SValueMeta *)pLeft;
+  SValueMeta *p2 = (SValueMeta *)pRight;
+  if (p1->seq > p2->seq) {
+    return 1;
+  } else if (p1->seq < p2->seq) {
+    return -1;
+  }
+  return 0;
+}
+
+int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len) {
+  int32_t    code = 0;
+  SValueMeta key = {.seq = seq, .offset = 0};
+  int32_t    idx = taosArraySearchIdx(p->pMeta, &seq, comprareFunc, TD_EQ);
+  if (idx < 0) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  SValueMeta *pMeta = taosArrayGet(p->pMeta, idx);
+  if (pMeta == NULL) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+
+  uint8_t *data = (uint8_t *)p->pBlock->data + pMeta->offset;
+
+  data = taosDecodeVariantI32((void *)data, len);
+  if (*len <= 0) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  *pValue = taosMemCalloc(1, *len);
+  if (*pValue == NULL) {
+    return terrno;
+  }
+  memcpy(*pValue, data, *len);
+
+  return code;
+}
+
 int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *blkWrapper) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -691,15 +786,18 @@ int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper
 
   if (blkWrapper->type == BSE_TABLE_DATA_TYPE) {
     SBlock *pBlock = NULL;
-    code = blockCacheGet(pRdMgt->pBlockCache, &range, &pBlock);
+    code = blockCacheGet(pRdMgt->pBlockCache, &range, (void **)&pBlock);
     if (code == TSDB_CODE_NOT_FOUND) {
       code = blockWrapperInit(blkWrapper, pHandle->size);
       TSDB_CHECK_CODE(code, lino, _error);
+
       code = tableLoadBlock(p->pDataFile, pHandle, blkWrapper);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      code = blockCachePut(pRdMgt->pBlockCache, &range, blkWrapper->data);
+      pBlock = blkWrapper->data;
+      code = blockCachePut(pRdMgt->pBlockCache, &range, pBlock);
       TSDB_CHECK_CODE(code, lino, _error);
+
     } else if (code == TSDB_CODE_SUCCESS) {
       blkWrapper->data = pBlock;
       blkWrapper->cap = pHandle->size;
@@ -734,6 +832,7 @@ int32_t tableReaderSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, u
   TSDB_CHECK_CODE(code, lino, _error);
 
   wrapper.data = NULL;
+
 _error:
   if (code != 0) {
     bseError("failed to seek data from table reader since %s at line %d", tstrerror(code), lino);
@@ -805,9 +904,10 @@ static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len)
   uint8_t *p1 = (uint8_t *)p->data;
   uint8_t *p2 = p1;
   while (p2 - p1 < p->len) {
-    int64_t k, v;
+    int64_t k;
+    int32_t v;
     p2 = taosDecodeVariantI64(p2, &k);
-    p2 = taosDecodeVariantI64(p2, &v);
+    p2 = taosDecodeVariantI32(p2, &v);
     if (seq == k) {
       *pValue = taosMemCalloc(1, v);
       memcpy(*pValue, p2, v);

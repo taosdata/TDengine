@@ -44,8 +44,8 @@ typedef struct {
 } SBlockCache;
 
 int32_t blockCacheOpen(int32_t cap, CacheFreeFn fn, SBlockCache **p);
-int32_t blockCacheGet(SBlockCache *p, SSeqRange *key, SBlock **pBlock);
-int32_t blockCachePut(SBlockCache *p, SSeqRange *key, SBlock *pBlock);
+int32_t blockCacheGet(SBlockCache *p, SSeqRange *key, void **pBlock);
+int32_t blockCachePut(SBlockCache *p, SSeqRange *key, void *pBlock);
 int32_t blockCacheRemove(SBlockCache *p, SSeqRange *key);
 void    blockCacheClose(SBlockCache *p);
 

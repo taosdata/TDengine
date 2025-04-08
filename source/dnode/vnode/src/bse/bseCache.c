@@ -293,7 +293,7 @@ _error:
   }
   return code;
 }
-int32_t blockCacheGet(SBlockCache *pCache, SSeqRange *key, SBlock **pBlock) {
+int32_t blockCacheGet(SBlockCache *pCache, SSeqRange *key, void **pBlock) {
   int32_t code = 0;
   int32_t lino = 0;
   // hold the write lock to avoid deadlock
@@ -308,7 +308,7 @@ _error:
   return code;
 }
 
-int32_t blockCachePut(SBlockCache *pCache, SSeqRange *key, SBlock *pBlock) {
+int32_t blockCachePut(SBlockCache *pCache, SSeqRange *key, void *pBlock) {
   int32_t code = 0;
   int32_t lino = 0;
 

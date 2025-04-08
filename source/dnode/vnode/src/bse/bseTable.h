@@ -63,11 +63,16 @@ typedef struct {
   char    data[0];
 } SBlock;
 
+typedef struct {
+  SBlock *pBlock;
+  SArray *pMeta;
+} SBlockWithMeta;
+
 int8_t inSeqRange(SSeqRange *p, int64_t seq);
 int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq);
 
 typedef struct {
-  SBlock *data;
+  void   *data;
   int32_t cap;
   int8_t  type;
 } SBlockWrapper;

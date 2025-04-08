@@ -36,11 +36,11 @@ typedef struct {
 } STableBuilderMgt;
 
 typedef struct {
-  SArray       *pFileList;
-  STableCache  *pTableCache;
-  SBlockCache  *pBlockCache;
-  TdThreadMutex mutex;
-  SBse         *pBse;
+  SArray        *pFileList;
+  STableCache   *pTableCache;
+  SBlockCache   *pBlockCache;
+  TdThreadRwlock mutex;
+  SBse          *pBse;
 } STableReaderMgt;
 
 typedef struct {
@@ -62,6 +62,10 @@ int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileList);
 int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch);
 
 int32_t bseTableMgtGetLiveFileSet(STableMgt *pMgt, SArray **pList);
+
+int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta);
+int32_t blockWithMetaCleanup(SBlockWithMeta *p);
+int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len);
 #ifdef __cplusplus
 }
 #endif
