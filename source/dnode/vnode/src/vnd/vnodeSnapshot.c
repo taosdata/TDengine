@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bse.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -70,6 +71,10 @@ struct SVSnapReader {
   int8_t              rsmaDone;
   TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
   SRSmaSnapReader    *pRsmaReader;
+
+  // bse
+  int8_t          bseDone;
+  SBseSnapReader *pBseReader;
 };
 
 static TFileSetRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
@@ -244,6 +249,9 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
 
   if (pReader->pTqCheckInfoReader) {
     tqSnapReaderClose(&pReader->pTqCheckInfoReader);
+  }
+  if (pReader->pBseReader) {
+    bseSnapReaderClose(&pReader->pBseReader);
   }
 
   taosMemoryFree(pReader);
@@ -472,6 +480,21 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       rsmaSnapReaderClose(&pReader->pRsmaReader);
     }
   }
+  if (!pReader->bseDone) {
+    if (pReader->pBseReader == NULL) {
+      code = bseSnapReaderOpen(pReader->pVnode->pBse, pReader->sver, pReader->ever, &pReader->pBseReader);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    int32_t len = 0;
+    code = bseSnapReaderRead(pReader->pBseReader, ppData, &len);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    if (*ppData) {
+      goto _exit;
+    } else {
+      pReader->bseDone = 1;
+      bseSnapReaderClose(&pReader->pBseReader);
+    }
+  }
 
   *ppData = NULL;
   *nData = 0;
@@ -521,6 +544,9 @@ struct SVSnapWriter {
   // rsma
   TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
   SRSmaSnapWriter    *pRsmaSnapWriter;
+
+  // bse
+  SBseSnapWriter *pBseSnapWriter;
 };
 
 TFileSetRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t tsdbTyp) {
@@ -751,6 +777,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
   }
 
+  if (pWriter->pBseSnapWriter) {
+    code = bseSnapWriterClose(&pWriter->pBseSnapWriter, rollback);
+    if (code) goto _exit;
+  }
+
   code = vnodeBegin(pVnode);
   if (code) goto _exit;
 
@@ -916,6 +947,14 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       }
 
       code = rsmaSnapWrite(pWriter->pRsmaSnapWriter, pData, nData);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
+    case SNAP_DATA_BSE: {
+      if (pWriter->pBseSnapWriter == NULL) {
+        code = bseSnapWriterOpen(pVnode->pBse, pWriter->sver, pWriter->ever, &pWriter->pBseSnapWriter);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      code = bseSnapWriterWrite(pWriter->pBseSnapWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
     default:

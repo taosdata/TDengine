@@ -73,6 +73,11 @@ typedef struct {
 } SBse;
 
 typedef struct {
+  int64_t sseq;
+  int64_t eseq;
+} SSeqRange;
+
+typedef struct {
   int32_t  num;
   uint8_t *buf;
   int32_t  len;
@@ -82,11 +87,6 @@ typedef struct {
   void    *pBse;
   int64_t  startSeq;
 } SBseBatch;
-
-typedef struct {
-  int64_t sseq;
-  int64_t eseq;
-} SSeqRange;
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
 void    bseClose(SBse *pBse);
@@ -115,6 +115,23 @@ int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg);
 #define BSE_GET_TABLE_CACHE_SIZE(p) ((p)->cfg.tableCacheSize)
 #define BSE_GET_BLOCK_CACHE_SIZE(p) ((p)->cfg.blockCacheSize)
 #define BSE_GET_VGID(p)             ((p)->cfg.vgId)
+
+typedef struct {
+  SBse *pBse;
+  void *pIter;
+  void *pBuf;
+} SBseSnapReader;
+
+typedef struct {
+  SBse *pBse;
+} SBseSnapWriter;
+int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter **writer);
+int32_t bseSnapWriterWrite(SBseSnapWriter *writer, uint8_t *data, int32_t len);
+int32_t bseSnapWriterClose(SBseSnapWriter **writer, int8_t rollback);
+
+int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader **reader);
+int32_t bseSnapReaderRead(SBseSnapReader *reader, uint8_t **data, int32_t *len);
+int32_t bseSnapReaderClose(SBseSnapReader **reader);
 
 #ifdef __cplusplus
 }

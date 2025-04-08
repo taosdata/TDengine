@@ -42,11 +42,11 @@ static int32_t blockClear(SBlock *pBlock);
 static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len);
 static int8_t  blockGetType(SBlock *p);
 
-static int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
-static void    blockWrapperCleanup(SBlockWrapper *p);
-static int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
-static int32_t blockWrapperClear(SBlockWrapper *p);
-static void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
+// static int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
+// static void    blockWrapperCleanup(SBlockWrapper *p);
+// static int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
+// static int32_t blockWrapperClear(SBlockWrapper *p);
+// static void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
 static int32_t metaBlockAdd(SBlock *p, SBlkHandle *pInfo);
 
 // STable builder func
@@ -97,7 +97,7 @@ static int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64
   int32_t code = 0;
   int32_t lino = 0;
 
-  SBlockWrapper blockWrapper;
+  SBlockWrapper blockWrapper = {0};
 
   code = tableBuilderLoadBlock(p, pHandle, &blockWrapper);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -364,6 +364,7 @@ _error:
   }
   return code;
 }
+
 int32_t tableBuilderPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t len) {
   int32_t        code = 0;
   int32_t        lino = 0;
@@ -518,7 +519,7 @@ int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
   taosArrayDestroy(p->pSeqToBlock);
   taosCloseFile(&p->pDataFile);
   taosArrayDestroy(p->pMetaHandle);
-  taosMemFree(p);
+  taosMemoryFree(p);
   return code;
 }
 void tableBuilderClear(STableBuilder *p) {
@@ -735,7 +736,7 @@ _error:
 int32_t blockWithMetaCleanup(SBlockWithMeta *p) {
   if (p == NULL) return 0;
   taosArrayDestroy(p->pMeta);
-  taosMemFree(p);
+  taosMemoryFree(p);
   return 0;
 }
 
@@ -849,7 +850,7 @@ int32_t tableReaderClose(STableReader *p) {
 
   taosCloseFile(&p->pDataFile);
 
-  taosMemFree(p);
+  taosMemoryFree(p);
   return code;
 }
 
@@ -926,7 +927,7 @@ static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len)
 }
 
 static int8_t blockGetType(SBlock *p) { return p->type; }
-static void   blockDestroy(SBlock *pBlock) { taosMemFree(pBlock); }
+static void   blockDestroy(SBlock *pBlock) { taosMemoryFree(pBlock); }
 
 static int32_t metaBlockAdd(SBlock *p, SBlkHandle *pInfo) {
   int32_t  code = 0;
@@ -1046,7 +1047,7 @@ int8_t inSeqRange(SSeqRange *p, int64_t seq) { return seq >= p->sseq && seq <= p
 
 int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq) { return seq > p->eseq; }
 
-static int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap) {
+int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap) {
   p->data = taosMemoryCalloc(1, cap);
   if (p->data == NULL) {
     return terrno;
@@ -1055,7 +1056,7 @@ static int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap) {
   return 0;
 }
 
-static void blockWrapperCleanup(SBlockWrapper *p) {
+void blockWrapperCleanup(SBlockWrapper *p) {
   if (p->data != NULL) {
     taosMemoryFree(p->data);
     p->data = NULL;
@@ -1063,7 +1064,7 @@ static void blockWrapperCleanup(SBlockWrapper *p) {
   p->cap = 0;
 }
 
-static void blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src) {
+void blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src) {
   if (dst == NULL || src == NULL) {
     return;
   }
@@ -1074,7 +1075,7 @@ static void blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src) {
   src->cap = 0;
 }
 
-static int32_t blockWrapperResize(SBlockWrapper *p, int32_t newCap) {
+int32_t blockWrapperResize(SBlockWrapper *p, int32_t newCap) {
   if (p->cap < newCap) {
     int32_t cap = p->cap;
     while (cap < newCap) {
@@ -1090,9 +1091,41 @@ static int32_t blockWrapperResize(SBlockWrapper *p, int32_t newCap) {
   return 0;
 }
 
-static int32_t blockWrapperClear(SBlockWrapper *p) {
+int32_t blockWrapperClear(SBlockWrapper *p) {
   SBlock *block = (SBlock *)p->data;
 
   blockClear(block);
   return 0;
+}
+
+int32_t tableReaderIterInit(char *name, STableReaderIter **ppIter, SBse *pBse) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STableReaderIter *p = taosMemCalloc(1, sizeof(STableReaderIter));
+  if (p == NULL) {
+    return terrno;
+  }
+
+  code = tableReaderOpen(name, &p->pReader, NULL);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  *ppIter = p;
+
+_error:
+  if (code != 0) {
+    bseError("failed to init table reader iter since %s", tstrerror(code));
+    tableReaderIterDestroy(p);
+  }
+  return code;
+}
+
+int32_t tableReaderIterNext(STableReaderIter *pIter, SBseBatch **ppBatch) {
+  int32_t code = 0;
+  return code;
+}
+
+int32_t tableReaderIterDestroy(STableReaderIter *pIter) {
+  int32_t code = 0;
+  return code;
 }

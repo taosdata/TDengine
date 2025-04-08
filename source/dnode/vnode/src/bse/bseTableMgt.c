@@ -85,7 +85,7 @@ int32_t bseTableMgtCleanup(void *pMgt) {
   STableMgt *p = (STableMgt *)pMgt;
   tableBuilderMgtDestroy(p->pBuilderMgt);
   tableReaderMgtCleanup(p->pReaderMgt);
-  taosMemFree(p);
+  taosMemoryFree(p);
   return 0;
 }
 
@@ -142,7 +142,7 @@ static void tableReadeFree(void *pReader) {
     tableReaderClose(p);
   }
 }
-static void blockFree(void *pBlock) { taosMemFree(pBlock); }
+static void blockFree(void *pBlock) { taosMemoryFree(pBlock); }
 static void blockWithMetaFree(void *pBlock) {
   SBlockWithMeta *p = (SBlockWithMeta *)pBlock;
   blockWithMetaCleanup(p);

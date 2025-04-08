@@ -82,6 +82,7 @@ set(
     "src/bse/bseCache.c"
     "src/bse/bseTableMgt.c"
     "src/bse/bseUtil.c"
+    "src/bse/bseSnapshot.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)

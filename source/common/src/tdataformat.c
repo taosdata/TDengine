@@ -807,7 +807,7 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
 _exit:
   if (code != 0) {
     taosArrayDestroy(p->pSeqTable);
-    taosMemFree(p->data);
+    taosMemoryFree(p->data);
     taosMemoryFree(p);
   }
   return code;
@@ -860,9 +860,9 @@ int32_t tBlobRowSize(SBlobRow2 *pBlobRow) {
 
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow) {
   int32_t code = 0;
-  taosMemFree(pBlowRow->data);
+  taosMemoryFree(pBlowRow->data);
   taosArrayDestroy(pBlowRow->pSeqTable);
-  taosMemFree(pBlowRow);
+  taosMemoryFree(pBlowRow);
   return code;
 }
 
@@ -4497,9 +4497,9 @@ int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobRow2 **pBlobRow) {
 _exit:
   if (code != 0) {
     if (pBlob != NULL) {
-      taosMemFree(pBlob->data);
+      taosMemoryFree(pBlob->data);
       taosArrayDestroy(pBlob->pSeqTable);
-      taosMemFree(pBlob);
+      taosMemoryFree(pBlob);
     }
   }
   return code;

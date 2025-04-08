@@ -14,6 +14,7 @@
  */
 
 #include "bse.h"
+#include "bseInc.h"
 #include "bseTable.h"
 #include "bseTableMgt.h"
 #include "bseUtil.h"
@@ -27,6 +28,10 @@ typedef struct {
   int64_t fileSize;
   int64_t syncedOffset;
 } SBseFileInfo;
+
+typedef struct {
+  SBlockWrapper block[1];
+} SBlockBuffer;
 
 static void bseCfgSetDefault(SBseCfg *pCfg);
 
@@ -128,7 +133,7 @@ _error:
   if (code != 0) {
     bseError("vgId:%d, failed to read current since %s at line %d", pBse->cfg.vgId, tstrerror(code), lino);
     taosCloseFile(&fd);
-    taosMemFree(pCurrent);
+    taosMemoryFree(pCurrent);
   }
   return code;
 }
@@ -324,7 +329,7 @@ _error:
   if (code != 0) {
     bseError("vgId:%d, failed to recover since %s", pBse->cfg.vgId, tstrerror(code));
   }
-  taosMemFree(pCurrent);
+  taosMemoryFree(pCurrent);
   return code;
 }
 int32_t bseInitLock(SBse *pBse) {
@@ -444,7 +449,7 @@ void bseClose(SBse *pBse) {
   taosThreadMutexDestroy(&pBse->mutex);
   taosThreadRwlockDestroy(&pBse->rwlock);
 
-  taosMemFree(pBse);
+  taosMemoryFree(pBse);
   return;
 }
 
@@ -631,7 +636,7 @@ int32_t bseBatchDestroy(SBseBatch *pBatch) {
   taosMemoryFree(pBatch->buf);
   taosArrayDestroy(pBatch->pSeq);
 
-  taosMemFree(pBatch);
+  taosMemoryFree(pBatch);
   return code;
 }
 
@@ -714,7 +719,7 @@ _error:
   if (code != 0) {
     bseError("vgId:%d failed to gen commit info since %s", BSE_GET_VGID(pBse), tstrerror(code));
   }
-  taosMemFree(pBuf);
+  taosMemoryFree(pBuf);
 
   taosCloseFile(&fd);
   return code;

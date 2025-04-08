@@ -566,6 +566,7 @@ enum {
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
   SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
+  SNAP_DATA_BSE = 15,
 };
 
 struct SSnapDataHdr {

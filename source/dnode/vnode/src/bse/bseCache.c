@@ -159,7 +159,8 @@ int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) 
     TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _error);
   }
 
-  taosHashRemove(pCache->pCache, key, keyLen);
+  code = taosHashRemove(pCache->pCache, key, keyLen);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   SListNode *pNode = tdListPopNode(pCache->lruList, pItem->pNode);
   freeItemInListNode(pNode, pCache->freeElemFunc);
@@ -195,7 +196,7 @@ void lruCacheFree(SLruCache *pCache) {
   pCache->lruList = NULL;
 
   taosThreadMutexDestroy(&pCache->mutex);
-  taosMemFree(pCache);
+  taosMemoryFree(pCache);
 }
 
 int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p) {
@@ -226,7 +227,7 @@ _error:
     bseError("failed to close table cache at line %d since %d", __LINE__, tstrerror(code));
   }
   lruCacheFree((SLruCache *)p->pCache);
-  taosMemFree(p);
+  taosMemoryFree(p);
 }
 int32_t tableCacheGet(STableCache *pCache, SSeqRange *key, STableReader **pReader) {
   int32_t code = 0;
@@ -336,5 +337,5 @@ _error:
 }
 void blockCacheClose(SBlockCache *p) {
   lruCacheFree((SLruCache *)p->pCache);
-  taosMemFree(p);
+  taosMemoryFree(p);
 }

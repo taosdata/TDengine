@@ -31,7 +31,6 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-SDmNotifyHandle dmNotifyHdl = {.state = 0};
 
 #include "bse.h"
 int main(int argc, char **argv) {
@@ -105,10 +104,13 @@ static int32_t getData(SBse *pBse, std::vector<int64_t> *data) {
           std::string str((char *)value, len);
           printf("get result %d: %s\n", i, str.c_str());
         }
-        taosMemFree(value);
+        taosMemoryFree(value);
     }
     return code;
+
 }
+
+
 TEST(bseCase, openTest) {
     initLog();
 

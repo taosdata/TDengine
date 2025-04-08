@@ -17,6 +17,7 @@
 #define BSE_TABLE_H_
 
 #include "bse.h"
+#include "bseInc.h"
 #include "bseUtil.h"
 #include "cJSON.h"
 #include "os.h"
@@ -68,14 +69,20 @@ typedef struct {
   SArray *pMeta;
 } SBlockWithMeta;
 
-int8_t inSeqRange(SSeqRange *p, int64_t seq);
-int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq);
-
 typedef struct {
   void   *data;
   int32_t cap;
   int8_t  type;
 } SBlockWrapper;
+
+int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
+void    blockWrapperCleanup(SBlockWrapper *p);
+int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
+int32_t blockWrapperClear(SBlockWrapper *p);
+void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
+int8_t  inSeqRange(SSeqRange *p, int64_t seq);
+int8_t  isGreaterSeqRange(SSeqRange *p, int64_t seq);
+
 typedef struct {
   char          name[TSDB_FILENAME_LEN];
   TdFilePtr     pDataFile;
@@ -128,6 +135,22 @@ int32_t tableBuilderOpenFile(STableBuilder *p);
 int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt);
 int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
 int32_t tableReaderClose(STableReader *p);
+int32_t tableReaderIter(void *pReader, SBseIter **ppIter);
+
+typedef struct {
+  STableReader *pReader;
+  char          name[TSDB_FILENAME_LEN];
+
+  int8_t        isOver;
+  SSeqRange     range;
+  STableReader *pTableReader;
+} STableReaderIter;
+
+int32_t tableReaderIterInit(char *name, STableReaderIter **ppIter, SBse *pBse);
+
+int32_t tableReaderIterNext(STableReaderIter *pIter, SBseBatch **ppBatch);
+
+int32_t tableReaderIterDestroy(STableReaderIter *pIter);
 
 #ifdef __cplusplus
 }
