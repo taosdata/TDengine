@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import timesfm
 
 app = Flask(__name__)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 _model_list = [
     'google/timesfm-2.0-500m-pytorch',  # 499M parameters

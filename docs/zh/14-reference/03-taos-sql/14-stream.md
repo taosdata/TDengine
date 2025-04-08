@@ -34,7 +34,7 @@ subquery: SELECT select_list
 
 stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的 schema 信息。详见 [写入已存在的超级表](#写入已存在的超级表)。
 
-TAGS 子句定义了流计算中创建 TAG 的规则，可以为每个 partition 对应的子表生成自定义的 TAG 值，详见 [自定义 TAG](#自定义-TAG)
+TAGS 子句定义了流计算中创建 TAG 的规则，可以为每个 partition 对应的子表生成自定义的 TAG 值，详见 [自定义 TAG](#自定义-tag)
 ```sql
 create_definition:
     col_name column_definition

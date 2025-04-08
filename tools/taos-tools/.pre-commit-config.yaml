@@ -1,0 +1,32 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: flake8
+
+repos:
+  - repo: https://github.com/psf/black
+    rev: stable
+    hooks:
+      - id: black
+
+repos:
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: master
+    hooks:
+      #      - id: clang-format
+      #  args: [--style=WebKit]
+          #      - id: cpplint
+      - id: cppcheck
+        args: ["--error-exitcode=0"]
+
+repos:
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.15.7
+    hooks:
+      - id: typos
+
