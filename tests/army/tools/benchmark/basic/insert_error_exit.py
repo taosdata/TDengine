@@ -65,7 +65,8 @@ class TDTestCase(TBase):
         t1.start()
         t2.start()
         tdLog.success(f"{__file__} successfully executed")
-
+        t1.join()
+        t2.join()
 
     def stop(self):
         tdSql.close()

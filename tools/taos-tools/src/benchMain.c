@@ -40,7 +40,7 @@ void benchQueryInterruptHandler(int32_t signum, void* sigingo, void* context) {
     }
     
     sem_post(&g_arguments->cancelSem);
-    g_stopping = true
+    g_stopping = true;
 }
 
 void* benchCancelHandler(void* arg) {
