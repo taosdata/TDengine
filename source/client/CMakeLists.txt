@@ -15,6 +15,10 @@ if(${TD_DARWIN})
 endif()
 
 
+message(STATUS "Debugging ............................")
+message(STATUS "TAOS_NATIVE_LIB:${TAOS_NATIVE_LIB}")
+message(STATUS "TD_SOURCE_DIR:${TD_SOURCE_DIR}")
+
 
 target_include_directories(
     ${TAOS_NATIVE_LIB}
