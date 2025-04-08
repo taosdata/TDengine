@@ -10,18 +10,10 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-import pytest
-import sys
-import time
-
-import taos
 from new_test_framework.utils import tdLog, tdSql, etool
 
 
-
 class TestMlevelBasic:
-        
-
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
