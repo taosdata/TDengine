@@ -687,6 +687,13 @@ _end:
   return code;
 }
 
+void metaCacheClear(SMeta* pMeta) {
+  metaWLock(pMeta);
+  metaCacheClose(pMeta);
+  metaCacheOpen(pMeta);
+  metaULock(pMeta);
+}
+
 // remove the lru cache that are expired due to the tags value update, or creating, or dropping, of child tables
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
   uint64_t  p[4] = {0};
