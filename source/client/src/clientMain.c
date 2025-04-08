@@ -2408,4 +2408,3 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
 }
 
 char *getBuildInfo() { return td_buildinfo; }
-

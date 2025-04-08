@@ -1480,14 +1480,18 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   }
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
-
   if (pStmt->bInfo.needParse) {
-    STMT_ERR_RET(stmtParseSql(pStmt));
+    code = stmtParseSql(pStmt);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto cleanup_root;
+    }
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    STMT_ERR_RET(qStmtBindParams2(pStmt->sql.pQuery, bind, colIdx, pStmt->taos->optionInfo.charsetCxt));
-
+    code = qStmtBindParams2(pStmt->sql.pQuery, bind, colIdx, pStmt->taos->optionInfo.charsetCxt);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto cleanup_root;
+    }
     SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
                          .acctId = pStmt->taos->acctId,
                          .db = pStmt->exec.pRequest->pDb,
@@ -1500,9 +1504,14 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
                          .pStmtCb = NULL,
                          .pUser = pStmt->taos->user};
     ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
-    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog));
-
-    STMT_ERR_RET(qStmtParseQuerySql(&ctx, pStmt->sql.pQuery));
+    code = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto cleanup_root;
+    }
+    code = qStmtParseQuerySql(&ctx, pStmt->sql.pQuery);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto cleanup_root;
+    }
 
     if (pStmt->sql.pQuery->haveResultSet) {
       STMT_ERR_RET(setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,
@@ -1523,6 +1532,13 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     // STMT_ERR_RET(stmtBackupQueryFields(pStmt));
 
     return TSDB_CODE_SUCCESS;
+
+  cleanup_root:
+    if (pStmt->sql.pQuery->pRoot) {
+      nodesDestroyNode(pStmt->sql.pQuery->pRoot);
+      pStmt->sql.pQuery->pRoot = NULL;
+    }
+    STMT_ERR_RET(code);
   }
 
   if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {

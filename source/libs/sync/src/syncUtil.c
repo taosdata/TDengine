@@ -185,7 +185,7 @@ static void syncLogReplStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLe
     if (pMgr == NULL) break;
     len += tsnprintf(buf + len, bufLen - len, "%d:%d [%" PRId64 ", %" PRId64 ", %" PRId64 "] ", i, pMgr->restored,
                      pMgr->startIndex, pMgr->matchIndex, pMgr->endIndex);
-    len += tsnprintf(buf + len, bufLen - len, "%d", pMgr->sendCount);
+    len += tsnprintf(buf + len, bufLen - len, "%" PRId64, pMgr->sendCount);
     if (i + 1 < pSyncNode->replicaNum) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ", ");
     }
@@ -270,8 +270,8 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, bool fo
         ", elect-times:%d, as-leader-times:%d, as-assigned-leader-times:%d, cfg-ch-times:%d, hb-slow:%d, hbr-slow:%d, "
         "aq-items:%d, snaping:%" PRId64 ", replicas:%d, last-cfg:%" PRId64
         ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64
-        ", buffer:%s, repl-mgrs:%s, members:%s, send hb:%s, recv hb:%s, recv hb-reply:%s, arb-token:%s, msg[sent:%d, "
-        "recv:%d, slow-recv:%d]",
+        ", buffer:%s, repl-mgrs:%s, members:%s, send hb:%s, recv hb:%s, recv hb-reply:%s, arb-token:%s, "
+        "msg[sent:%" PRId64 ", recv:%" PRId64 ", slow-recv:%" PRId64 "]",
         pNode->vgId, eventLog, syncStr(pNode->state), currentTerm, pNode->commitIndex, pNode->assignedCommitIndex,
         appliedIndex, logBeginIndex, logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex,
         snapshot.lastApplyTerm, pNode->electNum, pNode->becomeLeaderNum, pNode->becomeAssignedLeaderNum,
@@ -327,8 +327,8 @@ void syncPrintHbLog(const char* flags, ELogLevel level, int32_t dflag, bool form
         ", elect-times:%d, as-leader-times:%d, as-assigned-leader-times:%d, cfg-ch-times:%d, hb-slow:%d, hbr-slow:%d, "
         ", snaping:%" PRId64 ", replicas:%d, last-cfg:%" PRId64
         ", chging:%d, restore:%d, quorum:%d, elect-lc-timer:%" PRId64 ", hb:%" PRId64
-        ", buffer:%s, repl-mgrs:%s, members:%s, send hb:%s, recv hb:%s, recv hb-reply:%s, arb-token:%s, msg[sent:%d, "
-        "recv:%d, slow-recv:%d]",
+        ", buffer:%s, repl-mgrs:%s, members:%s, send hb:%s, recv hb:%s, recv hb-reply:%s, arb-token:%s, "
+        "msg[sent:%" PRId64 ", recv:%" PRId64 ", slow-recv:%" PRId64 "]",
         pNode->vgId, eventLog, syncStr(pNode->state), currentTerm, pNode->commitIndex, pNode->assignedCommitIndex,
         pNode->minMatchIndex, pNode->electNum, pNode->becomeLeaderNum, pNode->becomeAssignedLeaderNum,
         pNode->configChangeNum, pNode->hbSlowNum, pNode->hbrSlowNum, pNode->snapshottingIndex, pNode->replicaNum,
