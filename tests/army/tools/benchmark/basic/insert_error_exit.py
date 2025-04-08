@@ -35,32 +35,34 @@ class TDTestCase(TBase):
     }
 
     def init(self, conn, logSql, replicaVar=1):
-        tdLog.debug(f"start to init {__file__}")
+        tdLog.info(f"start to init {__file__}")
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        self._rlist = None 
         # self.configJsonFile('insert_error_exit.json', 'db', 1, 1, 'splitVgroupByLearner.json', 100000)
 
-    def dnodeNodeStopThread():
-        event.wait()
-        tdLog.debug("dnodeNodeStopThread start")
+    def dnodeNodeStopThread(self):
+        tdLog.info("dnodeNodeStopThread start")
         time.sleep(10)
         sc.dnodeStop(2)
-        time.sleep(2)
-        if !self._rlist:
-            self.checkListSting(self._rlist, "")
+        time.sleep(10)
+        if self._rlist:
+            tdLog.info(self._rlist)
+            self.checkListSting(self._rlist, "insert test process failed")
+        else:
+            tdLog.exit("The benchmark process has not stopped!")
 
-    def dbInsertThread(self, configFile):
-        tdLog.debug(f"dbInsertThread start {configFile}")
-        tdLog.info(f"insert data.")
+
+    def dbInsertThread(self):
+        tdLog.info(f"dbInsertThread start")
         # taosBenchmark run
-        jfile = etool.curFile(__file__, configFile)
-        cmd = f"-f {jfile}"
+        cmd = "-d db -t 10000 -n 10000 -T 4 -I stmt -y"
         self._rlist = self.benchmark(cmd, checkRun=False)
 
     # run
     def run(self):
-        tdLog.debug(f"start to excute {__file__}")
-        t1 = threading.Thread(target=self.dbInsertThread, args=('splitVgroupByLearner.json'))
+        tdLog.info(f"start to excute {__file__}")
+        t1 = threading.Thread(target=self.dbInsertThread)
         t2 = threading.Thread(target=self.dnodeNodeStopThread)
         t1.start()
         t2.start()
