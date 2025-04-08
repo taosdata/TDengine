@@ -4,7 +4,7 @@ title: 与 Superset 集成
 ---
 ‌Apache Superset‌ 是一个现代的企业级商业智能（BI）Web 应用程序，主要用于数据探索和可视化。它由 Apache 软件基金会支持，是一个开源项目，它拥有活跃的社区和丰富的生态系统。Apache Superset 提供了直观的用户界面，使得创建、分享和可视化数据变得简单，同时支持多种数据源和丰富的可视化选项‌。
 
-通过 TDengine 的 Python 连接器, ‌Apache ‌Superset‌ 可支持 TDengine 数据源并提供数据展现、分析等功能。
+通过 TDengine 的 Python 连接器，‌Apache ‌Superset‌ 可支持 TDengine 数据源并提供数据展现、分析等功能。
 
 
 ## 前置条件 
@@ -75,7 +75,7 @@ TDengine 数据源与其它数据源使用上无差别，这里简单介绍下�
 
 我们选择【Superset Chart】模板中较流行的两个模板做了效果展示，以智能电表数据为例：  
 
-1. `Aggregate` 类型，展示在第 4 组中指定时间段内每分钟采集电压值(voltage)最大值。  
+1. `Aggregate` 类型，展示在第 4 组中指定时间段内每分钟采集电压值 (voltage) 最大值。  
 ![superset-demo1](./superset-demo1.jpeg)
 2. `RAW RECORDS` 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值。  
 ![superset-demo2](./superset-demo2.jpeg)  

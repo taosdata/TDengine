@@ -27,7 +27,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 |        3.1.5       | 密码支持特殊字符 |  - |
 |        3.1.4       | 修改 readme |  - |
 |        3.1.3       | 升级了 es5-ext 版本，解决低版本的漏洞 |  - |
-|        3.1.2       | 对数据协议和解析进行了优化，性能得到大幅提升|  - |
+|        3.1.2       | 对数据协议和解析进行了优化，性能得到大幅提升 |  - |
 |        3.1.1       | 优化了数据传输性能          |  3.3.2.0 及更高版本 |
 |        3.1.0       | 新版本发布，支持 WebSocket 连接 |  3.2.0.0 及更高版本 |
 
@@ -103,7 +103,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 1. "Unable to establish connection" 或 "Unable to resolve FQDN"
 
-   **原因**：一般都是因为配置 FQDN 不正确。 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
+   **原因**：一般都是因为配置 FQDN 不正确。可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
 
 ## API 参考
 
@@ -121,7 +121,7 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 - **username/password**：数据库的用户名和密码。
 - **host/port**：主机地址和端口号。例如`localhost:6041`
 - **database**：数据库名称。
-- **params**：其他参数。 例如token。
+- **params**：其他参数。例如 token。
 
 - 完整 URL 示例：
 
@@ -156,7 +156,7 @@ WSConfig 中的配置如下：
 - setPwd(pws:string) 设置数据库密码。
 - setDb(db: string) 设置数据库名称。
 - setTimeOut(ms : number) 设置连接超时，单位毫秒。
-- setToken(token: string) 设置 taosAdapter 认证token。
+- setToken(token: string) 设置 taosAdapter 认证 token。
 
 ### 连接功能
 
@@ -256,7 +256,7 @@ WSConfig 中的配置如下：
 - `async setTableName(tableName: string): Promise<void>`
     - **接口说明** 设置将要写入数据的表名。
     - **参数说明**：
-        - `tableName`：表名，如果需要指定数据库, 例如：`db_name.table_name` 即可。
+        - `tableName`：表名，如果需要指定数据库，例如：`db_name.table_name` 即可。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 通过 StmtBindParams 对象设置绑定数据。
 - `setBoolean(params :any[])`
@@ -311,8 +311,8 @@ WSConfig 中的配置如下：
     - taos.TMQConstants.CONNECT_USER：用户名。
     - taos.TMQConstants.CONNECT_PASS：密码。
     - taos.TMQConstants.GROUP_ID：所在的 group。
-    - taos.TMQConstants.CLIENT_ID：客户端id。
-    - taos.TMQConstants.WS_URL：taosAdapter 的url地址。
+    - taos.TMQConstants.CLIENT_ID：客户端 id。
+    - taos.TMQConstants.WS_URL：taosAdapter 的 url 地址。
     - taos.TMQConstants.AUTO_OFFSET_RESET：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
     - taos.TMQConstants.ENABLE_AUTO_COMMIT：是否允许自动提交。
     - taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS：自动提交间隔。
