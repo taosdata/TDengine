@@ -92,7 +92,7 @@ ELSE()
         STRING(STRIP "${taos_version}" taos_version)
     ENDIF()
 
-    # NOTE: TD_VER_GIT or TD_VER_GIT_INTERNAL in cmake/cmake.version?
+    # NOTE: TD_VER_GIT or TD_VER_GIT_INTERNAL in cmake/version.cmake?
     EXECUTE_PROCESS(
         COMMAND git rev-parse HEAD
         RESULT_VARIABLE commit_sha1

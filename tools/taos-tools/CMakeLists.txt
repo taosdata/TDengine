@@ -44,7 +44,7 @@ ADD_SUBDIRECTORY(src)
 
 ADD_DEPENDENCIES(taosBenchmark toolscJson)
 
-# NOTE: seems conflict with cmake/cmake.install
+# NOTE: seems conflict with cmake/install.cmake
 # IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 #     SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.sh")
 #     INSTALL(CODE "execute_process(COMMAND bash ${MAKE_INSTALL_SH} ${CMAKE_BINARY_DIR})")
