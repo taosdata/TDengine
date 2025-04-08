@@ -10,6 +10,7 @@ slug: /get-started/deploy-enterprise-edition
 - Ensure that `systemd` is installed and enabled on all servers.
 - Confirm the location of all storage media that you want to use for tiered storage.
 - If you want to use S3, obtain the access key and bucket name for the desired S3 instance.
+- If you want to try TDengine Enterprise using Docker, please refer to [Get Started with TDengine Using Docker](../deploy-in-docker/) or [docker hub](https://hub.docker.com/r/tdengine/tdengine-ee).
 
 ## Prepare Your Environment
 
