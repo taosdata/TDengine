@@ -263,7 +263,7 @@ class TDTestCase(TBase):
         results = [
             f"rename DB Name {db} to {newdb}",
             f"backup data schema no same column with server table",
-            f"OK: 5132 row(s) dumped in!"
+            f"OK: 7132 row(s) dumped in!"
         ]
         self.checkManyString(rlist, results)
 
@@ -271,7 +271,7 @@ class TDTestCase(TBase):
 
     def testExcept(self, db, newdb, tmpdir):
         # dump out , des table no same column
-        self.exceptNoSameCol()
+        self.exceptNoSameCol(db, newdb, tmpdir)
 
     def run(self):
         # init

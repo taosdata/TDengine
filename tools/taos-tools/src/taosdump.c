@@ -10127,8 +10127,8 @@ static int dumpEntry() {
             errorPrint("%s\n", "dumpIn() failed!");
             okPrint("%"PRId64" %s dumped in!\n",
                     g_totalDumpInRecSuccess, unit);
-            errorPrint("%"PRId64" %s failed to dump in!\n",
-                    g_totalDumpInRecFailed, unit);
+            errorPrint("%"PRId64" failures occurred to dump in!\n",
+                    g_totalDumpInRecFailed * -1);
             ret = -1;
         } else {
             if (g_totalDumpInRecFailed < 0) {
@@ -10136,8 +10136,8 @@ static int dumpEntry() {
                     okPrint("%"PRId64" %s dumped in!\n",
                             g_totalDumpInRecSuccess, unit);
                 }
-                errorPrint("%"PRId64" %s failed to dump in!\n",
-                        g_totalDumpInRecFailed, unit);
+                errorPrint("%"PRId64" failures occurred to dump in!\n",
+                        g_totalDumpInRecFailed * -1);
             } else {
                 okPrint("%"PRId64" %s dumped in!\n",
                         g_totalDumpInRecSuccess, unit);
