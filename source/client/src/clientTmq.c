@@ -3069,15 +3069,12 @@ static void destroyCommonInfo(SMqVgCommon* pCommon) {
   if (pCommon == NULL) {
     return;
   }
-  (void)taosThreadMutexLock(&pCommon->mutex);
   taosArrayDestroy(pCommon->pList);
-  pCommon->pList = NULL;
   if(tsem2_destroy(&pCommon->rsp) != 0) {
     tqErrorC("failed to destroy semaphore for topic:%s", pCommon->pTopicName);
   }
-  taosMemoryFreeClear(pCommon->pTopicName);
-  (void)taosThreadMutexUnlock(&pCommon->mutex);
   (void)taosThreadMutexDestroy(&pCommon->mutex);
+  taosMemoryFree(pCommon->pTopicName);
   taosMemoryFree(pCommon);
 }
 

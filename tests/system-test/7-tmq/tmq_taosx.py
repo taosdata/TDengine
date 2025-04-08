@@ -107,7 +107,6 @@ class TDTestCase:
         return
 
     def checkDataTable(self):
-        return
         '''tdSql.execute('use db_taosx')
         tdSql.query("select * from meters_summary")
         tdSql.checkRows(1)
