@@ -71,6 +71,13 @@ kill_service_of() {
   fi
 }
 
+kill_model_service() {
+  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+    script_path="${installDir}/bin/${script}"
+    [ -f "${script_path}" ] && sudo bash "${script_path}" || :
+  done
+}
+
 clean_service_on_systemd_of() {
   _service=$1
   _service_config="${service_config_dir}/${_service}.service"
@@ -138,6 +145,22 @@ remove_service_of() {
   fi
 }
 
+remove_model_service() {
+  declare -A links=(
+    ["start-tdtsfm"]="start-tdtsfm.sh"
+    ["stop-tdtsfm"]="stop-tdtsfm.sh"
+    ["start-timer-moe"]="start-timer-moe.sh"
+    ["stop-timer-moe"]="stop-timer-moe.sh"
+  )
+
+  # Iterate over the array and create/remove links as needed
+  for link in "${!links[@]}"; do
+    target="${links[$link]}"
+    [ -L "${bin_link_dir}/${link}" ] && ${csudo}rm -rf "${bin_link_dir}/${link}" || :
+  done
+  
+}
+
 remove_service() {
   for _service in "${services[@]}"; do
     remove_service_of "${_service}"
@@ -191,7 +214,9 @@ function remove_deploy_binary() {
   fi
 }
 
+kill_model_service
 remove_service
+remove_model_service
 clean_log  # Remove link log directory
 clean_config  # Remove link configuration file
 remove_deploy_binary
