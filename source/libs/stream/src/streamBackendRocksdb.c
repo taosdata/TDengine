@@ -1802,6 +1802,7 @@ int stateKeyEncode(void* k, char* buf) {
   int        len = 0;
   len += taosEncodeFixedU64((void**)&buf, key->key.groupId);
   len += taosEncodeFixedI64((void**)&buf, key->key.ts);
+  len += taosEncodeFixedI32((void**)&buf, key->key.numInGroup);
   len += taosEncodeFixedI64((void**)&buf, key->opNum);
   return len;
 }
@@ -1811,6 +1812,7 @@ int stateKeyDecode(void* k, char* buf) {
   char*      p = buf;
   p = taosDecodeFixedU64(p, &key->key.groupId);
   p = taosDecodeFixedI64(p, &key->key.ts);
+  p = taosDecodeFixedI32(p, &key->key.numInGroup);
   p = taosDecodeFixedI64(p, &key->opNum);
   return p - buf;
 }
@@ -1911,6 +1913,7 @@ int winKeyEncode(void* k, char* buf) {
   int      len = 0;
   len += taosEncodeFixedU64((void**)&buf, key->groupId);
   len += taosEncodeFixedI64((void**)&buf, key->ts);
+  len += taosEncodeFixedI32((void**)&buf, key->numInGroup);
   return len;
 }
 
@@ -1920,6 +1923,7 @@ int winKeyDecode(void* k, char* buf) {
   char*    p = buf;
   p = taosDecodeFixedU64(p, &key->groupId);
   p = taosDecodeFixedI64(p, &key->ts);
+  p = taosDecodeFixedI32(p, &key->numInGroup);
   return len;
 }
 
@@ -3370,7 +3374,7 @@ void streamStateCurPrev_rocksdb(SStreamStateCur* pCur) {
 int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal,
                                       int32_t* pVLen) {
   if (!pCur) return -1;
-  SStateKey  tkey;
+  SStateKey  tkey = {0};
   SStateKey* pKtmp = &tkey;
 
   if (rocksdb_iter_valid(pCur->iter) && !iterValueIsStale(pCur->iter)) {
