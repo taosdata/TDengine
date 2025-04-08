@@ -4,6 +4,9 @@ IF(TD_ENTERPRISE)
         LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/parserView.c)
 ENDIF()
 
+message(STATUS "Debugging ............................")
+message(STATUS "CMAKE_CURRENT_BINARY_DIR:${CMAKE_CURRENT_BINARY_DIR}")
+
 set(_depends
     ${CMAKE_CURRENT_BINARY_DIR}/taos_lemon_sql.c
     ${CMAKE_CURRENT_BINARY_DIR}/taos_lemon_token.h

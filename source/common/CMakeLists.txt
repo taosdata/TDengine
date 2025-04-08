@@ -11,11 +11,14 @@ add_library(common STATIC ${COMMON_SRC})
 DEP_ext_cjson(common)
 add_dependencies(common lemon_sql)
 
+message(STATUS "Debugging ............................")
+message(STATUS "PROJECT_BINARY_DIR:${PROJECT_BINARY_DIR}")
+
 target_include_directories(common
     PRIVATE
         ${CMAKE_SOURCE_DIR}/utils/TSZ/sz/inc      # TODO: tweak for defines.h, potential cyclic-dependencies, and need to be refactored!!!
     PUBLIC
-        ${CMAKE_BINARY_DIR}/source/libs/parser    # TODO: tweak for taos_lemon_token.h, potential cyclic-dependencies!!!
+        ${PROJECT_BINARY_DIR}/source/libs/parser    # TODO: tweak for taos_lemon_token.h, potential cyclic-dependencies!!!
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
