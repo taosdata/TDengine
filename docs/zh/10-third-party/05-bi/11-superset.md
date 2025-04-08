@@ -16,7 +16,12 @@ title: 与 Superset 集成
 - 安装 Python 连接器驱动，详细参考 [TDengine Python Connector](../../../reference/connector/python)。
 
 :::tip
-TDengine Python 连接器从 `v2.1.18` 起带 Superset 连接驱动，会安装至 Superset 相应目录下并向 Superset 提供数据源服务。
+TDengine Python 连接器从 v2.7.18 起自带 Superset 连接驱动，会安装至 Superset 相应目录下并向 Superset 提供数据源服务，此驱动包含在了 Apache Superset v4.1.2 版本中，故连接器中无需再包含了，在 TDengine Python v2.8.0 中删除了此驱动，匹配表如下：
+| TDengine Python 连接器版本 | 匹配 Apache Superset 版本  |
+|:------------------------ |:--------------------------------  |
+| 2.7.18 ~ 2.7.23          | 2.1.0 ~ 4.1.1                     |  
+| 2.8.0 及以上              | 4.1.2 及以上                       |
+
 :::
 
 ## 配置数据源
