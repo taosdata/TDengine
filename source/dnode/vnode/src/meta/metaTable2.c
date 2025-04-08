@@ -322,7 +322,7 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
 
       if (tTagGet(pTag, &tagVal)) {
         if (pTagSchema->pSchema[i].type != tagVal.type) {
-          metaError("vgId:%d, %s failed at %s:%d since child table %s tag type is the same as saved, version:%" PRId64,
+          metaError("vgId:%d, %s failed at %s:%d since child table %s tag type does not match the expected type, version:%" PRId64,
                     TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, version);
           metaFetchEntryFree(&pStbEntry);
           return TSDB_CODE_INVALID_MSG;
