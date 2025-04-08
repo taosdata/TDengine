@@ -76,13 +76,18 @@ typedef struct SDecimalSumRes {
 #define SUM_RES_GET_OVERFLOW(pSumRes, checkInputType, inputType)                             \
   (checkInputType && IS_DECIMAL_TYPE(inputType) ? SUM_RES_GET_DECIMAL_RES(pSumRes)->overflow \
                                                 : SUM_RES_GET_RES(pSumRes)->overflow)
-
 #define SUM_RES_GET_ISUM(pSumRes) (((SSumRes*)(pSumRes))->isum)
 #define SUM_RES_GET_USUM(pSumRes) (((SSumRes*)(pSumRes))->usum)
 #define SUM_RES_GET_DSUM(pSumRes) (((SSumRes*)(pSumRes))->dsum)
+#ifndef NO_UNALIGNED_ACCESS
 #define SUM_RES_INC_ISUM(pSumRes, val) ((SSumRes*)(pSumRes))->isum += val
 #define SUM_RES_INC_USUM(pSumRes, val) ((SSumRes*)(pSumRes))->usum += val
 #define SUM_RES_INC_DSUM(pSumRes, val) ((SSumRes*)(pSumRes))->dsum += val
+#else
+#define SUM_RES_INC_ISUM(pSumRes, val) taosAddInt64Aligned(&((SSumRes*)(pSumRes))->isum, (int64_t)val)
+#define SUM_RES_INC_USUM(pSumRes, val) taosAddUInt64Aligned(&((SSumRes*)(pSumRes))->usum, (uint64_t)val)
+#define SUM_RES_INC_DSUM(pSumRes, val) taosAddDoubleAligned(&((SSumRes*)(pSumRes))->dsum, (double)val)
+#endif
 
 #define SUM_RES_GET_DECIMAL_SUM(pSumRes) ((SDecimalSumRes*)(pSumRes))->sum
 #define SUM_RES_INC_DECIMAL_SUM(pSumRes, pVal, type)                                           \
@@ -233,16 +238,17 @@ typedef struct SDecimalAvgRes {
 
 #define AVG_RES_GET_SIZE(inputType) (IS_DECIMAL_TYPE(inputType) ? sizeof(SDecimalAvgRes) : sizeof(SAvgRes))
 #define AVG_RES_GET_AVG(pAvgRes)    (AVG_RES_GET_RES(pAvgRes)->result)
-#define AVG_RES_GET_SUM(pAvgRes) (AVG_RES_GET_RES(pAvgRes)->sum)
-#define AVG_RES_GET_COUNT(pAvgRes, checkInputType, inputType)                              \
-  (checkInputType && IS_DECIMAL_TYPE(inputType) ? AVG_RES_GET_DECIMAL_RES(pAvgRes)->count \
-                                                : AVG_RES_GET_RES(pAvgRes)->count)
-#define AVG_RES_INC_COUNT(pAvgRes, inputType, val)    \
-  do {                                                \
-    if (IS_DECIMAL_TYPE(inputType))                   \
-      AVG_RES_GET_DECIMAL_RES(pAvgRes)->count += val; \
-    else                                              \
-      AVG_RES_GET_RES(pAvgRes)->count += val;         \
+#define AVG_RES_GET_SUM(pAvgRes)    (AVG_RES_GET_RES(pAvgRes)->sum)
+#define AVG_RES_GET_COUNT(pAvgRes, checkInputType, inputType)                                                   \
+  (checkInputType && IS_DECIMAL_TYPE(inputType) ? taosGetInt64Aligned(&AVG_RES_GET_DECIMAL_RES(pAvgRes)->count) \
+                                                : taosGetInt64Aligned(&AVG_RES_GET_RES(pAvgRes)->count))
+
+#define AVG_RES_INC_COUNT(pAvgRes, inputType, val)                  \
+  do {                                                              \
+    if (IS_DECIMAL_TYPE(inputType))                                 \
+      AVG_RES_GET_DECIMAL_RES(pAvgRes)->count += val;               \
+    else                                                            \
+      taosAddInt64Aligned(&(AVG_RES_GET_RES(pAvgRes)->count), val); \
   } while (0)
 
 #define AVG_RES_GET_DECIMAL_AVG(pAvgRes) (((SDecimalAvgRes*)(pAvgRes))->avg)
