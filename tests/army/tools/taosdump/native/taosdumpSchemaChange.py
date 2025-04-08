@@ -245,6 +245,33 @@ class TDTestCase(TBase):
         ]
         self.checkManyString(rlist, results)
 
+    def exceptNoSameCol(self, db, newdb, tmpdir):
+        # des newdb re-create
+        command = "-f tools/taosdump/native/json/schemaChangeNew.json"
+        self.benchmark(command)        
+
+        # re-create meters2 for no same column and tags
+        sqls = [
+            f"drop table {newdb}.meters2",
+            f"create table {newdb}.meters2(nts timestamp, age int) tags(area int)"
+        ]
+        tdSql.executes(sqls)
+
+        # dumpIn
+        cmd = f'-W "{db}={newdb}" -i {tmpdir}'
+        rlist = self.taosdump(cmd)
+        results = [
+            f"rename DB Name {db} to {newdb}",
+            f"backup data schema no same column with server table",
+            f"OK: 5132 row(s) dumped in!"
+        ]
+        self.checkManyString(rlist, results)
+
+        tdLog.info("check except no same column ...................... [OK]")
+
+    def testExcept(self, db, newdb, tmpdir):
+        # dump out , des table no same column
+        self.exceptNoSameCol()
 
     def run(self):
         # init
@@ -287,6 +314,8 @@ class TDTestCase(TBase):
         # check result correct specify table
         self.checkCorrect(db, newdb)
 
+        # check except
+        self.testExcept(db, newdb, tmpdir)
 
     def stop(self):
         tdSql.close()
