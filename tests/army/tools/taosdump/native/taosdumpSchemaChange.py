@@ -254,7 +254,7 @@ class TDTestCase(TBase):
         sqls = [
             # meters2 no same col and tag
             f"drop table {newdb}.meters2",
-            f"create table {newdb}.meters2(nts timestamp, age int) tags(area int)"
+            f"create table {newdb}.meters2(nts timestamp, age int) tags(area int)",
             # meters3 one same col and no same tag
             f"drop table {newdb}.meters3",
             f"create table {newdb}.meters3(ts timestamp, fc float) tags(area int)"
