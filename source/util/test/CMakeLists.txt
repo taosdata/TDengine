@@ -150,16 +150,14 @@ add_test(
 )
 
 
-IF($TD_LINUX)
-    add_executable(utilTests "utilTests.cpp")
+if(${TD_LINUX})
+    add_executable(utilTests utilTests.cpp stringTest.cpp)
     target_link_libraries(utilTests os util common gtest_main)
     add_test(
         NAME utilTests
         COMMAND utilTests
     )
-ENDIF()
 
-if(${TD_LINUX})
     # terrorTest
     add_executable(terrorTest "terrorTest.cpp")
     target_link_libraries(terrorTest os util common gtest_main)
