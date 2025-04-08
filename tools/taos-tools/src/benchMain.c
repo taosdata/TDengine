@@ -73,7 +73,7 @@ int checkArgumentValid() {
                                  false,
                                  1)) {
             errorPrint("%s", "Failed to convert server address\n");
-            return;
+            return -1;
         }
         encodeAuthBase64();
         g_arguments->rest_server_ver_major =
