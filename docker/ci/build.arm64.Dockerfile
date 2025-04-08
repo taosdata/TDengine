@@ -6,7 +6,7 @@ ENV ac_cv_func_regcomp=yes
 ENV krb5_cv_attr_constructor_destructor=yes
 
 COPY zig-linux-x86_64-0.13.0.tar.xz .
-COPY cargo.toml /root/.cargo/config.toml
+COPY config.toml /root/.cargo/config.toml
 # RUN wget https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz && tar -xf zig-linux-x86_64-0.13.0.tar.xz -C /
 RUN apt update && apt install -y wget gcc make cmake libssl-dev pkg-config perl g++ gcc-aarch64-linux-gnu curl xz-utils && \
     tar -xf zig-linux-x86_64-0.13.0.tar.xz -C /
