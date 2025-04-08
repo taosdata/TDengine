@@ -252,8 +252,12 @@ class TDTestCase(TBase):
 
         # re-create meters2 for no same column and tags
         sqls = [
+            # meters2 no same col and tag
             f"drop table {newdb}.meters2",
             f"create table {newdb}.meters2(nts timestamp, age int) tags(area int)"
+            # meters3 one same col and no same tag
+            f"drop table {newdb}.meters3",
+            f"create table {newdb}.meters3(ts timestamp, fc float) tags(area int)"
         ]
         tdSql.executes(sqls)
 
@@ -262,8 +266,10 @@ class TDTestCase(TBase):
         rlist = self.taosdump(cmd)
         results = [
             f"rename DB Name {db} to {newdb}",
-            f"backup data schema no same column with server table",
-            f"OK: 7132 row(s) dumped in!"
+            "backup data schema no same column with server table",
+            "new tag zero failed! oldt=",
+            "50 failures occurred to dump in",
+            "OK: 4132 row(s) dumped in!"
         ]
         self.checkManyString(rlist, results)
 
