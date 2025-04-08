@@ -641,7 +641,7 @@ if(${BUILD_WITH_UV})        # {
     get_from_local_repo_if_exists("https://github.com/libuv/libuv.git")
     ExternalProject_Add(ext_libuv
         GIT_REPOSITORY ${_git_url}
-        GIT_TAG v1.50.0
+        GIT_TAG v1.49.2
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
