@@ -1767,10 +1767,22 @@ async function createTemplateStableSucc(stbName: string) {
   getSTbaleList(false, true);
   closeDialog();
 }
+
+function formatWithBackticks(name: any): string {
+  const strName = String(name);
+
+  if (strName.startsWith('`') && strName.endsWith('`')) {
+    return strName;
+  }
+
+  return `\`${strName}\``;
+}
+
 //获取初始化的stables
 async function getInitStables() {
   if (!sourceForm.targetDB) return;
-  const sql = `show  \`${sourceForm.targetDB}\`.stables `;
+  const dbName = formatWithBackticks(sourceForm.targetDB);
+  const sql = `show  ${dbName}.stables `;
 
   executeSqlFn!(sql, false)
     .then(data => {

@@ -20,8 +20,9 @@ export async function getDBListReq() {
 }
 
 export async function getStables(database) {
+  const databaseName = formatWithBackticks(database)
   try {
-    const result = await sendSQLReq(`show  \`${database}\`.stables`);
+    const result = await sendSQLReq(`show  ${databaseName}.stables`);
     return Array.from(result.data).flat(1);
   } catch (error) {
     console.log(error);
@@ -88,7 +89,7 @@ function getDBParamsSql(data: Recordable) {
 }
 
 export function createDB(data: Recordable) {
-  const name = data.name;
+  const name = formatWithBackticks(data.name);
   return request({
     baseURL: import.meta.env.VITE_APP_BASE_URL,
     url: '/rest/sql',
@@ -107,6 +108,17 @@ export function createDB(data: Recordable) {
       return Promise.reject(err);
     });
 }
+
+function formatWithBackticks(name: any): string {
+  const strName = String(name);
+
+  if (strName.startsWith('`') && strName.endsWith('`')) {
+    return strName;
+  }
+
+  return `\`${strName}\``;
+}
+
 export function updateDB(data: Recordable) {
   return executeDBOperations(`ALTER DATABASE \`${data.name}\` ${getDBParamsSql(data)};`);
 }
