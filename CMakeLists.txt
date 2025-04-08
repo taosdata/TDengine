@@ -63,6 +63,12 @@ if(EXISTS ${FILE_PATH})
   include(community/cmake/defines.cmake)
 endif()
 
+set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/define.cmake")
+
+if(EXISTS ${FILE_PATH})
+  include(community/cmake/define.cmake)
+endif()
+
 set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/cmake.version")
 
 if(EXISTS ${FILE_PATH})
