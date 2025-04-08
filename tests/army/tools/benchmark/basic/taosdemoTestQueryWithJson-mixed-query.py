@@ -37,10 +37,33 @@ class TDTestCase(TBase):
                 queryResultTaosc = line.strip().split()[0]
                 self.assertCheck(filename, queryResultTaosc, expectResult)
 
+    # 获取restful接口查询的结果文件中的关键内容,目前的关键内容找到第一个key就跳出循，所以就只有一个数据。后续再修改多个结果文件。
+    def getfileDataRestful(self, filename):
+        self.filename = filename
+        with open("%s" % filename, "r+") as f1:
+            for line in f1.readlines():
+                contents = line.strip()
+                if contents.find("data") != -1:
+                    pattern = re.compile("{.*}")
+                    contents = pattern.search(contents).group()
+                    contentsDict = ast.literal_eval(contents)  # 字符串转换为字典
+                    queryResultRest = contentsDict["data"][0][0]
+                    break
+                else:
+                    queryResultRest = ""
+        return queryResultRest
+
     # 获取taosc接口查询次数
     def queryTimesTaosc(self, filename):
         self.filename = filename
         command = "cat %s |wc -l" % filename
+        times = int(subprocess.getstatusoutput(command)[1])
+        return times
+
+    # 获取restful接口查询次数
+    def queryTimesRestful(self, filename):
+        self.filename = filename
+        command = 'cat %s |grep "200 OK" |wc -l' % filename
         times = int(subprocess.getstatusoutput(command)[1])
         return times
 
@@ -82,6 +105,26 @@ class TDTestCase(TBase):
         # delete useless files
         os.system("rm -rf ./query_res*")
         os.system("rm -rf ./all_query*")
+
+        # use restful api to query
+        os.system("%s -f ./tools/benchmark/basic/json/queryInsertrestdata.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryRestful.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryRestful1.json" % binPath)
+        os.system("cat query_res2.txt*  > all_query_res2_rest.txt")
+
+        # correct Times testcases
+
+        queryTimes2Restful = self.queryTimesRestful("all_query_res2_rest.txt")
+        self.assertCheck("all_query_res2_rest.txt", queryTimes2Restful, 4)
+
+        # correct data testcase
+
+        data2 = self.getfileDataRestful("all_query_res2_rest.txt")
+        print(data2)
+        if data2 != "2020-11-01 00:00:00.004" and data2 != "2020-10-31T16:00:00.004Z":
+            tdLog.exit(
+                "data2 is not 2020-11-01 00:00:00.004 and 2020-10-31T16:00:00.004Z"
+            )
 
         # query times less than or equal to 100
         assert (
