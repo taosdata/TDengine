@@ -175,6 +175,7 @@ help() {
     echo "  deploy_docker               - Deploy Docker"
     echo "  deploy_docker_compose       - Deploy Docker Compose"
     echo "  install_trivy               - Install Trivy"
+    echo "  install_uv                  - Install uv"
     echo "  clone_enterprise            - Clone the enterprise repository"
     echo "  clone_community             - Clone the community repository"
     echo "  clone_taosx                 - Clone TaosX repository"
@@ -1787,6 +1788,32 @@ install_trivy() {
     rm -rf trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
 }
 
+# Install uv
+install_uv() {
+    local uv_url="https://astral.sh/uv/install.sh"
+    local uv_path="$HOME/.local/bin/uv"
+
+    echo -e "${YELLOW}Checking for uv installation...${NO_COLOR}"
+
+    if [ -f "$uv_path" ]; then
+        echo -e "${GREEN}uv is already installed.${NO_COLOR}"
+    else
+        echo -e "${YELLOW}Installing uv...${NO_COLOR}"
+        if ! command -v curl &> /dev/null; then
+            echo -e "${RED}Error: curl is not installed. Please install curl first.${NO_COLOR}"
+            install_package curl
+        fi
+
+        if curl --retry 10 --retry-delay 5 --retry-max-time 120 -LsSf "$uv_url" | sh; then
+            echo -e "${GREEN}uv has been installed successfully.${NO_COLOR}"
+            SOURCE_RESULTS+="# For uv\nsource $HOME/.local/bin/env (sh, bash, zsh)\nsource $HOME/.local/bin/env.fish (fish)\n"
+        else
+            echo -e "${RED}Error: Failed to install uv.${NO_COLOR}"
+            return 1
+        fi
+    fi
+}
+
 # Reconfigure cloud-init
 reconfig_cloud_init() {
     echo "Reconfiguring cloud-init..."
@@ -2061,6 +2088,7 @@ deploy_dev() {
     deploy_docker
     deploy_docker_compose
     install_trivy
+    install_uv
     check_status "Failed to deploy some tools" "Deploy all tools successfully" $?
 }
 
@@ -2218,6 +2246,9 @@ main() {
                 ;;
             install_trivy)
                 install_trivy
+                ;;
+            install_uv)
+                install_uv
                 ;;
             clone_enterprise)
                 clone_enterprise

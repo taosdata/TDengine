@@ -3,11 +3,16 @@ from flask import Flask, request, jsonify
 from transformers import AutoModelForCausalLM
 
 app = Flask(__name__)
-device = 'cpu'
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+_model_list = [
+    'Maple728/TimeMoE-50M',  # time-moe model with 50M  parameters
+    'Maple728/TimeMoE-200M',  # time-moe model with 200M parameters
+]
 
 model = AutoModelForCausalLM.from_pretrained(
-    'Maple728/TimeMoE-200M',
-    device_map=device,  # use "cpu" for CPU inference, and "cuda" for GPU inference.
+    _model_list[0],
+    device_map=device,
     trust_remote_code=True,
 )
 
@@ -25,13 +30,15 @@ def time_moe():
         prediction_length = data['next_len']
 
         seqs = torch.tensor(input_data).unsqueeze(0).float().to(device)
+
         mean, std = seqs.mean(dim=-1, keepdim=True), seqs.std(dim=-1, keepdim=True)
         normed_seqs = (seqs - mean) / std
         seqs = normed_seqs
 
         pred_y = model.generate(seqs, max_new_tokens=prediction_length)
 
-        normed_predictions = pred_y[:, -prediction_length:] 
+        normed_predictions = pred_y[:, -prediction_length:]
+
         # inverse normalize
         predictions = normed_predictions * std + mean
         print(predictions)
@@ -41,7 +48,9 @@ def time_moe():
             'status': 'success',
             'output': pred_y
         }
+
         return jsonify(response), 200
+
     except Exception as e:
         return jsonify({
             'error': f'Prediction failed: {str(e)}'

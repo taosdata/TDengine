@@ -172,7 +172,7 @@ coverage.info
 taos
 taosd
 !test/requirements.txt
-
+.externals
 
 # usage
 # git config --global core.excludesfile .gitignore_global 

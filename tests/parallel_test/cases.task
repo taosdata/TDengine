@@ -601,6 +601,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_disk_usage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_disk_usage_multilevel.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_dismatch_config.py
 
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
