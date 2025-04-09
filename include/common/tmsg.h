@@ -3132,10 +3132,126 @@ typedef struct SColLocation {
   int8_t   type;
 } SColLocation;
 
+#ifdef NEW_STREAM
+typedef struct SStreamOutCol {
+  int16_t            slotId;
+  col_id_t           colId;
+  EStreamPlaceholder placeholder;
+  int8_t             type;
+} SStreamOutCol;
+
+
+typedef struct SSessionTrigger {
+  int16_t slotId;
+  int64_t sessionVal;
+} SSessionTrigger;
+
+typedef struct SStateWinTrigger {
+  int16_t slotId;
+  int64_t trueForDuration;
+} SStateWinTrigger;
+
+typedef struct SSlidingTrigger {
+  int64_t interval;
+  int64_t sliding;
+  int64_t offset;
+} SSlidingTrigger;
+
+typedef struct SEventTrigger {
+  SNode*  startCond;
+  SNode*  endCond;
+  int64_t trueForDuration;
+} SEventTrigger;
+
+typedef struct SCountTrigger {
+  int64_t    countVal;
+  int64_t    sliding;
+  SNodeList* condCols;
+} SCountTrigger;
+
+typedef struct SPeriodTrigger {
+  int64_t period;
+  int64_t offset;
+} SPeriodTrigger;
+
+typedef union {
+  SSessionTrigger  session;
+  SStateWinTrigger stateWin;
+  SSlidingTrigger  sliding;
+  SEventTrigger    event;
+  SCountTrigger    count;
+  SPeriodTrigger   period;
+} SStreamTrigger;
+
+typedef struct {
+  char*   name;
+  char*   triggerDB;
+  char*   triggerTblName;  // table name
+  char*   targetTblFName;  // full name
+  char*   sql;
+
+  uint64_t streamId;
+  
+  int8_t  igExists;
+  int8_t  triggerType;
+  int8_t  igDisorder;
+  int8_t  deleteReCalc;
+  int8_t  deleteOutTbl;
+  int8_t  fillHistory;
+  int8_t  fillHistoryFirst;
+  int8_t  calcNotifyOnly;
+  int8_t  lowLatencyCalc;
+  int8_t  forceOutput;
+  
+  SArray* pNotifyAddrUrls;
+  int32_t notifyEventTypes;
+  int32_t notifyErrorHandle;
+  int8_t  notifyHistory;
+
+  SArray*        outCols;  // array of TAOS_FIELD_E
+  SArray*        outTags;  // array of TAOS_FIELD_E
+  SArray*        partitionCols; // array of TAOS_FIELD_E
+  int64_t        maxDelay;    //precision is ms
+  int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
+  int64_t        watermark;   // precision same with triggerDB
+  int64_t        expiredTime; // precision same with triggerDB
+  SStreamTrigger trigger;
+
+  int8_t   triggerTblType;
+  int8_t   calcTblType;
+  int8_t   outTblType;
+  int8_t   outStbExists;
+  uint64_t outStbUid;
+  int64_t  flag;
+  int64_t  eventTypes;
+
+  SArray*  triggerTblVgroups;
+  SArray*  calcTblVgroups;
+  SArray*  outTblVgroups;
+
+  // reader part
+  SNode*    prevFilter;
+  SSubplan* walScan;
+  SSubplan* triggerTsdbScan;  // for trigger action
+  SSubplan* calcTsdbScan;     // for calc action
+
+  // trigger part
+  SArray*  pVSubTables; // array of SVSubTablesRsp
+  
+  // runner part
+  SSubplan* calcPlan;      // for calc action
+  SNode*    subTblNameExpr;
+  SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+} SCMCreateStreamReq;
+
+#else
+
+
 typedef struct SVgroupVer {
   int32_t vgId;
   int64_t ver;
 } SVgroupVer;
+
 
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
@@ -3176,6 +3292,7 @@ typedef struct {
   char    pIsWindowFilledName[TSDB_COL_NAME_LEN];
   SArray* pVSubTables; // array of SVSubTablesRsp
 } SCMCreateStreamReq;
+#endif
 
 typedef struct STaskNotifyEventStat {
   int64_t notifyEventAddTimes;     // call times of add function
