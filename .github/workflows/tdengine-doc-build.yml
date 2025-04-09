@@ -47,6 +47,7 @@ jobs:
         uses: huacnlee/autocorrect-action@main
         with:
           args: --lint docs/zh/* docs/en/*
+          reviewdog: true
 
   build-doc:
     runs-on:
