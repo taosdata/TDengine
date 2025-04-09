@@ -66,7 +66,7 @@ extern "C" {
     const void *ptrs[] = {__VA_ARGS__};                                        \
     for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
       if (ptrs[i] == NULL) {                                                   \
-        fnError("taosudf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        fnError("udf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__);  \
         return TSDB_CODE_INVALID_PARA;                                         \
       }                                                                        \
     }                                                                          \
@@ -77,7 +77,7 @@ extern "C" {
     const void *ptrs[] = {__VA_ARGS__};                                        \
     for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
       if (ptrs[i] == NULL) {                                                   \
-        fnError("taosudf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        fnError("udf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__);  \
         return;                                                                \
       }                                                                        \
     }                                                                          \
