@@ -37,9 +37,9 @@ extern "C" {
 
 #define UDF_LISTEN_PIPE_NAME_LEN 32
 #ifdef _WIN32
-#define UDF_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\taosudf.sock"
+#define UDF_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\" CUS_PROMPT "udf.sock"
 #else
-#define UDF_LISTEN_PIPE_NAME_PREFIX ".taosudf.sock."
+#define UDF_LISTEN_PIPE_NAME_PREFIX "." CUS_PROMPT "udf.sock."
 #endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 

@@ -339,7 +339,7 @@ int32_t tsS3MigrateIntervalSec = 60 * 60;  // interval of s3migrate db in all vg
 bool    tsS3MigrateEnabled = 0;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
-char    tsUdfdResFuncs[512] = "";  // taosudf resident funcs that teardown when taosudf exits
+char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 #ifdef USE_STREAM
 bool tsDisableStream = false;
