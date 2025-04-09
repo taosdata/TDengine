@@ -12,13 +12,15 @@
 
 #include <ctype.h>
 #include <bench.h>
+#include "benchLog.h"
+#include "decimal.h"
+#include "pub.h"
+#if defined(_TD_DARWIN_64)
 #include <sys/sysctl.h>
 #include <mach/mach.h>
 #include <mach/mach_host.h>
 #include <mach/vm_page_size.h> 
-#include "benchLog.h"
-#include "decimal.h"
-#include "pub.h"
+#endif
 
 char resEncodingChunk[] = "Encoding: chunked";
 char succMessage[] = "succ";
@@ -980,9 +982,7 @@ int32_t benchGetTotalMemory(int64_t *totalKB) {
   size_t len = sizeof(phys_mem);
 
   if (sysctl((int[]){CTL_HW, HW_MEMSIZE}, 2, &phys_mem, &len, NULL, 0) == -1) {
-    errorPrint("Failed to get physical memory size");
-    *totalKB = -1; // 明确错误值
-    return;
+    return -1;
   }
 
   *totalKB = phys_mem / 1024;
