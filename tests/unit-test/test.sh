@@ -46,6 +46,7 @@ ctest_output="unit-test.log"
 ctest -E "cunit_test|pcre*|example*" -j8 2>&1 | tee "$ctest_output"
 ctest_ret=${PIPESTATUS[0]}
 
+
 # Read the captured output
 ctest_output=$(cat "$ctest_output")
 
