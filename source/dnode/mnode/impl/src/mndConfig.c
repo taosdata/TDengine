@@ -791,9 +791,7 @@ static void cfgArrayCleanUp(SArray *array, bool needFree) {
     SConfigItem *item = taosArrayGet(array, i);
     if (item->dtype == CFG_DTYPE_STRING || item->dtype == CFG_DTYPE_DIR || item->dtype == CFG_DTYPE_LOCALE ||
         item->dtype == CFG_DTYPE_CHARSET || item->dtype == CFG_DTYPE_TIMEZONE) {
-      if (needFree) {
-        taosMemoryFreeClear(item->str);
-      }
+      taosMemoryFreeClear(item->str);
     }
     if (needFree) {
       taosMemoryFreeClear(item->name);
