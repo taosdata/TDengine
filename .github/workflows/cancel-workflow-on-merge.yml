@@ -7,6 +7,8 @@ on:
 jobs:
   cancel-workflow:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     steps:
       - name: Cancel Workflow if Merged or Closed
         if: ${{ github.event.pull_request.merged || github.event.pull_request.state == 'closed' }}
