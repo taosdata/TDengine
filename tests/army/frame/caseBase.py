@@ -363,7 +363,12 @@ class TBase:
                 return 
 
         # not found
-        tdLog.exit(f'faild, not found "{s}" on list:{rlist}')
+        
+        i = 1
+        for x in rlist:
+            print(f"{i} {x}")
+            i += 1
+        tdLog.exit(f'faild, not found "{s}" on above')
     
     # check many string
     def checkManyString(self, rlist, manys):
