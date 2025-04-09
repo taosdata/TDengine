@@ -84,61 +84,49 @@ static FORCE_INLINE int64_t taosGetInt64Aligned(int64_t *pVal) {
   return val;
 }
 
-#define taosGetInt64Alignedx(val)        \
-  ({                                     \
-    int64_t temp;                        \
-    memcpy(&temp, &(val), sizeof(temp)); \
-    temp;                                \
+#define TAOS_GET_TYPE_ALIGNED(Type, var)   \
+  ({                                       \
+    Type __tmp;                            \
+    memcpy(&__tmp, &(var), sizeof(__tmp)); \
+    __tmp;                                 \
   })
 
-#define taosGetPInt64Alignedx(pVal)                 \
-  ({                                                \
-    int64_t temp;                                   \
-    memcpy(&temp, (int64_t *)(pVal), sizeof(temp)); \
-    temp;                                           \
+#define TAOS_GET_PTYPE_ALIGNED(Type, ptr) \
+  ({                                      \
+    Type __tmp;                           \
+    memcpy(&__tmp, (ptr), sizeof(__tmp)); \
+    __tmp;                                \
   })
 
-#define taosGetUInt64Alignedx(val)       \
-  ({                                     \
-    uint64_t temp;                       \
-    memcpy(&temp, &(val), sizeof(temp)); \
-    temp;                                \
-  })
-
-#define taosGetPUInt64Alignedx(pVal)                 \
-  ({                                                 \
-    uint64_t temp;                                   \
-    memcpy(&temp, (uint64_t *)(pVal), sizeof(temp)); \
-    temp;                                            \
-  })
-
-#define taosGetDoubleAlignedx(val)       \
-  ({                                     \
-    double temp;                         \
-    memcpy(&temp, &(val), sizeof(temp)); \
-    temp;                                \
-  })
-#define taosGetPDoubleAlignedx(pVal)               \
-  ({                                               \
-    double temp;                                   \
-    memcpy(&temp, (double *)(pVal), sizeof(temp)); \
-    temp;                                          \
-  })
-
-#define taosSetDoubleAlignedx(to, from)   memcpy(&(to), &(from), sizeof(double))
-#define taosSetPDoubleAlignedx(to, pFrom) memcpy(&(to), (pFrom), sizeof(double))
-#define taosSetLDoubleAlignedx(to, literal)     \
-  do {                                          \
-    double tmp = (literal);                     \
-    memcpy(&(to), &(tmp), sizeof(long double)); \
+#define TAOS_SET_TYPE_ALIGNED(Type, to, from)   memcpy(&(to), &(from), sizeof(Type))
+#define TAOS_SET_PTYPE_ALIGNED(Type, to, pFrom) memcpy(&(to), (pFrom), sizeof(Type))
+#define TAOS_SET_LTYPE_ALIGNED(Type, to, literal) \
+  do {                                            \
+    Type __tmp = (Type)(literal);                 \
+    memcpy(&(to), &__tmp, sizeof(Type));          \
   } while (0)
-#define taosPSetDoubleAlignedx(pTo, from)   memcpy((pTo), &(from), sizeof(double))
-#define taosPSetPDoubleAlignedx(pTo, pFrom) memcpy((pTo), (pFrom), sizeof(double))
-#define taosPSetLDoubleAlignedx(pTo, literal)   \
-  do {                                          \
-    double tmp = (literal);                     \
-    memcpy((pTo), &(tmp), sizeof(long double)); \
+#define TAOS_PSET_TYPE_ALIGNED(Type, pTo, from)   memcpy((pTo), &(from), sizeof(Type))
+#define TAOS_PSET_PTYPE_ALIGNED(Type, pTo, pFrom) memcpy((pTo), (pFrom), sizeof(Type))
+#define TAOS_PSET_LTYPE_ALIGNED(Type, pTo, literal) \
+  do {                                              \
+    Type __tmp = (Type)(literal);                   \
+    memcpy((pTo), &__tmp, sizeof(Type));            \
   } while (0)
+
+// #define taosSetDoubleAlignedx(to, from)   memcpy(&(to), &(from), sizeof(double))
+// #define taosSetPDoubleAlignedx(to, pFrom) memcpy(&(to), (pFrom), sizeof(double))
+// #define taosSetLDoubleAlignedx(to, literal)     \
+//   do {                                          \
+//     double tmp = (literal);                     \
+//     memcpy(&(to), &(tmp), sizeof(long double)); \
+//   } while (0)
+// #define taosPSetDoubleAlignedx(pTo, from)   memcpy((pTo), &(from), sizeof(double))
+// #define taosPSetPDoubleAlignedx(pTo, pFrom) memcpy((pTo), (pFrom), sizeof(double))
+// #define taosPSetLDoubleAlignedx(pTo, literal)   \
+//   do {                                          \
+//     double tmp = (literal);                     \
+//     memcpy((pTo), &(tmp), sizeof(long double)); \
+//   } while (0)
 
 static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) {
 #ifdef CHECK_ALIGNMENT
@@ -288,20 +276,21 @@ static FORCE_INLINE void taosAddDoubleAligned(double *p, double val) {
 #else
 #define TAOS_SET_OBJ_ALIGNED(pTo, vFrom)  *(pTo) = (vFrom)
 #define TAOS_SET_POBJ_ALIGNED(pTo, pFrom) *(pTo) = *(pFrom)
+#define TAOS_GET_TYPE_ALIGNED(Type,  var)    (var)
+#define TAOS_GET_PTYPE_ALIGNED(Type, ptr)  (*((Type *)(ptr)))
+#define TAOS_SET_TYPE_ALIGNED(Type, to, from)  (to) = (from)
+#define TAOS_SET_PTYPE_ALIGNED(Type, to, pFrom) (to) = *((Type *)(from))
+#define TAOS_SET_LTYPE_ALIGNED(Type, to, literal)  (to) = ((Type)(literal))
+#define TAOS_PSET_TYPE_ALIGNED(Type, pTo, from)   *((Type *)(pTo)) = (from)
+#define TAOS_PSET_PTYPE_ALIGNED(Type, pTo, pFrom)  *((Type *)(pTo)) = *((Type *)(pFrom))
+#define TAOS_PSET_LTYPE_ALIGNED(Type, pTo, literal) *((Type *)(pTo)) = ((Type)(literal))
 
-#define taosGetInt64Alignedx(val)    (val)
-#define taosGetPInt64Alignedx(pVal)  (*((int64_t *)(pVal)))
-#define taosGetUInt64Alignedx(val)   (val)
-#define taosGetPUInt64Alignedx(pVal) (*((uint64_t *)(pVal)))
-#define taosGetDoubleAlignedx(val)   (val)
-#define taosGetPDoubleAlignedx(pVal) (*((double *)(pVal)))
-
-#define taosSetDoubleAlignedx(to, from)       (to) = (from)
-#define taosSetDoubleAlignedx(to, pFrom)      (to) = *((double *)(from))
-#define taosSetLDoubleAlignedx(to, literal)   (to) = (literal)
-#define taosPSetDoubleAlignedx(pTo, from)     *((double *)(pTo)) = (from)
-#define taosPSetPDoubleAlignedx(pTo, pFrom)   *((double *)(pTo)) = *((double *)(pFrom))
-#define taosPSetLDoubleAlignedx(pTo, literal) *((double *)(pTo)) = (literal)
+// #define taosSetDoubleAlignedx(to, from)       (to) = (from)
+// #define taosSetPDoubleAlignedx(to, pFrom)      (to) = *((double *)(from))
+// #define taosSetLDoubleAlignedx(to, literal)   (to) = (literal)
+// #define taosPSetDoubleAlignedx(pTo, from)     *((double *)(pTo)) = (from)
+// #define taosPSetPDoubleAlignedx(pTo, pFrom)   *((double *)(pTo)) = *((double *)(pFrom))
+// #define taosPSetLDoubleAlignedx(pTo, literal) *((double *)(pTo)) = (literal)
 
 static FORCE_INLINE int64_t  taosGetInt64Aligned(int64_t *pVal) { return *pVal; }
 static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) { return *pVal; }
@@ -319,6 +308,31 @@ static FORCE_INLINE void     taosAddInt64Aligned(int64_t *p, int64_t val) { *p +
 static FORCE_INLINE void     taosAddUInt64Aligned(uint64_t *p, uint64_t val) { *p += val; }
 static FORCE_INLINE void     taosAddDoubleAligned(double *p, double val) { *p += val; }
 #endif
+
+#define taosGetInt64Alignedx(val)             TAOS_GET_TYPE_ALIGNED(int64_t, val)
+#define taosGetPInt64Alignedx(pVal)           TAOS_GET_PTYPE_ALIGNED(int64_t, pVal)
+#define taosGetUInt64Alignedx(val)            TAOS_GET_TYPE_ALIGNED(uint64_t, val)
+#define taosGetPUInt64Alignedx(pVal)          TAOS_GET_PTYPE_ALIGNED(uint64_t, pVal)
+#define taosGetDoubleAlignedx(val)            TAOS_GET_TYPE_ALIGNED(double, val)
+#define taosGetPDoubleAlignedx(pVal)          TAOS_GET_PTYPE_ALIGNED(double, pVal)
+#define taosSetInt64Alignedx(to, from)        TAOS_SET_TYPE_ALIGNED(int64_t, to, from)
+#define taosSetPInt64Alignedx(to, pFrom)      TAOS_SET_PTYPE_ALIGNED(int64_t, to, pFrom)
+#define taosSetLInt64Alignedx(to, literal)    TAOS_SET_LTYPE_ALIGNED(int64_t, to, literal)
+#define taosPSetInt64Alignedx(pTo, from)      TAOS_PSET_TYPE_ALIGNED(int64_t, pTo, from)
+#define taosPSetPInt64Alignedx(pTo, pFrom)    TAOS_PSET_PTYPE_ALIGNED(int64_t, pTo, pFrom)
+#define taosPSetLInt64Alignedx(pTo, literal)  TAOS_PSET_LTYPE_ALIGNED(int64_t, pTo, literal)
+#define taosSetUInt64Alignedx(to, from)       TAOS_SET_TYPE_ALIGNED(uint64_t, to, from)
+#define taosSetPUInt64Alignedx(to, pFrom)     TAOS_SET_PTYPE_ALIGNED(uint64_t, to, pFrom)
+#define taosSetLUInt64Alignedx(to, literal)   TAOS_SET_LTYPE_ALIGNED(uint64_t, to, literal)
+#define taosPSetUInt64Alignedx(pTo, from)     TAOS_PSET_TYPE_ALIGNED(uint64_t, pTo, from)
+#define taosPSetPUInt64Alignedx(pTo, pFrom)   TAOS_PSET_PTYPE_ALIGNED(uint64_t, pTo, pFrom)
+#define taosPSetLUInt64Alignedx(pTo, literal) TAOS_PSET_LTYPE_ALIGNED(uint64_t, pTo, literal)
+#define taosSetDoubleAlignedx(to, from)       TAOS_SET_TYPE_ALIGNED(double, to, from)
+#define taosSetPDoubleAlignedx(to, pFrom)     TAOS_SET_PTYPE_ALIGNED(double, to, pFrom)
+#define taosSetLDoubleAlignedx(to, literal)   TAOS_SET_LTYPE_ALIGNED(double, to, literal)
+#define taosPSetDoubleAlignedx(pTo, from)     TAOS_PSET_TYPE_ALIGNED(double, pTo, from)
+#define taosPSetPDoubleAlignedx(pTo, pFrom)   TAOS_PSET_PTYPE_ALIGNED(double, pTo, pFrom)
+#define taosPSetLDoubleAlignedx(pTo, literal) TAOS_PSET_LTYPE_ALIGNED(double, pTo, literal)
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
