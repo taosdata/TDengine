@@ -58,6 +58,7 @@ jobs:
         with:
           app_id: ${{ vars.TAOSDATA_BOT_ID }}
           private_key: ${{ secrets.TAOSDATA_BOT_KEY }}
+          
       - name: Configure Git authentication
         run: |
           # 配置全局git配置      
@@ -83,6 +84,7 @@ jobs:
           which taosd
           which taosadapter
           which taoskeeper
+          
       - name: Start taosd
         run: |
           cp /etc/taos/taos.cfg ./
