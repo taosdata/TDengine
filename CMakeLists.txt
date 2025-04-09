@@ -9,8 +9,8 @@ project(
 set(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
 set(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR}/community)
 set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
-set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
-set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
+set(TD_SUPPORT_DIR ${TD_SOURCE_DIR}/cmake)
+set(TD_CONTRIB_DIR ${TD_SOURCE_DIR}/contrib)
 
 message(STATUS "Enterprise directory: " ${TD_ENTERPRISE_DIR})
 message(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
@@ -82,6 +82,11 @@ if(EXISTS ${FILE_PATH})
 endif()
 
 include(community/cmake/external.cmake)
+
+if(${BUILD_TEST})
+  include(CTest)
+  enable_testing()
+endif(${BUILD_TEST})
 
 add_subdirectory(community)
 add_subdirectory(enterprise)
