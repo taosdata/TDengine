@@ -1004,9 +1004,8 @@ int32_t compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *d
     SConfigItem *dItem = (SConfigItem *)taosArrayGet(dArray, i);
     SConfigObj  *mObj = sdbAcquire(pMnode->pSdb, SDB_CFG, dItem->name);
     if (mObj == NULL) {
-      code = terrno;
       mError("failed to acquire config:%s from sdb, since %s", dItem->name, tstrerror(code));
-      return code;
+      continue;
     }
 
     code = compareSConfigItem(mObj, dItem, &compare);
