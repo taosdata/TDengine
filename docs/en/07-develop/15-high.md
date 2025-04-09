@@ -47,7 +47,7 @@ The client application uses the `addBatch` method of the JDBC standard interface
 - `TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS`: The retry interval for automatic reconnection, with the unit of milliseconds. The default value is 2000. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is `true`.
 - `TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT`: The number of retry attempts for automatic reconnection. The default value is 3. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is `true`.
 
-For other configuration parameters, please refer to [Efficient Writing Configuration](../../reference/connector/java/#properties).
+For other configuration parameters, please refer to [Efficient Writing Configuration](../../tdengine-reference/client-libraries/java/#properties).
 
 **5. Instructions for Using JDBC Efficient Writing**
 
