@@ -1,4 +1,19 @@
 aux_source_directory(src PARSER_SRC)
+set(PARSER_SRC
+  src/parAstCreater.c
+  src/parAstParser.c
+  src/parAuthenticator.c
+  src/parCalcConst.c
+  src/parInsertSml.c
+  src/parInsertSql.c
+  src/parInsertStmt.c
+  src/parInsertUtil.c
+  src/parser.c
+  src/parTokenizer.c
+  src/parTranslater.c
+  src/parUtil.c
+  src/taos_lemon_sql.tab.c
+)
 
 IF(TD_ENTERPRISE)
         LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/parserView.c)
