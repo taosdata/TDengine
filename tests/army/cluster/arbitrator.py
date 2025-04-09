@@ -35,12 +35,20 @@ class TDTestCase(TBase):
         tdLog.info("create database")
         tdSql.execute('CREATE DATABASE db vgroups 1 replica 2;')
 
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"create db transaction not finished")
+            return False
+
         time.sleep(1)
 
         tdSql.execute("use db;")
 
         tdLog.info("create stable")
         tdSql.execute("CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);")
+
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"create stable transaction not finished")
+            return False
 
         tdLog.info("create table")
         tdSql.execute("CREATE TABLE d0 USING meters TAGS (\"California.SanFrancisco\", 2);");
