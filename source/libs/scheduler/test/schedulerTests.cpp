@@ -1402,7 +1402,8 @@ TEST(insertTest, normalCase) {
   schtJobDone = false;
 
   TdThread thread1;
-  assert(0 == taosThreadCreate(&(thread1), &thattr, schtSendRsp, &insertJobRefId));
+  int r = taosThreadCreate(&(thread1), &thattr, schtSendRsp, &insertJobRefId);
+  assert(0 == r);
 
   int32_t          queryDone = 0;
   SRequestConnInfo conn = {0};
