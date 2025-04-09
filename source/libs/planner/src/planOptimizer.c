@@ -481,17 +481,11 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
     scanPathOptSetScanWin(info.pScan);
-    if (!pCxt->pPlanCxt->streamQuery) {
-      scanPathOptSetScanOrder(info.scanOrder, info.pScan);
-    }
+    scanPathOptSetScanOrder(info.scanOrder, info.pScan);
     scanPathOptSetGroupOrderScan(info.pScan);
   }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
-    if (pCxt->pPlanCxt->streamQuery) {
-      info.pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;  // always load all data for stream query
-    } else {
-      info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
-    }
+    info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
 
     info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
   }
@@ -507,7 +501,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNode** pPrimaryKeyCond,
                                             SNode** pOtherCond) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
+  if (pCxt->pPlanCxt->topicQuery) {
     code = nodesMergeNode(pOtherCond, pPrimaryKeyCond);
   } else {
     bool isStrict = false;

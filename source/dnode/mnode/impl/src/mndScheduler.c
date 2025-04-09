@@ -67,7 +67,6 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
-      .streamQuery = true,
       .rSmaQuery = true,
       .triggerType = triggerType,
       .watermark = watermark,

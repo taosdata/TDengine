@@ -388,6 +388,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_TEMP_TABLE:
       code = makeNode(type, sizeof(STempTableNode), &pNode);
       break;
+    case QUERY_NODE_STREAM:
+      code = makeNode(type, sizeof(SStreamNode), &pNode);
+      break;
     case QUERY_NODE_JOIN_TABLE:
       code = makeNode(type, sizeof(SJoinTableNode), &pNode);
       break;
@@ -408,6 +411,18 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_INTERVAL_WINDOW:
       code = makeNode(type, sizeof(SIntervalWindowNode), &pNode);
+      break;
+    case QUERY_NODE_SLIDING_WINDOW:
+      code = makeNode(type, sizeof(SSlidingWindowNode), &pNode);
+      break;
+    case QUERY_NODE_PERIOD_WINDOW:
+      code = makeNode(type, sizeof(SPeriodWindowNode), &pNode);
+      break;
+    case QUERY_NODE_STREAM_EVENT_TYPE:
+      code = makeNode(type, sizeof(SStreamEventTypes), &pNode);
+      break;
+    case QUERY_NODE_STREAM_TRIGGER:
+      code = makeNode(type, sizeof(SStreamTriggerNode), &pNode);
       break;
     case QUERY_NODE_NODE_LIST:
       code = makeNode(type, sizeof(SNodeListNode), &pNode);
@@ -448,8 +463,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_EXPLAIN_OPTIONS:
       code = makeNode(type, sizeof(SExplainOptions), &pNode);
       break;
-    case QUERY_NODE_STREAM_OPTIONS:
-      code = makeNode(type, sizeof(SStreamOptions), &pNode);
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
+      code = makeNode(type, sizeof(SStreamTriggerOptions), &pNode);
       break;
     case QUERY_NODE_LEFT_VALUE:
       code = makeNode(type, sizeof(SLeftValueNode), &pNode);
@@ -1258,12 +1273,11 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_EXPLAIN_OPTIONS:  // no pointer field
       break;
-    case QUERY_NODE_STREAM_OPTIONS: {
-      SStreamOptions* pOptions = (SStreamOptions*)pNode;
-      nodesDestroyNode(pOptions->pDelay);
-      nodesDestroyNode(pOptions->pWatermark);
-      nodesDestroyNode(pOptions->pDeleteMark);
-      nodesDestroyNode(pOptions->pRecInterval);
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
+      SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
+      nodesDestroyNode(pOptions->pPreFilter);
+      nodesDestroyNode(pOptions->pMaxDelay);
+      nodesDestroyNode(pOptions->pWaterMark);
       break;
     }
     case QUERY_NODE_TSMA_OPTIONS: {
@@ -1561,12 +1575,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_FUNCTION_STMT:    // no pointer field
       break;
     case QUERY_NODE_CREATE_STREAM_STMT: {
-      SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;
-      nodesDestroyNode((SNode*)pStmt->pOptions);
+      SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;;
       nodesDestroyNode(pStmt->pQuery);
       nodesDestroyList(pStmt->pTags);
       nodesDestroyNode(pStmt->pSubtable);
-      nodesDestroyNode((SNode*)pStmt->pNotifyOptions);
       tFreeSCMCreateStreamReq(pStmt->pReq);
       taosMemoryFreeClear(pStmt->pReq);
       break;

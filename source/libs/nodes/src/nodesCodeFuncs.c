@@ -85,8 +85,8 @@ const char* nodesNodeName(ENodeType type) {
       return "IndexOptions";
     case QUERY_NODE_EXPLAIN_OPTIONS:
       return "ExplainOptions";
-    case QUERY_NODE_STREAM_OPTIONS:
-      return "StreamOptions";
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
+      return "StreamTriggerOptions";
     case QUERY_NODE_LEFT_VALUE:
       return "LeftValue";
     case QUERY_NODE_COLUMN_REF:
@@ -6368,55 +6368,15 @@ static const char* jkStreamOptionsIgnoreExpired = "IgnoreExpired";
 static const char* jkStreamOptionsRecInterval = "RecInterval";
 
 static int32_t streamOptionsToJson(const void* pObj, SJson* pJson) {
-  const SStreamOptions* pNode = (const SStreamOptions*)pObj;
+  const SStreamTriggerOptions* pNode = (const SStreamTriggerOptions*)pObj;
 
-  int32_t code = tjsonAddIntegerToObject(pJson, jkStreamOptionsTriggerType, pNode->triggerType);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamOptionsDelay, nodeToJson, pNode->pDelay);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamOptionsWatermark, nodeToJson, pNode->pWatermark);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamOptionsDeleteMark, nodeToJson, pNode->pDeleteMark);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkStreamOptionsFillHistory, pNode->fillHistory);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkStreamOptionsIgnoreExpired, pNode->ignoreExpired);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamOptionsRecInterval, nodeToJson, pNode->pRecInterval);
-  }
-
-  return code;
+  return 0;
 }
 
 static int32_t jsonToStreamOptions(const SJson* pJson, void* pObj) {
-  SStreamOptions* pNode = (SStreamOptions*)pObj;
+  SStreamTriggerOptions* pNode = (SStreamTriggerOptions*)pObj;
 
-  int32_t code = tjsonGetTinyIntValue(pJson, jkStreamOptionsTriggerType, &pNode->triggerType);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamOptionsDelay, &pNode->pDelay);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamOptionsWatermark, &pNode->pWatermark);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamOptionsDeleteMark, &pNode->pDeleteMark);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkStreamOptionsFillHistory, &pNode->fillHistory);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkStreamOptionsIgnoreExpired, &pNode->ignoreExpired);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamOptionsRecInterval, &pNode->pRecInterval);
-  }
-
-  return code;
+  return 0;
 }
 
 static const char* jkStreamNotifyOptionsAddrUrls = "AddrUrls";
@@ -6427,15 +6387,6 @@ static const char* jkStreamNotifyOptionsNotifyHistory = "NotifyHistory";
 static int32_t streamNotifyOptionsToJson(const void* pObj, SJson* pJson) {
   const SStreamNotifyOptions* pNotifyOption = (const SStreamNotifyOptions*)pObj;
   int32_t                     code = nodeListToJson(pJson, jkStreamNotifyOptionsAddrUrls, pNotifyOption->pAddrUrls);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonAddIntegerToObject(pJson, jkStreamNotifyOptionsEventType, pNotifyOption->eventTypes);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonAddIntegerToObject(pJson, jkStreamNotifyOptionsErrorHandle, pNotifyOption->errorHandle);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonAddBoolToObject(pJson, jkStreamNotifyOptionsNotifyHistory, pNotifyOption->notifyHistory);
-  }
 
   return code;
 }
@@ -6444,17 +6395,6 @@ static int32_t jsonToStreamNotifyOptions(const SJson* pJson, void* pObj) {
   SStreamNotifyOptions* pNotifyOption = (SStreamNotifyOptions*)pObj;
   int32_t               code = jsonToNodeList(pJson, jkStreamNotifyOptionsAddrUrls, &pNotifyOption->pAddrUrls);
   int32_t               val = 0;
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonGetIntValue(pJson, jkStreamNotifyOptionsEventType, &val);
-    pNotifyOption->eventTypes = val;
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonGetIntValue(pJson, jkStreamNotifyOptionsErrorHandle, &val);
-    pNotifyOption->errorHandle = val;
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonGetBoolValue(pJson, jkStreamNotifyOptionsNotifyHistory, &pNotifyOption->notifyHistory);
-  }
 
   return code;
 }
@@ -8055,9 +7995,6 @@ static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkCreateStreamStmtIgnoreExists, pNode->ignoreExists);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkCreateStreamStmtOptions, nodeToJson, pNode->pOptions);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkCreateStreamStmtQuery, nodeToJson, pNode->pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -8065,9 +8002,6 @@ static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkCreateStreamStmtSubtable, nodeToJson, pNode->pSubtable);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkCreateStreamStmtNotifyOptions, nodeToJson, pNode->pNotifyOptions);
   }
 
   return code;
@@ -8087,9 +8021,6 @@ static int32_t jsonToCreateStreamStmt(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkCreateStreamStmtIgnoreExists, &pNode->ignoreExists);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkCreateStreamStmtOptions, (SNode**)&pNode->pOptions);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkCreateStreamStmtQuery, &pNode->pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -8098,10 +8029,6 @@ static int32_t jsonToCreateStreamStmt(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkCreateStreamStmtSubtable, &pNode->pSubtable);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkCreateStreamStmtNotifyOptions, (SNode**)&pNode->pNotifyOptions);
-  }
-
   return code;
 }
 
@@ -8854,7 +8781,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return indexOptionsToJson(pObj, pJson);
     case QUERY_NODE_EXPLAIN_OPTIONS:
       return explainOptionsToJson(pObj, pJson);
-    case QUERY_NODE_STREAM_OPTIONS:
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
       return streamOptionsToJson(pObj, pJson);
     case QUERY_NODE_LEFT_VALUE:
       return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to serialize.
@@ -9256,7 +9183,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToIndexOptions(pJson, pObj);
     case QUERY_NODE_EXPLAIN_OPTIONS:
       return jsonToExplainOptions(pJson, pObj);
-    case QUERY_NODE_STREAM_OPTIONS:
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
       return jsonToStreamOptions(pJson, pObj);
     case QUERY_NODE_LEFT_VALUE:
       return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to deserialize.

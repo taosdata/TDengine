@@ -611,23 +611,20 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 
 static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateStreamStmt* pStmt) {
   pCxt->collectVSubTables = true;
-  
-  int32_t code =
-      reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pSubtable && NULL != pStmt->pQuery) {
-    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    int32_t      code = nodesCloneNode(pStmt->pSubtable, &pSelect->pSubtable);
-    if (NULL == pSelect->pSubtable) {
-      return code;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache));
+
+  SRealTableNode *pTriggerTable = (SRealTableNode*)((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
+  reserveVSubTableInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pTriggerTable->table.tableName, pCxt->pMetaCache);
+  if (pStmt->pQuery) {
+    if (pStmt->pSubtable) {
+      PAR_ERR_RET(nodesCloneNode(pStmt->pSubtable, &((SSelectStmt*)pStmt->pQuery)->pSubtable));
     }
+    PAR_ERR_RET(collectMetaKeyFromQuery(pCxt, pStmt->pQuery));
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
-  }
-  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory) {
-    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    code = reserveDbCfgForLastRow(pCxt, pSelect->pFromTable);
-  }
+
   return code;
 }
 

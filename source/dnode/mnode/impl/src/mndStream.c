@@ -267,6 +267,7 @@ _ERR:
 
   return code;
 }
+#endif
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
   SEncoder encoder;
@@ -313,6 +314,11 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
   return code;
 }
 
+int32_t mndPersistStreamTasks(STrans *pTrans, SStreamObj *pStream) {
+  return 0;
+}
+
+#if 0
 int32_t mndPersistStreamTasks(STrans *pTrans, SStreamObj *pStream) {
   SStreamTaskIter *pIter = NULL;
   int32_t          code = createStreamTaskIter(pStream, &pIter);
