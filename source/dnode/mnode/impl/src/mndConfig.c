@@ -39,7 +39,7 @@ static int32_t mndSendRebuildReq(SMnode *pMnode);
 static int32_t mndTryRebuildConfigSdbRsp(SRpcMsg *pRsp);
 static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array);
 static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq);
-static void    cfgArrayCleanUp(SArray *array);
+static void    cfgArrayCleanUp(SArray *array, bool needFree);
 static void    cfgObjArrayCleanUp(SArray *array);
 int32_t        compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *diffArray);
 
@@ -228,7 +228,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   SConfigReq configReq = {0};
   int32_t    code = TSDB_CODE_SUCCESS;
   SArray    *array = NULL;
-
+  bool       needFree = false;
   code = tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
   if (code != 0) {
     mError("failed to deserialize config req, since %s", terrstr());
@@ -266,6 +266,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
     if (configReq.cver == vObj->i32) {
       configRsp.isVersionVerified = 1;
     } else {
+      needFree = true;
       code = initConfigArrayFromSdb(pMnode, array);
       if (code != 0) {
         mError("failed to init config array from sdb, since %s", terrstr());
@@ -299,7 +300,7 @@ _OVER:
     mError("failed to process config req, since %s", tstrerror(code));
   }
   sdbRelease(pMnode->pSdb, vObj);
-  cfgArrayCleanUp(array);
+  cfgArrayCleanUp(array, needFree);
 
   tFreeSConfigReq(&configReq);
   return code;
@@ -780,7 +781,7 @@ _exit:
   return code;
 }
 
-static void cfgArrayCleanUp(SArray *array) {
+static void cfgArrayCleanUp(SArray *array, bool needFree) {
   if (array == NULL) {
     return;
   }
@@ -790,9 +791,13 @@ static void cfgArrayCleanUp(SArray *array) {
     SConfigItem *item = taosArrayGet(array, i);
     if (item->dtype == CFG_DTYPE_STRING || item->dtype == CFG_DTYPE_DIR || item->dtype == CFG_DTYPE_LOCALE ||
         item->dtype == CFG_DTYPE_CHARSET || item->dtype == CFG_DTYPE_TIMEZONE) {
-      taosMemoryFreeClear(item->str);
+      if (needFree) {
+        taosMemoryFreeClear(item->str);
+      }
     }
-    taosMemoryFreeClear(item->name);
+    if (needFree) {
+      taosMemoryFreeClear(item->name);
+    }
   }
 
   taosArrayDestroy(array);
