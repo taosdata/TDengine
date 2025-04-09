@@ -2032,7 +2032,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
         // check valid
         if(stbInfo->partialColFrom >= stbInfo->cols->size) {
             stbInfo->partialColFrom = 0;
-            infoPrint("stbInfo->partialColFrom(%d) is large than stbInfo->cols->size(%"PRIu64") \n ",stbInfo->partialColFrom,stbInfo->cols->size);
+            infoPrint("stbInfo->partialColFrom(%d) is large than stbInfo->cols->size(%zd) \n ",stbInfo->partialColFrom,stbInfo->cols->size);
         }
 
         if (stbInfo->partialColFrom + stbInfo->partialColNum > stbInfo->cols->size) {
