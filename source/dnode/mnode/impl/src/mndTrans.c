@@ -39,16 +39,16 @@ static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction);
 static void    mndTransDropLogs(SArray *pArray);
 static void    mndTransDropActions(SArray *pArray);
 
-static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pArray, bool topHalf);
+static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pArray, bool topHalf, bool notSend);
 static int32_t mndTransExecuteRedoLogs(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static int32_t mndTransExecuteUndoLogs(SMnode *pMnode, STrans *pTrans, bool topHalf);
-static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans, bool topHalf);
-static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans, bool topHalf);
+static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend);
+static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend);
 static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransPerformRedoLogStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
-static bool    mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
+static bool    mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend);
 static bool    mndTransPerformUndoLogStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
-static bool    mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
+static bool    mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend);
 static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
@@ -1144,7 +1144,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
 
-  mndTransExecute(pMnode, pNew);
+  mndTransExecute(pMnode, pNew, false);
   mndReleaseTrans(pMnode, pNew);
   // TDOD change to TAOS_RETURN(code);
   return 0;
@@ -1345,7 +1345,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
     mInfo("trans:%d, invalid action, index:%d, code:0x%x", transId, action, pRsp->code);
   }
 
-  mndTransExecute(pMnode, pTrans);
+  mndTransExecute(pMnode, pTrans, true);
 
 _OVER:
   mndReleaseTrans(pMnode, pTrans);
@@ -1416,10 +1416,16 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 }
 
 // execute in trans context
-static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
+static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf,
+                                     bool notSend) {
   if (pAction->msgSent) return 0;
   if (mndCannotExecuteTrans(pMnode, topHalf)) {
     TAOS_RETURN(TSDB_CODE_MND_TRANS_CTX_SWITCH);
+  }
+
+  if (notSend) {
+    mInfo("trans:%d, action:%d skip to execute msg action", pTrans->id, pAction->id);
+    return 0;
   }
 
 #ifndef TD_ASTRA_32
@@ -1485,23 +1491,24 @@ static int32_t mndTransExecNullMsg(SMnode *pMnode, STrans *pTrans, STransAction 
   return 0;
 }
 
-static int32_t mndTransExecSingleAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
+static int32_t mndTransExecSingleAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf,
+                                        bool notSend) {
   if (pAction->actionType == TRANS_ACTION_RAW) {
     return mndTransWriteSingleLog(pMnode, pTrans, pAction, topHalf);
   } else if (pAction->actionType == TRANS_ACTION_MSG) {
-    return mndTransSendSingleMsg(pMnode, pTrans, pAction, topHalf);
+    return mndTransSendSingleMsg(pMnode, pTrans, pAction, topHalf, notSend);
   } else {
     return mndTransExecNullMsg(pMnode, pTrans, pAction, topHalf);
   }
 }
 
-static int32_t mndTransExecSingleActions(SMnode *pMnode, STrans *pTrans, SArray *pArray, bool topHalf) {
+static int32_t mndTransExecSingleActions(SMnode *pMnode, STrans *pTrans, SArray *pArray, bool topHalf, bool notSend) {
   int32_t numOfActions = taosArrayGetSize(pArray);
   int32_t code = 0;
 
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pArray, action);
-    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
+    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf, notSend);
     if (code != 0) {
       mInfo("trans:%d, action:%d not executed since %s. numOfActions:%d", pTrans->id, action, tstrerror(code),
             numOfActions);
@@ -1512,12 +1519,12 @@ static int32_t mndTransExecSingleActions(SMnode *pMnode, STrans *pTrans, SArray 
   return code;
 }
 
-static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pArray, bool topHalf) {
+static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pArray, bool topHalf, bool notSend) {
   int32_t numOfActions = taosArrayGetSize(pArray);
   int32_t code = 0;
   if (numOfActions == 0) return 0;
 
-  if ((code = mndTransExecSingleActions(pMnode, pTrans, pArray, topHalf)) != 0) {
+  if ((code = mndTransExecSingleActions(pMnode, pTrans, pArray, topHalf, notSend)) != 0) {
     return code;
   }
 
@@ -1570,8 +1577,8 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
   }
 }
 
-static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
-  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions, topHalf);
+static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
+  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions, topHalf, notSend);
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
     mError("trans:%d, failed to execute redoActions since:%s, code:0x%x, in %s", pTrans->id, terrstr(), terrno,
            mndStrExecutionContext(topHalf));
@@ -1579,8 +1586,8 @@ static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans, bool t
   return code;
 }
 
-static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
-  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions, topHalf);
+static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
+  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions, topHalf, notSend);
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
     mError("trans:%d, failed to execute undoActions since %s. in %s", pTrans->id, terrstr(),
            mndStrExecutionContext(topHalf));
@@ -1589,7 +1596,7 @@ static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans, bool t
 }
 
 static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
-  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->commitActions, topHalf);
+  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->commitActions, topHalf, true);
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
     mError("trans:%d, failed to execute commitActions since %s. in %s", pTrans->id, terrstr(),
            mndStrExecutionContext(topHalf));
@@ -1597,7 +1604,8 @@ static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans, bool
   return code;
 }
 
-static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArray *pActions, bool topHalf) {
+static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArray *pActions, bool topHalf,
+                                            bool notSend) {
   int32_t code = 0;
   int32_t numOfActions = taosArrayGetSize(pActions);
   if (numOfActions == 0) return code;
@@ -1616,7 +1624,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
           pTrans->id, pTrans->actionPos, mndTransStr(pAction->stage), pAction->actionType, pAction->msgSent,
           pAction->msgReceived);
 
-    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
+    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf, notSend);
     if (code == 0) {
       if (pAction->msgSent) {
         if (pAction->msgReceived) {
@@ -1691,21 +1699,21 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
   return code;
 }
 
-static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
   int32_t code = TSDB_CODE_ACTION_IN_PROGRESS;
   (void)taosThreadMutexLock(&pTrans->mutex);
   if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
-    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->redoActions, topHalf);
+    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->redoActions, topHalf, notSend);
   }
   (void)taosThreadMutexUnlock(&pTrans->mutex);
   return code;
 }
 
-static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
   int32_t code = TSDB_CODE_ACTION_IN_PROGRESS;
   (void)taosThreadMutexLock(&pTrans->mutex);
   if (pTrans->stage == TRN_STAGE_UNDO_ACTION) {
-    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->undoActions, topHalf);
+    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->undoActions, topHalf, notSend);
   }
   (void)taosThreadMutexUnlock(&pTrans->mutex);
   return code;
@@ -1723,7 +1731,7 @@ bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
 
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pTrans->prepareActions, action);
-    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
+    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf, true);
     if (code != 0) {
       terrno = code;
       mError("trans:%d, failed to execute prepare action:%d, numOfActions:%d, since %s", pTrans->id, action,
@@ -1738,15 +1746,15 @@ _OVER:
   return continueExec;
 }
 
-static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
   bool    continueExec = true;
   int32_t code = 0;
   terrno = 0;
 
   if (pTrans->exec == TRN_EXEC_SERIAL) {
-    code = mndTransExecuteRedoActionsSerial(pMnode, pTrans, topHalf);
+    code = mndTransExecuteRedoActionsSerial(pMnode, pTrans, topHalf, notSend);
   } else {
-    code = mndTransExecuteRedoActions(pMnode, pTrans, topHalf);
+    code = mndTransExecuteRedoActions(pMnode, pTrans, topHalf, notSend);
   }
 
   if (code != 0 && code != TSDB_CODE_MND_TRANS_CTX_SWITCH && mndTransIsInSyncContext(topHalf)) {
@@ -1852,14 +1860,14 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans, boo
   return continueExec;
 }
 
-static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
   bool    continueExec = true;
   int32_t code = 0;
 
   if (pTrans->exec == TRN_EXEC_SERIAL) {
-    code = mndTransExecuteUndoActionsSerial(pMnode, pTrans, topHalf);
+    code = mndTransExecuteUndoActionsSerial(pMnode, pTrans, topHalf, notSend);
   } else {
-    code = mndTransExecuteUndoActions(pMnode, pTrans, topHalf);
+    code = mndTransExecuteUndoActions(pMnode, pTrans, topHalf, notSend);
   }
 
   if (mndCannotExecuteTrans(pMnode, topHalf)) return false;
@@ -1941,7 +1949,7 @@ static bool mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans, bool topH
   return continueExec;
 }
 
-void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
   bool continueExec = true;
 
   while (continueExec) {
@@ -1953,7 +1961,7 @@ void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf) {
         continueExec = mndTransPerformPrepareStage(pMnode, pTrans, topHalf);
         break;
       case TRN_STAGE_REDO_ACTION:
-        continueExec = mndTransPerformRedoActionStage(pMnode, pTrans, topHalf);
+        continueExec = mndTransPerformRedoActionStage(pMnode, pTrans, topHalf, notSend);
         break;
       case TRN_STAGE_COMMIT:
         continueExec = mndTransPerformCommitStage(pMnode, pTrans, topHalf);
@@ -1965,7 +1973,7 @@ void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf) {
         continueExec = mndTransPerformRollbackStage(pMnode, pTrans, topHalf);
         break;
       case TRN_STAGE_UNDO_ACTION:
-        continueExec = mndTransPerformUndoActionStage(pMnode, pTrans, topHalf);
+        continueExec = mndTransPerformUndoActionStage(pMnode, pTrans, topHalf, notSend);
         break;
       case TRN_STAGE_PRE_FINISH:
         continueExec = mndTransPerformPreFinishStage(pMnode, pTrans, topHalf);
@@ -1983,15 +1991,15 @@ void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf) {
 }
 
 // start trans, pullup, receive rsp, kill
-void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
+void mndTransExecute(SMnode *pMnode, STrans *pTrans, bool notSend) {
   bool topHalf = true;
-  mndTransExecuteImp(pMnode, pTrans, topHalf);
+  mndTransExecuteImp(pMnode, pTrans, topHalf, notSend);
 }
 
 // update trans
 void mndTransRefresh(SMnode *pMnode, STrans *pTrans) {
   bool topHalf = false;
-  mndTransExecuteImp(pMnode, pTrans, topHalf);
+  mndTransExecuteImp(pMnode, pTrans, topHalf, true);
 }
 
 static int32_t mndProcessTransTimer(SRpcMsg *pReq) {
@@ -2031,7 +2039,7 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
     return TSDB_CODE_MND_TRANS_NOT_ABLE_TO_kILLED;
   }
 
-  mndTransExecute(pMnode, pTrans);
+  mndTransExecute(pMnode, pTrans, true);
   return 0;
 }
 
@@ -2093,7 +2101,7 @@ void mndTransPullup(SMnode *pMnode) {
     int32_t *pTransId = taosArrayGet(pArray, i);
     STrans  *pTrans = mndAcquireTrans(pMnode, *pTransId);
     if (pTrans != NULL) {
-      mndTransExecute(pMnode, pTrans);
+      mndTransExecute(pMnode, pTrans, false);
     }
     mndReleaseTrans(pMnode, pTrans);
   }
