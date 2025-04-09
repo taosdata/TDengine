@@ -104,13 +104,6 @@ unsigned int taosRandom() {
     return number;
 }
 #else  // Not windows
-void setupForAnsiEscape(void) {}
-
-void resetAfterAnsiEscape(void) {
-    // Reset colors
-    printf("\x1b[0m");
-}
-
 FORCE_INLINE unsigned int taosRandom() { return (unsigned int)rand(); }
 #endif
 
@@ -758,15 +751,6 @@ int postProceSql(char *sqlstr, char* dbName, int precision, int iface,
     if (NULL != strstr(responseBuf, resHttpOk) && iface == REST_IFACE) {
         // if taosd is not starting , rest_server_ver_major can't be got by 'select server_version()' , so is -1
         if (-1 == g_arguments->rest_server_ver_major || 3 <= g_arguments->rest_server_ver_major) {
-            code = getCodeFromResp(responseBuf);
-        } else {
-            code = 0;
-        }
-        goto free_of_post;
-    }
-
-    if (2 == g_arguments->rest_server_ver_major) {
-        if (NULL != strstr(responseBuf, succMessage) && iface == REST_IFACE) {
             code = getCodeFromResp(responseBuf);
         } else {
             code = 0;
