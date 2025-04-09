@@ -86,7 +86,7 @@ At the moment, TDengine server supports running on Linux/MacOS systems. Any appl
 
 Starting from version 3.1.0.0, TDengine supports the Windows system exclusively in its Enterprise edition.
 
-If you want to compile taosAdapter or taosKeeper, you need to install Go 1.18 or above.
+If you want to compile taosAdapter or taosKeeper, you need to install Go 1.23 or above.
 
 ## 3.1 Prerequisites on Linux
 
