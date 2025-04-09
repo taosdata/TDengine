@@ -1,19 +1,33 @@
 
-name: Review Dog
+# name: Review Dog
 
-on:
-  pull_request:
-    branches:
-      - 'main'
-      - '3.0'
+# on:
+#   pull_request:
+#     branches:
+#       - 'main'
+#       - '3.0'
+# jobs:
+#   reviewdog:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4    
+#       - name: Report ReviewDog
+#         uses: huacnlee/autocorrect-action@v2
+#         env:
+#           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           args: --lint docs/zh/. docs/en/. --format rdjson | reviewdog -f=rdjson -reporter=github-pr-review -level=warning
+
+name: reviewdog
+on: [pull_request]
 jobs:
-  reviewdog:
+  markdownlint:
+    name: runner / markdownlint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4    
-      - name: Report ReviewDog
-        uses: huacnlee/autocorrect-action@v2
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: markdownlint
+        uses: reviewdog/action-markdownlint@3667398db9118d7e78f7a63d10e26ce454ba5f58 # v0.26.2
         with:
-          args: --lint docs/zh/. docs/en/. --format rdjson | reviewdog -f=rdjson -reporter=github-pr-review -level=warning
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
