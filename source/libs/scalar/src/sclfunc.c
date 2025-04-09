@@ -1377,40 +1377,33 @@ static uint32_t crc32(const uint8_t *data, size_t length) {
 int32_t crc32Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
-  int32_t bufSize = TSDB_MAX_FIELD_LEN + 1;
-  char *buf = taosMemoryMalloc(bufSize);
-
+  
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
   uint32_t *out = (uint32_t *) pOutputData->pData;
+  char *input;
   size_t inputLen;
-
+  char *buf;
+  
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      colDataSetNULL(pOutputData, i);
-      continue;
+    colDataSetNULL(pOutputData, i);
+    continue;
     }
-    char *input = colDataGetData(pInput[0].columnData, i);
-    
-    if (IS_FLOAT_TYPE(inputType) || IS_DECIMAL_TYPE(inputType)) {
-      double *in = (double *)pInputData->pData;
-      inputLen = 8;
-      (void)memcpy(buf, in, inputLen);
-    } else if (IS_SIGNED_NUMERIC_TYPE(inputType) || IS_UNSIGNED_NUMERIC_TYPE(inputType)) {
-      uint64_t *in = (uint64_t *)pInputData->pData;
-      inputLen = 8;
-      (void)memcpy(buf, in, inputLen);
+  
+    input = colDataGetData(pInput[0].columnData, i);
+  
+    if (IS_NUMERIC_TYPE(inputType)) {
+    inputLen = 8;
+    buf = input;
     } else {
-      char *in = colDataGetData(pInputData, i);
-      inputLen = varDataLen(in);
-      (void)memcpy(buf, varDataVal(input), inputLen);
-      buf[inputLen] = 0;
+    buf = varDataVal(input);
+    inputLen = varDataLen(input);
     }
-
+  
     out[i] = crc32(buf, inputLen);
   }
-
+  
   pOutput->numOfRows = pInput->numOfRows;
-  taosMemoryFree(buf);
   return TSDB_CODE_SUCCESS;
 }
 
