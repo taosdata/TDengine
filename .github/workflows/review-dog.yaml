@@ -10,12 +10,10 @@ jobs:
   reviewdog:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: AutoCorrect
-        uses: huacnlee/autocorrect-action@v2
+      - uses: actions/checkout@v4    
       - name: Report ReviewDog
         uses: huacnlee/autocorrect-action@v2
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          reviewdog: true
+          args: --lint docs/zh/. docs/en/. --format rdjson | reviewdog -f=rdjson -reporter=github-pr-review -level=warning
