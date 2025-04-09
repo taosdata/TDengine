@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: AutoCorrect
-        uses: huacnlee/autocorrect-action@v2
+        uses: huacnlee/autocorrect-action@main
         with:
           args: --lint docs/zh/* docs/en/*
 
