@@ -2645,7 +2645,7 @@ bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BA
 }
 
 // open tag from csv file
-FILE* openTagCsv(SSuperTable* stbInfo) {
+FILE* openTagCsv(SSuperTable* stbInfo, uint64_t seek) {
     FILE* csvFile = NULL;
     if (stbInfo->tagsFile[0] != 0) {
         csvFile = fopen(stbInfo->tagsFile, "r");
@@ -2654,6 +2654,18 @@ FILE* openTagCsv(SSuperTable* stbInfo) {
             return NULL;
         }
         infoPrint("open tag csv file :%s \n", stbInfo->tagsFile);
+        size_t  n = 0;
+        char *  line = NULL;
+        if (seek > 0) {
+            for (size_t i = 0; i < seek; i++){
+                readLen = getline(&line, &n, csvFile);
+            }
+            if (line) {
+                tmfree(line);
+            }
+            
+        }
+        
     }
     return csvFile;
 }

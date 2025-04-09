@@ -784,7 +784,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
   bool  acreate = (stb->genRowRule == RULE_OLD || stb->genRowRule == RULE_MIX_RANDOM) && stb->autoTblCreating;
   int   w       = 0;
   if (acreate) {
-      csvFile = openTagCsv(stb);
+      csvFile = openTagCsv(stb, info->start_table_from);
       tagData = benchCalloc(TAG_BATCH_COUNT, stb->lenOfTags, false);
   }
 
