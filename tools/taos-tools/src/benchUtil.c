@@ -1394,7 +1394,7 @@ int convertServAddr(int iface, bool tcp, int protocol) {
                     host, g_arguments->telnet_tcp_port, iface);
             return -1;
         }
-        infoPrint("convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n", 
+        infoPrint("restful connect -> convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n", 
                 host, g_arguments->telnet_tcp_port, &g_arguments->serv_addr, iface);
     } else {
         // port
@@ -1405,7 +1405,7 @@ int convertServAddr(int iface, bool tcp, int protocol) {
             errorPrint("%s\n", "convert host to server address");
             return -1;
         }
-        infoPrint("convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n", 
+        infoPrint("restful connect -> convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n", 
                 host, port, &g_arguments->serv_addr, iface);
     }
     return 0;

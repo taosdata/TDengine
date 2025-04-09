@@ -59,21 +59,21 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
             taos_free_result(res);
         }
         debugPrint("query sql:%s rows:%"PRId64"\n", command, rows);
+    }
 
-        // record count
-        if (ret ==0) {
-            // succ
-            if (record) 
-                pThreadInfo->nSucc ++;
-        } else {
-            // fail
-            if (record)
-                pThreadInfo->nFail ++;
+    // record count
+    if (ret ==0) {
+        // succ
+        if (record) 
+            pThreadInfo->nSucc ++;
+    } else {
+        // fail
+        if (record)
+            pThreadInfo->nFail ++;
 
-            // continue option
-            if (YES_IF_FAILED == g_arguments->continueIfFail) {
-                ret = 0; // force continue
-            }
+        // continue option
+        if (YES_IF_FAILED == g_arguments->continueIfFail) {
+            ret = 0; // force continue
         }
     }
 
@@ -1078,14 +1078,13 @@ void totalQuery(int64_t spends) {
 int queryTestProcess() {
     prompt(0);
 
-    if (REST_IFACE == g_queryInfo.iface) {
-        encodeAuthBase64();
-    }
-
     // covert addr
     if (g_queryInfo.iface == REST_IFACE) {
-        if (convertHostToServAddr(g_arguments->host,
-                    g_arguments->port + TSDB_PORT_HTTP,
+        encodeAuthBase64();
+        char *host = g_arguments->host          ? g_arguments->host : DEFAULT_HOST;
+        int   port = g_arguments->port_inputted ? g_arguments->port : DEFAULT_REST_PORT;
+        if (convertHostToServAddr(host,
+                    port,
                     &(g_arguments->serv_addr)) != 0) {
             errorPrint("%s", "convert host to server address\n");
             return -1;
