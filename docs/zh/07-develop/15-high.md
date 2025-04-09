@@ -25,12 +25,12 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 - 支持写入超时和连接断开重连后的重试次数和重试间隔配置。
 - 支持调用 `executeUpdate` 接口获取写入数据条数，若写入有异常，此时可捕获。
   
-下面详细介绍其使用方法。本节内容假设用户已经熟悉 JDBC 标准参数绑定接口（可参考[参数绑定](https://docs.oracle.com/javase/8/docs/api/java/sql/PreparedStatement.html)）。
+下面详细介绍其使用方法。本节内容假设用户已经熟悉 JDBC 标准参数绑定接口（可参考 [参数绑定](https://docs.oracle.com/javase/8/docs/api/java/sql/PreparedStatement.html)）。
 
 **二、如何开启高效写入特性：**
 
 对于 JDBC 连接器来说，有两种方式开启高效写入特性：  
-- 在连接属性上设置 PROPERTY_KEY_ASYNC_WRITE 为 `stmt` 或者 JDBC URL 中增加 `asyncWrite=stmt` 都可以在此连接上开启高效写入。在连接上开启高效写入特性后，后续所有创建的`PreparedStatement` 都会使用高效写入模式。
+- 在连接属性上设置 PROPERTY_KEY_ASYNC_WRITE 为 `stmt` 或者 JDBC URL 中增加 `asyncWrite=stmt` 都可以在此连接上开启高效写入。在连接上开启高效写入特性后，后续所有创建的 `PreparedStatement` 都会使用高效写入模式。
 - 在参数绑定创建 `PreparedStatement` 所用的 SQL 中，使用 `ASYNC_INSERT INTO` 而不是 `INSERT INTO`，则可以在这个参数绑定对象上开启高效写入。
 
 **三、如何检查写入是否成功：**
@@ -43,7 +43,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 - TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW：高效写入模式下，写入数据的批大小，单位是行。仅在使用 WebSocket 连接时生效。默认值为 1000。
 - TSDBDriver.PROPERTY_KEY_CACHE_SIZE_BY_ROW：高效写入模式下，缓存的大小，单位是行。仅在使用 WebSocket 连接时生效。默认值为 10000。
 
-- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT：是否启用自动重连。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。 高效写入模式建议开启。
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT：是否启用自动重连。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。高效写入模式建议开启。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 
@@ -344,10 +344,10 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 ### 服务端配置方面 {#setting-view}
 
-首先看数据库建库参数中的几个重要性能相关参数 ：
+首先看数据库建库参数中的几个重要性能相关参数：
 1. **vgroups**：在服务端配置层面，创建数据库时，需综合考虑系统内磁盘数量、磁盘 I/O 能力以及处理器能力，合理设置 vgroups 数量，从而充分挖掘系统性能潜力。若 vgroups 数量过少，系统性能将难以充分释放；若数量过多，则会引发不必要的资源竞争。建议将每个 vgroup 中的表数量控制在 100 万以内，在硬件资源充足的情况下，控制在 1 万以内效果更佳。
 1. **buffer**：buffer 指的是为一个 vnode 分配的写入内存大小，默认值为 256 MB。当 vnode 中实际写入的数据量达到 buffer 大小的约 1/3 时，会触发数据落盘操作。适当调大该参数，能够尽可能多地缓存数据，实现一次性落盘，提高写入效率。然而，若参数配置过大，在系统宕机恢复时，恢复时间会相应变长。
-2. **cachemodel**：用于控制是否在内存中缓存子表的最近数据。开启此功能会对写入性能产生一定影响，因为在数据写入过程中，系统会同步检查并更新每张表的 last_row 和每列的 last 值。可通过将原选项 'both' 调整为 ‘last_row’ 或 ‘last_value’，来减轻其对写入性能的影响。
+2. **cachemodel**：用于控制是否在内存中缓存子表的最近数据。开启此功能会对写入性能产生一定影响，因为在数据写入过程中，系统会同步检查并更新每张表的 last_row 和每列的 last 值。可通过将原选项 'both' 调整为‘last_row’或‘last_value’，来减轻其对写入性能的影响。
 3. **stt_trigger**：用于控制 TSDB 数据落盘策略以及触发后台合并文件的文件个数。企业版的默认配置为 2，而开源版仅能配置为 1。当 stt_trigger = 1 时，适用于表数量少但写入频率高的场景；当 stt_trigger > 1 时，则更适合表数量多但写入频率低的场景。  
 
 其他参数请参考 [数据库管理](../../reference/taos-sql/database)。
@@ -368,7 +368,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 ### 设计原理
 
 - **自动线程与队列创建**：
-   连接器根据配置参数动态创建独立的写入线程及对应的写入队列，每个队列与子表一一绑定，形成 “子表数据 - 专属队列 - 独立线程” 的处理链路。
+   连接器根据配置参数动态创建独立的写入线程及对应的写入队列，每个队列与子表一一绑定，形成“子表数据 - 专属队列 - 独立线程”的处理链路。
 - **数据分片与批量触发**：
    当应用写入数据时，连接器自动按子表维度切分数据，缓存至对应队列。当满足以下任一条件时触发批量发送：
    1. 队列数据量达到预设阈值。
