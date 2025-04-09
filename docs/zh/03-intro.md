@@ -22,7 +22,7 @@ TDengine OSS 是一个开源的高性能时序数据库，与其他时序数据�
 
 TDengine 经过特别优化，以适应时间序列数据的独特需求，引入了“一个数据采集点一张表”和“超级表”的创新数据组织策略。这些策略背后的支撑是一个革命性的存储引擎，它极大地提升了数据处理的速度和效率，无论是在数据的写入、查询还是存储方面。接下来，逐一探索 TDengine 的众多功能，帮助您全面了解这个为高效处理时间序列数据而生的大数据平台。
 
-1. 写入数据：TDengine 支持多种数据写入方式。首先，它完全兼容 SQL，允许用户使用标准的 SQL 语法进行数据写入。而且 TDengine 还支持无模式（Schemaless）写入，包括流行的 InfluxDB Line 协议、OpenTSDB 的 Telnet 和 JSON 协议，这些协议的加入使得数据的导入变得更加灵活和高效。更进一步，TDengine 与众多第三方工具实现了无缝集成，例如 Telegraf、Prometheus、EMQX、StatsD、collectd 和 HiveMQ 等。在 TDengine Enterprise 中，还提供了 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka、InfluxDB、OpenTSDB、MySQL、Oracle 和 SQL Server 等连接器。这些工具通过简单的配置，无需一行代码，就可以将来自各种数据源的数据源源不断的写入数据库，极大地简化了数据收集和存储的过程。
+1. 写入数据：TDengine支持多种数据写入方式。首先，它完全兼容 SQL，允许用户使用标准的 SQL 语法进行数据写入。而且 TDengine 还支持无模式（Schemaless）写入，包括流行的 InfluxDB Line 协议、OpenTSDB 的 Telnet 和 JSON 协议，这些协议的加入使得数据的导入变得更加灵活和高效。更进一步，TDengine 与众多第三方工具实现了无缝集成，例如 Telegraf、Prometheus、EMQX、StatsD、collectd 和 HiveMQ 等。在 TDengine Enterprise 中，还提供了 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka、InfluxDB、OpenTSDB、MySQL、Oracle 和 SQL Server 等连接器。这些工具通过简单的配置，无需一行代码，就可以将来自各种数据源的数据源源不断的写入数据库，极大地简化了数据收集和存储的过程。
 
 2. 查询数据：TDengine 提供标准的 SQL 查询语法，并针对时序数据和业务的特点优化和新增了许多语法和功能，例如降采样、插值、累计求和、时间加权平均、状态窗口、时间窗口、会话窗口、滑动窗口等。TDengine 还支持用户自定义函数（UDF）。
 
