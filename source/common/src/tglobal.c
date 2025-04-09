@@ -81,7 +81,12 @@ int32_t tsQueryNoFetchTimeoutSec = 3600 * 5;
 
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
+#ifdef WINDOWS
+int32_t tsShareConnLimit = 1;
+#else
 int32_t tsShareConnLimit = 10;
+#endif
+
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 
@@ -122,7 +127,7 @@ bool    tsEnableWhiteList = false;  // ip white list cfg
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
 int32_t tsArbCheckSyncIntervalSec = 3;
-int32_t tsArbSetAssignedTimeoutSec = 10;
+int32_t tsArbSetAssignedTimeoutSec = 14;
 
 // dnode
 int64_t tsDndStart = 0;
