@@ -175,6 +175,7 @@ help() {
     echo "  deploy_docker               - Deploy Docker"
     echo "  deploy_docker_compose       - Deploy Docker Compose"
     echo "  install_trivy               - Install Trivy"
+    echo "  install_uv                  - Install uv"
     echo "  clone_enterprise            - Clone the enterprise repository"
     echo "  clone_community             - Clone the community repository"
     echo "  clone_taosx                 - Clone TaosX repository"
@@ -1787,6 +1788,17 @@ install_trivy() {
     rm -rf trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
 }
 
+# Install uv
+install_uv() {
+    echo -e "${YELLOW}Installing uv...${NO_COLOR}"
+    if [ -f "$HOME/.local/bin/uv" ]; then
+        echo -e "${GREEN}uv is already installed.${NO_COLOR}"
+    else
+        echo -e "${YELLOW}Installing uv...${NO_COLOR}"
+        curl --retry 10 --retry-delay 5 --retry-max-time 120 -LsSf https://astral.sh/uv/install.sh | sh
+    fi
+}
+
 # Reconfigure cloud-init
 reconfig_cloud_init() {
     echo "Reconfiguring cloud-init..."
@@ -2061,6 +2073,7 @@ deploy_dev() {
     deploy_docker
     deploy_docker_compose
     install_trivy
+    install_uv
     check_status "Failed to deploy some tools" "Deploy all tools successfully" $?
 }
 
@@ -2218,6 +2231,9 @@ main() {
                 ;;
             install_trivy)
                 install_trivy
+                ;;
+            install_uv)
+                install_uv
                 ;;
             clone_enterprise)
                 clone_enterprise
