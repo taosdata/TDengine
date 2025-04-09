@@ -944,6 +944,7 @@ _OVER:
 }
 
 int32_t compareSConfigItem(const SConfigObj *item1, SConfigItem *item2, bool *compare) {
+  *compare = true;
   switch (item1->dtype) {
     case CFG_DTYPE_BOOL:
       if (item1->bval != item2->bval) {
@@ -986,7 +987,6 @@ int32_t compareSConfigItem(const SConfigObj *item1, SConfigItem *item2, bool *co
       *compare = false;
       return TSDB_CODE_INVALID_CFG;
   }
-  *compare = true;
   return TSDB_CODE_SUCCESS;
 }
 
