@@ -103,16 +103,17 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
     TAOS_DIRNAME(path);
   }
+
 #ifdef WINDOWS
   if (strlen(path) == 0) {
     TAOS_STRCAT(path, "C:\\TDengine");
   }
-  TAOS_STRCAT(path, "\\" CUS_PROMPT "taosudf.exe");
+  TAOS_STRCAT(path, "\\" CUS_PROMPT "udf.exe");
 #else
   if (strlen(path) == 0) {
     TAOS_STRCAT(path, "/usr/bin");
   }
-  TAOS_STRCAT(path, "/" CUS_PROMPT "taosudf");
+  TAOS_STRCAT(path, "/" CUS_PROMPT "udf");
 #endif
   char *argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
