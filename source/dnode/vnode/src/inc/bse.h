@@ -28,9 +28,9 @@ extern "C" {
 typedef enum {
   kNoCompres = 0,
   kLZ4Compres = 1,
-  kZSTDCompres = 2,
-  kZLibCompres = 4,
-  kZxCompress = 8,
+  kZLibCompres = 2,
+  kZSTDCompres = 3,
+  kZxCompress = 4,
 } SBseCompress;
 
 typedef struct {

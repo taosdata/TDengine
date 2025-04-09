@@ -31,9 +31,19 @@ static int32_t plainDecompress(void *src, int32_t srcSize, void *dst, int32_t *d
 static int32_t lz4Compress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 static int32_t lz4Decompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 
+static int32_t zlibCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+static int32_t zlibDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
+static int32_t zstdCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+static int32_t zstdDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
+static int32_t xzCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+static int32_t xzDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
 static SCompressFuncSet bseCompressFuncSet[] = {
-    {"plain", plainCompress, plainDecompress},
-    {"lz4", lz4Compress, lz4Decompress},
+    {"plain", plainCompress, plainDecompress}, {"lz4", lz4Compress, lz4Decompress},
+    {"zlib", zlibCompress, zlibDecompress},    {"zstd", zstdCompress, zstdDecompress},
+    {"xz", xzCompress, xzDecompress},
 };
 
 int32_t plainCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
@@ -74,6 +84,33 @@ int32_t lz4Decompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
   }
   *dstSize = nread;
   return 0;
+}
+
+int32_t zlibCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code = 0;
+  return code;
+}
+int32_t zlibDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code = 0;
+  return code;
+}
+
+int32_t zstdCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code = 0;
+  return code;
+}
+int32_t zstdDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code = 0;
+  return code;
+}
+
+int32_t xzCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code = 0;
+  return code;
+}
+int32_t xzDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code = 0;
+  return code;
 }
 
 int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
