@@ -42,6 +42,7 @@ enum {
   BSE_TABLE_META_TYPE = 0x2,
   BSE_TABLE_INDEX_TYPE = 0x4,
   BSE_TABLE_FOOTER_TYPE = 0x8,
+  BSE_TABLE_END_TYPE = 0x10,
 };
 
 typedef struct {
@@ -73,12 +74,13 @@ typedef struct {
   void   *data;
   int32_t cap;
   int8_t  type;
+  int64_t size;
 } SBlockWrapper;
 
 int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
 void    blockWrapperCleanup(SBlockWrapper *p);
 int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
-int32_t blockWrapperClear(SBlockWrapper *p);
+void    blockWrapperClear(SBlockWrapper *p);
 void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
 int8_t  inSeqRange(SSeqRange *p, int64_t seq);
 int8_t  isGreaterSeqRange(SSeqRange *p, int64_t seq);
@@ -112,6 +114,9 @@ typedef struct {
   int32_t blockCap;
   int32_t fileSize;
   void   *pReaderMgt;
+  int8_t  putInCache;
+
+  SSeqRange range;
 } STableReader;
 
 typedef struct {
@@ -133,24 +138,33 @@ void    tableBuilderClear(STableBuilder *p);
 int32_t tableBuilderOpenFile(STableBuilder *p);
 
 int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt);
+void    tableReaderShouldPutToCache(STableReader *pReader, int8_t putInCache);
 int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
 int32_t tableReaderClose(STableReader *p);
-int32_t tableReaderIter(void *pReader, SBseIter **ppIter);
+int32_t tableReaderGetMeta(STableReader *p, SArray **pMeta);
+//  int32_t tableReaderSeekToFirst(STableReader *p);
+//  int32_t tableReaderNext(STableReader *p, SBlock **pBlock);
 
 typedef struct {
   STableReader *pReader;
   char          name[TSDB_FILENAME_LEN];
-
+  int8_t        blockType;  // BSE_TABLE_DATA_TYPE, BSE_TABLE_META_TYPE, BSE_TABLE_FOOTER_TYPE
   int8_t        isOver;
   SSeqRange     range;
   STableReader *pTableReader;
+  SArray       *pMetaHandle;
+  int32_t       blockIndex;
+  int64_t       offset;
+  SBlockWrapper blockWrapper;
 } STableReaderIter;
 
 int32_t tableReaderIterInit(char *name, STableReaderIter **ppIter, SBse *pBse);
 
-int32_t tableReaderIterNext(STableReaderIter *pIter, SBseBatch **ppBatch);
+int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *len);
 
-int32_t tableReaderIterDestroy(STableReaderIter *pIter);
+void tableReaderIterDestroy(STableReaderIter *pIter);
+
+int8_t tableReaderIterValid(STableReaderIter *pIter);
 
 #ifdef __cplusplus
 }

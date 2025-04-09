@@ -45,6 +45,8 @@ extern "C" {
 #define BSE_LOG_SUFFIX   "log"
 #define BSE_INDEX_SUFFIX "idx"
 
+#define BSE_FILE_FULL_LEN TSDB_FILENAME_LEN
+
 void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
 void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
 void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);

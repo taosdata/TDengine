@@ -35,15 +35,20 @@ typedef struct {
 
 static void bseCfgSetDefault(SBseCfg *pCfg);
 
+static int32_t bseInitEnv(SBse *p);
 static int32_t bseInitStartSeq(SBse *pBse);
 static int32_t bseRecover(SBse *pBse, int8_t rm);
 static int32_t bseGenCommitInfo(SBse *pBse, SArray *pInfo);
+static int32_t bseCreateTableManager(SBse *p);
+static int32_t bseCommitDo(SBse *pBse, SArray *pFileSet);
 
 static int32_t bseInitCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo);
 static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len);
 static int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len);
 static int32_t bseListAllFiles(const char *path, SArray *pFiles);
 static int32_t bseRemoveUnCommitFile(SBse *p);
+
+static int32_t bseCreateBatchList(SBse *pBse);
 
 static int32_t bseBatchClear(SBseBatch *pBatch);
 static int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
@@ -94,7 +99,7 @@ _err:
   return code;
 }
 
-static int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
+int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
   int32_t   code = 0;
   int32_t   lino = 0;
   TdFilePtr fd = NULL;
@@ -138,7 +143,7 @@ _error:
   return code;
 }
 
-static int32_t bseInitCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo) {
+int32_t bseInitCommitInfo(SBse *pBse, char *pCurrent, SBseCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   cJSON  *pRoot = cJSON_Parse(pCurrent);
@@ -212,7 +217,7 @@ _error:
   return code;
 }
 
-static int32_t bseListAllFiles(const char *path, SArray *pFiles) {
+int32_t bseListAllFiles(const char *path, SArray *pFiles) {
   SBseLiveFileInfo info = {0};
 
   int32_t code = 0;
@@ -247,7 +252,7 @@ _error:
   taosCloseDir(&pDir);
   return code;
 }
-static int32_t bseRemoveUnCommitFile(SBse *p) {
+int32_t bseRemoveUnCommitFile(SBse *p) {
   int32_t code = 0;
 
   SArray *pFiles = taosArrayInit(64, sizeof(SBseLiveFileInfo));
@@ -289,7 +294,7 @@ static int32_t bseRemoveUnCommitFile(SBse *p) {
   return code;
 }
 
-static int32_t bseInitStartSeq(SBse *pBse) {
+int32_t bseInitStartSeq(SBse *pBse) {
   int32_t code = 0;
   int64_t lastSeq = 0;
 
@@ -300,7 +305,8 @@ static int32_t bseInitStartSeq(SBse *pBse) {
   pBse->seq = lastSeq + 1;
   return code;
 }
-static int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
+
+int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
   int32_t code = 0;
   int32_t lino = 0;
   char   *pCurrent = NULL;
@@ -343,7 +349,7 @@ int32_t bseInitLock(SBse *pBse) {
   return 0;
 }
 
-static int32_t bseInitEnv(SBse *p) {
+int32_t bseInitEnv(SBse *p) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -359,9 +365,9 @@ _err:
   return code;
 }
 
-static int32_t bseCreateTableManager(SBse *p) { return bseTableMgtCreate(p, (void **)&p->pTableMgt); }
+int32_t bseCreateTableManager(SBse *p) { return bseTableMgtCreate(p, (void **)&p->pTableMgt); }
 
-static int32_t bseCreateCommitInfo(SBse *pBse) {
+int32_t bseCreateCommitInfo(SBse *pBse) {
   SBseCommitInfo *pCommit = &pBse->commitInfo;
   pCommit->pFileList = taosArrayInit(64, sizeof(SBseLiveFileInfo));
   if (pCommit->pFileList == NULL) {
@@ -369,7 +375,8 @@ static int32_t bseCreateCommitInfo(SBse *pBse) {
   }
   return 0;
 }
-static int32_t bseCreateBatchList(SBse *pBse) {
+
+int32_t bseCreateBatchList(SBse *pBse) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -393,7 +400,7 @@ _error:
   return code;
 }
 
-static void bseCfgSetDefault(SBseCfg *pCfg) {
+void bseCfgSetDefault(SBseCfg *pCfg) {
   pCfg->blockSize = BSE_DEFAULT_BLOCK_SIZE;
   pCfg->compressType = kLZ4Compres;
   pCfg->keepDays = 365;
@@ -690,7 +697,7 @@ int32_t bseIterate(SBse *pBse, uint64_t start, uint64_t end, SArray *pValue) {
   return code;
 }
 
-static int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
+int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
   int32_t   code = 0;
   int32_t   lino = 0;
   char      buf[TSDB_FILENAME_LEN] = {0};
@@ -737,7 +744,7 @@ int32_t bseCommitFinish(SBse *pBse) {
   code = taosRenameFile(tbuf, buf);
   return code;
 }
-static int32_t bseCommitDo(SBse *pBse, SArray *pFileSet) {
+int32_t bseCommitDo(SBse *pBse, SArray *pFileSet) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -844,7 +851,6 @@ int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg) {
     //   bseError("failed to set table cache size since %s", tstrerror(code));
     // }
   }
-  pBse->cfg = *pCfg;
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }

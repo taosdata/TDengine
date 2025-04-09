@@ -15,8 +15,87 @@
 #include "bseUtil.h"
 #include "lz4.h"
 
-#define BSE_FILE_FULL_LEN TSDB_FILENAME_LEN
+// compress func set
+typedef int32_t (*compressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+typedef int32_t (*decompressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+typedef struct {
+  char           name[64];
+  compressFunc   compress;
+  decompressFunc decompress;
+} SCompressFuncSet;
 
+// plain compress
+static int32_t plainCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+static int32_t plainDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+// lz4 func
+static int32_t lz4Compress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+static int32_t lz4Decompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
+static SCompressFuncSet bseCompressFuncSet[] = {
+    {"plain", plainCompress, plainDecompress},
+    {"lz4", lz4Compress, lz4Decompress},
+};
+
+int32_t plainCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t size = *dstSize;
+  if (size < srcSize) {
+    return -1;
+  }
+  memcpy(dst, src, srcSize);
+  return srcSize;
+}
+
+int32_t plainDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t size = *dstSize;
+  if (size < srcSize) {
+    return -1;
+  }
+  memcpy(dst, src, srcSize);
+  return 0;
+}
+int32_t lz4Compress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t size = *dstSize;
+  int32_t nWrite = LZ4_compress_default(src, dst, srcSize, size);
+  if (nWrite <= 0) {
+    return -1;
+  }
+  if (nWrite >= srcSize) {
+    return -1;
+  }
+
+  *dstSize = nWrite;
+  return 0;
+}
+int32_t lz4Decompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t size = *dstSize;
+  int32_t nread = LZ4_decompress_safe(src, dst, srcSize, size);
+  if (nread <= 0) {
+    return -1;
+  }
+  *dstSize = nread;
+  return 0;
+}
+
+int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code = 0;
+  if (type < 0 || type >= sizeof(bseCompressFuncSet) / sizeof(bseCompressFuncSet[0])) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+  bseDebug("compress %s ,srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, dstSize);
+  return bseCompressFuncSet[type].compress(src, srcSize, dst, dstSize);
+}
+
+int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code = 0;
+  if (type < 0 || type >= sizeof(bseCompressFuncSet) / sizeof(bseCompressFuncSet[0])) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  bseDebug("decompress %s ,srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, dstSize);
+  return bseCompressFuncSet[type].decompress(src, srcSize, dst, dstSize);
+}
+
+// build file path func
 void bseBuildDataFullName(SBse *pBse, int64_t ver, char *buf) {
   // build data file name
   // snprintf(name, strlen(name), "%s/%s020"."BSE_DATA_SUFFIX, ver, pBse->path);
@@ -52,77 +131,4 @@ void bseBuildFullName(SBse *pBse, char *name, char *fullname) {
 
 void bseBuildDataName(SBse *pBse, int64_t seq, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", seq, BSE_DATA_SUFFIX);
-}
-
-// compress func set
-typedef int32_t (*compressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
-typedef int32_t (*decompressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
-
-static int32_t plainCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t size = *dstSize;
-  if (size < srcSize) {
-    return -1;
-  }
-  memcpy(dst, src, srcSize);
-  return srcSize;
-}
-
-static int32_t plainDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t size = *dstSize;
-  if (size < srcSize) {
-    return -1;
-  }
-  memcpy(dst, src, srcSize);
-  return 0;
-}
-static int32_t lz4Compress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t size = *dstSize;
-  int32_t nWrite = LZ4_compress_default(src, dst, srcSize, size);
-  if (nWrite <= 0) {
-    return -1;
-  }
-  if (nWrite >= srcSize) {
-    return -1;
-  }
-
-  *dstSize = nWrite;
-  return 0;
-}
-static int32_t lz4Decompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t size = *dstSize;
-  int32_t nread = LZ4_decompress_safe(src, dst, srcSize, size);
-  if (nread <= 0) {
-    return -1;
-  }
-  *dstSize = nread;
-  return 0;
-}
-typedef struct {
-  char           name[64];
-  compressFunc   compress;
-  decompressFunc decompress;
-} SCompressFuncSet;
-
-static SCompressFuncSet bseCompressFuncSet[] = {
-    {"plain", plainCompress, plainDecompress},
-    {"lz4", lz4Compress, lz4Decompress},
-};
-
-int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code = 0;
-  if (type < 0 || type >= sizeof(bseCompressFuncSet) / sizeof(bseCompressFuncSet[0])) {
-    return TSDB_CODE_INVALID_CFG;
-  }
-  bseDebug("compress %s ,srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, dstSize);
-  return bseCompressFuncSet[type].compress(src, srcSize, dst, dstSize);
-}
-
-int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code = 0;
-  if (type < 0 || type >= sizeof(bseCompressFuncSet) / sizeof(bseCompressFuncSet[0])) {
-    return TSDB_CODE_INVALID_CFG;
-  }
-
-  bseDebug("decompress %s ,srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, dstSize);
-  return bseCompressFuncSet[type].decompress(src, srcSize, dst, dstSize);
 }

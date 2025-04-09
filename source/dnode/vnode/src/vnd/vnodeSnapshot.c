@@ -486,7 +486,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     int32_t len = 0;
-    code = bseSnapReaderRead(pReader->pBseReader, ppData, &len);
+    code = bseSnapReaderRead(pReader->pBseReader, ppData);
     TSDB_CHECK_CODE(code, lino, _exit);
     if (*ppData) {
       goto _exit;

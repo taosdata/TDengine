@@ -43,7 +43,7 @@ static int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t k
 static void    lruCacheFree(SLruCache *pCache);
 static void    freeItemInListNode(SListNode *pItem, CacheFreeFn fn);
 
-static void freeItemInListNode(SListNode *pItem, CacheFreeFn fn) {
+void freeItemInListNode(SListNode *pItem, CacheFreeFn fn) {
   if (pItem == NULL || fn == NULL) return;
   SCacheItem *pCacheItem = (SCacheItem *)pItem->data;
   if (pCacheItem->pItem != NULL) {

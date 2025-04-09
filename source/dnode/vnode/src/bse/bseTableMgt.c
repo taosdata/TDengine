@@ -33,8 +33,7 @@ static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *p
 static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
 int32_t        tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch);
 
-static void tableReadeFree(void *pReader);
-static void blockWrapperFree(void *pBlockWrapper);
+static void tableReaderFree(void *pReader);
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   int32_t code = 0;
@@ -136,17 +135,13 @@ int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileSet) {
   return tableReaderMgtAddLiveFileSet(pMgt->pReaderMgt, pLiveFileSet);
 }
 
-static void tableReadeFree(void *pReader) {
+void tableReaderFree(void *pReader) {
   STableReader *p = (STableReader *)pReader;
   if (p != NULL) {
     tableReaderClose(p);
   }
 }
-static void blockFree(void *pBlock) { taosMemoryFree(pBlock); }
-static void blockWithMetaFree(void *pBlock) {
-  SBlockWithMeta *p = (SBlockWithMeta *)pBlock;
-  blockWithMetaCleanup(p);
-}
+void blockFree(void *pBlock) { taosMemoryFree(pBlock); }
 
 int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse) {
   int32_t code = 0;
@@ -163,7 +158,7 @@ int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse) {
   code = blockCacheOpen(48, blockFree, &pReader->pBlockCache);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableCacheOpen(32, tableReadeFree, &pReader->pTableCache);
+  code = tableCacheOpen(32, tableReaderFree, &pReader->pTableCache);
   TSDB_CHECK_CODE(code, lino, _error);
 
   pReader->pBse = pBse;
@@ -193,7 +188,8 @@ int32_t compareFileInfoFunc(const void *a, const void *b) {
   }
   return 0;
 }
-static int32_t findTargetTable(SArray *pFileList, int64_t seq) {
+
+int32_t findTargetTable(SArray *pFileList, int64_t seq) {
   SBseLiveFileInfo target = {.sseq = seq, .eseq = seq};
   return taosArraySearchIdx(pFileList, &target, compareFileInfoFunc, TD_LE);
 }
@@ -225,10 +221,12 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
       code = tableReaderOpen(name, &pReader, pReaderMgt);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      code = tableCachePut(pReaderMgt->pTableCache, &range, pReader);
-      if (code != 0) {
-        bseError("failed to put table reader to cache since %s at line %d", tstrerror(code), lino);
-        TSDB_CHECK_CODE(code, lino, _error);
+      if (pReader->putInCache == 1) {
+        code = tableCachePut(pReaderMgt->pTableCache, &range, pReader);
+        if (code != 0) {
+          bseError("failed to put table reader to cache since %s at line %d", tstrerror(code), lino);
+          TSDB_CHECK_CODE(code, lino, _error);
+        }
       }
     }
     code = tableReaderGet(pReader, seq, pValue, len);
@@ -244,7 +242,7 @@ _error:
   return code;
 }
 
-static int32_t tableReaderMgtAddLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo) {
+int32_t tableReaderMgtAddLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   taosThreadRwlockWrlock(&pReader->mutex);
@@ -255,7 +253,7 @@ static int32_t tableReaderMgtAddLiveFile(STableReaderMgt *pReader, SBseLiveFileI
   return code;
 }
 
-static int32_t tableReaderMgtRemveLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo) {
+int32_t tableReaderMgtRemveLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   taosThreadRwlockWrlock(&pReader->mutex);
@@ -270,7 +268,7 @@ static int32_t tableReaderMgtRemveLiveFile(STableReaderMgt *pReader, SBseLiveFil
   return code;
 }
 
-static int32_t tableReaderMgtAddLiveFileSet(STableReaderMgt *pReader, SArray *pFileSet) {
+int32_t tableReaderMgtAddLiveFileSet(STableReaderMgt *pReader, SArray *pFileSet) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t lastSeq = 0;
@@ -286,7 +284,8 @@ _error:
   taosThreadRwlockUnlock(&pReader->mutex);
   return code;
 }
-static int32_t tableReadMgtGetAllLiveFileSet(STableReaderMgt *pReader, SArray **pList) {
+
+int32_t tableReadMgtGetAllLiveFileSet(STableReaderMgt *pReader, SArray **pList) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -345,7 +344,8 @@ _error:
   }
   return code;
 }
-static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
+
+int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t        code = 0;
   int32_t        lino = 0;
   STableBuilder *pBuilder = NULL;

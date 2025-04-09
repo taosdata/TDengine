@@ -19,12 +19,124 @@
 #include "bseUtil.h"
 #include "vnodeInt.h"
 
+typedef struct {
+  SBlockWrapper buf[1];
+} SBseSnapReadBuf;
+
+static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
+                                    SBseRawFileWriter **pWriter);
+static int32_t bseRawFileWriterWrite(SBseRawFileWriter *p, uint8_t *data, int32_t len);
+static void    bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback);
+static void    bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo);
+static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
+                                    SBseRawFileWriter **pWriter) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SBseRawFileWriter *p = taosMemoryCalloc(1, sizeof(SBseRawFileWriter));
+  if (p == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+  SSeqRange *range = &pMeta->range;
+  char       path[TSDB_FILENAME_LEN] = {0};
+  bseBuildDataFullName(p->pBse, range->sseq, path);
+
+  bseBuildDataName(p->pBse, range->sseq, p->name);
+  p->pFile = taosOpenFile(p->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  if (p->pFile == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  p->fileType = pMeta->fileType;
+  p->range = *range;
+
+  p->pBse = pBse;
+
+  *pWriter = p;
+_error:
+  if (code) {
+    if (p != NULL) {
+      bseError("vgId:%d failed to open table pWriter at line %d since %s at line %d", BSE_GET_VGID((SBse *)pBse), lino,
+               tstrerror(code));
+      bseRawFileWriterClose(p, 0);
+    }
+    *pWriter = NULL;
+  }
+
+  return code;
+}
+
+static int32_t bseRawFileWriterWrite(SBseRawFileWriter *p, uint8_t *data, int32_t len) {
+  int32_t code = 0;
+  int32_t nwrite = taosWriteFile(p->pFile, data, len);
+  if (nwrite != len) {
+    return terrno;
+  }
+  p->offset += len;
+
+  return code;
+}
+static void bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback) {
+  if (p == NULL) return;
+
+  int32_t code = 0;
+  taosCloseFile(&p->pFile);
+  if (rollback) {
+    bseError("vgId:%d failed to close table pWriter since %s", BSE_GET_VGID((SBse *)p->pBse), tstrerror(code));
+  }
+  taosMemoryFree(p);
+
+  return;
+}
+
+void bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo) {
+  pInfo->sseq = p->range.sseq;
+  pInfo->eseq = p->range.eseq;
+  pInfo->size = p->offset;
+  memcpy(pInfo->name, p->name, sizeof(p->name));
+}
+static int32_t bseSnapShouldOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMeta) {
+  int32_t code = 0;
+
+  SBse *pBse = pWriter->pBse;
+
+  SBseRawFileWriter *pOld = pWriter->pWriter;
+
+  if (pOld == NULL ||
+      (pOld->fileType != pMeta->fileType || memcmp(&pOld->range, &pMeta->range, sizeof(SSeqRange)) != 0)) {
+    if (pOld != NULL) {
+      SBseLiveFileInfo info;
+      bseRawFileGenLiveInfo(pOld, &info);
+
+      if (taosArrayPush(pWriter->pFileSet, &info) == NULL) {
+        code = terrno;
+        bseError("vgId:%d failed to push file info since %s", BSE_GET_VGID((SBse *)pBse), tstrerror(code));
+        return code;
+      }
+      bseRawFileWriterClose(pOld, 0);
+    }
+
+    SBseRawFileWriter *pNew = NULL;
+    code = bseRawFileWriterOpen(pBse, 0, 0, pMeta, &pNew);
+    if (code) {
+      bseError("vgId:%d failed to open table pWriter since %s", BSE_GET_VGID((SBse *)pBse), tstrerror(code));
+      return code;
+    }
+    pWriter->pWriter = pNew;
+  }
+  return code;
+}
+
 int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter **pWriter) {
   int32_t code = 0;
   int32_t lino = 0;
 
   SBseSnapWriter *p = taosMemoryCalloc(1, sizeof(SBseSnapWriter));
   if (p == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+  p->pFileSet = taosArrayInit(128, sizeof(SBseLiveFileInfo));
+  if (p->pFileSet == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
   p->pBse = pBse;
@@ -43,13 +155,41 @@ _error:
   return code;
 }
 int32_t bseSnapWriterWrite(SBseSnapWriter *p, uint8_t *data, int32_t len) {
-  int32_t code;
+  int32_t       code;
+  int32_t       lino = 0;
+  SSnapDataHdr *pHdr = (SSnapDataHdr *)data;
+  if (pHdr->size + sizeof(SSnapDataHdr) != len) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SBseSnapMeta *pMeta = (SBseSnapMeta *)pHdr->data;
+
+  uint8_t *pBuf = pHdr->data + sizeof(SBseSnapMeta);
+  int64_t  tlen = len - sizeof(SSnapDataHdr);
+
+  code = bseSnapShouldOpenNewFile(p, pMeta);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = bseRawFileWriterWrite(p->pWriter, pBuf, tlen);
+  TSDB_CHECK_CODE(code, lino, _error);
+_error:
+  if (code) {
+    if (p->pWriter != NULL) {
+      bseError("vgId:%d failed to write snapshot data since %s", BSE_GET_VGID((SBse *)p->pBse), tstrerror(code));
+      bseRawFileWriterClose(p->pWriter, 0);
+    }
+    return code;
+  }
   return code;
 }
 int32_t bseSnapWriterClose(SBseSnapWriter **pp, int8_t rollback) {
   int32_t code = 0;
 
   SBseSnapWriter *p = *pp;
+  if (p == NULL) {
+    return code;
+  }
+  taosArrayDestroy(p->pFileSet);
+  bseRawFileWriterClose(p->pWriter, 0);
   taosMemoryFree(p);
 
   return code;
@@ -80,24 +220,33 @@ _error:
   }
   return code;
 }
-typedef struct {
-  SBlockWrapper buf[1];
-} SBseSnapReadBuf;
-int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data, int32_t *len) {
+
+int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
   int32_t code = 0;
   int32_t line = 0;
   int32_t size = 0;
-  *data = taosMemoryCalloc(sizeof(SSnapDataHdr), size);
+
+  uint8_t *pBuf = NULL;
+  int32_t  bufLen = 0;
+
+  if (bseIterValid(p->pIter) == 0) {
+    *data = NULL;
+    return code;
+  }
+
+  code = bseIterNext(p->pIter, &pBuf, &bufLen);
+  TSDB_CHECK_CODE(code, line, _error);
+
+  *data = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + bufLen);
   if (*data == NULL) {
     TSDB_CHECK_CODE(code = terrno, line, _error);
   }
 
-  p->pBuf = NULL;
-
   SSnapDataHdr *pHdr = (SSnapDataHdr *)(*data);
   pHdr->type = SNAP_DATA_BSE;
-  pHdr->size = size;
-  uint8_t *pBuf = pHdr->data;
+  pHdr->size = bufLen;
+  uint8_t *tdata = pHdr->data;
+  memcpy(tdata, pBuf, bufLen);
 
 _error:
   if (code) {
@@ -119,7 +268,6 @@ int32_t bseSnapReaderClose(SBseSnapReader **p) {
 
   SBseSnapReader *pReader = *p;
   bseIterDestroy(pReader->pIter);
-  // blockWrapperCleanup(&pReader->pBlockWrapper);
   taosMemoryFree(pReader);
 
   *p = NULL;
@@ -140,8 +288,9 @@ int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {
   code = bseTableMgtGetLiveFileSet(pBse->pTableMgt, &pAliveFile);
   TSDB_CHECK_CODE(code, line, _error);
 
-  pIter->index = -1;
+  pIter->index = 0;
   pIter->pFileSet = pAliveFile;
+  pIter->fileType = BSE_TABLE_SNAP;
 
   *ppIter = pIter;
 
@@ -155,39 +304,50 @@ _error:
   return code;
 }
 
-static int32_t bseIterMoveToNextFile(SBseIter *pIter) {
-  int32_t code = 0;
-  if (pIter == NULL) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  if (pIter->index == -1) {
-    pIter->index = 0;
-    SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
-    if (pInfo == NULL) {
-      return TSDB_CODE_OUT_OF_RANGE;
-    }
-  }
-  if (pIter->index >= taosArrayGetSize(pIter->pFileSet)) {
-    pIter->isOver = 1;
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
-  return code;
-}
-
-int32_t bseIterNext(SBseIter *pIter, SBseBatch **ppBatch) {
-  if (pIter->isOver) {
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
-
+int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   int32_t lino = 0;
-  if (pIter == NULL) {
-    return TSDB_CODE_INVALID_MSG;
+
+  STableReaderIter *pTableIter = NULL;
+
+  if (pIter->fileType == BSE_TABLE_SNAP) {
+    pTableIter = pIter->pTableIter;
+    if (pTableIter != NULL && tableReaderIterValid(pTableIter)) {
+      code = tableReaderIterNext(pTableIter, pValue, len);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      if (!tableReaderIterValid(pTableIter)) {
+        // current file is over
+        tableReaderIterDestroy(pTableIter);
+        pIter->pTableIter = NULL;
+      } else {
+        return code;
+      }
+    }
+
+    if (pIter->index >= taosArrayGetSize(pIter->pFileSet)) {
+      pIter->fileType = BSE_CURRENT_SNAP;
+    } else {
+      SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
+
+      code = tableReaderIterInit(pInfo->name, &pTableIter, pIter->pBse);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      code = tableReaderIterNext(pTableIter, pValue, len);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      pIter->pTableIter = pTableIter;
+      pIter->index++;
+      return code;
+    }
   }
 
-  code = bseIterMoveToNextFile(pIter);
-  TSDB_CHECK_CODE(code, lino, _error);
+  if (pIter->fileType == BSE_CURRENT_SNAP) {
+    // do read current
+    pIter->fileType = BSE_MAX_SNAP;
+  } else if (pIter->fileType == BSE_MAX_SNAP) {
+    pIter->isOver = 1;
+  }
 
 _error:
   if (code != 0) {
@@ -196,4 +356,21 @@ _error:
   return code;
 }
 
-void bseIterDestroy(SBseIter *pIter) { return; }
+void bseIterDestroy(SBseIter *pIter) {
+  if (pIter == NULL) {
+    return;
+  }
+
+  if (pIter->pTableIter != NULL) {
+    tableReaderIterDestroy(pIter->pTableIter);
+  }
+
+  taosArrayDestroy(pIter->pFileSet);
+  return;
+}
+int8_t bseIterValid(SBseIter *pIter) {
+  if (pIter == NULL) {
+    return 0;
+  }
+  return pIter->isOver == 0;
+}

@@ -123,14 +123,31 @@ typedef struct {
 } SBseSnapReader;
 
 typedef struct {
-  SBse *pBse;
+  char      name[TSDB_FILENAME_LEN];
+  int8_t    fileType;  // fileType
+  SSeqRange range;
+  TdFilePtr pFile;
+  int32_t   keepDays;
+  SBse     *pBse;
+  int64_t   offset;
+} SBseRawFileWriter;
+
+typedef struct {
+  SBse     *pBse;
+  SArray   *pFileSet;
+  SSeqRange range;
+  int8_t    fileType;  // fileType
+  int64_t   ver;
+
+  SBseRawFileWriter *pWriter;
+
 } SBseSnapWriter;
 int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter **writer);
 int32_t bseSnapWriterWrite(SBseSnapWriter *writer, uint8_t *data, int32_t len);
 int32_t bseSnapWriterClose(SBseSnapWriter **writer, int8_t rollback);
 
 int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader **reader);
-int32_t bseSnapReaderRead(SBseSnapReader *reader, uint8_t **data, int32_t *len);
+int32_t bseSnapReaderRead(SBseSnapReader *reader, uint8_t **data);
 int32_t bseSnapReaderClose(SBseSnapReader **reader);
 
 #ifdef __cplusplus

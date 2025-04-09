@@ -25,17 +25,39 @@ typedef struct {
   SSeqRange range;
   SBse     *pBse;
   int32_t   index;
-  TdFilePtr fd;
   int64_t   offset;
   SArray   *pFileSet;
+  int8_t    fileType;  // BSE_TABLE_SNAP, BSE_CURRENT_SNAP
   int8_t    isOver;
+
+  void *pTableIter;
 } SBseIter;
+
+typedef struct {
+  SSeqRange range;
+  int8_t    fileType;   // fileType
+  int8_t    blockType;  // blockType
+  int64_t   keepDays;   // keepDays
+} SBseSnapMeta;
 
 int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter);
 
-int32_t bseIterNext(SBseIter *pIter, SBseBatch **ppBatch);
+int32_t bseIterNext(SBseIter *pIter, uint8_t **pBuf, int32_t *len);
 
 void bseIterDestroy(SBseIter *pIter);
+
+int8_t bseIterValid(SBseIter *pIter);
+
+enum { BSE_TABLE_SNAP = 0x1, BSE_CURRENT_SNAP = 0x2, BSE_MAX_SNAP = 0x4 };
+
+typedef struct {
+  SArray   *pFileSet;
+  SSeqRange range;
+  int8_t    fileType;  // fileType
+  int64_t   ver;
+} SBseSnapWriterWrapper;
+
+int32_t bseBuilderLoad(SBse *pBse, SBseSnapMeta *pMeta, uint8_t *data, int32_t len);
 
 #ifdef __cplusplus
 }

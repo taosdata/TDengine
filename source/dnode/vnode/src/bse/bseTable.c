@@ -38,20 +38,19 @@ static void    blockDestroy(SBlock *pBlock);
 static int32_t blockPut(SBlock *pBlock, int64_t seq, uint8_t *value, int32_t len);
 static int32_t blockAppendBatch(SBlock *p, uint8_t *value, int32_t len);
 static int32_t blockEsimateSize(SBlock *pBlock, int32_t extra);
-static int32_t blockClear(SBlock *pBlock);
+static void    blockClear(SBlock *pBlock);
 static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len);
 static int8_t  blockGetType(SBlock *p);
 
-// static int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);
-// static void    blockWrapperCleanup(SBlockWrapper *p);
-// static int32_t blockWrapperResize(SBlockWrapper *p, int32_t cap);
-// static int32_t blockWrapperClear(SBlockWrapper *p);
-// static void    blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src);
 static int32_t metaBlockAdd(SBlock *p, SBlkHandle *pInfo);
 
-// STable builder func
-static FORCE_INLINE int32_t tableBuilderGetBlockSize(STableBuilder *p);
+typedef struct {
+  int64_t seq;
+  int32_t offset;
+} blockIndexMeta;
 
+// STable builder func
+static int32_t tableBuilderGetBlockSize(STableBuilder *p);
 static void    tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo);
 static void    tableBuilderResetBlockRange(STableBuilder *p);
 static void    tableBuilderResetRange(STableBuilder *p);
@@ -59,14 +58,22 @@ static int32_t tableBuilderLoadBlock(STableBuilder *p, SBlkHandle *pHandle, SBlo
 static int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len);
 
 // STable pReaderMgt func
+
+static int32_t tableReadOpenImpl(STableReader *p);
 static int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper);
 static int32_t tableReaderSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len);
+static int32_t tableReaderInitRange(STableReader *p);
+static int32_t tableReaderInitMeta(STableReader *p, SBlock *pBlock);
+
+static int32_t tableReaderLoadRawBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *pBlkWrapper);
+static int32_t tableReaderLoadRawMeta(STableReader *p, SBlockWrapper *blkWrapper);
+static int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper);
 
 static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk);
+static int32_t tableLoadRawBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk, int8_t checkSum);
 
 /*---block formate----*/
 //---datatype--|---len---|--data---|--rawdatasize---|--compressType---|---checksum---|
-
 #define BLOCK_ROW_SIZE_OFFSET(p)      (sizeof(SBlock) + (p)->len)
 #define BLOCK_ROW_SIZE(p)             BLOCK_ROW_SIZE_OFFSET(p)
 #define BLOCK_COMPRESS_TYPE_OFFSET(p) (BLOCK_ROW_SIZE_OFFSET(p) + sizeof(int32_t))
@@ -92,8 +99,7 @@ static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrappe
     (type) = *(int8_t *)((char *)(p) + len - BLOCK_TAIL_LEN + sizeof(int32_t)); \
   } while (0);
 
-static int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue,
-                                    int32_t *len) {
+int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -170,18 +176,18 @@ _error:
   return code;
 }
 
-int32_t tableBuildShouldOpenFile(STableBuilder *p) {
-  if (p->pDataFile == NULL) {
-    char name[TSDB_FILENAME_LEN];
-    bseBuildDataFullName(p->pBse, p->tableRange.sseq, name);
-    p->pDataFile = taosOpenFile(p->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
-    if (p->pDataFile == NULL) {
-      return terrno;
-    }
-    bseBuildDataName(NULL, p->tableRange.sseq, p->name);
-  }
-  return 0;
-}
+// int32_t tableBuildShouldOpenFile(STableBuilder *p) {
+//   if (p->pDataFile == NULL) {
+//     char name[TSDB_FILENAME_LEN];
+//     bseBuildDataFullName(p->pBse, p->tableRange.sseq, name);
+//     p->pDataFile = taosOpenFile(p->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+//     if (p->pDataFile == NULL) {
+//       return terrno;
+//     }
+//     bseBuildDataName(NULL, p->tableRange.sseq, p->name);
+//   }
+//   return 0;
+// }
 int32_t tableBuilderOpenFile(STableBuilder *p) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -311,19 +317,20 @@ int32_t tableBuildUpdateRange(STableBuilder *p, SBlockItemInfo *pInfo) {
   pRange->eseq = pInfo->seq;
   return code;
 }
-static void tableBuilderResetRange(STableBuilder *p) {
+void tableBuilderResetRange(STableBuilder *p) {
   p->tableRange.sseq = -1;
   p->tableRange.eseq = -1;
 }
 
-static void tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo) {
+void tableBuilderUpdateBlockRange(STableBuilder *p, SBlockItemInfo *pInfo) {
   SSeqRange *pRange = &p->blockRange;
   if (pRange->sseq == -1) {
     pRange->sseq = pInfo->seq;
   }
   pRange->eseq = pInfo->seq;
 }
-static void tableBuilderResetBlockRange(STableBuilder *p) {
+
+void tableBuilderResetBlockRange(STableBuilder *p) {
   p->blockRange.sseq = -1;
   p->blockRange.eseq = -1;
 }
@@ -400,7 +407,7 @@ int32_t compareFunc(const void *pLeft, const void *pRight) {
   }
   return 0;
 }
-static int32_t findTargetBlock(SArray *pMetaHandle, int64_t seq) {
+int32_t findTargetBlock(SArray *pMetaHandle, int64_t seq) {
   SBlkHandle handle = {.range = {.sseq = seq, .eseq = seq}};
   return taosArraySearchIdx(pMetaHandle, &handle, compareFunc, TD_LE);
 }
@@ -427,7 +434,7 @@ int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t 
   return TSDB_CODE_NOT_FOUND;
 }
 
-static int32_t tableBuildResizeBuf(STableBuilder *p, int32_t size) {
+int32_t tableBuildResizeBuf(STableBuilder *p, int32_t size) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -457,6 +464,7 @@ int32_t tableBuildAddMetaBlock(STableBuilder *p) {
 
   SBlkHandle metaHandle = {.offset = dataEndOffset, .size = offset};
   metaHandle.range = p->tableRange;
+
   SBlkHandle indexHandle = {.offset = metaEndOffset, .size = 0};
   indexHandle.range = p->tableRange;
 
@@ -511,7 +519,7 @@ _error:
   return code;
 }
 
-static FORCE_INLINE int32_t tableBuilderGetBlockSize(STableBuilder *p) { return p->blockCap; }
+int32_t tableBuilderGetBlockSize(STableBuilder *p) { return p->blockCap; }
 
 int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
   int32_t code = 0;
@@ -535,7 +543,7 @@ void tableBuilderClear(STableBuilder *p) {
   p->name[0] = 0;
 }
 
-static int32_t tableReadLoadFooter(STableReader *p) {
+int32_t tableReadLoadFooter(STableReader *p) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -560,7 +568,7 @@ _error:
   return code;
 }
 
-static int32_t tableReadMetaBuild(SBlock *p, SArray *pMetaHandle) {
+int32_t tableReaderInitMeta(STableReader *pReader, SBlock *p) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SBlock  *pBlk = p;
@@ -569,7 +577,7 @@ static int32_t tableReadMetaBuild(SBlock *p, SArray *pMetaHandle) {
   do {
     SBlkHandle handle = {0};
     offset += blkHandleDecode(&handle, (char *)data + offset);
-    if (taosArrayPush(pMetaHandle, &handle) == NULL) {
+    if (taosArrayPush(pReader->pMetaHandle, &handle) == NULL) {
       TSDB_CHECK_CODE(terrno, lino, _error);
     }
   } while (offset < pBlk->len);
@@ -581,7 +589,20 @@ _error:
   return code;
 }
 
-static int32_t tableReadLoadMeta(STableReader *p) {
+int32_t tableReaderInitRange(STableReader *p) {
+  int32_t code = 0;
+  if (taosArrayGetSize(p->pMetaHandle) <= 0) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  SBlkHandle *pHandle = taosArrayGet(p->pMetaHandle, 0);
+  p->range.sseq = pHandle->range.sseq;
+
+  pHandle = taosArrayGetLast(p->pMetaHandle);
+  p->range.eseq = pHandle->range.eseq;
+
+  return code;
+}
+int32_t tableReaderLoadMeta(STableReader *p) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -594,14 +615,89 @@ static int32_t tableReadLoadMeta(STableReader *p) {
   if (blockGetType(wrapper.data) != BSE_TABLE_META_TYPE) {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
   }
-  code = tableReadMetaBuild(wrapper.data, p->pMetaHandle);
+  code = tableReaderInitMeta(p, wrapper.data);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableReaderInitRange(p);
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
   blockWrapperCleanup(&wrapper);
   return code;
 }
-static int32_t tableReadOpenImpl(STableReader *p) {
+static void addSnapmetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
+                               int32_t keepDays) {
+  SBseSnapMeta *pSnapMeta = pBlkWrapper->data;
+  pSnapMeta->range = range;
+  pSnapMeta->fileType = fileType;
+  pSnapMeta->blockType = blockType;
+  pSnapMeta->keepDays = keepDays;
+  return;
+}
+
+int32_t tableReaderLoadRawBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *blkWrapper) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = blockWrapperResize(blkWrapper, pHandle->size + sizeof(SBseSnapMeta));
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableLoadRawBlock(p->pDataFile, pHandle, blkWrapper, 1);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  addSnapmetaToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_DATA_TYPE, 365);
+
+_error:
+  if (code != 0) {
+    bseError("table reader failed to load block since %s at line %d", tstrerror(code), lino);
+  }
+  return code;
+}
+
+int32_t tableReaderLoadRawMeta(STableReader *p, SBlockWrapper *blkWrapper) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SBlkHandle *pHandle = p->footer.metaHandle;
+
+  code = blockWrapperResize(blkWrapper, pHandle->size + sizeof(SBseSnapMeta));
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableLoadRawBlock(p->pDataFile, pHandle, blkWrapper, 1);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  addSnapmetaToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_META_TYPE, 365);
+_error:
+  if (code != 0) {
+    bseError("failed to load raw meta from table pReaderMgt since %s at line %d", tstrerror(code), lino);
+  }
+  return code;
+}
+
+int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SBlkHandle *pHandle = p->footer.metaHandle;
+
+  int64_t    footerOffset = pHandle->offset + pHandle->size;
+  SBlkHandle footerHandle = {.offset = footerOffset, .size = p->fileSize - footerOffset};
+
+  code = blockWrapperResize(blkWrapper, pHandle->size + sizeof(SBseSnapMeta));
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableLoadRawBlock(p->pDataFile, pHandle, blkWrapper, 0);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  addSnapmetaToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_FOOTER_TYPE, 365);
+_error:
+  if (code != 0) {
+    bseError("failed to load raw footer from table pReaderMgt since %s at line %d", tstrerror(code), lino);
+  }
+  return code;
+}
+
+int32_t tableReadOpenImpl(STableReader *p) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t size = 0;
@@ -624,7 +720,7 @@ static int32_t tableReadOpenImpl(STableReader *p) {
   code = tableReadLoadFooter(p);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableReadLoadMeta(p);
+  code = tableReaderLoadMeta(p);
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
@@ -660,6 +756,7 @@ int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt) {
   code = tableReadOpenImpl(p);
   TSDB_CHECK_CODE(code, lino, _error);
 
+  p->putInCache = 1;
   *pReader = p;
 
 _error:
@@ -669,7 +766,7 @@ _error:
   }
   return code;
 }
-
+void    tableReaderShouldPutToCache(STableReader *p, int8_t cache) { p->putInCache = cache; }
 int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t     code = 0;
   SBlkHandle *pHandle = NULL;
@@ -682,99 +779,25 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
   pHandle = taosArrayGet(p->pMetaHandle, idx);
   return tableReaderSeekData(p, pHandle, seq, pValue, len);
 }
+int32_t tableReaderGetMeta(STableReader *p, SArray **pMeta) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-typedef struct {
-  int64_t seq;
-  int32_t offset;
-} SValueMeta;
-
-int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta) {
-  int32_t         code = 0;
-  SBlockWithMeta *p = taosMemCalloc(1, sizeof(SBlockWithMeta));
-  if (p == NULL) {
-    return terrno;
-  }
-  p->pBlock = pBlock;
-
-  // uint8_t *data = (uint8_t *)pBlock->data;
-  // uint8_t *end = data + pBlock->len;
-  p->pMeta = taosArrayInit(8, sizeof(SValueMeta));
-  if (p->pMeta == NULL) {
-    code = terrno;
-    goto _error;
+  SArray *pMetaHandle = taosArrayInit(128, sizeof(SBlkHandle));
+  if (pMetaHandle == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
-  uint8_t *p1 = (uint8_t *)pBlock->data;
-  uint8_t *p2 = (uint8_t *)p1;
-  while (p2 - p1 < pBlock->len) {
-    int64_t    k;
-    int32_t    vlen = 0;
-    SValueMeta meta = {0};
-    int32_t    offset = 0;
-    p2 = taosDecodeVariantI64((void **)p2, &k);
-    offset = p2 - p1;
-    p2 = taosDecodeVariantI32((void **)p2, &vlen);
-
-    meta.seq = k;
-    meta.offset = offset;
-    if (taosArrayPush(p->pMeta, &meta) == NULL) {
-      code = terrno;
-      goto _error;
-    }
-    p2 += vlen;
+  if (taosArrayAddAll(pMetaHandle, p->pMetaHandle) == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
-  *pMeta = p;
+  *pMeta = pMetaHandle;
+
 _error:
   if (code != 0) {
-    bseError("failed to init block with meta since %s", tstrerror(code));
-    blockWithMetaCleanup(p);
+    bseError("failed to get table reader meta since %s at line %d", tstrerror(code), lino);
   }
-  return code;
-}
-
-int32_t blockWithMetaCleanup(SBlockWithMeta *p) {
-  if (p == NULL) return 0;
-  taosArrayDestroy(p->pMeta);
-  taosMemoryFree(p);
-  return 0;
-}
-
-static int comprareFunc(const void *pLeft, const void *pRight) {
-  SValueMeta *p1 = (SValueMeta *)pLeft;
-  SValueMeta *p2 = (SValueMeta *)pRight;
-  if (p1->seq > p2->seq) {
-    return 1;
-  } else if (p1->seq < p2->seq) {
-    return -1;
-  }
-  return 0;
-}
-
-int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len) {
-  int32_t    code = 0;
-  SValueMeta key = {.seq = seq, .offset = 0};
-  int32_t    idx = taosArraySearchIdx(p->pMeta, &seq, comprareFunc, TD_EQ);
-  if (idx < 0) {
-    return TSDB_CODE_NOT_FOUND;
-  }
-  SValueMeta *pMeta = taosArrayGet(p->pMeta, idx);
-  if (pMeta == NULL) {
-    return TSDB_CODE_NOT_FOUND;
-  }
-
-  uint8_t *data = (uint8_t *)p->pBlock->data + pMeta->offset;
-
-  data = taosDecodeVariantI32((void *)data, len);
-  if (*len <= 0) {
-    return TSDB_CODE_NOT_FOUND;
-  }
-  *pValue = taosMemCalloc(1, *len);
-  if (*pValue == NULL) {
-    return terrno;
-  }
-  memcpy(*pValue, data, *len);
-
   return code;
 }
 
@@ -785,7 +808,7 @@ int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper
   STableReaderMgt *pRdMgt = p->pReaderMgt;
   SSeqRange        range = pHandle->range;
 
-  if (blkWrapper->type == BSE_TABLE_DATA_TYPE) {
+  if (p->putInCache == 1 && blkWrapper->type == BSE_TABLE_DATA_TYPE) {
     SBlock *pBlock = NULL;
     code = blockCacheGet(pRdMgt->pBlockCache, &range, (void **)&pBlock);
     if (code == TSDB_CODE_NOT_FOUND) {
@@ -815,7 +838,6 @@ _error:
   if (code != 0) {
     bseError("table reader failed to load block since %s at line %d", tstrerror(code), lino);
   }
-
   return code;
 }
 
@@ -854,7 +876,7 @@ int32_t tableReaderClose(STableReader *p) {
   return code;
 }
 
-static int32_t blockCreate(int32_t cap, SBlock **p) {
+int32_t blockCreate(int32_t cap, SBlock **p) {
   int32_t code = 0;
   SBlock *t = taosMemCalloc(1, cap);
   if (t == NULL) {
@@ -864,12 +886,12 @@ static int32_t blockCreate(int32_t cap, SBlock **p) {
   return code;
 }
 
-static int32_t blockEsimateSize(SBlock *p, int32_t extra) {
+int32_t blockEsimateSize(SBlock *p, int32_t extra) {
   // block len + TSCHSUM + len + type;
   return BLOCK_TOTAL_SIZE(p) + extra;
 }
 
-static int32_t blockAppendBatch(SBlock *p, uint8_t *value, int32_t len) {
+int32_t blockAppendBatch(SBlock *p, uint8_t *value, int32_t len) {
   int32_t  code = 0;
   int32_t  offset = 0;
   uint8_t *data = (uint8_t *)p->data + p->len;
@@ -877,7 +899,7 @@ static int32_t blockAppendBatch(SBlock *p, uint8_t *value, int32_t len) {
   p->len += len;
   return len;
 }
-static int32_t blockPut(SBlock *p, int64_t seq, uint8_t *value, int32_t len) {
+int32_t blockPut(SBlock *p, int64_t seq, uint8_t *value, int32_t len) {
   int32_t  code = 0;
   uint8_t *data = (uint8_t *)p->data + p->len;
 
@@ -887,20 +909,16 @@ static int32_t blockPut(SBlock *p, int64_t seq, uint8_t *value, int32_t len) {
   p->len += len;
   return offset;
 }
-static int32_t blockClear(SBlock *p) {
-  int32_t code = 0;
+void blockClear(SBlock *p) {
   p->len = 0;
   p->type = 0;
   p->data[0] = 0;
-  return code;
 }
 
-static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len) {
+int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len) {
   int8_t  found = 0;
   int32_t code = 0;
   int32_t offset = 0;
-  // 1. seq + len + value
-  // opt read later
 
   uint8_t *p1 = (uint8_t *)p->data;
   uint8_t *p2 = p1;
@@ -926,10 +944,10 @@ static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len)
   return code;
 }
 
-static int8_t blockGetType(SBlock *p) { return p->type; }
-static void   blockDestroy(SBlock *pBlock) { taosMemoryFree(pBlock); }
+int8_t blockGetType(SBlock *p) { return p->type; }
+void   blockDestroy(SBlock *pBlock) { taosMemoryFree(pBlock); }
 
-static int32_t metaBlockAdd(SBlock *p, SBlkHandle *pInfo) {
+int32_t metaBlockAdd(SBlock *p, SBlkHandle *pInfo) {
   int32_t  code = 0;
   uint8_t *data = (uint8_t *)p->data + p->len;
   int32_t  offset = blkHandleEncode(pInfo, (char *)data);
@@ -991,7 +1009,7 @@ int32_t footerDecode(STableFooter *pFooter, char *buf) {
   return code;
 }
 
-static int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlkW) {
+int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlkW) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SBlock  *pBlk = pBlkW->data;
@@ -1043,6 +1061,34 @@ _error:
   blockWrapperCleanup(&pHelp);
   return code;
 }
+
+int32_t tableLoadRawBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlkW, int8_t checkSum) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SBlock  *pBlk = pBlkW->data;
+  uint8_t *pRead = (uint8_t *)pBlk + sizeof(SBseSnapMeta);
+
+  (void)taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
+  int32_t nr = taosReadFile(pFile, pRead, pHandle->size);
+  if (nr != pHandle->size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+  }
+
+  if (checkSum) {
+    if (taosCheckChecksumWhole((uint8_t *)pRead, pHandle->size) != 1) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+    }
+  }
+
+  pBlkW->size = pHandle->size + sizeof(SBseSnapMeta);
+_error:
+  if (code != 0) {
+    bseError("failed to load block since %s at line %d", tstrerror(code), lino);
+  }
+  return code;
+}
+
 int8_t inSeqRange(SSeqRange *p, int64_t seq) { return seq >= p->sseq && seq <= p->eseq; }
 
 int8_t isGreaterSeqRange(SSeqRange *p, int64_t seq) { return seq > p->eseq; }
@@ -1091,24 +1137,31 @@ int32_t blockWrapperResize(SBlockWrapper *p, int32_t newCap) {
   return 0;
 }
 
-int32_t blockWrapperClear(SBlockWrapper *p) {
+void blockWrapperClear(SBlockWrapper *p) {
   SBlock *block = (SBlock *)p->data;
-
   blockClear(block);
-  return 0;
 }
 
 int32_t tableReaderIterInit(char *name, STableReaderIter **ppIter, SBse *pBse) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  STableMgt *pTableMgt = pBse->pTableMgt;
 
   STableReaderIter *p = taosMemCalloc(1, sizeof(STableReaderIter));
   if (p == NULL) {
     return terrno;
   }
 
-  code = tableReaderOpen(name, &p->pReader, NULL);
+  code = tableReaderOpen(name, &p->pReader, pTableMgt->pReaderMgt);
   TSDB_CHECK_CODE(code, lino, _error);
+
+  tableReaderShouldPutToCache(p->pReader, 0);
+
+  code = tableReaderGetMeta(p->pReader, &p->pMetaHandle);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  p->blockIndex = 0;
+  p->blockType = BSE_TABLE_DATA_TYPE;
 
   *ppIter = p;
 
@@ -1120,12 +1173,145 @@ _error:
   return code;
 }
 
-int32_t tableReaderIterNext(STableReaderIter *pIter, SBseBatch **ppBatch) {
+int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
+  int32_t lino = 0;
+
+  if (pIter->blockType == BSE_TABLE_DATA_TYPE) {
+    SBlkHandle *pHandle = NULL;
+    if (pIter->blockIndex >= taosArrayGetSize(pIter->pMetaHandle)) {
+      pIter->isOver = 1;
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+    }
+
+    pHandle = taosArrayGet(pIter->pMetaHandle, pIter->blockIndex);
+    code = tableReaderLoadRawBlock(pIter->pTableReader, pHandle, &pIter->blockWrapper);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    pIter->blockIndex++;
+    if (pIter->blockIndex >= taosArrayGetSize(pIter->pMetaHandle)) {
+      pIter->blockType = BSE_TABLE_META_TYPE;
+      pIter->blockIndex = 0;
+    }
+  } else if (pIter->blockType == BSE_TABLE_META_TYPE) {
+    code = tableReaderLoadRawMeta(pIter->pTableReader, &pIter->blockWrapper);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    pIter->blockType = BSE_TABLE_FOOTER_TYPE;
+  } else if (pIter->blockType == BSE_TABLE_FOOTER_TYPE) {
+    code = tableReaderLoadRawFooter(pIter->pTableReader, &pIter->blockWrapper);
+    TSDB_CHECK_CODE(code, lino, _error);
+
+    pIter->blockType = BSE_TABLE_END_TYPE;
+  } else if (pIter->blockType == BSE_TABLE_END_TYPE) {
+    pIter->isOver = 1;
+    return code;
+  }
+  *pValue = (uint8_t *)pIter->blockWrapper.data;
+  *len = pIter->blockWrapper.size;
+
+_error:
+  if (code != 0) {
+    bseError("failed to load block since %s", tstrerror(code));
+    pIter->isOver = 1;
+  }
   return code;
 }
 
-int32_t tableReaderIterDestroy(STableReaderIter *pIter) {
+int8_t tableReaderIterValid(STableReaderIter *pIter) { return pIter->isOver == 0; }
+
+void tableReaderIterDestroy(STableReaderIter *pIter) {
+  if (pIter == NULL) return;
+
+  taosArrayDestroy(pIter->pMetaHandle);
+  tableReaderClose(pIter->pReader);
+  blockWrapperCleanup(&pIter->blockWrapper);
+  taosMemoryFree(pIter);
+}
+
+int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta) {
   int32_t code = 0;
+  int32_t lino = 0;
+
+  SBlockWithMeta *p = taosMemCalloc(1, sizeof(SBlockWithMeta));
+  if (p == NULL) {
+    return terrno;
+  }
+  p->pBlock = pBlock;
+  p->pMeta = taosArrayInit(8, sizeof(blockIndexMeta));
+  if (p->pMeta == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  uint8_t *p1 = (uint8_t *)pBlock->data;
+  uint8_t *p2 = (uint8_t *)p1;
+  while (p2 - p1 < pBlock->len) {
+    int64_t        k;
+    int32_t        vlen = 0;
+    blockIndexMeta meta = {0};
+    int32_t        offset = 0;
+    p2 = taosDecodeVariantI64((void **)p2, &k);
+    offset = p2 - p1;
+    p2 = taosDecodeVariantI32((void **)p2, &vlen);
+
+    meta.seq = k;
+    meta.offset = offset;
+    if (taosArrayPush(p->pMeta, &meta) == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+    p2 += vlen;
+  }
+
+  *pMeta = p;
+_error:
+  if (code != 0) {
+    bseError("failed to init block with meta since %s", tstrerror(code));
+    blockWithMetaCleanup(p);
+  }
+  return code;
+}
+
+int32_t blockWithMetaCleanup(SBlockWithMeta *p) {
+  if (p == NULL) return 0;
+  taosArrayDestroy(p->pMeta);
+  taosMemoryFree(p);
+  return 0;
+}
+
+int comprareFunc(const void *pLeft, const void *pRight) {
+  blockIndexMeta *p1 = (blockIndexMeta *)pLeft;
+  blockIndexMeta *p2 = (blockIndexMeta *)pRight;
+  if (p1->seq > p2->seq) {
+    return 1;
+  } else if (p1->seq < p2->seq) {
+    return -1;
+  }
+  return 0;
+}
+
+int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len) {
+  int32_t        code = 0;
+  blockIndexMeta key = {.seq = seq, .offset = 0};
+  int32_t        idx = taosArraySearchIdx(p->pMeta, &seq, comprareFunc, TD_EQ);
+  if (idx < 0) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  blockIndexMeta *pMeta = taosArrayGet(p->pMeta, idx);
+  if (pMeta == NULL) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+
+  uint8_t *data = (uint8_t *)p->pBlock->data + pMeta->offset;
+
+  data = taosDecodeVariantI32((void *)data, len);
+  if (*len <= 0) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  *pValue = taosMemCalloc(1, *len);
+  if (*pValue == NULL) {
+    return terrno;
+  }
+  memcpy(*pValue, data, *len);
+
   return code;
 }
