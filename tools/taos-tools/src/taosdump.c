@@ -5158,6 +5158,18 @@ static int32_t stmtPrepare(TAOS_STMT *stmt, char *tbName, StbChange *stbChange, 
     return ret;
 }
 
+#define FREE_DATAIMPL()                       \
+    {                                         \
+        tfree(bindArray);                     \
+        tfree(tbName);                        \
+        if (mallocDes) {                      \
+            freeTbDes(mallocDes, true);       \
+        }                                     \
+        taos_stmt_close(stmt);                \
+        avro_value_decref(&value);            \
+        avro_value_iface_decref(value_class); \
+    }
+
 // dump child table data
 static int64_t dumpInAvroDataImpl(
         void **taos_v,
@@ -5192,10 +5204,6 @@ static int64_t dumpInAvroDataImpl(
         tableDes = stbChange->tableDes;
     }
 
-    avro_value_iface_t *value_class = avro_generic_class_from_schema(schema);
-    avro_value_t value;
-    avro_generic_value_new(value_class, &value);
-
     // calc bind cols count
     int32_t colAdj    = g_dumpInLooseModeFlag ? 0 : 1;
     int32_t nBindCols = recordSchema->num_fields - colAdj;
@@ -5211,6 +5219,10 @@ static int64_t dumpInAvroDataImpl(
         taos_stmt_close(stmt);
         return -1;
     }
+
+    avro_value_iface_t *value_class = avro_generic_class_from_schema(schema);
+    avro_value_t value;
+    avro_generic_value_new(value_class, &value);
 
     int64_t success = 0;
     int64_t failed = 0;
@@ -5271,9 +5283,7 @@ static int64_t dumpInAvroDataImpl(
                 mallocDes = (TableDes *)calloc(1, sizeof(TableDes) + sizeof(ColDes) * TSDB_MAX_COLUMNS);
                 if (NULL == mallocDes) {
                     errorPrint("%s() LN%d, mallocDes memory allocation failed!\n", __func__, __LINE__);
-                    free(bindArray);
-                    tfree(tbName);
-                    taos_stmt_close(stmt);
+                    FREE_DATAIMPL();
                     return -1;
                 }
                 // set 
@@ -5286,12 +5296,7 @@ static int64_t dumpInAvroDataImpl(
             char *escapedTbName = calloc(1, escapedTbNameLen);
             if (NULL == escapedTbName) {
                 errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-                free(bindArray);
-                if (mallocDes) {
-                    freeTbDes(mallocDes, true);
-                }
-                tfree(tbName);
-                taos_stmt_close(stmt);
+                FREE_DATAIMPL();
                 return -1;
             }
             snprintf(escapedTbName, escapedTbNameLen, "%s%s%s.%s%s%s",
@@ -5304,13 +5309,8 @@ static int64_t dumpInAvroDataImpl(
             // prepare
             if (stmtPrepare(stmt, escapedTbName, stbChange, recordSchema, nBindCols)) {
                 // failed
-                free(bindArray);
-                if (mallocDes) {
-                    freeTbDes(mallocDes, true);
-                }          
-                tfree(tbName);
-                free(escapedTbName);
-                taos_stmt_close(stmt);
+                tfree(escapedTbName);
+                FREE_DATAIMPL();
                 return -1;                
             }
             free(escapedTbName);
@@ -5323,12 +5323,7 @@ static int64_t dumpInAvroDataImpl(
                 if (mallocDes) {
                     // only old data format can get des from server
                     if (getTableDes(*taos_v, namespace, tbName, mallocDes, true) < 0) {
-                        free(bindArray);
-                        if (mallocDes) {
-                            freeTbDes(mallocDes, true);
-                        }                    
-                        tfree(tbName);
-                        taos_stmt_close(stmt);
+                        FREE_DATAIMPL();
                         return -1;
                     }
                 }
@@ -5620,14 +5615,7 @@ static int64_t dumpInAvroDataImpl(
         }
     }
 
-    free(tbName);
-    avro_value_decref(&value);
-    avro_value_iface_decref(value_class);
-    tfree(bindArray);
-    if (mallocDes) {
-        freeTbDes(mallocDes, true);
-    }
-    taos_stmt_close(stmt);
+    FREE_DATAIMPL();    
     if (failed) {
         if (countTSOutOfRange) {
             errorPrint("Total %"PRId64" record(s) ts out of range!\n",
