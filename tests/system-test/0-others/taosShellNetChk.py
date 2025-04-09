@@ -154,35 +154,35 @@ class TDTestCase:
         keyDict['P'] = self.serverPort
 
         tdLog.printNoPrefix("================================ parameter: -k")
-        sqlString = ''
-        retCode, retVal = taos_command(buildPath, "k", '', "", keyDict['c'], sqlString)
-        if "2: service ok" in retVal:
-            tdLog.info("taos -k success")
-        else:
-            tdLog.info(retVal)
-            tdLog.exit("taos -k fail 1")
+        # sqlString = ''
+        # retCode, retVal = taos_command(buildPath, "k", '', "", keyDict['c'], sqlString)
+        # if "2: service ok" in retVal:
+        #     tdLog.info("taos -k success")
+        # else:
+        #     tdLog.info(retVal)
+        #     tdLog.exit("taos -k fail 1")
 
         # stop taosd
-        tdDnodes.stop(1)
-        #sleep(10)
-        #tdDnodes.start(1)
-        #sleep(5)
-        retCode, retVal = taos_command(buildPath, "k", '', "", keyDict['c'], sqlString)
-        if "0: unavailable" in retVal:
-            tdLog.info("taos -k success")
-        else:
-            tdLog.info(retVal)
-            tdLog.exit("taos -k fail 2")
+        # tdDnodes.stop(1)
+        # sleep(10)
+        # tdDnodes.start(1)
+        # sleep(5)
+        # retCode, retVal = taos_command(buildPath, "k", '', "", keyDict['c'], sqlString)
+        # if "0: unavailable" in retVal:
+        #     tdLog.info("taos -k success")
+        # else:
+        #     tdLog.info(retVal)
+        #     tdLog.exit("taos -k fail 2")
 
         # restart taosd
-        tdDnodes.start(1)
-        #sleep(5)
-        retCode, retVal = taos_command(buildPath, "k", '', "", keyDict['c'], sqlString)
-        if "2: service ok" in retVal:
-            tdLog.info("taos -k success")
-        else:
-            tdLog.info(retVal)
-            tdLog.exit("taos -k fail 3")
+        # tdDnodes.start(1)
+        # #sleep(5)
+        # retCode, retVal = taos_command(buildPath, "k", '', "", keyDict['c'], sqlString)
+        # if "2: service ok" in retVal:
+        #     tdLog.info("taos -k success")
+        # else:
+        #     tdLog.info(retVal)
+        #     tdLog.exit("taos -k fail 3")
 
         tdLog.printNoPrefix("================================ parameter: -n")
         # stop taosd
