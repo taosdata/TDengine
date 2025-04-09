@@ -454,8 +454,11 @@ void encodeAuthBase64() {
         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
         'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
-    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s", g_arguments->user,
-            g_arguments->password);
+
+    // auth
+    char *user     = g_arguments->user     ? g_arguments->user     : TSDB_DEFAULT_USER;
+    char *password = g_arguments->password ? g_arguments->password : TSDB_DEFAULT_PASS;
+    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s", user, password);
 
     int mod_table[] = {0, 2, 1};
 
@@ -1376,28 +1379,34 @@ void benchSetSignal(int32_t signum, ToolsSignalHandler sigfp) {
 #endif
 
 int convertServAddr(int iface, bool tcp, int protocol) {
+    // get host
+    char * host = g_arguments->host ? g_arguments->host :DEFAULT_HOST;
+
+    // covert
     if (tcp
             && iface == SML_REST_IFACE
             && protocol == TSDB_SML_TELNET_PROTOCOL) {
         // telnet_tcp_port        
-        if (convertHostToServAddr(g_arguments->host,
+        if (convertHostToServAddr(host,
                     g_arguments->telnet_tcp_port,
                     &(g_arguments->serv_addr))) {
-            errorPrint("%s\n", "convert host to server address");
+            errorPrint("failed to convertHostToServAddr host=%s telnet_tcp_port:%d iface=%d \n", 
+                    host, g_arguments->telnet_tcp_port, iface);
             return -1;
         }
         infoPrint("convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n", 
-                g_arguments->host, g_arguments->telnet_tcp_port, &g_arguments->serv_addr, iface);
+                host, g_arguments->telnet_tcp_port, &g_arguments->serv_addr, iface);
     } else {
+        // port
         int port = g_arguments->port_inputted ? g_arguments->port:DEFAULT_REST_PORT;
-        if (convertHostToServAddr(g_arguments->host,
+        if (convertHostToServAddr(host,
                                     port,
                     &(g_arguments->serv_addr))) {
             errorPrint("%s\n", "convert host to server address");
             return -1;
         }
         infoPrint("convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n", 
-                g_arguments->host, port, &g_arguments->serv_addr, iface);
+                host, port, &g_arguments->serv_addr, iface);
     }
     return 0;
 }

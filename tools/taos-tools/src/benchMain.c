@@ -56,18 +56,6 @@ int checkArgumentValid() {
         g_arguments->reqPerReq = g_arguments->prepared_rand;
     }
 
-    // check batch query
-    if (g_arguments->test_mode == QUERY_TEST) {
-        if (g_queryInfo.specifiedQueryInfo.batchQuery) {
-            // batch_query = yes
-            if (!g_queryInfo.specifiedQueryInfo.mixed_query) {
-                // mixed_query = no
-                errorPrint("%s\n", "batch_query = yes require mixed_query is yes");
-                return -1;
-            }
-        }
-    }
-
     if (isRest(g_arguments->iface)) {
         if (0 != convertServAddr(g_arguments->iface,
                                  false,
@@ -79,6 +67,18 @@ int checkArgumentValid() {
         g_arguments->rest_server_ver_major =
             getServerVersionRest(g_arguments->port);
     }    
+
+    // check batch query
+    if (g_arguments->test_mode == QUERY_TEST) {
+        if (g_queryInfo.specifiedQueryInfo.batchQuery) {
+            // batch_query = yes
+            if (!g_queryInfo.specifiedQueryInfo.mixed_query) {
+                // mixed_query = no
+                errorPrint("%s\n", "batch_query = yes require mixed_query is yes");
+                return -1;
+            }
+        }
+    }
 
     return 0;
 }
@@ -170,7 +170,6 @@ int main(int argc, char* argv[]) {
     // check argument
     infoPrint("client version: %s\n", taos_get_client_info());
     if (checkArgumentValid()) {
-        errorPrint("failed to readJsonConfig %s\n", g_arguments->metaFile);
         exitLog();
         return -1;
     }

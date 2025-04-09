@@ -2188,6 +2188,12 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
         }
     }
 
+    if (0 != convertServAddr(
+            stbInfo->iface,
+            stbInfo->tcpTransfer,
+            stbInfo->lineProtocol)) {
+        return -1;
+    }    
     return 0;
 }
 
