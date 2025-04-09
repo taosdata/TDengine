@@ -200,6 +200,13 @@ ELSE()
         set(CMAKE_MACOSX_RPATH 0)
     ENDIF()
 
+    set(_c_cxx_flags_list
+      -Wno-unused-result
+    )
+    string(JOIN " " _c_cxx_flags ${_c_cxx_flags_list})
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
+
     IF(${COVER} MATCHES "true")
         MESSAGE(STATUS "Test coverage mode, add extra flags")
         SET(GCC_COVERAGE_COMPILE_FLAGS "-fprofile-arcs -ftest-coverage")
