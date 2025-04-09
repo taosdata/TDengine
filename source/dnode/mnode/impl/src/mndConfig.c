@@ -975,7 +975,6 @@ int32_t compareSConfigItem(const SConfigObj *item1, SConfigItem *item2, bool *co
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_TIMEZONE:
       if (strcmp(item1->str, item2->str) != 0) {
-        taosMemoryFree(item2->str);
         item2->str = taosStrdup(item1->str);
         if (item2->str == NULL) {
           return TSDB_CODE_OUT_OF_MEMORY;
