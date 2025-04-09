@@ -292,8 +292,8 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since super table %s does not exist, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, version);
-      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    }
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
 
   if (pStbEntry->type != TSDB_SUPER_TABLE) {
     metaError("vgId:%d, %s failed at %s:%d since table %s is not a super table, version:%" PRId64,
