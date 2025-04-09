@@ -18,11 +18,6 @@
 // compress func set
 typedef int32_t (*compressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 typedef int32_t (*decompressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
-typedef struct {
-  char           name[64];
-  compressFunc   compress;
-  decompressFunc decompress;
-} SCompressFuncSet;
 
 // plain compress
 static int32_t plainCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
@@ -39,6 +34,12 @@ static int32_t zstdDecompress(void *src, int32_t srcSize, void *dst, int32_t *ds
 
 static int32_t xzCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 static int32_t xzDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
+typedef struct {
+  char           name[64];
+  compressFunc   compress;
+  decompressFunc decompress;
+} SCompressFuncSet;
 
 static SCompressFuncSet bseCompressFuncSet[] = {
     {"plain", plainCompress, plainDecompress}, {"lz4", lz4Compress, lz4Decompress},
