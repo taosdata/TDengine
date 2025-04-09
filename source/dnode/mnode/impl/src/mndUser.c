@@ -2931,14 +2931,8 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       }
 
       if (nodesStringToNode(value, &pAst) == 0) {
-        if (pAst && pAst->type == QUERY_NODE_VALUE &&
-            ((SValueNode *)pAst)->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
-          sqlLen = tsnprintf(*sql, bufSz, "'%s'", varDataVal(((SValueNode *)pAst)->datum.p));
-          (*sql)[bufSz - 1] = '\'';
-        } else {
-          if (nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen) != 0) {
-            sqlLen = tsnprintf(*sql, bufSz, "error");
-          }
+        if (nodesNodeToSQLFormat(pAst, *sql, bufSz, &sqlLen, true) != 0) {
+          sqlLen = tsnprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
       }
