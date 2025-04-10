@@ -346,7 +346,7 @@ The differences between NULL, NULL_F, VALUE, and VALUE_F for different scenarios
 2. Stream computing's INTERVAL clause: NULL_F and NULL behave the same, both are non-forced modes; VALUE_F and VALUE behave the same, both are non-forced modes. That is, there is no forced mode in stream computing's INTERVAL.
 3. INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. That is, there is no non-forced mode in INTERP.
 
-**Note**
+#### Note
 
 1. Using the FILL statement may generate a large amount of filled output, be sure to specify the time range for the query.
 2. For each query, the system can return no more than 10 million results with interpolation.
@@ -365,7 +365,7 @@ INTERVAL(1m) FILL(prev)
 SLIMIT 2;
 ```
 
-The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`; data is first partitioned by subtable name `tbname`, then by each 1-minute time window. If data is missing within a window, it is filled with the previous non-NULL value; finally, only the data from the first 2 partitions is taken as the result. The query results are as follows:
+The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`; data is first partitioned by subtable name `tbname`, then by each 1-minute time window. If data is missing within a window, it is filled with the previous non-NULL value; finally, only the data from the first 2 partitions is taken as the result. The query results are as follows: 中文a
 
 ```text
  tbname |         _wstart         |          _wend          |     avg(voltage)      |
