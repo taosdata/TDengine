@@ -19,7 +19,36 @@
 #include "audit.h"
 #include "metrics.h"
 
+static void collectDnodeMetricsInfo(SDnode *pDnode);
+static void collectWriteMetricsInfo(SDnode *pDnode);
+static void collectQueryMetricsInfo(SDnode *pDnode);
+static void collectStreamMetricsInfo(SDnode *pDnode);
 
-static void dmGetVmMonitorInfo(SDnode *pDnode) {
+void dmSendMetricsReport() {
+  SDnode *pDnode = dmInstance();
+  if (pDnode == NULL) {
+    return;
+  }
+
+  collectDnodeMetricsInfo(pDnode);
+  collectWriteMetricsInfo(pDnode);
+  collectQueryMetricsInfo(pDnode);
+  collectStreamMetricsInfo(pDnode);
 }
 
+static void collectDnodeMetricsInfo(SDnode *pDnode) {
+  // TODO: collect dnode metrics info
+  return;
+}
+
+static void collectWriteMetricsInfo(SDnode *pDnode) { return; }
+
+static void collectQueryMetricsInfo(SDnode *pDnode) {
+  // TODO: collect query metrics info
+  return;
+}
+
+static void collectStreamMetricsInfo(SDnode *pDnode) {
+  // TODO: collect stream metrics info
+  return;
+}

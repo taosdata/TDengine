@@ -13,9 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "libs/metrics/metrics.h"
+#include "tmsg.h"
+#include "tname.h"
 #include "tsdb.h"
+#include "tstreamUpdate.h"
 #include "tutil.h"
 #include "vnd.h"
+#include "vnodeInt.h"
 
 #define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                    \
   do {                                                                                                        \
@@ -1407,4 +1412,38 @@ _OVER:
     taosMemoryFree(buf);
   }
   return code;
+}
+
+/*
+ * Get write metrics for a vnode in the new extended format
+ */
+int32_t vnodeGetWriteMetricsEx(void *pVnode, SWriteMetricsEx *pMetrics) {
+  if (pVnode == NULL || pMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SVnode *pVnode1 = pVnode;
+
+  // Initialize the metrics structure
+  initWriteMetricsEx(pMetrics);
+
+  // Set vgId in the metrics structure
+  pMetrics->vgId = pVnode1->config.vgId;
+
+  // Copy the data from the internal metrics structure
+  setMetricInt64(&pMetrics->total_requests, pVnode1->writeMetrics.total_requests);
+  setMetricInt64(&pMetrics->total_rows, pVnode1->writeMetrics.total_rows);
+  setMetricInt64(&pMetrics->total_bytes, pVnode1->writeMetrics.total_bytes);
+  setMetricDouble(&pMetrics->avg_write_size, pVnode1->writeMetrics.write_size);
+  setMetricInt64(&pMetrics->rpc_queue_wait, pVnode1->writeMetrics.rpc_queue_wait);
+  setMetricInt64(&pMetrics->preprocess_time, pVnode1->writeMetrics.preprocess_time);
+  setMetricInt64(&pMetrics->memory_table_size, pVnode1->writeMetrics.memory_table_size);
+  setMetricInt64(&pMetrics->commit_count, pVnode1->writeMetrics.commit_count);
+  setMetricInt64(&pMetrics->merge_count, pVnode1->writeMetrics.merge_count);
+  setMetricDouble(&pMetrics->avg_commit_time, pVnode1->writeMetrics.commit_time);
+  setMetricDouble(&pMetrics->avg_merge_time, pVnode1->writeMetrics.merge_time);
+  setMetricInt64(&pMetrics->blocked_commits, pVnode1->writeMetrics.block_commit_time);
+  setMetricInt64(&pMetrics->memtable_wait_time, pVnode1->writeMetrics.memtable_wait_time);
+
+  return 0;
 }

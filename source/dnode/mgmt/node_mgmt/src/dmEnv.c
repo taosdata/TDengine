@@ -418,6 +418,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
+      .sendMetricsReportFp = dmSendMetricsReport,
       .monitorCleanExpiredSamplesFp = dmMonitorCleanExpiredSamples,
       .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,

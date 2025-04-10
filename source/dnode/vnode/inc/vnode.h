@@ -36,6 +36,8 @@
 #include "storageapi.h"
 #include "tdb.h"
 
+#include "libs/metrics/metrics.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -387,6 +389,15 @@ void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 void    metaFetchEntryFree(SMetaEntry **ppEntry);
+
+/**
+ * @brief Get write metrics for a vnode in the new extended format
+ *
+ * @param pVnode Pointer to the vnode object
+ * @param pMetrics Pointer to the SWriteMetricsEx struct to fill with metrics
+ * @return 0 on success, non-zero on error
+ */
+int32_t vnodeGetWriteMetricsEx(void *pVnode, SWriteMetricsEx *pMetrics);
 
 #ifdef __cplusplus
 }
