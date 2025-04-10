@@ -365,7 +365,7 @@ INTERVAL(1m) FILL(prev)
 SLIMIT 2;
 ```
 
-The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`; data is first partitioned by subtable name `tbname`, then by each 1-minute time window. If data is missing within a window, it is filled with the previous non-NULL value; finally, only the data from the first 2 partitions is taken as the result. The query results are as follows: 中文a
+The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`; data is first partitioned by subtable name `tbname`, then by each 1-minute time window. If data is missing within a window, it is filled with the previous non-NULL value; finally, only the data from the first 2 partitions is taken as the result. The query results are as follows:
 
 ```text
  tbname |         _wstart         |          _wend          |     avg(voltage)      |
@@ -385,7 +385,7 @@ Query OK, 10 row(s) in set (0.022866s)
 
 ### State Window
 
-Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes when the value changes. TDengine also supports using CASE expressions on state values, which can express that the start of a state is triggered by meeting a certain condition, and the end of the state is triggered by meeting another condition. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine if the circuit is normal.测试abv
+Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes when the value changes. TDengine also supports using CASE expressions on state values, which can express that the start of a state is triggered by meeting a certain condition, and the end of the state is triggered by meeting another condition. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine if the circuit is normal.
 
 ```sql
 SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
