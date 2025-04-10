@@ -469,7 +469,7 @@ typedef struct {
   int64_t id;
 } SVATaskID;
 
-typedef struct {
+struct SVnodeWriteMetrics {
   int64_t total_requests;
   int64_t total_rows;
   int64_t total_bytes;
@@ -485,7 +485,7 @@ typedef struct {
   double  merge_time;
   int64_t block_commit_time;
   int64_t memtable_wait_time;
-} SVWriteMetrics;
+};
 
 struct SVnode {
   SVState   state;
@@ -498,7 +498,7 @@ struct SVnode {
   bool      disableWrite;
 
   //  Metrics
-  SVWriteMetrics writeMetrics;
+  SVnodeWriteMetrics writeMetrics;
 
   // Buffer Pool
   TdThreadMutex mutex;

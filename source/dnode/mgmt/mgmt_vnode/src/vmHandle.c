@@ -16,8 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "taos_monitor.h"
 #include "vmInt.h"
+#include "vnodeInt.h"  // Include the definition of struct SVnode
 
 extern taos_counter_t *tsInsertCounter;
+
+// Forward declaration for function defined in metrics.c
+extern int32_t addWriteMetrics(int32_t vgId, SWriteMetricsEx *pMetrics);
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
@@ -1085,4 +1089,36 @@ _OVER:
   } else {
     return pArray;
   }
+}
+
+void vmGetMetricsInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+
+  void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) {
+      pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+      continue;
+    }
+
+    SVnodeObj *pVnode = *ppVnode;
+    if (!pVnode->failed) {
+      SWriteMetricsEx metrics = {0};
+      if (vnodeGetWriteMetricsEx(pVnode->pImpl, &metrics) == 0) {
+        int32_t code = addWriteMetrics(pVnode->vgId, &metrics);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("Failed to add write metrics for vgId: %d, code: %d", pVnode->vgId, code);
+        }
+      } else {
+        dError("Failed to get write metrics for vgId: %d", pVnode->vgId);
+      }
+    }
+    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+  }
+
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
+  // Update other fields in pInfo if necessary, e.g.:
+  // pInfo->someOtherStat = calculate_some_stat();
 }

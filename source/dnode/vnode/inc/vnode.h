@@ -48,6 +48,7 @@ typedef struct STsdbCfg     STsdbCfg;  // todo: remove
 typedef struct SVnodeCfg    SVnodeCfg;
 typedef struct SVSnapReader SVSnapReader;
 typedef struct SVSnapWriter SVSnapWriter;
+typedef struct SVnodeWriteMetrics SVnodeWriteMetrics;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
@@ -389,6 +390,15 @@ void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 void    metaFetchEntryFree(SMetaEntry **ppEntry);
+
+/**
+ * @brief Get raw write metrics for a vnode
+ *
+ * @param pVnode Pointer to the vnode object
+ * @param pRawMetrics Pointer to the SRawWriteMetrics struct to fill with raw metrics
+ * @return 0 on success, non-zero on error
+ */
+int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics);
 
 /**
  * @brief Get write metrics for a vnode in the new extended format

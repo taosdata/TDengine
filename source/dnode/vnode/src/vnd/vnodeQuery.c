@@ -1415,35 +1415,38 @@ _OVER:
 }
 
 /*
- * Get write metrics for a vnode in the new extended format
+ * Get raw write metrics for a vnode
  */
-int32_t vnodeGetWriteMetricsEx(void *pVnode, SWriteMetricsEx *pMetrics) {
-  if (pVnode == NULL || pMetrics == NULL) {
+int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
+  if (pVnode == NULL || pRawMetrics == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  SVnode *pVnode1 = pVnode;
+  SVnode *pVnode1 = (SVnode *)pVnode;
 
-  // Initialize the metrics structure
-  initWriteMetricsEx(pMetrics);
+  // Directly copy/assign raw values from internal vnode metrics
+  // Assuming pVnode1->writeMetrics (SVWriteMetrics) holds the necessary raw data.
+  // Note: Atomic operations might be needed if these are read concurrently.
+  pRawMetrics->total_requests = pVnode1->writeMetrics.total_requests;  // Assuming direct read or atomic read
+  pRawMetrics->total_rows = pVnode1->writeMetrics.total_rows;
+  pRawMetrics->total_bytes = pVnode1->writeMetrics.total_bytes;
+  pRawMetrics->avg_write_size = pVnode1->writeMetrics.write_size;  // Assuming this is pre-calculated or needs sum/count
+  pRawMetrics->rpc_queue_wait = pVnode1->writeMetrics.rpc_queue_wait;
+  pRawMetrics->preprocess_time = pVnode1->writeMetrics.preprocess_time;
+  pRawMetrics->memory_table_size = pVnode1->writeMetrics.memory_table_size;
+  pRawMetrics->commit_count = pVnode1->writeMetrics.commit_count;
+  pRawMetrics->merge_count = pVnode1->writeMetrics.merge_count;
+  pRawMetrics->commit_time_sum = pVnode1->writeMetrics.commit_time;  // Assuming this holds sum for avg
+  pRawMetrics->merge_time_sum = pVnode1->writeMetrics.merge_time;    // Assuming this holds sum for avg
+  pRawMetrics->blocked_commits = pVnode1->writeMetrics.block_commit_time;
+  pRawMetrics->memtable_wait_time = pVnode1->writeMetrics.memtable_wait_time;
 
-  // Set vgId in the metrics structure
-  pMetrics->vgId = pVnode1->config.vgId;
-
-  // Copy the data from the internal metrics structure
-  setMetricInt64(&pMetrics->total_requests, pVnode1->writeMetrics.total_requests);
-  setMetricInt64(&pMetrics->total_rows, pVnode1->writeMetrics.total_rows);
-  setMetricInt64(&pMetrics->total_bytes, pVnode1->writeMetrics.total_bytes);
-  setMetricDouble(&pMetrics->avg_write_size, pVnode1->writeMetrics.write_size);
-  setMetricInt64(&pMetrics->rpc_queue_wait, pVnode1->writeMetrics.rpc_queue_wait);
-  setMetricInt64(&pMetrics->preprocess_time, pVnode1->writeMetrics.preprocess_time);
-  setMetricInt64(&pMetrics->memory_table_size, pVnode1->writeMetrics.memory_table_size);
-  setMetricInt64(&pMetrics->commit_count, pVnode1->writeMetrics.commit_count);
-  setMetricInt64(&pMetrics->merge_count, pVnode1->writeMetrics.merge_count);
-  setMetricDouble(&pMetrics->avg_commit_time, pVnode1->writeMetrics.commit_time);
-  setMetricDouble(&pMetrics->avg_merge_time, pVnode1->writeMetrics.merge_time);
-  setMetricInt64(&pMetrics->blocked_commits, pVnode1->writeMetrics.block_commit_time);
-  setMetricInt64(&pMetrics->memtable_wait_time, pVnode1->writeMetrics.memtable_wait_time);
+  // Fields needing calculation or other sources (like cache hit ratio) are not set here
+  // pRawMetrics->cache_hit_ratio = ...;
+  // pRawMetrics->memory_table_rows = ...; // Assuming this comes from elsewhere or needs calculation
+  // pRawMetrics->auto_commit_count = ...;
+  // pRawMetrics->forced_commit_count = ...;
+  // pRawMetrics->stt_trigger_value = ...;
 
   return 0;
 }

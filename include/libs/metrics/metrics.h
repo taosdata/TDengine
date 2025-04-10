@@ -52,7 +52,31 @@ typedef struct {
   SMetricValue value;
 } SMetric;
 
-// Write Metrics Extended Structure
+// Raw Write Metrics Structure (Primitive Types)
+typedef struct {
+  int64_t total_requests;
+  int64_t total_rows;
+  int64_t total_bytes;
+  double  avg_write_size;   // Or raw sum/count if calculated lazily
+  double  cache_hit_ratio;  // Or raw hits/lookups
+  int64_t rpc_queue_wait;   // Sum
+  int64_t preprocess_time;  // Sum
+  // Add other raw fields corresponding to SWriteMetricsEx
+  // Example: wal_write_bytes, sync_bytes, apply_bytes, time_intervals for rates?
+  int64_t memory_table_size;  // Current value
+  int64_t memory_table_rows;  // Current value
+  int64_t commit_count;
+  int64_t auto_commit_count;
+  int64_t forced_commit_count;
+  int64_t stt_trigger_value;  // Current value?
+  int64_t merge_count;
+  double  commit_time_sum;  // Sum for avg calculation
+  double  merge_time_sum;   // Sum for avg calculation
+  int64_t blocked_commits;
+  int64_t memtable_wait_time;  // Sum
+} SRawWriteMetrics;
+
+// Write Metrics Extended Structure (Formatted)
 typedef struct {
   int32_t vgId;
   SMetric total_requests;
@@ -109,16 +133,16 @@ const char *getMetricString(const SMetric *pMetric);
 
 // Write metrics functions
 void             initWriteMetricsEx(SWriteMetricsEx *pMetrics);
-int32_t          addWriteMetrics(SWriteMetricsEx *pMetrics);
+int32_t          addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics);
 SWriteMetricsEx *getWriteMetricsByVgId(int32_t vgId);
 
 // Function type definition for vnode callbacks
 typedef void *(*SVnodeMetricsLogFn)(void **pIter);
-typedef int32_t (*VnodeGetMetricsFn)(void *pVnode, SWriteMetricsEx *pMetrics);
+typedef int32_t (*VnodeGetRawMetricsFn)(void *pVnode, SRawWriteMetrics *pRawMetrics);
 typedef int32_t (*MetricsLogCallback)(const char *jsonMetrics, void *param);
 
 // Metrics logging functions
-int32_t logAllVnodeMetrics(SVnodeMetricsLogFn fnGetVnode, VnodeGetMetricsFn fnGetMetrics);
+int32_t logAllVnodeMetrics(SVnodeMetricsLogFn fnGetVnode, VnodeGetRawMetricsFn fnGetRawMetrics);
 void    resetAllVnodeMetrics();
 int32_t formatMetricsToJson(int32_t vgId, char *buffer, int32_t bufferSize);
 int32_t forEachMetric(MetricsLogCallback callback, void *param);
