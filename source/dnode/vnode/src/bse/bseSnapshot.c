@@ -29,6 +29,9 @@ static int32_t bseRawFileWriterWrite(SBseRawFileWriter *p, uint8_t *data, int32_
 static void    bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback);
 static void    bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo);
 static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
+                                    SBseRawFileWriter **pWriter);
+
+static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
                                     SBseRawFileWriter **pWriter) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -38,11 +41,12 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
   SSeqRange *range = &pMeta->range;
-  char       path[TSDB_FILENAME_LEN] = {0};
-  bseBuildDataFullName(p->pBse, range->sseq, path);
 
   bseBuildDataName(p->pBse, range->sseq, p->name);
-  p->pFile = taosOpenFile(p->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+
+  char path[TSDB_FILENAME_LEN] = {0};
+  bseBuildDataFullName(p->pBse, range->sseq, path);
+  p->pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (p->pFile == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -188,6 +192,7 @@ int32_t bseSnapWriterClose(SBseSnapWriter **pp, int8_t rollback) {
   if (p == NULL) {
     return code;
   }
+
   taosArrayDestroy(p->pFileSet);
   bseRawFileWriterClose(p->pWriter, 0);
   taosMemoryFree(p);

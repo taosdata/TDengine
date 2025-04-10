@@ -19,19 +19,21 @@
 #include "bseUtil.h"
 
 static int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse);
-static void    tableReaderMgtCleanup(STableReaderMgt *pReader);
 static int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len);
 static int32_t tableReaderMgtAddLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo);
 static int32_t tableReaderMgtRemveLiveFile(STableReaderMgt *pReader, SBseLiveFileInfo *pInfo);
 static int32_t tableReaderMgtAddLiveFileSet(STableReaderMgt *pReader, SArray *pFileSet);
 static int32_t tableReadMgtGetAllLiveFileSet(STableReaderMgt *pReader, SArray **pList);
+static int32_t tableReaderMgtClear(STableReaderMgt *pReader);
+static void    tableReaderMgtDestroy(STableReaderMgt *pReader);
 
-static int32_t tableBuilderMgtInitialize(STableBuilderMgt *pMgt, SBse *pBse);
+static int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse);
 static int32_t tableBuilderMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **p);
-static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
 static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited);
 static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
-int32_t        tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch);
+static int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch);
+static int32_t tableBuilderMgtClear(STableBuilderMgt *pMgt);
+static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
 
 static void tableReaderFree(void *pReader);
 
@@ -45,7 +47,7 @@ int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   }
   p->pBse = pBse;
 
-  code = tableBuilderMgtInitialize(p->pBuilderMgt, pBse);
+  code = tableBuilderMgtInit(p->pBuilderMgt, pBse);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableReaderMgtInit(p->pReaderMgt, pBse);
@@ -83,7 +85,7 @@ int32_t bseTableMgtCleanup(void *pMgt) {
 
   STableMgt *p = (STableMgt *)pMgt;
   tableBuilderMgtDestroy(p->pBuilderMgt);
-  tableReaderMgtCleanup(p->pReaderMgt);
+  tableReaderMgtDestroy(p->pReaderMgt);
   taosMemoryFree(p);
   return 0;
 }
@@ -135,6 +137,24 @@ int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileSet) {
   return tableReaderMgtAddLiveFileSet(pMgt->pReaderMgt, pLiveFileSet);
 }
 
+int32_t bseTableMgtClear(STableMgt *pMgt) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (pMgt == NULL) return 0;
+
+  code = tableBuilderMgtClear(pMgt->pBuilderMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = tableReaderMgtClear(pMgt->pReaderMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("failed to clear table at line %d since %s", lino, tstrerror(code));
+  }
+  return code;
+}
+
 void tableReaderFree(void *pReader) {
   STableReader *p = (STableReader *)pReader;
   if (p != NULL) {
@@ -170,7 +190,21 @@ _error:
   return code;
 }
 
-void tableReaderMgtCleanup(STableReaderMgt *pReader) {
+int32_t tableReaderMgtClear(STableReaderMgt *pReader) {
+  int32_t code = 0;
+
+  taosThreadRwlockWrlock(&pReader->mutex);
+  taosArrayClear(pReader->pFileList);
+
+  (void)(tableCacheClear(pReader->pTableCache));
+
+  (void)(blockCacheClear(pReader->pBlockCache));
+  taosThreadRwlockUnlock(&pReader->mutex);
+
+  return code;
+}
+
+void tableReaderMgtDestroy(STableReaderMgt *pReader) {
   taosArrayDestroy(pReader->pFileList);
   tableCacheClose(pReader->pTableCache);
   blockCacheClose(pReader->pBlockCache);
@@ -309,7 +343,7 @@ _error:
   return code;
 }
 
-int32_t tableBuilderMgtInitialize(STableBuilderMgt *pMgt, SBse *pBse) {
+int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -320,6 +354,22 @@ int32_t tableBuilderMgtInitialize(STableBuilderMgt *pMgt, SBse *pBse) {
     pMgt->p[i] = NULL;
   }
   pMgt->inUse = 0;
+  return code;
+}
+
+int32_t tableBuilderMgtClear(STableBuilderMgt *pMgt) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  taosThreadMutexLock(&pMgt->mutex);
+  for (int32_t i = 0; i < 2; i++) {
+    if (pMgt->p[i] != NULL) {
+      tableBuilderClose(pMgt->p[i], 0);
+      pMgt->p[i] = NULL;
+      pMgt->inUse = 0;
+    }
+  }
+  taosThreadMutexUnlock(&pMgt->mutex);
   return code;
 }
 

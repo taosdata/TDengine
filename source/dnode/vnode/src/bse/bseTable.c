@@ -176,18 +176,6 @@ _error:
   return code;
 }
 
-// int32_t tableBuildShouldOpenFile(STableBuilder *p) {
-//   if (p->pDataFile == NULL) {
-//     char name[TSDB_FILENAME_LEN];
-//     bseBuildDataFullName(p->pBse, p->tableRange.sseq, name);
-//     p->pDataFile = taosOpenFile(p->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
-//     if (p->pDataFile == NULL) {
-//       return terrno;
-//     }
-//     bseBuildDataName(NULL, p->tableRange.sseq, p->name);
-//   }
-//   return 0;
-// }
 int32_t tableBuilderOpenFile(STableBuilder *p) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -539,6 +527,7 @@ void tableBuilderClear(STableBuilder *p) {
   p->tableRange.eseq = -1;
   p->offset = 0;
   p->blockId = 0;
+  p->blockCap = BSE_GET_BLOCK_SIZE(p->pBse);
   taosArrayClear(p->pSeqToBlock);
   taosArrayClear(p->pMetaHandle);
   memset(&p->footer, 0, sizeof(p->footer));

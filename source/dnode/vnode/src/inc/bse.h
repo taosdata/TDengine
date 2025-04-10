@@ -88,20 +88,6 @@ typedef struct {
   int64_t  startSeq;
 } SBseBatch;
 
-int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
-void    bseClose(SBse *pBse);
-
-int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len);
-int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len);
-int32_t bseCommit(SBse *pBse);
-int32_t bseRollback(SBse *pBse, int64_t ver);
-int32_t bseBeginSnapshot(SBse *pBse, int64_t ver);
-int32_t bseEndSnapshot(SBse *pBse);
-int32_t bseStopSnapshot(SBse *pBse);
-int32_t bseCompact(SBse *pBse);
-int32_t bseDelete(SBse *pBse, SSeqRange range);
-int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch);
-
 // batch func
 int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len);
@@ -150,6 +136,20 @@ int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader
 int32_t bseSnapReaderRead(SBseSnapReader *reader, uint8_t **data);
 int32_t bseSnapReaderClose(SBseSnapReader **reader);
 
+int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
+void    bseClose(SBse *pBse);
+
+int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len);
+int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len);
+int32_t bseCommit(SBse *pBse);
+int32_t bseRollback(SBse *pBse, int64_t ver);
+int32_t bseBeginSnapshot(SBse *pBse, int64_t ver);
+int32_t bseEndSnapshot(SBse *pBse);
+int32_t bseStopSnapshot(SBse *pBse);
+int32_t bseCompact(SBse *pBse);
+int32_t bseDelete(SBse *pBse, SSeqRange range);
+int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch);
+int32_t bseReload(SBse *pBse, SBseSnapWriter *writer);
 #ifdef __cplusplus
 }
 #endif

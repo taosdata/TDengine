@@ -252,6 +252,34 @@ _error:
   taosCloseDir(&pDir);
   return code;
 }
+
+int32_t removeUnCommitFile(SBse *p, SArray *pCommitedFiles, SArray *pAllFiles) {
+  int32_t code = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pAllFiles); i++) {
+    SBseLiveFileInfo *pInfo = taosArrayGet(pAllFiles, i);
+    int32_t           found = 0;
+    for (int32_t j = 0; j < taosArrayGetSize(pCommitedFiles); j++) {
+      SBseLiveFileInfo *pCommited = taosArrayGet(pCommitedFiles, j);
+      if (strcmp(pInfo->name, pCommited->name) == 0) {
+        found = 1;
+        break;
+      }
+    }
+    if (found == 0) {
+      char buf[TSDB_FILENAME_LEN] = {0};
+      bseBuildFullName(p, pInfo->name, buf);
+
+      code = taosRemoveFile(buf);
+      if (code != 0) {
+        bseError("vgId:%d failed to remove file %s since %s", p->cfg.vgId, pInfo->name, tstrerror(code));
+      } else {
+        bseInfo("vgId:%d remove file %s", p->cfg.vgId, pInfo->name);
+      }
+    }
+  }
+
+  return code;
+}
 int32_t bseRemoveUnCommitFile(SBse *p) {
   int32_t code = 0;
 
@@ -265,32 +293,8 @@ int32_t bseRemoveUnCommitFile(SBse *p) {
     taosArrayDestroy(pFiles);
     return code;
   }
-
-  SArray *commitedFile = p->commitInfo.pFileList;
-
-  for (int32_t i = 0; i < taosArrayGetSize(pFiles); i++) {
-    SBseLiveFileInfo *pInfo = taosArrayGet(pFiles, i);
-    int32_t           found = 0;
-    for (int32_t j = 0; j < taosArrayGetSize(commitedFile); j++) {
-      SBseLiveFileInfo *pCommited = taosArrayGet(commitedFile, j);
-      if (strcmp(pInfo->name, pCommited->name) == 0) {
-        found = 1;
-        break;
-      }
-    }
-    if (found == 0) {
-      char buf[TSDB_FILENAME_LEN] = {0};
-      snprintf(buf, sizeof(buf), "%s/%s", p->path, pInfo->name);
-      code = taosRemoveFile(buf);
-      if (code != 0) {
-        bseError("vgId:%d failed to remove file %s since %s", p->cfg.vgId, pInfo->name, tstrerror(code));
-      } else {
-        bseInfo("vgId:%d remove file %s", p->cfg.vgId, pInfo->name);
-      }
-    }
-  }
+  code = removeUnCommitFile(p, p->commitInfo.pFileList, pFiles);
   taosArrayDestroy(pFiles);
-
   return code;
 }
 
@@ -330,6 +334,7 @@ int32_t bseRecover(SBse *pBse, int8_t rmUnCommited) {
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = bseInitStartSeq(pBse);
+  TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
   if (code != 0) {
@@ -860,6 +865,39 @@ int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg) {
     // if (code != 0) {
     //   bseError("failed to set table cache size since %s", tstrerror(code));
     // }
+  }
+  taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
+
+int32_t bseReload(SBse *pBse, SBseSnapWriter *writer) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  taosThreadMutexLock(&pBse->mutex);
+
+  code = bseTableMgtClear(pBse->pTableMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = removeUnCommitFile(pBse, pBse->commitInfo.pFileList, writer->pFileSet);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  taosArrayDestroy(pBse->commitInfo.pFileList);
+
+  code = bseTableMgtUpdateLiveFileSet(pBse->pTableMgt, writer->pFileSet);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = bseGenCommitInfo(pBse, writer->pFileSet);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = bseTableMgtGetLiveFileSet(pBse->pTableMgt, &pBse->commitInfo.pFileList);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = bseInitStartSeq(pBse);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("failed to reload bse since %s", tstrerror(code));
   }
   taosThreadMutexUnlock(&pBse->mutex);
   return code;

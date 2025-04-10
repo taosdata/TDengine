@@ -42,6 +42,7 @@ static int32_t lruCacheRemove(SLruCache *pCache, SSeqRange *key, int32_t keyLen)
 static int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen);
 static void    lruCacheFree(SLruCache *pCache);
 static void    freeItemInListNode(SListNode *pItem, CacheFreeFn fn);
+static int32_t lruCacheClear(SLruCache *pCache);
 
 void freeItemInListNode(SListNode *pItem, CacheFreeFn fn) {
   if (pItem == NULL || fn == NULL) return;
@@ -198,6 +199,20 @@ void lruCacheFree(SLruCache *pCache) {
   taosThreadMutexDestroy(&pCache->mutex);
   taosMemoryFree(pCache);
 }
+int32_t lruCacheClear(SLruCache *pCache) {
+  taosThreadMutexLock(&pCache->mutex);
+  while (isListEmpty(pCache->lruList) == 0) {
+    SListNode *pNode = tdListPopTail(pCache->lruList);
+    freeItemInListNode(pNode, pCache->freeElemFunc);
+    taosMemFreeClear(pNode);
+  }
+
+  taosHashClear(pCache->pCache);
+  pCache->size = 0;
+  taosThreadMutexUnlock(&pCache->mutex);
+
+  return 0;
+}
 
 int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p) {
   int32_t      code = 0;
@@ -229,6 +244,15 @@ void tableCacheClose(STableCache *p) {
   lruCacheFree((SLruCache *)p->pCache);
   taosMemoryFree(p);
 }
+int32_t tableCacheClear(STableCache *p) {
+  int32_t code = 0;
+  if (p == NULL) return 0;
+
+  code = lruCacheClear((SLruCache *)p->pCache);
+  p->size = 0;
+  return code;
+}
+
 int32_t tableCacheGet(STableCache *pCache, SSeqRange *key, STableReader **pReader) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -338,4 +362,12 @@ void blockCacheClose(SBlockCache *p) {
 
   lruCacheFree((SLruCache *)p->pCache);
   taosMemoryFree(p);
+}
+
+int32_t blockCacheClear(SBlockCache *p) {
+  if (p == NULL) return 0;
+
+  lruCacheClear((SLruCache *)p->pCache);
+  p->size = 0;
+  return 0;
 }
