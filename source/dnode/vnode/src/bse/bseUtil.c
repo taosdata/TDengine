@@ -106,7 +106,7 @@ int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, in
     return TSDB_CODE_INVALID_CFG;
   }
 
-  bseDebug("decompress %s ,srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, dstSize);
+  bseDebug("decompress %s, srcSize %d, dstSize %d", bseCompressFuncSet[type].name, srcSize, dstSize);
   return bseCompressFuncSet[type].decompress(src, srcSize, dst, dstSize);
 }
 
