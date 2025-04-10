@@ -346,7 +346,7 @@ The differences between NULL, NULL_F, VALUE, and VALUE_F for different scenarios
 2. Stream computing's INTERVAL clause: NULL_F and NULL behave the same, both are non-forced modes; VALUE_F and VALUE behave the same, both are non-forced modes. That is, there is no forced mode in stream computing's INTERVAL.
 3. INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. That is, there is no non-forced mode in INTERP.
 
-**Note**
+#### Note
 
 1. Using the FILL statement may generate a large amount of filled output, be sure to specify the time range for the query.
 2. For each query, the system can return no more than 10 million results with interpolation.
