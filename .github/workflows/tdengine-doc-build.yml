@@ -8,6 +8,7 @@ on:
       - 'docs-cloud'
     paths:
       - 'docs/**'
+      - '**/*.md'
 
 env:
   DOC_WKC: '/root/doc_ci_work'
@@ -39,6 +40,12 @@ jobs:
           files: 'docs/en/**/*.md'
           config: docs/typos.toml
 
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: '**/*.md'
+          config: docs/typos.toml
+
   check-docs-linter-formatter:
     runs-on: ubuntu-latest
     permissions:
@@ -55,7 +62,7 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           reviewdog: true
-          args: ./docs/zh/*  ./docs/en/* 
+          args: ./docs/zh/*  ./docs/en/*  **/*.md
         
         
           
