@@ -3,8 +3,9 @@
 name: TDgpt Update Service
 
 on:
-  schedule:
-    - cron: '30 00 * * *'
+  push:
+  # schedule:
+  #   - cron: '30 00 * * *'
 
 env:
   WKC: "/root/TDengine"
@@ -19,7 +20,8 @@ jobs:
         run: |
           set -euo pipefail
           cd ${{ env.WKC }}
-          git checkout 3.0
+          git checkout main
+          git pull
 
       - name: Package the TDGpt Anode Service
         run: |
