@@ -458,49 +458,52 @@ TEST(clientCase, create_db_Test) {
   taos_close(pConn);
 }
 
-TEST(clientCase, create_dnode_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConn, nullptr);
-
-  TAOS_RES* pRes = taos_query(pConn, "create dnode abc1 port 7000");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("error in create dnode, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create dnode 1.1.1.1 port 9000");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create dnode, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  taos_close(pConn);
-}
-
-TEST(clientCase, drop_dnode_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConn, nullptr);
-
-  TAOS_RES* pRes = taos_query(pConn, "drop dnode 3");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("error in drop dnode, reason:%s\n", taos_errstr(pRes));
-  }
-
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  ASSERT_TRUE(pFields == NULL);
-
-  int32_t numOfFields = taos_num_fields(pRes);
-  ASSERT_EQ(numOfFields, 0);
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "drop dnode 4");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("error in drop dnode, reason:%s\n", taos_errstr(pRes));
-  }
-
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
+// NOTE: create_dnode_Test and drop_dnode_Test does not
+//       cooperate well, thus offline dnodes will exist
+//       which will make taos fail to connect to taosd once taosd gets restarted
+// TEST(clientCase, create_dnode_Test) {
+//   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//   ASSERT_NE(pConn, nullptr);
+// 
+//   TAOS_RES* pRes = taos_query(pConn, "create dnode abc1 port 7000");
+//   if (taos_errno(pRes) != 0) {
+//     (void)printf("error in create dnode, reason:%s\n", taos_errstr(pRes));
+//   }
+//   taos_free_result(pRes);
+// 
+//   pRes = taos_query(pConn, "create dnode 1.1.1.1 port 9000");
+//   if (taos_errno(pRes) != 0) {
+//     (void)printf("failed to create dnode, reason:%s\n", taos_errstr(pRes));
+//   }
+//   taos_free_result(pRes);
+// 
+//   taos_close(pConn);
+// }
+// 
+// TEST(clientCase, drop_dnode_Test) {
+//   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//   ASSERT_NE(pConn, nullptr);
+// 
+//   TAOS_RES* pRes = taos_query(pConn, "drop dnode 3");
+//   if (taos_errno(pRes) != 0) {
+//     (void)printf("error in drop dnode, reason:%s\n", taos_errstr(pRes));
+//   }
+// 
+//   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//   ASSERT_TRUE(pFields == NULL);
+// 
+//   int32_t numOfFields = taos_num_fields(pRes);
+//   ASSERT_EQ(numOfFields, 0);
+//   taos_free_result(pRes);
+// 
+//   pRes = taos_query(pConn, "drop dnode 4");
+//   if (taos_errno(pRes) != 0) {
+//     (void)printf("error in drop dnode, reason:%s\n", taos_errstr(pRes));
+//   }
+// 
+//   taos_free_result(pRes);
+//   taos_close(pConn);
+// }
 
 TEST(clientCase, use_db_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

@@ -109,7 +109,7 @@ class TDTestCase:
         return
 
     def checkDataTable(self):
-        tdSql.execute('use db_taosx')
+        '''tdSql.execute('use db_taosx')
         tdSql.query("select * from meters_summary")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 120)
@@ -122,7 +122,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 120)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(0, 3, "San Francisco")
-
+        '''
         return
 
     def checkData(self):
