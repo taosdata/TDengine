@@ -3133,6 +3133,20 @@ typedef struct SColLocation {
 } SColLocation;
 
 #ifdef NEW_STREAM
+
+typedef enum EStreamPlaceholder {
+  SP_NONE = 0,
+  SP_CURRENT_TS = 1,
+  SP_WSTART,
+  SP_WEND,
+  SP_WDURATION,
+  SP_WROWNUM,
+  SP_LOCALTIME,
+  SP_PARTITION_IDX,
+  SP_PARTITION_TBNAME,
+  SP_PARTITION_ROWS
+} EStreamPlaceholder;
+
 typedef struct SStreamOutCol {
   int16_t            slotId;
   col_id_t           colId;
@@ -3194,7 +3208,7 @@ typedef struct {
   char*   outDB;
   
   char*   triggerTblName;  // table name
-  char*   targetTblName;  // table name
+  char*   outTblName;      // table name
   
   int8_t  igExists;
   int8_t  triggerType;
@@ -3226,8 +3240,9 @@ typedef struct {
   int8_t   outTblType;
   int8_t   outStbExists;
   uint64_t outStbUid;
-  int64_t  flag;
   int64_t  eventTypes;
+  int64_t  flags;
+  int64_t  tsmaId;
 
   // only for child table and normal table
   SArray*  triggerTblVgroups;
@@ -3246,6 +3261,7 @@ typedef struct {
   // runner part
   void*     calcPlan;      // for calc action
   void*     subTblNameExpr;
+  void*     tagValueExpr;
   SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SCMCreateStreamReq;
 
@@ -4113,7 +4129,6 @@ typedef struct {
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   int8_t  igNotExists;
-  int32_t sqlLen;
   char*   sql;
 } SMDropStreamReq;
 
@@ -4266,7 +4281,7 @@ typedef struct {
 } SVResetStreamTaskReq;
 
 typedef struct {
-  char   name[TSDB_STREAM_FNAME_LEN];
+  char   name[TSDB_STREAM_NAME_LEN];
   int8_t igNotExists;
 } SMPauseStreamReq;
 
@@ -4285,7 +4300,7 @@ typedef struct {
 } SVResumeStreamTaskRsp;
 
 typedef struct {
-  char   name[TSDB_STREAM_FNAME_LEN];
+  char   name[TSDB_STREAM_NAME_LEN];
   int8_t igNotExists;
   int8_t igUntreated;
 } SMResumeStreamReq;

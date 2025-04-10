@@ -757,60 +757,29 @@ typedef struct {
   //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
-#ifdef NEW_STREAM
+#ifdef 1 //NEW_STREAM
 typedef struct {
-  char     name[TSDB_STREAM_FNAME_LEN];
+  // static info
+  SCMCreateStreamReq* pCreate;
   SRWLatch lock;
 
-  // create info
+  // dynamic info
   int64_t createTime;
   int64_t updateTime;
   int32_t version;
   int32_t totalLevel;
-  int64_t smaId;  // 0 for unused
-  // info
-  int64_t     uid;
-  int8_t      status;
-  SStreamConf conf;
-  // source and target
-  int64_t sourceDbUid;
-  int64_t targetDbUid;
-  char    sourceDb[TSDB_DB_FNAME_LEN];
-  char    targetDb[TSDB_DB_FNAME_LEN];
-  char    targetSTbName[TSDB_TABLE_FNAME_LEN];
-  int64_t targetStbUid;
 
-  // fixedSinkVg is not applicable for encode and decode
-  SVgObj  fixedSinkVg;
-  int32_t fixedSinkVgId;  // 0 for shuffle
-
-  // transformation
-  char*   sql;
-  char*   ast;
-  char*   physicalPlan;
+  int8_t  paused;
+  int8_t  status;
+  int64_t streamDBId;
+  int64_t triggerDBId;
+  int64_t sourceDBId;
+  int64_t outDBId;
 
   SArray* pTaskList;       // SArray<SArray<SStreamTask>>
-  SArray* pHTaskList;     // generate the results for already stored ts data
-  int64_t hTaskUid;        // stream task for history ts data
-
-  SSchemaWrapper outputSchema;
-  SSchemaWrapper tagSchema;
-
-  // 3.0.20
-  int64_t checkpointFreq;  // ms
-  int64_t currentTick;     // do not serialize
-  int64_t deleteMark;
-  int8_t  igCheckUpdate;
-
-  // 3.0.5.
-  int64_t checkpointId;
-
-  int32_t indexForMultiAggBalance;
-  int8_t  subTableWithoutMd5;
-  char    reserve[TSDB_RESERVE_VALUE_LEN];
+  SArray* pHTaskList;      // generate the results for already stored ts data
 
   SSHashObj*  pVTableMap;  // do not serialize
-  SQueryPlan* pPlan;  // do not serialize
 } SStreamObj;
 #else
 typedef struct SStreamConf {

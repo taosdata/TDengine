@@ -28,14 +28,9 @@ extern "C" {
 #define MND_STREAM_TRIGGER_NAME_SIZE 20
 
 #define MND_STREAM_CREATE_NAME       "stream-create"
-#define MND_STREAM_CHECKPOINT_NAME   "stream-checkpoint"
 #define MND_STREAM_PAUSE_NAME        "stream-pause"
 #define MND_STREAM_RESUME_NAME       "stream-resume"
 #define MND_STREAM_DROP_NAME         "stream-drop"
-#define MND_STREAM_TASK_RESET_NAME   "stream-task-reset"
-#define MND_STREAM_TASK_UPDATE_NAME  "stream-task-update"
-#define MND_STREAM_CHKPT_UPDATE_NAME "stream-chkpt-update"
-#define MND_STREAM_CHKPT_CONSEN_NAME "stream-chkpt-consen"
 #define MND_STREAM_STOP_NAME         "stream-stop"
 
 typedef struct SStreamTransInfo {
@@ -50,29 +45,14 @@ typedef struct SVgroupChangeInfo {
   SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
 } SVgroupChangeInfo;
 
-typedef struct SStreamTransMgmt {
-  SHashObj *pDBTrans;
-} SStreamTransMgmt;
-
-typedef struct SStreamTaskResetMsg {
-  int64_t streamId;
-  int32_t transId;
-  int64_t checkpointId;
-} SStreamTaskResetMsg;
-
-typedef struct SChkptReportInfo {
-  SArray *pTaskList;
-  int64_t reportChkpt;
-  int64_t streamId;
-} SChkptReportInfo;
-
-typedef struct SStreamExecInfo {
+typedef struct SStreamRuntime {
+  int64_t          actionNum;
+  int64_t          actionDone;
+  
   int32_t          role;
   bool             switchFromFollower;
   bool             initTaskList;
   SArray          *pNodeList;
-  int64_t          ts;  // snapshot ts
-  SStreamTransMgmt transMgmt;
   SHashObj        *pTaskMap;
   SArray          *pTaskList;
   TdThreadMutex    lock;
@@ -80,9 +60,9 @@ typedef struct SStreamExecInfo {
   SHashObj        *pChkptStreams;  // use to update the checkpoint info, if all tasks send the checkpoint-report msgs
   SHashObj        *pStreamConsensus;
   SArray          *pKilledChkptTrans;  // SArray<SStreamTaskResetMsg>
-} SStreamExecInfo;
+} SStreamRuntime;
 
-extern SStreamExecInfo         execInfo;
+extern SStreamRuntime         mStreamMgmt;
 typedef struct SStreamTaskIter SStreamTaskIter;
 
 typedef struct SNodeEntry {
@@ -114,13 +94,11 @@ void    mndCleanupStream(SMnode *pMnode);
 int32_t mndAcquireStream(SMnode *pMnode, char *streamName, SStreamObj **pStream);
 void    mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
-int32_t mndPersistStream(STrans *pTrans, SStreamObj *pStream);
 
 int32_t  mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams);
 int32_t  mndGetNumOfStreamTasks(const SStreamObj *pStream);
 int32_t  mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList, SHashObj* pTermMap);
 void     mndDestroyVgroupChangeInfo(SVgroupChangeInfo *pInfo);
-void     mndKillTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName);
 int32_t  setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
                         int32_t retryCode, int32_t acceptCode);
 int32_t  doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name,
@@ -135,8 +113,6 @@ int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);
 int32_t extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);
 int32_t mndProcessStreamHb(SRpcMsg *pReq);
 int32_t extractStreamNodeList(SMnode *pMnode);
-int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pStream, int8_t igUntreated);
-int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
 int32_t mndStreamSetStopAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);

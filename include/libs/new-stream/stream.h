@@ -22,18 +22,12 @@ extern "C" {
 
 #include "tlog.h"
 
-typedef enum EStreamPlaceholder {
-  SP_NONE = 0,
-  SP_CURRENT_TS = 1,
-  SP_WSTART,
-  SP_WEND,
-  SP_WDURATION,
-  SP_WROWNUM,
-  SP_LOCALTIME,
-  SP_PARTITION_IDX,
-  SP_PARTITION_TBNAME,
-  SP_PARTITION_ROWS
-} EStreamPlaceholder;
+enum {
+  STREAM_STATUS_INIT = 1,
+  STREAM_STATUS_RUNNING,
+  STREAM_STATUS_STOPPED,
+  STREAM_STATUS_FAILED,
+};
 
 typedef enum EStreamTaskType {
   STREAM_READER_TASK = 0,

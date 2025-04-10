@@ -219,24 +219,10 @@ void *freeStreamTasks(SArray *pTaskLevel) {
 }
 
 void tFreeStreamObj(SStreamObj *pStream) {
-  taosMemoryFree(pStream->sql);
-  taosMemoryFree(pStream->ast);
-  taosMemoryFree(pStream->physicalPlan);
-
-  if (pStream->outputSchema.nCols || pStream->outputSchema.pSchema) {
-    taosMemoryFree(pStream->outputSchema.pSchema);
-  }
+  tFreeSCMCreateStreamReq(pStream->pCreate);
 
   pStream->pTaskList = freeStreamTasks(pStream->pTaskList);
   pStream->pHTaskList = freeStreamTasks(pStream->pHTaskList);
-
-  // tagSchema.pSchema
-  if (pStream->tagSchema.nCols > 0) {
-    taosMemoryFree(pStream->tagSchema.pSchema);
-  }
-
-  qDestroyQueryPlan(pStream->pPlan);
-  pStream->pPlan = NULL;
 
   tSimpleHashCleanup(pStream->pVTableMap);
   pStream->pVTableMap = NULL;
