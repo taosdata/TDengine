@@ -19,5 +19,5 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           reviewdog: true
-          args: /github/workspace/docs/zh/*  /github/workspace/docs/en/* 
+          args: ${{ env.GITHUB_WORKSPACE }}/docs/zh/*  ${{ env.GITHUB_WORKSPACE }}/docs/en/* 
 
