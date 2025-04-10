@@ -31,7 +31,7 @@ The parameters are explained as follows.
 - tag_set is formatted as `<tag_key>=<tag_value>, <tag_key>=<tag_value>`, representing tag column data, separated by commas, and separated by a space from field_set.
 - field_set is formatted as `<field_key>=<field_value>, <field_key>=<field_value>`, representing ordinary columns, also separated by commas, and separated by a space from timestamp.
 - timestamp is the primary key timestamp for this row of data.
-- Schemaless writing does not support writing data for tables with a second primary key column.
+- Schemaless writing does not support writing data for tables with a second composite primary key column.
 
 All data in tag_set are automatically converted to nchar data type and do not need to use double quotes.
 In the schemaless writing line protocol, each data item in field_set needs to describe its own data type, with specific requirements as follows.
