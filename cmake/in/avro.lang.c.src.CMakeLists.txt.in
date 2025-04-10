@@ -93,19 +93,19 @@ endif(MSVC)
 target_link_libraries(avro-static ${JANSSON_LIBRARIES} ${CODEC_LIBRARIES} ${THREADS_LIBRARIES})
 set_target_properties(avro-static PROPERTIES OUTPUT_NAME avro)
 
-if (NOT WIN32)
-# TODO: Create Windows DLLs. See https://www.cmake.org/Wiki/BuildingWinDLL
-add_library(avro-shared SHARED ${AVRO_SRC})
-if (MSVC)
-   # Compile win32 in C++ to allow declarations after statements
-   target_compile_options(avro-shared PRIVATE /TP)
-endif(MSVC)
-target_link_libraries(avro-shared ${JANSSON_LIBRARIES} ${CODEC_LIBRARIES} ${THREADS_LIBRARIES})
-set_target_properties(avro-shared PROPERTIES
-        OUTPUT_NAME avro
-        VERSION ${LIBAVRO_DOT_VERSION}
-        SOVERSION ${LIBAVRO_SOVERSION})
-endif(NOT WIN32)
+# if (NOT WIN32)
+# # TODO: Create Windows DLLs. See https://www.cmake.org/Wiki/BuildingWinDLL
+# add_library(avro-shared SHARED ${AVRO_SRC})
+# if (MSVC)
+#    # Compile win32 in C++ to allow declarations after statements
+#    target_compile_options(avro-shared PRIVATE /TP)
+# endif(MSVC)
+# target_link_libraries(avro-shared ${JANSSON_LIBRARIES} ${CODEC_LIBRARIES} ${THREADS_LIBRARIES})
+# set_target_properties(avro-shared PROPERTIES
+#         OUTPUT_NAME avro
+#         VERSION ${LIBAVRO_DOT_VERSION}
+#         SOVERSION ${LIBAVRO_SOVERSION})
+# endif(NOT WIN32)
 
 install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/avro.h
@@ -124,36 +124,36 @@ install(TARGETS avro-static
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
        )
 else(WIN32)
-install(TARGETS avro-static avro-shared
+install(TARGETS avro-static
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
        )
 endif(WIN32)
 
-# Install pkg-config file
-
-set(prefix ${CMAKE_INSTALL_PREFIX})
-set(VERSION ${AVRO_VERSION})
-configure_file(avro-c.pc.in avro-c.pc)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/avro-c.pc
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-
-add_executable(avrocat avrocat.c)
-target_link_libraries(avrocat avro-static)
-install(TARGETS avrocat RUNTIME DESTINATION bin)
-
-add_executable(avroappend avroappend.c)
-target_link_libraries(avroappend avro-static)
-install(TARGETS avroappend RUNTIME DESTINATION bin)
-
-if (NOT WIN32)
-#TODO: Port getopt() to Windows to compile avropipe.c and avromod.c
-add_executable(avropipe avropipe.c)
-target_link_libraries(avropipe avro-static)
-install(TARGETS avropipe RUNTIME DESTINATION bin)
-
-add_executable(avromod avromod.c)
-target_link_libraries(avromod avro-static)
-install(TARGETS avromod RUNTIME DESTINATION bin)
-endif(NOT WIN32)
+# # Install pkg-config file
+# 
+# set(prefix ${CMAKE_INSTALL_PREFIX})
+# set(VERSION ${AVRO_VERSION})
+# configure_file(avro-c.pc.in avro-c.pc)
+# install(FILES ${CMAKE_CURRENT_BINARY_DIR}/avro-c.pc
+#         DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+# 
+# add_executable(avrocat avrocat.c)
+# target_link_libraries(avrocat avro-static)
+# install(TARGETS avrocat RUNTIME DESTINATION bin)
+# 
+# add_executable(avroappend avroappend.c)
+# target_link_libraries(avroappend avro-static)
+# install(TARGETS avroappend RUNTIME DESTINATION bin)
+# 
+# if (NOT WIN32)
+# #TODO: Port getopt() to Windows to compile avropipe.c and avromod.c
+# add_executable(avropipe avropipe.c)
+# target_link_libraries(avropipe avro-static)
+# install(TARGETS avropipe RUNTIME DESTINATION bin)
+# 
+# add_executable(avromod avromod.c)
+# target_link_libraries(avromod avro-static)
+# install(TARGETS avromod RUNTIME DESTINATION bin)
+# endif(NOT WIN32)
