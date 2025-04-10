@@ -712,6 +712,7 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
     case TDMT_SCH_EXPLAIN:
     case TDMT_SCH_FETCH:
     case TDMT_SCH_MERGE_FETCH:
+    case TDMT_VND_LOAD_FILE:
       *fp = schHandleCallback;
       break;
     case TDMT_SCH_DROP_TASK:
@@ -1139,6 +1140,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_DROP_TABLE:
     case TDMT_VND_ALTER_TABLE:
     case TDMT_VND_SUBMIT:
+    case TDMT_VND_LOAD_FILE:
     case TDMT_VND_COMMIT: {
       msgSize = pTask->msgLen;
       msg = pTask->msg;

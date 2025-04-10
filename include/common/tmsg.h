@@ -4979,6 +4979,7 @@ void tFreeFetchTtlExpiredTbsRsp(void* p);
 void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
+// TDMT_VND_LOAD_FILE ==============
 typedef struct {
   char fileName[PATH_MAX];
 } SVLoadFileReq;

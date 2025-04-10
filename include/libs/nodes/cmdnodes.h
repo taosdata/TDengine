@@ -792,8 +792,9 @@ typedef struct SDropTSMAStmt {
 } SDropTSMAStmt;
 
 typedef struct {
-  char   dbName[TSDB_DB_NAME_LEN];
-  char   fileName[PATH_MAX];
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      fileName[PATH_MAX];
 } SLoadFileStmt;
 
 #ifdef __cplusplus
