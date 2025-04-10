@@ -24,5 +24,7 @@ add_subdirectory(qworker)
 add_subdirectory(geometry)
 add_subdirectory(command)
 add_subdirectory(azure)
+# TODO: remove tcs when tss is ready
 add_subdirectory(tcs)
+add_subdirectory(tss)
 add_subdirectory(decimal)
