@@ -3384,7 +3384,6 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     tqInfoC("consumer:0x%" PRIx64 " get assignment from local:%d->%" PRId64, tmq->consumerId, pAssignment->vgId,
             pAssignment->currentOffset);
   }
-  tqInfoC("consumer:0x%" PRIx64 " %s retrieve wal info start", tmq->consumerId, pTopic->topicName);
 
   if (needFetch) {
     pCommon = taosMemoryCalloc(1, sizeof(SMqVgCommon));
@@ -3472,8 +3471,6 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       char offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
       tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pClientVg->offsetInfo.beginOffset);
 
-      tqInfoC("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s,QID:0x%" PRIx64 ", pCommon:%p, %p, %d, %p", tmq->consumerId,
-              pTopic->topicName, pClientVg->vgId, tmq->epoch, offsetFormatBuf, req.reqId, pCommon, pCommon->pList, pCommon->numOfRsp, pParam);
       code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pClientVg->epSet, NULL, sendInfo);
       if (code != 0) {
         goto end;
