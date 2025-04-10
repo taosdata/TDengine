@@ -24,9 +24,6 @@ typedef struct SFailedCheckpointInfo {
   int32_t transId;
 } SFailedCheckpointInfo;
 
-static int32_t mndStreamSendUpdateChkptInfoMsg(SMnode *pMnode);
-static int32_t mndSendDropOrphanTasksMsg(SMnode *pMnode, SArray *pList);
-static int32_t mndSendResetFromCheckpointMsg(SMnode *pMnode, int64_t streamId, int32_t transId, int64_t checkpointId);
 static void    updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage);
 static void    addIntoFailedChkptList(SArray *pList, const SFailedCheckpointInfo *pInfo);
 static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList);
@@ -70,181 +67,6 @@ void addIntoFailedChkptList(SArray *pList, const SFailedCheckpointInfo *pInfo) {
   }
 }
 
-int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int64_t chkptId) {
-  STrans *pTrans = NULL;
-  int32_t code = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_TASK_RESET_NAME,
-                               " reset from failed checkpoint", &pTrans);
-  if (pTrans == NULL || code) {
-    sdbRelease(pMnode->pSdb, pStream);
-    return terrno;
-  }
-
-  code = mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
-  if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  code = mndStreamSetResetTaskAction(pMnode, pTrans, pStream, chkptId);
-  if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
-  if (code != TSDB_CODE_SUCCESS) {
-    sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  code = mndTransPrepare(pMnode, pTrans);
-  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("trans:%d, failed to prepare update stream trans since %s", pTrans->id, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  sdbRelease(pMnode->pSdb, pStream);
-  mndTransDrop(pTrans);
-
-  if (code == 0) {
-    code = TSDB_CODE_ACTION_IN_PROGRESS;
-  }
-  return code;
-}
-
-int32_t mndSendResetFromCheckpointMsg(SMnode *pMnode, int64_t streamId, int32_t transId, int64_t checkpointId) {
-  int32_t size = sizeof(SStreamTaskResetMsg);
-
-  int32_t num = taosArrayGetSize(execInfo.pKilledChkptTrans);
-  for (int32_t i = 0; i < num; ++i) {
-    SStreamTaskResetMsg *p = taosArrayGet(execInfo.pKilledChkptTrans, i);
-    if (p == NULL) {
-      continue;
-    }
-
-    if (p->transId == transId && p->streamId == streamId) {
-      mDebug("already reset stream:0x%" PRIx64 ", not send reset-msg again for transId:%d", streamId, transId);
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
-  if (num >= 10) {
-    taosArrayRemove(execInfo.pKilledChkptTrans, 0);  // remove this first, append new reset trans in the tail
-  }
-
-  SStreamTaskResetMsg p = {.streamId = streamId, .transId = transId, .checkpointId = checkpointId};
-
-  // let's remember that this trans had been killed already
-  void *px = taosArrayPush(execInfo.pKilledChkptTrans, &p);
-  if (px == NULL) {
-    mError("failed to push reset-msg trans:%d into the killed chkpt trans list, size:%d", transId, num - 1);
-    return terrno;
-  }
-
-  SStreamTaskResetMsg *pReq = rpcMallocCont(size);
-  if (pReq == NULL) {
-    return terrno;
-  }
-
-  pReq->streamId = streamId;
-  pReq->transId = transId;
-  pReq->checkpointId = checkpointId;
-
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_TASK_RESET, .pCont = pReq, .contLen = size};
-  int32_t code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-  if (code) {
-    mError("failed to put reset-task msg into write queue, code:%s", tstrerror(code));
-  } else {
-    mDebug("send reset task status msg for transId:%d succ", transId);
-  }
-
-  return code;
-}
-
-int32_t mndStreamSendUpdateChkptInfoMsg(SMnode *pMnode) {  // here reuse the doCheckpointmsg
-  int32_t size = sizeof(SMStreamDoCheckpointMsg);
-  void   *pMsg = rpcMallocCont(size);
-  if (pMsg == NULL) {
-    return terrno;
-  }
-
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_UPDATE_CHKPT_EVT, .pCont = pMsg, .contLen = size};
-  int32_t code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-  if (code) {
-    mError("failed to put update-checkpoint-info msg into write queue, code:%s", tstrerror(code));
-  } else {
-    mDebug("send update checkpoint-info msg succ");
-  }
-
-  return code;
-}
-
-int32_t mndSendDropOrphanTasksMsg(SMnode *pMnode, SArray *pList) {
-  SMStreamDropOrphanMsg msg = {.pList = pList};
-
-  int32_t num = taosArrayGetSize(pList);
-  int32_t contLen = tSerializeDropOrphanTaskMsg(NULL, 0, &msg);
-  if (contLen <= 0) {
-    return terrno;
-  }
-
-  void *pReq = rpcMallocCont(contLen);
-  if (pReq == NULL) {
-    return terrno;
-  }
-
-  int32_t code = tSerializeDropOrphanTaskMsg(pReq, contLen, &msg);
-  if (code <= 0) {
-    mError("failed to serialize the drop orphan task msg, code:%s", tstrerror(code));
-  }
-
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_DROP_ORPHANTASKS, .pCont = pReq, .contLen = contLen};
-  code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-  if (code) {
-    mError("failed to put drop-orphan task msg into write queue, code:%s", tstrerror(code));
-  } else {
-    mDebug("send drop %d orphan tasks msg succ", num);
-  }
-
-  return code;
-}
-
-int32_t mndProcessResetStatusReq(SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
-  int32_t     code = TSDB_CODE_SUCCESS;
-  SStreamObj *pStream = NULL;
-
-  SStreamTaskResetMsg *pMsg = pReq->pCont;
-  mndKillTransImpl(pMnode, pMsg->transId, "");
-
-  streamMutexLock(&execInfo.lock);
-  code = mndResetChkptReportInfo(execInfo.pChkptStreams, pMsg->streamId);  // do thing if failed
-  streamMutexUnlock(&execInfo.lock);
-
-  code = mndGetStreamObj(pMnode, pMsg->streamId, &pStream);
-  if (pStream == NULL || code != 0) {
-    code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
-    mError("failed to acquire the streamObj:0x%" PRIx64 " to reset checkpoint, may have been dropped", pStream->uid);
-  } else {
-    code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_TASK_RESET_NAME, false);
-    if (code) {
-      mError("stream:%s other trans exists in DB:%s, dstTable:%s failed to start reset-status trans", pStream->name,
-             pStream->sourceDb, pStream->targetSTbName);
-    } else {
-      mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, transId:%d, create reset trans", pStream->name,
-             pStream->uid, pMsg->transId);
-      code = mndCreateStreamResetStatusTrans(pMnode, pStream, pMsg->checkpointId);
-    }
-  }
-
-  mndReleaseStream(pMnode, pStream);
-  return code;
-}
 
 int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
   int32_t num = taosArrayGetSize(pNodeList);
@@ -441,14 +263,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
       int32_t numOfTasks = mndGetNumOfStreamTasks(pStream);
 
-      SCheckpointConsensusInfo *pInfo = NULL;
-      code = mndGetConsensusInfo(execInfo.pStreamConsensus, p->id.streamId, numOfTasks, &pInfo);
-      if (code == 0) {
-        mndAddConsensusTasks(pInfo, &cp);
-      } else {
-        mError("failed to get consensus checkpoint-info for stream:0x%" PRIx64, p->id.streamId);
-      }
-
       mndReleaseStream(pMnode, pStream);
     }
 
@@ -467,12 +281,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         SFailedCheckpointInfo info = {
             .transId = pChkInfo->activeTransId, .checkpointId = pChkInfo->activeId, .streamUid = p->id.streamId};
         addIntoFailedChkptList(pFailedChkpt, &info);
-
-        // remove failed trans from pChkptStreams
-        code = mndResetChkptReportInfo(execInfo.pChkptStreams, p->id.streamId);
-        if (code) {
-          mError("failed to remove stream:0x%" PRIx64 " in checkpoint stream list", p->id.streamId);
-        }
       }
     }
 
@@ -508,11 +316,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         mInfo("stream:0x%" PRIx64 " checkpointId:%" PRId64
               " transId:%d failed issue task-reset trans to reset all tasks status",
               pInfo->streamUid, pInfo->checkpointId, pInfo->transId);
-
-        code = mndSendResetFromCheckpointMsg(pMnode, pInfo->streamUid, pInfo->transId, pInfo->checkpointId);
-        if (code) {
-          mError("failed to create reset task trans, code:%s", tstrerror(code));
-        }
       }
     } else {
       mInfo("not all vgroups are ready, wait for next HB from stream tasks to reset the task status");
@@ -521,14 +324,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // handle the orphan tasks that are invalid but not removed in some vnodes or snode due to some unknown errors.
   if (taosArrayGetSize(pOrphanTasks) > 0) {
-    code = mndSendDropOrphanTasksMsg(pMnode, pOrphanTasks);
     if (code) {
       mError("failed to send drop orphan tasks msg, code:%s, try next time", tstrerror(code));
     }
   }
 
   if (pMnode != NULL) {  // make sure that the unit test case can work
-    code = mndStreamSendUpdateChkptInfoMsg(pMnode);
     if (code) {
       mError("failed to send update checkpointInfo msg, code:%s, try next time", tstrerror(code));
     }

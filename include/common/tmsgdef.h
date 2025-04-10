@@ -232,10 +232,10 @@
   TD_DEF_MSG_TYPE(TDMT_MND_RESTORE_DNODE, "restore-dnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_PAUSE_STREAM, "pause-stream", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RESUME_STREAM, "resume-stream", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_STREAM_CHECKPOINT_TIMER, "stream-checkpoint-tmr", NULL, NULL)            // not used
-  TD_DEF_MSG_TYPE(TDMT_MND_STREAM_BEGIN_CHECKPOINT, "stream-begin-checkpoint", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE, "stream-checkpoint-remain", NULL, NULL)   // not used
-  TD_DEF_MSG_TYPE(TDMT_MND_STREAM_NODECHANGE_CHECK, "stream-nodechange-check", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED3, "mnd-unused3", NULL, NULL)            // not used
+  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED4, "mnd-unused4", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED5, "mnd-unused5", NULL, NULL)   // not used
+  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED6, "mnd-unused6", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TRIM_DB_TIMER, "trim-db-tmr", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_GRANT_NOTIFY, "grant-notify", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_VIEW, "create-view", SCMCreateViewReq, NULL)

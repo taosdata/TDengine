@@ -490,29 +490,6 @@ typedef struct {
   int32_t    learnerProgress;
 } SVnodeGid;
 
-typedef struct {
-  int32_t   vgId;
-  int64_t   createdTime;
-  int64_t   updateTime;
-  int32_t   version;
-  uint32_t  hashBegin;
-  uint32_t  hashEnd;
-  char      dbName[TSDB_DB_FNAME_LEN];
-  int64_t   dbUid;
-  int64_t   cacheUsage;
-  int64_t   numOfTables;
-  int64_t   numOfTimeSeries;
-  int64_t   totalStorage;
-  int64_t   compStorage;
-  int64_t   pointsWritten;
-  int8_t    compact;
-  int8_t    isTsma;
-  int8_t    replica;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
-  void*     pTsma;
-  int32_t   numOfCachedTables;
-  int32_t   syncConfChangeVer;
-} SVgObj;
 
 typedef struct {
   char           name[TSDB_TABLE_FNAME_LEN];
@@ -780,6 +757,62 @@ typedef struct {
   //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
+#ifdef NEW_STREAM
+typedef struct {
+  char     name[TSDB_STREAM_FNAME_LEN];
+  SRWLatch lock;
+
+  // create info
+  int64_t createTime;
+  int64_t updateTime;
+  int32_t version;
+  int32_t totalLevel;
+  int64_t smaId;  // 0 for unused
+  // info
+  int64_t     uid;
+  int8_t      status;
+  SStreamConf conf;
+  // source and target
+  int64_t sourceDbUid;
+  int64_t targetDbUid;
+  char    sourceDb[TSDB_DB_FNAME_LEN];
+  char    targetDb[TSDB_DB_FNAME_LEN];
+  char    targetSTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t targetStbUid;
+
+  // fixedSinkVg is not applicable for encode and decode
+  SVgObj  fixedSinkVg;
+  int32_t fixedSinkVgId;  // 0 for shuffle
+
+  // transformation
+  char*   sql;
+  char*   ast;
+  char*   physicalPlan;
+
+  SArray* pTaskList;       // SArray<SArray<SStreamTask>>
+  SArray* pHTaskList;     // generate the results for already stored ts data
+  int64_t hTaskUid;        // stream task for history ts data
+
+  SSchemaWrapper outputSchema;
+  SSchemaWrapper tagSchema;
+
+  // 3.0.20
+  int64_t checkpointFreq;  // ms
+  int64_t currentTick;     // do not serialize
+  int64_t deleteMark;
+  int8_t  igCheckUpdate;
+
+  // 3.0.5.
+  int64_t checkpointId;
+
+  int32_t indexForMultiAggBalance;
+  int8_t  subTableWithoutMd5;
+  char    reserve[TSDB_RESERVE_VALUE_LEN];
+
+  SSHashObj*  pVTableMap;  // do not serialize
+  SQueryPlan* pPlan;  // do not serialize
+} SStreamObj;
+#else
 typedef struct SStreamConf {
   int8_t  igExpired;
   int8_t  trigger;
@@ -787,6 +820,31 @@ typedef struct SStreamConf {
   int64_t triggerParam;
   int64_t watermark;
 } SStreamConf;
+
+
+typedef struct {
+  int32_t   vgId;
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int32_t   version;
+  uint32_t  hashBegin;
+  uint32_t  hashEnd;
+  char      dbName[TSDB_DB_FNAME_LEN];
+  int64_t   dbUid;
+  int64_t   cacheUsage;
+  int64_t   numOfTables;
+  int64_t   numOfTimeSeries;
+  int64_t   totalStorage;
+  int64_t   compStorage;
+  int64_t   pointsWritten;
+  int8_t    compact;
+  int8_t    isTsma;
+  int8_t    replica;
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  void*     pTsma;
+  int32_t   numOfCachedTables;
+  int32_t   syncConfChangeVer;
+} SVgObj;
 
 
 typedef struct {
@@ -843,6 +901,7 @@ typedef struct {
   SSHashObj*  pVTableMap;  // do not serialize
   SQueryPlan* pPlan;  // do not serialize
 } SStreamObj;
+#endif
 
 typedef struct SStreamSeq {
   char     name[24];

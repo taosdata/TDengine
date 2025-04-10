@@ -3158,15 +3158,15 @@ typedef struct SSlidingTrigger {
 } SSlidingTrigger;
 
 typedef struct SEventTrigger {
-  SNode*  startCond;
-  SNode*  endCond;
+  void*   startCond;
+  void*   endCond;
   int64_t trueForDuration;
 } SEventTrigger;
 
 typedef struct SCountTrigger {
   int64_t    countVal;
   int64_t    sliding;
-  SNodeList* condCols;
+  void*      condCols;
 } SCountTrigger;
 
 typedef struct SPeriodTrigger {
@@ -3184,13 +3184,17 @@ typedef union {
 } SStreamTrigger;
 
 typedef struct {
-  char*   name;
+  char*    name;
+  int64_t  streamId;
+  char*    sql;
+  
+  char*   streamDB;
   char*   triggerDB;
+  char*   sourceDB;
+  char*   outDB;
+  
   char*   triggerTblName;  // table name
-  char*   targetTblFName;  // full name
-  char*   sql;
-
-  uint64_t streamId;
+  char*   targetTblName;  // table name
   
   int8_t  igExists;
   int8_t  triggerType;
@@ -3218,29 +3222,30 @@ typedef struct {
   SStreamTrigger trigger;
 
   int8_t   triggerTblType;
-  int8_t   calcTblType;
+  int8_t   sourceTblType;
   int8_t   outTblType;
   int8_t   outStbExists;
   uint64_t outStbUid;
   int64_t  flag;
   int64_t  eventTypes;
 
+  // only for child table and normal table
   SArray*  triggerTblVgroups;
   SArray*  calcTblVgroups;
   SArray*  outTblVgroups;
 
   // reader part
-  SNode*    prevFilter;
-  SSubplan* walScan;
-  SSubplan* triggerTsdbScan;  // for trigger action
-  SSubplan* calcTsdbScan;     // for calc action
+  void*     prevFilter;
+  void*     walScan;
+  void*     triggerTsdbScan;  // for trigger action
+  void*     calcTsdbScan;     // for calc action
 
   // trigger part
   SArray*  pVSubTables; // array of SVSubTablesRsp
   
   // runner part
-  SSubplan* calcPlan;      // for calc action
-  SNode*    subTblNameExpr;
+  void*     calcPlan;      // for calc action
+  void*     subTblNameExpr;
   SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SCMCreateStreamReq;
 

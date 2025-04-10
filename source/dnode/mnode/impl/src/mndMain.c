@@ -180,42 +180,6 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   }
 }
 
-static void mndStreamCheckpointTimer(SMnode *pMnode) {
-  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  if (pMsg != NULL) {
-    int32_t size = sizeof(SMStreamDoCheckpointMsg);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
-    // TODO check return value
-    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
-static void mndStreamCheckNode(SMnode *pMnode) {
-  int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_NODECHECK_TIMER, .pCont = pReq, .contLen = contLen};
-    // TODO check return value
-    if (tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into read-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
-static void mndStreamCheckStatus(SMnode *pMnode) {
-  int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_CHECK_STREAM_TIMER, .pCont = pReq, .contLen = contLen};
-    // TODO check return value
-    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
 static void mndStreamConsensusChkpt(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
@@ -373,8 +337,6 @@ static int32_t minCronTime() {
   min = TMIN(min, tsTransPullupInterval);
   min = TMIN(min, tsCompactPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
-  min = TMIN(min, tsStreamCheckpointInterval);
-  min = TMIN(min, tsStreamNodeCheckInterval);
   min = TMIN(min, tsArbHeartBeatIntervalSec);
   min = TMIN(min, tsArbCheckSyncIntervalSec);
 
@@ -414,26 +376,14 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   }
 #endif
 #ifdef USE_STREAM
-  if (sec % 30 == 0) {  // send the checkpoint info every 30 sec
-    mndStreamCheckpointTimer(pMnode);
-  }
-
-  if (sec % tsStreamNodeCheckInterval == 0) {
-    mndStreamCheckNode(pMnode);
-  }
-
-  if (sec % (tsStreamFailedTimeout/1000) == 0) {
-    mndStreamCheckStatus(pMnode);
-  }
-
   if (sec % 5 == 0) {
     mndStreamConsensusChkpt(pMnode);
   }
-
+#endif
   if (tsTelemInterval > 0 && sec % tsTelemInterval == 0) {
     mndPullupTelem(pMnode);
   }
-#endif
+
 #ifndef TD_ASTRA
   if (sec % tsGrantHBInterval == 0) {
     mndPullupGrant(pMnode);
