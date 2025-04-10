@@ -161,7 +161,7 @@ function kill_process() {
 function kill_model_service() {
   for script in stop-tdtsfm.sh stop-timer-moe.sh; do
     script_path="${installDir}/bin/${script}"
-    [ -f "${script_path}" ] && sudo bash "${script_path}" || :
+    [ -f "${script_path}" ] && ${csudo}bash "${script_path}" || :
   done
 }
 
@@ -399,7 +399,7 @@ function install_log() {
 function install_module() {
   ${csudo}mkdir -p ${moduleDir} && ${csudo}chmod 777 ${moduleDir}
   ${csudo}ln -sf ${moduleDir} ${install_main_dir}/model
-  cp -r ${script_dir}/model/* ${moduleDir}/
+  [ -f "${script_dir}/model/${tar_td_model_name}" ] & cp -r ${script_dir}/model/* ${moduleDir}/
 }
 
 function install_resource() {
