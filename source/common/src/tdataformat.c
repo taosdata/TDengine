@@ -2909,16 +2909,17 @@ _exit:
   return code;
 }
 
-void tColDataSortMerge(SArray **arr) {
+int32_t tColDataSortMerge(SArray **arr) {
+  int32_t  code = 0;
   SArray   *colDataArr = *arr;
   int32_t   nColData = TARRAY_SIZE(colDataArr);
   SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
 
   if (aColData[0].nVal <= 1) goto _exit;
 
-  ASSERT(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID);
-  ASSERT(aColData[0].flag == HAS_VALUE);
+  if (aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP) return TSDB_CODE_INVALID_PARA;
+  if (aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID) return TSDB_CODE_INVALID_PARA;
+  if (aColData[0].flag == HAS_VALUE) return TSDB_CODE_INVALID_PARA;
 
   int8_t doSort = 0;
   int8_t doMerge = 0;
@@ -2937,7 +2938,8 @@ void tColDataSortMerge(SArray **arr) {
 
   // sort -------
   if (doSort) {
-    tColDataSort(aColData, nColData);
+    code = tColDataSort(aColData, nColData);
+    if (code) return code;
   }
 
   if (doMerge != 1) {
@@ -2951,11 +2953,12 @@ void tColDataSortMerge(SArray **arr) {
 
   // merge -------
   if (doMerge) {
-    tColDataMerge(arr);
+    code = tColDataMerge(arr);
+    if (code) return code;
   }
 
 _exit:
-  return;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tPutColData(uint8_t *pBuf, SColData *pColData) {
