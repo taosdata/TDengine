@@ -365,7 +365,7 @@ INTERVAL(1m) FILL(prev)
 SLIMIT 2;
 ```
 
-The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`; data is first partitioned by subtable name `tbname`, then by each 1-minute time window. If data is missing within a window, it is filled with the previous non-NULL value; finally, only the data from the first 2 partitions is taken as the result. The query results are as follows: 中文a
+The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`; data is first partitioned by subtable name `tbname`, then by each 1-minute time window. If data is missing within a window, it is filled with the previous non-NULL value; finally, only the data from the first 2 partitions is taken as the result. The query results are as follows: 
 
 ```text
  tbname |         _wstart         |          _wend          |     avg(voltage)      |
