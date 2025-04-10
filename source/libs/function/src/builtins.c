@@ -1016,7 +1016,7 @@ static int32_t translateBase64(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   SDataType* pRestType1 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
   int32_t outputLength = base64BufSize(pRestType1->bytes);
 
-  pFunc->node.resType = (SDataType){.bytes = outputLength, .type = pRestType1->type};
+  pFunc->node.resType = (SDataType){.bytes = outputLength, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
 }
 

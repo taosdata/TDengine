@@ -1167,7 +1167,7 @@ BASE64(expr)
 
 **Function Description**: Returns the base64 encoding of the string `expr`s.
 
-**Return Type**: Same as the original type of the input field `expr`.
+**Return Type**: VARCHAR.
 
 **Applicable Data Types**:
 
