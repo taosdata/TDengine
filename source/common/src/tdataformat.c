@@ -2295,7 +2295,7 @@ static FORCE_INLINE int32_t tColDataGetValue3(SColData *pColData, int32_t iVal,
       *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
       break;
     default:
-      return TSDB_CODE_INVALID_PARAM;
+      return TSDB_CODE_INVALID_PARA;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2324,7 +2324,7 @@ static FORCE_INLINE int32_t tColDataGetValue5(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      return TSDB_CODE_INVALID_PARAM;
+      return TSDB_CODE_INVALID_PARA;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2338,7 +2338,7 @@ static FORCE_INLINE int32_t tColDataGetValue6(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      return TSDB_CODE_INVALID_PARAM;
+      return TSDB_CODE_INVALID_PARA;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2355,7 +2355,7 @@ static FORCE_INLINE int32_t tColDataGetValue7(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      return TSDB_CODE_INVALID_PARAM;
+      return TSDB_CODE_INVALID_PARA;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2371,7 +2371,7 @@ static int32_t (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColV
 };
 int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
   if (iVal >= 0 && iVal < pColData->nVal && pColData->flag) {
-    return TSDB_CODE_INVALID_PARAM;
+    return TSDB_CODE_INVALID_PARA;
   }
   return tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
 }
