@@ -209,13 +209,13 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_WIN_FUNC:
       return "Column exists for window join with aggregation functions";
     case TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY:
-      return "tag %s can not be primary key";
+      return "tag %s can not be composite primary key";
     case TSDB_CODE_PAR_SECOND_COL_PK:
-      return "primary key column must be second column";
+      return "composite primary key column must be second column";
     case TSDB_CODE_PAR_COL_PK_TYPE:
-      return "primary key column must be of type int, uint, bigint, ubigint, and varchar";
+      return "composite primary key column must be of type int, uint, bigint, ubigint, and varchar";
     case TSDB_CODE_PAR_INVALID_PK_OP:
-      return "primary key column can not be added, modified, and dropped";
+      return "composite primary key column can not be added, modified, and dropped";
     case TSDB_CODE_TSMA_NAME_TOO_LONG:
       return "Tsma name too long";
     case TSDB_CODE_PAR_TBNAME_ERROR:
