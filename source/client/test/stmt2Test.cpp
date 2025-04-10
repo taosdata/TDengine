@@ -1235,7 +1235,6 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     int     t64_len[5] = {sizeof(int64_t), sizeof(int64_t), sizeof(int64_t), sizeof(int64_t), sizeof(int64_t)};
     int     coli[5] = {1, 4, 4, 3, 2};
     int     ilen[5] = {sizeof(int), sizeof(int), sizeof(int), sizeof(int), sizeof(int)};
-    int     total_affect_rows = 0;
     char    is_null[2] = {1, 1};
 
     TAOS_STMT2_BIND params1[2] = {
@@ -1253,6 +1252,24 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     taos_stmt2_exec(stmt, &affected_rows);
     checkError(stmt, code);
     ASSERT_EQ(affected_rows, 4);
+
+    int64_t         ts2[2] = {1591060628003, 1591060628002};
+    int             t64_len2[2] = {sizeof(int64_t), sizeof(int64_t)};
+    int             coli2[2] = {1, 2};
+    int             ilen2[2] = {sizeof(int), sizeof(int)};
+    TAOS_STMT2_BIND params2[2] = {
+        {TSDB_DATA_TYPE_TIMESTAMP, &ts2, &t64_len2[0], NULL, 2},
+        {TSDB_DATA_TYPE_INT, &coli2, &ilen2[0], NULL, 2},
+    };
+    TAOS_STMT2_BIND* paramv2 = &params2[0];
+    TAOS_STMT2_BINDV bindv2 = {1, &tbname, NULL, &paramv2};
+    code = taos_stmt2_bind_param(stmt, &bindv2, -1);
+    checkError(stmt, code);
+
+    int affected_rows2;
+    taos_stmt2_exec(stmt, &affected_rows2);
+    checkError(stmt, code);
+    ASSERT_EQ(affected_rows2, 2);
 
     taos_stmt2_close(stmt);
   }
