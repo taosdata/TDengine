@@ -1144,6 +1144,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
 
+  mInfo("trans:%d, execute transaction in prepare", pTrans->id);
   mndTransExecute(pMnode, pNew, false);
   mndReleaseTrans(pMnode, pNew);
   // TDOD change to TAOS_RETURN(code);
@@ -1345,6 +1346,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
     mInfo("trans:%d, invalid action, index:%d, code:0x%x", transId, action, pRsp->code);
   }
 
+  mInfo("trans:%d, execute transaction in process response", pTrans->id);
   mndTransExecute(pMnode, pTrans, true);
 
 _OVER:
@@ -1604,8 +1606,7 @@ static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans, bool
   return code;
 }
 
-static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArray *pActions, bool topHalf,
-                                            bool notSend) {
+static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArray *pActions, bool topHalf) {
   int32_t code = 0;
   int32_t numOfActions = taosArrayGetSize(pActions);
   if (numOfActions == 0) return code;
@@ -1624,7 +1625,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
           pTrans->id, pTrans->actionPos, mndTransStr(pAction->stage), pAction->actionType, pAction->msgSent,
           pAction->msgReceived);
 
-    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf, notSend);
+    code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf, false);
     if (code == 0) {
       if (pAction->msgSent) {
         if (pAction->msgReceived) {
@@ -1699,21 +1700,21 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
   return code;
 }
 
-static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
+static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   int32_t code = TSDB_CODE_ACTION_IN_PROGRESS;
   (void)taosThreadMutexLock(&pTrans->mutex);
   if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
-    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->redoActions, topHalf, notSend);
+    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->redoActions, topHalf);
   }
   (void)taosThreadMutexUnlock(&pTrans->mutex);
   return code;
 }
 
-static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf, bool notSend) {
+static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   int32_t code = TSDB_CODE_ACTION_IN_PROGRESS;
   (void)taosThreadMutexLock(&pTrans->mutex);
   if (pTrans->stage == TRN_STAGE_UNDO_ACTION) {
-    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->undoActions, topHalf, notSend);
+    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->undoActions, topHalf);
   }
   (void)taosThreadMutexUnlock(&pTrans->mutex);
   return code;
@@ -1752,7 +1753,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool 
   terrno = 0;
 
   if (pTrans->exec == TRN_EXEC_SERIAL) {
-    code = mndTransExecuteRedoActionsSerial(pMnode, pTrans, topHalf, notSend);
+    code = mndTransExecuteRedoActionsSerial(pMnode, pTrans, topHalf);
   } else {
     code = mndTransExecuteRedoActions(pMnode, pTrans, topHalf, notSend);
   }
@@ -1865,7 +1866,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans, bool 
   int32_t code = 0;
 
   if (pTrans->exec == TRN_EXEC_SERIAL) {
-    code = mndTransExecuteUndoActionsSerial(pMnode, pTrans, topHalf, notSend);
+    code = mndTransExecuteUndoActionsSerial(pMnode, pTrans, topHalf);
   } else {
     code = mndTransExecuteUndoActions(pMnode, pTrans, topHalf, notSend);
   }
@@ -1999,7 +2000,7 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans, bool notSend) {
 // update trans
 void mndTransRefresh(SMnode *pMnode, STrans *pTrans) {
   bool topHalf = false;
-  mndTransExecuteImp(pMnode, pTrans, topHalf, true);
+  mndTransExecuteImp(pMnode, pTrans, topHalf, false);
 }
 
 static int32_t mndProcessTransTimer(SRpcMsg *pReq) {
@@ -2039,6 +2040,7 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
     return TSDB_CODE_MND_TRANS_NOT_ABLE_TO_kILLED;
   }
 
+  mInfo("trans:%d, execute transaction in kill trans", pTrans->id);
   mndTransExecute(pMnode, pTrans, true);
   return 0;
 }
@@ -2101,6 +2103,7 @@ void mndTransPullup(SMnode *pMnode) {
     int32_t *pTransId = taosArrayGet(pArray, i);
     STrans  *pTrans = mndAcquireTrans(pMnode, *pTransId);
     if (pTrans != NULL) {
+      mInfo("trans:%d, execute transaction in trans pullup", pTrans->id);
       mndTransExecute(pMnode, pTrans, false);
     }
     mndReleaseTrans(pMnode, pTrans);
