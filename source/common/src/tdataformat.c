@@ -2277,13 +2277,15 @@ int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward) 
       pColVal->value.nData, forward);
 }
 
-static FORCE_INLINE void tColDataGetValue1(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NONE
+static FORCE_INLINE int32_t tColDataGetValue1(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NONE
   *pColVal = COL_VAL_NONE(pColData->cid, pColData->type);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE void tColDataGetValue2(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NULL
+static FORCE_INLINE int32_t tColDataGetValue2(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_NULL
   *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal,
+static FORCE_INLINE int32_t tColDataGetValue3(SColData *pColData, int32_t iVal,
                                            SColVal *pColVal) {  // HAS_NULL|HAS_NONE
   switch (GET_BIT1(pColData->pBitMap, iVal)) {
     case 0:
@@ -2293,10 +2295,11 @@ static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal,
       *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
       break;
     default:
-      ASSERT(0);
+      return TSDB_CODE_INVALID_PARAM;
   }
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_VALUE
+static FORCE_INLINE int32_t tColDataGetValue4(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_VALUE
   SValue value;
   if (IS_VAR_DATA_TYPE(pColData->type)) {
     if (iVal + 1 < pColData->nVal) {
@@ -2309,8 +2312,9 @@ static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SCo
     memcpy(&value.val, pColData->pData + tDataTypes[pColData->type].bytes * iVal, tDataTypes[pColData->type].bytes);
   }
   *pColVal = COL_VAL_VALUE(pColData->cid, pColData->type, value);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE void tColDataGetValue5(SColData *pColData, int32_t iVal,
+static FORCE_INLINE int32_t tColDataGetValue5(SColData *pColData, int32_t iVal,
                                            SColVal *pColVal) {  // HAS_VALUE|HAS_NONE
   switch (GET_BIT1(pColData->pBitMap, iVal)) {
     case 0:
@@ -2320,10 +2324,11 @@ static FORCE_INLINE void tColDataGetValue5(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      return TSDB_CODE_INVALID_PARAM;
   }
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE void tColDataGetValue6(SColData *pColData, int32_t iVal,
+static FORCE_INLINE int32_t tColDataGetValue6(SColData *pColData, int32_t iVal,
                                            SColVal *pColVal) {  // HAS_VALUE|HAS_NULL
   switch (GET_BIT1(pColData->pBitMap, iVal)) {
     case 0:
@@ -2333,10 +2338,11 @@ static FORCE_INLINE void tColDataGetValue6(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      return TSDB_CODE_INVALID_PARAM;
   }
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE void tColDataGetValue7(SColData *pColData, int32_t iVal,
+static FORCE_INLINE int32_t tColDataGetValue7(SColData *pColData, int32_t iVal,
                                            SColVal *pColVal) {  // HAS_VALUE|HAS_NULL|HAS_NONE
   switch (GET_BIT2(pColData->pBitMap, iVal)) {
     case 0:
@@ -2349,10 +2355,11 @@ static FORCE_INLINE void tColDataGetValue7(SColData *pColData, int32_t iVal,
       tColDataGetValue4(pColData, iVal, pColVal);
       break;
     default:
-      ASSERT(0);
+      return TSDB_CODE_INVALID_PARAM;
   }
+  return TSDB_CODE_SUCCESS;
 }
-static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal *pColVal) = {
+static int32_t (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal *pColVal) = {
     NULL,               // 0
     tColDataGetValue1,  // HAS_NONE
     tColDataGetValue2,  // HAS_NULL
@@ -2362,9 +2369,11 @@ static void (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColVal 
     tColDataGetValue6,  // HAS_VALUE | HAS_NULL
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
-void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-//  ASSERT(iVal >= 0 && iVal < pColData->nVal && pColData->flag);
-  tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+  if (iVal >= 0 && iVal < pColData->nVal && pColData->flag) {
+    return TSDB_CODE_INVALID_PARAM;
+  }
+  return tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
 }
 
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
@@ -2730,7 +2739,10 @@ static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, S
 
   for (int32_t i = 0; i < nColData; i++) {
     SColVal cv = {0};
-    tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    code = tColDataGetValue(&aFromColData[i], iFromRow, &cv);
+    if (code) {
+      return code;
+    }
     code = tColDataAppendValue(&aToColData[i], &cv);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -2743,6 +2755,7 @@ static int32_t tColDataCopyRowAppend(SColData *aFromColData, int32_t iFromRow, S
 static int32_t tColDataMergeSortMerge(SColData *aColData, int32_t start, int32_t mid, int32_t end, int32_t nColData) {
   SColData *aDstColData = NULL;
   TSKEY    *aKey = (TSKEY *)aColData[0].pData;
+  int32_t  code = 0;
 
   int32_t i = start, j = mid + 1, k = 0;
 
@@ -2764,21 +2777,33 @@ static int32_t tColDataMergeSortMerge(SColData *aColData, int32_t start, int32_t
   while (i <= mid && j <= end) {
     if (aKey[i] <= aKey[j]) {
       // tColDataCopyRow(aColData, i++, aDstColData, k++);
-      tColDataCopyRowAppend(aColData, i++, aDstColData, nColData);
+      code = tColDataCopyRowAppend(aColData, i++, aDstColData, nColData);
+      if (code) {
+        return code;
+      }
     } else {
       // tColDataCopyRow(aColData, j++, aDstColData, k++);
-      tColDataCopyRowAppend(aColData, j++, aDstColData, nColData);
+      code = tColDataCopyRowAppend(aColData, j++, aDstColData, nColData);
+      if (code) {
+        return code;
+      }
     }
   }
 
   while (i <= mid) {
     // tColDataCopyRow(aColData, i++, aDstColData, k++);
-    tColDataCopyRowAppend(aColData, i++, aDstColData, nColData);
+    code = tColDataCopyRowAppend(aColData, i++, aDstColData, nColData);
+    if (code) {
+      return code;
+    }
   }
 
   while (j <= end) {
     // tColDataCopyRow(aColData, j++, aDstColData, k++);
-    tColDataCopyRowAppend(aColData, j++, aDstColData, nColData);
+    code = tColDataCopyRowAppend(aColData, j++, aDstColData, nColData);
+    if (code) {
+      return code;
+    }
   }
 
   for (i = start, k = 0; i <= end; ++i, ++k) {
