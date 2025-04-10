@@ -23,7 +23,7 @@ jobs:
       - name: Package the TDGpt Anode Service
         run: |
           set -euo pipefail
-          cd ${{ env.WKC }}/tools/tdgpt/script && ./release.sh -e community  -v 3.3.6.1
+          cd ${{ env.WKC }}/tools/tdgpt/script && ./release.sh -e community  -v ${{ vars.TDGPT_VERSION }}
 
       - name: Reinstall and restart the TDGpt Anode Service
         run: |
