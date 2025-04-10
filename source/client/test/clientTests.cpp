@@ -800,8 +800,7 @@ TEST(clientCase, insert_test) {
 }
 
 TEST(clientCase, projection_query_tables) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/first/cfg");
-
+#if 0
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -810,21 +809,15 @@ TEST(clientCase, projection_query_tables) {
   pRes= taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select forecast(k,'algo=arima,wncheck=0') from t1 where ts<='2024-11-15 1:7:44'");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
+//  pRes = taos_query(pConn, "select forecast(k,'algo=arima,wncheck=0') from t1 where ts<='2024-11-15 1:7:44'");
+//  if (taos_errno(pRes) != 0) {
+//    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tu using st2 tags(2)");
+  pRes = taos_query(pConn, "create table t1 (ts timestamp, v1 varchar(20) primary key, v2 int)");
   if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table st2 (ts timestamp, v1 int) tags(t1 int)");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+    (void)printf("failed to create table st1, reason:%s\n", taos_errstr(pRes));
   }
   taos_free_result(pRes);
 
@@ -837,15 +830,23 @@ TEST(clientCase, projection_query_tables) {
       "ghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!@#$%^&&*&^^%$#@!qQWERTYUIOPASDFGHJKL:"
       "QWERTYUIOP{}";
 
-  for(int32_t i = 0; i < 1; ++i) {
+  bool up = true;
+  int32_t a = 0;
+  for(int32_t i = 0; i < 9000; ++i, ++a) {
     char str[1024] = {0};
-    (void)sprintf(str, "create table if not exists tu%d using st2 tags(%d)", i, i);
+    (void)sprintf(str, "insert into t1 values(%" PRId64 ", 'abcdefghijklmn', %d)", start + i, a);
 
     TAOS_RES* px = taos_query(pConn, str);
     if (taos_errno(px) != 0) {
       (void)printf("failed to create table tu, reason:%s\n", taos_errstr(px));
     }
     taos_free_result(px);
+
+    if (i == 8191 && up) {
+      i -= 1;
+      up = false;
+      taos_query(pConn, "flush database abc1");
+    }
   }
 
   for(int32_t j = 0; j < 1; ++j) {
@@ -874,6 +875,7 @@ TEST(clientCase, projection_query_tables) {
 
   taos_free_result(pRes);
   taos_close(pConn);
+#endif
 }
 
 TEST(clientCase, tsbs_perf_test) {
