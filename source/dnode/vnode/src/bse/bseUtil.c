@@ -35,7 +35,7 @@ static int32_t xzCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSiz
 static int32_t xzDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 
 typedef struct {
-  char           name[64];
+  char           name[8];
   compressFunc   compress;
   decompressFunc decompress;
 } SCompressFuncSet;
