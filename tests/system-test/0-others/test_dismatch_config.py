@@ -29,6 +29,7 @@ class TDTestCase:
         tdDnodes.cfg(1, 'forceReadConfig', '1')
         tdDnodes.cfg(1, 'timezone', 'Asia/Shaghai')
         tdDnodes.start(1)
+        time.sleep(10)
         tdSql.error("show databases")
 
     def update_cfg_success(self):
@@ -36,6 +37,7 @@ class TDTestCase:
         tdDnodes.cfg(1, 'forceReadConfig', '1')
         tdDnodes.cfg(1, 'timezone', 'Asia/Shanghai')
         tdDnodes.start(1)
+        time.sleep(10)
         tdSql.execute("show databases")
 
         
