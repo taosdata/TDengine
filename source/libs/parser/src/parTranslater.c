@@ -19399,6 +19399,8 @@ static int32_t toMsgType(ENodeType type) {
     case QUERY_NODE_DROP_TABLE_STMT:
     case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
       return TDMT_VND_DROP_TABLE;
+    case QUERY_NODE_LOAD_FILE_STMT:
+      return TDMT_VND_LOAD_FILE;
     default:
       break;
   }

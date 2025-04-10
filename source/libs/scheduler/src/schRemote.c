@@ -54,6 +54,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_VND_DELETE_RSP:
     case TDMT_VND_COMMIT_RSP:
+    case TDMT_VND_LOAD_FILE_RSP:
       break;
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%s, status:%s", TMSG_INFO(msgType), jobTaskStatusStr(taskStatus));
