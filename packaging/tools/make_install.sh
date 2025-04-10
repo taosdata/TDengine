@@ -459,8 +459,9 @@ function install_taosadapter_config() {
       ${csudo}cp -f ${binary_dir}/test/cfg/taosadapter.toml \
         ${cfg_install_dir}/taosadapter.toml.${verNumber} || :
     [ -f ${cfg_install_dir}/taosadapter.toml ] &&
-      ${csudo}ln -s ${cfg_install_dir}/taosadapter.toml \
-        ${install_main_dir}/cfg/taosadapter.toml > /dev/null 2>&1 || :
+      # remove ln operation to fix TD-34510
+      #${csudo}ln -s ${cfg_install_dir}/taosadapter.toml \
+      #  ${install_main_dir}/cfg/taosadapter.toml > /dev/null 2>&1 || :
   else
     if [ -f "${binary_dir}/test/cfg/taosadapter.toml" ]; then
       ${csudo}cp -f ${binary_dir}/test/cfg/taosadapter.toml \
