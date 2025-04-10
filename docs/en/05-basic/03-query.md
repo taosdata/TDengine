@@ -191,7 +191,7 @@ INTERVAL(interval_val [, interval_offset])
 
 The time window clause includes 3 sub-clauses:
 
-- INTERVAL clause: used to generate windows of equal time periods, where interval_val specifies the size of each time window, and interval_offset specifies;
+- INTERVAL clause: used to generate windows of equal time periods, where interval_val specifies the size of each time window, and interval_offset specifies its starting offset. By default, windows begin at Unix time 0 (1970-01-01 00:00:00 UTC). If interval_offset is specified, the windows start from "Unix time 0 + interval_offset";
 - SLIDING clause: used to specify the time the window slides forward;
 - FILL: used to specify the filling mode of data in case of missing data in the window interval.
 

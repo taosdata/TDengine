@@ -46,8 +46,9 @@ class TDTestCase:
         tdSql.checkRows(2)
     
     def case2(self):
-        tdSql.query("show variables")        
-        tdSql.checkRows(87)
+
+        tdSql.query("show variables") 
+        tdSql.checkGreater(tdSql.getRows(), 80)       
 
         for i in range(self.replicaVar):
             tdSql.query("show dnode %d variables like 'debugFlag'" % (i + 1))
@@ -85,7 +86,59 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(0, 1, 's3UploadDelaySec')
         tdSql.checkData(0, 2, 60)
+        
+    def show_local_variables_like(self):
+        tdSql.query("show local variables")        
+        tdSql.checkGreater(tdSql.getRows(), 80)
 
+        tdSql.query("show local variables like 'debugFlag'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'debugFlag')
+        # tdSql.checkData(0, 1, 0)
+
+        tdSql.query("show local variables like '%debugFlag'")
+        tdSql.checkRows(9)
+
+        tdSql.query("show local variables like '____debugFlag'")
+        tdSql.checkRows(0)
+
+        tdSql.query("show local variables like 's3MigrateEnab%'")
+        tdSql.checkRows(0)
+
+        tdSql.query("show local variables like 'mini%'")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 'minimalTmpDirGB')
+
+        tdSql.query("show local variables like '%info'")
+        tdSql.checkRows(2)
+
+    def show_cluster_variables_like(self):
+        zones = ["", "cluster"]
+        for zone in zones:
+            tdLog.info(f"show {zone} variables")
+            tdSql.query(f"show {zone} variables")        
+            tdSql.checkGreater(tdSql.getRows(), 80)
+
+            tdLog.info(f"show {zone} variables like 'debugFlag'")
+            #tdSql.query(f"show {zone} variables like 'debugFlag'")
+            #tdSql.checkRows(0)
+
+            tdSql.query(f"show {zone} variables like 's3%'")
+            tdSql.checkRows(6)
+
+            tdSql.query(f"show {zone} variables like 'Max%'")
+            tdSql.checkRows(3)
+
+            tdSql.query(f"show {zone} variables like 'ttl%'")
+            tdSql.checkRows(5)
+
+            tdSql.query(f"show {zone} variables like 'ttl34343434%'")
+            tdSql.checkRows(0)
+
+            tdSql.query(f"show {zone} variables like 'jdlkfdjdfkdfnldlfdnfkdkfdmfdlfmnnnnnjkjk'")
+            tdSql.checkRows(0)
+            
+        
     def threadTest(self, threadID):
         print(f"Thread {threadID} starting...")
         tdsqln = tdCom.newTdSql()
@@ -127,6 +180,14 @@ class TDTestCase:
         tdLog.printNoPrefix("==========start case3 run ...............")
         self.case3()
         tdLog.printNoPrefix("==========end case3 run ...............")
+        
+        tdLog.printNoPrefix("==========start show_local_variables_like run ...............")
+        self.show_local_variables_like()
+        tdLog.printNoPrefix("==========end show_local_variables_like run ...............")
+                
+        tdLog.printNoPrefix("==========start show_cluster_variables_like run ...............")
+        self.show_cluster_variables_like()
+        tdLog.printNoPrefix("==========end show_cluster_variables_like run ...............")
 
     def stop(self):
         tdSql.close()

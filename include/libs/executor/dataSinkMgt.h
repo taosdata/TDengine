@@ -30,6 +30,7 @@ extern "C" {
 #define DS_BUF_EMPTY 3
 
 #define DS_FLAG_USE_MEMPOOL (1 << 0)
+#define DS_FLAG_PROCESS_ONE_BLOCK (1 << 1)
 
 
 struct SSDataBlock;
@@ -87,7 +88,7 @@ typedef struct SOutputData {
  * @param pHandle output
  * @return error code
  */
-int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
+int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, void* pParam, const char* id, bool processOneBlock);
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat);
 

@@ -16,21 +16,82 @@
 #ifndef INC_BENCHCSV_H_
 #define INC_BENCHCSV_H_
 
-#include <bench.h>
+#include <zlib.h>
+
+#include "bench.h"
+
+
+typedef enum {
+    CSV_NAMING_I_SINGLE,
+    CSV_NAMING_I_TIME_SLICE,
+    CSV_NAMING_B_THREAD,
+    CSV_NAMING_B_THREAD_TIME_SLICE
+} CsvNamingType;
+
+typedef enum {
+    CSV_ERR_OK = 0,
+    CSV_ERR_OPEN_FAILED,
+    CSV_ERR_WRITE_FAILED
+} CsvIoError;
+
+typedef struct {
+    const char* filename;
+    CsvCompressionLevel compress_level;
+    CsvIoError result;
+    union {
+        gzFile  gf;
+        FILE*   fp;
+    } handle;
+} CsvFileHandle;
+
+typedef struct {
+    char*           buf;
+    int             length;
+} CsvRowTagsBuf;
+
+typedef struct {
+    char*           buf;
+    int             buf_size;
+    int             length;
+} CsvRowColsBuf;
+
+typedef struct {
+    CsvNamingType   naming_type;
+    size_t          total_threads;
+    char            mode[MIDDLE_BUFF_LEN];
+    char            thread_formatter[SMALL_BUFF_LEN];
+    char            csv_header[LARGE_BUFF_LEN];
+    int             csv_header_length;
+    SDataBase*      db;
+    SSuperTable*    stb;
+    int64_t         start_ts;
+    int64_t         end_ts;
+    int64_t         ts_step;
+    int64_t         interlace_step;
+} CsvWriteMeta;
+
+typedef struct {
+    uint64_t        ctb_start_idx;
+    uint64_t        ctb_end_idx;
+    uint64_t        ctb_count;
+    uint64_t        total_rows;
+    time_t          start_secs;
+    time_t          end_secs;
+    int64_t         start_ts;
+    int64_t         end_ts;
+    size_t          thread_id;
+    bool            output_header;
+    int             tags_buf_size;
+    CsvRowTagsBuf*  tags_buf_array;
+    CsvRowColsBuf*  cols_buf;
+} CsvThreadMeta;
+
+typedef struct {
+    CsvWriteMeta*   write_meta;
+    CsvThreadMeta   thread_meta;
+} CsvThreadArgs;
+
 
 int csvTestProcess();
-
-int genWithSTable(SDataBase* db, SSuperTable* stb, char* outDir);
-
-char * genTagData(char* buf, SSuperTable* stb, int64_t i, int64_t *k);
-
-char * genColumnData(char* colData, SSuperTable* stb, int64_t ts, int32_t precision, int64_t *k);
-
-int32_t genRowByField(char* buf, BArray* fields, int16_t fieldCnt, char* binanryPrefix, char* ncharPrefix, int64_t *k);
-
-void obtainCsvFile(char * outFile, SDataBase* db, SSuperTable* stb, char* outDir);
-
-int interlaceWriteCsv(SDataBase* db, SSuperTable* stb, FILE* fs, char* buf, int bufLen, int minRemain);
-int batchWriteCsv(SDataBase* db, SSuperTable* stb, FILE* fs, char* buf, int bufLen, int minRemain);
 
 #endif  // INC_BENCHCSV_H_

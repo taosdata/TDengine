@@ -53,15 +53,18 @@ void              streamFileStateClear(SStreamFileState* pFileState);
 bool              needClearDiskBuff(SStreamFileState* pFileState);
 void              streamFileStateReleaseBuff(SStreamFileState* pFileState, SRowBuffPos* pPos, bool used);
 void              streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
+int32_t           getFileStateRowSize(SStreamFileState* pFileState);
 
 int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                              int32_t* pWinCode);
+int32_t createRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
+
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                    int32_t* pWinCode);
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
 void    deleteRowBuffByGroupId(SStreamFileState* pFileState, uint64_t groupId);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
-bool    hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
+bool    hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, bool hasLimit, bool* pIsLast);
 int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
@@ -80,6 +83,7 @@ bool         isFlushedState(SStreamFileState* pFileState, TSKEY ts, TSKEY gap);
 TSKEY        getFlushMark(SStreamFileState* pFileState);
 SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState);
 int32_t      getRowStateRowSize(SStreamFileState* pFileState);
+void         freeArrayPtr(void* ptr);
 
 // session window
 int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, void** pVal, int32_t* pVLen,
@@ -101,10 +105,12 @@ void sessionWinStateCleanup(void* pBuff);
 SStreamStateCur* createStateCursor(SStreamFileState* pFileState);
 SStreamStateCur* sessionWinStateSeekKeyCurrentPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyCurrentNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
+SStreamStateCur* sessionWinStateSeekKeyPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey, COUNT_TYPE count);
 int32_t          sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 void             sessionWinStateMoveToNext(SStreamStateCur* pCur);
+void             sessionWinStateMoveToPrev(SStreamStateCur* pCur);
 int32_t          sessionWinStateGetKeyByRange(SStreamFileState* pFileState, const SSessionKey* key, SSessionKey* curKey,
                                               range_cmpr_fn cmpFn);
 
@@ -145,12 +151,43 @@ SSHashObj* getGroupIdCache(SStreamFileState* pFileState);
 int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos);
 int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
                            int32_t* pVLen, int32_t* pWinCode);
-int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SWinKey* pKey);
+int32_t addSearchItem(SStreamFileState* pFileState, SArray* pWinStates, const SWinKey* pKey, bool* pIsEnd);
+int32_t getRowStateAllPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SArray* pResArray, int32_t maxNum);
 
 //twa
 void setFillInfo(SStreamFileState* pFileState);
-void clearExpiredState(SStreamFileState* pFileState);
+void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs);
 int32_t addArrayBuffIfNotExist(SSHashObj* pSearchBuff, uint64_t groupId, SArray** ppResStates);
+int32_t recoverHashSortBuff(SStreamFileState* pFileState, SArray* pWinStates, uint64_t groupId);
+
+int32_t getAndSetTsData(STableTsDataState* pTsDataState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
+                        TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
+int32_t doTsDataCommit(STableTsDataState* pTsDataState);
+int32_t doRangeDataCommit(STableTsDataState* pTsDataState);
+int32_t initTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState,
+                        void* pOtherState);
+void    destroyTsDataState(STableTsDataState* pTsDataState);
+int32_t recoverTsData(STableTsDataState* pTsDataState);
+int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId, SRecDataInfo* pRecData,
+                              int32_t len);
+int32_t mergeAllScanRange(STableTsDataState* pTsDataState);
+int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange);
+
+// continuous
+typedef void* (*getStateBuffFn)(SStreamFileState* pFileState);
+SStreamStateCur* getLastStateCur(SStreamFileState* pFileState, getStateBuffFn fn);
+void             moveLastStateCurNext(SStreamStateCur* pCur, getStateBuffFn fn);
+void             moveOneStateCurNext(SStreamStateCur* pCur);
+int32_t          getNLastStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
+int32_t          getNLastSessionStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
+int32_t          reloadTsDataState(STableTsDataState* pTsDataState);
+int32_t          setStateRecFlag(SStreamFileState* pState, const void* pKey, int32_t keyLen, int32_t mode);
+int32_t          getStateRecFlag(SStreamFileState* pFileState, const void* pKey, int32_t keyLen, int32_t* pMode);
+void             clearExpiredSessionState(struct SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs,
+                                          SSHashObj* pFlushGroup);
+bool             hasSessionState(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, bool* pIsLast);
+int32_t          saveRecInfoToDisk(STableTsDataState* pTsDataState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen);
+int32_t          flushRemainRecInfoToDisk(STableTsDataState* pTsDataState);
 
 #ifdef __cplusplus
 }

@@ -90,20 +90,20 @@ if $rows != $vgroups then
 endi
 
 if $data[0][4] == leader then
-   if $data[0][6] == follower then
-      if $data[0][8] == follower then
+   if $data[0][7] == follower then
+      if $data[0][10] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
       endi
    endi
-elif $data[0][6] == leader then
+elif $data[0][7] == leader then
    if $data[0][4] == follower then
-      if $data[0][8] == follower then
+      if $data[0][10] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
       endi
    endi
-elif $data[0][8] == leader then
+elif $data[0][10] == leader then
    if $data[0][4] == follower then
-      if $data[0][6] == follower then
+      if $data[0][7] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
       endi
    endi

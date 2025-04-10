@@ -127,10 +127,11 @@ Displays created indexes.
 ## SHOW LOCAL VARIABLES
 
 ```sql
-SHOW LOCAL VARIABLES;
+SHOW LOCAL VARIABLES [like pattern];
 ```
 
 Displays the runtime values of configuration parameters for the current client.
+You can use the like pattern to filter by name.
 
 ## SHOW MNODES
 
@@ -304,9 +305,10 @@ Displays information about all topics in the current database.
 
 ```sql
 SHOW TRANSACTIONS;
+SHOW TRANSACTION [transaction_id];
 ```
 
-Displays information about transactions currently being executed in the system (these transactions are only for metadata level, not for regular tables).
+Displays information about one of or all transaction(s) currently being executed in the system (these transactions are only for metadata level, not for regular tables).
 
 ## SHOW USERS
 
@@ -319,11 +321,11 @@ Displays information about all users in the current system, including user-defin
 ## SHOW CLUSTER VARIABLES (before version 3.0.1.6 it was SHOW VARIABLES)
 
 ```sql
-SHOW CLUSTER VARIABLES;
-SHOW DNODE dnode_id VARIABLES;
+SHOW CLUSTER VARIABLES [like pattern];
+SHOW DNODE dnode_id VARIABLES [like pattern];
 ```
 
-Displays the runtime values of configuration parameters that need to be the same across nodes in the current system, or you can specify a DNODE to view its configuration parameters.
+Displays the runtime values of configuration parameters that need to be the same across nodes in the current system, or you can specify a DNODE to view its configuration parameters. And you can use the like pattern to filter by name.
 
 ## SHOW VGROUPS
 

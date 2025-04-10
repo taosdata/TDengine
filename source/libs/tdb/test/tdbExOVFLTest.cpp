@@ -336,8 +336,8 @@ tdbBegin(pEnv, &txn);
     int   vLen = -1;
 
     ret = tdbTbGet(pDb, "key1", strlen("key1"), &pVal, &vLen);
-    ASSERT(ret == -1);
-    GTEST_ASSERT_EQ(ret, -1);
+    ASSERT(ret == TSDB_CODE_NOT_FOUND);
+    GTEST_ASSERT_EQ(ret, TSDB_CODE_NOT_FOUND);
 
     GTEST_ASSERT_EQ(vLen, -1);
     GTEST_ASSERT_EQ(pVal, nullptr);

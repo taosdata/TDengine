@@ -176,6 +176,7 @@ void    nodesSortList(SNodeList** pList, int32_t (*)(SNode* pNode1, SNode* pNode
 void    destroyFuncParam(void* pFuncStruct);
 int32_t nodesListDeduplicate(SNodeList** pList);
 
+
 #ifdef __cplusplus
 }
 #endif

@@ -18,6 +18,8 @@
 #include "libs/function/function.h"
 #include "libs/function/tudf.h"
 
+#ifdef USE_STREAM
+
 static int32_t smRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);
 }
@@ -98,3 +100,4 @@ SMgmtFunc smGetMgmtFunc() {
 
   return mgmtFunc;
 }
+#endif

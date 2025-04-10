@@ -576,7 +576,7 @@ taos> select max(total_voltage) from (select sum(voltage) as total_voltage from 
 taos> select round(max(current), 2) from ts_4893.meters
  round(max(current), 2) |
 =========================
-          1.2000000e+01 |
+                     12 |
 
 taos> select pow(max(current), 2) from ts_4893.meters
    pow(max(current), 2)    |
@@ -651,7 +651,7 @@ taos> select max(cast(10000000000 as bigint unsigned))
 taos> select max(cast(1.1 as float))
  max(cast(1.1 as float)) |
 ==========================
-           1.1000000e+00 |
+                     1.1 |
 
 taos> select max(cast(1.1 as double))
  max(cast(1.1 as double))  |

@@ -3,6 +3,10 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 INCLUDE_DIRECTORIES(../inc)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_LIST_DIR}/../deps/toolscJson/inc)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/os)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/util)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/libs/decimal)
+
 
 MESSAGE(STATUS "The current platform " ${CMAKE_SYSTEM_PROCESSOR} " is detected")
 
@@ -78,7 +82,6 @@ ADD_DEFINITIONS(-DBUILD_INFO="${BUILD_INFO}")
 MESSAGE(STATUS "build:${BUILD_INFO}")
 MESSAGE("")
 
-
 #
 # build proj
 #
@@ -87,16 +90,10 @@ LINK_DIRECTORIES(/usr/lib /usr/lib64)
 INCLUDE_DIRECTORIES(/usr/local/taos/include)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_LIST_DIR}/../deps/avro/lang/c/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_LIST_DIR}/../deps/toolscJson/src)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_LIST_DIR}/../../inc)
 
-if(NOT DEFINED TD_VER_COMPATIBLE)
-    SET(TD_VER_COMPATIBLE "3.0.0.0")
-ENDIF()
-
-IF (${TD_VER_COMPATIBLE} STRGREATER_EQUAL "3.0.0.0")
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/contrib/pthread)
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/contrib/msvcregex)
-    ADD_DEFINITIONS(-DTD_VER_COMPATIBLE_3_0_0_0)
-ENDIF ()
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/contrib/pthread)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/contrib/msvcregex)
 
 MESSAGE("Current system is: ${CMAKE_SYSTEM_NAME}")
 
@@ -124,46 +121,18 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         SET_PROPERTY(TARGET snappy PROPERTY IMPORTED_LOCATION
             "${CMAKE_BINARY_DIR}/build/lib/libsnappy.a")
 
-        ADD_EXECUTABLE(taosdump taosdump.c dumpUtil.c wsdump.c toolstime.c toolsSys.c toolsDir.c toolsString.c)
+        ADD_EXECUTABLE(taosdump taosdump.c ../../src/pub.c dumpUtil.c toolstime.c toolsSys.c toolsDir.c toolsString.c)
         ADD_DEPENDENCIES(deps-snappy apache-avro)
         ADD_DEPENDENCIES(taosdump deps-jansson)
         ADD_DEPENDENCIES(taosdump deps-snappy)
-        IF (${TD_VER_COMPATIBLE} STRGREATER_EQUAL "3.0.0.0")
-            ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-        ELSE()
-            ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchSubscribe.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-        ENDIF()
+        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c ../../src/pub.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
     ELSE ()
         INCLUDE_DIRECTORIES(/usr/local/include)
         ADD_DEFINITIONS(-DDARWIN)
         LINK_DIRECTORIES(/usr/local/lib)
         SET(OS_ID "Darwin")
 
-        IF (${TD_VER_COMPATIBLE} STRGREATER_EQUAL "3.0.0.0")
-            ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-        ELSE()
-            ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchSubscribe.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-        ENDIF()
-    ENDIF ()
-
-    # websocket
-    IF (${WEBSOCKET})
-        ADD_DEFINITIONS(-DWEBSOCKET)
-        INCLUDE_DIRECTORIES(/usr/local/include/)
-        SET(WEBSOCKET_LINK_FLAGS "-ltaosws")
-
-        IF (${CMAKE_PROJECT_NAME} STREQUAL "taos-tools")
-            MESSAGE("libtaosws.so need to be installed first")
-        ELSE ()
-            ADD_DEPENDENCIES(taosBenchmark taosws-rs)
-            IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-                ADD_DEPENDENCIES(taosdump taosws-rs)
-            ELSE ()
-                MESSAGE("TODO: taosdump for macOS is WIP")
-            ENDIF ()
-        ENDIF ()
-    ELSE ()
-        SET(WEBSOCKET_LINK_FLAGS "")
+        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c ../../src/pub.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
     ENDIF ()
 
     IF (${TOOLS_COVER} MATCHES "true")
@@ -207,7 +176,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
             ENDIF()
         ELSE ()
             MESSAGE("Compiler is: ${CMAKE_C_COMPILER_ID}, version: ${CMAKE_C_COMPILER_VERSION}")
-            SET(CMAKE_C_FLAGS "-std=c99 -std=gnu11 -O0 -g3 -DDEBUG ${WEBSOCKET_LINK_FLAGS}")
+            SET(CMAKE_C_FLAGS "-std=c99 -std=gnu11 -O0 -g3 -DDEBUG ")
         ENDIF ()
 
         IF (${OS_ID} MATCHES "alpine")
@@ -218,8 +187,8 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
             FIND_LIBRARY(LIBZ_LIBRARY z)
             MESSAGE(${ARGP_LIBRARY})
 
-            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS})
-            TARGET_LINK_LIBRARIES(taosdump taos avro jansson atomic pthread m argp $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS})
+            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> )
+            TARGET_LINK_LIBRARIES(taosdump taos avro jansson atomic pthread m argp $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> )
         ELSEIF(${OS_ID} MATCHES "Darwin")
             ADD_LIBRARY(argp STATIC IMPORTED)
             IF (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
@@ -229,11 +198,11 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
                 SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/usr/local/lib/libargp.a")
                 INCLUDE_DIRECTORIES(/usr/local/include/)
             ENDIF ()
-            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson argp ${WEBSOCKET_LINK_FLAGS})
+            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson argp )
         ElSE ()
             MESSAGE("${Yellow} DEBUG mode use shared avro library to link for debug ${ColourReset}")
-            TARGET_LINK_LIBRARIES(taosdump taos avro jansson atomic pthread m ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+            TARGET_LINK_LIBRARIES(taosdump taos avro jansson atomic pthread m  ${GCC_COVERAGE_LINK_FLAGS})
+            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson  ${GCC_COVERAGE_LINK_FLAGS})
         ENDIF()
 
     ELSE ()
@@ -254,15 +223,6 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         ENDIF ()
 
         IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-            #            ADD_LIBRARY(jansson STATIC IMPORTED)
-            #SET_PROPERTY(TARGET jansson PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/jansson/lib/libjansson.a")
-
-            # ADD_LIBRARY(snappy STATIC IMPORTED)
-            # SET_PROPERTY(TARGET snappy PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/snappy/lib/libsnappy.a")
-
-            # ADD_LIBRARY(avro STATIC IMPORTED)
-            # SET_PROPERTY(TARGET avro PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/avro-c/lib/libavro.a")
-            #            TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy lzma z pthread)
             ADD_LIBRARY(argp STATIC IMPORTED)
             IF (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
                 SET_PROPERTY(TARGET argp PROPERTY IMPORTED_LOCATION "/opt/homebrew/opt/argp-standalone/lib/libargp.a")
@@ -272,7 +232,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
                 INCLUDE_DIRECTORIES(/usr/local/include/)
             ENDIF ()
 
-            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson argp ${WEBSOCKET_LINK_FLAGS})
+            TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson argp )
         ELSE ()
             EXECUTE_PROCESS (
                 COMMAND sh -c "awk -F= '/^ID=/{print $2}' /etc/os-release |tr -d '\n' | tr -d '\"'"
@@ -323,27 +283,26 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
                 FIND_LIBRARY(LIBZ_LIBRARY z)
                 MESSAGE(${LIBZ_LIBRARY})
 
-                TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy stdc++ lzma atomic pthread $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-                TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}> ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+                TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy stdc++ lzma atomic pthread $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}>  ${GCC_COVERAGE_LINK_FLAGS})
+                TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson $<$<BOOL:${LIBZ_LIBRARY}>:${LIBZ_LIBRARY}> $<$<BOOL:${ARGP_LIBRARY}>:${ARGP_LIBRARY}>  ${GCC_COVERAGE_LINK_FLAGS})
             ELSE()
-                TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy stdc++ lzma libz-static atomic pthread ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
-                TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson ${WEBSOCKET_LINK_FLAGS} ${GCC_COVERAGE_LINK_FLAGS})
+                TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy stdc++ lzma libz-static atomic pthread  ${GCC_COVERAGE_LINK_FLAGS})
+                TARGET_LINK_LIBRARIES(taosBenchmark taos pthread m toolscJson  ${GCC_COVERAGE_LINK_FLAGS})
             ENDIF()
         ENDIF ()
 
     ENDIF ()
+
+    TARGET_LINK_LIBRARIES(taosBenchmark z)
+
 ELSE ()
     ADD_DEFINITIONS(-DWINDOWS)
     SET(CMAKE_C_STANDARD 11)
-    SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /utf-8")
-    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /utf-8")
-    IF (${TD_VER_COMPATIBLE} STRGREATER_EQUAL "3.0.0.0")
-        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsString.c toolsSys.c toolsString.c)
-    ELSE ()
-        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchSubscribe.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-    ENDIF ()
+    SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /utf-8 ")
+    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /utf-8 ")
+    ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c ../../src/pub.c benchUtilDs.c benchSys.c toolstime.c toolsString.c toolsSys.c toolsString.c)
 
-    ADD_EXECUTABLE(taosdump taosdump.c dumpUtil.c wsdump.c toolsSys.c toolstime.c toolsDir.c toolsString.c)
+    ADD_EXECUTABLE(taosdump taosdump.c ../../src/pub.c dumpUtil.c toolsSys.c toolstime.c toolsDir.c toolsString.c)
     ADD_DEPENDENCIES(apache-avro tools-zlib)
     ADD_DEPENDENCIES(apache-avro deps-jansson)
     ADD_DEPENDENCIES(apache-avro deps-snappy)
@@ -351,19 +310,7 @@ ELSE ()
     ADD_DEPENDENCIES(taosdump deps-snappy)
     ADD_DEPENDENCIES(taosdump deps-libargp)
     ADD_DEPENDENCIES(taosdump apache-avro)
-
-    IF (${WEBSOCKET})
-        INCLUDE_DIRECTORIES(/usr/local/include/)
-        SET(WEBSOCKET_LINK_FLAGS "taosws.lib")
-        IF (${CMAKE_PROJECT_NAME} STREQUAL "taos-tools")
-            MESSAGE("taosws.lib need to be installed first")
-        ELSE ()
-            ADD_DEPENDENCIES(taosBenchmark taosws-rs)
-            ADD_DEPENDENCIES(taosdump taosws-rs)
-        ENDIF ()
-    ELSE ()
-        SET(WEBSOCKET_LINK_FLAGS "")
-    ENDIF ()
+    ADD_DEPENDENCIES(taosBenchmark tools-zlib)
 
     target_include_directories(
         taosdump
@@ -372,14 +319,14 @@ ELSE ()
     )
 
     IF (${TOOLS_BUILD_TYPE} MATCHES "Debug")
-        TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy pthread libargp.lib zlib ${WEBSOCKET_LINK_FLAGS})
+        TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy pthread libargp.lib zlib )
     ELSE ()
-        #SET(CMAKE_C_FLAGS "/w /D_WIN32 /DWIN32 /Zi /D NDEBUG /MTd")
-        #       SET(CMAKE_C_FLAGS "/permissive- /GS /GL /Gy /Zc:wchar_t /Zi /Gm- /O2 /Zc:inline /fp:precise /D \"RELEASE\" /D \"NDEBUG\" /D \"_CONSOLE\" /D \"_UNICODE\" /D \"UNICODE\" /errorReport:prompt /Zc:forScope /Gd /Oi /MTd /FC /EHsc /nologo /diagnostics:column")
-        #       SET(CMAKE_CXX_FLAGS "/permissive- /GS /GL /Gy /Zc:wchar_t /Zi /Gm- /O2 /sdl /Zc:inline /fp:precise /D \"NDEBUG\" /D \"_CONSOLE\" /D \"_UNICODE\" /D \"UNICODE\" /errorReport:prompt /Zc:forScope /Gd /Oi /MTd /FC /EHsc /nologo /diagnostics:column")
-        #TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy pthread libargp.lib zlibstatic ${WEBSOCKET_LINK_FLAGS} msvcrt.lib ucrtd.lib)
-        TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy pthread libargp.lib zlibstatic ${WEBSOCKET_LINK_FLAGS})
+        TARGET_LINK_LIBRARIES(taosdump taos avro jansson snappy pthread libargp.lib zlibstatic )
     ENDIF ()
 
-    TARGET_LINK_LIBRARIES(taosBenchmark taos msvcregex pthread toolscJson ${WEBSOCKET_LINK_FLAGS})
+    TARGET_LINK_LIBRARIES(taosBenchmark taos msvcregex pthread toolscJson )
+
+    TARGET_LINK_LIBRARIES(taosBenchmark zlibstatic)
+
 ENDIF ()
+

@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef USE_UDF
 #include "uv.h"
 
 #include "os.h"
@@ -63,25 +64,25 @@ static void    udfWatchUdfd(void *args);
 
 void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
   TAOS_UDF_CHECK_PTR_RVOID(process);
-  fnInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
+  fnInfo("taosudf process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SUdfdData *pData = process->data;
   if(pData == NULL) {
-    fnError("udfd process data is NULL");
+    fnError("taosudf process data is NULL");
     return;
   }
   if (exitStatus == 0 && termSignal == 0 || atomic_load_32(&pData->stopCalled)) {
-    fnInfo("udfd process exit due to SIGINT or dnode-mgmt called stop");
+    fnInfo("taosudf process exit due to SIGINT or dnode-mgmt called stop");
   } else {
-    fnInfo("udfd process restart");
+    fnInfo("taosudf process restart");
     int32_t code = udfSpawnUdfd(pData);
     if (code != 0) {
-      fnError("udfd process restart failed with code:%d", code);
+      fnError("taosudf process restart failed with code:%d", code);
     }
   }
 }
 
 static int32_t udfSpawnUdfd(SUdfdData *pData) {
-  fnInfo("start to init udfd");
+  fnInfo("start to init taosudf");
   TAOS_UDF_CHECK_PTR_RCODE(pData);
 
   int32_t              err = 0;
@@ -106,12 +107,12 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   if (strlen(path) == 0) {
     TAOS_STRCAT(path, "C:\\TDengine");
   }
-  TAOS_STRCAT(path, "\\udfd.exe");
+  TAOS_STRCAT(path, "\\taosudf.exe");
 #else
   if (strlen(path) == 0) {
     TAOS_STRCAT(path, "/usr/bin");
   }
-  TAOS_STRCAT(path, "/udfd");
+  TAOS_STRCAT(path, "/taosudf");
 #endif
   char *argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
@@ -158,9 +159,9 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   udfdPathLdLib[udfdLdLibPathLen] = ':';
   tstrncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
-    fnInfo("[UDFD]udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
+    fnInfo("[UDFD]taosudf LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
-    fnError("[UDFD]can not set correct udfd LD_LIBRARY_PATH");
+    fnError("[UDFD]can not set correct taosudf LD_LIBRARY_PATH");
   }
   char ldLibPathEnvItem[1024 + 32] = {0};
   snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", "LD_LIBRARY_PATH", udfdPathLdLib);
@@ -231,12 +232,12 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   pData->process.data = (void *)pData;
 
 #ifdef WINDOWS
-  // End udfd.exe by Job.
+  // End taosudf.exe by Job.
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
   pData->jobHandle = CreateJobObject(NULL, NULL);
   bool add_job_ok = AssignProcessToJobObject(pData->jobHandle, pData->process.process_handle);
   if (!add_job_ok) {
-    fnError("Assign udfd to job failed.");
+    fnError("Assign taosudf to job failed.");
   } else {
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info;
     memset(&limit_info, 0x0, sizeof(limit_info));
@@ -244,15 +245,15 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     bool set_auto_kill_ok =
         SetInformationJobObject(pData->jobHandle, JobObjectExtendedLimitInformation, &limit_info, sizeof(limit_info));
     if (!set_auto_kill_ok) {
-      fnError("Set job auto kill udfd failed.");
+      fnError("Set job auto kill taosudf failed.");
     }
   }
 #endif
 
   if (err != 0) {
-    fnError("can not spawn udfd. path: %s, error: %s", path, uv_strerror(err));
+    fnError("can not spawn taosudf. path: %s, error: %s", path, uv_strerror(err));
   } else {
-    fnInfo("udfd is initialized");
+    fnInfo("taosudf is initialized");
   }
 
 _OVER:
@@ -295,13 +296,13 @@ static void udfWatchUdfd(void *args) {
   atomic_store_32(&pData->spawnErr, 0);
   (void)uv_barrier_wait(&pData->barrier);
   int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
-  fnInfo("udfd loop exit with %d active handles, line:%d", num, __LINE__);
+  fnInfo("taosudf loop exit with %d active handles, line:%d", num, __LINE__);
 
   uv_walk(&pData->loop, udfUdfdCloseWalkCb, NULL);
   num = uv_run(&pData->loop, UV_RUN_DEFAULT);
-  fnInfo("udfd loop exit with %d active handles, line:%d", num, __LINE__);
+  fnInfo("taosudf loop exit with %d active handles, line:%d", num, __LINE__);
   if (uv_loop_close(&pData->loop) != 0) {
-    fnError("udfd loop close failed, lino:%d", __LINE__);
+    fnError("taosudf loop close failed, lino:%d", __LINE__);
   }
   return;
 
@@ -310,9 +311,9 @@ _exit:
     (void)uv_barrier_wait(&pData->barrier);
     atomic_store_32(&pData->spawnErr, terrno);
     if (uv_loop_close(&pData->loop) != 0) {
-      fnError("udfd loop close failed, lino:%d", __LINE__);
+      fnError("taosudf loop close failed, lino:%d", __LINE__);
     }
-    fnError("udfd thread exit with code:%d lino:%d", terrno, terrln);
+    fnError("taosudf thread exit with code:%d lino:%d", terrno, terrln);
     terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE;
   }
   return;
@@ -321,11 +322,11 @@ _exit:
 int32_t udfStartUdfd(int32_t startDnodeId) {
   int32_t code = 0, lino = 0;
   if (!tsStartUdfd) {
-    fnInfo("start udfd is disabled.") return 0;
+    fnInfo("start taosudf is disabled.") return 0;
   }
   SUdfdData *pData = &udfdGlobal;
   if (pData->startCalled) {
-    fnInfo("dnode start udfd already called");
+    fnInfo("dnode start taosudf already called");
     return 0;
   }
   pData->startCalled = true;
@@ -341,27 +342,27 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
   if (err != 0) {
     uv_barrier_destroy(&pData->barrier);
     if (uv_async_send(&pData->stopAsync) != 0) {
-      fnError("start udfd: failed to send stop async");
+      fnError("start taosudf: failed to send stop async");
     }
     if (uv_thread_join(&pData->thread) != 0) {
-      fnError("start udfd: failed to join udfd thread");
+      fnError("start taosudf: failed to join taosudf thread");
     }
     pData->needCleanUp = false;
-    fnInfo("udfd is cleaned up after spawn err");
+    fnInfo("taosudf is cleaned up after spawn err");
     TAOS_CHECK_GOTO(err, &lino, _exit);
   } else {
     pData->needCleanUp = true;
   }
 _exit:
   if (code != 0) {
-    fnError("udfd start failed with code:%d, lino:%d", code, lino);
+    fnError("taosudf start failed with code:%d, lino:%d", code, lino);
   }
   return code;
 }
 
 void udfStopUdfd() {
   SUdfdData *pData = &udfdGlobal;
-  fnInfo("udfd start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
+  fnInfo("taosudf start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
     return;
   }
@@ -369,16 +370,16 @@ void udfStopUdfd() {
   pData->needCleanUp = false;
   uv_barrier_destroy(&pData->barrier);
   if (uv_async_send(&pData->stopAsync) != 0) {
-    fnError("stop udfd: failed to send stop async");
+    fnError("stop taosudf: failed to send stop async");
   }
   if (uv_thread_join(&pData->thread) != 0) {
-    fnError("stop udfd: failed to join udfd thread");
+    fnError("stop taosudf: failed to join taosudf thread");
   }
 
 #ifdef WINDOWS
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
 #endif
-  fnInfo("udfd is cleaned up");
+  fnInfo("taosudf is cleaned up");
   return;
 }
 
@@ -1733,7 +1734,7 @@ void onUdfcPipeWrite(uv_write_t *write, int32_t status) {
 void onUdfcPipeConnect(uv_connect_t *connect, int32_t status) {
   SClientUvTaskNode *uvTask = connect->data;
   if (status != 0) {
-    fnError("client connect error, task seq: %" PRId64 ", code: %s", uvTask->seqNum, uv_strerror(status));
+    fnError("client connect error, task seq: %" PRId64 ", code:%s", uvTask->seqNum, uv_strerror(status));
   }
   uvTask->errCode = status;
 
@@ -1812,7 +1813,7 @@ int32_t udfcQueueUvTask(SClientUvTaskNode *uvTask) {
   uv_mutex_unlock(&udfc->taskQueueMutex);
   int32_t code = uv_async_send(&udfc->loopTaskAync);
   if (code != 0) {
-    fnError("udfc queue uv task to event loop failed. code: %s", uv_strerror(code));
+    fnError("udfc queue uv task to event loop failed. code:%s", uv_strerror(code));
     return TSDB_CODE_UDF_UV_EXEC_FAILURE;
   }
 
@@ -1884,7 +1885,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         int32_t err = uv_write(write, (uv_stream_t *)pipe, &uvTask->reqBuf, 1, onUdfcPipeWrite);
         if (err != 0) {
           taosMemoryFree(write);
-          fnError("udfc event loop start req_rsp task uv_write failed. uvtask: %p, code: %s", uvTask, uv_strerror(err));
+          fnError("udfc event loop start req_rsp task uv_write failed. uvtask: %p, code:%s", uvTask, uv_strerror(err));
         }
         code = err;
       }
@@ -2102,6 +2103,16 @@ _exit:
   return code;
 }
 
+static void freeTaskSession(SClientUdfTask *task) {
+  uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
+  if (task->session->udfUvPipe != NULL && task->session->udfUvPipe->data != NULL) {
+    SClientUvConn *conn = task->session->udfUvPipe->data;
+    conn->session = NULL;
+  }
+  uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
+  taosMemoryFreeClear(task->session);
+}
+
 int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t         code = TSDB_CODE_SUCCESS, lino = 0;
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
@@ -2142,7 +2153,7 @@ _exit:
   if (code != 0) {
     fnError("failed to setup udf. udfname: %s, err: %d line:%d", udfName, code, lino);
   }
-  taosMemoryFree(task->session);
+  freeTaskSession(task);
   taosMemoryFree(task);
   return code;
 }
@@ -2152,7 +2163,7 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
   fnDebug("udfc call udf. callType: %d, funcHandle: %p", callType, handle);
   SUdfcUvSession *session = (SUdfcUvSession *)handle;
   if (session->udfUvPipe == NULL) {
-    fnError("No pipe to udfd");
+    fnError("No pipe to taosudf");
     return TSDB_CODE_UDF_PIPE_NOT_EXIST;
   }
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
@@ -2282,7 +2293,7 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
   SUdfcUvSession *session = (SUdfcUvSession *)handle;
 
   if (session->udfUvPipe == NULL) {
-    fnError("tear down udf. pipe to udfd does not exist. udf name: %s", session->udfName);
+    fnError("tear down udf. pipe to taosudf does not exist. udf name: %s", session->udfName);
     taosMemoryFree(session);
     return TSDB_CODE_UDF_PIPE_NOT_EXIST;
   }
@@ -2307,19 +2318,31 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
 
   fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
   // TODO: synchronization refactor between libuv event loop and request thread
-  uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
-  if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
-    SClientUvConn *conn = session->udfUvPipe->data;
-    conn->session = NULL;
-  }
-  uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
+  // uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
+  // if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
+  //   SClientUvConn *conn = session->udfUvPipe->data;
+  //   conn->session = NULL;
+  // }
+  // uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
 
 _exit:
   if (code != 0) {
     fnError("failed to teardown udf. udf name: %s, err: %d, line: %d", session->udfName, code, lino);
   }
-  taosMemoryFree(session);
+  freeTaskSession(task);
   taosMemoryFree(task);
 
   return code;
 }
+#else
+#include "tudf.h"
+
+int32_t cleanUpUdfs() { return 0; }
+int32_t udfcOpen() { return 0; }
+int32_t udfcClose() { return 0; }
+int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
+void    udfStopUdfd() { return; }
+int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+#endif

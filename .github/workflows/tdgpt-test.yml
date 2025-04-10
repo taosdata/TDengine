@@ -1,0 +1,203 @@
+# Run unit-test and system-test cases for TDgpt when TDgpt code is changed.
+
+name: TDgpt Test
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.3.6'
+    paths:
+      - 'tools/tdgpt/**'
+      - 'source/libs/executor/src/forecastoperator.c'
+      - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'source/dnode/mnode/impl/src/mndAnode.c'
+      - 'include/common/tanalytics.h'
+      - 'source/common/src/tanalytics.c'
+      - 'tests/parallel/tdgpt_cases.task'
+      - 'tests/script/tsim/analytics'
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]
+
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/tools/tdgpt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install flake8 pytest pylint
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Checking the code with pylint
+        run: |
+          pylint $(git ls-files '*.py') --exit-zero
+
+      - name: Checking the code with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run test cases with pytest
+        run: |
+          pytest
+
+  function-test:
+    runs-on: 
+      group: CI
+      labels: [self-hosted, Linux, X64, testing]
+
+    env:
+      CONTAINER_NAME: 'taosd-test'
+      WKDIR: '/var/lib/jenkins/workspace'
+      WK: '/var/lib/jenkins/workspace/TDinternal'
+      WKC: '/var/lib/jenkins/workspace/TDinternal/community'
+      SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+      TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+
+    steps:
+      - name: Output the environment information
+        run: |
+          echo "::group::Environment Info"
+          date
+          hostname
+          env
+          echo "Runner: ${{ runner.name }}"
+          echo "Workspace: ${{ env.WKDIR }}"
+          git --version
+          echo "${{ env.WKDIR }}/restore.sh -p PR-${{ env.PR_NUMBER }} -n ${{ github.run_number }} -c ${{ env.CONTAINER_NAME }}"
+          echo "::endgroup::"
+
+      - name: Prepare repositories
+        run: |
+          set -euo pipefail
+          prepare_environment() {
+            cd "$1"
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git checkout "$2"
+          }
+          prepare_environment "${{ env.WK }}" "${{ env.TARGET_BRANCH }}"
+          prepare_environment "${{ env.WKC }}" "${{ env.TARGET_BRANCH }}"
+
+      - name: Get latest codes and logs
+        run: |
+          cd ${{ env.WKC }}
+          git remote prune origin
+          git pull >/dev/null
+          git log -5
+          echo "`date "+%Y%m%d-%H%M%S"` TDengineTest/${{ env.PR_NUMBER }}:${{ github.run_number }}:${{ env.TARGET_BRANCH }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "CHANGE_BRANCH:${{ env.SOURCE_BRANCH }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "community log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+          git fetch origin +refs/pull/${{ env.PR_NUMBER }}/merge
+          git checkout -qf FETCH_HEAD
+          git log -5
+          echo "community log merged: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+          cd ${{ env.WK }}
+          git pull >/dev/null
+          git log -5
+          echo "TDinternal log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+
+      - name: Update submodule
+        run: |
+          cd ${{ env.WKC }}
+          git submodule update --init --recursive
+
+      - name: Detect non-doc files changed
+        run: |
+          mkdir -p ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}
+          cd ${{ env.WKC }}
+          changed_files_non_doc=$(git --no-pager diff --name-only \
+            FETCH_HEAD \
+            $(git merge-base FETCH_HEAD ${{ env.TARGET_BRANCH }}) | \
+            grep -v "^docs/en/" | \
+            grep -v "^docs/zh/" | \
+            grep -v ".md$" | \
+            tr '\n' ' ' || : \
+          )
+          echo $changed_files_non_doc > \
+            ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt
+      
+      - name: Check assert testing
+        run: |
+          cd ${{ env.WKC }}/tests/parallel_test
+          ./run_check_assert_container.sh -d ${{ env.WKDIR }}
+
+      - name: Check void function testing
+        run: |
+          cd ${{ env.WKC }}/tests/parallel_test
+          ./run_check_void_container.sh -d ${{ env.WKDIR }}
+
+      - name: Build docker container
+        run: |
+          date
+          rm -rf ${{ env.WKC }}/debug
+          cd ${{ env.WKC }}/tests/parallel_test
+          time ./container_build.sh -w ${{ env.WKDIR }} -e
+
+      - name: Get parameters for testing
+        id: get_param
+        run: |
+          log_server_file="/home/log_server.json"
+          timeout_cmd=""
+          extra_param=""
+
+          if [ -f "$log_server_file" ]; then
+            log_server_enabled=$(jq '.enabled' "$log_server_file")
+            timeout_param=$(jq '.timeout' "$log_server_file")
+            if [ "$timeout_param" != "null" ] && [ "$timeout_param" != "0" ]; then
+              timeout_cmd="timeout $timeout_param"
+            fi
+
+            if [ "$log_server_enabled" == "1" ]; then
+              log_server=$(jq '.server' "$log_server_file" | sed 's/\\\"//g')
+              if [ "$log_server" != "null" ] && [ "$log_server" != "" ]; then
+                extra_param="-w $log_server"
+              fi
+            fi
+          fi
+          echo "timeout_cmd=$timeout_cmd" >> $GITHUB_OUTPUT
+          echo "extra_param=$extra_param" >> $GITHUB_OUTPUT
+
+      - name: Run function returns with a null pointer scan testing
+        run: |
+          cd ${{ env.WKC }}/tests/parallel_test
+          ./run_scan_container.sh \
+            -d ${{ env.WKDIR }} \
+            -b ${{ env.PR_NUMBER }}_${{ github.run_number }} \
+            -f ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt \
+            ${{ steps.get_param.outputs.extra_param }}
+
+      - name: Run tdgpt test cases
+        run: |
+          cd ${{ env.WKC }}/tests/parallel_test
+          export DEFAULT_RETRY_TIME=2
+          date
+          timeout 600 time ./run.sh -e \
+            -m /home/m.json \
+            -t tdgpt_cases.task \
+            -b "${{ env.PR_NUMBER }}_${{ github.run_number }}" \
+            -l ${{ env.WKDIR }}/log \
+            -o 300 ${{ steps.get_param.outputs.extra_param }}

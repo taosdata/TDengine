@@ -34,6 +34,7 @@ typedef struct SVnodeMgmt {
   SAutoQWorkerPool      streamPool;
   SAutoQWorkerPool      streamLongExecPool;
   SWWorkerPool          streamCtrlPool;
+  SWWorkerPool          streamChkPool;
   SWWorkerPool          fetchPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
@@ -77,6 +78,7 @@ typedef struct {
   STaosQueue  *pStreamQ;
   STaosQueue  *pStreamCtrlQ;
   STaosQueue  *pStreamLongExecQ;
+  STaosQueue  *pStreamChkQ;
   STaosQueue  *pFetchQ;
   STaosQueue  *pMultiMgmQ;
 } SVnodeObj;
@@ -141,6 +143,7 @@ int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamLongExecQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
+int32_t vmPutMsgToStreamChkQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMultiMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);

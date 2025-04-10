@@ -28,19 +28,10 @@ from frame.caseBase import *
 from frame import *
 
 
-# reomve single and double quotation
-def removeQuotation(origin):
-    value = ""
-    for c in origin:
-        if c != '\'' and c != '"':
-            value += c
-
-    return value
-
 class TDTestCase(TBase):
     def caseDescription(self):
         """
-        [TD-11510] taosBenchmark test cases
+        taosBenchmark query->Basic test cases
         """
 
     def runSeconds(self, command, timeout = 180):
@@ -99,15 +90,15 @@ class TDTestCase(TBase):
         fval = float(value)
         # compare
         if equal and fval != expect:
-            tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:{key} end:{end} output:\n{output}")
+            tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
         elif equal == False and fval <= expect:
-            tdLog.exit(f"failed because {fval} <= {expect}, key:{key} end:{end} output:\n{output}")
+            tdLog.exit(f"failed because {fval} <= {expect}, key:'{key}' end:'{end}' output:\n{output}")
         else:
             # succ
             if equal:
-                tdLog.info(f"check successfully. key:{key} expect:{expect} real:{fval}")
+                tdLog.info(f"check successfully. key:'{key}' expect:{expect} real:{fval}")
             else:
-                tdLog.info(f"check successfully. key:{key} {fval} > {expect}")
+                tdLog.info(f"check successfully. key:'{key}' {fval} > {expect}")
 
     
     def checkAfterRun(self, benchmark, jsonFile, specMode, tbCnt):
@@ -133,20 +124,28 @@ class TDTestCase(TBase):
         except:
             continueIfFail = "no"
 
-        concurrent = data[label]["concurrent"]
+        threads    = data[label]["threads"]
         sqls       = data[label]["sqls"]
 
 
-        # mix
+        # batch_query
+        try:
+            batchQuery = data[label]["batch_query"]
+        except:
+            batchQuery = "no"
+
+        # mixed_query
         try:
             mixedQuery = data[label]["mixed_query"]
         except:
             mixedQuery = "no"
 
-        tdLog.info(f"queryTimes={queryTimes} concurrent={concurrent} mixedQuery={mixedQuery} len(sqls)={len(sqls)} label={label}\n")
+        tdLog.info(f"queryTimes={queryTimes} threads={threads} mixedQuery={mixedQuery} "
+                   f"batchQuery={batchQuery} len(sqls)={len(sqls)} label={label}\n")
 
-        totalQueries = 0
+        totalQueries  = 0
         threadQueries = 0
+        QPS           = 10
 
         if continueIfFail.lower() == "yes":
             allEnd = " "
@@ -155,27 +154,34 @@ class TDTestCase(TBase):
         
         if specMode and mixedQuery.lower() != "yes":
             # spec
-            threadQueries = queryTimes * concurrent
-            totalQueries  = queryTimes * concurrent * len(sqls)
-            threadKey     = f"complete query with {concurrent} threads and " 
+            threadQueries = queryTimes * threads
+            totalQueries  = queryTimes * threads * len(sqls)
+            threadKey     = f"complete query with {threads} threads and " 
             qpsKey = "QPS: "
             avgKey = "query delay avg: "
             minKey = "min:"
         else:
             # spec mixed or super 
+            
             if specMode:
-                # spec
                 totalQueries  = queryTimes * len(sqls)
+                # spec mixed
+                if batchQuery.lower() == "yes":
+                    # batch
+                    threadQueries = len(sqls)
+                    QPS           = 2
+                else:
+                    threadQueries = totalQueries
             else:
                 # super
                 totalQueries  = queryTimes * len(sqls) * tbCnt
-            threadQueries = totalQueries
+                threadQueries = totalQueries            
 
             nSql = len(sqls)
-            if specMode and nSql < concurrent :
-                tdLog.info(f"set concurrent = {nSql} because len(sqls) < concurrent")
-                concurrent = nSql
-            threadKey     = f"using {concurrent} threads complete query "
+            if specMode and nSql < threads :
+                tdLog.info(f"set threads = {nSql} because len(sqls) < threads")
+                threads = nSql
+            threadKey     = f"using {threads} threads complete query "
             qpsKey = ""
             avgKey = "avg delay:"
             minKey = "min delay:"
@@ -191,7 +197,7 @@ class TDTestCase(TBase):
             ["p99: ", "s", 0, False],
             ["INFO: Spend ", " ", 0, False],
             ["completed total queries: ", ",", totalQueries, True],
-            ["the QPS of all threads:", allEnd, 10         , False]  # all qps need > 5
+            ["the QPS of all threads:", allEnd, QPS        , False]  # all qps need > 5
         ]
     
         # check
@@ -205,16 +211,13 @@ class TDTestCase(TBase):
         args = [
             ["./tools/benchmark/basic/json/queryModeSpec", True],
             ["./tools/benchmark/basic/json/queryModeSpecMix", True],
+            ["./tools/benchmark/basic/json/queryModeSpecMixBatch", True],
             ["./tools/benchmark/basic/json/queryModeSuper", False]
         ]
 
         # native
         for arg in args:
             self.checkAfterRun(benchmark, arg[0] + ".json", arg[1], tbCnt)
-
-        # rest
-        for arg in args:
-            self.checkAfterRun(benchmark, arg[0] + "Rest.json", arg[1], tbCnt)
 
     def expectFailed(self, command):
         ret = os.system(command)
@@ -231,8 +234,9 @@ class TDTestCase(TBase):
         self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorBothSpecSuper.json")
         # json format error
         self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorFormat.json")
-
-
+        # batch query
+        self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorBatchNoMix.json")
+        self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorBatchRest.json")
 
     def run(self):
         tbCnt = 10

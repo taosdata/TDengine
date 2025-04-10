@@ -206,7 +206,7 @@ _exit:
     vError("vgId:%d, failed to close file", pInfo->config.vgId);
   }
   taosMemoryFree(data);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int vnodeCommitInfo(const char *dir) {

@@ -25,6 +25,7 @@
 #include "types.h"
 #include "osString.h"
 #include "ttimer.h"
+#include "decimal.h"
 
 int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -56,6 +57,16 @@ int32_t setChkNotInBytes4(const void *pLeft, const void *pRight) {
 
 int32_t setChkNotInBytes8(const void *pLeft, const void *pRight) {
   return NULL == taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;
+}
+
+int32_t setChkInDecimalHash(const void* pLeft, const void* pRight) {
+  const SDecimalCompareCtx *pCtxL = pLeft, *pCtxR = pRight;
+  return NULL != taosHashGet((SHashObj *)(pCtxR->pData), pCtxL->pData, tDataTypes[pCtxL->type].bytes) ? 1 : 0;
+}
+
+int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight) {
+  const SDecimalCompareCtx *pCtxL = pLeft, *pCtxR = pRight;
+  return NULL == taosHashGet((SHashObj *)(pCtxR->pData), pCtxL->pData, tDataTypes[pCtxL->type].bytes) ? 1 : 0;
 }
 
 int32_t compareChkInString(const void *pLeft, const void *pRight) {
@@ -177,7 +188,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
     return 1;
   }
 
-  if (FLT_EQUAL(p1, p2)) {
+  if (DBL_EQUAL(p1, p2)) {
     return 0;
   }
   return FLT_GREATER(p1, p2) ? 1 : -1;
@@ -210,7 +221,7 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  int32_t ret = tasoUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1>len2 ? len2:len1);
+  int32_t ret = taosUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1>len2 ? len2:len1);
   if (ret == 0) {
     if (len1 > len2)
       return 1;
@@ -1034,6 +1045,46 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight) {
   return 0;
 }
 
+int32_t compareDecimal64(const void* pleft, const void* pright) {
+  if (decimal64Compare(OP_TYPE_GREATER_THAN, pleft, pright)) return 1;
+  if (decimal64Compare(OP_TYPE_LOWER_THAN, pleft, pright)) return -1;
+  return 0;
+}
+
+int32_t compareDecimal128(const void* pleft, const void* pright) {
+  if (decimalCompare(OP_TYPE_GREATER_THAN, pleft, pright)) return 1;
+  if (decimalCompare(OP_TYPE_LOWER_THAN, pleft, pright)) return -1;
+  return 0;
+}
+
+int32_t compareDecimal64SameScale(const void* pleft, const void* pright) {
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  if (pOps->gt(pleft, pright, DECIMAL_WORD_NUM(Decimal64))) return 1;
+  if (pOps->lt(pleft, pright, DECIMAL_WORD_NUM(Decimal64))) return -1;
+  return 0;
+}
+
+int32_t compareDecimal64SameScaleDesc(const void* pLeft, const void* pRight) {
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  if (pOps->lt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal64))) return 1;
+  if (pOps->gt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal64))) return -1;
+  return 0;
+}
+
+int32_t compareDecimal128SameScale(const void* pleft, const void* pright) {
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  if (pOps->gt(pleft, pright, DECIMAL_WORD_NUM(Decimal))) return 1;
+  if (pOps->lt(pleft, pright, DECIMAL_WORD_NUM(Decimal))) return -1;
+  return 0;
+}
+
+int32_t compareDecimal128SameScaleDesc(const void* pLeft, const void* pRight) {
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  if (pOps->lt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal))) return 1;
+  if (pOps->gt(pLeft, pRight, DECIMAL_WORD_NUM(Decimal))) return -1;
+  return 0;
+}
+
 int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compareJsonVal(pRight, pLeft); }
 
 /*
@@ -1121,6 +1172,19 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
   }
 
   return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
+}
+
+int32_t rawStrPatternMatch(const char *str, const char *pattern) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
+
+  size_t pLen = strlen(pattern);
+  size_t sz = strlen(str);
+  if (pLen > TSDB_MAX_FIELD_LEN) {
+    return 1;
+  }
+
+  int32_t ret = patternMatch(pattern, pLen, str, sz, &pInfo);
+  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize,
@@ -1211,11 +1275,12 @@ typedef struct UsingRegex {
 typedef UsingRegex* HashRegexPtr;
 
 typedef struct RegexCache {
-  SHashObj      *regexHash;
-  void          *regexCacheTmr;
-  void          *timer;
-  SRWLatch      mutex;
-  bool          exit;
+  SHashObj *regexHash;
+  void     *regexCacheTmr;
+  void     *timer;
+  SRWLatch  mutex;
+  bool      exit;
+  int8_t    inited;
 } RegexCache;
 static RegexCache sRegexCache;
 #define MAX_REGEX_CACHE_SIZE   20
@@ -1263,6 +1328,7 @@ int32_t InitRegexCache() {
   #ifdef WINDOWS
     return 0;
   #endif
+  if (atomic_val_compare_exchange_8(&sRegexCache.inited, 0, 1) != 0) return TSDB_CODE_SUCCESS;
   sRegexCache.regexHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (sRegexCache.regexHash == NULL) {
     uError("failed to create RegexCache");
@@ -1298,9 +1364,11 @@ void DestroyRegexCache(){
   }
   taosWLockLatch(&sRegexCache.mutex);
   sRegexCache.exit = true;
-  taosHashCleanup(sRegexCache.regexHash);
-  taosTmrCleanUp(sRegexCache.regexCacheTmr);
   taosWUnLockLatch(&sRegexCache.mutex);
+  taosHashCleanup(sRegexCache.regexHash);
+  sRegexCache.regexHash = NULL;
+  taosTmrCleanUp(sRegexCache.regexCacheTmr);
+  sRegexCache.regexCacheTmr = NULL;
 }
 
 int32_t checkRegexPattern(const char *pPattern) {
@@ -1761,6 +1829,10 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;
     case TSDB_DATA_TYPE_JSON:
       return (order == TSDB_ORDER_ASC) ? compareJsonVal : compareJsonValDesc;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      return (order == TSDB_ORDER_ASC) ? compareDecimal64SameScale : compareDecimal64SameScaleDesc;
+    case TSDB_DATA_TYPE_DECIMAL:
+      return (order == TSDB_ORDER_ASC) ? compareDecimal128SameScale : compareDecimal128SameScaleDesc;
     default:
       return (order == TSDB_ORDER_ASC) ? compareInt32Val : compareInt32ValDesc;
   }

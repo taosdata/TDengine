@@ -43,6 +43,9 @@ typedef struct SSourceDataInfo {
   bool               tableSeq;
   char*              decompBuf;
   int32_t            decompBufSize;
+  SOrgTbInfo*     colMap;
+  bool               isVtbRefScan;
+  STimeWindow        window;
 } SSourceDataInfo;
 
 static void destroyExchangeOperatorInfo(void* param);
@@ -112,7 +115,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       // todo
       SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
       if (pRsp->numOfRows == 0) {
-        if (NULL != pDataInfo->pSrcUidList) {
+        if (NULL != pDataInfo->pSrcUidList && (!pDataInfo->isVtbRefScan)) {
           pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
           code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
           if (code != TSDB_CODE_SUCCESS) {
@@ -156,7 +159,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       taosMemoryFreeClear(pDataInfo->pRsp);
 
-      if (pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) {
+      if ((pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) && !pDataInfo->isVtbRefScan) {
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
@@ -603,13 +606,65 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
     return terrno;
   }
   pScan->tableSeq = tableSeq;
+  pScan->pOrgTbInfo = NULL;
+  pScan->window.skey = INT64_MAX;
+  pScan->window.ekey = INT64_MIN;
 
   (*ppRes)->opType = srcOpType;
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pScan;
   (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  STableScanOperatorParam* pScan = NULL;
+
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
+
+  pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
+  QUERY_CHECK_NULL(pScan, code, lino, _return, terrno);
+
+  pScan->pUidList = taosArrayDup(pUidList, NULL);
+  QUERY_CHECK_NULL(pScan->pUidList, code, lino, _return, terrno);
+
+  pScan->pOrgTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
+  QUERY_CHECK_NULL(pScan->pOrgTbInfo, code, lino, _return, terrno);
+
+  pScan->pOrgTbInfo->vgId = pMap->vgId;
+  tstrncpy(pScan->pOrgTbInfo->tbName, pMap->tbName, TSDB_TABLE_FNAME_LEN);
+
+  pScan->pOrgTbInfo->colMap = taosArrayDup(pMap->colMap, NULL);
+  QUERY_CHECK_NULL(pScan->pOrgTbInfo->colMap, code, lino, _return, terrno);
+
+  pScan->tableSeq = tableSeq;
+  pScan->window.skey = window->skey;
+  pScan->window.ekey = window->ekey;
+
+  (*ppRes)->opType = srcOpType;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->value = pScan;
+  (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
+
+  return code;
+_return:
+  qError("%s failed at %d, failed to build scan operator msg:%s", __FUNCTION__, lino, tstrerror(code));
+  taosMemoryFreeClear(*ppRes);
+  if (pScan) {
+    taosArrayDestroy(pScan->pUidList);
+    if (pScan->pOrgTbInfo) {
+      taosArrayDestroy(pScan->pOrgTbInfo->colMap);
+      taosMemoryFreeClear(pScan->pOrgTbInfo);
+    }
+    taosMemoryFree(pScan);
+  }
+  return code;
 }
 
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
@@ -654,15 +709,27 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.taskId = pSource->taskId;
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
-    if (pDataInfo->pSrcUidList) {
-      int32_t code =
-          buildTableScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->tableSeq);
+    if (pDataInfo->isVtbRefScan) {
+      code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->colMap, pDataInfo->tableSeq, &pDataInfo->window);
+      taosArrayDestroy(pDataInfo->colMap->colMap);
+      taosMemoryFreeClear(pDataInfo->colMap);
       taosArrayDestroy(pDataInfo->pSrcUidList);
       pDataInfo->pSrcUidList = NULL;
       if (TSDB_CODE_SUCCESS != code) {
         pTaskInfo->code = code;
         taosMemoryFree(pWrapper);
         return pTaskInfo->code;
+      }
+    } else {
+      if (pDataInfo->pSrcUidList) {
+        code = buildTableScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->tableSeq);
+        taosArrayDestroy(pDataInfo->pSrcUidList);
+        pDataInfo->pSrcUidList = NULL;
+        if (TSDB_CODE_SUCCESS != code) {
+          pTaskInfo->code = code;
+          taosMemoryFree(pWrapper);
+          return pTaskInfo->code;
+        }
       }
     }
 
@@ -995,7 +1062,11 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
              pExchangeInfo->current + 1, pDataInfo->totalRows, pLoadInfo->totalRows);
 
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
-      pExchangeInfo->current += 1;
+      if (pDataInfo->isVtbRefScan) {
+        pExchangeInfo->current = totalSources;
+      } else {
+        pExchangeInfo->current += 1;
+      }
       taosMemoryFreeClear(pDataInfo->pRsp);
       continue;
     }
@@ -1014,14 +1085,20 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
              pExchangeInfo->current + 1, totalSources);
 
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
-      pExchangeInfo->current += 1;
+      if (pDataInfo->isVtbRefScan) {
+        pExchangeInfo->current = totalSources;
+      } else {
+        pExchangeInfo->current += 1;
+      }
     } else {
       qDebug("%s fetch msg rsp from vgId:%d, clientId:0x%" PRIx64 " taskId:0x%" PRIx64 " execId:%d numOfRows:%" PRId64
              ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64,
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
              pRetrieveRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize);
     }
-
+    if (pExchangeInfo->dynamicOp && pExchangeInfo->seqLoadData) {
+      taosArrayClear(pExchangeInfo->pSourceDataInfo);
+    }
     updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, startTs, pOperator);
     pDataInfo->totalRows += pRetrieveRsp->numOfRows;
 
@@ -1034,6 +1111,15 @@ _error:
   return code;
 }
 
+void clearVtbScanDataInfo(void* pItem) {
+  SSourceDataInfo *pInfo = (SSourceDataInfo *)pItem;
+  if (pInfo->colMap) {
+    taosArrayDestroy(pInfo->colMap->colMap);
+    taosMemoryFreeClear(pInfo->colMap);
+  }
+  taosArrayDestroy(pInfo->pSrcUidList);
+}
+
 int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasicParam* pBasicParam) {
   SExchangeInfo*     pExchangeInfo = pOperator->info;
   SExchangeSrcIndex* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
@@ -1042,40 +1128,90 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (pIdx->inUseIdx < 0) {
+  if (pBasicParam->isVtbRefScan) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
     dataInfo.taskId = pExchangeInfo->pTaskId;
     dataInfo.index = pIdx->srcIdx;
+    dataInfo.window = pBasicParam->window;
+    dataInfo.colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
+    dataInfo.colMap->vgId = pBasicParam->colMap->vgId;
+    tstrncpy(dataInfo.colMap->tbName, pBasicParam->colMap->tbName, TSDB_TABLE_FNAME_LEN);
+    dataInfo.colMap->colMap = taosArrayDup(pBasicParam->colMap->colMap, NULL);
+
     dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
     if (dataInfo.pSrcUidList == NULL) {
       return terrno;
     }
 
+    dataInfo.isVtbRefScan = pBasicParam->isVtbRefScan;
     dataInfo.srcOpType = pBasicParam->srcOpType;
     dataInfo.tableSeq = pBasicParam->tableSeq;
 
+    taosArrayClearEx(pExchangeInfo->pSourceDataInfo, clearVtbScanDataInfo);
     void* tmp = taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
     if (!tmp) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
     }
-    pIdx->inUseIdx = taosArrayGetSize(pExchangeInfo->pSourceDataInfo) - 1;
   } else {
-    SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pIdx->inUseIdx);
-    if (!pDataInfo) {
-      return terrno;
-    }
-    if (pDataInfo->status == EX_SOURCE_DATA_EXHAUSTED) {
-      pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
-    }
-    pDataInfo->pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
-    if (pDataInfo->pSrcUidList == NULL) {
-      return terrno;
-    }
+    if (pIdx->inUseIdx < 0) {
+      SSourceDataInfo dataInfo = {0};
+      dataInfo.status = EX_SOURCE_DATA_NOT_READY;
+      dataInfo.taskId = pExchangeInfo->pTaskId;
+      dataInfo.index = pIdx->srcIdx;
+      if (pBasicParam->isVtbRefScan) {
+        dataInfo.window = pBasicParam->window;
+        dataInfo.colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
+        dataInfo.colMap->vgId = pBasicParam->colMap->vgId;
+        tstrncpy(dataInfo.colMap->tbName, pBasicParam->colMap->tbName, TSDB_TABLE_FNAME_LEN);
+        dataInfo.colMap->colMap = taosArrayDup(pBasicParam->colMap->colMap, NULL);
+      }
 
-    pDataInfo->srcOpType = pBasicParam->srcOpType;
-    pDataInfo->tableSeq = pBasicParam->tableSeq;
+      dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
+      if (dataInfo.pSrcUidList == NULL) {
+        return terrno;
+      }
+
+      dataInfo.isVtbRefScan = pBasicParam->isVtbRefScan;
+      dataInfo.srcOpType = pBasicParam->srcOpType;
+      dataInfo.tableSeq = pBasicParam->tableSeq;
+
+      void* tmp = taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
+      if (!tmp) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
+      pIdx->inUseIdx = taosArrayGetSize(pExchangeInfo->pSourceDataInfo) - 1;
+    } else {
+      SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, pIdx->inUseIdx);
+      if (!pDataInfo) {
+        return terrno;
+      }
+      if (pDataInfo->status == EX_SOURCE_DATA_EXHAUSTED) {
+        pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
+      }
+
+      if (pBasicParam->isVtbRefScan) {
+        pDataInfo->window = pBasicParam->window;
+        if (!pDataInfo->colMap) {
+          pDataInfo->colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
+        }
+        pDataInfo->colMap->vgId = pBasicParam->colMap->vgId;
+        tstrncpy(pDataInfo->colMap->tbName, pBasicParam->colMap->tbName, TSDB_TABLE_FNAME_LEN);
+        pDataInfo->colMap->colMap = taosArrayDup(pBasicParam->colMap->colMap, NULL);
+      }
+
+      pDataInfo->pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
+      if (pDataInfo->pSrcUidList == NULL) {
+        return terrno;
+      }
+
+      pDataInfo->isVtbRefScan = pBasicParam->isVtbRefScan;
+
+      pDataInfo->srcOpType = pBasicParam->srcOpType;
+      pDataInfo->tableSeq = pBasicParam->tableSeq;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1103,7 +1239,7 @@ int32_t addDynamicExchangeSource(SOperatorInfo* pOperator) {
   freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
   pOperator->pOperatorGetParam = NULL;
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
@@ -1118,6 +1254,10 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   if (pExchangeInfo->dynamicOp) {
     code = addDynamicExchangeSource(pOperator);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (pOperator->status == OP_NOT_OPENED && pExchangeInfo->dynamicOp && pExchangeInfo->seqLoadData) {
+    pExchangeInfo->current = 0;
   }
 
   int64_t st = taosGetTimestampUs();

@@ -40,13 +40,9 @@ class TDTestCase(TBase):
         tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
         tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
         cmd = "%s -f ./tools/benchmark/basic/json/taosc_query-sqlfile.json" % binPath
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-
-    #       with open("%s" % "taosc_query_specified-sqlfile-0", "r+") as f1:
-    #           for line in f1.readlines():
-    #               queryTaosc = line.strip().split()[0]
-    #               assert queryTaosc == "3", "result is %s != expect: 3" % queryTaosc
+        rlist = self.benchmark(f"-f {cmd}")
+        # check result
+        self.checkListString(rlist, "completed total queries: 2")
 
     def stop(self):
         tdSql.close()

@@ -4,10 +4,51 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
+print ===================================== force window close with sliding test
+print ============ create db
+sql create database test1 vgroups 2 precision 'us';
+
+sql use test1
+sql create stable st1(ts timestamp, a int) tags(t int);
+sql create table tu11 using st1 tags(1);
+
+sql_error create stream stream11 trigger force_window_close into str_dst1 as select  _wstart, count(*) from st1 partition by tbname interval(5s) sliding(6s);
+sql_error create stream stream11 trigger force_window_close into str_dst1 as select  _wstart, count(*) from st1 partition by tbname interval(5s) sliding(9a);
+sql_error create stream stream11 trigger force_window_close into str_dst1 as select  _wstart, count(*) from st1 partition by tbname interval(5s) sliding(1.1s);
+sql create stream stream11 trigger force_window_close into str_dst1 as select  _wstart, _wend, count(*) from st1 partition by tbname interval(5s) sliding(1s);
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into tu11 values(now, 1);
+sleep 5500
+
+$loop_count = 0
+
+loop01:
+sleep 500
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  goto end_loop0
+endi
+
+print insert data
+sql insert into tu11 values(now, 1);
+goto loop01
+
+end_loop0:
+
+sleep 10000
+
+sql select sum(`count(*)`) from (select * from str_dst1)
+
+if $data00 != 100 then
+  print expect 100, actual: $data00
+  return -1
+endi
+
 print ========================================== create database
 sql create database test vgroups 2;
 sql select * from information_schema.ins_databases
-if $rows != 3 then
+if $rows != 4 then
   return -1
 endi
 
@@ -134,5 +175,6 @@ if $data00 != 35.000000000 then
   print expect 35.000000000 , actual $data00
   return -1
 endi
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -104,7 +104,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   }
 
 #endif
-
+  /*
   if (rollback) {
     ret = tdbPagerRestoreJournals(pPager);
     if (ret < 0) {
@@ -117,6 +117,13 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       tdbOsFree(pTb);
       return ret;
     }
+  }
+  */
+  // Always restore journal files with page flushing
+  ret = tdbPagerRestoreJournals(pPager);
+  if (ret < 0) {
+    tdbOsFree(pTb);
+    return ret;
   }
 
   // pTb->pBt

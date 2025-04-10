@@ -83,7 +83,6 @@ if(${BUILD_S3})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
     find_library(S3_LIBRARY s3)
-    find_library(XML2_LIBRARY xml2)
     target_link_libraries(
       common
 
@@ -92,7 +91,7 @@ if(${BUILD_S3})
       PUBLIC ${CURL_LIBRARY}
       PUBLIC ${SSL_LIBRARY}
       PUBLIC ${CRYPTO_LIBRARY}
-      PUBLIC ${XML2_LIBRARY}
+      PUBLIC _libxml2
     )
 
     add_definitions(-DUSE_S3)
@@ -103,7 +102,6 @@ if(${BUILD_S3})
     find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
     find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
     find_library(MINIXML_LIBRARY mxml)
-    find_library(CURL_LIBRARY curl)
     target_link_libraries(
       common
 

@@ -20,9 +20,8 @@
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t checkpointId);
-#ifdef BUILD_NO_CALL
-static int32_t deleteCheckpoint(const char* id);
-#endif
+static int32_t deleteRemoteCheckpointBackup(const char* pTaskId, int64_t checkpointId);
+
 static int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask);
 static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
                                           int32_t transId, int32_t srcTaskId);
@@ -93,7 +92,7 @@ int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType, i
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  return streamTrySchedExec(pTask);
+  return streamTrySchedExec(pTask, true);
 }
 
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq) {
@@ -407,7 +406,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     chkptFailedByRetrieveReqToSource(pTask, checkpointId);
 #endif
 
-    if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH ||
+        type == TASK_OUTPUT__VTABLE_MAP) {
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
       code = continueDispatchCheckpointTriggerBlock(pBlock, pTask);  // todo handle this failure
     } else {  // only one task exists, no need to dispatch downstream info
@@ -626,14 +626,17 @@ static int32_t doUpdateCheckpointInfoCheck(SStreamTask* pTask, bool restored, SV
 
     { // destroy the related fill-history tasks
       if (pReq->dropRelHTask) {
+        if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
           code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
 
           int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-          stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
-                  id, vgId, pReq->taskId, numOfTasks);
+          stDebug("s-task:%s vgId:%d related fill-history task:0x%" PRIx64
+                  " dropped in update checkpointInfo, remain tasks:%d",
+                  id, vgId, pReq->hTaskId, numOfTasks);
 
-          //todo: task may not exist, commit anyway, optimize this later
+          // todo: task may not exist, commit anyway, optimize this later
           code = streamMetaCommit(pMeta);
+        }
       }
     }
 
@@ -724,9 +727,14 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   streamTaskClearCheckInfo(pTask, true);
 
   if (pReq->dropRelHTask) {
-    stDebug("s-task:0x%x vgId:%d drop the related fill-history task:0x%" PRIx64 " after update checkpoint",
-            pReq->taskId, vgId, pReq->hTaskId);
-    CLEAR_RELATED_FILLHISTORY_TASK(pTask);
+    if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      stInfo("s-task:0x%x vgId:%d drop the related fill-history task:0x%" PRIx64 " after update checkpoint",
+              pReq->taskId, vgId, pReq->hTaskId);
+      CLEAR_RELATED_FILLHISTORY_TASK(pTask);
+    } else {
+      stInfo("s-task:0x%x vgId:%d update the related fill-history task:0x%" PRIx64" to be recalculate task",
+             pReq->taskId, vgId, pReq->hTaskId);
+    }
   }
 
   stDebug("s-task:0x%x set the persistent status attr to be ready, prev:%s, status in sm:%s", pReq->taskId,
@@ -739,16 +747,54 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   if (code != TSDB_CODE_SUCCESS) {
     stError("s-task:%s vgId:%d failed to save task info after do checkpoint, checkpointId:%" PRId64 ", since %s", id,
-            vgId, pReq->checkpointId, terrstr());
+            vgId, pReq->checkpointId, tstrerror(code));
     return TSDB_CODE_SUCCESS;
   }
 
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
-    code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
-    int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
-            (int32_t)pReq->hTaskId, numOfTasks);
+    if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+      int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+      stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
+              (int32_t)pReq->hTaskId, numOfTasks);
+    } else {
+      STaskId hTaskId = {.streamId = pReq->hStreamId, .taskId = pReq->hTaskId};
+
+      SStreamTask* pHTask = NULL;
+      code = streamMetaAcquireTaskUnsafe(pMeta, &hTaskId, &pHTask);
+      if (code == 0 && pHTask != NULL) {
+        stInfo("s-task:0x%x fill-history updated to recalculate task, reset step2Start ts, stream task:0x%x",
+               (int32_t)hTaskId.taskId, pReq->taskId);
+
+        streamMutexLock(&pHTask->lock);
+
+        pHTask->info.fillHistory = STREAM_RECALCUL_TASK;
+        pHTask->execInfo.step2Start = 0; // clear the step2start timestamp
+
+        SStreamTaskState status = streamTaskGetStatus(pHTask);
+        if (status.state == TASK_STATUS__SCAN_HISTORY) {
+          code = streamTaskHandleEvent(pHTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+        }
+
+        if (pHTask->pBackend != NULL) {
+          streamFreeTaskState(pHTask, TASK_STATUS__READY);
+          pHTask->pBackend = NULL;
+        }
+
+        if (pHTask->exec.pExecutor != NULL) {
+          qDestroyTask(pHTask->exec.pExecutor);
+          pHTask->exec.pExecutor = NULL;
+        }
+
+        pMeta->expandTaskFn(pHTask);
+
+        streamMutexUnlock(&pHTask->lock);
+
+        code = streamMetaSaveTaskInMeta(pMeta, pHTask);
+        streamMetaReleaseTask(pMeta, pHTask);
+      }
+    }
   }
 
   code = streamMetaCommit(pMeta);
@@ -813,9 +859,9 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
   return 0;
 }
 
-int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type) {
+int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type,
+                             char** chkptDir) {
   int32_t      code = 0;
-  char*        path = NULL;
   int64_t      chkptSize = 0;
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  idStr = pTask->id.idStr;
@@ -828,24 +874,24 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     return terrno;
   }
 
-  if ((code = taskDbGenChkpUploadData(pTask->pBackend, pMeta->bkdChkptMgt, checkpointId, type, &path, toDelFiles,
+  if ((code = taskDbGenChkpUploadData(pTask->pBackend, pMeta->bkdChkptMgt, checkpointId, type, chkptDir, toDelFiles,
                                       pTask->id.idStr)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 ", reason:%s", idStr, checkpointId, tstrerror(code));
   }
 
   if (type == DATA_UPLOAD_S3) {
-    if (code == TSDB_CODE_SUCCESS && (code = getCheckpointDataMeta(idStr, path, toDelFiles)) != 0) {
+    if (code == TSDB_CODE_SUCCESS && (code = getCheckpointDataMeta(idStr, *chkptDir, toDelFiles)) != 0) {
       stError("s-task:%s failed to get checkpointData for checkpointId:%" PRId64 ", reason:%s", idStr, checkpointId,
               tstrerror(code));
     }
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = streamTaskUploadCheckpoint(idStr, path, checkpointId);
+    code = streamTaskUploadCheckpoint(idStr, *chkptDir, checkpointId);
     if (code == TSDB_CODE_SUCCESS) {
       stDebug("s-task:%s upload checkpointId:%" PRId64 " to remote succ", idStr, checkpointId);
     } else {
-      stError("s-task:%s failed to upload checkpointId:%" PRId64 " path:%s,reason:%s", idStr, checkpointId, path,
+      stError("s-task:%s failed to upload checkpointId:%" PRId64 " path:%s,reason:%s", idStr, checkpointId, *chkptDir,
               tstrerror(code));
     }
   }
@@ -856,7 +902,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
 
     for (int i = 0; i < num; i++) {
       char* pName = taosArrayGetP(toDelFiles, i);
-      code = deleteCheckpointFile(idStr, pName);
+      code = deleteCheckpointRemoteBackup(idStr, pName);
       if (code != 0) {
         stDebug("s-task:%s failed to remove file: %s", idStr, pName);
         break;
@@ -870,21 +916,22 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
   double el = (taosGetTimestampMs() - now) / 1000.0;
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = taosGetDirSize(path, &chkptSize);
+    code = taosGetDirSize(*chkptDir, &chkptSize);
     stDebug("s-task:%s complete upload checkpointId:%" PRId64
             ", elapsed time:%.2fs, checkpointSize:%.2fKiB local dir:%s",
-            idStr, checkpointId, el, SIZE_IN_KiB(chkptSize), path);
+            idStr, checkpointId, el, SIZE_IN_KiB(chkptSize), *chkptDir);
   } else {
     stDebug("s-task:%s failed to upload checkpointId:%" PRId64 " elapsed time:%.2fs, checkpointSize:%.2fKiB", idStr,
             checkpointId, el, SIZE_IN_KiB(chkptSize));
   }
 
-  taosMemoryFree(path);
   return code;
 }
 
-int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointId) {
+int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointId, SArray* pList) {
+  char*                   pChkptDir = NULL;
   ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
+
   if (type == DATA_UPLOAD_DISABLE) {
     stDebug("s-task:%s not config to backup checkpoint data at snode, checkpointId:%"PRId64, pTask->id.idStr, checkpointId);
     return 0;
@@ -902,9 +949,29 @@ int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointI
     return -1;
   }
 
-  int32_t code = uploadCheckpointData(pTask, checkpointId, taskGetDBRef(pTask->pBackend), type);
+  int32_t code = uploadCheckpointData(pTask, checkpointId, taskGetDBRef(pTask->pBackend), type, &pChkptDir);
   taskReleaseDb(dbRefId);
 
+  if (code != 0) {
+    if ((pChkptDir != NULL) && strlen(pChkptDir) != 0) {  // failed, drop the latest checkpoint data in local directory
+      stError("s-task:%s upload checkpoint data failed, generated checkpointId:%" PRId64
+              " failed, remove local checkpoint data:%s",
+              pTask->id.idStr, checkpointId, pChkptDir);
+      taosRemoveDir(pChkptDir);
+    }
+  } else {
+    // we only keep the latest five checkpoint data in the local directory,
+    // the expired checkpoint data will be removed. Remove the remote backup checkpoint Data here.
+    // check the existed number of checkpoint data, according to the directory name
+    if (type == DATA_UPLOAD_RSYNC && taosArrayGetSize(pList) > 0) {
+      for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+        int64_t* pCheckpointId = (int64_t*) taosArrayGet(pList, i);
+        deleteRemoteCheckpointBackup(pTask->id.idStr, *pCheckpointId);
+      }
+    }
+  }
+
+  taosMemoryFree(pChkptDir);
   return code;
 }
 
@@ -914,6 +981,12 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int64_t      ckId = pTask->chkInfo.pActiveInfo->activeId;
   const char*  id = pTask->id.idStr;
   SStreamMeta* pMeta = pTask->pMeta;
+  SArray*      pList = taosArrayInit(4, sizeof(int64_t));
+
+  if (pList == NULL) {
+    stError("s-task:%s failed to prepare list during build checkpoint, code:%s", id, tstrerror(code));
+    return terrno;
+  }
 
   streamMutexLock(&pTask->lock);
   bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
@@ -924,7 +997,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     stDebug("s-task:%s level:%d start gen checkpoint, checkpointId:%" PRId64, id, pTask->info.taskLevel, ckId);
 
     int64_t ver = pTask->chkInfo.processedVer;
-    code = streamBackendDoCheckpoint(pTask->pBackend, ckId, ver);
+    code = streamBackendDoCheckpoint(pTask->pBackend, ckId, ver, pList);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s gen checkpoint:%" PRId64 " failed, code:%s", id, ckId, tstrerror(terrno));
     }
@@ -950,7 +1023,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = streamTaskRemoteBackupCheckpoint(pTask, ckId);
+    code = streamTaskRemoteBackupCheckpoint(pTask, ckId, pList);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s upload checkpointId:%" PRId64 " data failed, code:%s", id, ckId, tstrerror(code));
     }
@@ -979,6 +1052,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
          pMeta->vgId, pTask->info.taskLevel, ckId, pTask->chkInfo.checkpointVer, el,
          (code == TSDB_CODE_SUCCESS) ? "succ" : "failed");
 
+  taosArrayDestroy(pList);
   return code;
 }
 
@@ -1329,6 +1403,20 @@ int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask, int64_t sendingChk
       if (px == NULL) {  // pause the stream task, if memory not enough
         code = terrno;
       }
+    } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+      for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
+        STaskDispatcherFixed* pAddr = taosArrayGet(pTask->outputInfo.vtableMapDispatcher.taskInfos, i);
+        if (pAddr == NULL) {
+          continue;
+        }
+
+        STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pAddr->nodeId, .taskId = pAddr->taskId};
+        void*                px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
+        if (px == NULL) {  // pause the stream task, if memory not enough
+          code = terrno;
+          break;
+        }
+      }
     } else {
       for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
         SVgroupInfo* pVgInfo = taosArrayGet(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos, i);
@@ -1483,7 +1571,7 @@ int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char
   int32_t code = tcsGetObjectToFile(buf, dstName);
   if (code != 0) {
     taosMemoryFree(buf);
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   taosMemoryFree(buf);
   return 0;
@@ -1509,7 +1597,7 @@ int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t che
   if (strlen(tsSnodeAddress) != 0) {
     code = uploadByRsync(id, path, checkpointId);
     if (code != 0) {
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
     }
   } else if (tsS3StreamEnabled) {
     return uploadCheckpointToS3(id, path);
@@ -1549,22 +1637,21 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path, int64_t che
   return 0;
 }
 
-#ifdef BUILD_NO_CALL
-int32_t deleteCheckpoint(const char* id) {
-  if (id == NULL || strlen(id) == 0) {
-    stError("deleteCheckpoint parameters invalid");
+int32_t deleteRemoteCheckpointBackup(const char* pTaskId, int64_t checkpointId) {
+  if (pTaskId == NULL || strlen(pTaskId) == 0) {
+    stError("s-task:%s deleteRemoteCheckpointBackup parameters invalid, checkpointId:%"PRId64, pTaskId, checkpointId);
     return TSDB_CODE_INVALID_PARA;
   }
+
   if (strlen(tsSnodeAddress) != 0) {
-    return deleteRsync(id);
+    return deleteRsync(pTaskId, checkpointId);
   } else if (tsS3StreamEnabled) {
-    tcsDeleteObjectsByPrefix(id);
+    tcsDeleteObjectsByPrefix(pTaskId);
   }
   return 0;
 }
-#endif
 
-int32_t deleteCheckpointFile(const char* id, const char* name) {
+int32_t deleteCheckpointRemoteBackup(const char* id, const char* name) {
   char object[128] = {0};
 
   int32_t nBytes = snprintf(object, sizeof(object), "%s/%s", id, name);
@@ -1586,17 +1673,26 @@ int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
   streamTaskSetReqConsenChkptId(pTask, taosGetTimestampMs());
   streamMutexUnlock(&pTask->lock);
 
+  // 1. stop the executo at first
+  if (pTask->exec.pExecutor != NULL) {
+    // we need to make sure the underlying operator is stopped right, otherwise, SIGSEG may occur,
+    // waiting at most for 10min
+    if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
+      int32_t code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 600000);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("s-task:%s failed to kill task related query handle, code:%s", pTask->id.idStr, tstrerror(code));
+      }
+    }
+
+    qDestroyTask(pTask->exec.pExecutor);
+    pTask->exec.pExecutor = NULL;
+  }
+
+  // 2. destroy backend after stop executor
   if (pTask->pBackend != NULL) {
     streamFreeTaskState(pTask, p);
     pTask->pBackend = NULL;
   }
-
-  streamMetaWLock(pTask->pMeta);
-  if (pTask->exec.pExecutor != NULL) {
-    qDestroyTask(pTask->exec.pExecutor);
-    pTask->exec.pExecutor = NULL;
-  }
-  streamMetaWUnLock(pTask->pMeta);
 
   return 0;
 }

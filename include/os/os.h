@@ -28,34 +28,41 @@ extern "C" {
 #if !defined(WINDOWS)
 #include <dirent.h>
 
-#if !defined(_ALPINE)
+#if !defined(_ALPINE) && !defined(TD_ASTRA)
 #include <execinfo.h>
 #endif
 
+#if !defined(TD_ASTRA)
 #include <libgen.h>
-#include <sched.h>
-#include <unistd.h>
 #include <wordexp.h>
-
-#include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/shm.h>
-#include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <termios.h>
+#else 
+#include <astra.h>
+#endif
+
+#include <sched.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
-#include <termios.h>
 
 #if defined(DARWIN)
+#include <pwd.h>
 #else
+#if !defined(TD_ASTRA)
 #include <argp.h>
 #include <sys/prctl.h>
 #include <sys/sysinfo.h>
 #if defined(_TD_X86_)
 #include <cpuid.h>
+#endif
 #endif
 #endif
 #else

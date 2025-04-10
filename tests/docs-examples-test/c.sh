@@ -34,12 +34,14 @@ declare -a TEST_EXES=(
     "query_data_demo"
     "with_reqid_demo"
     "stmt_insert_demo"
+    "stmt2_insert_demo"
     "tmq_demo"
     "sml_insert_demo"
 )
 
 declare -a NEED_CLEAN=(
     "true"
+    "false"
     "false"
     "false"
     "false"

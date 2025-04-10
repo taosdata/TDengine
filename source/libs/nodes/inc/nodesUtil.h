@@ -20,12 +20,12 @@
 extern "C" {
 #endif
 
-#define nodesFatal(...) qFatal("NODES: " __VA_ARGS__)
-#define nodesError(...) qError("NODES: " __VA_ARGS__)
-#define nodesWarn(...)  qWarn("NODES: " __VA_ARGS__)
-#define nodesInfo(...)  qInfo("NODES: " __VA_ARGS__)
-#define nodesDebug(...) qDebug("NODES: " __VA_ARGS__)
-#define nodesTrace(...) qTrace("NODES: " __VA_ARGS__)
+#define nodesFatal(...) qFatal("nodes " __VA_ARGS__)
+#define nodesError(...) qError("nodes " __VA_ARGS__)
+#define nodesWarn(...)  qWarn ("nodes " __VA_ARGS__)
+#define nodesInfo(...)  qInfo ("nodes " __VA_ARGS__)
+#define nodesDebug(...) qDebug("nodes " __VA_ARGS__)
+#define nodesTrace(...) qTrace("nodes " __VA_ARGS__)
 
 #define NODES_ERR_RET(c)              \
   do {                                \

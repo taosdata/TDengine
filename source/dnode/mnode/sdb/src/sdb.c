@@ -154,13 +154,13 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 static int32_t sdbCreateDir(SSdb *pSdb) {
   int32_t code = 0;
   if (taosMulMkDir(pSdb->currDir) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     mError("failed to create dir:%s since %s", pSdb->currDir, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if (taosMkDir(pSdb->tmpDir) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     mError("failed to create dir:%s since %s", pSdb->tmpDir, tstrerror(code));
     TAOS_RETURN(code);
   }

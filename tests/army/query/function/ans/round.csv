@@ -67,12 +67,12 @@ taos> select ROUND(10.55, 1) + 1
 taos> select ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(123.123456789, 9), 8), 7), 6), 5), 4))
  round(round(round(round(round(round(round(123.123456789, 9), 8), |
 ===================================================================
-                                            1.230000000000000e+02 |
+                                                             123 |
 
 taos> select ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(123456789.123456789, -1), -2), -3), -4), -5), -6))
  round(round(round(round(round(round(round(123456789.123456789, - |
 ===================================================================
-                                            1.230000000000000e+08 |
+                                                       123000000 |
 
 taos> select ROUND(current) from ts_4893.meters order by ts limit 20
     round(current)    |
@@ -101,16 +101,16 @@ taos> select ROUND(current) from ts_4893.meters order by ts limit 20
 taos> select ROUND(87654321.123456789, id) from ts_4893.meters order by ts limit 10
  round(87654321.123456789, id) |
 ================================
-         8.765432100000000e+07 |
-         8.765432109999999e+07 |
-         8.765432112000000e+07 |
-         8.765432112300000e+07 |
-         8.765432112350000e+07 |
-         8.765432112345999e+07 |
-         8.765432112345700e+07 |
-         8.765432112345681e+07 |
-         8.765432112345679e+07 |
-         8.765432112345679e+07 |
+                      87654321 |
+                    87654321.1 |
+                   87654321.12 |
+                  87654321.123 |
+                 87654321.1235 |
+                87654321.12346 |
+               87654321.123457 |
+              87654321.1234568 |
+              87654321.1234568 |
+              87654321.1234568 |
 
 taos> select ROUND(current, id) from ts_4893.meters order by ts limit 10
   round(current, id)  |
@@ -286,7 +286,7 @@ taos> select round(voltage, -1) from ts_4893.meters limit 1
 taos> select round(current * voltage, 2) from ts_4893.meters limit 1
  round(current * voltage, 2) |
 ==============================
-       2.353650000000000e+03 |
+                     2353.65 |
 
 taos> select round(abs(voltage), 2) from ts_4893.meters limit 1
  round(abs(voltage), 2) |

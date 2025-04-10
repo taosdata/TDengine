@@ -154,6 +154,9 @@ int32_t dmRunDnode(SDnode *pDnode) {
     dmCloseNodes(pDnode);
     return code;
   }
+  tsDndStart = taosGetTimestampMs();
+  if (tsDndStart == 0) ++tsDndStart;  // avoid 0
+  tsDndStartOsUptime = taosGetOsUptime();
 
   while (1) {
     if (pDnode->stop) {

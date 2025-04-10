@@ -80,7 +80,7 @@ class RestoreBasic:
         for i in range(8):
             leader = False
             for j in range(3):
-                status = tdSql.getData(i, 4 + j*2)
+                status = tdSql.getData(i, 4 + j*3)
                 if status == "leader":
                     leader = True
                 elif status == "follower":
@@ -143,6 +143,34 @@ class RestoreBasic:
         tdSql.execute(sql)
         self.check_corrent()
 
+    def restore_dnode_prepare(self, index):
+        tdLog.info(f"start restore dnode {index}")
+        dnode = self.dnodes[index - 1]
+        
+        # stop dnode
+        tdLog.info(f"stop dnode {index}")
+        dnode.stoptaosd()
+
+        # remove dnode folder
+        try:
+            shutil.rmtree(dnode.dataDir)
+            tdLog.info(f"delete dir {dnode.dataDir} successful")
+        except OSError as x:
+            tdLog.exit(f"remove path {dnode.dataDir} error : {x.strerror}")
+
+        dnode.starttaosd()
+        
+    def restore_dnode_exec(self, index):
+        # exec restore
+        sql = f"restore dnode {index}"
+        tdLog.info(sql)
+        tdSql.execute(sql)
+        self.check_corrent()  
+
+    def stop_dnode(self, index):
+        dnode = self.dnodes[index - 1]
+
+        dnode.starttaosd()
     # restore vnode
     def restore_vnode(self, index):
         tdLog.info(f"start restore vnode on dnode {index}")

@@ -190,5 +190,5 @@ taos> select voltage / pi() from ts_4893.meters limit 1
 taos> select id, case when voltage > 100 then pi() else pi() / 2 end from ts_4893.meters limit 1
      id      | case when voltage > 100 then pi() else pi() / 2 end |
 ====================================================================
-           0 |                               3.141592653589793e+00 |
+           0 |                                    3.14159265358979 |
 

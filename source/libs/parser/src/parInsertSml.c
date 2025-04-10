@@ -224,7 +224,7 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
 
     (void)memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
   } else {
-    (void)memcpy(&pVal->value.val, &(kv->value), kv->length);
+    valueSetDatum(&pVal->value, kv->type, &(kv->value), kv->length);
   }
   pVal->flag = CV_FLAG_VALUE;
 
@@ -327,7 +327,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         TSDB_CHECK_NULL(pVal->value.pData, ret, lino, end, terrno);
         (void)memcpy(pVal->value.pData, (uint8_t*)kv->value, kv->length);
       } else {
-        (void)memcpy(&pVal->value.val, &(kv->value), kv->length);
+        valueSetDatum(&pVal->value, kv->type, &(kv->value), kv->length);
       }
       pVal->flag = CV_FLAG_VALUE;
     }
@@ -398,6 +398,21 @@ int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash) {
   TSDB_CHECK_CODE(code, lino, end);
 
 end:
+  if (code != 0) {
+    uError("%s failed at %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t smlBuildOutputRaw(SQuery* handle, SHashObj* pVgHash) {
+  int32_t lino = 0;
+  int32_t code = 0;
+
+  SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)(handle)->pRoot;
+  code = insBuildVgDataBlocks(pVgHash, pStmt->pVgDataBlocks, &pStmt->pDataBlocks, false);
+  TSDB_CHECK_CODE(code, lino, end);
+
+  end:
   if (code != 0) {
     uError("%s failed at %d since %s", __func__, lino, tstrerror(code));
   }

@@ -8,6 +8,7 @@
 #  expressly provided by the written permission from Jianhui Tao
 #
 ###################################################################
+import time
 
 # -*- coding: utf-8 -*-
 
@@ -22,6 +23,8 @@ from util.cluster import *
 # should be used by -N  option
 class TDTestCase:
     updatecfgDict = {'checkpointInterval': 60 ,
+                     'vdebugflag':143,
+                     'ddebugflag':143
                      }
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -88,6 +91,17 @@ class TDTestCase:
         return True
 
     def restart_stream(self):
+        st = time.time()
+        while True:
+            sql = 'select status from information_schema.ins_stream_tasks where status<>"ready" '
+            if len(tdSql.getResult(sql)) != 0:
+                time.sleep(1)
+                tdLog.info("wait for task to be ready, 1s")
+            else:
+                et = time.time()
+                tdLog.info(f"wait for tasks to be ready: {et-st}s")
+                break
+
         tdLog.debug("========restart stream========")
         for i in range(5):
             tdSql.execute("pause stream s1")

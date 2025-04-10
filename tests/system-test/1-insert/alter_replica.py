@@ -27,8 +27,8 @@ class TDTestCase:
             flag = 0
             for vgid in range (vgNum) :
                 v1_status = tdSql.queryResult[vgid][4]
-                v2_status = tdSql.queryResult[vgid][6]
-                v3_status = tdSql.queryResult[vgid][8]
+                v2_status = tdSql.queryResult[vgid][7]
+                v3_status = tdSql.queryResult[vgid][10]
                 if ((v1_status == 'leader') and (v2_status == 'follower') and (v3_status == 'follower')) \
                 or ((v2_status == 'leader') and (v1_status == 'follower') and (v3_status == 'follower')) \
                 or ((v3_status == 'leader') and (v2_status == 'follower') and (v1_status == 'follower')):

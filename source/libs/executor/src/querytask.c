@@ -108,6 +108,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   if (pHandle) {
     if (pHandle->pStateBackend) {
       (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
+      (*pTaskInfo)->streamInfo.pOtherState = pHandle->pOtherBackend;
     }
   }
 
@@ -125,7 +126,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
-                        pPlan->dbFName, &((*pTaskInfo)->pRoot));
+                        pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 
   if (NULL == (*pTaskInfo)->pRoot || code != 0) {
     doDestroyTask(*pTaskInfo);
@@ -175,7 +176,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
   if (mr.me.type == TSDB_SUPER_TABLE) {
     schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
     schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
-  } else if (mr.me.type == TSDB_CHILD_TABLE) {
+  } else if (mr.me.type == TSDB_CHILD_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
@@ -262,6 +263,8 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
 static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
   tDeleteSchemaWrapper(pStreamInfo->schema);
   tOffsetDestroy(&pStreamInfo->currentOffset);
+  tDeleteSchemaWrapper(pStreamInfo->notifyResultSchema);
+  taosMemoryFree(pStreamInfo->stbFullName);
 }
 
 static void freeBlock(void* pParam) {
@@ -284,6 +287,10 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
 
   taosArrayDestroyEx(pTaskInfo->pResultBlockList, freeBlock);
   taosArrayDestroy(pTaskInfo->stopInfo.pStopInfo);
+  if (!pTaskInfo->paramSet) {
+    freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
+    pTaskInfo->pOpParam = NULL;
+  }
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

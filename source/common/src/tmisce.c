@@ -18,6 +18,7 @@
 #include "tglobal.h"
 #include "tjson.h"
 #include "tmisce.h"
+#include "tcompare.h"
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
@@ -257,7 +258,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePattern) {
   int32_t  code = 0;
   SConfig* pConf = taosGetCfg();
   if (pConf == NULL) {
@@ -291,6 +292,9 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     // GRANT_CFG_SKIP;
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
+    if (likePattern && rawStrPatternMatch(pItem->name, likePattern) != TSDB_PATTERN_MATCH) {
+      continue;
+    }
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
 
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, col++);

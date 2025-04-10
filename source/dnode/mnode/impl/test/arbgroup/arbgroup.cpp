@@ -127,7 +127,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, false);
     ASSERT_NE(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
@@ -142,7 +142,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, false);
     ASSERT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
@@ -157,7 +157,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndUpdateArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, true);
     ASSERT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
@@ -201,7 +201,7 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     bool newIsSync = false;
 
     SArbGroup newGroup = {0};
-    bool      updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup);
+    bool updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup, 0);
 
     ASSERT_EQ(updateIsSync, false);
   }
@@ -214,7 +214,7 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     bool newIsSync = true;
 
     SArbGroup newGroup = {0};
-    bool      updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup);
+    bool updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup, 0);
 
     ASSERT_EQ(updateIsSync, true);
     ASSERT_EQ(newGroup.isSync, true);

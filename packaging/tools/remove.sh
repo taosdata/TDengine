@@ -44,6 +44,7 @@ dumpName="${PREFIX}dump"
 keeperName="${PREFIX}keeper"
 xName="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
+inspect_name="${PREFIX}inspect"
 tarbitratorName="tarbitratord"
 productName="TDengine"
 
@@ -58,10 +59,13 @@ config_dir="/etc/${PREFIX}"
 
 if [ "${verMode}" == "cluster" ]; then
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
+  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" taosudf set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 else
+  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo"  taosudf set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
 fi
-tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" udfd set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+
 
 csudo=""
 if command -v sudo >/dev/null; then
@@ -90,7 +94,7 @@ fi
 
 kill_service_of() {
   _service=$1
-  pid=$(ps -C $_service | grep -w $_service | grep -v $uninstallScript | awk '{print $1}')
+  pid=$(ps aux | grep -w $_service | grep -v grep | grep -v $uninstallScript | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
@@ -158,9 +162,9 @@ remove_service_of() {
 remove_tools_of() {
   _tool=$1
   kill_service_of ${_tool}
-  [ -e "${bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${bin_link_dir}/${_tool} || :
+  [ -L "${bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${bin_link_dir}/${_tool} || :
   [ -e "${installDir}/bin/${_tool}" ] && ${csudo}rm -rf ${installDir}/bin/${_tool} || :
-  [ -e "${local_bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${local_bin_link_dir}/${_tool} || :
+  [ -L "${local_bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${local_bin_link_dir}/${_tool} || :
 }
 
 remove_bin() {
@@ -175,11 +179,13 @@ remove_bin() {
 
 function clean_lib() {
   # Remove link
-  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+  ${csudo}find ${lib_link_dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib_link_dir} -name "libtaosnative.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib_link_dir} -name "libtaosws.*" -exec ${csudo}rm -f {} \; || :
 
-  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
+  ${csudo}find ${lib64_link_dir} -name "libtaos.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib64_link_dir} -name "libtaosnative.*" -exec ${csudo}rm -f {} \; || :
+  ${csudo}find ${lib64_link_dir} -name "libtaosws.*" -exec ${csudo}rm -f {} \; || :
   #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
 
@@ -232,21 +238,56 @@ function remove_data_and_config() {
   [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
 }
 
-echo 
-echo "Do you want to remove all the data, log and configuration files? [y/n]"
-read answer
-remove_flag=false
-if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
-  confirmMsg="I confirm that I would like to delete all data, log and configuration files"
-  echo "Please enter '${confirmMsg}' to continue"
+function usage() {
+  echo -e "\nUsage: $(basename $0) [-e <yes|no>]"
+  echo "-e: silent mode, specify whether to remove all the data, log and configuration files."
+  echo "  yes: remove the data, log, and configuration files."
+  echo "  no:  don't remove the data, log, and configuration files."
+}
+
+# main
+interactive_remove="yes"
+remove_flag="false"
+
+while getopts "e:h" opt; do
+  case $opt in
+    e)
+      interactive_remove="no"
+
+      if [ "$OPTARG" == "yes" ]; then
+        remove_flag="true"
+        echo "Remove all the data, log, and configuration files."
+      elif [ "$OPTARG" == "no" ]; then
+        remove_flag="false"
+        echo "Do not remove the data, log, and configuration files."
+      else
+        echo "Invalid option for -e: $OPTARG"
+        usage
+        exit 1
+      fi
+      ;;
+    h | *)
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [ "$interactive_remove" == "yes" ]; then
+  echo -e "\nDo you want to remove all the data, log and configuration files? [y/n]"
   read answer
-  if [ X"$answer" == X"${confirmMsg}" ]; then    
-    remove_flag=true    
-  else    
-    echo "answer doesn't match, skip this step"    
+  if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+    confirmMsg="I confirm that I would like to delete all data, log and configuration files"
+    echo "Please enter '${confirmMsg}' to continue"
+    read answer
+    if [ X"$answer" == X"${confirmMsg}" ]; then    
+      remove_flag="true"    
+    else    
+      echo "answer doesn't match, skip this step"    
+    fi
   fi
+  echo 
 fi
-echo 
 
 if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
   if [ X$remove_flag == X"true" ]; then  
@@ -255,7 +296,6 @@ if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
     bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all false
   fi
 fi
-
 
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
@@ -294,7 +334,6 @@ elif echo $osinfo | grep -qwi "centos"; then
   #  echo "this is centos system"
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
-
 
 command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 
 echo 

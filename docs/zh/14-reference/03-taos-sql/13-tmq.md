@@ -59,11 +59,11 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
 
 ## 删除 topic
 
-如果不再需要订阅数据，可以删除 topic，需要注意：只有当前未在订阅中的 TOPIC 才能被删除。
+如果不再需要订阅数据，可以删除 topic，如果当前 topic 被消费者订阅，通过 FORCE 语法可强制删除，强制删除后订阅的消费者会消费数据会出错（FORCE 语法 3.3.6.0 版本开始支持）。
 
 ```sql
 /* 删除 topic */
-DROP TOPIC [IF EXISTS] topic_name;
+DROP TOPIC [IF EXISTS] [FORCE] topic_name;
 ```
 
 此时如果该订阅主题上存在 consumer，则此 consumer 会收到一个错误。
@@ -82,8 +82,10 @@ SHOW TOPICS;
 
 ## 删除消费组
 
+消费者创建的时候，会给消费者指定一个消费者组，消费者不能显式的删除，但是可以删除消费者组。如果当前消费者组里有消费者在消费，通过 FORCE 语法可强制删除，强制删除后订阅的消费者会消费数据会出错（FORCE 语法 3.3.6.0 版本开始支持）。
+
 ```sql
-DROP CONSUMER GROUP [IF EXISTS] cgroup_name ON topic_name;
+DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
 ```
 
 删除主题 topic_name 上的消费组 cgroup_name。

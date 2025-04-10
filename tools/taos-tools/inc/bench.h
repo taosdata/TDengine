@@ -20,6 +20,11 @@
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+#include "pub.h"
+
 #ifdef LINUX
 
 #ifndef _ALPINE
@@ -69,12 +74,10 @@
 #include <stdarg.h>
 
 #include <taos.h>
+#include "decimal.h"
 #include <toolsdef.h>
 #include <taoserror.h>
-
-#ifdef WEBSOCKET
-#include <taosws.h>
-#endif
+#include "../../inc/pub.h"
 
 #ifdef WINDOWS
 #define _CRT_RAND_S
@@ -138,6 +141,8 @@ typedef unsigned __int32 uint32_t;
 #define BOOL_BUFF_LEN       6
 #define FLOAT_BUFF_LEN      22
 #define DOUBLE_BUFF_LEN     42
+#define DECIMAL_BUFF_LEN    41
+#define DECIMAL64_BUFF_LEN  21
 #define TIMESTAMP_BUFF_LEN  21
 #define PRINT_STAT_INTERVAL 30 * 1000
 #define DEFAULT_HOST        "localhost"
@@ -149,7 +154,7 @@ typedef unsigned __int32 uint32_t;
 
 #define MAX_JSON_BUFF 6400000
 
-#define INPUT_BUF_LEN         256
+#define INPUT_BUF_LEN         512
 #define EXTRA_SQL_LEN         256
 #define DATATYPE_BUFF_LEN     (TINY_BUFF_LEN * 3)
 #define SML_MAX_BATCH          65536 * 32
@@ -254,18 +259,10 @@ typedef unsigned __int32 uint32_t;
     "when keep trying be enabled."
 #define BENCH_NODROP "Do not drop database."
 
-#ifdef WEBSOCKET
-#define BENCH_DSN "The dsn to connect the cloud service."
-#define BENCH_TIMEOUT     \
-    "The timeout wait on websocket query in seconds, default is 10."
-#endif
-
 
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
-
-
 
 enum TEST_MODE {
     INSERT_TEST,     // 0
@@ -278,11 +275,9 @@ enum enumSYNC_MODE { SYNC_MODE, ASYNC_MODE, MODE_BUT };
 
 enum enum_TAOS_INTERFACE {
     TAOSC_IFACE,
-    REST_IFACE,
     STMT_IFACE,
     STMT2_IFACE,
     SML_IFACE,
-    SML_REST_IFACE,
     INTERFACE_BUT
 };
 
@@ -397,6 +392,11 @@ typedef struct SChildField {
 #define ARG_OPT_THREAD 0x0000000000000002
 extern uint64_t g_argFlag;
 
+typedef union {
+    Decimal64 dec64;
+    Decimal128 dec128;
+} BDecimal;
+
 typedef struct SField {
     uint8_t  type;
     char     name[TSDB_COL_NAME_LEN + 1];
@@ -408,8 +408,13 @@ typedef struct SField {
     int64_t  min;
     double   maxInDbl;
     double   minInDbl;
+    uint8_t precision;
+    uint8_t scale;
     uint32_t scalingFactor;
     tools_cJSON *  values;
+
+    BDecimal decMax;
+    BDecimal decMin;
 
     // fun
     uint8_t  funType;
@@ -475,6 +480,13 @@ typedef struct SChildTable_S {
     int32_t   pkCur;
     int32_t   pkCnt;
 } SChildTable;
+
+typedef enum {
+    CSV_COMPRESS_NONE       = 0,
+    CSV_COMPRESS_FAST       = 1,
+    CSV_COMPRESS_BALANCE    = 6,
+    CSV_COMPRESS_BEST       = 9
+} CsvCompressionLevel;
 
 #define PRIMARY_KEY "PRIMARY KEY"
 typedef struct SSuperTable_S {
@@ -578,6 +590,15 @@ typedef struct SSuperTable_S {
 
     // execute sqls after create super table
     char **sqls;
+
+    char*     csv_file_prefix;
+    char*     csv_ts_format;
+    char*     csv_ts_interval;
+    char*     csv_tbname_alias;
+    long      csv_ts_intv_secs;
+    bool      csv_output_header;
+    CsvCompressionLevel csv_compress_level;
+
 } SSuperTable;
 
 typedef struct SDbCfg_S {
@@ -617,10 +638,8 @@ typedef struct SDataBase_S {
     int         durMinute;  // duration minutes
     BArray     *cfgs;
     BArray     *superTbls;
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     int32_t     vgroups;
     BArray      *vgArray;
-#endif  // TD_VER_COMPATIBLE_3_0_0_0
     bool        flush;
 } SDataBase;
 
@@ -648,6 +667,7 @@ typedef struct SpecifiedQueryInfo_S {
     TAOS_RES *res[MAX_QUERY_SQL_COUNT];
     uint64_t  totalQueried;
     bool      mixed_query;
+    bool      batchQuery; // mixed query have batch and no batch query
     // error rate
     uint64_t  totalFail;
 } SpecifiedQueryInfo;
@@ -745,7 +765,6 @@ typedef struct SArguments_S {
     uint64_t            insert_interval;
     bool                demo_mode;
     bool                aggr_func;
-    struct sockaddr_in  serv_addr;
     uint64_t            totalChildTables;
     uint64_t            actualChildTables;
     uint64_t            autoCreatedChildTables;
@@ -759,30 +778,27 @@ typedef struct SArguments_S {
 #endif
     bool                terminate;
     bool                in_prompt;
-#ifdef WEBSOCKET
-    int32_t             timeout;
+    
+    // websocket
     char*               dsn;
-    bool                websocket;
-#endif
+
     bool                supplementInsert;
     int64_t             startTimestamp;
     int32_t             partialColNum;
     int32_t             keep_trying;
     uint32_t            trying_interval;
     int                 iface;
-    int                 rest_server_ver_major;
     bool                check_sql;
     int                 suit;  // see define SUIT_
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     int16_t             inputted_vgroups;
-#endif
     enum CONTINUE_IF_FAIL_MODE continueIfFail;
     bool                mistMode;
     bool                escape_character;
     bool                pre_load_tb_meta;
-    char                csvPath[MAX_FILE_NAME_LEN];
-
     bool                bind_vgroup;
+    int8_t              connMode; // see define CONN_MODE_
+    char*               output_path;
+    char                output_path_buf[MAX_PATH_LEN];
 } SArguments;
 
 typedef struct SBenchConn {
@@ -790,10 +806,6 @@ typedef struct SBenchConn {
     TAOS* ctaos;  // check taos
     TAOS_STMT* stmt;
     TAOS_STMT2* stmt2;
-#ifdef WEBSOCKET
-    WS_TAOS* taos_ws;
-    WS_STMT* stmt_ws;
-#endif
 } SBenchConn;
 
 #define MAX_BATCOLS 256
@@ -840,9 +852,7 @@ typedef struct SThreadInfo_S {
     BArray*     delayList;
     uint64_t    *query_delay_list;
     double      avg_delay;
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     SVGroup     *vg;
-#endif
 
     int         posOfTblCreatingBatch;
     int         posOfTblCreatingInterval;
@@ -918,25 +928,18 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 void    setupForAnsiEscape(void);
 void    resetAfterAnsiEscape(void);
 char *  convertDatatypeToString(int type);
-int     convertStringToDatatype(char *type, int length);
+int32_t strCompareN(char *str1, char *str2, int length);
+int     convertStringToDatatype(char *type, int length, void* ctx);
 unsigned int     taosRandom();
 void    tmfree(void *buf);
 void    tmfclose(FILE *fp);
 int64_t fetchResult(TAOS_RES *res, char *filePath);
 void    prompt(bool NonStopMode);
 void    ERROR_EXIT(const char *msg);
-int     getServerVersionRest(int16_t rest_port);
-int     postProceSql(char *sqlstr, char* dbName, int precision, int iface,
-                    int protocol, uint16_t rest_port, bool tcp,
-                    int sockfd, char* filePath);
 int     queryDbExecCall(SBenchConn *conn, char *command);
-int     queryDbExecRest(char *command, char* dbName, int precision,
-                    int iface, int protocol, bool tcp, int sockfd);
 SBenchConn* initBenchConn();
 void    closeBenchConn(SBenchConn* conn);
 int     regexMatch(const char *s, const char *reg, int cflags);
-int     convertHostToServAddr(char *host, uint16_t port,
-                              struct sockaddr_in *serv_addr);
 int     getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
                                     char ** childTblNameOfSuperTbl,
                                     int64_t childTblCountOfSuperTbl);
@@ -982,9 +985,6 @@ int  insertTestProcess();
 void postFreeResource();
 int queryTestProcess();
 int subscribeTestProcess();
-int convertServAddr(int iface, bool tcp, int protocol);
-int createSockFd();
-void destroySockFd(int sockfd);
 
 void printVersion();
 int32_t benchParseSingleOpt(int32_t key, char* arg);
@@ -1013,11 +1013,16 @@ int64_t tmpInt64Impl(Field *field, int32_t angle, int32_t k);
 uint64_t tmpUint64Impl(Field *field, int32_t angle, int64_t k);
 float tmpFloatImpl(Field *field, int i, int32_t angle, int32_t k);
 double tmpDoubleImpl(Field *field, int32_t angle, int32_t k);
+Decimal64 tmpDecimal64Impl(Field* field, int32_t angle, int32_t k);
+Decimal128 tmpDecimal128Impl(Field* field, int32_t angle, int32_t k);
 int tmpStr(char *tmp, int iface, Field *field, int64_t k);
 int tmpGeometry(char *tmp, int iface, Field *field, int64_t k);
 int tmpInt32ImplTag(Field *field, int i, int k);
 
 char* genQMark( int32_t QCnt);
+// get colNames , first is tbname if tbName is true
+char *genColNames(BArray *cols, bool tbName);
+
 // stmt2
 TAOS_STMT2_BINDV* createBindV(int32_t count, int32_t tagCnt, int32_t colCnt);
 // clear bindv table count tables tag and column
@@ -1025,9 +1030,6 @@ void resetBindV(TAOS_STMT2_BINDV *bindv, int32_t capacity, int32_t tagCnt, int32
 void clearBindV(TAOS_STMT2_BINDV *bindv);
 void freeBindV(TAOS_STMT2_BINDV *bindv);
 void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols);
-
-// IFace is rest return True
-bool isRest(int32_t iface);
 
 // get group index about dbname.tbname
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
@@ -1044,5 +1046,23 @@ void *queryKiller(void *arg);
 int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
+// call engine error
+void engineError(char * module, char * fun, int32_t code);
+
+// trim prefix suffix blank cmp
+int trimCaseCmp(char *str1,char *str2);
+
+void doubleToDecimal64(double val, uint8_t precision, uint8_t scale, Decimal64* dec);
+void doubleToDecimal128(double val, uint8_t precision, uint8_t scale, Decimal128* dec);
+void stringToDecimal64(const char* str, uint8_t precision, uint8_t scale, Decimal64* dec);
+void stringToDecimal128(const char* str, uint8_t precision, uint8_t scale, Decimal128* dec);
+int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size);
+int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size);
+void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec);
+void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec);
+void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec);
+void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec);
+int decimal64BCompare(const Decimal64* a, const Decimal64* b);
+int decimal128BCompare(const Decimal128* a, const Decimal128* b);
 
 #endif   // INC_BENCH_H_

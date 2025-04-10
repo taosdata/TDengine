@@ -87,7 +87,8 @@ int smlProcess_telnet_Test() {
   const char *sql1[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
                         "sys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   ",
                         "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
-                        " sys.procs.running   1479496100 42 host=web01   "};
+                        " sys.procs.running   1479496100 42 host=web01   ",
+                        " newline   1479496100 42 host=web\n01 t=fsb\n  "};
 
   //  for(int i = 0; i < 4; i++){
   //    strncpy(sql[i], sql1[i], 128);
@@ -2355,12 +2356,35 @@ int sml_td17324_Test() {
   return code;
 }
 
+int smlProcess_34114_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_34114_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_34114_db");
+  taos_free_result(pRes);
+
+  char *sql = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0 \nsys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   "};
+  int32_t totalRows = 0;
+  pRes = taos_schemaless_insert_raw(taos, sql, strlen(sql), &totalRows, TSDB_SML_TELNET_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   if (argc == 2) {
     taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
   }
 
-  int ret = smlProcess_json0_Test();
+  int ret = smlProcess_34114_Test();
+  ASSERT(!ret);
+  ret = smlProcess_json0_Test();
   ASSERT(!ret);
   ret = sml_ts5528_test();
   ASSERT(!ret);

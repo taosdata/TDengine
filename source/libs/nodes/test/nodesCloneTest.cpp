@@ -91,6 +91,7 @@ TEST_F(NodesCloneTest, stateWindow) {
     SStateWindowNode* pDstNode = (SStateWindowNode*)pDst;
     ASSERT_EQ(nodeType(pSrcNode->pCol), nodeType(pDstNode->pCol));
     ASSERT_EQ(nodeType(pSrcNode->pExpr), nodeType(pDstNode->pExpr));
+    ASSERT_EQ(nodeType(pSrcNode->pTrueForLimit), nodeType(pDstNode->pTrueForLimit));
   });
 
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
@@ -102,6 +103,7 @@ TEST_F(NodesCloneTest, stateWindow) {
     SStateWindowNode* pNode = (SStateWindowNode*)srcNode.get();
     code = nodesMakeNode(QUERY_NODE_COLUMN, &pNode->pCol);
     code = nodesMakeNode(QUERY_NODE_OPERATOR, &pNode->pExpr);
+    code = nodesMakeNode(QUERY_NODE_VALUE, &pNode->pTrueForLimit);
     return srcNode.get();
   }());
 }

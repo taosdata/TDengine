@@ -413,7 +413,7 @@ For the OpenTSDB text protocol, the parsing of timestamps follows its official p
                                                 const char *lines,
                                                 int len,
                                                 int32_t *totalRows,
-                                                int protocal,
+                                                int protocol,
                                                 int precision,
                                                 int ttl,
                                                 uint64_t reqid)`
@@ -510,7 +510,6 @@ For the OpenTSDB text protocol, the parsing of timestamps follows its official p
     - tmq: [Input] Points to a valid ws_tmq_t structure pointer, which represents a TMQ consumer object.
     - timeout: [Input] Polling timeout in milliseconds, a negative number indicates a default timeout of 1 second.
   - **Return Value**: Non-`NULL`: Success, returns a pointer to a WS_RES structure, which contains the received message. `NULL`: indicates no data, the error code can be obtained through ws_errno (NULL), please refer to the reference manual for specific error message. WS_RES results are consistent with taos_query results, and information in WS_RES can be obtained through various query interfaces, such as schema, etc.
-  
 - `int32_t ws_tmq_consumer_close(ws_tmq_t *tmq)`
   - **Interface Description**: Used to close the ws_tmq_t structure. Must be used in conjunction with ws_tmq_consumer_new.
     - tmq: [Input] Points to a valid ws_tmq_t structure pointer, which represents a TMQ consumer object.
@@ -683,7 +682,7 @@ The basic API is used to establish database connections and provide a runtime en
   - **Interface Description**: Cleans up the runtime environment, should be called before the application exits.
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
-  - **Interface Description**: Sets client options, currently supports locale (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), timezone (`TSDB_OPTION_TIMEZONE`), and configuration file path (`TSDB_OPTION_CONFIGDIR`). Locale, character set, and timezone default to the current settings of the operating system.
+  - **Interface Description**: Sets client options, currently supports locale (`TSDB_OPTION_LOCALE`), character set (`TSDB_OPTION_CHARSET`), timezone (`TSDB_OPTION_TIMEZONE`), configuration file path (`TSDB_OPTION_CONFIGDIR`), and driver type (`TSDB_OPTION_DRIVER`). Locale, character set, and timezone default to the current settings of the operating system. The driver type can be either the native interface(`native`) or the WebSocket interface(`websocket`), with the default being `websocket`.
   - **Parameter Description**:
     - `option`: [Input] Setting item type.
     - `arg`: [Input] Setting item value.
@@ -830,6 +829,12 @@ This section introduces APIs that are all synchronous interfaces. After being ca
   - **Parameter Description**:
     - res: [Input] Result set.
   - **Return Value**: Non-`NULL`: successful, returns a pointer to a TAOS_FIELD structure, each element representing the metadata of a column. `NULL`: failure.
+
+- `TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res)`
+  - **Interface Description**: Retrieves the attributes of each column in the query result set (column name, data type, column length). Used in conjunction with `taos_num_fields()`, it can be used to parse the data of a tuple (a row) returned by `taos_fetch_row()`. In addition to the basic information provided by TAOS_FIELD, TAOS_FIELD_E also includes `precision` and `scale` information for the data type.
+  - **Parameter Description**:
+    - res: [Input] Result set.
+  - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_FIELD_E structure, where each element represents the metadata of a column. `NULL`: Failure.
 
 - `void taos_stop_query(TAOS_RES *res)`
   - **Interface Description**: Stops the execution of the current query.
@@ -1122,10 +1127,14 @@ In addition to using SQL or parameter binding APIs to insert data, you can also 
     - conf: [Input] Pointer to a valid tmq_conf_t structure, representing a TMQ configuration object.
     - key: [Input] Configuration item key name.
     - value: [Input] Configuration item value.
-  - **Return Value**: Returns a tmq_conf_res_t enum value, indicating the result of the configuration setting.
-    - TMQ_CONF_OK: Successfully set the configuration item.
-    - TMQ_CONF_INVALID_KEY: Invalid key value.
-    - TMQ_CONF_UNKNOWN: Invalid key name.
+  - **Return Value**: Returns a tmq_conf_res_t enum value, indicating the result of the configuration setting. tmq_conf_res_t defined as follows:
+    ```
+    typedef enum tmq_conf_res_t {
+         TMQ_CONF_UNKNOWN = -2,  // invalid key
+         TMQ_CONF_INVALID = -1,  // invalid value
+         TMQ_CONF_OK = 0,        // success
+       } tmq_conf_res_t;
+    ```
 
 - `void tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
   - **Interface Description**: Sets the auto-commit callback function in the TMQ configuration object.
@@ -1196,7 +1205,7 @@ In addition to using SQL or parameter binding APIs to insert data, you can also 
     - tmq: [Input] Points to a valid tmq_t structure pointer, representing a TMQ consumer object.
     - timeout: [Input] Polling timeout in milliseconds, a negative number indicates a default timeout of 1 second.
   - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_RES structure containing the received messages. `NULL`: indicates no data, the error code can be obtained through taos_errno (NULL), please refer to the reference manual for specific error message. TAOS_RES results are consistent with taos_query results, and information in TAOS_RES can be obtained through various query interfaces, such as schema, etc.
-  
+
 - `int32_t tmq_consumer_close(tmq_t *tmq)`
   - **Interface Description**: Used to close a tmq_t structure. Must be used in conjunction with tmq_consumer_new.
     - tmq: [Input] Points to a valid tmq_t structure pointer, which represents a TMQ consumer object.

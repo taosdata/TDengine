@@ -371,6 +371,11 @@ static int32_t mndProcessCreateAnodeReq(SRpcMsg *pReq) {
   SAnodeObj       *pObj = NULL;
   SMCreateAnodeReq createReq = {0};
 
+  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+    mError("failed to create anode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
+
   TAOS_CHECK_GOTO(tDeserializeSMCreateAnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("anode:%s, start to create", createReq.url);
@@ -842,10 +847,10 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
   SAnalyticsUrl             url;
   int32_t              nameLen;
   char                 name[TSDB_ANALYTIC_ALGO_KEY_LEN];
-  SRetrieveAnalAlgoReq req = {0};
-  SRetrieveAnalAlgoRsp rsp = {0};
+  SRetrieveAnalyticsAlgoReq req = {0};
+  SRetrieveAnalyticAlgoRsp rsp = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeRetrieveAnalAlgoReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeRetrieveAnalyticAlgoReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
 
   rsp.ver = sdbGetTableVer(pSdb, SDB_ANODE);
   if (req.analVer != rsp.ver) {
@@ -901,15 +906,15 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
     }
   }
 
-  int32_t contLen = tSerializeRetrieveAnalAlgoRsp(NULL, 0, &rsp);
+  int32_t contLen = tSerializeRetrieveAnalyticAlgoRsp(NULL, 0, &rsp);
   void   *pHead = rpcMallocCont(contLen);
-  (void)tSerializeRetrieveAnalAlgoRsp(pHead, contLen, &rsp);
+  (void)tSerializeRetrieveAnalyticAlgoRsp(pHead, contLen, &rsp);
 
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pHead;
 
 _OVER:
-  tFreeRetrieveAnalAlgoRsp(&rsp);
+  tFreeRetrieveAnalyticAlgoRsp(&rsp);
   TAOS_RETURN(code);
 }
 

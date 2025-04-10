@@ -145,6 +145,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
   if (!hasWncheck) {
     qDebug("%s forecast wncheck not found from %s, use default:%" PRId64, id, pSupp->algoOpt, wncheck);
   }
+
   code = taosAnalyBufWriteOptInt(pBuf, "wncheck", wncheck);
   if (code != 0) return code;
 
@@ -158,10 +159,16 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
     qDebug("%s forecast rows not found from %s, use default:%" PRId64, id, pSupp->algoOpt, pSupp->optRows);
   }
 
-  if (pSupp->optRows > ANALY_FORECAST_MAX_ROWS) {
-    qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_FORECAST_MAX_ROWS,
+  if (pSupp->optRows > ANALY_FORECAST_RES_MAX_ROWS) {
+    qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_FORECAST_RES_MAX_ROWS,
            pSupp->optRows);
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
+  }
+
+  if (pSupp->cachedRows < ANALY_FORECAST_MIN_ROWS) {
+    qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_FORECAST_RES_MAX_ROWS,
+           pSupp->optRows);
+    return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
   }
 
   code = taosAnalyBufWriteOptInt(pBuf, "forecast_rows", pSupp->optRows);
@@ -235,7 +242,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     }
 
     tjsonDelete(pJson);
-    return TSDB_CODE_ANA_WN_DATA;
+    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
   }
 
   if (code < 0) {
@@ -518,7 +525,7 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs) {
           pSupp->inputPrecision = pTsNode->node.resType.precision;
           pSupp->inputValSlot = pValNode->slotId;
           pSupp->inputValType = pValNode->node.resType.type;
-          tstrncpy(pSupp->algoOpt, "algo=arima", TSDB_ANALYTIC_ALGO_OPTION_LEN);
+          tstrncpy(pSupp->algoOpt, "algo=holtwinters", TSDB_ANALYTIC_ALGO_OPTION_LEN);
         } else {
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }

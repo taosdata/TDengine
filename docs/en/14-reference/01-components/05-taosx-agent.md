@@ -4,6 +4,10 @@ sidebar_label: taosX Agent
 slug: /tdengine-reference/components/taosx-agent
 ---
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section discusses how to deploy `Agent` (for `taosX`). Before using it, you need to install the TDengine Enterprise package. taosX-Agent is used in some data access scenarios, such as Pi, OPC UA, OPC DA, etc., where there are certain restrictions on accessing data sources or the network environment is special. In such cases, taosX-Agent can be deployed close to the data source or even on the same server as the data source, and it is responsible for reading data from the data source and sending it to taosX.
 
 ## Configuration

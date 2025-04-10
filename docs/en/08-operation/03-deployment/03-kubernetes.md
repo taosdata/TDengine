@@ -339,20 +339,272 @@ Helm operates Kubernetes using kubectl and kubeconfig configurations, which can 
 The TDengine Chart has not yet been released to the Helm repository, it can currently be downloaded directly from GitHub:
 
 ```shell
-wget https://github.com/taosdata/TDengine-Operator/raw/refs/heads/3.0/helm/tdengine-enterprise-3.5.0.tgz
+wget https://github.com/taosdata/TDengine-Operator/raw/refs/heads/3.0/helm/tdengine-3.5.0.tgz
 ```
-
-Note that it's for the enterprise edition, and the community edition is not yet available.
 
 Follow the steps below to install the TDengine Chart:
 
 ```shell
 # Edit the values.yaml file to set the topology of the cluster
 vim values.yaml
-helm install tdengine tdengine-enterprise-3.5.0.tgz -f values.yaml
+helm install tdengine tdengine-3.5.0.tgz -f values.yaml
 ```
 
-#### Case 1: Simple 1-node Deployment
+If you are using community images, you can use the following command to install TDengine with Helm Chart:
+
+<details>
+<summary>Helm Chart Use Cases for Community</summary>
+
+#### Community Case 1: Simple 1-node Deployment
+
+The following is a simple example of deploying a single-node TDengine cluster using Helm.
+
+```yaml
+# This example is a simple deployment with one server replica.
+name: "tdengine"
+
+image:
+  repository: # Leave a trailing slash for the repository, or "" for no repository
+  server: tdengine/tdengine:latest
+
+# Set timezone here, not in taoscfg
+timezone: "Asia/Shanghai"
+
+labels:
+  app: "tdengine"
+  # Add more labels as needed.
+
+services:
+  server:
+    type: ClusterIP
+    replica: 1
+    ports:
+      # TCP range required
+      tcp: [6041, 6030, 6060]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+    files:
+      - name: cfg # must be lower case.
+        mountPath: /etc/taos/taos.cfg
+        content: |
+          dataDir /var/lib/taos/
+          logDir /var/log/taos/
+```
+
+Let's explain the above configuration:
+
+- name: The name of the deployment, here it is "tdengine".
+- image:
+  - repository: The image repository address, remember to leave a trailing slash for the repository, or set it to an empty string to use docker.io.
+  - server: The specific name and tag of the server image. You need to ask your business partner for the TDengine Enterprise image.
+- timezone: Set the timezone, here it is "Asia/Shanghai".
+- labels: Add labels to the deployment, here is an app label with the value "tdengine", more labels can be added as needed.
+- services:
+  - server: Configure the server service.
+    - type: The service type, here it is **ClusterIP**.
+    - replica: The number of replicas, here it is 1.
+    - ports: Configure the ports of the service.
+      - tcp: The required TCP port range, here it is [6041, 6030, 6060].
+      - udp: The optional UDP port range, which is not configured here.
+    - volumes: Configure the volumes.
+      - name: The name of the volume, here there are two volumes, data and log.
+      - mountPath: The mount path of the volume.
+      - spec: The specification of the volume.
+        - storageClassName: The storage class name, here it is **local-path**.
+        - accessModes: The access mode, here it is **ReadWriteOnce**.
+        - resources.requests.storage: The requested storage size, here it is **10Gi**.
+    - files: Configure the files to mount in TDengine server.
+      - name: The name of the file, here it is **cfg**.
+      - mountPath: The mount path of the file, which is **taos.cfg**.
+      - content: The content of the file, here the **dataDir** and **logDir** are configured.
+
+After configuring the values.yaml file, use the following command to install the TDengine Chart:
+
+```shell
+helm install simple tdengine-3.5.0.tgz -f values.yaml
+```
+
+After installation, you can see the instructions to see the status of the TDengine cluster:
+
+```shell
+NAME: simple
+LAST DEPLOYED: Sun Feb  9 13:40:00 2025 default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+1. Get first POD name:
+                                                                                                           
+export POD_NAME=$(kubectl get pods --namespace default \
+  -l "app.kubernetes.io/name=tdengine,app.kubernetes.io/instance=simple" -o jsonpath="{.items[0].metadata.name}")
+
+2. Show dnodes/mnodes:
+
+kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
+
+3. Run into TDengine CLI:
+
+kubectl --namespace default exec -it $POD_NAME -- taos
+```
+
+Follow the instructions to check the status of the TDengine cluster:
+
+```shell
+root@u1-58:/data1/projects/helm# kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
+Welcome to the TDengine Command Line Interface, Client Version:3.3.5.8
+Copyright (c) 2023 by TDengine, all rights reserved.
+
+taos> show dnodes; show mnodes
+     id      |            endpoint            | vnodes | support_vnodes |    status    |       create_time       |       reboot_time       |              note              |
+=============================================================================================================================================================================
+           1 | oss-tdengine-0.oss-tdengine... |      0 |             21 | ready        | 2025-03-12 19:05:42.224 | 2025-03-12 19:05:42.044 |                                |
+Query OK, 1 row(s) in set (0.002545s)
+
+     id      |            endpoint            |      role      |   status    |       create_time       |        role_time        |
+==================================================================================================================================
+           1 | oss-tdengine-0.oss-tdengine... | leader         | ready       | 2025-03-12 19:05:42.239 | 2025-03-12 19:05:42.137 |
+Query OK, 1 row(s) in set (0.001343s)
+```
+
+To clean up the TDengine cluster, use the following command:
+
+```shell
+helm uninstall simple
+kubectl delete pvc -l app.kubernetes.io/instance=simple
+```
+
+#### Community Case 2: 3-replica Deployment with Single taosX
+
+```yaml
+# This example shows how to deploy a 3-replica TDengine cluster with separate taosx/explorer service.
+# Users should know that the explorer/taosx service is not cluster-ready, so it is recommended to deploy it separately.
+name: "tdengine"
+
+image:
+  repository: # Leave a trailing slash for the repository, or "" for no repository
+  server: tdengine/tdengine:latest
+
+# Set timezone here, not in taoscfg
+timezone: "Asia/Shanghai"
+
+labels:
+  # Add more labels as needed.
+
+services:
+  server:
+    type: ClusterIP
+    replica: 3
+    ports:
+      # TCP range required
+      tcp: [6041, 6030]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: "10Gi"
+```
+
+You can see that the configuration is similar to the first one, with the addition of the taosx configuration. The taosx service is configured with similar storage configuration as the server service, and the server service is configured with 3 replicas. Since the taosx service is not cluster-ready, it is recommended to deploy it separately.
+
+After configuring the values.yaml file, use the following command to install the TDengine Chart:
+
+```shell
+helm install replica3 tdengine-3.5.0.tgz -f values.yaml
+```
+
+To clean up the TDengine cluster, use the following command:
+
+```shell
+helm uninstall replica3
+kubectl delete pvc -l app.kubernetes.io/instance=replica3
+```
+
+You can use the following command to expose the explorer service to the outside world with ingress:
+
+```shell
+tee replica3-ingress.yaml <<EOF
+# This is a helm chart example for deploying 3 replicas of TDengine Explorer
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: replica3-ingress
+  namespace: default
+spec:
+  rules:
+    - host: replica3.local.tdengine.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name:  replica3-tdengine-taosx
+                port:
+                  number: 6060
+EOF
+
+kubectl apply -f replica3-ingress.yaml
+```
+
+Use `kubectl get ingress` to view the ingress service.
+
+```shell
+root@server:/data1/projects/helm# kubectl get ingress
+NAME               CLASS   HOSTS                         ADDRESS        PORTS   AGE
+replica3-ingress   nginx   replica3.local.tdengine.com   192.168.1.58   80      48m
+```
+
+You can configure the domain name resolution to point to the ingress service's external IP address. For example, add the following line to the hosts file:
+
+```conf
+192.168.1.58    replica3.local.tdengine.com
+```
+
+Now you can access the explorer service through the domain name `replica3.local.tdengine.com`.
+
+```shell
+curl http://replica3.local.tdengine.com
+```
+
+</details>
+
+With TDengine Enterprise images, you can use the following command to install TDengine with Helm Chart:
+
+<details>
+<summary>Helm Chart Use Cases for Enterprise</summary>
+
+#### Enterprise Case 1: Simple 1-node Deployment
 
 The following is a simple example of deploying a single-node TDengine cluster using Helm.
 
@@ -435,7 +687,7 @@ Let's explain the above configuration:
 After configuring the values.yaml file, use the following command to install the TDengine Chart:
 
 ```shell
-helm install simple tdengine-enterprise-3.5.0.tgz -f values.yaml
+helm install simple tdengine-3.5.0.tgz -f values.yaml
 ```
 
 After installation, you can see the instructions to see the status of the TDengine cluster:
@@ -487,7 +739,7 @@ helm uninstall simple
 kubectl delete pvc -l app.kubernetes.io/instance=simple
 ```
 
-#### Case 2: Tiered-Storage Deployment
+#### Enterprise Case 2: Tiered-Storage Deployment
 
 The following is an example of deploying a TDengine cluster with tiered storage using Helm.
 
@@ -563,10 +815,10 @@ You can see that the configuration is similar to the previous one, with the addi
 After configuring the values.yaml file, use the following command to install the TDengine Chart:
 
 ```shell
-helm install tiered tdengine-enterprise-3.5.0.tgz -f values.yaml
+helm install tiered tdengine-3.5.0.tgz -f values.yaml
 ```
 
-#### Case 3: 2-replica Deployment
+#### Enterprise Case 3: 2-replica Deployment
 
 TDengine support 2-replica deployment with an arbitrator, which can be configured as follows:
 
@@ -634,7 +886,7 @@ services:
 
 You can see that the configuration is similar to the first one, with the addition of the arbitrator configuration. The arbitrator service is configured with the same storage as the server service, and the server service is configured with 2 replicas (the arbitrator should be 1 replica and not able to be changed).
 
-#### Case 4: 3-replica Deployment with Single taosX
+#### Enterprise Case 4: 3-replica Deployment with Single taosX
 
 ```yaml
 # This example shows how to deploy a 3-replica TDengine cluster with separate taosx/explorer service.
@@ -761,7 +1013,7 @@ You can see that the configuration is similar to the first one, with the additio
 After configuring the values.yaml file, use the following command to install the TDengine Chart:
 
 ```shell
-helm install replica3 tdengine-enterprise-3.5.0.tgz -f values.yaml
+helm install replica3 tdengine-3.5.0.tgz -f values.yaml
 ```
 
 You can use the following command to expose the explorer service to the outside world with ingress:
@@ -810,3 +1062,5 @@ Now you can access the explorer service through the domain name `replica3.local.
 ```shell
 curl http://replica3.local.tdengine.com
 ```
+
+</details>

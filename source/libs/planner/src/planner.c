@@ -37,10 +37,39 @@ static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
   char* pStr = NULL;
   code = nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    planDebugL("QID:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
+    planDebugL("QID:0x%" PRIx64 ", Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
     taosMemoryFree(pStr);
   }
   return code;
+}
+
+static void printPlanNode(SLogicNode *pNode, int32_t level) {
+  // print pnode and it's child for each level
+  const char *nodename = nodesNodeName(nodeType((pNode)));
+  for (int32_t i = 0; i < level; i++) {
+    printf("    ");
+  }
+  printf("%s\n", nodename);
+  SNode *tmp = NULL;
+  FOREACH(tmp, pNode->pChildren) {
+    printPlanNode((SLogicNode *)tmp, level + 1);
+  }
+  return;
+}
+
+static void dumpLogicPlan(SLogicSubplan* pLogicSubplan, int32_t level) {
+  for (int32_t i = 0; i < level; i++) {
+    printf("    ");
+  }
+  printf("Sub Plan:\n");
+  if (pLogicSubplan->pNode) {
+     printPlanNode(pLogicSubplan->pNode, level);
+  }
+  SNode *pNode = NULL;
+  FOREACH(pNode, pLogicSubplan->pChildren) {
+    dumpLogicPlan((SLogicSubplan *)pNode, level + 2);
+  }
+  return;
 }
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
@@ -60,6 +89,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
   }
+  //dumpLogicPlan((SLogicSubplan*)pLogicPlan->pTopSubplans->pHead->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
   }
@@ -123,7 +153,7 @@ int32_t qContinuePlanPostQuery(void* pPostPlan) {
 }
 
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
-  planDebug("QID:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);
+  planDebug("QID:0x%" PRIx64 ", set subplan execution node, groupId:%d", subplan->id.queryId, groupId);
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);
 }
 
@@ -143,7 +173,7 @@ static void clearSubplanExecutionNode(SPhysiNode* pNode) {
 }
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan) {
-  planDebug("QID:0x%" PRIx64 " clear subplan execution node, groupId:%d", pSubplan->id.queryId, pSubplan->id.groupId);
+  planDebug("QID:0x%" PRIx64 ", clear subplan execution node, groupId:%d", pSubplan->id.queryId, pSubplan->id.groupId);
   clearSubplanExecutionNode(pSubplan->pNode);
 }
 

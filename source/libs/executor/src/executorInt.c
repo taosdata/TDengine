@@ -80,7 +80,8 @@ static void    doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* p
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol);
 static void    doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                                  SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup);
+                                  SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup,
+                                  int64_t minWindowSize);
 
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, int32_t interBufSize) {
   SFilePage* pData = NULL;
@@ -846,7 +847,7 @@ _end:
 }
 
 void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup) {
+                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, int64_t minWindowSize) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SExprInfo*      pExprInfo = pSup->pExprInfo;
@@ -870,6 +871,14 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
 
     // no results, continue to check the next one
     if (pRow->numOfRows == 0) {
+      pGroupResInfo->index += 1;
+      releaseBufPage(pBuf, page);
+      continue;
+    }
+    // skip the window which is less than the windowMinSize
+    if (pRow->win.ekey - pRow->win.skey < minWindowSize) {
+      qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64, pPos->groupId,
+             pRow->win.ekey - pRow->win.skey, minWindowSize);
       pGroupResInfo->index += 1;
       releaseBufPage(pBuf, page);
       continue;
@@ -937,11 +946,11 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   pBlock->info.id.groupId = 0;
   if (!pbInfo->mergeResultBlock) {
     doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
-                       false);
+                       false, getMinWindowSize(pOperator));
   } else {
     while (hasRemainResults(pGroupResInfo)) {
       doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
-                         true);
+                         true, getMinWindowSize(pOperator));
       if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
         break;
       }
@@ -1184,8 +1193,9 @@ void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
   }
 
   taosArrayDestroy(pParam->pChildren);
+  pParam->pChildren = NULL;
 
-  taosMemoryFree(pParam->value);
+  taosMemoryFreeClear(pParam->value);
 
   taosMemoryFree(pParam);
 }
@@ -1193,6 +1203,10 @@ void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
 void freeExchangeGetBasicOperatorParam(void* pParam) {
   SExchangeOperatorBasicParam* pBasic = (SExchangeOperatorBasicParam*)pParam;
   taosArrayDestroy(pBasic->uidList);
+  if (pBasic->colMap) {
+    taosArrayDestroy(pBasic->colMap->colMap);
+    taosMemoryFreeClear(pBasic->colMap);
+  }
 }
 
 void freeExchangeGetOperatorParam(SOperatorParam* pParam) {
@@ -1220,13 +1234,31 @@ void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
   STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
+  if (pTableScanParam->pOrgTbInfo) {
+    taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
+    taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
+  }
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 
 void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeOpParamItem(void* pItem) {
+  SOperatorParam* pParam = *(SOperatorParam**)pItem;
+  pParam->reUse = false;
+  freeOperatorParam(pParam, OP_GET_PARAM);
+}
+
+void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
+  SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
+  taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeVTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
-  if (NULL == pParam) {
+  if (NULL == pParam || pParam->reUse) {
     return;
   }
 
@@ -1242,6 +1274,9 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       type == OP_GET_PARAM ? freeTableScanGetOperatorParam(pParam) : freeTableScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      type == OP_GET_PARAM ? freeVirtualTableScanGetOperatorParam(pParam) : freeVTableScanNotifyOperatorParam(pParam);
       break;
     default:
       qError("unsupported op %d param, type %d", pParam->opType, type);

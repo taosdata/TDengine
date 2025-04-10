@@ -224,7 +224,7 @@ int32_t tfileReaderCreate(IFileCtx* ctx, TFileReader** pReader) {
 
   if ((code = tfileReaderLoadFst(reader)) != 0) {
     indexError("failed to load index fst, suid:%" PRIu64 ", colName:%s, code:0x%x", reader->header.suid,
-               reader->header.colName, errno);
+               reader->header.colName, ERRNO);
     TAOS_CHECK_GOTO(code, NULL, _End);
   }
 
@@ -598,12 +598,12 @@ int32_t tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char*
 
   IFileCtx* wc = idxFileCtxCreate(TFILE, fullname, true, 1024 * 1024 * 1024);
   if (wc == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     indexError("failed to open readonly file: %s, reason: %s", fullname, tstrerror(code));
     return code;
   }
   wc->lru = idx->lru;
-  indexTrace("open read file name:%s, file size: %" PRId64 "", wc->file.buf, wc->file.size);
+  indexTrace("open read file name:%s, file size: %" PRId64, wc->file.buf, wc->file.size);
 
   return tfileReaderCreate(wc, pReader);
 }
@@ -787,7 +787,7 @@ int idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
     return 0;
   }
   int64_t cost = taosGetTimestampUs() - st;
-  indexInfo("index tfile stage 1 cost: %" PRId64 "", cost);
+  indexInfo("index tfile stage 1 cost: %" PRId64, cost);
 
   return tfileReaderSearch(reader, query, result);
 }
@@ -987,7 +987,7 @@ static int tfileWriteHeader(TFileWriter* writer) {
   indexInfo("tfile pre write header size: %d", writer->ctx->size(writer->ctx));
   int nwrite = writer->ctx->write(writer->ctx, buf, sizeof(buf));
   if (sizeof(buf) != nwrite) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     indexError("failed to write header, code:0x%x, filename: %s", code, writer->ctx->file.buf);
     return code;
   }
@@ -1016,7 +1016,7 @@ static int tfileWriteFooter(TFileWriter* write) {
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
   if (nwrite != sizeof(FILE_MAGIC_NUMBER)) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   } else {
     return nwrite;
   }
@@ -1028,7 +1028,7 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
   int64_t nread = reader->ctx->readFrom(reader->ctx, (uint8_t*)buf, sizeof(buf), 0);
 
   if (nread < 0) {
-    indexError("actual Read: %d, to read: %d, code:0x%x, filename: %s", (int)(nread), (int)sizeof(buf), errno,
+    indexError("actual Read: %d, to read: %d, code:0x%x, filename: %s", (int)(nread), (int)sizeof(buf), ERRNO,
                reader->ctx->file.buf);
   } else {
     indexInfo("actual Read: %d, to read: %d, filename: %s", (int)(nread), (int)sizeof(buf), reader->ctx->file.buf);

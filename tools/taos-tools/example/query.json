@@ -6,13 +6,13 @@
 	"user": "root",
 	"password": "taosdata",
 	"confirm_parameter_prompt": "no",
-    "continue_if_fail": "yes",
+	"continue_if_fail": "yes",
 	"databases": "test",
 	"query_times": 10,
 	"query_mode": "taosc",
 	"specified_table_query": {
 		"query_interval": 1,
-		"concurrent": 3,
+		"threads": 3,
 		"sqls": [
 			{
 				"sql": "select last_row(*) from meters",
@@ -21,17 +21,6 @@
 			{
 				"sql": "select count(*) from d0",
 				"result": "./query_res1.txt"
-			}
-		]
-	},
-	"super_table_query": {
-		"stblname": "meters",
-		"query_interval": 1,
-		"threads": 3,
-		"sqls": [
-			{
-				"sql": "select last_row(ts) from xxxx",
-				"result": "./query_res2.txt"
 			}
 		]
 	}

@@ -817,7 +817,7 @@ TEST_F(ParserInitialATest, alterUser) {
     expect.sysInfo = sysInfo;
     expect.enable = enable;
     if (nullptr != pPass) {
-      strcpy(expect.pass, pPass);
+      taosEncryptPass_c((uint8_t*)pPass, strlen(pPass), expect.pass);
     }
     strcpy(expect.objname, "test");
   };
@@ -838,8 +838,8 @@ TEST_F(ParserInitialATest, alterUser) {
     tFreeSAlterUserReq(&req);
   });
 
-  setAlterUserReq("wxy", TSDB_ALTER_USER_PASSWD, "123456");
-  run("ALTER USER wxy PASS '123456'");
+  setAlterUserReq("wxy", TSDB_ALTER_USER_PASSWD, "12345678@Abc");
+  run("ALTER USER wxy PASS '12345678@Abc'");
   clearAlterUserReq();
 
   setAlterUserReq("wxy", TSDB_ALTER_USER_ENABLE, nullptr, 0, 1);

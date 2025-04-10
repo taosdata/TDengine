@@ -72,8 +72,16 @@ TDengine Enterprise implements incremental backup and recovery of data by using 
      7. **Directory:** Enter the full path of the directory in which you want to store backup files.
      8. **Backup file max size:** Enter the maximum size of a single backup file. If the total size of your backup exceeds this number, the backup is split into multiple files.
      9. **Compression level:** Select **fastest** for the fastest performance but lowest compression ratio, **best** for the highest compression ratio but slowest performance, or **balanced** for a combination of performance and compression.
-
-4. Click **Confirm** to create the backup plan.
+4. Users can enable S3 dumping to upload backup files to the S3 storage service. To enable S3 dumping, the following information needs to be provided:
+     1. **Endpoint**: The address of the S3 endpoint.
+     2. **Access Key ID**: The access key ID for authentication.
+     3. **Secret Access Key**: The secret access key for authentication.
+     4. **Bucket**: The name of the target bucket.
+     5. **Region**: The region where the bucket is located.
+     6. **Object Prefix**: A prefix for backup file objects, similar to a directory path on S3.
+     7. **Backup Retention Period**: The retention duration for local backups. All files older than `current time - backup_retention_period` must be uploaded to S3.
+     8. **Backup Retention Count**: The number of local backups to retain. Only the latest `backup_retention_size` backup files are kept locally.
+5. Click **Confirm** to create the backup plan.
 
 You can view your backup plans and modify, clone, or delete them using the buttons in the **Operation** columns. Click **Refresh** to update the status of your plans. Note that you must stop a backup plan before you can delete it. You can also click **View** in the **Backup File** column to view the backup record points and files created by each plan.
 

@@ -138,7 +138,7 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pWriter->ever = ever;
 
   if (taosMkDir(pTq->pStreamMeta->path) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     tqError("vgId:%d, vnode %s snapshot writer failed to create directory %s since %s", TD_VID(pTq->pVnode),
             STREAM_STATE_TRANSFER, pTq->pStreamMeta->path, tstrerror(code));
     goto _err;

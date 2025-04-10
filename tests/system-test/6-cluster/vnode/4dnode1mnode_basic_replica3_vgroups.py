@@ -135,11 +135,9 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             vgroup_status = []
             for ind , role in enumerate(vgroup_info[3:-4]):
-
-                if ind%2==0:
-                    continue
-                else:
+                if role in ['leader', 'leader*', 'leader**', 'follower']:
                     vgroup_status.append(role)
+
             if vgroup_status.count("leader")!=1 or vgroup_status.count("follower")!=2:
                 status = False
                 return status

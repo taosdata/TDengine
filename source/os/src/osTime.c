@@ -26,7 +26,7 @@
 
 #include "os.h"
 
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(TD_ASTRA)
 
 #include <stdlib.h>
 #include <string.h>
@@ -82,7 +82,7 @@ static const char *am_pm[2] = {"AM", "PM"};
 
 char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
   if (!buf || !fmt || !tm) return NULL;
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(TD_ASTRA) 
   char        c;
   const char *bp;
   size_t      len = 0;
@@ -370,7 +370,7 @@ int32_t taosGetTimeOfDay(struct timeval *tv) {
   return 0;
 #else
   code = gettimeofday(tv, NULL);
-  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(errno)) : 0;
+  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;
 #endif
 }
 
@@ -380,7 +380,7 @@ int32_t taosTime(time_t *t) {
   }
   time_t r = time(t);
   if (r == (time_t)-1) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return 0;
 }
@@ -439,10 +439,16 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
 #endif
   return user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday, timep->tm_hour, timep->tm_min,
                        timep->tm_sec, tzw);
+#elif defined(TD_ASTRA)
+  time_t r =  mktime(timep);
+  if (r == (time_t)-1) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  }
+  return r;
 #else
   time_t r = (tz != NULL ? mktime_z(tz, timep) : mktime(timep));
   if (r == (time_t)-1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   timezone = -timep->tm_gmtoff;
   return r;
@@ -467,6 +473,13 @@ time_t taosTimeGm(struct tm *tmp) {
   }
 #ifdef WINDOWS
   return _mkgmtime(tmp);
+#elif defined(TD_ASTRA)
+  time_t    local = mktime(tmp);
+  struct tm local_tm = *localtime(&local);
+  struct tm utc_tm = *gmtime(&local);
+  time_t    offset = (local_tm.tm_hour - utc_tm.tm_hour) * 3600 + (local_tm.tm_min - utc_tm.tm_min) * 60 +
+                  (local_tm.tm_sec - utc_tm.tm_sec);
+  return local - offset;
 #else
   return timegm(tmp);
 #endif
@@ -529,6 +542,12 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     }
   }
   return result;
+#elif defined(TD_ASTRA)
+  res = localtime_r(timep, result);
+  if (res == NULL && buf != NULL) {
+    (void)sprintf(buf, "NaN");
+  }
+  return res;
 #else
   res = (tz != NULL ? localtime_rz(tz, timep, result) : localtime_r(timep, result));
   if (res == NULL && buf != NULL) {
@@ -558,6 +577,6 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   return (0);
 #else
   code = clock_gettime(clock_id, pTS);
-  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(errno)) : 0;
+  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;
 #endif
 }

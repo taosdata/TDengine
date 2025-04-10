@@ -17,7 +17,7 @@
 #include "ttypes.h"
 #include "tcompression.h"
 
-const int32_t TYPE_BYTES[21] = {
+const int32_t TYPE_BYTES[TSDB_DATA_TYPE_MAX] = {
     2,                      // TSDB_DATA_TYPE_NULL
     CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
     CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
@@ -35,10 +35,11 @@ const int32_t TYPE_BYTES[21] = {
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
     TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
     sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_VARBINARY
-    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
+    DECIMAL128_BYTES,        // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
     TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_BLOB: placeholder, not implemented
     TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_MEDIUMBLOB: placeholder, not implemented
     sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_GEOMETRY
+    DECIMAL64_BYTES,         // TSDB_DATA_TYPE_DECIMAL64
 };
 
 tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
@@ -62,11 +63,12 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString},
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString,
-     tsDecompressString},                                                // placeholder, not implemented
-    {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
-    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
-    {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
+     tsDecompressString},                                                        // placeholder, not implemented
+    {TSDB_DATA_TYPE_DECIMAL, 7, DECIMAL128_BYTES, "DECIMAL", 0, 0, NULL, NULL},  // placeholder, not implemented
+    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},                       // placeholder, not implemented
+    {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},          // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString},
+    {TSDB_DATA_TYPE_DECIMAL64, 7, DECIMAL64_BYTES, "DECIMAL", 0, 0, NULL, NULL},
 };
 
 tDataTypeCompress tDataCompress[TSDB_DATA_TYPE_MAX] = {
@@ -92,10 +94,11 @@ tDataTypeCompress tDataCompress[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString2, tsDecompressString2},
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString2,
      tsDecompressString2},                                               // placeholder, not implemented
-    {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
+    {TSDB_DATA_TYPE_DECIMAL, 7, DECIMAL128_BYTES, "DECIMAL", 0, 0, tsCompressDecimal128, tsDecompressDecimal128},
     {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
     {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString2, tsDecompressString2},
+    {TSDB_DATA_TYPE_DECIMAL64, 9, DECIMAL64_BYTES, "DECIMAL64", 0, 0, tsCompressDecimal64, tsDecompressDecimal64},
 
 };
 
@@ -228,4 +231,84 @@ int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
   }
 
   return 0;
+}
+
+uint8_t decimalTypeFromPrecision(uint8_t precision) {
+  return precision > TSDB_DECIMAL64_MAX_PRECISION ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64;
+}
+
+STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale) {
+  return ((STypeMod)prec << 8) + scale;
+}
+
+void decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale) {
+  if (precision) *precision = (uint8_t)((typeMod >> 8) & 0xFF);
+  if (scale) *scale = (uint8_t)(typeMod & 0xFF);
+}
+
+STypeMod typeGetTypeModFromDataType(const SDataType* pDataType) {
+  if (IS_DECIMAL_TYPE(pDataType->type)) return decimalCalcTypeMod(pDataType->precision, pDataType->scale);
+  return 0;
+}
+
+STypeMod typeGetTypeMod(uint8_t type, uint8_t prec, uint8_t scale, int32_t bytes) {
+  if (IS_DECIMAL_TYPE(type)) {
+    return decimalCalcTypeMod(prec, scale);
+  }
+  return 0;
+}
+
+void fillTypeFromTypeMod(SDataType* pType, STypeMod mod) {
+  if (IS_DECIMAL_TYPE(pType->type)) {
+    decimalFromTypeMod(mod, &pType->precision, &pType->scale);
+  }
+}
+
+void extractTypeFromTypeMod(uint8_t type, STypeMod typeMod, uint8_t *prec, uint8_t *scale, int32_t *bytes) {
+  if (IS_DECIMAL_TYPE(type)) {
+    decimalFromTypeMod(typeMod, prec, scale);
+  } else {
+    if (prec) *prec = 0;
+    if (scale) *scale = 0;
+  }
+  if (bytes) *bytes = tDataTypes[type].bytes;
+}
+
+uint8_t getScaleFromTypeMod(int32_t type, STypeMod mod) {
+  if (IS_DECIMAL_TYPE(type)) return (uint8_t)(mod & 0xFF);
+  return 0;
+}
+
+// bytes, 0, prec, scale
+void fillBytesForDecimalType(int32_t *pBytes, int32_t type, uint8_t precision, uint8_t scale) {
+  *pBytes = 0;
+  *pBytes = tDataTypes[type].bytes << 24;
+  *pBytes |= (uint32_t)precision << 8;
+  *pBytes |= scale;
+}
+
+void extractDecimalTypeInfoFromBytes(int32_t *pBytes, uint8_t *precision, uint8_t *scale) {
+  *precision = (uint8_t)((*pBytes >> 8) & 0xFF);
+  *scale = (uint8_t)(*pBytes & 0xFF);
+  *pBytes >>= 24;
+}
+
+int32_t calcTypeBytesFromSchemaBytes(int32_t type, int32_t schemaBytes, bool isStmt) {
+  if (isStmt) return schemaBytes;
+  if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+    return schemaBytes - VARSTR_HEADER_SIZE;
+  } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
+    return (schemaBytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+  }
+  return schemaBytes;
+}
+
+int32_t calcSchemaBytesFromTypeBytes(int32_t type, int32_t varTypeBytes, bool isStmt) {
+  if (isStmt) return varTypeBytes;
+  if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+    return varTypeBytes + VARSTR_HEADER_SIZE;
+  } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
+    return varTypeBytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  }
+  return varTypeBytes;
 }

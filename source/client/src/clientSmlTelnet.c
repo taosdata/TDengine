@@ -75,7 +75,7 @@ static int32_t smlProcessTagTelnet(SSmlHandle *info, char *data, char *sqlEnd){
   const char *sql = data;
   while (sql < sqlEnd) {
     JUMP_SPACE(sql, sqlEnd)
-    if (unlikely(*sql == '\0')) break;
+    if (unlikely(*sql == '\0' || *sql == '\n')) break;
 
     const char *key = sql;
     size_t      keyLen = 0;

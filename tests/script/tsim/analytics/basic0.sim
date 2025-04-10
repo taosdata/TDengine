@@ -23,8 +23,8 @@ endi
 
 print =============== show info
 sql show anodes full
-if $rows != 8 then
-  print expect 8 , actual $rows
+if $rows != 10 then
+  print expect 10 , actual $rows
   return -1
 endi
 
@@ -54,7 +54,12 @@ print ==================== insert data
 #     input_list = [5, 14, 15, 15, 14,    19, 17, 16, 20, 22,   8, 21, 28, 11, 9, 29, 40]
 sql insert into ct1(ts, c1, c2, c3, c4, c5, c6) values(now-1a, 5, 5, 5, 5, 5, 'a')(now+1a, 14, 14, 14, 14, 14, 'a')(now+2a, 15, 15, 15, 15, 15, 'a')
 sql insert into ct1 values(now+3a, 15, 15, 15, 15, 15, 'a')(now+4a, 14, 14, 14, 14, 14, 'a')(now+5a, 19, 19, 19, 19, 19, 'a')(now+6a, 17, 17, 17, 17, 17, 'a')
-sql insert into ct1 values(now+7a, 16, 16, 16, 16, 16, 'a')(now+8a, 20, 20, 20, 20, 20, 'a')(now+9a, 22, 22, 22, 22, 22, 'a')
+sql insert into ct1 values(now+7a, 16, 16, 16, 16, 16, 'a')
+
+print ==================== not enough rows
+sql_error select forecast(c6, 'algo=holtwinters, rows=10') from ct1;
+
+sql insert into ct1 values(now+8a, 20, 20, 20, 20, 20, 'a')(now+9a, 22, 22, 22, 22, 22, 'a')
 sql insert into ct1 values(now+10a, 8, 8, 8, 8, 8, 'a')(now+11a, 21, 21, 21, 21, 21, 'a')(now+12a, 28, 28, 28, 28, 28, 'a')(now+13a, 11, 11, 11, 11, 11, 'a')(now+14a, 9, 9, 9, 9, 9, 'a')
 sql insert into ct1 values(now+15a, 29, 29, 29, 29, 29, 'a')(now+16a, 40, 40, 40, 40, 40, 'a')
 

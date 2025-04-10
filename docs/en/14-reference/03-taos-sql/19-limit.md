@@ -37,6 +37,6 @@ Removed `` ‘“`\ `` (single and double quotes, apostrophe, backslash, space)
 - Number of databases, supertables, and tables are not limited by the system, only by system resources
 - Number of replicas for a database can only be set to 1 or 3
 - Maximum length of username is 23 bytes
-- Maximum length of user password is 31 bytes
+- Maximum length of user password is 255 bytes
 - Total number of data rows depends on available resources
 - Maximum number of virtual nodes for a single database is 1024

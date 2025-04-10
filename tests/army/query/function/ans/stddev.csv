@@ -109,17 +109,17 @@ taos> select stddev_pop(total_voltage) from (select sum(voltage) as total_voltag
 taos> select round(stddev_pop(current), 2) from ts_4893.meters
  round(stddev_pop(current), 2) |
 ================================
-         1.150000000000000e+00 |
+                          1.15 |
 
 taos> select pow(stddev_pop(current), 2) from ts_4893.meters
  pow(stddev_pop(current), 2) |
 ==============================
-       1.332500071133751e+00 |
+            1.33250007113375 |
 
 taos> select log(stddev_pop(voltage) + 1) from ts_4893.meters
  log(stddev_pop(voltage) + 1) |
 ===============================
-        1.354922290183882e+00 |
+             1.35492229018388 |
 
 taos> select groupid, stddev_pop(voltage) from ts_4893.meters group by groupid order by groupid
  groupid |    stddev_pop(voltage)    |

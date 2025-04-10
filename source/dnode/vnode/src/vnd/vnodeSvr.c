@@ -53,8 +53,8 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
 static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                           SRpcMsg *pOriginRpc);
 
-static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
-static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
+static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token);
+static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -87,10 +87,10 @@ static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, i
   if (uid == 0) {
     uid = tGenIdPI64();
   }
-  *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+  taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), uid);
 
   // btime
-  *(int64_t *)(pCoder->data + pCoder->pos + 8) = btime;
+  taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos + 8), btime);
 
   tEndDecode(pCoder);
 
@@ -274,7 +274,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+    taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), uid);
     pCoder->pos += sizeof(int64_t);
   } else {
     if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
@@ -314,25 +314,25 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     uint64_t nColData;
     if (tDecodeU64v(pCoder, &nColData) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     SColData colData = {0};
     code = tDecodeColData(version, pCoder, &colData);
     if (code) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
@@ -340,35 +340,42 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       code = tDecodeColData(version, pCoder, &colData);
       if (code) {
         code = TSDB_CODE_INVALID_MSG;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   } else {
     uint64_t nRow;
     if (tDecodeU64v(pCoder, &nRow) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
       SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += pRow->len;
-
+#ifndef NO_UNALIGNED_ACCESS
       if (pRow->ts < minKey || pRow->ts > maxKey) {
+#else
+      TSKEY ts = taosGetInt64Aligned(&pRow->ts);
+      if (ts < minKey || ts > maxKey) {
+#endif
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }
 
   if (!tDecodeIsEnd(pCoder)) {
-    *(int64_t *)(pCoder->data + pCoder->pos) = ctimeMs;
+    taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), ctimeMs);
     pCoder->pos += sizeof(int64_t);
   }
 
   tEndDecode(pCoder);
 
 _exit:
+  if (code) {
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -489,7 +496,7 @@ static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  int32_t ret = vnodePreCheckAssignedLogSyncd(pVnode, syncReq.member0Token, syncReq.member1Token);
+  int32_t ret = vnodeCheckToken(pVnode, syncReq.member0Token, syncReq.member1Token);
   if (ret != 0) {
     vError("vgId:%d, failed to preprocess arb check sync request since %s", TD_VID(pVnode), tstrerror(ret));
   }
@@ -610,15 +617,16 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   (void)taosThreadMutexUnlock(&pVnode->mutex);
 
   if (ver <= pVnode->state.applied) {
-    vError("vgId:%d, duplicate write request. ver: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), ver,
+    vError("vgId:%d, duplicate write request. ver: %" PRId64 ", applied: %" PRId64, TD_VID(pVnode), ver,
            pVnode->state.applied);
     return terrno = TSDB_CODE_VND_DUP_REQUEST;
   }
 
-  vDebug("vgId:%d, start to process write request %s, index:%" PRId64 ", applied:%" PRId64 ", state.applyTerm:%" PRId64
-         ", conn.applyTerm:%" PRId64 ", contLen:%d",
-         TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver, pVnode->state.applied, pVnode->state.applyTerm,
-         pMsg->info.conn.applyTerm, pMsg->contLen);
+  vGDebug(&pMsg->info.traceId,
+          "vgId:%d, index:%" PRId64 ", process write request:%s, applied:%" PRId64 ", state.applyTerm:%" PRId64
+          ", conn.applyTerm:%" PRId64 ", contLen:%d",
+          TD_VID(pVnode), ver, TMSG_INFO(pMsg->msgType), pVnode->state.applied, pVnode->state.applyTerm,
+          pMsg->info.conn.applyTerm, pMsg->contLen);
 
   if (!(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm)) {
     return terrno = TSDB_CODE_INTERNAL_ERROR;
@@ -684,6 +692,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     /* TQ */
+#if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
       if (tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
@@ -748,6 +757,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
 
     } break;
+    case TDMT_VND_STREAM_ALL_STOP: {
+      if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessAllTaskStopReq(pVnode->pTq, pMsg)) < 0) {
+        goto _err;
+      }
+
+    } break;
+#endif
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
@@ -792,8 +808,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       return TSDB_CODE_INVALID_MSG;
   }
 
-  vTrace("vgId:%d, process %s request, code:0x%x index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), pRsp->code,
-         ver);
+  vGDebug(&pMsg->info.traceId, "vgId:%d, index:%" PRId64 ", msg processed, code:0x%x", TD_VID(pVnode), ver, pRsp->code);
 
   walApplyVer(pVnode->pWal, ver);
 
@@ -873,7 +888,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_TMQ_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_CONSUME_PUSH:
-      return tqProcessPollPush(pVnode->pTq, pMsg);
+      return tqProcessPollPush(pVnode->pTq);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -883,7 +898,8 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME) &&
+       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
+       pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -910,27 +926,34 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
+    case TDMT_VND_VSUBTABLES_META:
+      return vnodeGetVSubtablesMeta(pVnode, pMsg);
+    case TDMT_VND_VSTB_REF_DBS:
+      return vnodeGetVStbRefDbs(pVnode, pMsg);
 #ifdef TD_ENTERPRISE
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
 #endif
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
+#ifdef USE_TQ
     case TDMT_VND_TMQ_VG_WALINFO:
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_COMMITTEDINFO:
       return tqProcessVgCommittedInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_SEEK:
       return tqProcessSeekReq(pVnode->pTq, pMsg);
-
+#endif
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
   }
 }
-
+#ifdef USE_STREAM
 int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in stream queue is processing", pVnode->config.vgId, pMsg);
+
+  // todo: NOTE: some command needs to run on follower, such as, stop_all_tasks
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
@@ -1007,6 +1030,25 @@ int32_t vnodeProcessStreamLongExecMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo 
   }
 }
 
+int32_t vnodeProcessStreamChkptMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  vTrace("vgId:%d, msg:%p in stream chkpt queue is processing", pVnode->config.vgId, pMsg);
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
+      !syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
+  switch (pMsg->msgType) {
+    case TDMT_STREAM_CHKPT_EXEC:
+      return tqProcessTaskRunReq(pVnode->pTq, pMsg);
+    default:
+      vError("unknown msg type:%d in stream chkpt queue", pMsg->msgType);
+      return TSDB_CODE_APP_ERROR;
+  }
+}
+#endif
+
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
   if (code) {
@@ -1042,7 +1084,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     goto _exit;
   }
 
-  vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
+  vInfo("vgId:%d, process trim vnode request, time:%d", pVnode->config.vgId, trimReq.timestamp);
 
   code = vnodeAsyncRetention(pVnode, trimReq.timestamp);
 
@@ -1062,7 +1104,7 @@ static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _exit;
   }
 
-  vInfo("vgId:%d, s3migrate vnode request will be processed, time:%d", pVnode->config.vgId, s3migrateReq.timestamp);
+  vInfo("vgId:%d, process s3migrate vnode request, time:%d", pVnode->config.vgId, s3migrateReq.timestamp);
 
   code = vnodeAsyncS3Migrate(pVnode, s3migrateReq.timestamp);
 
@@ -1084,7 +1126,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids != 0) {
-    vInfo("vgId:%d, drop ttl table req will be processed, time:%d, ntbUids:%d", pVnode->config.vgId,
+    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId,
           ttlReq.timestampSec, ttlReq.nUids);
   }
 
@@ -1315,7 +1357,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     }
   }
 
-  vDebug("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
+  vTrace("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
   if (tqUpdateTbUidList(pVnode->pTq, tbUids, true) < 0) {
     vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
@@ -1525,6 +1567,9 @@ _exit:
   if (vMetaRsp.pSchemas) {
     taosMemoryFree(vMetaRsp.pSchemas);
     taosMemoryFree(vMetaRsp.pSchemaExt);
+  }
+  if (vMetaRsp.pColRefs) {
+    taosMemoryFree(vMetaRsp.pColRefs);
   }
   return 0;
 }
@@ -1763,11 +1808,11 @@ static int32_t vnodeCellValConvertToColVal(STColumn *pCol, SCellVal *pCellVal, S
     pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
   } else if (TSDB_DATA_TYPE_FLOAT == pCol->type) {
     float f = GET_FLOAT_VAL(pCellVal->val);
-    memcpy(&pColVal->value.val, &f, sizeof(f));
+    valueSetDatum(&pColVal->value, pCol->type, &f, sizeof(f));
   } else if (TSDB_DATA_TYPE_DOUBLE == pCol->type) {
-    pColVal->value.val = *(int64_t *)pCellVal->val;
+    taosSetPInt64Aligned(&pColVal->value.val, (int64_t *)pCellVal->val);
   } else {
-    GET_TYPED_DATA(pColVal->value.val, int64_t, pCol->type, pCellVal->val);
+    valueSetDatum(&pColVal->value, pCol->type, pCellVal->val, tDataTypes[pCol->type].bytes);
   }
 
   pColVal->flag = CV_FLAG_VALUE;
@@ -1903,7 +1948,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
@@ -1945,7 +1990,12 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
       SRowKey lastRowKey;
       for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+#ifndef NO_UNALIGNED_ACCESS
         if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey) {
+#else
+        TSKEY ts = taosGetInt64Aligned(&(aRow[iRow]->ts));
+        if (ts < minKey || ts > maxKey) {
+#endif
           code = TSDB_CODE_INVALID_MSG;
           vError("vgId:%d %s failed 2 since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code), ver);
           goto _exit;
@@ -2023,7 +2073,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
   }
 
-  vDebug("vgId:%d, submit block size %d", TD_VID(pVnode), (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
+  vGDebug(pOriginalMsg ? &pOriginalMsg->info.traceId : NULL, "vgId:%d, index:%" PRId64 ", submit block, rows:%d",
+          TD_VID(pVnode), ver, (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
 
   // loop to handle
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
@@ -2154,6 +2205,7 @@ _exit:
 }
 
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+#ifdef USE_TSMA
   SVCreateTSmaReq req = {0};
   SDecoder        coder = {0};
 
@@ -2188,6 +2240,9 @@ _err:
   vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
          TD_VID(pVnode), req.indexName, req.indexUid, ver, req.tableUid, terrstr());
   return terrno;
+#else
+  return TSDB_CODE_INTERNAL_ERROR;
+#endif
 }
 
 /**
@@ -2271,10 +2326,10 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (pVnode->config.szCache != req.pages) {
-    if (metaAlterCache(pVnode->pMeta, req.pages) < 0) {
+    if ((terrno = metaAlterCache(pVnode->pMeta, req.pages)) < 0) {
       vError("vgId:%d, failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
-             pVnode->config.szCache, req.pages, tstrerror(errno));
-      return errno;
+             pVnode->config.szCache, req.pages, tstrerror(terrno));
+      return terrno;
     } else {
       vInfo("vgId:%d, vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
       pVnode->config.szCache = req.pages;
@@ -2344,7 +2399,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
       int32_t ret = tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
       if (ret != 0) {
-        vError("vgId:%d, failed to disable bg task since %s", TD_VID(pVnode), tstrerror(errno));
+        vError("vgId:%d, failed to disable bg task since %s", TD_VID(pVnode), tstrerror(ERRNO));
       }
 
       pVnode->config.sttTrigger = req.sttTrigger;
@@ -2365,7 +2420,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
   if (walChanged) {
     if (walAlter(pVnode->pWal, &pVnode->config.walCfg) != 0) {
-      vError("vgId:%d, failed to alter wal config since %s", TD_VID(pVnode), tstrerror(errno));
+      vError("vgId:%d, failed to alter wal config since %s", TD_VID(pVnode), tstrerror(ERRNO));
     }
   }
 
@@ -2565,7 +2620,7 @@ static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pR
   return 0;
 }
 
-static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
+static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token) {
   SSyncState syncState = syncGetState(pVnode->sync);
   if (syncState.state != TAOS_SYNC_STATE_LEADER) {
     return terrno = TSDB_CODE_SYN_NOT_LEADER;
@@ -2585,13 +2640,13 @@ static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token,
   return 0;
 }
 
-static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
-  int32_t code = vnodePreCheckAssignedLogSyncd(pVnode, member0Token, member1Token);
+static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
+  int32_t code = vnodeCheckToken(pVnode, member0Token, member1Token);
   if (code != 0) {
     return code;
   }
 
-  return syncGetAssignedLogSynced(pVnode->sync);
+  return syncCheckSynced(pVnode->sync);
 }
 
 static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -2615,7 +2670,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
   syncRsp.member1Token = syncReq.member1Token;
   syncRsp.vgId = TD_VID(pVnode);
 
-  if (vnodeCheckAssignedLogSyncd(pVnode, syncReq.member0Token, syncReq.member1Token) != 0) {
+  if (vnodeCheckSyncd(pVnode, syncReq.member0Token, syncReq.member1Token) != 0) {
     vError("vgId:%d, failed to check assigned log syncd", TD_VID(pVnode));
   }
   syncRsp.errCode = terrno;

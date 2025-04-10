@@ -85,7 +85,7 @@ if [ $ent -ne 0 ]; then
     SIM_DIR=/home/TDinternal/sim
     REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
     REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
-    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib"
 else
     # community edition
     REPDIR=$WORKDIR/TDengine
@@ -94,7 +94,7 @@ else
     SIM_DIR=/home/TDengine/sim
     REP_MOUNT_PARAM="$REPDIR:/home/TDengine"
     REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDengine/debug/"
-    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib"
 fi
 
 ulimit -c unlimited

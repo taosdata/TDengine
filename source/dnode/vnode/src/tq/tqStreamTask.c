@@ -87,7 +87,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   tmr_h                  pTimer = NULL;
   SBuildScanWalMsgParam* pParam = (SBuildScanWalMsgParam*)param;
 
-  tqDebug("start to do scan wal in tmr, metaRid:%" PRId64, pParam->metaId);
+  tqTrace("start to do scan wal in tmr, metaRid:%" PRId64, pParam->metaId);
 
   SStreamMeta* pMeta = taosAcquireRef(streamMetaRefPool, pParam->metaId);
   if (pMeta == NULL) {
@@ -165,7 +165,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   taosMsleep(10000);
 #endif
 
-    code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
+    code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA, false);
     if (code) {
       tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
     }
@@ -173,7 +173,7 @@ static void doStartScanWal(void* param, void* tmrId) {
 
 _end:
   streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId, "scan-wal");
-  tqDebug("vgId:%d try scan-wal will start in %dms", vgId, SCAN_WAL_IDLE_DURATION*SCAN_WAL_WAIT_COUNT);
+  tqTrace("vgId:%d try scan-wal will start in %dms", vgId, SCAN_WAL_IDLE_DURATION*SCAN_WAL_WAIT_COUNT);
 
   code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
   if (code) {
@@ -215,10 +215,8 @@ void tqScanWalAsync(STQ* pTq) {
   }
 }
 
-int32_t tqStopStreamTasksAsync(STQ* pTq) {
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  int32_t      vgId = pMeta->vgId;
-  return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_STOP_ALL_TASKS);
+int32_t tqStopStreamAllTasksAsync(SStreamMeta* pMeta, SMsgCb* pMsgCb) {
+  return streamTaskSchedTask(pMsgCb, pMeta->vgId, 0, 0, STREAM_EXEC_T_STOP_ALL_TASKS, false);
 }
 
 int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
@@ -302,7 +300,11 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
     return false;
   }
 
-  if (pInfo->taskLevel == TASK_LEVEL__SOURCE && pInfo->trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+  if (pInfo->trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    return false;
+  }
+
+  if (pInfo->fillHistory == STREAM_RECALCUL_TASK) {
     return false;
   }
 
@@ -313,8 +315,8 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
     return false;
   }
 
-  // fill-history task has entered into the last phase, no need to anything
-  if ((pInfo->fillHistory == 1) && pTask->status.appendTranstateBlock) {
+  // fill-history task has entered into the last phase, no need to do anything
+  if ((pInfo->fillHistory == STREAM_HISTORY_TASK) && pTask->status.appendTranstateBlock) {
     // the maximum version of data in the WAL has reached already, the step2 is done
     tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);
@@ -324,7 +326,7 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   // check whether input queue is full or not
   if (streamQueueIsFull(pTask->inputq.queue)) {
     tqTrace("s-task:%s input queue is full, launch task without scanning wal", pTask->id.idStr);
-    int32_t code = streamTrySchedExec(pTask);
+    int32_t code = streamTrySchedExec(pTask, false);
     if (code) {
       tqError("s-task:%s failed to start task while inputQ is full", pTask->id.idStr);
     }
@@ -463,7 +465,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, int32_t* pNumOfTasks) {
     streamMutexUnlock(&pTask->lock);
 
     if ((numOfItems > 0) || hasNewData) {
-      code = streamTrySchedExec(pTask);
+      code = streamTrySchedExec(pTask, false);
       if (code != TSDB_CODE_SUCCESS) {
         streamMetaReleaseTask(pStreamMeta, pTask);
         taosArrayDestroy(pTaskList);

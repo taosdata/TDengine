@@ -23,6 +23,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "tutil.h"
+#include "tcompare.h"
 
 #define CFG_VER_NUMBER    1
 #define CFG_RESERVE_SIZE  63
@@ -809,7 +810,7 @@ static void cfgObjArrayCleanUp(SArray *array) {
   taosArrayDestroy(array);
 }
 
-SArray *initVariablesFromItems(SArray *pItems) {
+static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern) {
   if (pItems == NULL) {
     return NULL;
   }
@@ -825,6 +826,9 @@ SArray *initVariablesFromItems(SArray *pItems) {
     SConfigItem   *pItem = taosArrayGet(pItems, i);
     SVariablesInfo info = {0};
     tstrncpy(info.name, pItem->name, sizeof(info.name));
+    if (likePattern != NULL && rawStrPatternMatch(pItem->name, likePattern) != TSDB_PATTERN_MATCH) {
+      continue;
+    }
 
     // init info value
     switch (pItem->dtype) {
@@ -891,15 +895,23 @@ SArray *initVariablesFromItems(SArray *pItems) {
 
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
-  int32_t           code = -1;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  SShowVariablesReq req = {0};
+  SArray           *array = NULL;
+
+  code = tDeserializeSShowVariablesReq(pReq->pCont, pReq->contLen, &req);
+  if (code != 0) {
+    mError("failed to deserialize config req, since %s", terrstr());
+    goto _OVER;
+  }
 
   if ((code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIABLES)) != 0) {
     goto _OVER;
   }
 
   SVariablesInfo info = {0};
-
-  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg));
+  char          *likePattern = req.opType == OP_TYPE_LIKE ? req.val : NULL;
+  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg), likePattern);
   if (rsp.variables == NULL) {
     code = terrno;
     goto _OVER;
@@ -926,7 +938,7 @@ _OVER:
   if (code != 0) {
     mError("failed to get show variables info since %s", tstrerror(code));
   }
-
+  tFreeSShowVariablesReq(&req);
   tFreeSShowVariablesRsp(&rsp);
   TAOS_RETURN(code);
 }

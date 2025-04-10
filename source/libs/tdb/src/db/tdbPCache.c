@@ -345,7 +345,9 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   if (!pPage && pTxn->xMalloc != NULL) {
     ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
     if (ret < 0 || pPage == NULL) {
-      tdbError("tdb/pcache: ret: %" PRId32 " pPage: %p, page create failed.", ret, pPage);
+      // when allocating from bufpool failed, it's time to flush cache.
+      // tdbError("tdb/pcache: ret: %" PRId32 " pPage: %p, page create failed.", ret, pPage);
+
       terrno = ret;
       return NULL;
     }
@@ -551,5 +553,4 @@ static void tdbPCacheCloseImpl(SPCache *pCache) {
 
   tdbOsFree(pCache->pgHash);
   tdbPCacheDestroyLock(pCache);
-  return ;
 }

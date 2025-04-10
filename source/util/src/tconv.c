@@ -26,6 +26,7 @@ SHashObj *gConvInfo = NULL;
 // C2M: Ucs4--> Mbs
 
 static void taosConvDestroyInner(void *arg) {
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   SConvInfo *info = (SConvInfo *)arg;
   if (info == NULL) {
     return;
@@ -41,9 +42,11 @@ static void taosConvDestroyInner(void *arg) {
 
   info->gConvMaxNum[M2C] = -1;
   info->gConvMaxNum[C2M] = -1;
+#endif
 }
 
 void* taosConvInit(const char* charset) {
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (charset == NULL){
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
@@ -91,14 +94,14 @@ void* taosConvInit(const char* charset) {
   for (int32_t i = 0; i < info.gConvMaxNum[M2C]; ++i) {
     info.gConv[M2C][i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, charset);
     if ((iconv_t)-1 == info.gConv[M2C][i].conv) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       goto FAILED;
     }
   }
   for (int32_t i = 0; i < info.gConvMaxNum[C2M]; ++i) {
     info.gConv[C2M][i].conv = iconv_open(charset, DEFAULT_UNICODE_ENCODEC);
     if ((iconv_t)-1 == info.gConv[C2M][i].conv) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       goto FAILED;
     }
   }
@@ -116,8 +119,14 @@ FAILED:
 END:
   atomic_store_32(&lock_c, 0);
   return conv;
+#else
+  return NULL;
+#endif
 }
 
 void taosConvDestroy() {
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   taosHashCleanup(gConvInfo);
+  gConvInfo = NULL;  
+#endif
 }

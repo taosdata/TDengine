@@ -15,30 +15,47 @@ ENDIF()
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
 if(TD_LINUX)
-add_executable(osAtomicTests "osAtomicTests.cpp")
-target_link_libraries(osAtomicTests os util gtest_main)
-add_test(
-    NAME osAtomicTests
-    COMMAND osAtomicTests
-)
-endif()
+    add_executable(osAtomicTests "osAtomicTests.cpp")
+    target_link_libraries(osAtomicTests os util gtest_main)
+    add_test(
+        NAME osAtomicTests
+        COMMAND osAtomicTests
+    )
 
-if(TD_LINUX)
-add_executable(osDirTests "osDirTests.cpp")
-target_link_libraries(osDirTests os util gtest_main)
-add_test(
-    NAME osDirTests
-    COMMAND osDirTests
-)
-endif()
+    add_executable(osDirTests "osDirTests.cpp")
+    target_link_libraries(osDirTests os util gtest_main)
+    add_test(
+        NAME osDirTests
+        COMMAND osDirTests
+    )
 
-if(TD_LINUX)
-add_executable(osEnvTests "osEnvTests.cpp")
-target_link_libraries(osEnvTests os util gtest_main)
-add_test(
-    NAME osEnvTests
-    COMMAND osEnvTests
-)
+    add_executable(osFileTests "osFileTests.cpp")
+    target_link_libraries(osFileTests os util gtest_main)
+    add_test(
+        NAME osFileTests
+        COMMAND osFileTests
+    )
+
+    add_executable(osEnvTests "osEnvTests.cpp")
+    target_link_libraries(osEnvTests os util gtest_main)
+    add_test(
+        NAME osEnvTests
+        COMMAND osEnvTests
+    )
+
+    add_executable(osTests "osTests.cpp")
+    target_link_libraries(osTests os util gtest_main)
+    add_test(
+        NAME osTests
+        COMMAND osTests
+    )
+
+    add_executable(osThreadTests "osThreadTests.cpp")
+    target_link_libraries(osThreadTests os util gtest_main)
+    add_test(
+        NAME osThreadTests
+        COMMAND osThreadTests
+    )
 endif()
 
 add_executable(osMathTests "osMathTests.cpp")
@@ -55,13 +72,6 @@ add_test(
     COMMAND osSemaphoreTests
 )
 
-add_executable(osSignalTests "osSignalTests.cpp")
-target_link_libraries(osSignalTests os util gtest_main)
-add_test(
-    NAME osSignalTests
-    COMMAND osSignalTests
-)
-
 add_executable(osSleepTests "osSleepTests.cpp")
 target_link_libraries(osSleepTests os util gtest_main)
 add_test(
@@ -69,19 +79,14 @@ add_test(
     COMMAND osSleepTests
 )
 
+if(NOT TD_WINDOWS)
 add_executable(osStringTests "osStringTests.cpp")
 target_link_libraries(osStringTests os util gtest_main)
 add_test(
     NAME osStringTests
     COMMAND osStringTests
 )
-
-add_executable(osTests "osTests.cpp")
-target_link_libraries(osTests os util gtest_main)
-add_test(
-    NAME osTests
-    COMMAND osTests
-)
+endif()
 
 add_executable(osSystemTests "osSystemTests.cpp")
 target_link_libraries(osSystemTests os util gtest_main)
@@ -90,19 +95,9 @@ add_test(
     COMMAND osSystemTests
 )
 
-if(TD_LINUX)
-add_executable(osThreadTests "osThreadTests.cpp")
-target_link_libraries(osThreadTests os util gtest_main)
-add_test(
-    NAME osThreadTests
-    COMMAND osThreadTests
-)
-endif()
-
 add_executable(osTimeTests "osTimeTests.cpp")
 target_link_libraries(osTimeTests os util gtest_main)
 add_test(
     NAME osTimeTests
     COMMAND osTimeTests
 )
-

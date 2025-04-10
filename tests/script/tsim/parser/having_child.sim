@@ -1294,7 +1294,10 @@ sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group 
 
 sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) > id1 and sum(f1);
 
-sql_error select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) > id1 and sum(f1) > 1;
+sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) > id1 and sum(f1) > 1;
+if $rows != 0 then
+  return -1
+endi
 
 sql select avg(f1), spread(f1), spread(f2), spread(tb1.f1) from tb1 group by f1 having spread(f1) > 2 and sum(f1) > 1 order by f1;
 if $rows != 0 then

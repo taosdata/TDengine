@@ -99,7 +99,7 @@ taos> select var_pop(total_voltage) from (select sum(voltage) as total_voltage f
 taos> select round(var_pop(current), 2) from ts_4893.meters
  round(var_pop(current), 2) |
 =============================
-      1.330000000000000e+00 |
+                       1.33 |
 
 taos> select pow(var_pop(current), 2) from ts_4893.meters
  pow(var_pop(current), 2)  |

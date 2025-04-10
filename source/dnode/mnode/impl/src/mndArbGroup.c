@@ -20,9 +20,10 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
+#include "mndSync.h"
 
 #define ARBGROUP_VER_NUMBER   1
-#define ARBGROUP_RESERVE_SIZE 63
+#define ARBGROUP_RESERVE_SIZE 51
 
 static SHashObj *arbUpdateHash = NULL;
 
@@ -34,9 +35,8 @@ static void mndArbGroupDupObj(SArbGroup *pGroup, SArbGroup *pNew);
 static void mndArbGroupSetAssignedLeader(SArbGroup *pGroup, int32_t index);
 static void mndArbGroupResetAssignedLeader(SArbGroup *pGroup);
 
-static int32_t mndArbGroupUpdateTrans(SMnode *pMnode, SArbGroup *pNew);
-static int32_t mndPullupArbUpdateGroup(SMnode *pMnode, SArbGroup *pNewGroup);
-static int32_t mndPullupArbUpdateGroupBatch(SMnode *pMnode, SArray *newGroupArray);
+static int32_t mndUpdateArbGroup(SMnode *pMnode, SArbGroup *pNewGroup);
+static int32_t mndBatchUpdateArbGroup(SMnode *pMnode, SArray *newGroupArray);
 
 static int32_t mndProcessArbHbTimer(SRpcMsg *pReq);
 static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq);
@@ -46,6 +46,7 @@ static int32_t mndProcessArbCheckSyncRsp(SRpcMsg *pRsp);
 static int32_t mndProcessArbSetAssignedLeaderRsp(SRpcMsg *pRsp);
 static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextArbGroup(SMnode *pMnode, void *pIter);
+static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq);
 
 static int32_t mndArbCheckToken(const char *token1, const char *token2) {
   if (token1 == NULL || token2 == NULL) return -1;
@@ -71,6 +72,7 @@ int32_t mndInitArbGroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ARB_HEARTBEAT_RSP, mndProcessArbHbRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ARB_CHECK_SYNC_RSP, mndProcessArbCheckSyncRsp);
   mndSetMsgHandle(pMnode, TDMT_SYNC_SET_ASSIGNED_LEADER_RSP, mndProcessArbSetAssignedLeaderRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_ARB_ASSIGN_LEADER, mndProcessAssignLeaderMsg);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ARBGROUP, mndRetrieveArbGroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ARBGROUP, mndCancelGetNextArbGroup);
@@ -138,6 +140,8 @@ SSdbRaw *mndArbGroupActionEncode(SArbGroup *pGroup) {
   SDB_SET_BINARY(pRaw, dataPos, pLeader->token, TSDB_ARB_TOKEN_SIZE, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pGroup->version, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pLeader->acked, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pGroup->code, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pGroup->updateTimeMs, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, ARBGROUP_RESERVE_SIZE, _OVER)
 
@@ -194,6 +198,8 @@ SSdbRow *mndArbGroupActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pLeader->token, TSDB_ARB_TOKEN_SIZE, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pGroup->version, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pLeader->acked, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pGroup->code, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pGroup->updateTimeMs, _OVER)
 
   pGroup->mutexInited = false;
 
@@ -249,6 +255,8 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
   tstrncpy(pOld->assignedLeader.token, pNew->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
   pOld->assignedLeader.acked = pNew->assignedLeader.acked;
   pOld->version++;
+  pOld->code = pNew->code;
+  pOld->updateTimeMs = pNew->updateTimeMs;
 
   mInfo(
       "arbgroup:%d, perform update action. members[0].token:%s, members[1].token:%s, isSync:%d, as-dnodeid:%d, "
@@ -259,8 +267,10 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
 _OVER:
   (void)taosThreadMutexUnlock(&pOld->mutex);
 
-  if (taosHashRemove(arbUpdateHash, &pOld->vgId, sizeof(int32_t)) != 0) {
-    mError("arbgroup:%d, failed to remove from arbUpdateHash", pOld->vgId);
+  if (mndIsLeader(pSdb->pMnode)) {
+    if (taosHashRemove(arbUpdateHash, &pOld->vgId, sizeof(int32_t)) != 0) {
+      mError("arbgroup:%d, failed to remove from arbUpdateHash", pOld->vgId);
+    }
   }
   return 0;
 }
@@ -530,11 +540,12 @@ static bool mndCheckArbMemberHbTimeout(SArbGroup *pArbGroup, int32_t index, int6
 }
 
 static void *mndBuildArbSetAssignedLeaderReq(int32_t *pContLen, int32_t vgId, char *arbToken, int64_t arbTerm,
-                                             char *memberToken) {
+                                             char *memberToken, bool force) {
   SVArbSetAssignedLeaderReq req = {0};
   req.arbToken = arbToken;
   req.arbTerm = arbTerm;
   req.memberToken = memberToken;
+  if (force) req.force = 1;
 
   int32_t reqLen = tSerializeSVArbSetAssignedLeaderReq(NULL, 0, &req);
   int32_t contLen = reqLen + sizeof(SMsgHead);
@@ -554,10 +565,10 @@ static void *mndBuildArbSetAssignedLeaderReq(int32_t *pContLen, int32_t vgId, ch
 }
 
 static int32_t mndSendArbSetAssignedLeaderReq(SMnode *pMnode, int32_t dnodeId, int32_t vgId, char *arbToken,
-                                              int64_t term, char *memberToken) {
+                                              int64_t term, char *memberToken, bool force) {
   int32_t code = 0;
   int32_t contLen = 0;
-  void   *pHead = mndBuildArbSetAssignedLeaderReq(&contLen, vgId, arbToken, term, memberToken);
+  void   *pHead = mndBuildArbSetAssignedLeaderReq(&contLen, vgId, arbToken, term, memberToken, force);
   if (!pHead) {
     mError("vgId:%d, failed to build set-assigned request", vgId);
     code = -1;
@@ -634,6 +645,7 @@ void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SAr
       mInfo("arb skip to set assigned leader to vgId:%d dnodeId:%d, arb group is not sync", vgId,
             pMember->info.dnodeId);
     }
+    //*pOp = CHECK_SYNC_CHECK_SYNC;
     return;
   }
 
@@ -641,6 +653,73 @@ void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SAr
   mndArbGroupDupObj(pArbGroup, pNewGroup);
   mndArbGroupSetAssignedLeader(pNewGroup, candidateIndex);
   *pOp = CHECK_SYNC_UPDATE;
+}
+
+static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
+  int32_t    code = -1, lino = 0;
+  SArray    *pArray = NULL;
+  void      *pIter = NULL;
+  SSdb      *pSdb = pMnode->pSdb;
+  SArbGroup *pArbGroup = NULL;
+
+  SAssignLeaderReq req = {0};
+  if (tDeserializeSAssignLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  mInfo("begin to process assign leader");
+
+  char arbToken[TSDB_ARB_TOKEN_SIZE];
+  TAOS_CHECK_EXIT(mndGetArbToken(pMnode, arbToken));
+
+  int64_t term = mndGetTerm(pMnode);
+  if (term < 0) {
+    mError("arb failed to get term since %s", terrstr());
+    code = -1;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ARBGROUP, pIter, (void **)&pArbGroup);
+    if (pIter == NULL) break;
+
+    SArbGroup arbGroupDup = {0};
+
+    (void)taosThreadMutexLock(&pArbGroup->mutex);
+    mndArbGroupDupObj(pArbGroup, &arbGroupDup);
+    (void)taosThreadMutexUnlock(&pArbGroup->mutex);
+
+    sdbRelease(pSdb, pArbGroup);
+
+    int32_t dnodeId = 0;
+    for (int32_t i = 0; i < 2; i++) {
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, arbGroupDup.members[i].info.dnodeId);
+      bool       isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
+      mndReleaseDnode(pMnode, pDnode);
+      if (isonline) {
+        dnodeId = arbGroupDup.members[i].info.dnodeId;
+        break;
+      }
+    }
+
+    (void)mndSendArbSetAssignedLeaderReq(pMnode, dnodeId, arbGroupDup.vgId, arbToken, term, "", true);
+    mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", arbGroupDup.vgId, dnodeId);
+  }
+
+  code = 0;
+
+  // auditRecord(pReq, pMnode->clusterId, "assignLeader", "", "", req.sql, req.sqlLen);
+
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to assign leader since %s", tstrerror(code));
+  }
+
+  tFreeSAssignLeaderReq(&req);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
@@ -695,7 +774,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
         mTrace("vgId:%d, arb skip to send msg by check sync", vgId);
         break;
       case CHECK_SYNC_SET_ASSIGNED_LEADER:
-        (void)mndSendArbSetAssignedLeaderReq(pMnode, assgndDnodeId, vgId, arbToken, term, pAssgndLeader->token);
+        (void)mndSendArbSetAssignedLeaderReq(pMnode, assgndDnodeId, vgId, arbToken, term, pAssgndLeader->token, false);
         mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", vgId, assgndDnodeId);
         break;
       case CHECK_SYNC_CHECK_SYNC:
@@ -721,7 +800,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     }
   }
 
-  TAOS_CHECK_EXIT(mndPullupArbUpdateGroupBatch(pMnode, pUpdateArray));
+  TAOS_CHECK_EXIT(mndBatchUpdateArbGroup(pMnode, pUpdateArray));
 
 _exit:
   if (code != 0) {
@@ -761,9 +840,11 @@ static void mndInitArbUpdateGroup(SArbGroup *pGroup, SMArbUpdateGroup *outGroup)
   outGroup->assignedLeader.token = pGroup->assignedLeader.token;  // just copy the pointer
   outGroup->assignedLeader.acked = pGroup->assignedLeader.acked;
   outGroup->version = pGroup->version;
+  outGroup->code = pGroup->code;
+  outGroup->updateTimeMs = pGroup->updateTimeMs;
 }
 
-static int32_t mndPullupArbUpdateGroup(SMnode *pMnode, SArbGroup *pNewGroup) {
+static int32_t mndUpdateArbGroup(SMnode *pMnode, SArbGroup *pNewGroup) {
   if (taosHashGet(arbUpdateHash, &pNewGroup->vgId, sizeof(pNewGroup->vgId)) != NULL) {
     mInfo("vgId:%d, arb skip to pullup arb-update-group request, since it is in process", pNewGroup->vgId);
     return 0;
@@ -796,7 +877,7 @@ _OVER:
   return ret;
 }
 
-static int32_t mndPullupArbUpdateGroupBatch(SMnode *pMnode, SArray *newGroupArray) {
+static int32_t mndBatchUpdateArbGroup(SMnode *pMnode, SArray *newGroupArray) {
   int32_t ret = -1;
 
   size_t  sz = taosArrayGetSize(newGroupArray);
@@ -857,7 +938,7 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
   }
 
   SMnode *pMnode = pReq->info.node;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ARBGROUP, NULL, "update-arbgroup");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ARBGROUP, NULL, "upd-bat-arbgroup");
   if (pTrans == NULL) {
     mError("failed to update arbgroup in create trans, since %s", terrstr());
     goto _OVER;
@@ -879,6 +960,16 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
     tstrncpy(newGroup.assignedLeader.token, pUpdateGroup->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
     newGroup.assignedLeader.acked = pUpdateGroup->assignedLeader.acked;
     newGroup.version = pUpdateGroup->version;
+    newGroup.code = pUpdateGroup->code;
+    newGroup.updateTimeMs = pUpdateGroup->updateTimeMs;
+
+    mInfo(
+        "trans:%d, used to update arbgroup:%d, member0:[%d][%s] member1:[%d][%s] isSync:%d assigned:[%d][%s][%d], %d, "
+        "%" PRId64,
+        pTrans->id, newGroup.vgId, newGroup.members[0].info.dnodeId, newGroup.members[0].state.token,
+        newGroup.members[1].info.dnodeId, newGroup.members[1].state.token, newGroup.isSync,
+        newGroup.assignedLeader.dnodeId, newGroup.assignedLeader.token, newGroup.assignedLeader.acked,
+        pUpdateGroup->code, pUpdateGroup->updateTimeMs);
 
     SArbGroup *pOldGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &newGroup.vgId);
     if (!pOldGroup) {
@@ -944,41 +1035,8 @@ static void mndArbGroupResetAssignedLeader(SArbGroup *pGroup) {
   pGroup->assignedLeader.acked = false;
 }
 
-static int32_t mndArbGroupUpdateTrans(SMnode *pMnode, SArbGroup *pNew) {
-  int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ARBGROUP, NULL, "update-arbgroup");
-  if (pTrans == NULL) {
-    mError("failed to update arbgroup in create trans, vgId:%d, since %s", pNew->vgId, terrstr());
-    if (terrno != 0) code = terrno;
-    goto _OVER;
-  }
-
-  mInfo("trans:%d, used to update arbgroup:%d, member0:[%d][%s] member1:[%d][%s] isSync:%d assigned:[%d][%s][%d]",
-        pTrans->id, pNew->vgId, pNew->members[0].info.dnodeId, pNew->members[0].state.token,
-        pNew->members[1].info.dnodeId, pNew->members[1].state.token, pNew->isSync, pNew->assignedLeader.dnodeId,
-        pNew->assignedLeader.token, pNew->assignedLeader.acked);
-
-  mndTransAddArbGroupId(pTrans, pNew->vgId);
-  if ((code = mndTransCheckConflict(pMnode, pTrans)) != 0) {
-    goto _OVER;
-  }
-
-  if ((code = mndSetCreateArbGroupCommitLogs(pTrans, pNew)) != 0) {
-    mError("failed to update arbgroup in set commit log, vgId:%d, since %s", pNew->vgId, tstrerror(code));
-    goto _OVER;
-  }
-
-  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
-
-  code = 0;
-
-_OVER:
-  mndTransDrop(pTrans);
-  return code;
-}
-
-bool mndUpdateArbGroupByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMember, int64_t nowMs, int32_t dnodeId,
-                                  SArbGroup *pNewGroup) {
+bool mndCheckArbGroupByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMember, int64_t nowMs, int32_t dnodeId,
+                                 SArbGroup *pNewGroup) {
   bool             updateToken = false;
   SArbGroupMember *pMember = NULL;
 
@@ -1033,7 +1091,7 @@ _OVER:
   return updateToken;
 }
 
-static int32_t mndUpdateArbHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *memberArray) {
+static int32_t mndUpdateArbGroupsByHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *memberArray) {
   int64_t nowMs = taosGetTimestampMs();
   size_t  size = taosArrayGetSize(memberArray);
   SArray *pUpdateArray = taosArrayInit(size, sizeof(SArbGroup));
@@ -1048,7 +1106,7 @@ static int32_t mndUpdateArbHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *me
       continue;
     }
 
-    bool updateToken = mndUpdateArbGroupByHeartBeat(pGroup, pRspMember, nowMs, dnodeId, &newGroup);
+    bool updateToken = mndCheckArbGroupByHeartBeat(pGroup, pRspMember, nowMs, dnodeId, &newGroup);
     if (updateToken) {
       if (taosArrayPush(pUpdateArray, &newGroup) == NULL) {
         mError("failed to push newGroup to updateArray, but continue at this hearbear");
@@ -1058,14 +1116,14 @@ static int32_t mndUpdateArbHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *me
     sdbRelease(pMnode->pSdb, pGroup);
   }
 
-  TAOS_CHECK_RETURN(mndPullupArbUpdateGroupBatch(pMnode, pUpdateArray));
+  TAOS_CHECK_RETURN(mndBatchUpdateArbGroup(pMnode, pUpdateArray));
 
   taosArrayDestroy(pUpdateArray);
   return 0;
 }
 
 bool mndUpdateArbGroupByCheckSync(SArbGroup *pGroup, int32_t vgId, char *member0Token, char *member1Token,
-                                  bool newIsSync, SArbGroup *pNewGroup) {
+                                  bool newIsSync, SArbGroup *pNewGroup, int32_t code) {
   bool updateIsSync = false;
 
   (void)taosThreadMutexLock(&pGroup->mutex);
@@ -1088,8 +1146,10 @@ bool mndUpdateArbGroupByCheckSync(SArbGroup *pGroup, int32_t vgId, char *member0
   if (pGroup->isSync != newIsSync) {
     mndArbGroupDupObj(pGroup, pNewGroup);
     pNewGroup->isSync = newIsSync;
+    pNewGroup->code = code;
+    pNewGroup->updateTimeMs = taosGetTimestampMs();
 
-    mInfo("vgId:%d, arb isSync updating, new isSync:%d", vgId, newIsSync);
+    mInfo("vgId:%d, arb isSync updating, new isSync:%d, timeStamp:%" PRId64, vgId, newIsSync, pNewGroup->updateTimeMs);
     updateIsSync = true;
   }
 
@@ -1098,7 +1158,8 @@ _OVER:
   return updateIsSync;
 }
 
-static int32_t mndUpdateArbSync(SMnode *pMnode, int32_t vgId, char *member0Token, char *member1Token, bool newIsSync) {
+static int32_t mndUpdateArbSync(SMnode *pMnode, int32_t vgId, char *member0Token, char *member1Token, bool newIsSync,
+                                int32_t rsp_code) {
   int32_t    code = 0;
   SArbGroup *pGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &vgId);
   if (pGroup == NULL) {
@@ -1109,9 +1170,10 @@ static int32_t mndUpdateArbSync(SMnode *pMnode, int32_t vgId, char *member0Token
   }
 
   SArbGroup newGroup = {0};
-  bool      updateIsSync = mndUpdateArbGroupByCheckSync(pGroup, vgId, member0Token, member1Token, newIsSync, &newGroup);
+  bool      updateIsSync =
+      mndUpdateArbGroupByCheckSync(pGroup, vgId, member0Token, member1Token, newIsSync, &newGroup, rsp_code);
   if (updateIsSync) {
-    if (mndPullupArbUpdateGroup(pMnode, &newGroup) != 0) {
+    if (mndUpdateArbGroup(pMnode, &newGroup) != 0) {
       mInfo("failed to pullup update arb sync, vgId:%d, since %s", vgId, terrstr());
     }
   }
@@ -1150,7 +1212,7 @@ static int32_t mndProcessArbHbRsp(SRpcMsg *pRsp) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndUpdateArbHeartBeat(pMnode, arbHbRsp.dnodeId, arbHbRsp.hbMembers), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndUpdateArbGroupsByHeartBeat(pMnode, arbHbRsp.dnodeId, arbHbRsp.hbMembers), NULL, _OVER);
   code = 0;
 
 _OVER:
@@ -1185,6 +1247,7 @@ static int32_t mndProcessArbCheckSyncRsp(SRpcMsg *pRsp) {
     TAOS_RETURN(code);
   }
 
+  mInfo("vgId:%d, vnode-arb-check-sync-rsp received, errCode:%d", syncRsp.vgId, syncRsp.errCode);
   if (mndArbCheckToken(arbToken, syncRsp.arbToken) != 0) {
     mInfo("skip update arb sync for vgId:%d, arb token mismatch, local:[%s] msg:[%s]", syncRsp.vgId, arbToken,
           syncRsp.arbToken);
@@ -1193,7 +1256,8 @@ static int32_t mndProcessArbCheckSyncRsp(SRpcMsg *pRsp) {
   }
 
   bool newIsSync = (syncRsp.errCode == TSDB_CODE_SUCCESS);
-  if ((code = mndUpdateArbSync(pMnode, syncRsp.vgId, syncRsp.member0Token, syncRsp.member1Token, newIsSync)) != 0) {
+  if ((code = mndUpdateArbSync(pMnode, syncRsp.vgId, syncRsp.member0Token, syncRsp.member1Token, newIsSync,
+                               syncRsp.errCode)) != 0) {
     mInfo("failed to update arb sync for vgId:%d, since:%s", syncRsp.vgId, terrstr());
     goto _OVER;
   }
@@ -1278,7 +1342,7 @@ static int32_t mndProcessArbSetAssignedLeaderRsp(SRpcMsg *pRsp) {
   bool updateAssigned = mndUpdateArbGroupBySetAssignedLeader(pGroup, setAssignedRsp.vgId, setAssignedRsp.memberToken,
                                                              pRsp->code, &newGroup);
   if (updateAssigned) {
-    if ((code = mndPullupArbUpdateGroup(pMnode, &newGroup)) != 0) {
+    if ((code = mndUpdateArbGroup(pMnode, &newGroup)) != 0) {
       mInfo("failed to pullup update arb assigned for vgId:%d, since:%s", setAssignedRsp.vgId, tstrerror(code));
       goto _OVER;
     }
@@ -1289,6 +1353,35 @@ static int32_t mndProcessArbSetAssignedLeaderRsp(SRpcMsg *pRsp) {
 _OVER:
   tFreeSVArbSetAssignedLeaderRsp(&setAssignedRsp);
   return code;
+}
+
+static char *formatTimestamp(char *buf, int64_t val, int precision) {
+  time_t tt;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+  }
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+  } else {
+    tt = (time_t)(val / 1000);
+  }
+
+  struct tm tm;
+  if (taosLocalTime(&tt, &tm, NULL, 0, NULL) == NULL) {
+    mError("failed to get local time");
+    return NULL;
+  }
+  size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
+
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
+  } else {
+    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+  }
+
+  return buf;
 }
 
 static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -1332,8 +1425,21 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
                           &lino, _OVER);
     }
 
+    mInfo("vgId:%d, arb group sync:%d, code:%s, update time:%" PRId64, pGroup->vgId, pGroup->isSync,
+          tstrerror(pGroup->code), pGroup->updateTimeMs);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->isSync, false), pGroup, &lino, _OVER);
+
+    char strCheckSyncCode[100] = {0};
+    char bufUpdateTime[40] = {0};
+    (void)formatTimestamp(bufUpdateTime, pGroup->updateTimeMs, TSDB_TIME_PRECISION_MILLI);
+    (void)tsnprintf(strCheckSyncCode, 100, "%s(%s)", tstrerror(pGroup->code), bufUpdateTime);
+
+    char checkSyncCode[100 + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(checkSyncCode, strCheckSyncCode, 100 + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)checkSyncCode, false), pGroup, &lino, _OVER);
 
     if (pGroup->assignedLeader.dnodeId != 0) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

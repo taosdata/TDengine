@@ -98,7 +98,7 @@ static int32_t toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* p
     pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
   }
 
-  qDebug("delete %" PRId64 " rows, from %" PRId64 " to %" PRId64 "", pRes->affectedRows, pRes->skey, pRes->ekey);
+  qDebug("delete %" PRId64 " rows, from %" PRId64 " to %" PRId64, pRes->affectedRows, pRes->skey, pRes->ekey);
 
   pBuf->useSize += pEntry->dataLen;
 
@@ -120,7 +120,7 @@ static int32_t allocBuf(SDataDeleterHandle* pDeleter, const SInputData* pInput, 
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
-    qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));
+    qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(ERRNO));
     return terrno;
   }
 

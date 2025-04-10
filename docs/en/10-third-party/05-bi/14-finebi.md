@@ -1,6 +1,6 @@
 ---
-sidebar_label: Fine BI
-title: Integration With Fine BI
+sidebar_label: FineBI
+title: Integration With FineBI
 toc_max_heading_level: 4
 ---
 

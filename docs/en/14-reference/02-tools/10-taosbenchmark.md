@@ -188,8 +188,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 The parameters listed in this section apply to all functional modes.
 
-- **filetype**: The function to test, possible values are `insert`, `query`, and `subscribe`. Corresponding to insert, query, and subscribe functions. Only one can be specified in each configuration file.
+- **filetype**: The function to test, possible values are `insert`, `query`, `subscribe` and `csvfile`. Corresponding to insert, query, subscribe and generate csv file functions. Only one can be specified in each configuration file.
+
 - **cfgdir**: Directory where the TDengine client configuration file is located, default path is /etc/taos.
+
+- **output_dir**: The directory specified for output files. When the feature category is csvfile, it refers to the directory where the generated csv files will be saved. The default value is ./output/.
 
 - **host**: Specifies the FQDN of the TDengine server to connect to, default value is localhost.
 
@@ -283,6 +286,27 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **repeat_ts_max** : Numeric type, when composite primary key is enabled, specifies the maximum number of records with the same timestamp to be generated
 - **sqls** : Array of strings type, specifies the array of sql to be executed after the supertable is successfully created, the table name specified in sql must be prefixed with the database name, otherwise an unspecified database error will occur
 
+- **csv_file_prefix**: String type, sets the prefix for the names of the generated csv files. Default value is "data".
+
+- **csv_ts_format**: String type, sets the format of the time string in the names of the generated csv files, following the `strftime` format standard. If not set, files will not be split by time intervals. Supported patterns include:
+  - %Y: Year as a four-digit number (e.g., 2025)
+  - %m: Month as a two-digit number (01 to 12)
+  - %d: Day of the month as a two-digit number (01 to 31)
+  - %H: Hour in 24-hour format as a two-digit number (00 to 23)
+  - %M: Minute as a two-digit number (00 to 59)
+  - %S: Second as a two-digit number (00 to 59)
+
+- **csv_ts_interval**: String type, sets the time interval for splitting generated csv file names. Supports daily, hourly, minute, and second intervals such as 1d/2h/30m/40s. The default value is "1d".
+
+- **csv_output_header**: String type, sets whether the generated csv files should contain column header descriptions. The default value is "yes".
+
+- **csv_tbname_alias**: String type, sets the alias for the tbname field in the column header descriptions of csv files. The default value is "device_id".
+
+- **csv_compress_level**: String type, sets the compression level for generating csv-encoded data and automatically compressing it into gzip file. This process directly encodes and compresses the data, rather than first generating a csv file and then compressing it. Possible values are:
+  - none: No compression
+  - fast: gzip level 1 compression
+  - balance: gzip level 6 compression
+  - best: gzip level 9 compression
 
 #### Tag and Data Columns
 
@@ -297,11 +321,17 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **name**: The name of the column, if used with count, for example "name": "current", "count":3, then the names of the 3 columns are current, current_2, current_3 respectively.
 
-- **min**: The minimum value for the data type of the column/tag. Generated values will be greater than or equal to the minimum value.
+- **min**: Float type, the minimum value for the data type of the column/tag. Generated values will be greater than or equal to the minimum value.
 
-- **max**: The maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
+- **max**: Float type, the maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
 
-- **scalingFactor**: Floating-point precision enhancement factor, only effective when the data type is float/double, valid values range from 1 to 1000000 positive integers. Used to enhance the precision of generated floating points, especially when min or max values are small. This attribute enhances the precision after the decimal point by powers of 10: a scalingFactor of 10 means enhancing the precision by 1 decimal place, 100 means 2 places, and so on.
+- **dec_min**: String type, specifies the minimum value for a column of the DECIMAL data type. This field is used when min cannot express sufficient precision. The generated values will be greater than or equal to the minimum value.
+
+- **dec_max**: String type, specifies the maximum value for a column of the DECIMAL data type. This field is used when max cannot express sufficient precision. The generated values will be less than the maximum value.
+
+- **precision**: The total number of digits (including digits before and after the DECIMAL point), applicable only to the DECIMAL type, with a valid range of 0 to 38. 
+
+- **scale**: The number of digits to the right of the decimal point. For the FLOAT type, the scale's valid range is 0 to 6; for the DOUBLE type, the range is 0 to 15; and for the DECIMAL type, the scale's valid range is 0 to its precision value.
 
 - **fun**: This column data is filled with functions, currently only supports sin and cos functions, input parameters are converted from timestamps to angle values, conversion formula: angle x = input time column ts value % 360. Also supports coefficient adjustment, random fluctuation factor adjustment, displayed in a fixed format expression, such as fun="10*sin(x)+100*random(5)", x represents the angle, ranging from 0 ~ 360 degrees, the increment step is consistent with the time column step. 10 represents the multiplication coefficient, 100 represents the addition or subtraction coefficient, 5 represents the fluctuation amplitude within a 5% random range. Currently supports int, bigint, float, double four data types. Note: The expression is in a fixed pattern and cannot be reversed.
 
@@ -347,10 +377,15 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 ### Query Parameters
 
-In query scenarios, `filetype` must be set to `query`.
+`filetype` must be set to `query`.
+
+`query_mode` connect method:    
+- "taosc": Native.    
+- "rest" : RESTful.   
+
 `query_times` specifies the number of times to run the query, numeric type.
 
-Query scenarios can control the execution of slow query statements by setting `kill_slow_query_threshold` and `kill_slow_query_interval` parameters, where threshold controls that queries exceeding the specified exec_usec time will be killed by taosBenchmark, in seconds; interval controls the sleep time to avoid continuous slow query CPU consumption, in seconds.
+**Note: from version 3.3.5.6 and beyond, simultaneous configuration for `specified_table_query` and `super_table_query` in a JSON file is no longer supported **
 
 For other common parameters, see [General Configuration Parameters](#general-configuration-parameters)
 
@@ -358,13 +393,26 @@ For other common parameters, see [General Configuration Parameters](#general-con
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.  
 - **mixed_query** : Query Mode . "yes" is `Mixed Query`, "no" is `General Query`, default is "no".   
-  `General Query`: 
+  `General Query`:   
   Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.   
   The total number of queries(`General Query`) = the number of `sqls` * `query_times` * `threads`  
-  `Mixed Query`: 
+  `Mixed Query`:   
   All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
-  The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`
+  The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`. 
+
+- **batch_query** : Batch query power switch.    
+"yes": indicates that it is enabled.   
+"no":  indicates that it is not enabled, and other values report errors.    
+Batch query refers to dividing all SQL statements in SQL into `threads` groups, with each thread executing one group.   
+Each SQL statement is queried only once before exiting, and the main thread waits for all threads to complete before determining if the `query_interval` parameter is set. If sleep is required for a specified time, each thread group is restarted and the previous process is repeated until the number of queries is exhausted.   
+Functional limitations:  
+- Only supports scenarios where `mixed_query` is set to 'yes'.
+- Restful queries are not supported, meaning `query_made` cannot be 'rest'.
+
 - **query_interval** : Query interval, in millisecond, default is 0.
+When the 'batch_query' switch is turned on, it indicates the interval time after each batch query is completed, When closed, it indicates the interval time between each SQL query completion.
+If the execution time of the query exceeds the interval time, it will no longer wait. If the execution time of the query is less than the interval time, it is necessary to wait to make up for the interval time.
+
 - **threads** : Number of threads executing the SQL query, default is 1.
 - **sqls**:
   - **sql**: The SQL command to execute, required.
@@ -396,7 +444,7 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
 -**poll_delay**: The polling timeout time passed in by calling tmq_consumer_poll. 
   The unit is milliseconds. A negative number means the default timeout is 1 second.
 -**enable.manual.commit**: whether manual submission is allowed. 
-  The value can be true: manual submission is allowed, after consuming messages, manually call tmq_commit_sync to complete the submission. false：Do not submit, default value: false.
+  The value can be true: manual submission is allowed, after consuming messages, manually call tmq_commit_sync to complete the submission. false: Do not submit, default value: false.
 -**rows_file**: a file that stores consumption data. 
   It can be a full path or a relative path with a file name.The actual saved file will be followed by the consumer serial number. For example, rows_file is result, and the actual file name is result_1 (consumer 1) result_2 (consumer 2).
 -**expect_rows**: the number of rows and data types expected to be consumed by each consumer. 
@@ -438,6 +486,7 @@ For the following parameters, see the description of [Subscription](../../../adv
 | 16  |  VARBINARY         |    varbinary
 | 17  |  GEOMETRY          |    geometry
 | 18  |  JSON              |    json
+| 19  |  DECIMAL           |    decimal
 
 Note: Data types in the taosBenchmark configuration file must be in lowercase to be recognized.
 
@@ -467,6 +516,15 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
+<details>
+<summary>queryStb.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
+```
+
+</details>
+
 #### Subscription Example
 
 <details>
@@ -474,6 +532,17 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/tmq.json}}
+```
+
+</details>
+
+### Export CSV File Example
+
+<details>
+<summary>csv-export.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

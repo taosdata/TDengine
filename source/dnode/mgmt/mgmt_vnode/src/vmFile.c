@@ -350,14 +350,14 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     goto _OVER1;
   }
   if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     lino = __LINE__;
     goto _OVER1;
   }
 
   code = taosCloseFile(&pFile);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     lino = __LINE__;
     goto _OVER1;
   }

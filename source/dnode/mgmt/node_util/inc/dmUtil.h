@@ -48,10 +48,10 @@ extern "C" {
 
 #define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
 #define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }}
-#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ",       DEBUG_INFO,  255,        __VA_ARGS__); }}
-#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ",       DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
-#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ",       DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
+#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN  ", DEBUG_WARN,  255,        __VA_ARGS__); }}
+#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND INFO  ", DEBUG_INFO,  255,        __VA_ARGS__); }}
+#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND DEBUG ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
+#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND TRACE ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
 #define encryptDebug(...) { \
   if (toLogFile) { \
@@ -83,12 +83,12 @@ extern "C" {
   }\
 }
 
-#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", QID:%s", __VA_ARGS__, buf);}}
+#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", QID:%s", __VA_ARGS__, buf);}}
+#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param  ", QID:%s", __VA_ARGS__, buf);}}
+#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param  ", QID:%s", __VA_ARGS__, buf);}}
+#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", QID:%s", __VA_ARGS__, buf);}}
+#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", QID:%s", __VA_ARGS__, buf);}}
 
 // clang-format on
 

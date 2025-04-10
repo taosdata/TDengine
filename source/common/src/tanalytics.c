@@ -434,7 +434,7 @@ static int32_t taosAnalyJsonBufWriteStr(SAnalyticBuf *pBuf, const char *buf, int
 
 static int32_t taosAnalyJsonBufWriteStart(SAnalyticBuf *pBuf) { return taosAnalyJsonBufWriteStr(pBuf, "{\n", 0); }
 
-static int32_t tsosAnalJsonBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols) {
+static int32_t tsosAnalyJsonBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols) {
   pBuf->filePtr = taosOpenFile(pBuf->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pBuf->filePtr == NULL) {
     return terrno;
@@ -559,10 +559,10 @@ static int32_t taosAnalyJsonBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex
       break;
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRId64 "", *(int64_t *)colValue);
+      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRId64, *(int64_t *)colValue);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRIu64 "", *(uint64_t *)colValue);
+      bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRIu64, *(uint64_t *)colValue);
       break;
     case TSDB_DATA_TYPE_FLOAT:
       bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_FLOAT_VAL(colValue));
@@ -666,7 +666,7 @@ void taosAnalyBufDestroy(SAnalyticBuf *pBuf) {
 
 int32_t tsosAnalyBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols) {
   if (pBuf->bufType == ANALYTICS_BUF_TYPE_JSON || pBuf->bufType == ANALYTICS_BUF_TYPE_JSON_COL) {
-    return tsosAnalJsonBufOpen(pBuf, numOfCols);
+    return tsosAnalyJsonBufOpen(pBuf, numOfCols);
   } else {
     return TSDB_CODE_ANA_BUF_INVALID_TYPE;
   }

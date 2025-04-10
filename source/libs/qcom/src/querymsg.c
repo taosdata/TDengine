@@ -45,7 +45,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
   pOut->dbVgroup->stateTs = usedbRsp->stateTs;
 
-  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion,
+  qDebug("db:%s, get %d vgroup, vgVersion:%d, stateTs:%" PRId64, usedbRsp->db, usedbRsp->vgNum, usedbRsp->vgVersion,
          usedbRsp->stateTs);
 
   if (usedbRsp->vgNum <= 0) {
@@ -61,7 +61,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
     pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
-    qDebug("the %dth vgroup, id %d, epNum %d, current %s port %d", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
+    qDebug("db:%s, vgId:%d, epNum:%d, current ep:%s:%u", usedbRsp->db, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
            pVgInfo->epSet.eps[pVgInfo->epSet.inUse].fqdn, pVgInfo->epSet.eps[pVgInfo->epSet.inUse].port);
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       return terrno;
@@ -81,6 +81,8 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
   STableInfoReq infoReq = {0};
   infoReq.option = pInput->option;
   infoReq.header.vgId = pInput->vgId;
+  infoReq.autoCreateCtb = pInput->autoCreateCtb;
+
   if (pInput->dbFName) {
     tstrncpy(infoReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
   }
@@ -429,6 +431,53 @@ int32_t queryBuildGetStreamProgressMsg(void* input, char** msg, int32_t msgSize,
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t queryBuildVSubTablesMsg(void* input, char** msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int64_t)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SVSubTablesReq req = {0};
+  req.suid = *(int64_t*)input;
+
+  int32_t bufLen = tSerializeSVSubTablesReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
+  if(tSerializeSVSubTablesReq(pBuf, bufLen, &req) < 0)   {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryBuildVStbRefDBsMsg(void* input, char** msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int64_t)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SVStbRefDbsReq req = {0};
+  req.suid = *(int64_t*)input;
+
+  int32_t bufLen = tSerializeSVStbRefDbsReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
+  if(tSerializeSVStbRefDbsReq(pBuf, bufLen, &req) < 0)   {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
   SUseDbRsp     usedbRsp = {0};
@@ -490,7 +539,8 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
   }
 
   if (pMetaMsg->tableType != TSDB_SUPER_TABLE && pMetaMsg->tableType != TSDB_CHILD_TABLE &&
-      pMetaMsg->tableType != TSDB_NORMAL_TABLE && pMetaMsg->tableType != TSDB_SYSTEM_TABLE) {
+      pMetaMsg->tableType != TSDB_NORMAL_TABLE && pMetaMsg->tableType != TSDB_SYSTEM_TABLE &&
+      pMetaMsg->tableType != TSDB_VIRTUAL_NORMAL_TABLE && pMetaMsg->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
     qError("invalid tableType[%d] in table meta rsp msg", pMetaMsg->tableType);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
@@ -521,9 +571,38 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
   pMeta->uid = msg->tuid;
   pMeta->suid = msg->suid;
 
-  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, pMeta->uid,
+  qDebug("ctb:%s, uid:0x%" PRIx64 " meta returned, type:%d vgId:%d db:%s suid:%" PRIx64, msg->tbName, pMeta->uid,
          pMeta->tableType, pMeta->vgId, msg->dbFName, pMeta->suid);
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) {
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(pMeta);
+  QUERY_PARAM_CHECK(msg->pColRefs);
+
+  int32_t pColRefSize = sizeof(SColRef) * msg->numOfColRefs;
+
+  SVCTableMeta *pTableMeta = taosMemoryCalloc(1, sizeof(SVCTableMeta) + pColRefSize);
+  if (NULL == pTableMeta) {
+    qError("calloc size[%d] failed", (int32_t)sizeof(SVCTableMeta) + pColRefSize);
+    return terrno;
+  }
+
+  pTableMeta->vgId = msg->vgId;
+  pTableMeta->tableType = msg->tableType;
+  pTableMeta->uid = msg->tuid;
+  pTableMeta->suid = msg->suid;
+  pTableMeta->numOfColRefs = msg->numOfColRefs;
+
+  pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
+  memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+
+  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, (pTableMeta)->uid,
+         (pTableMeta)->tableType, (pTableMeta)->vgId, msg->dbFName, (pTableMeta)->suid);
+
+  *pMeta = pTableMeta;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -532,14 +611,16 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   QUERY_PARAM_CHECK(pMeta);
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) ? sizeof(SColRef) * msg->numOfColRefs : 0;
 
-  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+  SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -547,17 +628,26 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
+  pTableMeta->virtualStb = msg->virtualStb;
+  pTableMeta->numOfColRefs = msg->numOfColRefs;
 
   pTableMeta->tableInfo.numOfTags = msg->numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
   memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
-  if (useCompress(msg->tableType) && msg->pSchemaExt) {
+  if (withExtSchema(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
     memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   } else {
     pTableMeta->schemaExt = NULL;
+  }
+
+  if (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) {
+    pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+    memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+  } else {
+    pTableMeta->colRef = NULL;
   }
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
@@ -572,9 +662,9 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     }
   }
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
-         " sver %d tver %d"
-         " tagNum %d colNum %d precision %d rowSize %d",
+  qDebug("tb:%s, uid:%" PRIx64 " meta returned, type:%d vgId:%d db:%s stb:%s suid:%" PRIx64
+         " sver:%d tver:%d"
+         " tagNum:%d colNum:%d precision:%d rowSize:%d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
@@ -588,15 +678,17 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   QUERY_PARAM_CHECK(pMeta);
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColRefs : 0;
   int32_t tbNameSize = strlen(msg->tbName) + 1;
 
-  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + tbNameSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize + tbNameSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+  SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -604,17 +696,26 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
+  pTableMeta->virtualStb = msg->virtualStb;
+  pTableMeta->numOfColRefs = msg->numOfColRefs;
 
   pTableMeta->tableInfo.numOfTags = msg->numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
   TAOS_MEMCPY(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
-  if (useCompress(msg->tableType) && msg->pSchemaExt) {
+  if (withExtSchema(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
     TAOS_MEMCPY(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   } else {
     pTableMeta->schemaExt = NULL;
+  }
+
+  if (hasRefCol(msg->tableType) && msg->pColRefs) {
+    pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+    memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+  } else {
+    pTableMeta->colRef = NULL;
   }
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
@@ -629,12 +730,12 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
     }
   }
 
-  char *pTbName = (char *)pTableMeta + metaSize + schemaExtSize;
+  char *pTbName = (char *)pTableMeta + metaSize + schemaExtSize + pColRefSize;
   tstrncpy(pTbName, msg->tbName, tbNameSize);
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
-         " sver %d tver %d"
-         " tagNum %d colNum %d precision %d rowSize %d",
+  qDebug("tb:%s, uid:%" PRIx64 " meta returned, type:%d vgId:%d db:%s stb:%s suid:%" PRIx64
+         " sver:%d tver:%d"
+         " tagNum:%d colNum:%d precision:%d rowSize:%d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
@@ -684,6 +785,17 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
 
+    code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
+  } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
+
+    tstrncpy(pOut->ctbName, metaRsp.tbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pOut->tbName, metaRsp.stbName, TSDB_TABLE_NAME_LEN);
+
+    code = queryCreateVCTableMetaFromMsg(&metaRsp, &pOut->vctbMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto PROCESS_META_OVER;
+    }
     code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
   } else {
     SET_META_TYPE_TABLE(pOut->metaType);
@@ -740,6 +852,18 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
     pOut->ctbMeta.tableType = metaRsp.tableType;
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
+
+    code = queryCreateTableMetaExFromMsg(&metaRsp, true, &pOut->tbMeta);
+  } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
+
+    tstrncpy(pOut->ctbName, metaRsp.tbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pOut->tbName, metaRsp.stbName, TSDB_TABLE_NAME_LEN);
+
+    code = queryCreateVCTableMetaFromMsg(&metaRsp, &pOut->vctbMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto PROCESS_NAME_OVER;
+    }
 
     code = queryCreateTableMetaExFromMsg(&metaRsp, true, &pOut->tbMeta);
   } else {
@@ -831,7 +955,7 @@ int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
   }
 
   if (tDeserializeSDbCfgRsp(msg, msgSize, &out) != 0) {
-    qError("tDeserializeSDbCfgRsp failed, msgSize:%d,dbCfgRsp:%lu", msgSize, sizeof(out));
+    qError("tDeserializeSDbCfgRsp failed, msgSize:%d, dbCfgRsp:%lu", msgSize, sizeof(out));
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -981,12 +1105,43 @@ int32_t queryProcessStreamProgressRsp(void* output, char* msg, int32_t msgSize) 
   }
 
   if (tDeserializeSStreamProgressRsp(msg, msgSize, output) != 0) {
-    qError("tDeserializeStreamProgressRsp failed, msgSize: %d", msgSize);
+    qError("tDeserializeStreamProgressRsp failed, msgSize:%d", msgSize);
     return TSDB_CODE_INVALID_MSG;
   }
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessVSubTablesRsp(void* output, char* msg, int32_t msgSize) {
+  if (!output || !msg || msgSize <= 0) {
+    qError("queryProcessVSubTablesRsp input error, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SVSubTablesRsp* pRsp = (SVSubTablesRsp*)output;
+  int32_t code = tDeserializeSVSubTablesRsp(msg, msgSize, pRsp);
+  if (code != 0) {
+    qError("tDeserializeSVSubTablesRsp failed, msgSize: %d, error:%d", msgSize, code);
+    return code;
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryProcessVStbRefDbsRsp(void* output, char* msg, int32_t msgSize) {
+  if (!output || !msg || msgSize <= 0) {
+    qError("queryProcessVStbRefDbsRsp input error, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SVStbRefDbsRsp * pRsp = (SVStbRefDbsRsp*)output;
+  int32_t code = tDeserializeSVStbRefDbsRsp(msg, msgSize, pRsp);
+  if (code != 0) {
+    qError("tDeserializeSVStbRefDbsRsp failed, msgSize: %d, error:%d", msgSize, code);
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
@@ -1007,6 +1162,8 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryBuildGetTableTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryBuildGetTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryBuildVSubTablesMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryBuildVStbRefDBsMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryProcessTableNameRsp;
@@ -1026,6 +1183,8 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryProcessVSubTablesRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryProcessVStbRefDbsRsp;
 }
 
 #pragma GCC diagnostic pop

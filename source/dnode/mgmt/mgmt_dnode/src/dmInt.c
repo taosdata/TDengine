@@ -88,7 +88,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
 
   if ((code = udfStartUdfd(pMgmt->pData->dnodeId)) != 0) {
-    dError("failed to start udfd since %s", tstrerror(code));
+    dError("failed to start taosudf since %s", tstrerror(code));
   }
 
   if ((code = taosAnalyticsInit()) != 0) {

@@ -27,14 +27,14 @@ static int32_t parseCfgIntWithUnit(const char* str, int64_t* res) {
   double val = 0, temp = (double)INT64_MAX;
   char*  endPtr;
   bool   useDouble = false;
-  errno = 0;
+  SET_ERRNO(0);
   int64_t int64Val = taosStr2Int64(str, &endPtr, 0);
-  if (*endPtr == '.' || errno == ERANGE) {
-    errno = 0;
+  if (*endPtr == '.' || ERRNO == ERANGE) {
+    SET_ERRNO(0);
     val = taosStr2Double(str, &endPtr);
     useDouble = true;
   }
-  if (endPtr == str || errno == ERANGE || isnan(val)) {
+  if (endPtr == str || ERRNO == ERANGE || isnan(val)) {
     return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;

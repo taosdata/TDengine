@@ -41,6 +41,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80000107 | Ref ID is removed                 | The referenced ref resource has been released                | Preserve the scene and logs, report issue on github          |
 | 0x80000108 | Invalid Ref ID                    | Invalid ref ID                                               | Preserve the scene and logs, report issue on github          |
 | 0x8000010A | Ref is not there                  | ref information does not exist                               | Preserve the scene and logs, report issue on github          |
+| 0x8000010B | Driver was not loaded                   | libtaosnative.so or libtaosws.so was not found in the system path                           | Reinstall the client driver |
+| 0x8000010C | Function was not loaded from the driver | some function defined in libtaos.so are not implemented in libtaosnative.so or libtaosws.so | Reinstall the client driver |
 | 0x80000110 | Unexpected generic error          | System internal error                                        | Preserve the scene and logs, report issue on github          |
 | 0x80000111 | Action in progress                | Operation in progress                                        | 1. Wait for the operation to complete 2. Cancel the operation if necessary 3. If it exceeds a reasonable time and still not completed, preserve the scene and logs, or contact customer support |
 | 0x80000112 | Out of range                      | Configuration parameter exceeds allowed value range          | Change the parameter                                         |
@@ -73,6 +75,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80000134 | Invalid value                     | Invalid value                                                | Preserve the scene and logs, report issue on github          |
 | 0x80000135 | Invalid fqdn                      | Invalid FQDN                                                 | Check if the configured or input FQDN value is correct       |
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
+| 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
+| 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
 
 
 ## tsc
@@ -109,6 +113,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000030C | Invalid query id                                             | Internal error                                               | Report issue                                                 |
 | 0x8000030E | Invalid connection id                                        | Internal error                                               | Report issue                                                 |
 | 0x80000315 | User is disabled                                             | User is unavailable                                          | Grant permissions                                            |
+| 0x80000318 | Mnode internal error                                         | Internal error                                               | Report issue                                                 |
 | 0x80000320 | Object already there                                         | Internal error                                               | Report issue                                                 |
 | 0x80000322 | Invalid table type                                           | Internal error                                               | Report issue                                                 |
 | 0x80000323 | Object not there                                             | Internal error                                               | Report issue                                                 |
@@ -165,6 +170,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000038B | Index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x80000396 | Database in creating status                                  | Database is being created                                    | Retry                                                        |
 | 0x8000039A | Invalid system table name                                    | Internal error                                               | Report issue                                                 |
+| 0x8000039F | No VGroup's leader need to be balanced                       | Perform balance leader operation on VGroup                   | There is no VGroup's leader needs to be balanced             |
 | 0x800003A0 | Mnode already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003A1 | Mnode not there                                              | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003A2 | Qnode already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
@@ -201,7 +207,7 @@ This document details the server error codes that may be encountered when using 
 | 0x800003E5 | Topic with invalid option                                    | Internal error                                               | Report issue                                                 |
 | 0x800003E6 | Consumer not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003E7 | Topic unchanged                                              | No change                                                    | Confirm if the operation is correct                          |
-| 0x800003E8 | Subcribe not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800003E8 | Subscribe not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003E9 | Offset not exist                                             | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003EA | Consumer not ready                                           | Internal error                                               | Report issue                                                 |
 | 0x800003EB | Topic subscribed cannot be dropped                           | Being used                                                   | Confirm if the operation is correct                          |
@@ -370,98 +376,111 @@ This document details the server error codes that may be encountered when using 
 
 ## parser
 
-| Error Code | Description                                                  | Possible Error Scenarios or Reasons                          | Suggested Actions for Users                                  |
-| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 0x80002600 | syntax error near                                            | SQL syntax error                                             | Check and correct the SQL statement                          |
-| 0x80002601 | Incomplete SQL statement                                     | Incomplete SQL statement                                     | Check and correct the SQL statement                          |
-| 0x80002602 | Invalid column name                                          | Illegal or non-existent column name                          | Check and correct the SQL statement                          |
-| 0x80002603 | Table does not exist                                         | Table does not exist                                         | Check and confirm the existence of the table in the SQL statement |
-| 0x80002604 | Column ambiguously defined                                   | Column (alias) redefined                                     | Check and correct the SQL statement                          |
-| 0x80002605 | Invalid value type                                           | Illegal constant value                                       | Check and correct the SQL statement                          |
-| 0x80002608 | There mustn't be aggregation                                 | Aggregation function used in illegal clause                  | Check and correct the SQL statement                          |
-| 0x80002609 | ORDER BY item must be the number of a SELECT-list expression | Illegal position specified in Order by                       | Check and correct the SQL statement                          |
-| 0x8000260A | Not a GROUP BY expression                                    | Illegal group by statement                                   | Check and correct the SQL statement                          |
-| 0x8000260B | Not SELECTed expression                                      | Illegal expression                                           | Check and correct the SQL statement                          |
-| 0x8000260C | Not a single-group group function                            | Illegal use of column and function                           | Check and correct the SQL statement                          |
-| 0x8000260D | Tags number not matched                                      | Mismatched number of tag columns                             | Check and correct the SQL statement                          |
-| 0x8000260E | Invalid tag name                                             | Invalid or non-existent tag name                             | Check and correct the SQL statement                          |
-| 0x80002610 | Value is too long                                            | Value length exceeds limit                                   | Check and correct the SQL statement or API parameters        |
-| 0x80002611 | Password too short or empty                                  | Password is empty or less than 8 chars                                       | Use a valid password                                         |
-| 0x80002612 | Port should be an integer that is less than 65535 and greater than 0 | Illegal port number                                          | Check and correct the port number                            |
-| 0x80002613 | Endpoint should be in the format of 'fqdn:port'              | Incorrect address format                                     | Check and correct the address information                    |
-| 0x80002614 | This statement is no longer supported                        | Feature has been deprecated                                  | Refer to the feature documentation                           |
-| 0x80002615 | Interval too small                                           | Interval value exceeds the allowed minimum                   | Change the INTERVAL value                                    |
-| 0x80002616 | Database not specified                                       | Database not specified                                       | Specify the database for the current operation               |
-| 0x80002617 | Invalid identifier name                                      | Illegal or invalid length ID                                 | Check the names of related libraries, tables, columns, TAGs, etc. in the statement |
-| 0x80002618 | Corresponding supertable not in this db                      | Supertable does not exist                                    | Check if the corresponding supertable exists in the database |
-| 0x80002619 | Invalid database option                                      | Illegal database option value                                | Check and correct the database option values                 |
-| 0x8000261A | Invalid table option                                         | Illegal table option value                                   | Check and correct the table option values                    |
-| 0x80002624 | GROUP BY and WINDOW-clause can't be used together            | Group by and window cannot be used together                  | Check and correct the SQL statement                          |
-| 0x80002627 | Aggregate functions do not support nesting                   | Functions do not support nested use                          | Check and correct the SQL statement                          |
-| 0x80002628 | Only support STATE_WINDOW on integer/bool/varchar column     | Unsupported STATE_WINDOW data type                           | Check and correct the SQL statement                          |
-| 0x80002629 | Not support STATE_WINDOW on tag column                       | STATE_WINDOW not supported on tag column                     | Check and correct the SQL statement                          |
-| 0x8000262A | STATE_WINDOW not support for supertable query                | STATE_WINDOW not supported for supertable                    | Check and correct the SQL statement                          |
-| 0x8000262B | SESSION gap should be fixed time window, and greater than 0  | Illegal SESSION window value                                 | Check and correct the SQL statement                          |
-| 0x8000262C | Only support SESSION on primary timestamp column             | Illegal SESSION window column                                | Check and correct the SQL statement                          |
-| 0x8000262D | Interval offset cannot be negative                           | Illegal INTERVAL offset value                                | Check and correct the SQL statement                          |
-| 0x8000262E | Cannot use 'year' as offset when interval is 'month'         | Illegal INTERVAL offset unit                                 | Check and correct the SQL statement                          |
-| 0x8000262F | Interval offset should be shorter than interval              | Illegal INTERVAL offset value                                | Check and correct the SQL statement                          |
-| 0x80002630 | Does not support sliding when interval is natural month/year | Illegal sliding unit                                         | Check and correct the SQL statement                          |
-| 0x80002631 | sliding value no larger than the interval value              | Illegal sliding value                                        | Check and correct the SQL statement                          |
-| 0x80002632 | sliding value can not less than 1%% of interval value        | Illegal sliding value                                        | Check and correct the SQL statement                          |
-| 0x80002633 | Only one tag if there is a json tag                          | Only single JSON tag column supported                        | Check and correct the SQL statement                          |
-| 0x80002634 | Query block has incorrect number of result columns           | Mismatched number of columns                                 | Check and correct the SQL statement                          |
-| 0x80002635 | Incorrect TIMESTAMP value                                    | Illegal primary timestamp column value                       | Check and correct the SQL statement                          |
-| 0x80002637 | soffset/offset can not be less than 0                        | Illegal soffset/offset value                                 | Check and correct the SQL statement                          |
-| 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query   | slimit/soffset only supported for PARTITION BY/GROUP BY statements | Check and correct the SQL statement                          |
-| 0x80002639 | Invalid topic query                                          | Unsupported TOPIC query                                      |                                                              |
-| 0x8000263A | Cannot drop supertable in batch                              | Batch deletion of supertables not supported                  | Check and correct the SQL statement                          |
-| 0x8000263B | Start(end) time of query range required or time range too large | Window count exceeds limit                                   | Check and correct the SQL statement                          |
-| 0x8000263C | Duplicated column names                                      | Duplicate column names                                       | Check and correct the SQL statement                          |
-| 0x8000263D | Tags length exceeds max length                               | tag value length exceeds maximum supported range             | Check and correct the SQL statement                          |
-| 0x8000263E | Row length exceeds max length                                | Row length check and correct SQL statement                   | Check and correct the SQL statement                          |
-| 0x8000263F | Illegal number of columns                                    | Incorrect number of columns                                  | Check and correct the SQL statement                          |
-| 0x80002640 | Too many columns                                             | Number of columns exceeds limit                              | Check and correct the SQL statement                          |
-| 0x80002641 | First column must be timestamp                               | The first column must be the primary timestamp column        | Check and correct the SQL statement                          |
-| 0x80002642 | Invalid binary/nchar column/tag length                       | Incorrect length for binary/nchar                            | Check and correct the SQL statement                          |
-| 0x80002643 | Invalid number of tag columns                                | Incorrect number of tag columns                              | Check and correct the SQL statement                          |
-| 0x80002644 | Permission denied                                            | Permission error                                             | Check and confirm user permissions                           |
-| 0x80002645 | Invalid stream query                                         | Illegal stream statement                                     | Check and correct the SQL statement                          |
-| 0x80002646 | Invalid _c0 or_rowts expression                              | Illegal use of _c0 or_rowts                                  | Check and correct the SQL statement                          |
-| 0x80002647 | Invalid timeline function                                    | Function depends on non-existent primary timestamp           | Check and correct the SQL statement                          |
-| 0x80002648 | Invalid password                                             | Password does not meet standards                             | Check and change the password                                |
-| 0x80002649 | Invalid alter table statement                                | Illegal modify table statement                               | Check and correct the SQL statement                          |
-| 0x8000264A | Primary timestamp column cannot be dropped                   | Primary timestamp column cannot be deleted                   | Check and correct the SQL statement                          |
-| 0x8000264B | Only binary/nchar column length could be modified, and the length can only be increased, not decreased | Illegal column modification                                  | Check and correct the SQL statement                          |
-| 0x8000264C | Invalid tbname pseudocolumn                                 | Illegal use of tbname column                                 | Check and correct the SQL statement                          |
-| 0x8000264D | Invalid function name                                        | Illegal function name                                        | Check and correct the function name                          |
-| 0x8000264E | Comment too long                                             | Comment length exceeds limit                                 | Check and correct the SQL statement                          |
-| 0x8000264F | Function(s) only allowed in SELECT list, cannot mixed with non scalar functions or columns | Illegal mixing of functions                                  | Check and correct the SQL statement                          |
-| 0x80002650 | Window query not supported, since no valid timestamp column included in the result of subquery | Window query depends on non-existent primary timestamp column | Check and correct the SQL statement                          |
-| 0x80002651 | No columns can be dropped                                    | Essential columns cannot be deleted                          | Check and correct the SQL statement                          |
-| 0x80002652 | Only tag can be json type                                    | Normal columns do not support JSON type                      | Check and correct the SQL statement                          |
-| 0x80002655 | The DELETE statement must have a definite time window range  | Illegal WHERE condition in DELETE statement                  | Check and correct the SQL statement                          |
-| 0x80002656 | The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes | Illegal number of DNODEs specified in REDISTRIBUTE VGROUP    | Check and correct the SQL statement                          |
-| 0x80002657 | Fill now allowed                                             | Function does not allow FILL feature                         | Check and correct the SQL statement                          |
-| 0x80002658 | Invalid windows pc                                           | Illegal use of window pseudocolumn                          | Check and correct the SQL statement                          |
-| 0x80002659 | Window not allowed                                           | Function cannot be used in window                            | Check and correct the SQL statement                          |
-| 0x8000265A | Stream not allowed                                           | Function cannot be used in stream computation                | Check and correct the SQL statement                          |
-| 0x8000265B | Group by not allowd                                          | Function cannot be used in grouping                          | Check and correct the SQL statement                          |
-| 0x8000265D | Invalid interp clause                                        | Illegal INTERP or related statement                          | Check and correct the SQL statement                          |
-| 0x8000265E | Not valid function ion window                                | Illegal window statement                                     | Check and correct the SQL statement                          |
-| 0x8000265F | Only support single table                                    | Function only supported in single table queries              | Check and correct the SQL statement                          |
-| 0x80002660 | Invalid sma index                                            | Illegal creation of SMA statement                            | Check and correct the SQL statement                          |
-| 0x80002661 | Invalid SELECTed expression                                  | Invalid query statement                                      | Check and correct the SQL statement                          |
-| 0x80002662 | Fail to get table info                                       | Failed to retrieve table metadata information                | Preserve the scene and logs, report issue on GitHub          |
-| 0x80002663 | Not unique table/alias                                       | Table name (alias) conflict                                  | Check and correct the SQL statement                          |
+| Error Code | Description                                                  | Possible Error Scenarios or Reasons                                        | Suggested Actions for Users                                  |
+|------------| ------------------------------------------------------------ |----------------------------------------------------------------------------| ------------------------------------------------------------ |
+| 0x80002600 | syntax error near                                            | SQL syntax error                                                           | Check and correct the SQL statement                          |
+| 0x80002601 | Incomplete SQL statement                                     | Incomplete SQL statement                                                   | Check and correct the SQL statement                          |
+| 0x80002602 | Invalid column name                                          | Illegal or non-existent column name                                        | Check and correct the SQL statement                          |
+| 0x80002603 | Table does not exist                                         | Table does not exist                                                       | Check and confirm the existence of the table in the SQL statement |
+| 0x80002604 | Column ambiguously defined                                   | Column (alias) redefined                                                   | Check and correct the SQL statement                          |
+| 0x80002605 | Invalid value type                                           | Illegal constant value                                                     | Check and correct the SQL statement                          |
+| 0x80002608 | There mustn't be aggregation                                 | Aggregation function used in illegal clause                                | Check and correct the SQL statement                          |
+| 0x80002609 | ORDER BY item must be the number of a SELECT-list expression | Illegal position specified in Order by                                     | Check and correct the SQL statement                          |
+| 0x8000260A | Not a GROUP BY expression                                    | Illegal group by statement                                                 | Check and correct the SQL statement                          |
+| 0x8000260B | Not SELECTed expression                                      | Illegal expression                                                         | Check and correct the SQL statement                          |
+| 0x8000260C | Not a single-group group function                            | Illegal use of column and function                                         | Check and correct the SQL statement                          |
+| 0x8000260D | Tags number not matched                                      | Mismatched number of tag columns                                           | Check and correct the SQL statement                          |
+| 0x8000260E | Invalid tag name                                             | Invalid or non-existent tag name                                           | Check and correct the SQL statement                          |
+| 0x80002610 | Value is too long                                            | Value length exceeds limit                                                 | Check and correct the SQL statement or API parameters        |
+| 0x80002611 | Password too short or empty                                  | Password is empty or less than 8 chars                                     | Use a valid password                                         |
+| 0x80002612 | Port should be an integer that is less than 65535 and greater than 0 | Illegal port number                                                        | Check and correct the port number                            |
+| 0x80002613 | Endpoint should be in the format of 'fqdn:port'              | Incorrect address format                                                   | Check and correct the address information                    |
+| 0x80002614 | This statement is no longer supported                        | Feature has been deprecated                                                | Refer to the feature documentation                           |
+| 0x80002615 | Interval too small                                           | Interval value exceeds the allowed minimum                                 | Change the INTERVAL value                                    |
+| 0x80002616 | Database not specified                                       | Database not specified                                                     | Specify the database for the current operation               |
+| 0x80002617 | Invalid identifier name                                      | Illegal or invalid length ID                                               | Check the names of related libraries, tables, columns, TAGs, etc. in the statement |
+| 0x80002618 | Corresponding supertable not in this db                      | Supertable does not exist                                                  | Check if the corresponding supertable exists in the database |
+| 0x80002619 | Invalid database option                                      | Illegal database option value                                              | Check and correct the database option values                 |
+| 0x8000261A | Invalid table option                                         | Illegal table option value                                                 | Check and correct the table option values                    |
+| 0x80002624 | GROUP BY and WINDOW-clause can't be used together            | Group by and window cannot be used together                                | Check and correct the SQL statement                          |
+| 0x80002627 | Aggregate functions do not support nesting                   | Functions do not support nested use                                        | Check and correct the SQL statement                          |
+| 0x80002628 | Only support STATE_WINDOW on integer/bool/varchar column     | Unsupported STATE_WINDOW data type                                         | Check and correct the SQL statement                          |
+| 0x80002629 | Not support STATE_WINDOW on tag column                       | STATE_WINDOW not supported on tag column                                   | Check and correct the SQL statement                          |
+| 0x8000262A | STATE_WINDOW not support for supertable query                | STATE_WINDOW not supported for supertable                                  | Check and correct the SQL statement                          |
+| 0x8000262B | SESSION gap should be fixed time window, and greater than 0  | Illegal SESSION window value                                               | Check and correct the SQL statement                          |
+| 0x8000262C | Only support SESSION on primary timestamp column             | Illegal SESSION window column                                              | Check and correct the SQL statement                          |
+| 0x8000262D | Interval offset cannot be negative                           | Illegal INTERVAL offset value                                              | Check and correct the SQL statement                          |
+| 0x8000262E | Cannot use 'year' as offset when interval is 'month'         | Illegal INTERVAL offset unit                                               | Check and correct the SQL statement                          |
+| 0x8000262F | Interval offset should be shorter than interval              | Illegal INTERVAL offset value                                              | Check and correct the SQL statement                          |
+| 0x80002630 | Does not support sliding when interval is natural month/year | Illegal sliding unit                                                       | Check and correct the SQL statement                          |
+| 0x80002631 | sliding value no larger than the interval value              | Illegal sliding value                                                      | Check and correct the SQL statement                          |
+| 0x80002632 | sliding value can not less than 1%% of interval value        | Illegal sliding value                                                      | Check and correct the SQL statement                          |
+| 0x80002633 | Only one tag if there is a json tag                          | Only single JSON tag column supported                                      | Check and correct the SQL statement                          |
+| 0x80002634 | Query block has incorrect number of result columns           | Mismatched number of columns                                               | Check and correct the SQL statement                          |
+| 0x80002635 | Incorrect TIMESTAMP value                                    | Illegal primary timestamp column value                                     | Check and correct the SQL statement                          |
+| 0x80002637 | soffset/offset can not be less than 0                        | Illegal soffset/offset value                                               | Check and correct the SQL statement                          |
+| 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query   | slimit/soffset only supported for PARTITION BY/GROUP BY statements         | Check and correct the SQL statement                          |
+| 0x80002639 | Invalid topic query                                          | Unsupported TOPIC query                                                    |                                                              |
+| 0x8000263A | Cannot drop supertable in batch                              | Batch deletion of supertables not supported                                | Check and correct the SQL statement                          |
+| 0x8000263B | Start(end) time of query range required or time range too large | Window count exceeds limit                                                 | Check and correct the SQL statement                          |
+| 0x8000263C | Duplicated column names                                      | Duplicate column names                                                     | Check and correct the SQL statement                          |
+| 0x8000263D | Tags length exceeds max length                               | tag value length exceeds maximum supported range                           | Check and correct the SQL statement                          |
+| 0x8000263E | Row length exceeds max length                                | Row length check and correct SQL statement                                 | Check and correct the SQL statement                          |
+| 0x8000263F | Illegal number of columns                                    | Incorrect number of columns                                                | Check and correct the SQL statement                          |
+| 0x80002640 | Too many columns                                             | Number of columns exceeds limit                                            | Check and correct the SQL statement                          |
+| 0x80002641 | First column must be timestamp                               | The first column must be the primary timestamp column                      | Check and correct the SQL statement                          |
+| 0x80002642 | Invalid binary/nchar column/tag length                       | Incorrect length for binary/nchar                                          | Check and correct the SQL statement                          |
+| 0x80002643 | Invalid number of tag columns                                | Incorrect number of tag columns                                            | Check and correct the SQL statement                          |
+| 0x80002644 | Permission denied                                            | Permission error                                                           | Check and confirm user permissions                           |
+| 0x80002645 | Invalid stream query                                         | Illegal stream statement                                                   | Check and correct the SQL statement                          |
+| 0x80002646 | Invalid _c0 or_rowts expression                              | Illegal use of _c0 or_rowts                                                | Check and correct the SQL statement                          |
+| 0x80002647 | Invalid timeline function                                    | Function depends on non-existent primary timestamp                         | Check and correct the SQL statement                          |
+| 0x80002648 | Invalid password                                             | Password does not meet standards                                           | Check and change the password                                |
+| 0x80002649 | Invalid alter table statement                                | Illegal modify table statement                                             | Check and correct the SQL statement                          |
+| 0x8000264A | Primary timestamp column cannot be dropped                   | Primary timestamp column cannot be deleted                                 | Check and correct the SQL statement                          |
+| 0x8000264B | Only binary/nchar column length could be modified, and the length can only be increased, not decreased | Illegal column modification                                                | Check and correct the SQL statement                          |
+| 0x8000264C | Invalid tbname pseudocolumn                                 | Illegal use of tbname column                                               | Check and correct the SQL statement                          |
+| 0x8000264D | Invalid function name                                        | Illegal function name                                                      | Check and correct the function name                          |
+| 0x8000264E | Comment too long                                             | Comment length exceeds limit                                               | Check and correct the SQL statement                          |
+| 0x8000264F | Function(s) only allowed in SELECT list, cannot mixed with non scalar functions or columns | Illegal mixing of functions                                                | Check and correct the SQL statement                          |
+| 0x80002650 | Window query not supported, since no valid timestamp column included in the result of subquery | Window query depends on non-existent primary timestamp column              | Check and correct the SQL statement                          |
+| 0x80002651 | No columns can be dropped                                    | Essential columns cannot be deleted                                        | Check and correct the SQL statement                          |
+| 0x80002652 | Only tag can be json type                                    | Normal columns do not support JSON type                                    | Check and correct the SQL statement                          |
+| 0x80002655 | The DELETE statement must have a definite time window range  | Illegal WHERE condition in DELETE statement                                | Check and correct the SQL statement                          |
+| 0x80002656 | The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes | Illegal number of DNODEs specified in REDISTRIBUTE VGROUP                  | Check and correct the SQL statement                          |
+| 0x80002657 | Fill now allowed                                             | Function does not allow FILL feature                                       | Check and correct the SQL statement                          |
+| 0x80002658 | Invalid windows pc                                           | Illegal use of window pseudocolumn                                         | Check and correct the SQL statement                          |
+| 0x80002659 | Window not allowed                                           | Function cannot be used in window                                          | Check and correct the SQL statement                          |
+| 0x8000265A | Stream not allowed                                           | Function cannot be used in stream computation                              | Check and correct the SQL statement                          |
+| 0x8000265B | Group by not allowed                                          | Function cannot be used in grouping                                        | Check and correct the SQL statement                          |
+| 0x8000265D | Invalid interp clause                                        | Illegal INTERP or related statement                                        | Check and correct the SQL statement                          |
+| 0x8000265E | Not valid function ion window                                | Illegal window statement                                                   | Check and correct the SQL statement                          |
+| 0x8000265F | Only support single table                                    | Function only supported in single table queries                            | Check and correct the SQL statement                          |
+| 0x80002660 | Invalid sma index                                            | Illegal creation of SMA statement                                          | Check and correct the SQL statement                          |
+| 0x80002661 | Invalid SELECTed expression                                  | Invalid query statement                                                    | Check and correct the SQL statement                          |
+| 0x80002662 | Fail to get table info                                       | Failed to retrieve table metadata information                              | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002663 | Not unique table/alias                                       | Table name (alias) conflict                                                | Check and correct the SQL statement                          |
 | 0x80002664 | Join requires valid time-series input                        | Unsupported JOIN query without primary timestamp column output in subquery | Check and correct the SQL statement                          |
 | 0x80002665 | The _TAGS pseudocolumn can only be used for subtable and supertable queries | Illegal tag column query                                     | Check and correct the SQL statement                          |
 | 0x80002666 | Subquery does not output primary timestamp column            | Check and correct the SQL statement                          |                                                              |
 | 0x80002667 | Invalid usage of expr: %s                                    | Illegal expression                                           | Check and correct the SQL statement                          |
+| 0x80002687 | True_for duration cannot be negative                         | Use negative value as true_for duration                      | Check and correct the SQL statement                          |
+| 0x80002688 | Cannot use 'year' or 'month' as true_for duration            | Use year or month as true_for_duration                       | Check and correct the SQL statement                          |
+| 0x80002689 | Invalid using cols function                                  | Illegal using cols function                                        | Check and correct the SQL statement                          |
+| 0x8000268A | Cols function's first param must be a select function that output a single row | The first parameter of the cols function should be a selection function | Check and correct the SQL statement                          |
+| 0x8000268B | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |
+| 0x8000268C | Join primary key col must be timestamp type                  | Join primary key data type error                             | Check and correct the SQL statement                          |
+| 0x8000268D | Invalid virtual table's ref column                                                                     | Create/Update Virtual table using incorrect data source column             | Check and correct the SQL statement           |
+| 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement           |
+| 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement           |
+| 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement           |
 | 0x800026FF | Parser internal error                                        | Internal error in parser                                     | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                       | Internal error in planner                                    | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                              | JOIN condition validation failed                             | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002702 | Cross join not support                                       | CROSS JOIN not supported                                     | Check and correct the SQL statement                          |
+| 0x80002704 | Planner slot key not found                                   | Planner cannot find slotId during making physic plan                       | Preserve the scene and logs, report issue on GitHub                        |
+| 0x80002705 | Planner invalid table type                                   | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub                          |
+| 0x80002706 | Planner invalid query control plan type                      | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub                         |
 
 ## function
 
@@ -479,10 +498,10 @@ This document details the server error codes that may be encountered when using 
 | Error Code | Description                        | Possible Scenarios or Reasons                                | Recommended Actions                                          |
 | ---------- | ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 0x80002901 | udf is stopping                    | udf call received when dnode exits                           | Stop executing udf queries                                   |
-| 0x80002902 | udf pipe read error                | Error occurred when taosd reads from udfd pipe               | udfd unexpectedly exits, 1) C udf crash 2) udfd crash        |
-| 0x80002903 | udf pipe connect error             | Error establishing pipe connection to udfd in taosd          | 1) Corresponding udfd not started in taosd. Restart taosd    |
-| 0x80002904 | udf pipe not exist                 | Connection error occurs between two phases of udf setup, call, and teardown, causing the connection to disappear, subsequent phases continue | udfd unexpectedly exits, 1) C udf crash 2) udfd crash        |
-| 0x80002905 | udf load failure                   | Error loading udf in udfd                                    | 1) udf does not exist in mnode 2) Error in udf loading. Check logs |
+| 0x80002902 | udf pipe read error                | Error occurred when taosd reads from taosudf pipe            | taosudf unexpectedly exits, 1) C udf crash 2) taosudf crash        |
+| 0x80002903 | udf pipe connect error             | Error establishing pipe connection to taosudf in taosd       | 1) Corresponding taosudf not started in taosd. Restart taosd    |
+| 0x80002904 | udf pipe not exist                 | Connection error occurs between two phases of udf setup, call, and teardown, causing the connection to disappear, subsequent phases continue | taosudf unexpectedly exits, 1) C udf crash 2) taosudf crash        |
+| 0x80002905 | udf load failure                   | Error loading udf in taosudf                                 | 1) udf does not exist in mnode 2) Error in udf loading. Check logs |
 | 0x80002906 | udf invalid function input         | udf input check                                              | udf function does not accept input, such as wrong column type |
 | 0x80002907 | udf invalid bufsize                | Intermediate result in udf aggregation function exceeds specified bufsize | Increase bufsize, or reduce intermediate result size         |
 | 0x80002908 | udf invalid output type            | udf output type differs from the type specified when creating udf | Modify udf, or the type when creating udf, to match the result |
@@ -531,8 +550,39 @@ This document details the server error codes that may be encountered when using 
 
 | Error Code | Description           | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                |
 | ---------- | --------------------- | ------------------------------------------------------------ | -------------------------------------------- |
+| 0x800003E6 | Consumer not exist    | Consumer timeout offline                                     | rebuild consumer to subscribe data again     |
+| 0x800003EA | Consumer not ready    | Consumer rebalancing                                         | retry after 2s     |
 | 0x80004000 | Invalid message       | The subscribed data is illegal, generally does not occur     | Check the client-side error logs for details |
-| 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error, not exposed to users         |
+| 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error        |
 | 0x80004002 | Consumer closed       | The consumer no longer exists                                | Check if it has already been closed          |
-| 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate | Without calling subscribe, directly poll data |
+| 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
+
+## TDgpt
+
+| Error Code | Description                                         | Possible Error Scenarios or Reasons                 | Recommended Actions for Users                                          |
+|------------|-----------------------------------------------------|-----------------------------------------------------|------------------------------------------------------------------------|
+| 0x80000440 | Analysis service response is NULL                   | The response content is empty                       | Check the taosanode.app.log for detailed response information          |
+| 0x80000441 | Analysis service can't access                       | Service is not work correctly, or network is broken | Check the status of taosanode and network status                       |
+| 0x80000442 | Analysis algorithm is missing                       | Algorithm used in analysis is not specified         | Add the "algo" parameter in forecast function or anomaly_window clause |
+| 0x80000443 | Analysis algorithm not loaded                       | The specified algorithm is not available            | Check for the specified algorithm                                      |
+| 0x80000444 | Analysis invalid buffer type                        | The buffered data type is invalid                   | Check the taosanode.app.log for more details                           |
+| 0x80000445 | Analysis failed since anode return error            | The responses from anode with error message         | Check the taosanode.app.log for more details                           |
+| 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many                              | Reduce the rows of input data to below than the threshold              |
+| 0x80000447 | white-noise data not processed                      | white noise data is not processed                   | Ignore the white noise check or use another input data                 |
+| 0x80000448 | Analysis internal error, not processed              | Internal error occurs                               | Check the taosanode.app.log for more details                           |
+| 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough           | Increase the number of input rows (10 rows for forecasting at least)   |
+
+
+## virtual table
+
+| Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
+|------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
+| 0x80006200 | Virtual table scan internal error                       | virtual table scan operator internal error, generally does not occur                                                                                                 | Check error logs, contact development for handling                            |
+| 0x80006201 | Virtual table scan invalid downstream operator type     | The incorrect execution plan generated causes the downstream operator type of the virtual table scan operator to be incorrect.                                       | Check error logs, contact development for handling                            |
+| 0x80006202 | Virtual table prim timestamp column should not has ref  | The timestamp primary key column of a virtual table should not have a data source. If it does, this error will occur during subsequent queries on the virtual table. | Check error logs, contact development for handling                            |
+| 0x80006203 | Create virtual child table must use virtual super table | Create virtual child table using non-virtual super table                                                                                                             | create virtual child table using virtual super table                          |
+| 0x80006204 | Virtual table not support decimal type                  | Create virtual table using decimal type                                                                                                                              | create virtual table without using decimal type                               |
+| 0x80006205 | Virtual table not support in STMT query and STMT insert | Use virtual table in stmt query and stmt insert                                                                                                                      | do not use virtual table in stmt query and insert                             |
+| 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
+| 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table ‘s child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |

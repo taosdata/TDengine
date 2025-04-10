@@ -181,12 +181,7 @@ void tdbBtreeClose(SBTree *pBt) {
 
 int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
   SBTC   btc;
-  SCell *pCell;
-  void  *pBuf;
-  int    szCell;
-  int    szBuf;
   int    ret;
-  int    idx;
   int    c;
 
   ret = tdbBtcOpen(&btc, pBt, pTxn);
@@ -1663,70 +1658,70 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
     vLen = pPage->vLen;
   }
 
-  int nPayload = kLen + vLen;
-  if (nHeader + nPayload <= pPage->maxLocal) {
-    return nHeader + nPayload;
-  } else {
-    int maxLocal = pPage->maxLocal;
+  int nSize = kLen + vLen + nHeader;
+  if (nSize <= pPage->maxLocal) {
+    // cell size should be at least the size of a free cell, otherwise it
+    // cannot be added to the free list when dropped.
+    if (nSize < pPage->pPageMethods->szFreeCell) {
+      return pPage->pPageMethods->szFreeCell;
+    }
+    return nSize;
+  }
 
-    // calc local storage size
-    int minLocal = pPage->minLocal;
-    int surplus = minLocal + (nPayload + nHeader - minLocal) % (maxLocal - sizeof(SPgno));
-    int nLocal = surplus <= maxLocal ? surplus : minLocal;
+  // handle overflow pages
+  int maxLocal = pPage->maxLocal;
 
-    // free ofp pages' cells
-    if (dropOfp) {
-      int    ret = 0;
-      SPgno  pgno = *(SPgno *)(pCell + nLocal - sizeof(SPgno));
-      int    nLeft = nPayload - nLocal + sizeof(SPgno) + nHeader;
-      SPage *ofp;
-      int    bytes;
+  // calc local storage size
+  int minLocal = pPage->minLocal;
+  int surplus = minLocal + (nSize - minLocal) % (maxLocal - sizeof(SPgno));
+  int nLocal = surplus <= maxLocal ? surplus : minLocal;
 
-      while (pgno != 0) {
-        ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
-        if (ret < 0) {
-          return ret;
-        }
+  if (!dropOfp) {
+    return nLocal;
+  }
 
-        SCell *ofpCell = tdbPageGetCell(ofp, 0);
+  // free ofp pages' cells
+  SPgno  pgno = *(SPgno *)(pCell + nLocal - sizeof(SPgno));
+  int    nLeft = nSize - nLocal + sizeof(SPgno);
 
-        if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
-          bytes = nLeft;
-        } else {
-          bytes = ofp->maxLocal - sizeof(SPgno);
-        }
+  while (pgno != 0) {
+    SPage *ofp;
+    int    bytes;
+    int ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+    if (ret < 0) {
+      return ret;
+    }
 
-        // SPgno origPgno = pgno;
-        memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
+    SCell *ofpCell = tdbPageGetCell(ofp, 0);
 
-        ret = tdbPagerWrite(pBt->pPager, ofp);
-        if (ret < 0) {
-          tdbError("failed to write page since %s", terrstr());
-          return ret;
-        }
-        /*
-        tdbPageDropCell(ofp, 0, pTxn, pBt);
-        */
-        // SIntHdr *pIntHdr = (SIntHdr *)(ofp->pData);
-        //  pIntHdr->flags = TDB_FLAG_ADD(0, TDB_BTREE_OVFL);
-        // pIntHdr->pgno = 0;
-        // ofp->pPager = NULL;
+    if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
+      bytes = nLeft;
+    } else {
+      bytes = ofp->maxLocal - sizeof(SPgno);
+    }
 
-        SArray *ofps = pPage->pPager->ofps;
-        if (ofps) {
-          if (taosArrayPush(ofps, &ofp) == NULL) {
-            return terrno;
-          }
-        }
+    // SPgno origPgno = pgno;
+    memcpy(&pgno, ofpCell + bytes, sizeof(pgno));
 
-        tdbPagerReturnPage(pPage->pPager, ofp, pTxn);
+    ret = tdbPagerWrite(pBt->pPager, ofp);
+    if (ret < 0) {
+      tdbError("failed to write page since %s", terrstr());
+      return ret;
+    }
 
-        nLeft -= bytes;
+    SArray *ofps = pPage->pPager->ofps;
+    if (ofps) {
+      if (taosArrayPush(ofps, &ofp) == NULL) {
+        return terrno;
       }
     }
 
-    return nLocal;
+    tdbPagerReturnPage(pPage->pPager, ofp, pTxn);
+
+    nLeft -= bytes;
   }
+
+  return nLocal;
 }
 // TDB_BTREE_CELL
 

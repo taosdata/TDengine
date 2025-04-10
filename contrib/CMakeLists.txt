@@ -92,7 +92,9 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 # lz4
-cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+if(${BUILD_WITH_LZ4})
+    cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_LZ4})
 
 # zlib
 cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -159,7 +161,6 @@ elseif(${BUILD_WITH_COS})
     # cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     # cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     # cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    # cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/cos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_COS)
 endif()
@@ -187,16 +188,22 @@ if(${BUILD_PCRE2})
     cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-find_program(C_COMPILER_LEMON NAMES gcc)
-if(C_COMPILER_LEMON)
-    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
-else()
-    set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
-    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
-endif()
-
 # lemon
-cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+if(${BUILD_WITH_LEMON})
+    if(${TD_ACORE})
+        set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
+    else()
+        find_program(C_COMPILER_LEMON NAMES gcc)
+    endif()
+    if(C_COMPILER_LEMON)
+        message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+    else()
+        set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
+        message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+    endif()
+
+    cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
 
 # Force specify CC=cc on MacOS. Because the default CC setting in the generated Makefile has issues finding standard library headers
 IF(${TD_DARWIN})
@@ -274,11 +281,13 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 # endif()
 
 # lz4
-add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
-target_include_directories(
-    lz4_static
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
-)
+if(${BUILD_WITH_LZ4})
+    add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
+    target_include_directories(
+        lz4_static
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
+    )
+endif(${BUILD_WITH_LZ4})
 
 # zlib
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
@@ -361,6 +370,7 @@ if(${BUILD_WITH_ROCKSDB})
         endif(${TD_DARWIN_ARM64})
 
         if(${TD_WINDOWS})
+            unset(CMAKE_CXX_STANDARD CACHE) 
             SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819 /std:c++17")
             SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4244 /wd4819")
             option(WITH_JNI "" OFF)
@@ -412,6 +422,7 @@ if(${BUILD_WITH_ROCKSDB})
             endif(${TD_DARWIN_ARM64})
 
             if(${TD_WINDOWS})
+                unset(CMAKE_CXX_STANDARD CACHE) 
                 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819 /std:c++17")
                 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4244 /wd4819")
                 option(WITH_JNI "" OFF)
@@ -665,7 +676,12 @@ if(${BUILD_PCRE2})
 endif(${BUILD_PCRE2})
 
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
-    add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
+  set(ORIG_CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+  string(REPLACE " -Werror " " " CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+  add_subdirectory(xml2-cmake)
+  set(CMAKE_C_FLAGS ${ORIG_CMAKE_C_FLAGS})
+
+  add_subdirectory(azure-cmake)
 endif()
 
 IF(TD_LINUX)

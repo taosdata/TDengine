@@ -7,9 +7,14 @@
 #
 #,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
 #,,n,system-test,python3 ./test.py -f 8-stream/stream_basic.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/continuous_window_close_interval_basic.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/continuous_window_close_interval.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/continuous_window_close_interval_checkpoint.py
 
 # army-test
 #,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_notify.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop_child.py
 
 #tsim test
 #,,y,script,./test.sh -f tsim/query/timeline.sim

@@ -34,7 +34,7 @@ char  **strsplit(char *src, const char *delim, int32_t *num);
 char   *strtolower(char *dst, const char *src);
 char   *strntolower(char *dst, const char *src, int32_t n);
 char   *strntolower_s(char *dst, const char *src, int32_t n);
-int64_t strnatoi(char *num, int32_t len);
+int64_t strnatoi(const char *num, int32_t len);
 
 size_t tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
 size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize);
@@ -53,6 +53,136 @@ void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 int32_t parseCfgReal(const char *str, float *out);
 bool    tIsValidFileName(const char *fileName, const char *pattern);
 bool    tIsValidFilePath(const char *filePath, const char *pattern);
+
+#ifdef TD_ASTRA
+static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
+  if (s1[0] == 0 && s2[0] == 0) return 0;
+  return strcasecmp(s1, s2);
+}
+
+static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size_t n) {
+  if (s1[0] == 0 && s2[0] == 0) return 0;
+  return strncasecmp(s1, s2, n);
+}
+#else
+#define taosStrcasecmp  strcasecmp
+#define taosStrncasecmp strncasecmp
+#endif
+
+#ifdef NO_UNALIGNED_ACCESS
+#define CHECK_ALIGNMENT
+static FORCE_INLINE int64_t taosGetInt64Aligned(int64_t *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  int64_t val;
+  memcpy(&val, pVal, sizeof(int64_t));
+  return val;
+}
+
+static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  uint64_t val;
+  memcpy(&val, pVal, sizeof(uint64_t));
+  return val;
+}
+
+static FORCE_INLINE float taosGetFloatAligned(float *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  float val;
+  memcpy(&val, pVal, sizeof(float));
+  return val;
+}
+
+static FORCE_INLINE double taosGetDoubleAligned(double *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  double val;
+  memcpy(&val, pVal, sizeof(double));
+  return val;
+}
+
+static FORCE_INLINE void taosSetInt64Aligned(int64_t *p, int64_t val) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)p) & 7) == 0) {
+    *p = val;
+    return;
+  }
+#endif
+  memcpy(p, &val, sizeof(int64_t));
+}
+
+static FORCE_INLINE void taosSetUInt64Aligned(uint64_t *p, uint64_t val) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)p) & 7) == 0) {
+    *p = val;
+    return;
+  }
+#endif
+  memcpy(p, &val, sizeof(uint64_t));
+}
+
+static FORCE_INLINE void taosSetPInt64Aligned(int64_t *to, int64_t *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(int64_t));
+}
+
+static FORCE_INLINE void taosSetPFloatAligned(float *to, float *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(float));
+}
+
+static FORCE_INLINE void taosSetPDoubleAligned(double *to, double *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(double));
+}
+
+static FORCE_INLINE void taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(uint64_t));
+}
+
+#define TAOS_SET_OBJ_ALIGNED(pTo, vFrom)  memcpy((pTo), &(vFrom), sizeof(*(pTo)))
+#define TAOS_SET_POBJ_ALIGNED(pTo, pFrom) memcpy((pTo), (pFrom), sizeof(*(pTo)))
+#else
+static FORCE_INLINE int64_t  taosGetInt64Aligned(int64_t *pVal) { return *pVal; }
+static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) { return *pVal; }
+static FORCE_INLINE float    taosGetFloatAligned(float *pVal) { return *pVal; }
+static FORCE_INLINE double   taosGetDoubleAligned(double *pVal) { return *pVal; }
+static FORCE_INLINE void     taosSetInt64Aligned(int64_t *p, int64_t val) { *p = val; }
+static FORCE_INLINE void     taosSetUInt64Aligned(uint64_t *p, uint64_t val) { *p = val; }
+static FORCE_INLINE void     taosSetPInt64Aligned(int64_t *to, int64_t *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPFloatAligned(float *to, float *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPDoubleAligned(double *to, double *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) { *to = *from; }
+#define TAOS_SET_OBJ_ALIGNED(pTo, vFrom)  *(pTo) = (vFrom)
+#define TAOS_SET_POBJ_ALIGNED(pTo, pFrom) *(pTo) = *(pFrom)
+#endif
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
@@ -148,20 +278,20 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define QUERY_CHECK_CODE TSDB_CHECK_CODE
 
-#define TSDB_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
-  if (UNLIKELY(!(condition))) {                                   \
-    (CODE) = (ERRNO);                                             \
-    (LINO) = __LINE__;                                            \
-    goto LABEL;                                                   \
+#define TSDB_CHECK_CONDITION(condition, CODE, LINO, LABEL, _ERRNO) \
+  if (UNLIKELY(!(condition))) {                                    \
+    (CODE) = (_ERRNO);                                             \
+    (LINO) = __LINE__;                                             \
+    goto LABEL;                                                    \
   }
 
 #define QUERY_CHECK_CONDITION TSDB_CHECK_CONDITION
 
-#define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
-  if (UNLIKELY((ptr) == NULL)) {                       \
-    (CODE) = (ERRNO);                                  \
-    (LINO) = __LINE__;                                 \
-    goto LABEL;                                        \
+#define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, _ERRNO) \
+  if (UNLIKELY((ptr) == NULL)) {                        \
+    (CODE) = (_ERRNO);                                  \
+    (LINO) = __LINE__;                                  \
+    goto LABEL;                                         \
   }
 
 #define QUERY_CHECK_NULL TSDB_CHECK_NULL
@@ -170,7 +300,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)
 
-#define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
+#define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
 
 #define TAOS_GET_TERRNO(code) (terrno == 0 ? code : terrno)
 
@@ -185,6 +315,15 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     if (__c != TSDB_CODE_SUCCESS) { \
       TAOS_RETURN(__c);             \
     }                               \
+  } while (0)
+
+#define TAOS_CHECK_RETURN_SET_CODE(CMD, CODE, _ERRNO) \
+  do {                                                \
+    int32_t __c = (CMD);                              \
+    if (__c != TSDB_CODE_SUCCESS) {                   \
+      (CODE) = (_ERRNO);                              \
+      TAOS_RETURN(__c);                               \
+    }                                                 \
   } while (0)
 
 #define TAOS_CHECK_RETURN_WITH_RELEASE(CMD, PTR1, PTR2) \
@@ -223,6 +362,16 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
       lino = __LINE__;              \
       goto _exit;                   \
     }                               \
+  } while (0)
+
+#define TAOS_CHECK_EXIT_SET_CODE(CMD, CODE, _ERRNO) \
+  do {                                              \
+    code = (CMD);                                   \
+    if (code < TSDB_CODE_SUCCESS) {                 \
+      (CODE) = (_ERRNO);                            \
+      lino = __LINE__;                              \
+      goto _exit;                                   \
+    }                                               \
   } while (0)
 
 #define TAOS_UNUSED(expr) (void)(expr)

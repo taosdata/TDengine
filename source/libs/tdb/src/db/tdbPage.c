@@ -491,15 +491,13 @@ static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int szCell) {
   if (pCell == pPage->pFreeEnd) {
     pPage->pFreeEnd += szCell;
     TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
+  } else if (szCell >= TDB_PAGE_FREE_CELL_SIZE(pPage)) {
+    cellFree = TDB_PAGE_FCELL(pPage);
+    pPage->pPageMethods->setFreeCellInfo(pCell, szCell, cellFree);
+    TDB_PAGE_FCELL_SET(pPage, pCell - pPage->pData);
   } else {
-    if (szCell >= TDB_PAGE_FREE_CELL_SIZE(pPage)) {
-      cellFree = TDB_PAGE_FCELL(pPage);
-      pPage->pPageMethods->setFreeCellInfo(pCell, szCell, cellFree);
-      TDB_PAGE_FCELL_SET(pPage, pCell - pPage->pData);
-    } else {
-      tdbError("tdb/page-free: invalid cell size: %d", szCell);
-      return TSDB_CODE_INVALID_PARA;
-    }
+    tdbError("tdb/page-free: invalid cell size: %d", szCell);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dest = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * idx;

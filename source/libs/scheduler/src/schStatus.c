@@ -22,9 +22,11 @@
 #include "trpc.h"
 
 int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
-  int32_t code = 0;
-  SCH_ERR_JRET(schUpdateJobStatus(pJob, status));
-
+  int32_t code = schUpdateJobStatus(pJob, status);
+  if (TSDB_CODE_SUCCESS != code) {
+    SCH_ERR_JRET((param && *(int32_t*)param) ? *(int32_t*)param : code);
+  }
+  
   switch (status) {
     case JOB_TASK_STATUS_INIT:
       break;
@@ -48,7 +50,7 @@ int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
       if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
         SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);
       } else {
-        SCH_JOB_DLOG("job removed from jobRef list, refId:0x%" PRIx64, pJob->refId);
+        SCH_JOB_TLOG("job removed from jobRef list, refId:0x%" PRIx64, pJob->refId);
       }
       break;
     default: {
@@ -68,7 +70,7 @@ int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SS
   SSchJob* pJob = NULL;
   (void)schAcquireJob(jobId, &pJob);
   if (NULL == pJob) {
-    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
+    qDebug("jobId:0x%" PRIx64 ", acquire sch job failed, may be dropped", jobId);
     SCH_ERR_RET(TSDB_CODE_SCH_JOB_NOT_EXISTS);
   }
 

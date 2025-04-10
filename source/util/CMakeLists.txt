@@ -23,8 +23,8 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
-    PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
-    PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
+    PRIVATE "${TD_CONTRIB_DIR}/TSZ/sz/inc"
+    PRIVATE "${TD_CONTRIB_DIR}/TSZ/zstd/"
     PRIVATE "${TD_SOURCE_DIR}/contrib/lzma2/"
     PRIVATE "${TD_SOURCE_DIR}/contrib/pcre2/"
 )
@@ -40,14 +40,14 @@ if(TD_LINUX)
         util
         PUBLIC os common
         PUBLIC lz4_static fast-lzma2 pcre2-8
-        PUBLIC api cjson geos_c TSZ
+        PUBLIC api cjson geos_c TSZ decimal
     )
 else()
     target_link_libraries(
         util
         PUBLIC os common
         PUBLIC lz4_static pcre2-8
-        PUBLIC api cjson geos_c TSZ
+        PUBLIC api cjson geos_c TSZ decimal
     )
 endif()
 
