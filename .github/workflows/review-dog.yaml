@@ -12,10 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4    
       - name: Report ReviewDog
-        uses: tomchon/autocorrect-action@main
+        uses: tomchon/autocorrect-action@fix/review-dog
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           reviewdog: true
-          args: . --lint --no-diff-bg-color ./docs/zh/*  ./docs/en/* 
+          args: . --lint --no-diff-bg-color ${{ github.workspace }}/docs/zh/*  ${{ github.workspace }}/docs/en/* 
 
