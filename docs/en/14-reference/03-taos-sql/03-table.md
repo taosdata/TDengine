@@ -120,7 +120,7 @@ The following modifications can be made to basic tables:
 2. DROP COLUMN: Delete a column.
 3. MODIFY COLUMN: Modify the column definition. If the data column type is variable length, this command can be used to increase its width, but not decrease it.
 4. RENAME COLUMN: Change the column name.
-5. The composite primary key columns of basic tables cannot be modified, nor can they be added or removed through ADD/DROP COLUMN.
+5. The primary key columns of basic tables cannot be modified, nor can they be added or removed through ADD/DROP COLUMN.
 
 **Parameter Description**
 

@@ -162,7 +162,7 @@ Modifying the structure of a supertable affects all its subtables. It is not pos
 - DROP tag: Remove a tag from the supertable. After a tag is removed from a supertable, it is automatically deleted from all its subtables.
 - MODIFY tag: Modify the width of a tag in the supertable. The tag types can only be nchar and binary, and this command can be used to increase their width, but not decrease.
 - RENAME tag: Change the name of a tag in the supertable. After a tag name is changed in a supertable, all its subtables automatically update to the new tag name.
-- Like basic tables, the primary key columns of a supertable cannot be modified, nor can composite primary key columns be added or removed through ADD/DROP COLUMN.
+- Like basic tables, the primary key columns of a supertable cannot be modified, nor can they be added or removed through ADD/DROP COLUMN.
 
 ### Add Column
 
