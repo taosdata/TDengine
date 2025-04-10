@@ -49,7 +49,7 @@ void* benchCancelHandler(void* arg) {
     }
 
     g_arguments->terminate = true;
-    toolsMsleep(10 * 1000);
+    toolsMsleep(5 * 1000);
 
     exit(1);
 }

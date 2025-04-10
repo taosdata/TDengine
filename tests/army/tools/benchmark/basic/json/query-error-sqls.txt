@@ -1,3 +1,0 @@
-select AVG(t0) ; 
-select TOP(c1,100) ; 
-select LAST_ROW(c1) ; 

@@ -3495,14 +3495,6 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
     int32_t  ret     = -1;
     uint64_t tbNext  = stbInfo->childTblFrom;
     int32_t  vgNext  = 0;
-    // FILE*    csvFile = NULL;
-    // char*    tagData = NULL;
-    // bool     stmtN   = (stbInfo->iface == STMT_IFACE || stbInfo->iface == STMT2_IFACE) && stbInfo->autoTblCreating == false;
-
-    // if (stmtN) {
-    //     csvFile = openTagCsv(stbInfo, 0);
-    //     tagData = benchCalloc(TAG_BATCH_COUNT, stbInfo->lenOfTags, false);
-    // }
     
     for (int32_t i = 0; i < nthreads; i++) {
         // set table
@@ -3706,10 +3698,6 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
     ret = 0;
 
 END:
-    // if (csvFile) {
-    //     fclose(csvFile);
-    // }
-    // tmfree(tagData);
     return ret;
 }
 

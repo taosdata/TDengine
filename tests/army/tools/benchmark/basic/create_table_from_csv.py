@@ -49,7 +49,7 @@ class TDTestCase(TBase):
             tdLog.info("taosBenchmark found in %s" % binPath)
 
         # insert: create one  or multiple tables per sql and insert multiple rows per sql
-        os.system("%s -f ./tools/benchmark/basic/json/ins_1408.json -y " % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/create_table_tags.json -y " % binPath)
         tdSql.query("SELECT COUNT(*) FROM (SELECT DISTINCT tbname FROM test.meters);")
         tdSql.checkData(0, 0, 1408)
 
