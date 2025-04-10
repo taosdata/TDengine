@@ -175,6 +175,7 @@ help() {
     echo "  deploy_docker               - Deploy Docker"
     echo "  deploy_docker_compose       - Deploy Docker Compose"
     echo "  install_trivy               - Install Trivy"
+    echo "  install_uv                  - Install uv"
     echo "  clone_enterprise            - Clone the enterprise repository"
     echo "  clone_community             - Clone the community repository"
     echo "  clone_taosx                 - Clone TaosX repository"
@@ -1550,11 +1551,11 @@ deploy_grafana() {
 # Install Grafana for ubuntu/debian
 deploy_debian_grafana() {
     # Check if Grafana is already installed
-    if ! dpkg -s "grafana" &> /dev/null; then
+    if ! dpkg -s "grafana" && ! dpkg -s "grafana-enterprise" &> /dev/null; then
         echo "Downloading the latest Grafana .deb package..."
         # Download the latest Grafana .deb package
         grafana_latest_version=$1
-        wget https://dl.grafana.com/enterprise/release/grafana-enterprise_${grafana_latest_version}_amd64.deb -O grafana.deb
+        wget https://dl.grafana.com/oss/release/grafana_${grafana_latest_version}_amd64.deb -O grafana.deb
         # install the required fontconfig package
         install_package adduser libfontconfig1 musl
         echo "Installing Grafana..."
@@ -1586,7 +1587,7 @@ deploy_redhat_grafana() {
         echo "Downloading the latest Grafana .rpm package..."
         # Download the latest Grafana .rpm package
         grafana_latest_version=$1
-        wget https://dl.grafana.com/enterprise/release/grafana-enterprise-${grafana_latest_version}-1.x86_64.rpm -O grafana.rpm
+        wget https://dl.grafana.com/oss/release/grafana-${grafana_latest_version}-1.x86_64.rpm -O grafana.rpm
 
         # Install the required fontconfig package
         yum install -y fontconfig
@@ -1785,6 +1786,32 @@ install_trivy() {
     trivy --version
     check_status "Failed to install Trivy" "Trivy installed successfully." $?
     rm -rf trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
+}
+
+# Install uv
+install_uv() {
+    local uv_url="https://astral.sh/uv/install.sh"
+    local uv_path="$HOME/.local/bin/uv"
+
+    echo -e "${YELLOW}Checking for uv installation...${NO_COLOR}"
+
+    if [ -f "$uv_path" ]; then
+        echo -e "${GREEN}uv is already installed.${NO_COLOR}"
+    else
+        echo -e "${YELLOW}Installing uv...${NO_COLOR}"
+        if ! command -v curl &> /dev/null; then
+            echo -e "${RED}Error: curl is not installed. Please install curl first.${NO_COLOR}"
+            install_package curl
+        fi
+
+        if curl --retry 10 --retry-delay 5 --retry-max-time 120 -LsSf "$uv_url" | sh; then
+            echo -e "${GREEN}uv has been installed successfully.${NO_COLOR}"
+            SOURCE_RESULTS+="# For uv\nsource $HOME/.local/bin/env (sh, bash, zsh)\nsource $HOME/.local/bin/env.fish (fish)\n"
+        else
+            echo -e "${RED}Error: Failed to install uv.${NO_COLOR}"
+            return 1
+        fi
+    fi
 }
 
 # Reconfigure cloud-init
@@ -2061,6 +2088,7 @@ deploy_dev() {
     deploy_docker
     deploy_docker_compose
     install_trivy
+    install_uv
     check_status "Failed to deploy some tools" "Deploy all tools successfully" $?
 }
 
@@ -2218,6 +2246,9 @@ main() {
                 ;;
             install_trivy)
                 install_trivy
+                ;;
+            install_uv)
+                install_uv
                 ;;
             clone_enterprise)
                 clone_enterprise

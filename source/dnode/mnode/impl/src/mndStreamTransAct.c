@@ -781,7 +781,7 @@ static int32_t doSetStopAllTasksAction(SMnode* pMnode, STrans* pTrans, SVgObj* p
   tEncoderClear(&encoder);
 
   SEpSet epset = mndGetVgroupEpset(pMnode, pVgObj);
-  mndReleaseVgroup(pMnode, pVgObj);
+  // mndReleaseVgroup(pMnode, pVgObj);
 
   code = setTransAction(pTrans, pBuf, tlen, TDMT_VND_STREAM_ALL_STOP, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != TSDB_CODE_SUCCESS) {

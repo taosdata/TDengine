@@ -1822,15 +1822,9 @@ int fetchChildTableName(char *dbName, char *stbName) {
 
     // get child count
     char  cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    if (3 == g_majorVersionOfClient) {
-        snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
-                "SELECT COUNT(*) FROM( SELECT DISTINCT(TBNAME) FROM `%s`.`%s`)",
-                dbName, stbName);
-    } else {
-        snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
-                    "SELECT COUNT(TBNAME) FROM `%s`.`%s`",
-                dbName, stbName);
-    }
+    snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+            "SELECT COUNT(*) FROM( SELECT DISTINCT(TBNAME) FROM `%s`.`%s`)",
+            dbName, stbName);
     TAOS_RES *res = taos_query(conn->taos, cmd);
     int32_t   code = taos_errno(res);
     if (code) {
