@@ -9,6 +9,8 @@ on:
 jobs:
   reviewdog:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4    
       - name: Report ReviewDog
