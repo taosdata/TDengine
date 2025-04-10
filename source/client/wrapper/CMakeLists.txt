@@ -6,8 +6,6 @@ else()
     add_library(${TAOS_LIB} SHARED ${WRAPPER_SRC})
 endif()
 
-add_dependencies(${TAOS_LIB} ${TAOS_NATIVE_LIB})
-
 if(${TD_DARWIN})
     target_compile_options(${TAOS_LIB} PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
