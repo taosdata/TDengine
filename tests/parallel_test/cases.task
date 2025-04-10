@@ -190,7 +190,10 @@
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-global.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-stb.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
-
+,,n,army,python3 ./test.py -f tools/benchmark/basic/create_table_from_csv.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_cancle.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
 
 # taosdump 43 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py
