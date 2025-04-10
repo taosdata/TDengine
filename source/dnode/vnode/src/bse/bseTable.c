@@ -259,7 +259,8 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
     int32_t compressSize = wrapper.cap;
     code = bseCompressData(compressType, pWrite, BLOCK_ROW_SIZE(pBlk), wrapper.data, &compressSize);
     if (code != 0) {
-      bseError("failed to compress data since %s at line %d, set no compress", tstrerror(code), lino);
+      bseWarn("failed to compress data since %s, not set compress", tstrerror(TSDB_CODE_THIRDPARTY_ERROR));
+
       blockWrapperCleanup(&wrapper);
       BLOCK_SET_COMPRESS_TYPE(pBlk, kNoCompres);
       BLOCK_SET_ROW_SIZE(pBlk, BLOCK_ROW_SIZE(pBlk));

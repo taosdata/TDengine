@@ -302,7 +302,7 @@ int32_t blockCacheGet(SBlockCache *pCache, SSeqRange *key, void **pBlock) {
 
 _error:
   if (code != 0) {
-    bseError("failed to get block cache at line %d since %s", lino, tstrerror(code));
+    bseWarn("failed to get block cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }

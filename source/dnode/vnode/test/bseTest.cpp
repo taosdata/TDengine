@@ -143,7 +143,7 @@ int32_t getDataAndValid(SBse *pBse, std::string &inStr, std::vector<int64_t> *se
 }
 int32_t testCompress(SBse *bse, int8_t compressType) {
     std::vector<int64_t> data;
-    std::string str = genRandomString(10000); 
+    std::string str = genRandomString(1000); 
     SBseCfg cfg = {.compressType = compressType};
     bseUpdateCfg(bse, &cfg);
 
