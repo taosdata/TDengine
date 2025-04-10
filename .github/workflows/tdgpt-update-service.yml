@@ -42,4 +42,6 @@ jobs:
       - name: Clean up
         if: always()
         run: |
-          if [[ -f ${{ env.WKC }}/tools/tdgpt/release/TDengine-enterprise-anode-1.0.1 ]] then rm -rf ${{ env.WKC }}/tools/tdgpt/release/TDengine-enterprise-anode-1.0.1; fi
+          if [[ -f "${{ env.WKC }}/tools/tdgpt/release/TDengine-enterprise-anode-1.0.1" ]]; then 
+            rm -rf "${{ env.WKC }}/tools/tdgpt/release/TDengine-enterprise-anode-1.0.1" 
+          fi
