@@ -71,7 +71,7 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
     return code;
   }
 
-  code = colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
+  code = colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), pValueNode->isNull);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }

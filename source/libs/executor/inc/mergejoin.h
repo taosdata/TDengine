@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+#include "join.h"
+
+
 #if 0
 #define MJOIN_DEFAULT_BLK_ROWS_NUM 3 //4096
 #define MJOIN_HJOIN_CART_THRESHOLD 10
@@ -35,10 +38,6 @@ extern "C" {
 
 struct SMJoinOperatorInfo;
 
-typedef enum EJoinTableType {
-  E_JOIN_TB_BUILD = 1,
-  E_JOIN_TB_PROBE
-} EJoinTableType;
 
 typedef enum EPrimExprType {
   E_PRIM_TIMETRUNCATE = 1,
@@ -46,8 +45,6 @@ typedef enum EPrimExprType {
 } EPrimExprType;
 
 
-#define MJOIN_TBTYPE(_type) (E_JOIN_TB_BUILD == (_type) ? "BUILD" : "PROBE")
-#define IS_FULL_OUTER_JOIN(_jtype, _stype) ((_jtype) == JOIN_TYPE_FULL && (_stype) == JOIN_STYPE_OUTER)
 
 typedef struct SMJoinRowPos {
   SSDataBlock* pBlk;

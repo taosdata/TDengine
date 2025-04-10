@@ -21,14 +21,24 @@ extern "C" {
 
 #include "executorInt.h"
 #include "operator.h"
+#include "join.h"
 
 #define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
-#define HJOIN_DEFAULT_BLK_ROWS_NUM 4096
-#define HJOIN_BLK_SIZE_LIMIT 10485760
 #define HJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 #define HJOIN_BLK_THRESHOLD_RATIO 0.9
 
+#if 1
+#define HJOIN_DEFAULT_BLK_ROWS_NUM 3 //4096
+#define HJOIN_BLK_SIZE_LIMIT 0 //10485760
+#else
+#define HJOIN_DEFAULT_BLK_ROWS_NUM 4096
+#define HJOIN_BLK_SIZE_LIMIT 10485760
+#endif
+
+#define IS_NEED_NMATCH_JOIN(_jtype, _stype) ((!IS_INNER_NONE_JOIN((_jtype), (_stype))) && (!IS_SEMI_JOIN((_stype))))
+
 typedef int32_t (*hJoinImplFp)(SOperatorInfo*);
+typedef int32_t (*hJoinBuildFp)(SOperatorInfo*, bool*);
 
 #pragma pack(push, 1)
 typedef struct SBufRowInfo {
@@ -45,9 +55,12 @@ typedef enum EHJoinPhase {
 } EHJoinPhase;
 
 typedef struct SHJoinCtx {
+  int64_t      limit;
+  bool         ascTs;
+  bool         grpSingleRow;
+
   bool         rowRemains;
   bool         midRemains;
-  int64_t      limit;
   SBufRowInfo* pBuildRow;
   SSDataBlock* pProbeData;
   EHJoinPhase  probePhase;
@@ -56,14 +69,21 @@ typedef struct SHJoinCtx {
   int32_t      probeEndIdx;
   int32_t      probePostIdx;
   bool         readMatch;
+
+  // FOR FULL JOIN
+  SSDataBlock* pBuildData;
+  int32_t      buildNMStartIdx;
+  int32_t      buildNMEndIdx;
+  int32_t      buildStartIdx;
+  int32_t      buildEndIdx;
 } SHJoinCtx;
 
 typedef struct SHJoinColInfo {
   int32_t          srcSlot;
   int32_t          dstSlot;
-  bool             keyCol;
+  int32_t          keyIdx;
   bool             vardata;
-  int32_t*         offset;
+  int32_t          offset;
   int32_t          bytes;
   char*            data;
   char*            bitMap;
@@ -78,8 +98,16 @@ typedef struct SBufPageInfo {
 
 
 typedef struct SGroupData {
-  SBufRowInfo* rows;
+  SBufRowInfo*  rows;             // KEEP IT FIRST
 } SGroupData;
+
+typedef struct SFGroupData {
+  SBufRowInfo*  rows;             // KEEP IT FIRST
+
+  char*         bitmap;
+  uint32_t      rowsNum;
+  uint32_t      rowsMatchNum;
+} SFGroupData;
 
 
 typedef struct SHJoinColMap {
@@ -97,6 +125,7 @@ typedef struct SHJoinPrimExprCtx {
 } SHJoinPrimExprCtx;
 
 typedef struct SHJoinTableCtx {
+  EJoinTableType type;
   int32_t        downStreamIdx;
   SOperatorInfo* downStream;
   int32_t        blkId;
@@ -106,8 +135,10 @@ typedef struct SHJoinTableCtx {
   SHJoinColMap*      primCol;
   SNode*             primExpr;
   SHJoinPrimExprCtx  primCtx;
+  SExprSupp          exprSup;
   
   int32_t        keyNum;
+  int32_t        keyNullSize;
   SHJoinColInfo* keyCols;
   char*          keyBuf;
   char*          keyData;
@@ -151,6 +182,7 @@ typedef struct SHJoinOperatorInfo {
   SHJoinExecInfo   execInfo;
   int32_t          blkThreshold;
   hJoinImplFp      joinFp;  
+  hJoinBuildFp     buildFp;
 } SHJoinOperatorInfo;
 
 
@@ -159,6 +191,7 @@ typedef struct SHJoinOperatorInfo {
     int32_t _code = (c);              \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(_code)); \
       return _code;                   \
     }                                 \
   } while (0)
@@ -167,6 +200,7 @@ typedef struct SHJoinOperatorInfo {
   do {                               \
     code = (c);                      \
     if (code != TSDB_CODE_SUCCESS) { \
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code)); \
       terrno = code;                 \
       goto _return;                  \
     }                                \
@@ -174,13 +208,25 @@ typedef struct SHJoinOperatorInfo {
 
 int32_t hInnerJoinDo(struct SOperatorInfo* pOperator);
 int32_t hLeftJoinDo(struct SOperatorInfo* pOperator);
-void hJoinSetDone(struct SOperatorInfo* pOperator);
-void hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched);
-bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
+int32_t hSemiJoinDo(struct SOperatorInfo* pOperator);
+int32_t hAntiJoinDo(struct SOperatorInfo* pOperator);
+int32_t hFullJoinDo(struct SOperatorInfo* pOperator);
+int32_t hFullJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect);
+void    hJoinSetDone(struct SOperatorInfo* pOperator);
+void    hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched);
+bool    hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
 int32_t hJoinCopyMergeMidBlk(SHJoinCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin);
-int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin, SHJoinCtx* pCtx);
-bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows);
+int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin);
+bool    hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows);
 int32_t hJoinCopyNMatchRowsToBlock(SHJoinOperatorInfo* pJoin, SSDataBlock* pRes, int32_t startIdx, int32_t rows);
+int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect);
+int32_t hJoinAddRowToHash(SHJoinOperatorInfo* pJoin, SSDataBlock* pBlock, size_t keyLen, int32_t rowIdx);
+bool    hJoinFilterTimeRange(SHJoinCtx* pCtx, SSDataBlock* pBlock, STimeWindow* pRange, int32_t primSlot, int32_t* startIdx, int32_t* endIdx);
+int32_t hJoinLaunchEqualExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t startIdx, int32_t endIdx);
+int32_t hJoinSetKeyColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable);
+
+int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
+int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
 
 
 #ifdef __cplusplus

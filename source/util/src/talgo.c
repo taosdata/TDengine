@@ -296,9 +296,9 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
 
     c = compar(key, p);
     if (c == 0) {
-      if (flags == TD_GT) {
+      if (flags == TD_GT || flags == TD_LE) {
         lidx = midx + 1;
-      } else if (flags == TD_LT) {
+      } else if (flags == TD_LT || flags == TD_GE) {
         ridx = midx - 1;
       } else {
         break;
@@ -325,6 +325,54 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
     return NULL;
   }
 }
+
+void *taosrbsearch(const void *key, const void *base, int32_t nmemb, int32_t size, __compar_fn_t compar, int32_t flags) {
+  uint8_t *p;
+  int32_t  lidx;
+  int32_t  ridx;
+  int32_t  midx;
+  int32_t  c;
+
+  if (nmemb <= 0) return NULL;
+
+  lidx = 0;
+  ridx = nmemb - 1;
+  while (lidx <= ridx) {
+    midx = (lidx + ridx) / 2;
+    p = (uint8_t *)base + size * midx;
+
+    c = compar(key, p);
+    if (c == 0) {
+      if (flags == TD_GT || flags == TD_LE) {
+        ridx = midx - 1;
+      } else if (flags == TD_LT || flags == TD_GE) {
+        lidx = midx + 1;
+      } else {
+        break;
+      }
+    } else if (c < 0) {
+      lidx = midx + 1;
+    } else {
+      ridx = midx - 1;
+    }
+  }
+
+  if (flags == TD_EQ) {
+    return c ? NULL : p;
+  } else if (flags == TD_GE) {
+    return (c <= 0) ? p : (midx > 0 ? p - size : NULL);
+  } else if (flags == TD_LE) {
+    return (c >= 0) ? p : (midx + 1 < nmemb ? p + size : NULL);
+  } else if (flags == TD_GT) {
+    return (c < 0) ? p : (midx > 0 ? p - size : NULL);
+  } else if (flags == TD_LT) {
+    return (c > 0) ? p : (midx + 1 < nmemb ? p + size : NULL);
+  } else {
+    uError("Invalid bsearch flags:%d", flags);
+    return NULL;
+  }
+}
+
 
 int32_t taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
                        __ext_compar_fn_t compar, char *buf, bool maxroot) {
