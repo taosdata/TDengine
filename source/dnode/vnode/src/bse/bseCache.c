@@ -201,6 +201,7 @@ void lruCacheFree(SLruCache *pCache) {
 
 int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p) {
   int32_t      code = 0;
+  int32_t      line = 0;
   STableCache *pCache = taosMemoryCalloc(1, sizeof(STableCache));
   if (pCache == NULL) {
     return terrno;
@@ -208,7 +209,9 @@ int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p) {
 
   code = lruCacheCreate(cap, sizeof(SSeqRange), (CacheElemFn)fn, (SLruCache **)&pCache->pCache);
   if (code != 0) {
+    TSDB_CHECK_CODE(code, line, _error);
   }
+
   pCache->size = 0;
   pCache->cap = cap;
 
@@ -221,11 +224,8 @@ _error:
 }
 
 void tableCacheClose(STableCache *p) {
-  int32_t code = 0;
-_error:
-  if (code != 0) {
-    bseError("failed to close table cache at line %d since %d", __LINE__, tstrerror(code));
-  }
+  if (p == NULL) return;
+
   lruCacheFree((SLruCache *)p->pCache);
   taosMemoryFree(p);
 }
@@ -280,10 +280,9 @@ int32_t blockCacheOpen(int32_t cap, CacheElemFn freeFn, SBlockCache **pCache) {
     return terrno;
   }
   code = lruCacheCreate(cap, sizeof(char *), freeFn, (SLruCache **)&p->pCache);
-  if (code != 0) {
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
+  p->size = 0;
   p->cap = cap;
 
   *pCache = p;
@@ -297,7 +296,6 @@ _error:
 int32_t blockCacheGet(SBlockCache *pCache, SSeqRange *key, void **pBlock) {
   int32_t code = 0;
   int32_t lino = 0;
-  // hold the write lock to avoid deadlock
 
   code = lruCacheGet(pCache->pCache, (SSeqRange *)key, sizeof(SSeqRange), (void **)pBlock);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -336,6 +334,8 @@ _error:
   return code;
 }
 void blockCacheClose(SBlockCache *p) {
+  if (p == NULL) return;
+
   lruCacheFree((SLruCache *)p->pCache);
   taosMemoryFree(p);
 }

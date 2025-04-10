@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "bseUtil.h"
-#include "lz4.h"
-
+#include "tcompression.h"
 // compress func set
 typedef int32_t (*compressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 typedef int32_t (*decompressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
@@ -65,53 +64,31 @@ int32_t plainDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize)
   return 0;
 }
 int32_t lz4Compress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t size = *dstSize;
-  int32_t nWrite = LZ4_compress_default(src, dst, srcSize, size);
-  if (nWrite <= 0) {
-    return -1;
-  }
-  if (nWrite >= srcSize) {
-    return -1;
-  }
-
-  *dstSize = nWrite;
-  return 0;
+  return lz4CompressImpl(src, srcSize, dst, dstSize);
 }
 int32_t lz4Decompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t size = *dstSize;
-  int32_t nread = LZ4_decompress_safe(src, dst, srcSize, size);
-  if (nread <= 0) {
-    return -1;
-  }
-  *dstSize = nread;
-  return 0;
+  return lz4DecompressImpl(src, srcSize, dst, dstSize);
 }
 
 int32_t zlibCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code = 0;
-  return code;
+  return zlibCompressImpl(src, srcSize, dst, dstSize);
 }
 int32_t zlibDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code = 0;
-  return code;
+  return zlibDecompressImpl(src, srcSize, dst, dstSize);
 }
 
 int32_t zstdCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code = 0;
-  return code;
+  return zstdCompressImpl(src, srcSize, dst, dstSize);
 }
 int32_t zstdDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code = 0;
-  return code;
+  return zstdCompressImpl(src, srcSize, dst, dstSize);
 }
 
 int32_t xzCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code = 0;
-  return code;
+  return xzCompressImpl(src, srcSize, dst, dstSize);
 }
 int32_t xzDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code = 0;
-  return code;
+  return xzDecompressImpl(src, srcSize, dst, dstSize);
 }
 
 int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) {

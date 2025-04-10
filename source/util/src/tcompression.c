@@ -1910,3 +1910,111 @@ int32_t getWordLength(char type) {
 
   return wordLength;
 }
+
+int32_t plainCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t size = *dstSize;
+  if (size < srcSize) {
+    return -1;
+  }
+  memcpy(dst, src, srcSize);
+  return srcSize;
+}
+
+int32_t plainDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t size = *dstSize;
+  if (size < srcSize) {
+    return -1;
+  }
+  memcpy(dst, src, srcSize);
+  return 0;
+}
+
+int32_t lz4CompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t size = *dstSize;
+  int32_t nWrite = LZ4_compress_default(src, dst, srcSize, size);
+  if (nWrite <= 0) {
+    return -1;
+  }
+  if (nWrite >= srcSize) {
+    return -1;
+  }
+
+  *dstSize = nWrite;
+  return 0;
+}
+int32_t lz4DecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t size = *dstSize;
+  int32_t nread = LZ4_decompress_safe(src, dst, srcSize, size);
+  if (nread <= 0) {
+    return -1;
+  }
+  *dstSize = nread;
+  return 0;
+}
+
+int32_t zlibCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code;
+
+  uLongf  dstLen = *dstSize;
+  int32_t ret = compress2(dst, &dstLen, src, srcSize, Z_BEST_COMPRESSION);
+  if (ret != Z_OK) {
+    return -1;
+  }
+  if (dstLen > srcSize) {
+    return -1;
+  }
+  *dstSize = dstLen;
+  return code;
+}
+int32_t zlibDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  int32_t code;
+
+  uLongf  dstLen = *dstSize;
+  int32_t ret = uncompress(dst, &dstLen, src, srcSize);
+  if (ret != Z_OK) {
+    return -1;
+  }
+
+  *dstSize = dstLen;
+  return code;
+}
+
+int32_t zstdCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  size_t len = ZSTD_compress(dst, *dstSize, src, srcSize, 9);
+  if (ZSTD_isError(len)) {
+    return -1;
+  }
+
+  if (len > srcSize) {
+    return -1;
+  }
+
+  *dstSize = len;
+  return 0;
+}
+int32_t zstdDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  size_t len = ZSTD_decompress(dst, *dstSize, src, srcSize);
+  if (ZSTD_isError(len)) {
+    return -1;
+  }
+
+  *dstSize = len;
+  return 0;
+}
+
+int32_t xzCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  size_t len = FL2_compress(dst, *dstSize, src, srcSize, 9);
+  if (len == 0 || len > srcSize) {
+    return -1;
+  }
+  *dstSize = len;
+  return 0;
+}
+int32_t xzDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+  size_t len = FL2_decompress(dst, *dstSize, src, srcSize);
+  if (len == 0) {
+    return -1;
+  }
+  *dstSize = len;
+  return 0;
+}
