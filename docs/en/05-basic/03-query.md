@@ -385,7 +385,7 @@ Query OK, 10 row(s) in set (0.022866s)
 
 ### State Window
 
-Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes when the value changes. TDengine also supports using CASE expressions on state values, which can express that the start of a state is triggered by meeting a certain condition, and the end of the state is triggered by meeting another condition. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine if the circuit is normal.
+Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes when the value changes. TDengine also supports using CASE expressions on state values, which can express that the start of a state is triggered by meeting a certain condition, and the end of the state is triggered by meeting another condition. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine if the circuit is normal.测试abv
 
 ```sql
 SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
