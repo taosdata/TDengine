@@ -41,19 +41,19 @@ jobs:
 
   check-docs-linter-formatter:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        # How to fix ANSI color codes w/ GH actions:
-        shell: 'script -q -e -c "export TERM=xterm-256color; bash --noprofile --norc -eo pipefail {0}"'
-    env:
-      TERM: xterm-256color
     steps:
       - uses: actions/checkout@v4
       - name: AutoCorrect
         uses: huacnlee/autocorrect-action@v2
         with:
           args: --lint docs/zh/* docs/en/*
-          
+      - name: Check AutoCorrect
+        id: check-autocorrect
+        if: failure()
+        run: |
+          echo "Errors detected automatically"
+          echo "Please check the PR page and modify the commit based on the suggestions provided by reviewdog."
+
   reviewdog:
     runs-on: ubuntu-latest
     permissions:
