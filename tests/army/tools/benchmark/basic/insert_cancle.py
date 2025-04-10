@@ -20,6 +20,8 @@ import frame
 import frame.etool
 import json
 import threading
+import signal
+import psutil
 
 from frame.log import *
 from frame.cases import *
@@ -38,10 +40,9 @@ class TDTestCase(TBase):
         tdLog.info(f"start to init {__file__}")
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-        self._rlist = None 
-        # self.configJsonFile('insert_error_exit.json', 'db', 1, 1, 'splitVgroupByLearner.json', 100000)
+        self._rlist = None
 
-    def get_pids_by_name(process_name):
+    def get_pids_by_name(self, process_name):
         pids = []
         for proc in psutil.process_iter(['name']):
             if proc.info['name'] == process_name:
@@ -51,11 +52,11 @@ class TDTestCase(TBase):
     def stopThread(self, isForceExit):
         tdLog.info("dnodeNodeStopThread start")
         time.sleep(10)
-        pids = get_pids_by_name("taosBenchmark")
+        pids = self.get_pids_by_name("taosBenchmark")
         if pids:
-            tdLog.info(f"找到进程名为 taosBenchmark 的进程，其 PID 为: {pids}")
+            tdLog.info(f"Find a process named taosBbenchmark with PID: {pids}")
         else:
-            tdLog.exit("未找到进程名为 taosBenchmark 的进程。")
+            tdLog.exit("No process named taosBbenchmark was found.")
 
         os.kill(pids[0], signal.SIGINT)
         if isForceExit:
@@ -66,9 +67,9 @@ class TDTestCase(TBase):
         if self._rlist:
             tdLog.info(self._rlist)
             if isForceExit:
-                self.checkListSting(self._rlist, "Benchmark process forced exit!")
+                self.checkListString(self._rlist, "Benchmark process forced exit!")
             else:    
-                self.checkListSting(self._rlist, "Receive SIGINT or other signal, quit benchmark")
+                self.checkListString(self._rlist, "Receive SIGINT or other signal, quit benchmark")
         else:
             tdLog.exit("The benchmark process has not stopped!")
 
@@ -76,7 +77,7 @@ class TDTestCase(TBase):
     def dbInsertThread(self):
         tdLog.info(f"dbInsertThread start")
         # taosBenchmark run
-        cmd = "-d db -t 10000 -n 10000 -T 4 -I stmt -y"
+        cmd = "-d db -t 10000 -n 10000 -T 8 -I stmt -y"
         self._rlist = self.benchmark(cmd, checkRun=False)
 
     # run

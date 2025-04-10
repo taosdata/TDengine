@@ -20,6 +20,8 @@ import frame
 import frame.etool
 import json
 import threading
+import signal
+import psutil
 
 from frame.log import *
 from frame.cases import *
@@ -39,9 +41,8 @@ class TDTestCase(TBase):
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
         self._rlist = None 
-        # self.configJsonFile('insert_error_exit.json', 'db', 1, 1, 'splitVgroupByLearner.json', 100000)
 
-    def get_pids_by_name(process_name):
+    def get_pids_by_name(self, process_name):
         pids = []
         for proc in psutil.process_iter(['name']):
             if proc.info['name'] == process_name:
@@ -51,57 +52,44 @@ class TDTestCase(TBase):
     def stopThread(self, isForceExit):
         tdLog.info("dnodeNodeStopThread start")
         time.sleep(10)
-        pids = get_pids_by_name("taosBenchmark")
+        pids = self.get_pids_by_name("taosBenchmark")
         if pids:
-            tdLog.info(f"找到进程名为 taosBenchmark 的进程，其 PID 为: {pids}")
+            tdLog.info(f"Find a process named taosBbenchmark with PID: {pids}")
         else:
-            tdLog.exit("未找到进程名为 taosBenchmark 的进程。")
+            tdLog.exit("No process named taosBbenchmark was found.")
 
         os.kill(pids[0], signal.SIGINT)
-        if isForceExit:
-            os.kill(pids[0], signal.SIGINT)
+
 
         time.sleep(10)
         
         if self._rlist:
-            tdLog.info(self._rlist)
-            if isForceExit:
-                self.checkListSting(self._rlist, "Benchmark process forced exit!")
-            else:    
-                self.checkListSting(self._rlist, "Receive SIGINT or other signal, quit benchmark")
+            tdLog.info(self._rlist)   
+            self.checkListString(self._rlist, "Receive SIGINT or other signal, quit benchmark")
         else:
             tdLog.exit("The benchmark process has not stopped!")
 
 
-    def dbInsert():
+    def dbInsert(self):
         tdLog.info(f"dbInsert start")
         # taosBenchmark run
-        cmd = "-d db -t 1000 -n 1000 -T 4 -I stmt -y"
+        cmd = "-t 1000 -n 1000 -T 4 -I stmt -y"
         self.benchmark(cmd, checkRun=True)
 
     def dbTmqThread(self):
         binPath = etool.benchMarkFile()
-        cmd = "-f ./tools/benchmark/basic/json/tmqBasicSequ.json"
+        cmd = "-f ./tools/benchmark/basic/json/tmq_cancel.json"
         self._rlist = self.benchmark(cmd, checkRun=False)
+        tdLog.info(self._rlist)
 
     # run
     def run(self):
         tdLog.info(f"start to excute {__file__}")
         tdSql.execute("drop topic if exists topic_benchmark_meters")
-        dbInsert()
+        self.dbInsert()
         tdLog.info(f"dbInsert finish！")
         
 
-        t1 = threading.Thread(target=self.dbTmqThread)
-        t2 = threading.Thread(target=self.stopThread, args=(False,))
-        t1.start()
-        t2.start()
-        tdLog.success(f"{__file__} successfully executed")
-        t1.join()
-        t2.join()
-        
-        dbInsert()
-        tdLog.info(f"dbInsert finish！")
         t1 = threading.Thread(target=self.dbTmqThread)
         t2 = threading.Thread(target=self.stopThread, args=(False,))
         t1.start()

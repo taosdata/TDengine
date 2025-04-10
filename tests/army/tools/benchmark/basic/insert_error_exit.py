@@ -48,7 +48,7 @@ class TDTestCase(TBase):
         time.sleep(10)
         if self._rlist:
             tdLog.info(self._rlist)
-            self.checkListSting(self._rlist, "insert test process failed")
+            self.checkListString(self._rlist, "failed to execute insert statement. reason: Vnode stopped")
         else:
             tdLog.exit("The benchmark process has not stopped!")
 
