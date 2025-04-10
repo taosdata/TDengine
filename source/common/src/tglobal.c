@@ -375,6 +375,8 @@ char     tsAdapterToken[512] = "cm9vdDp0YW9zZGF0YQ==";
 
 bool tsUpdateCacheBatch = true;
 
+char tsSsAccessString[1024] = ""; // shared storage access string
+                                  // TODO: remove/rename the s3 options below
 int8_t tsS3EpNum = 0;
 char   tsS3Endpoint[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<endpoint>"};
 char   tsS3AccessKey[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<accesskey>"};
@@ -663,6 +665,8 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
       cfgAddInt32(pCfg, "wDebugFlag", wDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "azDebugFlag", azDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "tssDebugFlag", tssDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "sDebugFlag", sDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
@@ -1030,6 +1034,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "ssAccessString", tsSsAccessString, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey[0], CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint[0], CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_LOCAL));
@@ -1327,6 +1332,9 @@ static int32_t taosSetServerLogCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "azDebugFlag");
   azDebugFlag = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tssDebugFlag");
+  tssDebugFlag = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sDebugFlag");
   sDebugFlag = pItem->i32;
@@ -2723,7 +2731,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
         {"rpcDebugFlag", &rpcDebugFlag},   {"qDebugFlag", &qDebugFlag},
         {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},
         {"sndDebugFlag", &sndDebugFlag},   {"bndDebugFlag", &bndDebugFlag},
-        {"tqClientDebugFlag", &tqClientDebugFlag},
+        {"tqClientDebugFlag", &tqClientDebugFlag}, {"tssDebugFlag", &tssDebugFlag},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
@@ -3153,6 +3161,7 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosCheckAndSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&azDebugFlag, "azDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tssDebugFlag, "tssDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, noNeedToSetVars);

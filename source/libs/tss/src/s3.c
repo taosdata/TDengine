@@ -1,0 +1,1087 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "tssInt.h"
+#include "libs3.h"
+
+
+// S3 storage instance, also used for Aliyun OSS and Tencent COS.
+typedef struct {
+    // [type] is inherited from SSharedStorage, it must be the first member
+    // to allow casting to SSharedStorage.
+    const SSharedStorageType* type;
+
+    // type-specific data
+
+    // default chunk size in a multipart upload, files larger than this size
+    // will use multipart upload.
+    uint32_t        defaultChunkSizeInMB;
+    // max number of allowed chunks in a multipart upload.
+    uint32_t        maxChunks;
+    S3BucketContext bucketContext;
+    S3PutProperties putProperties;
+
+    // variable-length buffer for hostname, bucket and etc.
+    char buf[0];
+} SSharedStorageS3 ;
+
+
+
+// printConfig prints the configuration of the shared storage instance.
+static void printConfig(SSharedStorage* pss) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    printf("type: %s\n", ss->type->name);
+
+    if (ss->bucketContext.hostName != NULL) {
+        printf("endpoint: %s\n", ss->bucketContext.hostName);
+    }
+
+    printf("bucket: %s\n", ss->bucketContext.bucketName);
+
+    if (ss->bucketContext.authRegion != NULL) {
+        printf("region: %s\n", ss->bucketContext.authRegion);
+    }
+
+    printf("uriStyle: %s\n", ss->bucketContext.uriStyle == S3UriStylePath ? "path" : "virtualHost");
+    printf("protocol: %s\n", ss->bucketContext.protocol == S3ProtocolHTTP ? "http" : "https");
+    printf("chunkSize: %uMB\n", ss->defaultChunkSizeInMB);
+    printf("maxChunks: %u\n", ss->maxChunks);
+}
+
+
+
+// initInstance initializes the SSharedStorageS3 instance from the access string.
+static bool initInstance(SSharedStorageS3* ss, const char* as) {
+    strcpy(ss->buf, as);
+
+    // set default values
+    ss->defaultChunkSizeInMB = 64;
+    ss->maxChunks = 10000;
+
+    ss->bucketContext.uriStyle = S3UriStyleVirtualHost;
+    ss->bucketContext.protocol = S3ProtocolHTTPS;
+    ss->bucketContext.securityToken = NULL;
+
+    // skip storage type
+    char* p = strchr(ss->buf, ':');
+    if (p == NULL) {
+        tssError("invalid access string: %s", as);
+        return false;
+    }
+    p++;
+
+    // parse key-value pairs
+    while (p != NULL) {
+        // find key
+        char* key = p;
+        p = strchr(p, '=');
+        if (p == NULL) {
+            tssError("invalid access string: %s", as);
+            return false;
+        }
+        *p++ = 0;
+        if (strlen(key) == 0) {
+            tssError("blank key in access string: %s", as);
+            return false;
+        }
+
+        // find val
+        char* val = p;
+        p = strchr(p, ';');
+        if (p != NULL) {
+            *p++ = 0;
+        }
+        if (strlen(val) == 0) {
+            val = NULL;
+        }
+
+        if (taosStrcasecmp(key, "endpoint") == 0) {
+            // endpoint is the host name of the S3 service
+            ss->bucketContext.hostName = val;
+        } else if (taosStrcasecmp(key, "bucket") == 0) {
+            ss->bucketContext.bucketName = val;
+        } else if (taosStrcasecmp(key, "uriStyle") == 0) {
+            if (taosStrcasecmp(val, "path") == 0) {
+                ss->bucketContext.uriStyle = S3UriStylePath;
+            } else if (taosStrcasecmp(val, "virtualhost") == 0) {
+                ss->bucketContext.uriStyle = S3UriStyleVirtualHost;
+            } else {
+                tssError("unknown uriStyle '%s' in access string: %s", val, as);
+                return false;
+            }
+        } else if (taosStrcasecmp(key, "protocol") == 0) {
+            if (taosStrcasecmp(val, "http") == 0) {
+                ss->bucketContext.protocol = S3ProtocolHTTP;
+            } else if (taosStrcasecmp(val, "https") == 0) {
+                ss->bucketContext.protocol = S3ProtocolHTTPS;
+            } else {
+                tssError("unknown protocol '%s' in access string: %s", val, as);
+                return false;
+            }
+        } else if (taosStrcasecmp(key, "accessKeyId") == 0) {
+            ss->bucketContext.accessKeyId = val;
+        } else if (taosStrcasecmp(key, "secretAccessKey") == 0) {
+            ss->bucketContext.secretAccessKey = val;
+        } else if (taosStrcasecmp(key, "region") == 0) {
+            ss->bucketContext.authRegion = val;
+        } else if (taosStrcasecmp(key, "chunkSize") == 0 && val != NULL) {
+            ss->defaultChunkSizeInMB = (uint64_t)atoll(val);
+        } else if (taosStrcasecmp(key, "maxChunks") == 0 && val != NULL) {
+            ss->maxChunks = (uint64_t)atoll(val);
+        } else {
+            tssError("unknown key '%s' in access string: %s", key, as);
+            return false;
+        }
+    }
+
+    if (ss->defaultChunkSizeInMB == 0) {
+        tssError("invalid chunkSize in access string: %s", as);
+        return false;
+    }
+
+    if (ss->maxChunks <= 1) {
+        tssError("invalid maxChunks in access string: %s", as);
+        return false;
+    }
+
+    if (ss->bucketContext.bucketName == NULL) {
+        tssError("bucket is not configured in access string: %s", as);
+        return false;
+    }
+
+    if (ss->bucketContext.accessKeyId == NULL) {
+        tssError("accessKeyId is not configured in access string: %s", as);
+        return false;
+    }
+
+    if (ss->bucketContext.secretAccessKey == NULL) {
+        tssError("secretAccessKey is not configured in access string: %s", as);
+        return false;
+    }
+
+    ss->putProperties.expires = -1;
+    ss->putProperties.cannedAcl = S3CannedAclPrivate;
+
+    return true;
+}
+
+
+
+// createInstance creates a SSharedStorageS3 instance from the access string.
+// access string format:
+//  s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=xxx;secretAccessKey=xxx;region=xxx
+static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS) {
+    size_t asLen = strlen(accessString) + 1;
+    S3Status status = S3_initialize("tdengine", S3_INIT_ALL, NULL);
+    if (status != S3StatusOK) {
+        uError("Failed to initialize libs3: %s\n", S3_get_status_name(status));
+        TAOS_RETURN(TSDB_CODE_FAILED);
+    }
+
+    SSharedStorageS3* ss = (SSharedStorageS3*)taosMemCalloc(1, sizeof(SSharedStorageS3) + asLen);
+    if (!ss) {
+        tssError("failed to allocate memory for SSharedStorageS3");
+        S3_deinitialize();
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    if (initInstance(ss, accessString)) {
+        *ppSS = ss;
+        TAOS_RETURN(TSDB_CODE_SUCCESS);
+    }
+
+    taosMemFree(ss);
+    S3_deinitialize();
+    TAOS_RETURN(TSDB_CODE_FAILED);
+}
+
+
+
+static int32_t closeInstance(SSharedStorage* ss) {
+    SSharedStorageS3* s = (SSharedStorageS3*)ss;
+    taosMemFree(s);
+    S3_deinitialize();
+    return TSDB_CODE_SUCCESS;
+}
+
+
+
+// Common fields of all callback data
+typedef struct {
+    S3Status  status;
+    char      errMsg[512];
+} SCallbackData;
+
+
+
+// responseCompleteCallback is shared by all operations, it saves the status and generates error
+// messages from S3ErrorDetails if there is an error.
+static void responseCompleteCallback(S3Status status, const S3ErrorDetails *error, void *data) {
+    SCallbackData* cbd = (SCallbackData*)data;
+    cbd->status = status;
+    if (!error) {
+        return;
+    }
+
+    int       len = 0;
+    const int elen = sizeof(cbd->errMsg);
+    
+    if (error->message && elen - len > 0) {
+        len += tsnprintf(cbd->errMsg + len, elen - len, "  Message: %s\n", error->message);
+    }
+
+    if (error->resource && elen - len > 0) {
+        len += tsnprintf(cbd->errMsg + len, elen - len, "  Resource: %s\n", error->resource);
+    }
+
+    if (error->furtherDetails && elen - len > 0) {
+        len += tsnprintf(cbd->errMsg + len, elen - len, "  Further Details: %s\n", error->furtherDetails);
+    }
+
+    if (error->extraDetailsCount && elen - len <= 0) {
+        return;
+    }
+
+    len += tsnprintf(&(cbd->errMsg[len]), elen - len, "%s", "  Extra Details:\n");
+    for (int i = 0; i < error->extraDetailsCount && elen > len; i++) {
+        const char* name = error->extraDetails[i].name;
+        const char* value = error->extraDetails[i].value;
+        len += tsnprintf(cbd->errMsg + len, elen - len, "    %s: %s\n", name, value);
+    }
+}
+
+
+
+// a properties callback that does nothing.
+static S3Status propertiesCallbackNop(const S3ResponseProperties *properties, void *data) {
+    return S3StatusOK;
+}
+
+
+
+static int shouldRetry() {
+    return 0;
+}
+
+
+
+// functions and data structures for upload
+
+// SUploadSource represents the source of data to be uploaded.
+// It can be a file, a memory buffer, or another upload source,
+// but cannot be two or more at the same time.
+//
+// The inner upload source is only used for multipart upload, in which
+// case the inner source represents the original source of data, while
+// the outer represents the current part being uploaded.
+typedef struct SUploadSource {
+    TdFilePtr             file;
+    const char*           buf;
+    struct SUploadSource* src;
+    uint64_t              size;
+    uint64_t              offset;
+} SUploadSource;
+
+
+static int readUploadSource(SUploadSource* us, char* buffer, int size) {
+    if (us->offset >= us->size) {
+        return 0;
+    }
+
+    if (size > us->size - us->offset) {
+        size = us->size - us->offset;
+    }
+
+    if (us->src != NULL) {
+        size = readUploadSource(us->src, buffer, size);
+    } else if (us->buf != NULL) {
+        memcpy(buffer, us->buf + us->offset, size);
+    } else {
+        size = taosReadFile(us->file, buffer, size);
+    }
+
+    if (size > 0) {
+        us->offset += size;
+    }
+
+    return size;
+}
+
+
+
+// SUploadCallbackData is used in both simpleUpload and multipartUpload.
+typedef struct {
+    // common fields
+    S3Status  status;
+    char      errMsg[512];
+
+    // upload-specific fields
+    SUploadSource* src;
+
+    // multipart upload specific fields
+    uint64_t chunkSize;
+    uint32_t numChunks;
+    uint32_t seq;  // sequence number of current part
+    char*    uploadId;
+    char**   etags;
+} SUploadCallbackData;
+
+
+
+// uploadCallback reads data and returns it to the S3 library.
+static int uploadCallback(int bufferSize, char* buffer, void* cbd) {
+    SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
+    return readUploadSource(ucbd->src, buffer, bufferSize);
+}
+
+
+
+// simpleUpload uploads the file in a single request.
+static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSource* src) {
+    int32_t            code = 0;
+
+    SUploadCallbackData ucbd = {0};
+    ucbd.src = src;
+
+    S3PutObjectHandler poh = {
+        .responseHandler = {
+            .propertiesCallback = &propertiesCallbackNop,
+            .completeCallback = &responseCompleteCallback,
+        },
+        .putObjectDataCallback = &uploadCallback,
+    };
+
+    do {
+        S3_put_object(&ss->bucketContext, dstPath, src->size, &ss->putProperties, 0, 0, &poh, &ucbd);
+    } while (S3_status_is_retryable(ucbd.status) && shouldRetry());
+
+    if (ucbd.status != S3StatusOK) {
+        tssError("failed to upload %s: %d/%s", dstPath, ucbd.status, ucbd.errMsg);
+        code = TAOS_SYSTEM_ERROR(EIO);
+    } else if (src->size > src->offset) {
+        tssError("failed to put remaining %lu bytes", src->size - src->offset);
+        code = TAOS_SYSTEM_ERROR(EIO);
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+// multipartInitialCallback saves the upload ID to callback data
+static S3Status multipartInitialCallback(const char *uploadId, void *cbd) {
+    SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
+
+    char* id = strdup(uploadId);
+    if (id == NULL) {
+        tssError("failed to allocate memory for upload ID");
+        ucbd->status = S3StatusOutOfMemory;
+    } else {
+        ucbd->status = S3StatusOK;
+        ucbd->uploadId = id;
+    }
+
+    return ucbd->status;
+}
+
+
+
+// multipartInitialCallback saves the eTag of current part to callback data
+static S3Status multipartResponseProperiesCallback(const S3ResponseProperties *properties, void *cbd) {
+    SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
+
+    char* etag = strdup(properties->eTag);
+    if (etag == NULL) {
+        tssError("failed to allocate memory for eTag");
+        ucbd->status = S3StatusOutOfMemory;
+    } else {
+        ucbd->status = S3StatusOK;
+        ucbd->etags[ucbd->seq] = etag;
+    }
+
+    return ucbd->status;
+}
+
+
+
+static int32_t initMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
+    S3MultipartInitialHandler mih = {
+        .responseHandler = {
+            .propertiesCallback = &propertiesCallbackNop,
+            .completeCallback = &responseCompleteCallback,
+        },
+        .responseXmlCallback = &multipartInitialCallback,
+    };
+
+    do {
+        S3_initiate_multipart(&ss->bucketContext, dstPath, 0, &mih, 0, 0, ucbd);
+    } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
+
+    int32_t code = 0;
+    if (ucbd->uploadId == NULL || ucbd->status != S3StatusOK) {
+        tssError("failed to initiate multipart upload %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+        code = TAOS_SYSTEM_ERROR(EIO);
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
+    S3PutObjectHandler poh = {
+        .responseHandler = {
+            .propertiesCallback = &multipartResponseProperiesCallback,
+            .completeCallback = &responseCompleteCallback,
+        },
+        .putObjectDataCallback = &uploadCallback,
+    };
+
+    int32_t code = 0;
+    SUploadSource* src = ucbd->src->src; // inner source is the original source
+    for(ucbd->seq = 0; ucbd->seq < ucbd->numChunks; ucbd->seq++) {
+        ucbd->src->offset = 0;
+        ucbd->src->size = TMIN(ucbd->chunkSize, src->size - src->offset);
+
+        do {
+            S3_upload_part(&ss->bucketContext,
+                           dstPath,
+                           &ss->putProperties,
+                           &poh,
+                           (int)(ucbd->seq + 1),
+                           ucbd->uploadId,
+                           ucbd->src->size,
+                           NULL,
+                           0,
+                           ucbd);
+        } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
+
+        if (ucbd->status != S3StatusOK) {
+            tssError("failed to upload part %d of %s: %d/%s", ucbd->seq, dstPath, ucbd->status, ucbd->errMsg);
+            code = TAOS_SYSTEM_ERROR(EIO);
+            break;
+        }
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
+    // calculate the size of the XML document
+    size_t size = strlen("<CompleteMultipartUpload></CompleteMultipartUpload>");
+    size += ucbd->numChunks * strlen("<Part><PartNumber></PartNumber><ETag></ETag></Part>");
+    size += ucbd->numChunks * 5;   // for the part number, 5 digits should be enough
+    for (uint32_t i = 0; i < ucbd->numChunks; i++) {
+        size += strlen(ucbd->etags[i]);
+    }
+
+    char* xml = (char*)taosMemMalloc(size);
+    if (xml == NULL) {
+        tssError("failed to allocate memory for commit XML");
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);  
+    }
+
+    // build the XML document
+    char* p = xml;
+    p += sprintf(p, "<CompleteMultipartUpload>");
+    for (uint32_t i = 0; i < ucbd->numChunks; i++) {
+        p += sprintf(p, "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1, ucbd->etags[i]);
+    }
+    p += sprintf(p, "</CompleteMultipartUpload>");
+
+    // set the upload source to the XML document
+    SUploadSource src = {.src = NULL, .buf = xml, .size = p-xml, .offset = 0, .file = NULL};
+    SUploadSource* bakSrc = ucbd->src;
+    ucbd->src = &src;
+
+    S3MultipartCommitHandler mch = {
+        .responseHandler = {
+            .propertiesCallback = &propertiesCallbackNop,
+            .completeCallback = &responseCompleteCallback,
+        },
+        .putObjectDataCallback = &uploadCallback,
+        .responseXmlCallback = NULL,
+    };
+
+    do {
+        S3_complete_multipart_upload(&ss->bucketContext, dstPath, &mch, ucbd->uploadId, src.size, 0, 0, ucbd);
+    } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
+
+    ucbd->src = bakSrc;
+    taosMemFree(xml);
+
+    int32_t code = 0;
+    if (ucbd->status != S3StatusOK) {
+        tssError("failed to commit multipart upload %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+        code = TAOS_SYSTEM_ERROR(EIO);
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+static int32_t doMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
+    SUploadSource* src = ucbd->src->src; // inner source is the original source
+
+    ucbd->chunkSize = ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024;
+    ucbd->numChunks = (src->size + ucbd->chunkSize - 1) / ucbd->chunkSize;
+    if (ucbd->numChunks > ss->maxChunks) {
+        ucbd->chunkSize = (src->size + ss->maxChunks - 1) / ss->maxChunks;
+        ucbd->numChunks = (src->size + ucbd->chunkSize - 1) / ucbd->chunkSize;
+    }
+
+    ucbd->etags = (char**)taosMemCalloc(ucbd->numChunks, sizeof(char*));
+    if (!ucbd->etags) {
+        tssError("failed to allocate memory for etags");
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    int32_t code = initMultipartUpload(ss, dstPath, ucbd);
+    if (code != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+    }
+
+    code = uploadChunks(ss, dstPath, ucbd);
+    if (code != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+    }
+
+    return commitMultipartUpload(ss, dstPath, ucbd);
+}
+
+
+
+static void abortMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
+    S3AbortMultipartUploadHandler amh = {
+        .responseHandler = {
+            .propertiesCallback = &propertiesCallbackNop,
+            .completeCallback = &responseCompleteCallback,
+        },
+    };
+
+    do {
+        S3_abort_multipart_upload(&ss->bucketContext, dstPath, ucbd->uploadId, 0, &amh);
+    } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
+
+    if (ucbd->status != S3StatusOK) {
+        tssError("failed to abort multipart upload %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+    }
+}
+
+
+
+// multipartUpload uploads the file via multiple parts requests.
+static int32_t multipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSource* src) {
+    SUploadSource csrc = {.src = src, .buf = NULL, .size = 0, .offset = 0, .file = NULL};
+
+    SUploadCallbackData ucbd = {0};
+    ucbd.src = &csrc;
+
+    int32_t code = doMultipartUpload(ss, dstPath, &ucbd);
+    if (code != TSDB_CODE_SUCCESS) {
+        abortMultipartUpload(ss, dstPath, &ucbd);
+    }
+
+    if (ucbd.uploadId) {
+        taosMemFree(ucbd.uploadId);
+    }
+
+    if (ucbd.etags) {
+        for (uint32_t i = 0; i < ucbd.numChunks; i++) {
+            taosMemFree(ucbd.etags[i]);
+        }
+        taosMemFree(ucbd.etags);
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+// upload uploads a block of data to the shared storage at the specified path.
+// It uploads an empty file if [size] is 0.
+static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data, int64_t size) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    SUploadSource src = {.src = NULL, .buf = (const char*)data, .size = size, .offset = 0, .file = NULL};
+
+    if (size <= ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024) {
+        return simpleUpload(ss, dstPath, &src);
+    } else {
+        tssInfo("multipart uploading: %s, size %ld", dstPath, size);
+        return multipartUpload(ss, dstPath, &src);
+    }
+}
+
+
+
+// uploadFile uploads a file to the shared storage at the specified path.
+// [offset] is the start offset of the file, [size] is the size of the data to be uploaded.
+// If [size] is negative, upload until the end of the file. If [size] is 0, upload an empty file.
+static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* srcPath, int64_t offset, int64_t size) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    if (offset < 0) {
+        tssError("invalid offset %ld for file %s: ", offset, srcPath);
+        TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+    }
+
+    int64_t fileSize = 0;
+    if (taosStatFile(srcPath, &fileSize, NULL, NULL) < 0) {
+        tssError("failed to stat file %s: ", srcPath);
+        TAOS_RETURN(terrno);
+    }
+
+    // if size is negative, upload until the end of the file
+    if (size < 0) {
+        size = fileSize - offset;
+    }
+    if (size < 0 || offset + size > fileSize) {
+        tssError("invalid offset %ld and size %ld for file %s: ", offset, size, srcPath);
+        TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+    }
+
+    TdFilePtr file = taosOpenFile(srcPath, TD_FILE_READ);
+    if (file == NULL) {
+        tssError("failed to open file %s: ", srcPath);
+        TAOS_RETURN(terrno);
+    }
+
+    if (offset > 0 && taosLSeekFile(file, offset, SEEK_SET) < 0) {
+        tssError("failed to seek file %s to offset %ld", srcPath, offset);
+        (void)taosCloseFile(&file);
+        TAOS_RETURN(terrno);
+    }
+
+    SUploadSource src = {.src = NULL, .buf = NULL, .size = size, .offset = 0, .file = file};
+
+    int32_t code = 0;
+    if (size <= ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024) {
+        code = simpleUpload(ss, dstPath, &src);
+    } else {
+        tssInfo("multipart uploading: %s to %s, size %ld", srcPath, dstPath, size);
+        code = multipartUpload(ss, dstPath, &src);
+    }
+
+    (void)taosCloseFile(&file);
+    TAOS_RETURN(code);
+}
+
+
+
+// functions and data structures for download
+
+typedef struct {
+    S3Status  status;
+    char      errMsg[512];
+    // * [buf] & [file] are destination of the downloaded data, they are
+    //   mutually exclusive.
+    // * [offset] is the number of bytes already downloaded.
+    // * [size] is the total size to be downloaded:
+    //   - if [buf] is used, [size] is also the size of the buffer, a zero
+    //     [size] means no data to be downloaded.
+    //   - if [file] is used, a zero [size] means download until the end of
+    //     the file.
+    char*     buf;
+    TdFilePtr file;
+    int64_t   offset;
+    int64_t   size;
+} SDownloadCallbackData;
+
+
+
+static S3Status downloadCallback(int bufferSize, const char *buffer, void *cbd) {
+    SDownloadCallbackData* dcbd = cbd;
+
+    if (dcbd->buf != NULL) {
+        (void)memcpy(dcbd->buf + dcbd->offset, buffer, bufferSize);
+        dcbd->offset += bufferSize;
+        dcbd->status = S3StatusOK;
+        return S3StatusOK;
+    }
+
+    int64_t wrote = taosWriteFile(dcbd->file, buffer, bufferSize);
+    if (wrote > 0) {
+        dcbd->offset += wrote;
+    }
+
+    if (wrote == bufferSize) {
+        dcbd->status = S3StatusOK;
+    } else {
+        dcbd->status = S3StatusAbortedByCallback;
+    }
+
+    return dcbd->status;
+}
+
+
+
+static int32_t doDownload(SSharedStorageS3* ss, const char* path, int64_t offset, SDownloadCallbackData* dcbd) {
+    int32_t code = 0;
+
+    S3GetObjectHandler goh = {
+        .responseHandler = {
+            .propertiesCallback = &propertiesCallbackNop,
+            .completeCallback = &responseCompleteCallback,
+        },
+        .getObjectDataCallback = &downloadCallback,
+    };
+
+    for (int retry = 0; retry < 5; retry++) {
+        int64_t start = offset + dcbd->offset, bytes = 0;
+
+        // S3_get_object() will return data up to the end of the content if bytes is 0,
+        // this is only desired when (dcbd->file != NULL && dcbd->size == 0).
+        if (dcbd->buf != NULL || dcbd->size != 0) {
+            bytes = dcbd->size - dcbd->offset;
+            if (bytes == 0) { // have already read all the required data.
+                break;
+            }
+        }
+
+        S3_get_object(&ss->bucketContext, path, NULL, start, bytes, NULL, 0, &goh, dcbd);
+
+        if( dcbd->status == S3StatusErrorSlowDown ) {
+            taosMsleep(taosRand() % 2000 + 1000);
+            tssInfo("retrying download %s, retry %d", path, retry + 1);
+            continue;
+        }
+
+        if( dcbd->status != S3StatusOK ) {
+            tssError("failed to download %s: %d/%s", path, dcbd->status, dcbd->errMsg);
+            code = TAOS_SYSTEM_ERROR(EIO);
+        }
+
+        break;
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+// readFile reads a file or a block of a file from the shared storage to [buffer].
+// read starts at [offset] and reads [*size] bytes.
+// [*size] is updated to the number of bytes read when the function returns.
+static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset, char* buffer, int64_t* size) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    SDownloadCallbackData dcbd = { .buf = buffer, .size = * size };
+    int32_t code = doDownload(ss, srcPath, offset, &dcbd);
+    *size = dcbd.offset;
+    return code;
+}
+
+
+
+// downloadFile downloads a file or a block of a file from the shared storage to the local file system.
+// download starts at offset and downloads size bytes.
+// If size is zero, download until the end of the file.
+static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char* dstPath, int64_t offset, int64_t size) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    TdFilePtr file = taosOpenFile(dstPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    if (file == NULL) {
+        tssError("failed to open file %s: ", dstPath);
+        TAOS_RETURN(terrno);
+    }
+
+    SDownloadCallbackData dcbd = { .file = file, .size = size };
+    int32_t code = doDownload(ss, srcPath, offset, &dcbd);
+    (void)taosCloseFile(&file);
+
+    TAOS_RETURN(code);
+}
+
+
+
+// functions and data structures for list
+
+typedef struct {
+    S3Status status;
+    char     errMsg[512];
+    int      isTruncated;
+    char     nextMarker[1024];
+    SArray*  paths;
+} SListCallbackData;
+
+
+
+static S3Status listFileCallback(int                        isTruncated,
+                                 const char*                nextMarker,
+                                 int                        contentsCount,
+                                 const S3ListBucketContent* contents,
+                                 int                        commonPrefixesCount,
+                                 const char**               commonPrefixes,
+                                 void*                      cbd) {
+    SListCallbackData* lcbd = (SListCallbackData*)cbd;
+
+    lcbd->isTruncated = isTruncated;
+    if (nextMarker != NULL) {
+        strncpy(lcbd->nextMarker, nextMarker, sizeof(lcbd->nextMarker));
+        lcbd->nextMarker[sizeof(lcbd->nextMarker) - 1] = 0;
+    } else {
+        lcbd->nextMarker[0] = 0;
+    }
+
+    lcbd->status = S3StatusOK;
+    for (int i = 0; i < contentsCount; i++) {
+        const char* key = contents[i].key;
+        if (key[strlen(key) - 1] == '/') { // skip directories
+            continue;
+        }
+        
+        char* path = strdup(key);
+        if (path == NULL) {
+            tssError("failed to allocate memory for list path");
+            lcbd->status = S3StatusOutOfMemory;
+            break;
+        }
+
+        if (taosArrayPush(lcbd->paths, &path) == NULL) {
+            tssError("failed to append path to list");
+            taosMemFree(path);
+            lcbd->status = S3StatusOutOfMemory;
+            break;
+        }
+    }
+
+    return lcbd->status;
+}
+
+
+
+// listFile lists the files in the shared storage with the specified prefix [prefix].
+// [paths] is a pointer to a new initialized SArray, which will be filled with the paths.
+// If the call succeeds, the caller is responsible for freeing the items in [paths]
+// and [paths] itself.
+// if the call fails, [paths] will be cleared and the function returns an error code,
+// the caller is responsible for freeing [paths] itself.
+static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    SListCallbackData lcbd = {.paths = paths};
+
+    S3ListBucketHandler lbh = {
+        .responseHandler = {
+            .propertiesCallback = &propertiesCallbackNop,
+            .completeCallback = &responseCompleteCallback,
+        },
+        .listBucketCallback = &listFileCallback,
+    };
+
+    do {
+        lcbd.isTruncated = 0;
+        S3_list_bucket(&ss->bucketContext, prefix, lcbd.nextMarker, NULL, 0, NULL, 0, &lbh, &lcbd);
+    } while(lcbd.status == S3StatusOK && lcbd.isTruncated);
+
+    int32_t code = 0;
+    if (lcbd.status != S3StatusOK) {
+        tssError("failed to list %s: %d/%s", prefix, lcbd.status, lcbd.errMsg);
+
+        for(size_t i = 0; i < taosArrayGetSize(paths); i++) {
+            char* path = *(char**)taosArrayGet(paths, i);
+            taosMemFree(path);
+        }
+        taosArrayClear(paths);
+
+        code = TAOS_SYSTEM_ERROR(EIO);
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+// functions and data structures for delete
+
+static int32_t deleteFile(SSharedStorage* pss, const char* path) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    S3ResponseHandler rh = {
+        .propertiesCallback = &propertiesCallbackNop,
+        .completeCallback = &responseCompleteCallback,
+    };
+
+    SCallbackData cbd = {0};
+    do {
+        S3_delete_object(&ss->bucketContext, path, NULL, 0, &rh, &cbd);
+    } while(S3_status_is_retryable(cbd.status) && shouldRetry());
+
+    if (cbd.status == S3StatusOK || cbd.status == S3StatusErrorNoSuchKey) {
+        TAOS_RETURN(TSDB_CODE_SUCCESS);
+    }
+
+    tssError("failed to delete %s: %d/%s", path, cbd.status, cbd.errMsg);
+    TAOS_RETURN(TSDB_CODE_FAILED);
+}
+
+
+// functions and data structures for file size
+
+typedef struct {
+    S3Status  status;
+    char      errMsg[512];
+    int64_t   size;
+} SSizeCallbackData;
+
+
+static S3Status sizePropertiesCallback(const S3ResponseProperties* properties, void* data) {
+    SSizeCallbackData* scbd = (SSizeCallbackData*)data;
+    if (properties->contentLength > 0) {
+        scbd->status = S3StatusOK;
+        scbd->size = properties->contentLength;
+    } else {
+        scbd->status = S3StatusErrorNoSuchKey;
+    }
+    return scbd->status;
+}
+
+
+static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    S3ResponseHandler rh = {
+        .propertiesCallback = &sizePropertiesCallback,
+        .completeCallback = &responseCompleteCallback,
+    };
+
+    SSizeCallbackData scbd = {0};
+    do {
+        S3_head_object(&ss->bucketContext, path, NULL, 0, &rh, &scbd);
+    } while(S3_status_is_retryable(scbd.status) && shouldRetry());
+
+    int code = 0;
+    if (scbd.status == S3StatusOK) {
+        *size = scbd.size;
+    } else if (scbd.status == S3StatusErrorNoSuchKey) {
+        tssError("file %s does not exist", path);
+        code = TSDB_CODE_NOT_FOUND;
+    } else {
+        tssError("failed to get size of %s: %d/%s", path, scbd.status, scbd.errMsg);
+        code = TSDB_CODE_FAILED;
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+// Amazon S3
+static int32_t s3CreateInstance(const char* as, SSharedStorage** ppSS);
+
+static const SSharedStorageType sstS3 = {
+    .name = "s3",
+    .printConfig = &printConfig,
+    .createInstance = &s3CreateInstance,
+    .closeInstance = &closeInstance,
+    .upload = &upload,
+    .uploadFile = &uploadFile,
+    .readFile = &readFile,
+    .downloadFile = &downloadFile,
+    .listFile = &listFile,
+    .deleteFile = &deleteFile,
+    .getFileSize = &getFileSize,
+};
+
+static int32_t s3CreateInstance(const char* as, SSharedStorage** ppSS) {
+    SSharedStorageS3* ss = NULL;
+
+    int32_t code = createInstance(as, &ss);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+    ss->type = &sstS3;
+
+    *ppSS = (SSharedStorage*)ss;
+    return TSDB_CODE_SUCCESS;
+}
+
+
+// Aliyun OSS
+static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS);
+
+static const SSharedStorageType sstOss = {
+    .name = "oss",
+    .printConfig = &printConfig,
+    .createInstance = &ossCreateInstance,
+    .closeInstance = &closeInstance,
+    .upload = &upload,
+    .uploadFile = &uploadFile,
+    .readFile = &readFile,
+    .downloadFile = &downloadFile,
+    .listFile = &listFile,
+    .deleteFile = &deleteFile,
+    .getFileSize = &getFileSize,
+};
+
+static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS) {
+    SSharedStorageS3* ss = NULL;
+
+    int32_t code = createInstance(as, &ss);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+    ss->type = &sstOss;
+    // OSS always uses path style URI
+    ss->bucketContext.uriStyle = S3UriStylePath;
+
+    *ppSS = (SSharedStorage*)ss;
+    return TSDB_CODE_SUCCESS;
+}
+
+
+// Tencent COS
+static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS);
+
+static const SSharedStorageType sstCos = {
+    .name = "cos",
+    .printConfig = &printConfig,
+    .createInstance = &cosCreateInstance,
+    .closeInstance = &closeInstance,
+    .upload = &upload,
+    .uploadFile = &uploadFile,
+    .readFile = &readFile,
+    .downloadFile = &downloadFile,
+    .listFile = &listFile,
+    .deleteFile = &deleteFile,
+    .getFileSize = &getFileSize,
+};
+
+static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS) {
+    SSharedStorageS3* ss = NULL;
+
+    int32_t code = createInstance(as, &ss);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+    ss->type = &sstCos;
+
+    *ppSS = (SSharedStorage*)ss;
+    return TSDB_CODE_SUCCESS;
+}
+
+
+
+// register the S3, OSS and COS types
+void s3RegisterType() {
+    tssRegisterType(&sstS3);
+    tssRegisterType(&sstOss);
+    tssRegisterType(&sstCos);
+}
