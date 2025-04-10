@@ -1953,8 +1953,6 @@ int32_t lz4DecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSiz
 }
 
 int32_t zlibCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code;
-
   uLongf  dstLen = *dstSize;
   int32_t ret = compress2(dst, &dstLen, src, srcSize, Z_BEST_COMPRESSION);
   if (ret != Z_OK) {
@@ -1964,10 +1962,10 @@ int32_t zlibCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize
     return -1;
   }
   *dstSize = dstLen;
-  return code;
+  return 0;
 }
 int32_t zlibDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  int32_t code;
+  int32_t code = 0;
 
   uLongf  dstLen = *dstSize;
   int32_t ret = uncompress(dst, &dstLen, src, srcSize);

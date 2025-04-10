@@ -81,7 +81,7 @@ int32_t zstdCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
   return zstdCompressImpl(src, srcSize, dst, dstSize);
 }
 int32_t zstdDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
-  return zstdCompressImpl(src, srcSize, dst, dstSize);
+  return zstdDecompressImpl(src, srcSize, dst, dstSize);
 }
 
 int32_t xzCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {

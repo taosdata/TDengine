@@ -98,7 +98,7 @@ int32_t lruCacheGet(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void **pE
 
 _error:
   if (code != 0) {
-    bseError("failed to get cache lru at line %d since %d", lino, tstrerror(code));
+    bseError("failed to get cache lru at line %d since %s", lino, tstrerror(code));
   }
   taosThreadMutexUnlock(&pCache->mutex);
   return code;
@@ -121,7 +121,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   }
 
   while (pCache->size >= pCache->cap) {
-    SListNode *pNode = tdListPopTail(pCache->lruList);
+    SListNode *pNode = tdListGetTail(pCache->lruList);
     if (pNode != NULL) {
       SCacheItem *pCacheItem = (SCacheItem *)pNode->data;
       code = lruCacheRemoveNolock(pCache, &pCacheItem->pKey, sizeof(pCacheItem->pKey));
@@ -159,16 +159,16 @@ int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) 
     TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _error);
   }
 
-  code = taosHashRemove(pCache->pCache, key, keyLen);
-  TSDB_CHECK_CODE(code, lino, _error);
-
   SListNode *pNode = tdListPopNode(pCache->lruList, pItem->pNode);
   freeItemInListNode(pNode, pCache->freeElemFunc);
+
+  code = taosHashRemove(pCache->pCache, key, keyLen);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   taosMemFreeClear(pNode);
 _error:
   if (code != 0) {
-    bseError("failed to remove cache lru at line %d since %d", __LINE__, tstrerror(code));
+    bseError("failed to remove cache lru at line %d since %d", lino, tstrerror(code));
   } else {
     pCache->size--;
   }
@@ -240,7 +240,7 @@ int32_t tableCacheGet(STableCache *pCache, SSeqRange *key, STableReader **pReade
   *pReader = pElem;
 _error:
   if (code != 0) {
-    bseError("failed to get table cache at line %d since %d", lino, tstrerror(code));
+    bseWarn("failed to get table cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -302,7 +302,7 @@ int32_t blockCacheGet(SBlockCache *pCache, SSeqRange *key, void **pBlock) {
 
 _error:
   if (code != 0) {
-    bseError("failed to get block cache at line %d since %d", lino, tstrerror(code));
+    bseError("failed to get block cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }

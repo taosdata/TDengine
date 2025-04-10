@@ -240,7 +240,8 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
   if (pBlk->len == 0) {
     return 0;
   }
-  int8_t        compressType = p->compressType;
+  int8_t compressType = BSE_GET_COMPRESS_TYPE(p->pBse);
+
   SBlockWrapper wrapper = {0};
 
   uint8_t *pWrite = (uint8_t *)pBlk;

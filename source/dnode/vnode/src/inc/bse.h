@@ -25,13 +25,13 @@ extern "C" {
 #endif
 
 #define BSE_DEFAULT_BLOCK_SIZE (4 * 1024 * 1024)
-typedef enum {
+enum {
   kNoCompres = 0,
   kLZ4Compres = 1,
   kZLibCompres = 2,
   kZSTDCompres = 3,
   kZxCompress = 4,
-} SBseCompress;
+};
 
 typedef struct {
   int32_t size;

@@ -401,9 +401,19 @@ _error:
 }
 
 void bseCfgSetDefault(SBseCfg *pCfg) {
-  pCfg->blockSize = BSE_DEFAULT_BLOCK_SIZE;
-  pCfg->compressType = kLZ4Compres;
-  pCfg->keepDays = 365;
+  if (pCfg == NULL) {
+    return;
+  }
+  if (pCfg->compressType == 0) {
+    pCfg->compressType = kLZ4Compres;
+  }
+  if (pCfg->blockSize == 0) {
+    pCfg->blockSize = BSE_DEFAULT_BLOCK_SIZE;
+  }
+
+  if (pCfg->keepDays == 0) {
+    pCfg->keepDays = 365;
+  }
 }
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   int32_t lino = 0;
