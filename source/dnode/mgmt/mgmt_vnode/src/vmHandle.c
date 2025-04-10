@@ -21,7 +21,7 @@
 extern taos_counter_t *tsInsertCounter;
 
 // Forward declaration for function defined in metrics.c
-extern int32_t addWriteMetrics(int32_t vgId, SWriteMetricsEx *pMetrics);
+extern int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics);
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
@@ -1104,8 +1104,8 @@ void vmGetMetricsInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
 
     SVnodeObj *pVnode = *ppVnode;
     if (!pVnode->failed) {
-      SWriteMetricsEx metrics = {0};
-      if (vnodeGetWriteMetricsEx(pVnode->pImpl, &metrics) == 0) {
+      SRawWriteMetrics metrics = {0};
+      if (vnodeGetRawWriteMetrics(pVnode->pImpl, &metrics) == 0) {
         int32_t code = addWriteMetrics(pVnode->vgId, &metrics);
         if (code != TSDB_CODE_SUCCESS) {
           dError("Failed to add write metrics for vgId: %d, code: %d", pVnode->vgId, code);
