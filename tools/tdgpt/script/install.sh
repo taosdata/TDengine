@@ -399,7 +399,7 @@ function install_log() {
 function install_module() {
   ${csudo}mkdir -p ${moduleDir} && ${csudo}chmod 777 ${moduleDir}
   ${csudo}ln -sf ${moduleDir} ${install_main_dir}/model
-  [ -f "${script_dir}/model/${tar_td_model_name}" ] && cp -r ${script_dir}/model/* ${moduleDir}/
+  [ -f "${script_dir}/model/${tar_td_model_name}" ] && cp -r ${script_dir}/model/* ${moduleDir}/ || : 
 }
 
 function install_resource() {
