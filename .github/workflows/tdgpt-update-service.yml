@@ -1,11 +1,8 @@
 name: TDgpt Update Service
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - tools/tdgpt/**
+  schedule:
+    - cron: '30 00 * * *'
 
 env:
   WKC: "/root/TDengine"
