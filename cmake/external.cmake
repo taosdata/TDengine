@@ -20,15 +20,19 @@ include(ExternalProject)
 
 add_custom_target(build_externals)
 
-# eg.: INIT_EXT(ext_zlib)
-# initialization all variables to be used by external project and those relied on
-macro(INIT_EXT name)               # {
+macro(INIT_DIRS name)              # {
     set(_base            "${TD_EXTERNALS_BASE_DIR}/build/${name}")                      # where all source and build stuffs locate
     set(_ins             "${TD_EXTERNALS_BASE_DIR}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
     set(${name}_build    "${_base}/src/${name}-build")
     set(${name}_install  "${_ins}")
+endmacro()                         # }
+
+# eg.: INIT_EXT(ext_zlib)
+# initialization all variables to be used by external project and those relied on
+macro(INIT_EXT name)               # {
+    INIT_DIRS(${name})
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
     set(${name}_have_dev          FALSE)
@@ -1385,6 +1389,7 @@ if(NOT ${TD_WINDOWS})        # {
     get_from_local_repo_if_exists("https://github.com/michaelrsweet/mxml.git")
     ExternalProject_Add(ext_mxml
         GIT_REPOSITORY ${_git_url}
+        # NOTE: if you change GIT_TAG here, refer to the comments below!!!
         GIT_TAG v2.12
         GIT_SHALLOW TRUE
         PREFIX "${_base}"
@@ -1392,17 +1397,48 @@ if(NOT ${TD_WINDOWS})        # {
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND ""
-        CONFIGURE_COMMAND
-            COMMAND ./configure --prefix=${_ins} --enable-shared=no
-        BUILD_COMMAND
-            COMMAND make DESTDIR=${_ins}
-        INSTALL_COMMAND
-            COMMAND make DESTDIR=${_ins} install
-            # TODO: why refresh every time? this is really annoying!
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
-    add_dependencies(build_externals ext_mxml)     # this is for github workflow in cache-miss step.
+
+    # NOTE: tweaking to prevent mxml from being rebuilt each time requested
+    #       any other better approach?
+    add_custom_command(
+        OUTPUT
+          ${ext_mxml_source}/configure
+          ${ext_mxml_source}/Makefile.in
+          ${ext_mxml_source}/README.md
+          ${ext_mxml_source}/CHANGES.md
+        DEPENDS ext_mxml
+        WORKING_DIRECTORY ${ext_mxml_source}
+    )
+
+    add_custom_command(
+        OUTPUT
+          ${ext_mxml_source}/install/lib/${ext_mxml_static}
+        DEPENDS
+          ${ext_mxml_source}/configure
+          ${ext_mxml_source}/Makefile.in
+          ${ext_mxml_source}/README.md
+          ${ext_mxml_source}/CHANGES.md
+        WORKING_DIRECTORY ${ext_mxml_source}
+        COMMAND ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
+        COMMAND make DESTDIR=${ext_mxml_source}/install
+        COMMAND make DESTDIR=${ext_mxml_source}/install install
+    )
+
+    add_custom_target(ext_mxml_post
+        DEPENDS
+          ${ext_mxml_source}/install/lib/${ext_mxml_static}
+        WORKING_DIRECTORY ${ext_mxml_source}
+        COMMAND "${CMAKE_COMMAND}" -E echo ${ext_mxml_source}/install/lib/${ext_mxml_static}
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/include/mxml.h ${_ins}/include/mxml.h
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/lib/${ext_mxml_static} ${_ins}/lib/${ext_mxml_static}
+    )
+    add_dependencies(build_externals ext_mxml_post)     # this is for github workflow in cache-miss step.
 
     # apr
     if(${TD_LINUX})
@@ -1495,7 +1531,7 @@ if(NOT ${TD_WINDOWS})        # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG v5.0.16
         GIT_SHALLOW TRUE
-        DEPENDS ext_curl ext_mxml ext_aprutil
+        DEPENDS ext_curl ext_mxml_post ext_aprutil
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
