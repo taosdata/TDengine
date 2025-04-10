@@ -41,25 +41,14 @@ jobs:
 
   check-docs-linter-formatter:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - name: AutoCorrect
         uses: huacnlee/autocorrect-action@v2
         with:
           args: --lint docs/zh/* docs/en/*
-      - name: Check AutoCorrect
-        id: check-autocorrect
-        if: failure()
-        run: |
-          echo "Errors detected automatically"
-          echo "Please check the PR page and modify the commit based on the suggestions provided by reviewdog."
-
-  reviewdog:
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4    
       - name: Report ReviewDog
         if: failure()
         uses: tomchon/autocorrect-action@fix/review-dog
