@@ -2269,9 +2269,13 @@ static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pDa
     //    VALUE             NONE        NULL
 };
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward) {
-  ASSERT(pColData->cid == pColVal->cid && pColData->type == pColVal->type);
-  ASSERT(pColData->nVal > 0);
+  if (!(pColData->cid == pColVal->cid && pColData->type == pColVal->type)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
+  if (pColData->nVal <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (tColDataUpdateValueImpl[pColData->flag][pColVal->flag] == NULL) return 0;
 
   return tColDataUpdateValueImpl[pColData->flag][pColVal->flag](
