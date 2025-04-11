@@ -1698,7 +1698,8 @@ void freeSpecialQueryInfo() {
 #define KILLID_LEN  64
 
 void *queryKiller(void *arg) {
-    while (true) {
+    int32_t loop = 0;
+    while (!g_arguments->terminate && ++loop < 3) {
         TAOS *taos = taos_connect(g_arguments->host, g_arguments->user,
                 g_arguments->password, NULL, g_arguments->port);
         if (NULL == taos) {
