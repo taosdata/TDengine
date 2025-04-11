@@ -2917,9 +2917,9 @@ int32_t tColDataSortMerge(SArray **arr) {
 
   if (aColData[0].nVal <= 1) goto _exit;
 
-  if (aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP) return TSDB_CODE_INVALID_PARA;
-  if (aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID) return TSDB_CODE_INVALID_PARA;
-  if (aColData[0].flag == HAS_VALUE) return TSDB_CODE_INVALID_PARA;
+  if (aColData[0].type != TSDB_DATA_TYPE_TIMESTAMP) return TSDB_CODE_INVALID_PARA;
+  if (aColData[0].cid != PRIMARYKEY_TIMESTAMP_COL_ID) return TSDB_CODE_INVALID_PARA;
+  if (aColData[0].flag != HAS_VALUE) return TSDB_CODE_INVALID_PARA;
 
   int8_t doSort = 0;
   int8_t doMerge = 0;
