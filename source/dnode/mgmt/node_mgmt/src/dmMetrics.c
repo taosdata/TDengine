@@ -34,6 +34,8 @@ void dmSendMetricsReport() {
   collectWriteMetricsInfo(pDnode);
   collectQueryMetricsInfo(pDnode);
   collectStreamMetricsInfo(pDnode);
+
+  reportWriteMetrics();
 }
 
 static void collectDnodeMetricsInfo(SDnode *pDnode) {
@@ -41,7 +43,16 @@ static void collectDnodeMetricsInfo(SDnode *pDnode) {
   return;
 }
 
-static void collectWriteMetricsInfo(SDnode *pDnode) { return; }
+static void collectWriteMetricsInfo(SDnode *pDnode) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (pWrapper->pMgmt != NULL) {
+      vmUpdateMetricsInfo(pWrapper->pMgmt);
+    }
+    dmReleaseWrapper(pWrapper);
+  }
+  return;
+}
 
 static void collectQueryMetricsInfo(SDnode *pDnode) {
   // TODO: collect query metrics info

@@ -148,6 +148,8 @@ int32_t formatMetricsToJson(int32_t vgId, char *buffer, int32_t bufferSize);
 int32_t forEachMetric(MetricsLogCallback callback, void *param);
 int32_t getAllMetricsJson(char **pJson);
 
+void reportWriteMetrics();
+
 #ifdef __cplusplus
 }
 #endif

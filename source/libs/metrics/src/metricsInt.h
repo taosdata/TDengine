@@ -27,21 +27,10 @@
 extern "C" {
 #endif
 
-// Internal structure to hold both raw and formatted metrics
-typedef struct {
-  int32_t          vgId;  // Key for the hash table
-  SRawWriteMetrics raw;
-  SWriteMetricsEx  formatted;
-  // Add a flag or timestamp if lazy update is needed
-  // bool             isFormattedUpToDate;
-} SWriteMetricsBundle;
-
 // Function declarations used internally in metrics.c
 static void destroyMetricsManager();
 static uint32_t writeMetricsHashFn(const void *key, uint32_t keyLen, uint32_t seed);
 static int32_t  writeMetricsKeyCompareFn(const void *key, int32_t keyLen, const void *pData);
-static void     freeWriteMetricsBundle(void *pData);
-static void     updateFormattedMetrics(SWriteMetricsBundle *pBundle);
 
 #ifdef __cplusplus
 }

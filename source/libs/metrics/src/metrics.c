@@ -34,29 +34,6 @@
 
 extern int32_t vnodeGetWriteMetricsEx(void *pVnode, SWriteMetricsEx *pMetrics);
 
-// Free function for hash table values (SWriteMetricsBundle*)
-static void freeWriteMetricsBundle(void *pData) {
-  SWriteMetricsBundle *pBundle = (SWriteMetricsBundle *)pData;
-  if (pBundle == NULL) return;
-  // Free any dynamically allocated strings within formatted SMetric if necessary
-  // Example:
-  // if (pBundle->formatted.some_string.definition.type == METRIC_TYPE_STRING &&
-  // pBundle->formatted.some_string.value.str_val) {
-  //     taosMemoryFree(pBundle->formatted.some_string.value.str_val);
-  // }
-  taosMemoryFree(pBundle);  // Free the bundle itself
-}
-
-// Helper to iterate and free bundle data before clear/destroy
-static void freeAllWriteMetricsBundles(SHashObj *pHash) {
-  if (pHash == NULL) return;
-  void *cursor = NULL;
-  void *pData = NULL;
-  while ((pData = taosHashIterate(pHash, &cursor)) != NULL) {
-    freeWriteMetricsBundle(pData);
-  }
-}
-
 // --- Global Manager ---
 
 static SMetricsManager gMetricsManager = {0};
@@ -102,71 +79,11 @@ _err:
 }
 
 static void destroyMetricsManager() {
-  freeAllWriteMetricsBundles(gMetricsManager.pWriteMetrics);
   taosArrayDestroy(gMetricsManager.pDnodeMetrics);
   taosHashClear(gMetricsManager.pWriteMetrics);
   taosHashClear(gMetricsManager.pQueryMetrics);
   taosHashClear(gMetricsManager.pStreamMetrics);
 }
-
-// --- Metric Update Helper ---
-
-// Updates the 'formatted' SWriteMetricsEx from the 'raw' SRawWriteMetrics
-static void updateFormattedMetrics(SWriteMetricsBundle *pBundle) {
-  if (pBundle == NULL) return;
-
-  SRawWriteMetrics *raw = &pBundle->raw;
-  SWriteMetricsEx  *fmt = &pBundle->formatted;
-
-  fmt->vgId = pBundle->vgId;  // Ensure vgId is set in formatted struct too
-
-  // --- Update formatted SMetric fields from raw values ---
-  // Integers
-  setMetricInt64(&fmt->total_requests, raw->total_requests);
-  setMetricInt64(&fmt->total_rows, raw->total_rows);
-  setMetricInt64(&fmt->total_bytes, raw->total_bytes);
-  setMetricInt64(&fmt->rpc_queue_wait, raw->rpc_queue_wait);
-  setMetricInt64(&fmt->preprocess_time, raw->preprocess_time);
-  setMetricInt64(&fmt->memory_table_size, raw->memory_table_size);
-  setMetricInt64(&fmt->memory_table_rows, raw->memory_table_rows);
-  setMetricInt64(&fmt->commit_count, raw->commit_count);
-  setMetricInt64(&fmt->auto_commit_count, raw->auto_commit_count);
-  setMetricInt64(&fmt->forced_commit_count, raw->forced_commit_count);
-  setMetricInt64(&fmt->stt_trigger_value, raw->stt_trigger_value);
-  setMetricInt64(&fmt->merge_count, raw->merge_count);
-  setMetricInt64(&fmt->blocked_commits, raw->blocked_commits);
-  setMetricInt64(&fmt->memtable_wait_time, raw->memtable_wait_time);
-
-  // Doubles (Averages, Ratios, Rates - calculate if needed)
-  // Example calculation for average commit time:
-  double avg_commit_time = (raw->commit_count > 0) ? (raw->commit_time_sum / raw->commit_count) : 0.0;
-  setMetricDouble(&fmt->avg_commit_time, avg_commit_time);
-
-  double avg_merge_time = (raw->merge_count > 0) ? (raw->merge_time_sum / raw->merge_count) : 0.0;
-  setMetricDouble(&fmt->avg_merge_time, avg_merge_time);
-
-  // Example: Direct mapping if already calculated or stored as double
-  setMetricDouble(&fmt->avg_write_size, raw->avg_write_size);
-  setMetricDouble(&fmt->cache_hit_ratio, raw->cache_hit_ratio);
-
-  // Rates need calculation based on time intervals and raw byte counts (e.g., wal_write_bytes)
-  // These raw fields need to be added to SRawWriteMetrics first.
-  // setMetricDouble(&fmt->wal_write_rate, calculated_wal_rate);
-  // setMetricDouble(&fmt->sync_rate, calculated_sync_rate);
-  // setMetricDouble(&fmt->apply_rate, calculated_apply_rate);
-
-  // TODO: Add calculations for rates (wal_write_rate, sync_rate, apply_rate)
-  // For now, set them to 0 or keep previous value if lazy update needed.
-  // Assuming initWriteMetricsEx was called initially, they have default values.
-  // setMetricDouble(&fmt->wal_write_rate, 0.0);
-  // setMetricDouble(&fmt->sync_rate, 0.0);
-  // setMetricDouble(&fmt->apply_rate, 0.0);
-
-  // Mark as up-to-date if using lazy updates
-  // pBundle->isFormattedUpToDate = true;
-}
-
-// --- Public API Functions ---
 
 void initMetric(SMetric *pMetric, EMetricType type, EMetricLevel level) {
   if (pMetric == NULL) return;
@@ -255,58 +172,92 @@ void initWriteMetricsEx(SWriteMetricsEx *pMetrics) {
   initMetric(&pMetrics->memtable_wait_time, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
 }
 
-// Adds/Updates raw metrics for a vgId
+void cleanupMetrics() { destroyMetricsManager(); }
+
+static void updateFormattedFromRaw(SWriteMetricsEx *fmt, const SRawWriteMetrics *raw, int32_t vgId) {
+  if (fmt == NULL || raw == NULL) return;
+
+  fmt->vgId = vgId;
+
+  setMetricInt64(&fmt->total_requests, raw->total_requests);
+  setMetricInt64(&fmt->total_rows, raw->total_rows);
+  setMetricInt64(&fmt->total_bytes, raw->total_bytes);
+  setMetricDouble(&fmt->avg_write_size, raw->avg_write_size);
+  setMetricDouble(&fmt->cache_hit_ratio, raw->cache_hit_ratio);
+  setMetricInt64(&fmt->rpc_queue_wait, raw->rpc_queue_wait);
+  setMetricInt64(&fmt->preprocess_time, raw->preprocess_time);
+  setMetricInt64(&fmt->memory_table_size, raw->memory_table_size);
+  setMetricInt64(&fmt->memory_table_rows, raw->memory_table_rows);
+  setMetricInt64(&fmt->commit_count, raw->commit_count);
+  setMetricInt64(&fmt->auto_commit_count, raw->auto_commit_count);
+  setMetricInt64(&fmt->forced_commit_count, raw->forced_commit_count);
+  setMetricInt64(&fmt->stt_trigger_value, raw->stt_trigger_value);
+  setMetricInt64(&fmt->merge_count, raw->merge_count);
+  setMetricInt64(&fmt->blocked_commits, raw->blocked_commits);
+  setMetricInt64(&fmt->memtable_wait_time, raw->memtable_wait_time);
+
+  double avg_commit_time = (raw->commit_count > 0) ? (raw->commit_time_sum / raw->commit_count) : 0.0;
+  setMetricDouble(&fmt->avg_commit_time, avg_commit_time);
+  double avg_merge_time = (raw->merge_count > 0) ? (raw->merge_time_sum / raw->merge_count) : 0.0;
+  setMetricDouble(&fmt->avg_merge_time, avg_merge_time);
+}
+
 int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
-  if (pRawMetrics == NULL || gMetricsManager.pWriteMetrics == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pRawMetrics == NULL || gMetricsManager.pWriteMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
-  // Try to find existing bundle
-  SWriteMetricsBundle *pBundle = (SWriteMetricsBundle *)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
+  SWriteMetricsEx *pMetricEx = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
 
-  if (pBundle == NULL) {
-    // Not found, create a new bundle
-    pBundle = (SWriteMetricsBundle *)taosMemoryMalloc(sizeof(SWriteMetricsBundle));
-    if (pBundle == NULL) {
+  pMetricEx = (SWriteMetricsEx *)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
+
+  if (pMetricEx == NULL) {
+    pMetricEx = (SWriteMetricsEx *)taosMemoryMalloc(sizeof(SWriteMetricsEx));
+    if (pMetricEx == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    memset(pBundle, 0, sizeof(SWriteMetricsBundle));  // Zero initialize
-    pBundle->vgId = vgId;
-    initWriteMetricsEx(&pBundle->formatted);  // Initialize formatted part once
-
-    // Copy initial raw data
-    memcpy(&pBundle->raw, pRawMetrics, sizeof(SRawWriteMetrics));
-
-    // Add the new bundle to the hash table
-    int32_t code = taosHashPut(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId), pBundle, sizeof(SWriteMetricsBundle));
+    initWriteMetricsEx(pMetricEx);
+    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId);
+    code = taosHashPut(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId), pMetricEx, sizeof(SWriteMetricsEx *));
     if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFree(pBundle);  // Free if put failed
-      return code;
+      taosMemoryFree(pMetricEx);
+      pMetricEx = NULL;
     }
   } else {
-    // Found, just update the raw data part
-    // For counters/sums, you might want to += instead of memcpy
-    // Assuming pRawMetrics contains the *latest absolute* values or sums
-    memcpy(&pBundle->raw, pRawMetrics, sizeof(SRawWriteMetrics));
-    // Mark formatted data as stale if using lazy updates
-    // pBundle->isFormattedUpToDate = false;
+    updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
-// Gets the formatted metrics, updating from raw if needed
-SWriteMetricsEx *getWriteMetricsByVgId(int32_t vgId) {
-  if (gMetricsManager.pWriteMetrics == NULL) return NULL;
-
-  SWriteMetricsBundle *pBundle = (SWriteMetricsBundle *)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
-  if (pBundle == NULL) {
-    return NULL;  // Not found
+void reportWriteMetrics() {
+  if (gMetricsManager.pWriteMetrics == NULL) {
+    uError("Write metrics manager not initialized for reporting.");
+    return;
   }
 
-  // Update the formatted part from raw data before returning
-  // If using lazy update, check flag: if (!pBundle->isFormattedUpToDate)
-  updateFormattedMetrics(pBundle);
+  void            *pIter = NULL;
+  int32_t         *vgIdPtr = NULL;
+  SWriteMetricsEx *pMetrics = NULL;
 
-  return &pBundle->formatted;
+  while ((vgIdPtr = taosHashIterate(gMetricsManager.pWriteMetrics, &pIter)) != NULL) {
+    int32_t vgId = *vgIdPtr;
+    pMetrics = (SWriteMetricsEx *)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
+
+    if (pMetrics == NULL) continue;
+
+    uInfo("VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64 " AvgSize:%.2f CacheHit:%.2f%% MemRows:%" PRId64
+          " MemBytes:%" PRId64 " Commits:%" PRId64 "(A:%" PRId64 "/F:%" PRId64 "/B:%" PRId64 ") Merges:%" PRId64
+          " STT:%" PRId64 " CommitTime:%.2fms MergeTime:%.2fms RPC:%.2fms Preproc:%.2fms MemWait:%.2fms",
+          pMetrics->vgId, getMetricInt64(&pMetrics->total_requests), getMetricInt64(&pMetrics->total_rows),
+          getMetricInt64(&pMetrics->total_bytes), getMetricDouble(&pMetrics->avg_write_size),
+          getMetricDouble(&pMetrics->cache_hit_ratio) * 100.0, getMetricInt64(&pMetrics->memory_table_rows),
+          getMetricInt64(&pMetrics->memory_table_size), getMetricInt64(&pMetrics->commit_count),
+          getMetricInt64(&pMetrics->auto_commit_count), getMetricInt64(&pMetrics->forced_commit_count),
+          getMetricInt64(&pMetrics->blocked_commits), getMetricInt64(&pMetrics->merge_count),
+          getMetricInt64(&pMetrics->stt_trigger_value), getMetricDouble(&pMetrics->avg_commit_time),
+          getMetricDouble(&pMetrics->avg_merge_time), (double)getMetricInt64(&pMetrics->rpc_queue_wait),
+          (double)getMetricInt64(&pMetrics->preprocess_time), (double)getMetricInt64(&pMetrics->memtable_wait_time));
+  }
 }
-
-void cleanupMetrics() { destroyMetricsManager(); }

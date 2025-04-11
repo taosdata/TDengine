@@ -1091,7 +1091,7 @@ _OVER:
   }
 }
 
-void vmGetMetricsInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
+void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt) {
   (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
   void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
@@ -1118,7 +1118,4 @@ void vmGetMetricsInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   }
 
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
-
-  // Update other fields in pInfo if necessary, e.g.:
-  // pInfo->someOtherStat = calculate_some_stat();
 }
