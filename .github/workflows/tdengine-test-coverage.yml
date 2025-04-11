@@ -1,6 +1,5 @@
-# Coverage test for taosd & taosc
-
 name: TDengine Coverage
+description: Coverage test for taosd & taosc
 
 on:
   workflow_dispatch:
@@ -18,7 +17,7 @@ on:
   schedule:
     # - cron: '0 06 * * *'
     # - cron: '0 18 * * *'
-    - cron: '0 */3 * * *'
+    - cron: '0 */4 * * *'
 
 
 concurrency:
@@ -34,5 +33,5 @@ jobs:
     uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
     with:
-      specified_tdinternal_test_branch: ${{ github.event_name == 'schedule' && 'main_cov2' || github.event.inputs.specified_tdinternal_test_branch || '3.0' }}
-      specified_tdengine_test_branch: ${{ github.event_name == 'schedule' && 'main_cov2' || github.event.inputs.specified_tdengine_test_branch || '3.0' }}
+      specified_tdinternal_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_tdinternal_test_branch || '3.0' }}
+      specified_tdengine_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_tdengine_test_branch || '3.0' }}

@@ -287,6 +287,10 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
 
   taosArrayDestroyEx(pTaskInfo->pResultBlockList, freeBlock);
   taosArrayDestroy(pTaskInfo->stopInfo.pStopInfo);
+  if (!pTaskInfo->paramSet) {
+    freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
+    pTaskInfo->pOpParam = NULL;
+  }
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

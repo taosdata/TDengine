@@ -121,8 +121,8 @@ Parameter description:
 
 - User: Login TDengine username, default value is' root '.
 - Password: User login password, default value 'taosdata'.
-- database_name: database name。
-- timezone: time zone。
+- database_name: database name.
+- timezone: time zone.
 - HttpConnectTimeout: The connection timeout time, measured in milliseconds, with a default value of 60000.
 - MessageWaitTimeout: The timeout period for a message, measured in milliseconds, with a default value of 60000.
 - UseSSL: Whether SSL is used in the connection.
@@ -202,7 +202,7 @@ Parameter configuration instructions:
 |-----------------------| :-----: | ------------ |
 | connector             | string | connector identifier, set `tdengine-connector`|
 | td.jdbc.url           | string | url of the connection |
-| td.jdbc.mode          | strng  | connector type `sink`|
+| td.jdbc.mode          | string  | connector type `sink`|
 | sink.db.name          | string | target database name|
 | sink.batch.size       | integer| batch size written|
 | sink.supertable.name  | string | name of the supertable|

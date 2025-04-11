@@ -231,7 +231,7 @@ The effective value of charset is UTF-8.
 |udf                       |          |Supported, effective after restart|Whether to start UDF service; 0: do not start, 1: start; default value 0 |
 |udfdResFuncs              |          |Supported, effective after restart|Internal parameter, for setting UDF result sets|
 |udfdLdLibPath             |          |Supported, effective after restart|Internal parameter, indicates the library path for loading UDF|
-|enableStrongPassword      | After 3.3.5.0 |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+|enableStrongPassword      | After 3.3.6.0 |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 
 ### Stream Computing Parameters
 
@@ -544,7 +544,7 @@ The `taosd_vnodes_role` table records virtual node role information.
 
 | field          | type      | is\_tag | comment                                               |
 | :------------- | :-------- | :------ | :---------------------------------------------------- |
-| start\_ts      | TIMESTAMP |         | sql start exec time in client, ms,primary key                     |
+| start\_ts      | TIMESTAMP |         | sql start exec time in client, ms, primary key                     |
 | request\_id    | UINT64_T  |         | sql request id, random hash              |
 | query\_time    | INT32_T   |         | sql exec time, ms                                   |
 | code           | INT32_T   |         | sql return code, 0 success                               |

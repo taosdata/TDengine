@@ -1306,6 +1306,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_ANOMALY_WINDOW: {
       SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
       nodesDestroyNode(pAnomaly->pCol);
+      nodesDestroyNode(pAnomaly->pExpr);
       break;
     }
     case QUERY_NODE_HINT: {
@@ -2064,6 +2065,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY: {
       SAnomalyWindowPhysiNode* pPhyNode = (SAnomalyWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pAnomalyKey);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {

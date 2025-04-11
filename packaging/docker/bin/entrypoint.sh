@@ -64,7 +64,7 @@ else
         fi
         sleep 1s
     done
-    if ps aux | grep -v grep | grep taosd > dev/null; then
+    if ps aux | grep -v grep | grep -v entrypoint.sh | grep taosd > /dev/null; then
         echo "TDengine is running"
       else
         $@ &

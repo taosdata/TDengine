@@ -147,7 +147,7 @@ typedef struct {
 typedef struct AsyncBindParam {
   TdThreadMutex mutex;
   TdThreadCond  waitCond;
-  uint8_t       asyncBindNum;
+  int8_t        asyncBindNum;
 } AsyncBindParam;
 
 typedef struct {

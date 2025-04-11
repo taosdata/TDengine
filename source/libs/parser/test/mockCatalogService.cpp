@@ -46,9 +46,9 @@ class TableBuilder : public ITableBuilder {
     schema()->vgId = vgid;
 
     SVgroupInfo vgroup = {vgid, 0, 0, {0}, 0};
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030));
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030));
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030));
     vgroup.epSet.inUse = 0;
 
     (void)meta_->vgs.emplace_back(vgroup);
@@ -359,7 +359,7 @@ class MockCatalogServiceImpl {
 
   void createDnode(int32_t dnodeId, const string& host, int16_t port) {
     SEpSet epSet = {0};
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&epSet, host.c_str(), port));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(&epSet, host.c_str(), port));
     dnode_.insert(std::make_pair(dnodeId, epSet));
   }
 
@@ -384,9 +384,9 @@ class MockCatalogServiceImpl {
   uint64_t getNextId() { return id_++; }
 
   void genEpSet(SEpSet* pEpSet) {
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_1", 6030));
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_2", 6030));
-    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_3", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_1", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_2", 6030));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_3", 6030));
     pEpSet->inUse = 0;
   }
 

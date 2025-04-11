@@ -56,7 +56,7 @@ class JsonEnv : public ::testing::Test {
     initLog();
     opts = indexOptsCreate(1024 * 1024 * 4);
     int ret = indexJsonOpen(opts, dir.c_str(), &index);
-    assert(ret == 0);
+    TD_ALWAYS_ASSERT(ret == 0);
   }
   virtual void TearDown() {
     indexJsonClose(index);
