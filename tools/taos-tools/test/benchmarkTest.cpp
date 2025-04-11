@@ -93,16 +93,16 @@ TEST(benchUtil, getCodeFromResp) {
   ASSERT_EQ(ret, -1);
 
   // des
-  ret = getCodeFromResp((char *)"{\"code\":\100, \"desc\":12}");
+  ret = getCodeFromResp((char *)"{\"code\":100, \"desc\":12}");
   ASSERT_EQ(ret, -1);
 
   // des
-  ret = getCodeFromResp((char *)"{\"code\":\100, \"desc\":12}");
+  ret = getCodeFromResp((char *)"{\"code\":100, \"desc\":12}");
   ASSERT_EQ(ret, -1);
 
   // succ
-  ret = getCodeFromResp((char *)"{\"code\":\100, \"desc\":\"desc valid\"}");
-  ASSERT_EQ(ret, 0);
+  ret = getCodeFromResp((char *)"{\"code\":100, \"desc\":\"desc valid\"}");
+  ASSERT_EQ(ret, 100);
 }
 
 // baseic
