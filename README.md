@@ -57,7 +57,7 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 List the software and tools required to work on the project.
 
-- go 1.20+ (for taosadapter and taosx)
+- go 1.23+ (for taosadapter and taosx)
 - cargo 1.82.0+ (for taosx)
 - jdk 11~17, maven 3.8.0+ (for taosx plugin influxDB & openTSDB)
 - node 16.20.2 (for taos-explorer)
