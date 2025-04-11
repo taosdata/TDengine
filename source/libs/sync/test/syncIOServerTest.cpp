@@ -19,7 +19,7 @@ int main() {
   int32_t ret;
 
   ret = syncIOStart((char *)"127.0.0.1", 7030);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   while (1) {
     taosSsleep(1);

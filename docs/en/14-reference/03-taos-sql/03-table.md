@@ -25,7 +25,7 @@ create_definition:
     col_name column_definition
 
 column_definition:
-    type_name [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
+    type_name [COMPOSITE KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
 
 table_options:
     table_option ...
@@ -43,7 +43,7 @@ table_option: {
 1. For table (column) naming conventions, see [Naming Rules](../names/).
 2. The maximum length for table names is 192 characters.
 3. The first field of the table must be TIMESTAMP, and the system automatically sets it as the primary key.
-4. In addition to the timestamp primary key column, a second column can be designated as an additional primary key column using the PRIMARY KEY keyword. The second column designated as a primary key must be of integer or string type (VARCHAR).
+4. In addition to the timestamp primary key column, a second column can be designated as an additional composite primary key column using the COMPOSITE KEY keyword. The second column designated as a composite primary key must be of integer or string type (VARCHAR).
 5. The maximum row length of a table cannot exceed 48KB (from version 3.0.5.0 onwards, 64KB); (Note: Each VARCHAR/NCHAR/GEOMETRY type column will also occupy an additional 2 bytes of storage space).
 6. When using data types VARCHAR/NCHAR/GEOMETRY, specify the maximum number of bytes, e.g., VARCHAR(20) indicates 20 bytes.
 7. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/)

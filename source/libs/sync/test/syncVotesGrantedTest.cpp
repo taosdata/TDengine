@@ -37,7 +37,7 @@ SSyncNode* syncNodeInit() {
   }
 
   pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
@@ -73,13 +73,13 @@ int main(int argc, char** argv) {
   }
 
   int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   ret = syncInit();
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   SSyncNode* pSyncNode = syncInitTest();
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   char* serialized = syncNode2Str(pSyncNode);
   printf("%s\n", serialized);
@@ -88,12 +88,12 @@ int main(int argc, char** argv) {
   initRaftId(pSyncNode);
 
   SVotesGranted* pVotesGranted = voteGrantedCreate(pSyncNode);
-  assert(pVotesGranted != NULL);
+  TD_ALWAYS_ASSERT(pVotesGranted != NULL);
 
   printf("---------------------------------------\n");
   {
     char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
   voteGrantedReset(pVotesGranted, term);
   {
     char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
     voteGrantedVote(pVotesGranted, reply);
     {
       char* serialized = voteGranted2Str(pVotesGranted);
-      assert(serialized != NULL);
+      TD_ALWAYS_ASSERT(serialized != NULL);
       printf("%s\n", serialized);
       taosMemoryFree(serialized);
     }
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
     voteGrantedVote(pVotesGranted, reply);
     {
       char* serialized = voteGranted2Str(pVotesGranted);
-      assert(serialized != NULL);
+      TD_ALWAYS_ASSERT(serialized != NULL);
       printf("%s\n", serialized);
       taosMemoryFree(serialized);
     }
@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
   voteGrantedReset(pVotesGranted, 123456789);
   {
     char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }

@@ -160,7 +160,7 @@ TEST(osStringTests, osStr2Int64) {
 
   // 测试空指针输入
   result = taosStr2int64(NULL, &val);
-  assert(result == TSDB_CODE_INVALID_PARA);
+  TD_ALWAYS_ASSERT(result == TSDB_CODE_INVALID_PARA);
 
   result = taosStr2int64("123", NULL);
   ASSERT_NE(result, 0);
@@ -175,13 +175,13 @@ TEST(osStringTests, osStr2Int64) {
   char large_num[50];
   snprintf(large_num, sizeof(large_num), "%lld", LLONG_MAX);
   result = taosStr2int64(large_num, &val);
-  assert(result == 0);
-  assert(val == LLONG_MAX);
+  TD_ALWAYS_ASSERT(result == 0);
+  TD_ALWAYS_ASSERT(val == LLONG_MAX);
 
   snprintf(large_num, sizeof(large_num), "%lld", LLONG_MIN);
   result = taosStr2int64(large_num, &val);
-  assert(result == 0);
-  assert(val == LLONG_MIN);
+  TD_ALWAYS_ASSERT(result == 0);
+  TD_ALWAYS_ASSERT(val == LLONG_MIN);
 
   result = taosStr2int64("123abc", &val);
   ASSERT_EQ(result, 0);
@@ -191,25 +191,25 @@ TEST(osStringTests, osStr2Int64) {
   ASSERT_NE(result, 0);
   // 测试有效的整数字符串
   result = taosStr2int64("12345", &val);
-  assert(result == 0);
-  assert(val == 12345);
+  TD_ALWAYS_ASSERT(result == 0);
+  TD_ALWAYS_ASSERT(val == 12345);
 
   result = taosStr2int64("-12345", &val);
-  assert(result == 0);
-  assert(val == -12345);
+  TD_ALWAYS_ASSERT(result == 0);
+  TD_ALWAYS_ASSERT(val == -12345);
 
   result = taosStr2int64("0", &val);
-  assert(result == 0);
-  assert(val == 0);
+  TD_ALWAYS_ASSERT(result == 0);
+  TD_ALWAYS_ASSERT(val == 0);
 
   // 测试带空格的字符串
   result = taosStr2int64("  12345", &val);
-  assert(result == 0);
-  assert(val == 12345);
+  TD_ALWAYS_ASSERT(result == 0);
+  TD_ALWAYS_ASSERT(val == 12345);
 
   result = taosStr2int64("12345  ", &val);
-  assert(result == 0);
-  assert(val == 12345);
+  TD_ALWAYS_ASSERT(result == 0);
+  TD_ALWAYS_ASSERT(val == 12345);
 }
 TEST(osStringTests, osStr2int32) {
   int32_t val;

@@ -81,6 +81,13 @@ static int create_topic() {
 
         infoPrint("successfully create topic: %s\n", pConsumerInfo->topicName[i]);
         taos_free_result(res);
+        if (g_arguments->terminate) {
+            infoPrint("%s\n", "user cancel , so exit testing.");
+            taos_free_result(res);
+            closeBenchConn(conn);
+            return -1;
+        }
+        
     }
     closeBenchConn(conn);
     return 0;
@@ -274,6 +281,10 @@ static void* tmqConsume(void* arg) {
         }
       } else {
         infoPrint("consumer id %d no poll more msg when time over, break consume\n", pThreadInfo->id);
+        break;
+      }
+      if (g_arguments->terminate) {
+        infoPrint("%s\n", "user cancel , so exit testing.");
         break;
       }
     }
