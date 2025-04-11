@@ -1763,11 +1763,16 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     if (pIter == NULL) break;
 
     if (pVgroup->dbUid == pDb->uid) {
+      bool isFound = false;
       for (int32_t i = 0; i < pVgroup->replica; i++) {
-        if (pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_OFFLINE) {
-          sdbRelease(pSdb, pVgroup);
-          continue;
+        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_OFFLINE) {
+          isFound = true;
+          break;
         }
+      }
+      if (!isFound) {
+        sdbRelease(pSdb, pVgroup);
+        continue;
       }
       code = TSDB_CODE_MND_VGROUP_OFFLINE;
       sdbCancelFetch(pSdb, pIter);
