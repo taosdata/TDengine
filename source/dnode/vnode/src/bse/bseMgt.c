@@ -545,8 +545,8 @@ static void bseBatchMgtCleanup(SBatchMgt *pBatchMgt) {
 static int32_t bseBatchMgtRecycle(SBatchMgt *pBatchMgt, SBseBatch *pBatch) {
   int32_t code = 0;
   if (pBatch == NULL) return code;
-  pBatch->commited = 0;
-  BSE_QUEUE_REMOVE(&pBatch->node);
+
+  bseBatchClear(pBatch);
 
   if (taosArrayPush(pBatchMgt->pBatchList, &pBatch) == NULL) {
     bseBatchDestroy(pBatch);
@@ -713,6 +713,7 @@ int32_t bseBatchClear(SBseBatch *pBatch) {
   pBatch->num = 0;
   pBatch->seq = 0;
   pBatch->commited = 0;
+  BSE_QUEUE_REMOVE(&pBatch->node);
   taosArrayClear(pBatch->pSeq);
   return 0;
 }
