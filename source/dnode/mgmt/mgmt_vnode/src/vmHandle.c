@@ -1098,7 +1098,6 @@ void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt) {
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL || *ppVnode == NULL) {
-      pIter = taosHashIterate(pMgmt->runngingHash, pIter);
       continue;
     }
 

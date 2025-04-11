@@ -2161,6 +2161,11 @@ _exit:
   (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
 
+  // update metrics
+  (void)atomic_add_fetch_64(&pVnode->writeMetrics.total_requests, 1);
+  (void)atomic_add_fetch_64(&pVnode->writeMetrics.total_rows, pSubmitRsp->affectedRows);
+  (void)atomic_add_fetch_64(&pVnode->writeMetrics.total_bytes, pSubmitRsp->affectedRows * sizeof(STSRow));
+
   if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
       strlen(pOriginalMsg->info.conn.user) > 0 && tsInsertCounter != NULL) {
     const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS,

@@ -348,7 +348,7 @@ static void *dmMetricsThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
     float interval = (curTime - lastTime) / 1000.0f;
-    if (interval >= tsStatusInterval) {
+    if (interval >= tsMetricsInterval) {
       (*pMgmt->sendMetricsReportFp)();
       lastTime = curTime;
     }

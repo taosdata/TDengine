@@ -40,6 +40,8 @@ static SMetricsManager gMetricsManager = {0};
 
 // --- Init/Destroy ---
 
+static void destroyWriteMetricsEx(void *p) { taosMemoryFree(*(SWriteMetricsEx **)p); }
+
 int32_t initMetricsManager() {
   int32_t code = 0;
 
@@ -70,6 +72,8 @@ int32_t initMetricsManager() {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+
+  taosHashSetFreeFp(gMetricsManager.pWriteMetrics, destroyWriteMetricsEx);
 
   return 0;
 
@@ -207,7 +211,7 @@ int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  SWriteMetricsEx *pMetricEx = NULL;
+  SWriteMetricsEx *pMetricEx = {0};
   int32_t          code = TSDB_CODE_SUCCESS;
 
   pMetricEx = (SWriteMetricsEx *)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
@@ -219,7 +223,7 @@ int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
     }
     initWriteMetricsEx(pMetricEx);
     updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId);
-    code = taosHashPut(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId), pMetricEx, sizeof(SWriteMetricsEx *));
+    code = taosHashPut(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId), &pMetricEx, sizeof(SWriteMetricsEx *));
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pMetricEx);
       pMetricEx = NULL;
@@ -237,15 +241,22 @@ void reportWriteMetrics() {
     return;
   }
 
-  void            *pIter = NULL;
-  int32_t         *vgIdPtr = NULL;
+  void            *pIter = NULL;  // Start iterator from NULL
   SWriteMetricsEx *pMetrics = NULL;
+  void            *pData = NULL;  // Pointer to the data returned by iterator
 
-  while ((vgIdPtr = taosHashIterate(gMetricsManager.pWriteMetrics, &pIter)) != NULL) {
-    int32_t vgId = *vgIdPtr;
-    pMetrics = (SWriteMetricsEx *)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
+  while ((pData = taosHashIterate(gMetricsManager.pWriteMetrics, pIter)) != NULL) {
+    // pData points to the stored data, which is &pMetricEx (type SWriteMetricsEx**)
+    pMetrics = *(SWriteMetricsEx **)pData;  // Dereference to get SWriteMetricsEx*
 
-    if (pMetrics == NULL) continue;
+    // Update pIter for the *next* call to taosHashIterate
+    pIter = pData;  // Use the current data pointer as the marker for the next iteration
+
+    if (pMetrics == NULL) {
+      // This case shouldn't happen if addWriteMetrics always allocates memory,
+      // but good to handle defensively.
+      continue;
+    }
 
     uInfo("VgId:%d Req:%" PRId64 " Rows:%" PRId64 " Bytes:%" PRId64 " AvgSize:%.2f CacheHit:%.2f%% MemRows:%" PRId64
           " MemBytes:%" PRId64 " Commits:%" PRId64 "(A:%" PRId64 "/F:%" PRId64 "/B:%" PRId64 ") Merges:%" PRId64
@@ -259,5 +270,6 @@ void reportWriteMetrics() {
           getMetricInt64(&pMetrics->stt_trigger_value), getMetricDouble(&pMetrics->avg_commit_time),
           getMetricDouble(&pMetrics->avg_merge_time), (double)getMetricInt64(&pMetrics->rpc_queue_wait),
           (double)getMetricInt64(&pMetrics->preprocess_time), (double)getMetricInt64(&pMetrics->memtable_wait_time));
+    // No need to call taosHashIterate again here, the while condition does it.
   }
 }
