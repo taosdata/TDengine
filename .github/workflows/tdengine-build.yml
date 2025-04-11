@@ -159,6 +159,15 @@ jobs:
           ./build.sh gen
           ./build.sh bld --target build_externals -v
 
+      # NOTE: temporarily add dumpbin
+      - if: ${{ steps.cache-ext.outputs.cache-hit == 'true' && runner.os == 'Windows' }}
+        name: Build externals on Windows
+        continue-on-error: false
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          dumpbin /directives "D:\a\TDengine\TDengine\.externals\install\ext_geos\Debug\lib\geos_c.lib"
+
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
         name: Build externals on Windows
         continue-on-error: false
