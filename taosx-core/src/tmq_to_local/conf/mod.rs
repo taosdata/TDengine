@@ -152,11 +152,13 @@ impl BackupConfig {
             dsn.remove("self.repeat");
         }
 
+        // 以下参数是创建备份计划时的参数，不可以传递给 tmq
+        dsn.remove("stable");
         dsn.remove("upcoming");
         dsn.remove("interval");
+        dsn.remove("max_retry");
         dsn.remove("retry_interval");
         dsn.remove("use.topic.name");
-        dsn.remove("max_retry");
 
         // 如果是 ws 协议，则默认启用压缩
         if let Some(protocol) = dsn.protocol.as_ref() {
