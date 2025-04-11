@@ -6,14 +6,19 @@ IF(TD_LINUX)
     # GoogleTest requires at least C++11
     SET(CMAKE_CXX_STANDARD 11)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
-    INCLUDE_DIRECTORIES("../src/")
 
     # benchmark
-    SET(BENCHMARK_SRC "benchUtil.c")
+    SET(BENCHMARK_SRC 
+        "../src/benchUtil.c"
+        "../src/benchLog.c"
+        "../src/toolstime.c"
+        "../../src/pub.c"
+    )
+
     ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp ${BENCHMARK_SRC})
     TARGET_LINK_LIBRARIES(
             benchmarkTest
-            PRIVATE gtest 
+            PRIVATE gtest taos toolscJson
     )
 
     target_include_directories(

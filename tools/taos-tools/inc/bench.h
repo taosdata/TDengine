@@ -16,6 +16,10 @@
 #ifndef INC_BENCH_H_
 #define INC_BENCH_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
@@ -1079,5 +1083,9 @@ void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec);
 void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec);
 int decimal64BCompare(const Decimal64* a, const Decimal64* b);
 int decimal128BCompare(const Decimal128* a, const Decimal128* b);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif   // INC_BENCH_H_

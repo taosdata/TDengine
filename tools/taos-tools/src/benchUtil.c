@@ -497,7 +497,8 @@ int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
     }
     if (r >= req_buf_len) {
         free(request_buf);
-        ERROR_EXIT("too long request");
+        errorPrint("%s","too long request");
+        goto free_of_postImpl;
     }
 
     req_str_len = (int)strlen(request_buf);

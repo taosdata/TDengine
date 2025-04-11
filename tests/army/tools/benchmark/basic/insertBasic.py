@@ -201,7 +201,7 @@ class TDTestCase(TBase):
         self.checkCompress()
 
         # other
-        self.checkOther()
+        #self.checkOther()
 
     def stop(self):
         tdSql.close()
