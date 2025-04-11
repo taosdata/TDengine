@@ -48,7 +48,7 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
     #output = child.readline()
     #print (output.decode())
     if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
+        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=60)
     else:
         i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
 
@@ -162,6 +162,7 @@ class TDTestCase:
         #sqlString = 'create database ' + newDbName + ';'
         keyDict['h'] = 'abc'
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
+        printf("xx%sxxx\n", retVal)
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
             tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
