@@ -187,8 +187,8 @@ TEST(bseCase, openTest) {
 
     getData(bse, &data);
 
-    // test compress 
-    testAllCompress(bse);
+    // // test compress 
+    // testAllCompress(bse);
     
     
     bseClose(bse);

@@ -597,7 +597,8 @@ static FORCE_INLINE int32_t tPutI64(uint8_t* p, int64_t v) {
 
 static FORCE_INLINE int32_t tPutFloat(uint8_t* p, float f) {
   union {
-    uint32_t ui;    float    f;
+    uint32_t ui;
+    float    f;
   } v;
   v.f = f;
 

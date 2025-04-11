@@ -43,6 +43,7 @@ struct SBseCommitInfo {
 typedef struct {
   SArray  *pBatchList;
   bsequeue queue;
+  void    *pBse;
 } SBatchMgt;
 struct SBse {
   char path[TSDB_FILENAME_LEN];
