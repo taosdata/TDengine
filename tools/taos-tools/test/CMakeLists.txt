@@ -6,7 +6,7 @@ IF(TD_LINUX)
     # GoogleTest requires at least C++11
     SET(CMAKE_CXX_STANDARD 11)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
-    ADD_SUBDIRECTORY("../src/")
+    INCLUDE_DIRECTORIES("../src/")
 
     # benchmark
     SET(BENCHMARK_SRC "benchUtil.c")
