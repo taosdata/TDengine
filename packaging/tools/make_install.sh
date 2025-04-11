@@ -438,8 +438,9 @@ function install_config() {
     ${csudo}chmod 644 ${cfg_install_dir}/${configFile}
     ${csudo}cp -f ${script_dir}/../cfg/${configFile} \
       ${cfg_install_dir}/${configFile}.${verNumber}
-    ${csudo}ln -s ${cfg_install_dir}/${configFile} \
-      ${install_main_dir}/cfg/${configFile} > /dev/null 2>&1
+    # remove ln operation to fix TD-34510
+    #${csudo}ln -s ${cfg_install_dir}/${configFile} \
+    #  ${install_main_dir}/cfg/${configFile} > /dev/null 2>&1
   else
     ${csudo}cp -f ${script_dir}/../cfg/${configFile} \
       ${cfg_install_dir}/${configFile}.${verNumber}
@@ -458,9 +459,10 @@ function install_taosadapter_config() {
     [ -f ${binary_dir}/test/cfg/taosadapter.toml ] &&
       ${csudo}cp -f ${binary_dir}/test/cfg/taosadapter.toml \
         ${cfg_install_dir}/taosadapter.toml.${verNumber} || :
-    [ -f ${cfg_install_dir}/taosadapter.toml ] &&
-      ${csudo}ln -s ${cfg_install_dir}/taosadapter.toml \
-        ${install_main_dir}/cfg/taosadapter.toml > /dev/null 2>&1 || :
+    # remove ln operation to fix TD-34510
+    #[ -f ${cfg_install_dir}/taosadapter.toml ] &&
+      #${csudo}ln -s ${cfg_install_dir}/taosadapter.toml \
+      #  ${install_main_dir}/cfg/taosadapter.toml > /dev/null 2>&1 || :
   else
     if [ -f "${binary_dir}/test/cfg/taosadapter.toml" ]; then
       ${csudo}cp -f ${binary_dir}/test/cfg/taosadapter.toml \
@@ -481,9 +483,10 @@ function install_taoskeeper_config() {
     [ -f ${binary_dir}/test/cfg/taoskeeper.toml ] &&
       ${csudo}cp -f ${binary_dir}/test/cfg/taoskeeper.toml \
         ${cfg_install_dir}/taoskeeper.toml.${verNumber} || :
-    [ -f ${cfg_install_dir}/taoskeeper.toml ] &&
-      ${csudo}ln -s ${cfg_install_dir}/taoskeeper.toml \
-        ${install_main_dir}/cfg/taoskeeper.toml > /dev/null 2>&1 || :
+    # remove ln operation to fix TD-34510
+    #[ -f ${cfg_install_dir}/taoskeeper.toml ] &&
+    #  ${csudo}ln -s ${cfg_install_dir}/taoskeeper.toml \
+    #    ${install_main_dir}/cfg/taoskeeper.toml > /dev/null 2>&1 || :
   else
     if [ -f "${binary_dir}/test/cfg/taoskeeper.toml" ]; then
       ${csudo}cp -f ${binary_dir}/test/cfg/taoskeeper.toml \
