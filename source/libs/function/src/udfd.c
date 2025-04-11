@@ -104,7 +104,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   }
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
+    fnError("can not load library %s. error: %s, %s", udf->path, uv_strerror(err), udfCtx->lib.errmsg);
     taosMemoryFree(udfCtx);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
@@ -392,7 +392,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
   TAOS_UDF_CHECK_PTR_RCODE(libPath, pLib, funcName, func);
   int err = uv_dlopen(libPath, pLib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s", libPath, uv_strerror(err));
+    fnError("can not load library %s. error: %s, %s", libPath, uv_strerror(err), pLib->errmsg);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
 
