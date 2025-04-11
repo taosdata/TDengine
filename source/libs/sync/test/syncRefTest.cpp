@@ -51,7 +51,7 @@ void cleanup() {
 
 int64_t start() {
   SyncObj *pObj = (SyncObj *)taosMemoryMalloc(sizeof(SyncObj));
-  assert(pObj != NULL);
+  TD_ALWAYS_ASSERT(pObj != NULL);
 
   pObj->data = &g;
   snprintf(pObj->name, sizeof(pObj->name), "%s", "hello");
@@ -105,10 +105,10 @@ int main() {
   int32_t ret;
 
   ret = init();
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   int64_t rid = start();
-  assert(rid > 0);
+  TD_ALWAYS_ASSERT(rid > 0);
 
   for (int i = 0; i < 20; ++i) {
     TdThread tid;

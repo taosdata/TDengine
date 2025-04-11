@@ -53,7 +53,7 @@ void test2() {
 
   SSyncCfg* pCfg2 = (SSyncCfg*)taosMemoryMalloc(sizeof(SSyncCfg));
   int32_t   ret = syncCfgFromStr(s, pCfg2);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   taosMemoryFree(pCfg);
   taosMemoryFree(s);
@@ -81,15 +81,15 @@ void test3() {
 
 void test4() {
   // SRaftCfg* pCfg = raftCfgOpen("./test3_raft_cfg.json");
-  // assert(pCfg != NULL);
+  // TD_ALWAYS_ASSERT(pCfg != NULL);
 
   // int32_t ret = raftCfgClose(pCfg);
-  // assert(ret == 0);
+  // TD_ALWAYS_ASSERT(ret == 0);
 }
 
 void test5() {
   // SRaftCfg* pCfg = raftCfgOpen("./test3_raft_cfg.json");
-  // assert(pCfg != NULL);
+  // TD_ALWAYS_ASSERT(pCfg != NULL);
 
   // pCfg->cfg.myIndex = taosGetTimestampSec();
   // pCfg->isStandBy += 2;
@@ -110,7 +110,7 @@ void test5() {
   // printf("%s update json file: %s myIndex->%d \n", (char*)__FUNCTION__, "./test3_raft_cfg.json", pCfg->cfg.myIndex);
 
   // int32_t ret = raftCfgClose(pCfg);
-  // assert(ret == 0);
+  // TD_ALWAYS_ASSERT(ret == 0);
 }
 
 int main() {
