@@ -21,19 +21,6 @@
 #include "bseUtil.h"
 #include "cJSON.h"
 
-typedef struct {
-  int64_t firstVer;
-  int64_t lastVer;
-  int64_t createTs;
-  int64_t closeTs;
-  int64_t fileSize;
-  int64_t syncedOffset;
-} SBseFileInfo;
-
-typedef struct {
-  SBlockWrapper block[1];
-} SBlockBuffer;
-
 static void bseCfgSetDefault(SBseCfg *pCfg);
 
 static int32_t bseInitEnv(SBse *p);
@@ -52,14 +39,15 @@ static int32_t bseRemoveUnCommitFile(SBse *p);
 static int32_t bseCreateBatchList(SBse *pBse);
 
 static int32_t bseBatchMgtInit(SBatchMgt *pBatchMgt, SBse *pBse);
-static int32_t bseBatchMgtGetBatch(SBatchMgt *pBatchMgt, SBseBatch **pBatch);
+static int32_t bseBatchMgtGet(SBatchMgt *pBatchMgt, SBseBatch **pBatch);
 static int32_t bseBatchMgtRecycle(SBatchMgt *pBatchMgt, SBseBatch *pBatch);
 static void    bseBatchMgtCleanup(SBatchMgt *pBatchMgt);
 
+static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
 static int32_t bseBatchClear(SBseBatch *pBatch);
 static int32_t bseRecycleBatchImpl(SBatchMgt *pMgt, SBseBatch *pBatch);
-static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
 static int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
+
 static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
   int32_t code = 0;
   // int32_t code = 0;
@@ -557,7 +545,7 @@ static int32_t bseBatchMgtRecycle(SBatchMgt *pBatchMgt, SBseBatch *pBatch) {
   }
   return code;
 }
-static int32_t bseBatchMgtGetBatch(SBatchMgt *pBatchMgt, SBseBatch **pBatch) {
+static int32_t bseBatchMgtGet(SBatchMgt *pBatchMgt, SBseBatch **pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -639,7 +627,7 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   taosThreadMutexLock(&pBse->mutex);
   sseq = pBse->seq;
   pBse->seq += nKeys;
-  code = bseBatchMgtGetBatch(pBse->batchMgt, &p);
+  code = bseBatchMgtGet(pBse->batchMgt, &p);
 
   taosThreadMutexUnlock(&pBse->mutex);
 
