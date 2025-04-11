@@ -468,7 +468,7 @@ Follow the instructions to check the status of the TDengine cluster:
 
 ```shell
 root@u1-58:/data1/projects/helm# kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
-Welcome to the TDengine Command Line Interface, Client Version:3.3.5.8
+Welcome to the TDengine Command Line Interface, Client Version:3.8
 Copyright (c) 2023 by TDengine, all rights reserved.
 
 taos> show dnodes; show mnodes
@@ -604,6 +604,8 @@ With TDengine Enterprise images, you can use the following command to install TD
 <details>
 <summary>Helm Chart Use Cases for Enterprise</summary>
 
+The following examples are based on the [tdengine/tdengine-ee](https://hub.docker.com/r/tdengine/tdengine-ee/) image, the first supported version is 3.3.6.3.
+
 #### Enterprise Case 1: Simple 1-node Deployment
 
 The following is a simple example of deploying a single-node TDengine cluster using Helm.
@@ -717,7 +719,7 @@ Follow the instructions to check the status of the TDengine cluster:
 
 ```shell
 root@u1-58:/data1/projects/helm# kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
-Welcome to the TDengine Command Line Interface, Client Version:3.3.5.1
+Welcome to the TDengine Command Line Interface, Client Version:3.3.6.3
 Copyright (c) 2023 by TDengine, all rights reserved.
 
 taos> show dnodes; show mnodes
