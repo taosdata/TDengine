@@ -55,7 +55,8 @@ Supports Python 3.0 and above.
 Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+| 2.8.0 | Remove Apache Superset Driver                                                                              | - |
 |2.7.23 | Supports DECIMAL data type                                                                                 | - |
 |2.7.22 | Supports Python 3.12 and above                                                                             | - |
 |2.7.21 | Supports native STMT2 writing                                                                              | - |
@@ -73,6 +74,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.4.0 | Support dynamic add tmq attribute                                                                                       | - |
 |0.3.9 | Fixes the problem of incomplete data retrieval when customizing the number of rows with the "fetchmany" method          | - |
 |0.3.8 | Supports connecting SuperSet to the TDengine cloud service instance                                                     | - |
 |0.3.5 | Fixes the issues in the crypto provider                                                                                 | - |

@@ -105,6 +105,7 @@ int metaAbort(SMeta *pMeta) {
     return 0;
   }
 
+  metaCacheClear(pMeta);
   tdbAbort(pMeta->pEnv, pMeta->txn);
   pMeta->txn = NULL;
   return 0;
