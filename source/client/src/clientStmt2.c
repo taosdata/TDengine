@@ -878,7 +878,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
 static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
-  STMT_DLOG("start to set dbName:%s", dbName);
+  STMT2_DLOG("dbname is specified in sql:%s", dbName);
 
   pStmt->db = taosStrdup(dbName);
   (void)strdequote(pStmt->db);
@@ -1074,17 +1074,20 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   int32_t    code = 0;
 
   if (stmt == NULL || sql == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    STMT2_ELOG_E("stmt or sql is NULL");
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (pStmt->sql.status >= STMT_PREPARE) {
+    STMT2_DLOG("stmt status is %d, need to reset stmt2 cache before prepare", pStmt->sql.status);
     STMT_ERR_RET(stmtResetStmtForPrepare(pStmt));
   }
 
-  STMT_DLOG_E("start to prepare");
+  STMT2_DLOG("start to prepare with sql:%s", sql);
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    STMT2_ELOG("stmt errCode is not success, ErrCode: 0x%x, ErrMessage: %s\n. ", pStmt->errCode,
+               strerror(pStmt->errCode));
     return pStmt->errCode;
   }
 
