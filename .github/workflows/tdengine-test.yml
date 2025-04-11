@@ -62,7 +62,7 @@ jobs:
       specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_pr_number }}
 
   run-tests-on-windows:
-    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@freemine.debug
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@tomchon-patch-3
           # NOTE: temporarily use tomchon-patch-3 branch
     with:
       tdinternal: false
