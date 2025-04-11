@@ -15,6 +15,12 @@
 #include "benchLog.h"
 #include "decimal.h"
 #include "pub.h"
+#if defined(_TD_DARWIN_64)
+#include <sys/sysctl.h>
+#include <mach/mach.h>
+#include <mach/mach_host.h>
+#include <mach/vm_page_size.h> 
+#endif
 
 char resEncodingChunk[] = "Encoding: chunked";
 char succMessage[] = "succ";
@@ -1466,7 +1472,14 @@ int32_t benchGetTotalMemory(int64_t *totalKB) {
   *totalKB = memsStat.ullTotalPhys / 1024;
   return 0;
 #elif defined(_TD_DARWIN_64)
-  *totalKB = 0;
+  int64_t phys_mem;
+  size_t len = sizeof(phys_mem);
+
+  if (sysctl((int[]){CTL_HW, HW_MEMSIZE}, 2, &phys_mem, &len, NULL, 0) == -1) {
+    return -1;
+  }
+
+  *totalKB = phys_mem / 1024;
   return 0;
 #else
   int64_t pageSizeKB = sysconf(_SC_PAGESIZE) / 1024;

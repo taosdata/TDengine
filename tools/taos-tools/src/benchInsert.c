@@ -901,7 +901,7 @@ static void *createTable(void *sarg) {
     }
 
     // tag read from csv
-    FILE *csvFile = openTagCsv(stbInfo);
+    FILE *csvFile = openTagCsv(stbInfo, pThreadInfo->start_table_from);
     // malloc
     char* tagData = benchCalloc(TAG_BATCH_COUNT, stbInfo->lenOfTags, false);
     int         w = 0; // record tagData
@@ -1812,7 +1812,7 @@ static void *syncWriteInterlace(void *sarg) {
     char* tagData = NULL;
     int   w       = 0; // record tags position, if w > TAG_BATCH_COUNT , need recreate new tag values
     if (stbInfo->autoTblCreating) {
-        csvFile = openTagCsv(stbInfo);
+        csvFile = openTagCsv(stbInfo, pThreadInfo->start_table_from);
         tagData = benchCalloc(TAG_BATCH_COUNT, stbInfo->lenOfTags, false);
     }
     int64_t delay1 = 0;
@@ -2790,7 +2790,7 @@ void *syncWriteProgressive(void *sarg) {
     bool  acreate = (stbInfo->iface == TAOSC_IFACE || stbInfo->iface == REST_IFACE) && stbInfo->autoTblCreating;
     int   w       = 0;
     if (stmt || smart || acreate) {
-        csvFile = openTagCsv(stbInfo);
+        csvFile = openTagCsv(stbInfo, pThreadInfo->start_table_from);
         tagData = benchCalloc(TAG_BATCH_COUNT, stbInfo->lenOfTags, false);
     }
 
@@ -3750,14 +3750,6 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
     int32_t  ret     = -1;
     uint64_t tbNext  = stbInfo->childTblFrom;
     int32_t  vgNext  = 0;
-    FILE*    csvFile = NULL;
-    char*    tagData = NULL;
-    bool     stmtN   = (stbInfo->iface == STMT_IFACE || stbInfo->iface == STMT2_IFACE) && stbInfo->autoTblCreating == false;
-
-    if (stmtN) {
-        csvFile = openTagCsv(stbInfo);
-        tagData = benchCalloc(TAG_BATCH_COUNT, stbInfo->lenOfTags, false);
-    }
     
     for (int32_t i = 0; i < nthreads; i++) {
         // set table
@@ -3986,10 +3978,6 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
     ret = 0;
 
 END:
-    if (csvFile) {
-        fclose(csvFile);
-    }
-    tmfree(tagData);
     return ret;
 }
 

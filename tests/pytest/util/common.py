@@ -2150,13 +2150,10 @@ class TDCom:
     def wait_checkpoint_ready(self, stream_name):
         """
         Waits for the checkpoint of a stream to be ready.
-
         Args:
             stream_name (str): The name of the stream.
-
         Returns:
             None: If the checkpoint is not ready within the specified timeout.
-
         """
         cnt = 0
         cmd = f'select distinct status from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'

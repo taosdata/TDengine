@@ -59,9 +59,9 @@ config_dir="/etc/${PREFIX}"
 
 if [ "${verMode}" == "cluster" ]; then
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
-  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" taosudf set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 else
-  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo"  taosudf set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+  tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo"  ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
 fi
