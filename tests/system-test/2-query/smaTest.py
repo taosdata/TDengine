@@ -12,8 +12,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-
-from numpy.lib.function_base import insert
 import taos
 from util.log import *
 from util.cases import *
