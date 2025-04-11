@@ -1461,10 +1461,6 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pDat
   }
 
   code = smlBuildOutput(pQuery, pVgHash);
-  if (code == TSDB_CODE_INVALID_PARA) {
-    code = 0;
-    goto end;
-  }
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
