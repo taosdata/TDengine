@@ -375,6 +375,16 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       dGDebug("vgId:%d, msg:%p, put into vnode-apply queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pApplyW.queue, pMsg);
       break;
+    case STREAM_RUNNER_QUEUE:
+      dGDebug("vgId:%d, msg:%p, put into vnode-stream-runner queue, type:%s", pVnode->vgId, pMsg,
+              TMSG_INFO(pMsg->msgType));
+      code = taosWriteQitem(pVnode->pStreamRunnerQ, pMsg);
+      break;
+    case STREAM_READER_QUEUE:
+      dGDebug("vgId:%d, msg:%p, put into vnode-stream-reader queue, type:%s", pVnode->vgId, pMsg,
+              TMSG_INFO(pMsg->msgType));
+      code = taosWriteQitem(pVnode->pStreamReaderQ, pMsg);
+      break;
     default:
       code = TSDB_CODE_INVALID_MSG;
       break;
@@ -482,6 +492,13 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
         break;
       case STREAM_CHKPT_QUEUE:
         size = taosQueueItemSize(pVnode->pStreamChkQ);
+        break;
+      case STREAM_RUNNER_QUEUE:
+        size = taosQueueItemSize(pVnode->pStreamRunnerQ);
+        break;
+      case STREAM_READER_QUEUE:
+        size = taosQueueItemSize(pVnode->pStreamReaderQ);
+        break;
       default:
         break;
     }
@@ -531,10 +548,13 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pStreamCtrlQ = tWWorkerAllocQueue(&pMgmt->streamCtrlPool, pVnode, (FItems)vmProcessStreamCtrlQueue);
   pVnode->pStreamLongExecQ = tAutoQWorkerAllocQueue(&pMgmt->streamLongExecPool, pVnode, (FItem)vmProcessStreamLongExecQueue, 1);
   pVnode->pStreamChkQ = tWWorkerAllocQueue(&pMgmt->streamChkPool, pVnode, (FItems)vmProcessStreamChkptQueue);
+  pVnode->pStreamRunnerQ = tWWorkerAllocQueue(&pMgmt->streamRunnerPool, pVnode, 0);// TODO wjm fp??
+  pVnode->pStreamReaderQ = tWWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, 0);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
-      pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pStreamQ == NULL || pVnode->pFetchQ == NULL
-      || pVnode->pStreamCtrlQ == NULL || pVnode->pStreamLongExecQ == NULL || pVnode->pStreamChkQ == NULL) {
+      pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pStreamQ == NULL || pVnode->pFetchQ == NULL ||
+      pVnode->pStreamCtrlQ == NULL || pVnode->pStreamLongExecQ == NULL || pVnode->pStreamChkQ == NULL ||
+      !pVnode->pStreamRunnerQ || !pVnode->pStreamReaderQ) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -555,6 +575,10 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
         taosQueueGetThreadId(pVnode->pStreamCtrlQ));
   dInfo("vgId:%d, stream-chk-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamChkQ,
         taosQueueGetThreadId(pVnode->pStreamChkQ));
+  dInfo("vgId:%d, stream-runner-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamRunnerQ,
+        taosQueueGetThreadId(pVnode->pStreamRunnerQ));
+  dInfo("vgId:%d, stream-reader-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamReaderQ,
+        taosQueueGetThreadId(pVnode->pStreamReaderQ));
   return 0;
 }
 
@@ -565,6 +589,8 @@ void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   tWWorkerFreeQueue(&pMgmt->streamCtrlPool, pVnode->pStreamCtrlQ);
   tWWorkerFreeQueue(&pMgmt->streamChkPool, pVnode->pStreamChkQ);
   tWWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
+  tWWorkerFreeQueue(&pMgmt->streamRunnerPool, pVnode->pStreamRunnerQ);
+  tWWorkerFreeQueue(&pMgmt->streamReaderPool, pVnode->pStreamReaderQ);
   pVnode->pQueryQ = NULL;
   pVnode->pFetchQ = NULL;
 
@@ -574,6 +600,8 @@ void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
   pVnode->pStreamChkQ = NULL;
   pVnode->pFetchQ = NULL;
+  pVnode->pStreamRunnerQ = NULL;
+  pVnode->pStreamReaderQ = NULL;
   dDebug("vgId:%d, queue is freed", pVnode->vgId);
 }
 
@@ -632,6 +660,23 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 
   if ((code = tSingleWorkerInit(&pMgmt->mgmtMultiWorker, &multiMgmtCfg)) != 0) return code;
 
+  SWWorkerPool *pStreamRunnerPool = &pMgmt->streamRunnerPool;
+  pStreamRunnerPool->name = "vnode-st-runner";
+  pStreamRunnerPool->max = tsNumOfStreamRunnerThreads;
+  if ((code = tWWorkerInit(pStreamRunnerPool)) != 0) return code;
+
+  SWWorkerPool *pStreamReaderPool = &pMgmt->streamReaderPool;
+  pStreamReaderPool->name = "vnode-st-reader";
+  pStreamReaderPool->max = tsNumOfVnodeStreamReaderThreads;
+  if ((code = tWWorkerInit(pStreamReaderPool)) != 0) return code;
+
+  SSingleWorkerCfg runnerWorkerCfg = {.min = tsNumOfStreamRunnerThreads,
+                                      .max = tsNumOfStreamRunnerThreads,
+                                      .name = "vnode-st-runner",
+                                      .fp = (FItem)NULL,
+                                      .param = pMgmt};
+  if ((code = tSingleWorkerInit(&pMgmt->streamRunnerWorker, &runnerWorkerCfg)) != 0) return code;
+
   dDebug("vnode workers are initialized");
   return 0;
 }
@@ -643,5 +688,8 @@ void vmStopWorker(SVnodeMgmt *pMgmt) {
   tWWorkerCleanup(&pMgmt->streamCtrlPool);
   tWWorkerCleanup(&pMgmt->streamChkPool);
   tWWorkerCleanup(&pMgmt->fetchPool);
+  tWWorkerCleanup(&pMgmt->streamRunnerPool);
+  tWWorkerCleanup(&pMgmt->streamReaderPool);
+  tSingleWorkerCleanup(&pMgmt->streamRunnerWorker);
   dDebug("vnode workers are closed");
 }

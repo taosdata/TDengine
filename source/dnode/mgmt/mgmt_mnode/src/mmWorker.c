@@ -159,6 +159,10 @@ int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->fetchWorker, pMsg);
 }
 
+int32_t mmPutMsgToStreamMgmtQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return tAddTaskIntoDispatchWorkerPool(&pMgmt->streamMgmtWorkerPool, pMsg);
+}
+
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   int32_t code;
 
@@ -313,6 +317,20 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return code;
   }
 
+  SDispatchWorkerPool* pPool = &pMgmt->streamMgmtWorkerPool;
+  pPool->max = tsNumOfMnodeStreamMgmtThreads;
+  pPool->name = "mnode-stream-mgmt";
+  code = tDispatchWorkerInit(pPool);
+  if (code != 0) {
+    dError("failed to start mnode stream-mgmt worker since %s", tstrerror(code));
+    return code;
+  }
+  code = tDispatchWorkerAllocQueue(pPool, pMgmt, NULL, NULL); // TODO wjm set fp
+  if (code != 0) {
+    dError("failed to start mnode stream-mgmt worker since %s", tstrerror(code));
+    return code;
+  }
+
   dDebug("mnode workers are initialized");
   return code;
 }
@@ -328,5 +346,6 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->arbWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
   tSingleWorkerCleanup(&pMgmt->syncRdWorker);
+  tDispatchWorkerCleanup(&pMgmt->streamMgmtWorkerPool);
   dDebug("mnode workers are closed");
 }

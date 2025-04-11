@@ -112,6 +112,31 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     return code;
   }
 
+  cfg.min = tsNumOfStreamRunnerThreads;
+  cfg.max = tsNumOfStreamRunnerThreads;
+  cfg.name = "snode-st-runner";
+  cfg.fp = NULL;// TODO wjm add fp
+  cfg.param = pMgmt;
+
+  if ((code = tSingleWorkerInit(&pMgmt->runnerWorker, &cfg)) != 0) {
+    dError("failed to start snode runner worker since %s", tstrerror(code));
+    return code;
+  }
+
+  SDispatchWorkerPool* pTriggerPool = &pMgmt->triggerWorkerPool;
+  pTriggerPool->max = tsNumOfStreamTriggerThreads;
+  pTriggerPool->name = "snode-st-trigger";
+  code = tDispatchWorkerInit(pTriggerPool);
+  if (code != 0) {
+    dError("failed to start snode stream-trigger worker since %s", tstrerror(code));
+    return code;
+  }
+  code = tDispatchWorkerAllocQueue(pTriggerPool, pMgmt, NULL, NULL); // TODO wjm set fp
+  if (code != 0) {
+    dError("failed to start snode stream-trigger worker since %s", tstrerror(code));
+    return code;
+  }
+
   dDebug("snode workers are initialized");
   return code;
 }
@@ -124,6 +149,8 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
   }
   taosArrayDestroy(pMgmt->writeWroker);
   tSingleWorkerCleanup(&pMgmt->streamWorker);
+  tSingleWorkerCleanup(&pMgmt->runnerWorker);
+  tDispatchWorkerCleanup(&pMgmt->triggerWorkerPool);
   dDebug("snode workers are closed");
 }
 
@@ -164,6 +191,9 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       break;
     case STREAM_CHKPT_QUEUE:
       code = smPutNodeMsgToStreamQueue(pMgmt, pMsg);
+      break;
+    case STREAM_RUNNER_QUEUE:
+      code = smPutMsgToStreamRunnerQueue(pMgmt, pMsg);
       break;
     default:
       code = TSDB_CODE_INVALID_PARA;
@@ -207,3 +237,10 @@ int32_t smPutNodeMsgToStreamQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 //  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
 //  return taosWriteQitem(pWorker->queue, pMsg);
 //}
+
+int32_t smPutMsgToStreamRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SSingleWorker *pWorker = &pMgmt->runnerWorker;
+
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
+  return taosWriteQitem(pWorker->queue, pMsg);
+}
