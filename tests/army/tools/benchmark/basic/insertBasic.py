@@ -161,7 +161,28 @@ class TDTestCase(TBase):
             ["tnch"  ,"NCHAR"            ,  8 ,"TAG", "disabled"  ,"disabled"  ,"disabled"]
         ]        
         tdSql.checkDataMem(sql, results)
-    
+
+    def cbRetry(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+
+    def doRetry(self, json):
+        rlist = self.benchmark(f"-f {json}")
+        results = [
+            "retry"
+        ]
+        self.checkManyString(results)
+
+    def checkOther(self):
+        
+        # tempalte
+        template = "./tools/benchmark/basic/json/insertBasicTemplate.json"
+
+        # retry
+        jsonRetry = self.genNewJson(template, self.cbRetry)
+
+
+
     def run(self):
         # check env
         cmd = f"pip3 list"
@@ -178,6 +199,9 @@ class TDTestCase(TBase):
 
         # check compress
         self.checkCompress()
+
+        # other
+        self.checkOther()
 
     def stop(self):
         tdSql.close()

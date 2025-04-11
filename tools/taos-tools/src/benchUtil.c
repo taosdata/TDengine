@@ -56,11 +56,6 @@ void engineError(char * module, char * fun, int32_t code) {
     errorPrint("%s API:%s error code:0x%08X %s\n", TIP_ENGINE_ERR, fun, code, module);
 }
 
-void ERROR_EXIT(const char *msg) {
-    errorPrint("%s", msg);
-    exit(EXIT_FAILURE);
-}
-
 #ifdef WINDOWS
 HANDLE g_stdoutHandle;
 DWORD  g_consoleMode;
@@ -229,7 +224,7 @@ void prompt(bool nonStopMode) {
     }
 }
 
-static void appendResultBufToFile(char *resultBuf, char * filePath) {
+void appendResultBufToFile(char *resultBuf, char * filePath) {
     FILE* fp = fopen(filePath, "at");
     if (fp == NULL) {
         errorPrint(
@@ -269,31 +264,6 @@ int64_t toolsGetTimestamp(int32_t precision) {
     } else {
         return toolsGetTimestampMs();
     }
-}
-
-int regexMatch(const char *s, const char *reg, int cflags) {
-    regex_t regex;
-    char    msgbuf[100] = {0};
-
-    /* Compile regular expression */
-    if (regcomp(&regex, reg, cflags) != 0)
-        ERROR_EXIT("Failed to regex compile\n");
-
-    /* Execute regular expression */
-    int reti = regexec(&regex, s, 0, NULL, 0);
-    if (!reti) {
-        regfree(&regex);
-        return 1;
-    } else if (reti == REG_NOMATCH) {
-        regfree(&regex);
-        return 0;
-    } else {
-        regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-        regfree(&regex);
-        printf("Regex match failed: %s\n", msgbuf);
-        exit(EXIT_FAILURE);
-    }
-    return 0;
 }
 
 SBenchConn* initBenchConnImpl() {
@@ -686,7 +656,7 @@ int getServerVersionRest(int16_t rest_port) {
     return server_version;
 }
 
-static int getCodeFromResp(char *responseBuf) {
+int getCodeFromResp(char *responseBuf) {
     int code = -1;
     char* start = strstr(responseBuf, "{");
     if (start == NULL) {
@@ -740,30 +710,26 @@ int postProceSql(char *sqlstr, char* dbName, int precision, int iface,
                                 rest_port,
                                 tcp, sockfd, filePath, responseBuf,
                                 response_length);
-    // compatibility 2.6
-    if (-1 == g_arguments->rest_server_ver_major) {
-        // confirm version is 2.x according to "succ"
-        if (NULL != strstr(responseBuf, succMessage) && iface == REST_IFACE) {
-            g_arguments->rest_server_ver_major = 2;
-        }
-    }
+    debugPrint("sqls:%s db:%s iface:%d protocal:%d rest_port:%d tcp:%d sockfd:%d response=%s\n",
+           sqlstr, dbName, iface, protocol, rest_port, tcp, sockfd, responseBuf);
 
     if (NULL != strstr(responseBuf, resHttpOk) && iface == REST_IFACE) {
+        code = 0;
         // if taosd is not starting , rest_server_ver_major can't be got by 'select server_version()' , so is -1
         if (-1 == g_arguments->rest_server_ver_major || 3 <= g_arguments->rest_server_ver_major) {
             code = getCodeFromResp(responseBuf);
-        } else {
-            code = 0;
         }
         goto free_of_post;
     }
 
+    // influx
     if (NULL != strstr(responseBuf, influxHttpOk) &&
             protocol == TSDB_SML_LINE_PROTOCOL && iface == SML_REST_IFACE) {
         code = 0;
         goto free_of_post;
     }
 
+    // opentsdb
     if (NULL != strstr(responseBuf, opentsdbHttpOk)
             && (protocol == TSDB_SML_TELNET_PROTOCOL
             || protocol == TSDB_SML_JSON_PROTOCOL
@@ -1586,17 +1552,6 @@ void resetBindV(TAOS_STMT2_BINDV *bindv, int32_t capacity, int32_t tagCnt, int32
         bindv->bind_cols[i] = (TAOS_STMT2_BIND*)p;
         p += sizeof(TAOS_STMT2_BIND) * colCnt; // skip cols bodys
     }
-}
-
-// clear bindv
-void clearBindV(TAOS_STMT2_BINDV *bindv) {
-    if (bindv == NULL)
-        return ;
-    for(int32_t i = 0; i < bindv->count; i++) {
-        bindv->tags[i]      = NULL;
-        bindv->bind_cols[i] = NULL;
-    }
-    bindv->count = 0;
 }
 
 // free

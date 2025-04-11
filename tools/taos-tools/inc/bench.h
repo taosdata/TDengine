@@ -939,7 +939,6 @@ void    tmfree(void *buf);
 void    tmfclose(FILE *fp);
 int64_t fetchResult(TAOS_RES *res, char *filePath);
 void    prompt(bool NonStopMode);
-void    ERROR_EXIT(const char *msg);
 int     getServerVersionRest(int16_t rest_port);
 int     postProceSql(char *sqlstr, char* dbName, int precision, int iface,
                     int protocol, uint16_t rest_port, bool tcp,
@@ -949,7 +948,6 @@ int     queryDbExecRest(char *command, char* dbName, int precision,
                     int iface, int protocol, bool tcp, int sockfd);
 SBenchConn* initBenchConn();
 void    closeBenchConn(SBenchConn* conn);
-int     regexMatch(const char *s, const char *reg, int cflags);
 int     convertHostToServAddr(char *host, uint16_t port,
                               struct sockaddr_in *serv_addr);
 int     getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
@@ -1042,7 +1040,6 @@ char *genColNames(BArray *cols, bool tbName);
 TAOS_STMT2_BINDV* createBindV(int32_t count, int32_t tagCnt, int32_t colCnt);
 // clear bindv table count tables tag and column
 void resetBindV(TAOS_STMT2_BINDV *bindv, int32_t capacity, int32_t tagCnt, int32_t colCnt);
-void clearBindV(TAOS_STMT2_BINDV *bindv);
 void freeBindV(TAOS_STMT2_BINDV *bindv);
 void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols);
 

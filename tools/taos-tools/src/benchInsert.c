@@ -2481,7 +2481,6 @@ static int32_t prepareProgressDataSmlJson(
     int32_t generated = 0;
 
     int32_t pos = 0;
-    int protocol = stbInfo->lineProtocol;
     for (int j = 0; (j < g_arguments->reqPerReq)
             && !g_arguments->terminate; j++) {
         tools_cJSON *tag = tools_cJSON_Duplicate(
@@ -2491,15 +2490,9 @@ static int32_t prepareProgressDataSmlJson(
                     pThreadInfo->start_table_from),
                 true);
         debugPrintJsonNoTime(tag);
-        if (TSDB_SML_JSON_PROTOCOL == protocol) {
-            generateSmlJsonCols(
-                    pThreadInfo->json_array, tag, stbInfo,
-                    database->sml_precision, *timestamp);
-        } else {
-            generateSmlTaosJsonCols(
-                    pThreadInfo->json_array, tag, stbInfo,
-                    database->sml_precision, *timestamp);
-        }
+        generateSmlTaosJsonCols(
+                pThreadInfo->json_array, tag, stbInfo,
+                database->sml_precision, *timestamp);
         pos++;
         if (pos >= g_arguments->prepared_rand) {
             pos = 0;

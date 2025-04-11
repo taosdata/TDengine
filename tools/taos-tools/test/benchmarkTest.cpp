@@ -15,27 +15,16 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include "pub.h"
+#include "bench.h"
 
+// declare
+int getCodeFromResp(char *responseBuf);
+int getServerVersionRest(int16_t rest_port);
+void appendResultBufToFile(char *resultBuf, char * filePath);
+int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
+int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
 
-// lower
-char* strToLowerCopy(const char *str) {
-  if (str == NULL) {
-      return NULL;
-  }
-  size_t len = strlen(str);
-  char *result = (char*)malloc(len + 1);
-  if (result == NULL) {
-      return NULL;
-  }
-  for (size_t i = 0; i < len; i++) {
-      result[i] = tolower((unsigned char)str[i]);
-  }
-  result[len] = '\0';
-  return result;
-}
-
-// pase dsn
-int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
 
 TEST(jsonTest, strToLowerCopy) {
   // strToLowerCopy
@@ -63,6 +52,79 @@ TEST(jsonTest, strToLowerCopy) {
   ASSERT_EQ(p, nullptr);
 }
 
+// getCodeFromResp
+TEST(benchUtil, getCodeFromResp) {
+  int ret;
+  
+  // "{"
+  ret = getCodeFromResp("http response failed.");
+  ASSERT_EQ(ret, -1);
+
+  //  json format
+  ret = getCodeFromResp("{json valid test}");
+  ASSERT_EQ(ret, -1);
+
+  // code 
+  ret = getCodeFromResp("{\"code\":\"invalid code type\"}");
+  ASSERT_EQ(ret, -1);
+
+  // des
+  ret = getCodeFromResp("{\"code\":\100, \"desc\":12}");
+  ASSERT_EQ(ret, -1);
+
+  // des
+  ret = getCodeFromResp("{\"code\":\100, \"desc\":12}");
+  ASSERT_EQ(ret, -1);
+
+  // succ
+  ret = getCodeFromResp("{\"code\":\100, \"desc\":\"desc valid\"}");
+  ASSERT_EQ(ret, 0);
+}
+
+// getServerVersionRest
+TEST(benchUtil, getServerVersionRest) {
+  int ret;
+  
+  // "{"
+  int16_t invalidPort = 100;
+  int32_t ret = getServerVersionRest(invalidPort);
+  ASSERT_EQ(ret, -1);
+}
+
+// baseic
+TEST(BenchUtil, Base) {
+  int ret;
+  // check crash
+  engineError("util", "taos_connect", 1);
+
+  // append result to file
+  appendResultBufToFile("check null file", NULL);
+
+  // replaceChildTblName
+  char szOut[128] = "";
+  ret = replaceChildTblName("select * from xxx;", szOut, 0);
+  ASSERT_EQ(ret, -1);
+
+  // toolsGetTimestamp
+  int64_t now;
+  now = toolsGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+  ASSERT_GE(now, 1700000000000)
+  now = toolsGetTimestamp(TSDB_TIME_PRECISION_MICRO);
+  ASSERT_GE(now, 1700000000000000)
+  now = toolsGetTimestamp(TSDB_TIME_PRECISION_NANO);
+  ASSERT_GE(now, 1700000000000000000)
+
+  // calc groups
+  ret = calcGroupIndex(NULL, NULL, 5);
+  ASSERT_EQ(ret, -1);
+
+  ret = calcGroupIndex(NULL, NULL, 5);
+  ASSERT_EQ(ret, -1);
+}
+
+
+
+// main
 int main(int argc, char **argv) {
   printf("Hello world taosBenchmark unit test for C \n");
   testing::InitGoogleTest(&argc, argv);

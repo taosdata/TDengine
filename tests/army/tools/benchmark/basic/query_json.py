@@ -26,9 +26,8 @@ from frame import *
 class TDTestCase(TBase):
     def caseDescription(self):
         """
-        [TD-11510] taosBenchmark test cases
+        taosBenchmark query test cases
         """
-
     def run(self):
         binPath = etool.benchMarkFile()
         os.system(
