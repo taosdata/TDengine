@@ -60,6 +60,68 @@ void bseBuildDataName(SBse *pBse, int64_t seq, char *name);
 int32_t bseCompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize) ;
 int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 
+typedef void* bsequeue[2];
+/* Private macros. */
+#define BSE_QUEUE_NEXT(q) (*(bsequeue**)&((*(q))[0]))
+#define BSE_QUEUE_PREV(q) (*(bsequeue**)&((*(q))[1]))
+
+#define BSE_QUEUE_PREV_NEXT(q) (BSE_QUEUE_NEXT(BSE_QUEUE_PREV(q)))
+#define BSE_QUEUE_NEXT_PREV(q) (BSE_QUEUE_PREV(BSE_QUEUE_NEXT(q)))
+/* Initialize an empty queue. */
+#define BSE_QUEUE_INIT(q)    \
+  {                      \
+    BSE_QUEUE_NEXT(q) = (q); \
+    BSE_QUEUE_PREV(q) = (q); \
+  }
+
+/* Return true if the queue has no element. */
+#define BSE_QUEUE_IS_EMPTY(q) ((const bsequeue*)(q) == (const bsequeue*)BSE_QUEUE_NEXT(q))
+
+/* Insert an element at the back of a queue. */
+#define BSE_QUEUE_PUSH(q, e)           \
+  {                                \
+    BSE_QUEUE_NEXT(e) = (q);           \
+    BSE_QUEUE_PREV(e) = BSE_QUEUE_PREV(q); \
+    BSE_QUEUE_PREV_NEXT(e) = (e);      \
+    BSE_QUEUE_PREV(q) = (e);           \
+  }
+
+/* Remove the given element from the queue. Any element can be removed at any *
+ * time. */
+#define BSE_QUEUE_REMOVE(e)                 \
+  {                                     \
+    BSE_QUEUE_PREV_NEXT(e) = BSE_QUEUE_NEXT(e); \
+    BSE_QUEUE_NEXT_PREV(e) = BSE_QUEUE_PREV(e); \
+  }
+#define BSE_QUEUE_SPLIT(h, q, n)       \
+  do {                             \
+    BSE_QUEUE_PREV(n) = BSE_QUEUE_PREV(h); \
+    BSE_QUEUE_PREV_NEXT(n) = (n);      \
+    BSE_QUEUE_NEXT(n) = (q);           \
+    BSE_QUEUE_PREV(h) = BSE_QUEUE_PREV(q); \
+    BSE_QUEUE_PREV_NEXT(h) = (h);      \
+    BSE_QUEUE_PREV(q) = (n);           \
+  } while (0)
+
+#define BSE_QUEUE_MOVE(h, n)        \
+  do {                          \
+    if (BSE_QUEUE_IS_EMPTY(h)) {    \
+      BSE_QUEUE_INIT(n);            \
+    } else {                    \
+      bsequeue* q = BSE_QUEUE_HEAD(h); \
+      BSE_QUEUE_SPLIT(h, q, n);     \
+    }                           \
+  } while (0)
+
+#define BSE_QUEUE_HEAD(q) (BSE_QUEUE_NEXT(q))
+
+#define BSE_QUEUE_TAIL(q) (BSE_QUEUE_PREV(q))
+
+#define BSE_QUEUE_FOREACH(q, e) for ((q) = BSE_QUEUE_NEXT(e); (q) != (e); (q) = BSE_QUEUE_NEXT(q))
+
+/* Return the structure holding the given element. */
+#define BSE_QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
+
 // clang-format on
 #ifdef __cplusplus
 }

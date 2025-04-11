@@ -87,7 +87,7 @@ static int32_t putData(SBse *bse, int nItem, int32_t vlen, std::vector<int64_t> 
         data->push_back(seq);
     }
     printf("put result ");
-    code = bseAppendBatch(bse, pBatch);
+    code = bseCommitBatch(bse, pBatch);
     return code;
 }
 static int32_t getData(SBse *pBse, std::vector<int64_t> *data) {
@@ -118,7 +118,7 @@ int32_t putStringData(SBse *pBse, int32_t num, std::string &data, std::vector<in
         code = bseBatchPut(pBatch, &seq, (uint8_t *)data.c_str(), data.size());
         seqs->push_back(seq);
     }
-    code = bseAppendBatch(pBse, pBatch);
+    code = bseCommitBatch(pBse, pBatch);
     return code;
 }
 

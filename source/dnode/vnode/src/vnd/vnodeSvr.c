@@ -598,27 +598,29 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
   int32_t lino = 0;
-  int64_t seq = 0;
-  int32_t nr = 0;
 
   int64_t    st = taosGetTimestampUs();
   SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
   int32_t    sz = taosArrayGetSize(pBlobRow->pSeqTable);
+
   SBseBatch *pBatch = NULL;
+
   code = bseBatchInit(pVnode->pBse, &pBatch, sz);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   SRow **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
   for (int32_t i = 0; i < sz; i++) {
+    int64_t     seq = 0;
     SBlobValue *p = taosArrayGet(pBlobRow->pSeqTable, i);
     if (p->len != 0) {
       code = bseBatchPut(pBatch, &seq, pBlobRow->data + p->offset, p->len);
       TSDB_CHECK_CODE(code, lino, _exit);
+
       memcpy(pRow[i]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
     }
   }
 
-  code = bseAppendBatch(pVnode->pBse, pBatch);
+  code = bseCommitBatch(pVnode->pBse, pBatch);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   int64_t cost = taosGetTimestampUs() - st;

@@ -24,7 +24,6 @@
 extern "C" {
 #endif
 
-#define BSE_DEFAULT_BLOCK_SIZE (4 * 1024 * 1024)
 enum {
   kNoCompres = 0,
   kLZ4Compres = 1,
@@ -33,18 +32,6 @@ enum {
   kZxCompress = 4,
 };
 
-typedef struct {
-  int32_t size;
-  int64_t seq;
-} SBlockItemInfo;
-
-typedef struct {
-  int32_t vgId;
-  int64_t commitVer;
-  int64_t lastVer;
-  int64_t lastSeq;
-  SArray *pFileList;
-} SBseCommitInfo;
 typedef struct {
   int32_t vgId;
   int32_t encryptAlgorithm;
@@ -58,43 +45,24 @@ typedef struct {
   int32_t blockCacheSize;
 } SBseCfg;
 
-typedef struct {
-  char path[TSDB_FILENAME_LEN];
-
-  int64_t        ver;
-  uint64_t       seq;
-  SBseCfg        cfg;
-  TdThreadRwlock rwlock;
-  TdThreadMutex  mutex;
-
-  SArray        *pBatchList;
-  void          *pTableMgt;
-  SBseCommitInfo commitInfo;
-} SBse;
-
-typedef struct {
-  int64_t sseq;
-  int64_t eseq;
-} SSeqRange;
-
-typedef struct {
-  int32_t  num;
-  uint8_t *buf;
-  int32_t  len;
-  int32_t  cap;
-  int64_t  seq;
-  SArray  *pSeq;
-  void    *pBse;
-  int64_t  startSeq;
-} SBseBatch;
+typedef struct SBse              SBse;
+typedef struct SBseBatch         SBseBatch;
+typedef struct SSeqRange         SSeqRange;
+typedef struct SBseRawFileWriter SBseRawFileWriter;
+typedef struct SBseSnapWriter    SBseSnapWriter;
+typedef struct SBseSnapReader    SBseSnapReader;
+typedef struct SBseCommitInfo    SBseCommitInfo;
+typedef struct SBlockItemInfo    SBlockItemInfo;
 
 // batch func
 int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKey);
 int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len);
 int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *size);
 int32_t bseBatchDestroy(SBseBatch *pBatch);
+int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
 
 int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg);
+
 #define BSE_GET_BLOCK_SIZE(p)       ((p)->cfg.blockSize)
 #define BSE_GET_COMPRESS_TYPE(p)    ((p)->cfg.compressType)
 #define BSE_GET_KEEPS_DAYS(p)       ((p)->cfg.keepDays)
@@ -102,32 +70,6 @@ int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg);
 #define BSE_GET_BLOCK_CACHE_SIZE(p) ((p)->cfg.blockCacheSize)
 #define BSE_GET_VGID(p)             ((p)->cfg.vgId)
 
-typedef struct {
-  SBse *pBse;
-  void *pIter;
-  void *pBuf;
-} SBseSnapReader;
-
-typedef struct {
-  char      name[TSDB_FILENAME_LEN];
-  int8_t    fileType;  // fileType
-  SSeqRange range;
-  TdFilePtr pFile;
-  int32_t   keepDays;
-  SBse     *pBse;
-  int64_t   offset;
-} SBseRawFileWriter;
-
-typedef struct {
-  SBse     *pBse;
-  SArray   *pFileSet;
-  SSeqRange range;
-  int8_t    fileType;  // fileType
-  int64_t   ver;
-
-  SBseRawFileWriter *pWriter;
-
-} SBseSnapWriter;
 int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter **writer);
 int32_t bseSnapWriterWrite(SBseSnapWriter *writer, uint8_t *data, int32_t len);
 int32_t bseSnapWriterClose(SBseSnapWriter **writer, int8_t rollback);
@@ -148,7 +90,7 @@ int32_t bseEndSnapshot(SBse *pBse);
 int32_t bseStopSnapshot(SBse *pBse);
 int32_t bseCompact(SBse *pBse);
 int32_t bseDelete(SBse *pBse, SSeqRange range);
-int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch);
+int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch);
 int32_t bseReload(SBse *pBse, SBseSnapWriter *writer);
 #ifdef __cplusplus
 }

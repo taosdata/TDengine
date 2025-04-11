@@ -14,6 +14,7 @@
  */
 
 #include "bseTable.h"
+#include "bseSnapshot.h"
 #include "bseTableMgt.h"
 
 // block handle func

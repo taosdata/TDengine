@@ -13,15 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bseSnapshot.h"
 #include "bseInc.h"
 #include "bseTable.h"
 #include "bseTableMgt.h"
 #include "bseUtil.h"
 #include "vnodeInt.h"
-
-typedef struct {
-  SBlockWrapper buf[1];
-} SBseSnapReadBuf;
 
 static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
                                     SBseRawFileWriter **pWriter);

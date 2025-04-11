@@ -15,6 +15,7 @@
 
 #include "bse.h"
 #include "bseInc.h"
+#include "bseSnapshot.h"
 #include "bseTable.h"
 #include "bseTableMgt.h"
 #include "bseUtil.h"
@@ -51,7 +52,7 @@ static int32_t bseRemoveUnCommitFile(SBse *p);
 static int32_t bseCreateBatchList(SBse *pBse);
 
 static int32_t bseBatchClear(SBseBatch *pBatch);
-static int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
+static int32_t bseRecycleBatchImpl(SBse *pBse, SBseBatch *pBatch);
 static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
 static int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
 static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
@@ -385,16 +386,18 @@ int32_t bseCreateBatchList(SBse *pBse) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  pBse->pBatchList = taosArrayInit(2, sizeof(SBseBatch *));
-  if (pBse->pBatchList == NULL) {
+  pBse->batchMgt->pBatchList = taosArrayInit(2, sizeof(SBseBatch *));
+  if (pBse->batchMgt->pBatchList == NULL) {
     TSDB_CHECK_CODE(code, lino, _error);
   }
+
+  BSE_QUEUE_INIT(&pBse->batchMgt->queue);
 
   SBseBatch *b = NULL;
   code = bseBatchCreate(&b, 1024);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (taosArrayPush(pBse->pBatchList, &b) == NULL) {
+  if (taosArrayPush(pBse->batchMgt->pBatchList, &b) == NULL) {
     bseBatchDestroy(b);
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -462,11 +465,12 @@ void bseClose(SBse *pBse) {
     return;
   }
   bseTableMgtCleanup(pBse->pTableMgt);
-  for (int32_t i = 0; i < taosArrayGetSize(pBse->pBatchList); i++) {
-    SBseBatch **p = taosArrayGet(pBse->pBatchList, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pBse->batchMgt->pBatchList); i++) {
+    SBseBatch **p = taosArrayGet(pBse->batchMgt->pBatchList, i);
     bseBatchDestroy(*p);
   }
-  taosArrayDestroy(pBse->pBatchList);
+  taosArrayDestroy(pBse->batchMgt->pBatchList);
+
   taosArrayDestroy(pBse->commitInfo.pFileList);
   taosThreadMutexDestroy(&pBse->mutex);
   taosThreadRwlockDestroy(&pBse->rwlock);
@@ -485,14 +489,43 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   return code;
 }
 
-int32_t bseAppendBatch(SBse *pBse, SBseBatch *pBatch) {
+int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
+  int32_t lino = 0;
   taosThreadMutexLock(&pBse->mutex);
-  code = bseTableMgtAppend(pBse->pTableMgt, pBatch);
-  code = bseRecycleBatch(pBse, pBatch);
+  pBatch->commited = 1;
 
+  while (!BSE_QUEUE_IS_EMPTY(&pBse->batchMgt->queue)) {
+    bsequeue *h = BSE_QUEUE_HEAD(&pBse->batchMgt->queue);
+
+    SBseBatch *p = BSE_QUEUE_DATA(h, SBseBatch, node);
+    if (p->commited == 1) {
+      BSE_QUEUE_REMOVE(&p->node);
+
+      code = bseTableMgtAppend(pBse->pTableMgt, pBatch);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      code = bseRecycleBatchImpl(pBse, p);
+      TSDB_CHECK_CODE(code, lino, _error);
+    } else {
+      break;
+    }
+  }
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to append batch since %s at line %d", BSE_GET_VGID(pBse), tstrerror(code), lino);
+  }
   taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
 
+int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch) {
+  int32_t code = 0;
+  if (pBatch == NULL) return code;
+
+  taosThreadMutexLock(&pBse->mutex);
+  code = bseRecycleBatchImpl(pBse, pBatch);
+  taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
 int32_t bseGetOrCreateBatch(SBse *pBse, SBseBatch **pBatch) {
@@ -500,19 +533,22 @@ int32_t bseGetOrCreateBatch(SBse *pBse, SBseBatch **pBatch) {
   int32_t     lino = 0;
   SBseBatch **p;
 
-  if (taosArrayGetSize(pBse->pBatchList) > 0) {
-    p = (SBseBatch **)taosArrayPop(pBse->pBatchList);
+  if (taosArrayGetSize(pBse->batchMgt->pBatchList) > 0) {
+    p = (SBseBatch **)taosArrayPop(pBse->batchMgt->pBatchList);
+
   } else {
     SBseBatch *b = NULL;
     code = bseBatchCreate(&b, 1024);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    if (taosArrayPush(pBse->pBatchList, &b) == NULL) {
+    if (taosArrayPush(pBse->batchMgt->pBatchList, &b) == NULL) {
       bseBatchDestroy(b);
       TSDB_CHECK_CODE(code = terrno, lino, _error);
     }
-    p = (SBseBatch **)taosArrayPop(pBse->pBatchList);
+    p = (SBseBatch **)taosArrayPop(pBse->batchMgt->pBatchList);
   }
+
+  BSE_QUEUE_PUSH(&pBse->batchMgt->queue, &((*p)->node));
   *pBatch = *p;
 
 _error:
@@ -522,11 +558,15 @@ _error:
   return code;
 }
 
-int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch) {
+int32_t bseRecycleBatchImpl(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
 
   bseBatchClear(pBatch);
-  if (taosArrayPush(pBse->pBatchList, &pBatch) == NULL) {
+  pBatch->commited = 0;
+
+  BSE_QUEUE_REMOVE(&pBatch->node);
+
+  if (taosArrayPush(pBse->batchMgt->pBatchList, &pBatch) == NULL) {
     code = terrno;
   }
   return code;
@@ -549,9 +589,11 @@ int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys) {
   }
 
   p->pSeq = taosArrayInit(nKeys, sizeof(SBlockItemInfo));
+
   if (p->pSeq == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+  BSE_QUEUE_INIT(&p->node);
 
   *pBatch = p;
 
@@ -590,6 +632,7 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
 _error:
   if (code != 0) {
     bseError("vgId:%d failed to build batch since %s", BSE_GET_VGID((SBse *)p->pBse), tstrerror(code));
+    BSE_QUEUE_REMOVE(&p->node);
     bseBatchDestroy(p);
   }
   return code;
@@ -647,6 +690,7 @@ int32_t bseBatchClear(SBseBatch *pBatch) {
   pBatch->len = 0;
   pBatch->num = 0;
   pBatch->seq = 0;
+  pBatch->commited = 0;
   taosArrayClear(pBatch->pSeq);
   return 0;
 }

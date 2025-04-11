@@ -21,44 +21,55 @@
 extern "C" {
 #endif
 
-typedef struct {
-  SSeqRange range;
-  SBse     *pBse;
-  int32_t   index;
-  int64_t   offset;
-  SArray   *pFileSet;
-  int8_t    fileType;  // BSE_TABLE_SNAP, BSE_CURRENT_SNAP
-  int8_t    isOver;
+#define BSE_DEFAULT_BLOCK_SIZE (4 * 1024 * 1024)
 
-  void *pTableIter;
-} SBseIter;
+struct SSeqRange {
+  int64_t sseq;
+  int64_t eseq;
+};
 
-typedef struct {
-  SSeqRange range;
-  int8_t    fileType;   // fileType
-  int8_t    blockType;  // blockType
-  int64_t   keepDays;   // keepDays
-} SBseSnapMeta;
-
-int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter);
-
-int32_t bseIterNext(SBseIter *pIter, uint8_t **pBuf, int32_t *len);
-
-void bseIterDestroy(SBseIter *pIter);
-
-int8_t bseIterValid(SBseIter *pIter);
-
-enum { BSE_TABLE_SNAP = 0x1, BSE_CURRENT_SNAP = 0x2, BSE_MAX_SNAP = 0x4 };
+struct SBlockItemInfo {
+  int32_t size;
+  int64_t seq;
+};
+struct SBseCommitInfo {
+  int32_t vgId;
+  int64_t commitVer;
+  int64_t lastVer;
+  int64_t lastSeq;
+  SArray *pFileList;
+};
 
 typedef struct {
-  SArray   *pFileSet;
-  SSeqRange range;
-  int8_t    fileType;  // fileType
-  int64_t   ver;
-} SBseSnapWriterWrapper;
+  SArray  *pBatchList;
+  bsequeue queue;
+} SBatchMgt;
+struct SBse {
+  char path[TSDB_FILENAME_LEN];
 
-int32_t bseBuilderLoad(SBse *pBse, SBseSnapMeta *pMeta, uint8_t *data, int32_t len);
+  int64_t        ver;
+  uint64_t       seq;
+  SBseCfg        cfg;
+  TdThreadRwlock rwlock;
+  TdThreadMutex  mutex;
 
+  SBatchMgt      batchMgt[1];
+  void          *pTableMgt;
+  SBseCommitInfo commitInfo;
+};
+
+struct SBseBatch {
+  int32_t  num;
+  uint8_t *buf;
+  int32_t  len;
+  int32_t  cap;
+  int64_t  seq;
+  SArray  *pSeq;
+  void    *pBse;
+  int64_t  startSeq;
+  int8_t   commited;
+  bsequeue node;
+};
 #ifdef __cplusplus
 }
 #endif

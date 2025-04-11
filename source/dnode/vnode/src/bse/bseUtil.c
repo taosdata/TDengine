@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "bseUtil.h"
+#include "bseInc.h"
 #include "tcompression.h"
 // compress func set
 typedef int32_t (*compressFunc)(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
