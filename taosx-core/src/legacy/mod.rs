@@ -2957,11 +2957,13 @@ async fn realtime(
             "spawn sync task for range: {:?}.",
             time_range
         );
-        let futures = futures::stream::FuturesUnordered::new();
+        // 创建任务列表
+        let tasks = futures::stream::FuturesUnordered::new();
+        let mut receivers = futures::stream::FuturesUnordered::new();
         todo.tables
             .scan_async(|item| {
                 if scanned.contains(item) {
-                    tracing::warn!("table {} is already scanned.", item.table);
+                    warn!("table {} is already scanned.", item.table);
                     return;
                 }
                 scanned.insert(item.clone());
@@ -2971,23 +2973,54 @@ async fn realtime(
                     vgroup_id: _,
                     mtlf,
                 } = item;
-                if *mtlf {
-                    futures.push(scheduler.send(Todo::Sparse(table.clone(), time_range, None)));
+
+                let (tx, rx) = oneshot::channel();
+                // 创建任务
+                let task = if *mtlf {
+                    scheduler.send(Todo::Sparse(table.clone(), time_range, Some(tx)))
                 } else {
-                    futures.push(scheduler.send(Todo::Data(
+                    scheduler.send(Todo::Data(
                         stable.clone(),
                         table.clone(),
                         time_range,
-                        None,
-                    )));
-                }
+                        Some(tx),
+                    ))
+                };
+                tasks.push(task);
+                receivers.push(rx);
             })
             .await;
-        futures
-            .try_for_each(|v| futures::future::ready(Ok(v)))
-            .await
-            .inspect_err(|err| tracing::warn!(error = %err, "restro task sent error"))?;
-        start = end;
+
+        // 检查任务提交成功
+        let submit_res = tasks.try_for_each(|v| futures::future::ready(Ok(v))).await;
+        if let Err(err) = submit_res {
+            warn!(mode = "realtime", "Failed to submit task. err: {err}");
+            continue;
+        }
+        // 等待所有任务完成
+        let mut all_success = true;
+        while let Some(res) = receivers.next().await {
+            match res {
+                Ok(Ok(_)) => {}
+                Ok(Err(err)) => {
+                    warn!(mode = "realtime", "Task execution error: {err}");
+                    all_success = false;
+                }
+                Err(err) => {
+                    warn!(mode = "realtime", "Task channel error: {err}");
+                    all_success = false;
+                }
+            }
+        }
+
+        if all_success {
+            info!(mode = "realtime", "All tasks completed successfully.");
+            start = end;
+        } else {
+            warn!(mode = "realtime", "Some tasks failed execution.");
+            continue;
+        }
+
         info!(
             mode = "realtime",
             "tick tasks are all spawned. waiting for next interval tick..."
@@ -3442,66 +3475,66 @@ pub async fn legacy_to_taos(
             schema_polling_task
         } else {
             tokio::spawn(async move {
-            let handle = async move {
-                let mut interval =
-                    tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
-                loop {
-                    interval.tick().await;
-                    let updates = update_todo_list(
-                        &schema_polling_pool,
-                        &schema_polling_source_opts,
-                        schema_polling_todo.clone(),
-                    )
-                        .await
-                        .inspect_err(|err| {
-                            tracing::warn!(error = %err, "update todo list error, break schema polling loop");
-                        })?;
-                    if updates.stables.is_empty() && updates.tables.is_empty() {
-                        continue;
-                    }
-                    let updates = Arc::new(updates);
-                    let _ = async {
-                        tracing::info!(
+                let handle = async move {
+                    let mut interval =
+                        tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
+                    loop {
+                        interval.tick().await;
+                        let updates = update_todo_list(
+                            &schema_polling_pool,
+                            &schema_polling_source_opts,
+                            schema_polling_todo.clone(),
+                        )
+                            .await
+                            .inspect_err(|err| {
+                                tracing::warn!(error = %err, "update todo list error, break schema polling loop");
+                            })?;
+                        if updates.stables.is_empty() && updates.tables.is_empty() {
+                            continue;
+                        }
+                        let updates = Arc::new(updates);
+                        let _ = async {
+                            tracing::info!(
                             "Schema updated, spawning sync schema task for {} tables",
                             updates.tables.len()
                         );
-                        schema_polling_metrics
-                            .as_ref()
-                            .legacy()
-                            .total_tables
-                            .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
+                            schema_polling_metrics
+                                .as_ref()
+                                .legacy()
+                                .total_tables
+                                .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
 
-                        if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
-                            // sync schema of the updated tables.
-                            sync_schema(&schema_polling_scheduler, &updates, concurrent)
-                                .await
-                                .context("Spawn schema syncing of the updated tables error")?;
-                        }
-                        if updates.tables.is_empty() {
-                            return Ok::<_, anyhow::Error>(());
-                        }
+                            if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
+                                // sync schema of the updated tables.
+                                sync_schema(&schema_polling_scheduler, &updates, concurrent)
+                                    .await
+                                    .context("Spawn schema syncing of the updated tables error")?;
+                            }
+                            if updates.tables.is_empty() {
+                                return Ok::<_, anyhow::Error>(());
+                            }
 
-                        sync_specified_tables_with_workers(
-                            &schema_polling_scheduler,
-                            &schema_polling_pool,
-                            schema_polling_source_opts.query,
-                            &updates,
-                            schema_polling_target_opts.clone(),
-                            schema_polling_source_opts.workers as _,
-                            schema_polling_task_id,
-                        )
-                            .await?;
-                        Ok::<_, anyhow::Error>(())
+                            sync_specified_tables_with_workers(
+                                &schema_polling_scheduler,
+                                &schema_polling_pool,
+                                schema_polling_source_opts.query,
+                                &updates,
+                                schema_polling_target_opts.clone(),
+                                schema_polling_source_opts.workers as _,
+                                schema_polling_task_id,
+                            )
+                                .await?;
+                            Ok::<_, anyhow::Error>(())
+                        }
+                            .await
+                            .inspect_err(|err| {
+                                tracing::warn!(error = format!("{err:#}"), "Sync updated tables error");
+                            });
                     }
-                        .await
-                        .inspect_err(|err| {
-                            tracing::warn!(error = format!("{err:#}"), "Sync updated tables error");
-                        });
-                }
-                #[allow(unreachable_code)]
-                anyhow::Ok(())
-            };
-            tokio::select! {
+                    #[allow(unreachable_code)]
+                    anyhow::Ok(())
+                };
+                tokio::select! {
                 _ = schema_polling_cancellation.cancelled() => {
                     tracing::debug!("schema polling task cancelled");
                 }
@@ -3509,8 +3542,8 @@ pub async fn legacy_to_taos(
                     res?;
                 }
             }
-            anyhow::Ok(())
-        }.in_current_span())
+                anyhow::Ok(())
+            }.in_current_span())
         };
 
         if matches!(source_opts.mode, SyncMode::All | SyncMode::Realtime) {
