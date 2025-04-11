@@ -48,6 +48,9 @@ typedef struct SVnodeMgmt {
   TdThread              thread;
   bool                  stop;
   TdThreadMutex         fileLock;
+  SWWorkerPool          streamRunnerPool;
+  SWWorkerPool          streamReaderPool;
+  SSingleWorker         streamRunnerWorker;
 } SVnodeMgmt;
 
 typedef struct {
@@ -81,6 +84,8 @@ typedef struct {
   STaosQueue  *pStreamChkQ;
   STaosQueue  *pFetchQ;
   STaosQueue  *pMultiMgmQ;
+  STaosQueue  *pStreamRunnerQ;
+  STaosQueue  *pStreamReaderQ;
 } SVnodeObj;
 
 typedef struct {

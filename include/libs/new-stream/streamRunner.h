@@ -13,33 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_SNODE_INT_H_
-#define _TD_SNODE_INT_H_
+#ifndef TDENGINE_STREAM_RUNNER_H
+#define TDENGINE_STREAM_RUNNER_H
 
-#include "os.h"
-
-#include "tlog.h"
-#include "tmsg.h"
-#include "tqueue.h"
-#include "trpc.h"
-#include "tstream.h"
-
-#include "snode.h"
-#include "tworker.h"
-
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct SSnode {
-  SStreamMeta* pMeta;
-  SMsgCb       msgCb;
-};
-
-void initStreamStateAPI(SStorageAPI* pAPI);
+int32_t stRunnerDeployTask(void* pNode, const char* pMsg, int32_t msgLen);
+int32_t stRunnerUndeplyTask(void* pNode, const char* pMsg, int32_t msgLen);
+int32_t stRunnerExecuteTask(void* pNode, const char* pMsg, int32_t msgLen);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_SNODE_INT_H_*/
+#endif  // TDENGINE_STREAM_RUNNER_H

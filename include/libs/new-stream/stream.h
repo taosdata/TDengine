@@ -49,6 +49,7 @@ typedef struct SStreamTask {
   int64_t         streamId;  // ID of the stream
   int64_t         taskId;    // ID of the current task
   int64_t         cmdId;     // ID of the current command (real-time, historical, or recalculation)
+  int64_t         refId;
 } SStreamTask;
 
 typedef enum EStreamTriggerType {
