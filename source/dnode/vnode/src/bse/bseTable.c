@@ -801,8 +801,9 @@ int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper
   SSeqRange        range = pHandle->range;
 
   if (p->putInCache == 1 && blkWrapper->type == BSE_TABLE_DATA_TYPE) {
-    SBlock *pBlock = NULL;
-    code = blockCacheGet(pRdMgt->pBlockCache, &range, (void **)&pBlock);
+    SBlock     *pBlock = NULL;
+    SCacheItem *pItem = NULL;
+    code = blockCacheGet(pRdMgt->pBlockCache, &range, (void **)&pItem);
     if (code == TSDB_CODE_NOT_FOUND) {
       code = blockWrapperInit(blkWrapper, pHandle->size);
       TSDB_CHECK_CODE(code, lino, _error);
@@ -815,9 +816,10 @@ int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper
       TSDB_CHECK_CODE(code, lino, _error);
 
     } else if (code == TSDB_CODE_SUCCESS) {
-      blkWrapper->data = pBlock;
+      blkWrapper->data = pItem->pItem;
       blkWrapper->cap = pHandle->size;
     }
+    blkWrapper->pCachItem = pItem;
   } else {
     code = blockWrapperInit(blkWrapper, pHandle->size);
     TSDB_CHECK_CODE(code, lino, _error);
@@ -844,6 +846,10 @@ int32_t tableReaderSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, u
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = blockSeek(wrapper.data, seq, pValue, len);
+
+  if (wrapper.pCachItem != NULL) {
+    bseCacheUnrefItem(wrapper.pCachItem);
+  }
   TSDB_CHECK_CODE(code, lino, _error);
 
   wrapper.data = NULL;

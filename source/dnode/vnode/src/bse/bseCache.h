@@ -18,10 +18,21 @@
 
 #include "bseTable.h"
 #include "bseUtil.h"
+#include "tlockfree.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef void (*CacheElemFn)(void *p);
+typedef struct {
+  void       *pItem;
+  SSeqRange   pKey;
+  SListNode  *pNode;
+  CacheElemFn freeFunc;
+  T_REF_DECLARE()
+
+} SCacheItem;
 
 typedef struct {
   int32_t cap;
@@ -29,13 +40,28 @@ typedef struct {
   void   *pCache;
 } STableCache;
 
+void freeCacheItem(SCacheItem *pItem);
+
+FORCE_INLINE void bseCacheRefItem(SCacheItem *pItem) {
+  if (pItem == NULL) return;
+  T_REF_INC(pItem);
+}
+FORCE_INLINE void bseCacheUnrefItem(SCacheItem *pItem) {
+  if (pItem == NULL) return;
+  T_REF_DEC(pItem);
+  if (T_REF_VAL_GET(pItem) == 0) {
+    freeCacheItem(pItem);
+  }
+}
+
 typedef void (*CacheFreeFn)(void *p);
 int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p);
-int32_t tableCacheGet(STableCache *p, SSeqRange *key, STableReader **pReader);
+int32_t tableCacheGet(STableCache *p, SSeqRange *key, SCacheItem **pReader);
 int32_t tableCachePut(STableCache *, SSeqRange *key, STableReader *pReader);
 int32_t tableCacheRemove(STableCache *p, SSeqRange *key);
 void    tableCacheClose(STableCache *p);
 int32_t tableCacheClear(STableCache *);
+int32_t tableCacheResize(STableCache *p, int32_t newCap);
 
 typedef struct {
   int32_t cap;
@@ -50,6 +76,7 @@ int32_t blockCachePut(SBlockCache *p, SSeqRange *key, void *pBlock);
 int32_t blockCacheRemove(SBlockCache *p, SSeqRange *key);
 void    blockCacheClose(SBlockCache *p);
 int32_t blockCacheClear(SBlockCache *p);
+int32_t blockCacheResize(SBlockCache *p, int32_t newCap);
 
 #ifdef __cplusplus
 }

@@ -246,8 +246,10 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
 
   SSeqRange range = {.sseq = info.sseq, .eseq = info.eseq};
   if (inSeqRange(&range, seq)) {
+    SCacheItem *pItem = NULL;
+
     STableReader *pReader = NULL;
-    code = tableCacheGet(pReaderMgt->pTableCache, &range, &pReader);
+    code = tableCacheGet(pReaderMgt->pTableCache, &range, &pItem);
     if (code != 0) {
       char name[TSDB_FILENAME_LEN] = {0};
       bseBuildFullName((SBse *)pReaderMgt->pBse, info.name, name);
@@ -262,16 +264,18 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
           TSDB_CHECK_CODE(code, lino, _error);
         }
       }
+    } else {
+      pReader = pItem->pItem;
     }
     code = tableReaderGet(pReader, seq, pValue, len);
+
+    if (pItem) bseCacheUnrefItem(pItem);
+
     TSDB_CHECK_CODE(code, lino, _error);
   }
 _error:
   if (code != 0) {
     bseError("failed to seek table pReaderMgt since %s at line %d", tstrerror(code), lino);
-  }
-  if (pReader != NULL) {
-    tableReaderClose(pReader);
   }
   return code;
 }

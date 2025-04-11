@@ -75,6 +75,8 @@ typedef struct {
   int32_t cap;
   int8_t  type;
   int64_t size;
+
+  void *pCachItem;
 } SBlockWrapper;
 
 int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);

@@ -16,7 +16,6 @@
 #include "bseCache.h"
 #include "tdef.h"
 
-typedef void (*CacheElemFn)(void *p);
 typedef struct {
   int32_t cap;
   int32_t size;
@@ -28,25 +27,19 @@ typedef struct {
   TdThreadMutex mutex;
 } SLruCache;
 
-typedef struct {
-  void      *pItem;
-  SSeqRange  pKey;
-  int32_t    ref;
-  SListNode *pNode;
-} SCacheItem;
-
 static int32_t lruCacheCreate(int32_t cap, int32_t keySize, CacheElemFn freeElemFunc, SLruCache **pCache);
 static int32_t lruCacheGet(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void **pElem);
 static int32_t lruCachePut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pElem);
 static int32_t lruCacheRemove(SLruCache *pCache, SSeqRange *key, int32_t keyLen);
 static int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen);
+static int32_t lrcCacheResize(SLruCache *pCache, int32_t newCap);
 static void    lruCacheFree(SLruCache *pCache);
 static void    freeItemInListNode(SListNode *pItem, CacheFreeFn fn);
 static int32_t lruCacheClear(SLruCache *pCache);
 
 void freeItemInListNode(SListNode *pItem, CacheFreeFn fn) {
   if (pItem == NULL || fn == NULL) return;
-  SCacheItem *pCacheItem = (SCacheItem *)pItem->data;
+  SCacheItem *pCacheItem = *(SCacheItem **)pItem->data;
   if (pCacheItem->pItem != NULL) {
     fn(pCacheItem->pItem);
   }
@@ -61,7 +54,7 @@ int32_t lruCacheCreate(int32_t cap, int32_t keySize, CacheElemFn freeElemFunc, S
     return terrno;
   }
   p->cap = cap;
-  p->lruList = tdListNew(sizeof(SCacheItem));
+  p->lruList = tdListNew(sizeof(SCacheItem *));
   if (p->lruList == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
@@ -88,14 +81,18 @@ int32_t lruCacheGet(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void **pE
   int32_t lino = 0;
 
   taosThreadMutexLock(&pCache->mutex);
-  SCacheItem *pItem = taosHashGet(pCache->pCache, key, keyLen);
-  if (pItem == NULL) {
+  SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
+  if (ppItem == NULL || *ppItem == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _error);
   }
+  SCacheItem *pItem = (SCacheItem *)*ppItem;
+
   pItem->pNode = tdListPopNode(pCache->lruList, pItem->pNode);
   tdListPrependNode(pCache->lruList, pItem->pNode);
 
-  *pElem = pItem->pItem;
+  bseCacheRefItem(pItem);
+
+  *pElem = pItem;
 
 _error:
   if (code != 0) {
@@ -110,13 +107,12 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   int32_t lino = 0;
 
   taosThreadMutexLock(&pCache->mutex);
-  SCacheItem *pItem = taosHashGet(pCache->pCache, key, keyLen);
-  if (pItem != NULL) {
-    SListNode *t = tdListPopNode(pCache->lruList, pItem->pNode);
-    freeItemInListNode(t, pCache->freeElemFunc);
+  SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
+  if (ppItem != NULL && *ppItem != NULL) {
+    SCacheItem *pItem = (SCacheItem *)*ppItem;
+    SListNode  *t = tdListPopNode(pCache->lruList, pItem->pNode);
 
-    taosMemFreeClear(t);
-
+    bseCacheRefItem(pItem);
     (void)taosHashRemove(pCache->pCache, key, keyLen);
     pCache->size--;
   }
@@ -124,23 +120,32 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   while (pCache->size >= pCache->cap) {
     SListNode *pNode = tdListGetTail(pCache->lruList);
     if (pNode != NULL) {
-      SCacheItem *pCacheItem = (SCacheItem *)pNode->data;
+      SCacheItem *pCacheItem = *(SCacheItem **)pNode->data;
       code = lruCacheRemoveNolock(pCache, &pCacheItem->pKey, sizeof(pCacheItem->pKey));
       TSDB_CHECK_CODE(code, lino, _error);
     }
   }
 
-  SCacheItem item = {.pItem = pElem, .pKey = *(SSeqRange *)key, .ref = 1};
-  SListNode *pListNode = tdListAdd(pCache->lruList, &item);
+  SCacheItem *pItem = taosMemCalloc(1, sizeof(SCacheItem));
+  if (pItem == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  pItem->pItem = pElem;
+  pItem->pKey = *(SSeqRange *)key;
+  pItem->freeFunc = pCache->freeElemFunc;
+
+  SListNode *pListNode = tdListAdd(pCache->lruList, &pItem);
   if (pListNode == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
-  item.pNode = pListNode;
+  pItem->pNode = pListNode;
 
-  code = taosHashPut(pCache->pCache, key, keyLen, &item, sizeof(SCacheItem));
+  code = taosHashPut(pCache->pCache, key, keyLen, &pItem, sizeof(SCacheItem *));
   if (code != 0) {
     TSDB_CHECK_CODE(code, lino, _error);
   }
+  bseCacheRefItem(pItem);
 
 _error:
   if (code != 0) {
@@ -155,13 +160,14 @@ int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) 
   int32_t code = 0;
   int32_t lino = 0;
 
-  SCacheItem *pItem = taosHashGet(pCache->pCache, key, keyLen);
-  if (pItem == NULL) {
+  SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
+  if (ppItem == NULL || *ppItem == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _error);
   }
+  SCacheItem *pItem = (SCacheItem *)*ppItem;
 
   SListNode *pNode = tdListPopNode(pCache->lruList, pItem->pNode);
-  freeItemInListNode(pNode, pCache->freeElemFunc);
+  bseCacheUnrefItem(pItem);
 
   code = taosHashRemove(pCache->pCache, key, keyLen);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -173,6 +179,28 @@ _error:
   } else {
     pCache->size--;
   }
+  return code;
+}
+
+int32_t lruCacheResize(SLruCache *pCache, int32_t newCap) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  taosThreadMutexLock(&pCache->mutex);
+  pCache->cap = newCap;
+  while (pCache->size > pCache->cap) {
+    SListNode *pNode = tdListGetTail(pCache->lruList);
+    if (pNode != NULL) {
+      SCacheItem *pCacheItem = *(SCacheItem **)pNode->data;
+      code = lruCacheRemoveNolock(pCache, &pCacheItem->pKey, sizeof(pCacheItem->pKey));
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
+  }
+_error:
+  if (code != 0) {
+    bseError("failed to resize cache lru at line %d since %d", lino, tstrerror(code));
+  }
+  taosThreadMutexUnlock(&pCache->mutex);
   return code;
 }
 int32_t lruCacheRemove(SLruCache *pCache, SSeqRange *key, int32_t keyLen) {
@@ -189,10 +217,12 @@ void lruCacheFree(SLruCache *pCache) {
   taosHashCleanup(pCache->pCache);
 
   while (isListEmpty(pCache->lruList) == 0) {
-    SListNode *pNode = tdListPopTail(pCache->lruList);
-    freeItemInListNode(pNode, pCache->freeElemFunc);
-    taosMemFreeClear(pNode);
+    SListNode  *pNode = tdListPopTail(pCache->lruList);
+    SCacheItem *pCacheItem = *(SCacheItem **)pNode->data;
+    bseCacheUnrefItem(pCacheItem);
+    taosMemoryFree(pNode);
   }
+
   tdListFree(pCache->lruList);
   pCache->lruList = NULL;
 
@@ -203,7 +233,9 @@ int32_t lruCacheClear(SLruCache *pCache) {
   taosThreadMutexLock(&pCache->mutex);
   while (isListEmpty(pCache->lruList) == 0) {
     SListNode *pNode = tdListPopTail(pCache->lruList);
-    freeItemInListNode(pNode, pCache->freeElemFunc);
+
+    SCacheItem *pCacheItem = *(SCacheItem **)pNode->data;
+    bseCacheUnrefItem(pCacheItem);
     taosMemFreeClear(pNode);
   }
 
@@ -253,7 +285,7 @@ int32_t tableCacheClear(STableCache *p) {
   return code;
 }
 
-int32_t tableCacheGet(STableCache *pCache, SSeqRange *key, STableReader **pReader) {
+int32_t tableCacheGet(STableCache *pCache, SSeqRange *key, SCacheItem **pItem) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -261,7 +293,7 @@ int32_t tableCacheGet(STableCache *pCache, SSeqRange *key, STableReader **pReade
   code = lruCacheGet(pCache->pCache, key, sizeof(*key), &pElem);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  *pReader = pElem;
+  *pItem = pElem;
 _error:
   if (code != 0) {
     bseWarn("failed to get table cache at line %d since %s", lino, tstrerror(code));
@@ -295,6 +327,13 @@ _error:
   return code;
 }
 
+int32_t tableCacheResize(STableCache *pCache, int32_t newCap) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = lruCacheResize((SLruCache *)pCache->pCache, newCap);
+  return code;
+}
 int32_t blockCacheOpen(int32_t cap, CacheElemFn freeFn, SBlockCache **pCache) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -370,4 +409,21 @@ int32_t blockCacheClear(SBlockCache *p) {
   lruCacheClear((SLruCache *)p->pCache);
   p->size = 0;
   return 0;
+}
+
+int32_t blockCacheResize(SBlockCache *p, int32_t newCap) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = lruCacheResize((SLruCache *)p->pCache, newCap);
+
+  return code;
+}
+
+void freeCacheItem(SCacheItem *pItem) {
+  if (pItem == NULL) return;
+  if (pItem->pNode != NULL) {
+    freeItemInListNode(pItem->pNode, pItem->freeFunc);
+  }
+  taosMemoryFree(pItem);
 }

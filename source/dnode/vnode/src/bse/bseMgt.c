@@ -957,3 +957,89 @@ _error:
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
+
+int32_t bseUpdatCfgNoLock(SBse *pBse, SBseCfg *pCfg) {
+  int32_t code = 0;
+  if (pCfg == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pCfg->blockSize > 0) {
+    pBse->cfg.blockSize = pCfg->blockSize;
+  }
+
+  if (pCfg->keepDays > 0) {
+    pBse->cfg.keepDays = pCfg->keepDays;
+  }
+
+  if (pCfg->compressType >= kNoCompres && pCfg->compressType <= kZxCompress) {
+    pBse->cfg.compressType = pCfg->compressType;
+  }
+
+  if (pCfg->tableCacheSize >= 0) {
+    pBse->cfg.tableCacheSize = pCfg->tableCacheSize;
+  }
+
+  if (pCfg->blockCacheSize >= 0) {
+    pBse->cfg.blockCacheSize = pCfg->blockCacheSize;
+    // code = bseTableMgtSetCacheSize(pBse->pTableMgt, pCfg->tableCacheSize);
+    // if (code != 0) {
+    //   bseError("failed to set table cache size since %s", tstrerror(code));
+    // }
+  }
+  return code;
+}
+int32_t bseUpdateCompresType(SBse *pBse, int8_t compressType) {
+  int32_t code = 0;
+  if (compressType < kNoCompres || compressType > kZxCompress) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  taosThreadMutexLock(&pBse->mutex);
+  pBse->cfg.compressType = compressType;
+  taosThreadMutexUnlock(&pBse->mutex);
+
+  return code;
+}
+int32_t bseUpdateBlockSize(SBse *pBse, int32_t blockSize) {
+  int32_t code = 0;
+  if (blockSize <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  taosThreadMutexLock(&pBse->mutex);
+  pBse->cfg.blockSize = blockSize;
+  taosThreadMutexUnlock(&pBse->mutex);
+
+  return code;
+}
+int32_t bseUpdateBlockCacheSize(SBse *pBse, int32_t blockCacheSize) {
+  int32_t code = 0;
+  if (blockCacheSize <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  taosThreadMutexLock(&pBse->mutex);
+  pBse->cfg.blockCacheSize = blockCacheSize;
+  taosThreadMutexUnlock(&pBse->mutex);
+
+  return code;
+}
+int32_t bseUpdateTableCacheSize(SBse *pBse, int32_t blockCacheSize) {
+  int32_t code = 0;
+  if (blockCacheSize <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  taosThreadMutexLock(&pBse->mutex);
+  pBse->cfg.tableCacheSize = blockCacheSize;
+  taosThreadMutexUnlock(&pBse->mutex);
+
+  return code;
+}
+int32_t bseUpdateKeepDays(SBse *pBse, int32_t keepDays) {
+  int32_t code = 0;
+  if (keepDays <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  taosThreadMutexLock(&pBse->mutex);
+  pBse->cfg.keepDays = keepDays;
+  taosThreadMutexUnlock(&pBse->mutex);
+
+  return code;
+}
