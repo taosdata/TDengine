@@ -1146,5 +1146,5 @@ int queryTestProcess() {
 
     // total 
     totalQuery(toolsGetTimestampMs() - startTs); 
-    return 0;
+    return g_fail ? -1 : 0;
 }
