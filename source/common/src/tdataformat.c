@@ -2891,7 +2891,10 @@ static int32_t tColDataMerge(SArray **colArr) {
 
         SColVal cv;
         tColDataGetValue(srcCol, i, &cv);
-        tColDataAppendValue(dstCol, &cv);
+        code = tColDataAppendValue(dstCol, &cv);
+        if (code != 0){
+          goto _exit;
+        }
       }
       lastKey = key;
     } else {  // update existing row
@@ -2900,7 +2903,10 @@ static int32_t tColDataMerge(SArray **colArr) {
         SColData *dstCol = taosArrayGet(dst, j);
         SColVal   cv;
         tColDataGetValue(srcCol, i, &cv);
-        tColDataUpdateValue(dstCol, &cv, true);
+        code = tColDataUpdateValue(dstCol, &cv, true);
+        if (code != 0){
+          goto _exit;
+        }
       }
     }
   }
