@@ -1754,31 +1754,28 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb), NULL, _OVER);
 
-  if (pDb->cfg.replications == 2) {
-    SSdb *pSdb = pMnode->pSdb;
-    void *pIter = NULL;
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
 
-    while (1) {
-      SVgObj *pVgroup = NULL;
-      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-      if (pIter == NULL) break;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
 
-      if (pVgroup->dbUid == pDb->uid) {
-        if ((pVgroup->vnodeGid[0].syncState == TAOS_SYNC_STATE_LEADER &&
-             pVgroup->vnodeGid[1].syncState == TAOS_SYNC_STATE_FOLLOWER) ||
-            (pVgroup->vnodeGid[1].syncState == TAOS_SYNC_STATE_LEADER &&
-             pVgroup->vnodeGid[0].syncState == TAOS_SYNC_STATE_FOLLOWER)) {
+    if (pVgroup->dbUid == pDb->uid) {
+      for (int32_t i = 0; i < pVgroup->replica; i++) {
+        if (pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_OFFLINE) {
           sdbRelease(pSdb, pVgroup);
           continue;
         }
-        code = TSDB_CODE_MND_NO_VGROUP_LEADER_ON_DB;
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pVgroup);
-        goto _OVER;
       }
-
+      code = TSDB_CODE_MND_VGROUP_OFFLINE;
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
+      goto _OVER;
     }
+
+    sdbRelease(pSdb, pVgroup);
   }
 
   code = mndDropDb(pMnode, pReq, pDb);

@@ -179,7 +179,7 @@ This document details the server error codes that may be encountered when using 
 | 0x800003A5 | Snode not there                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003A8 | The replica of mnode cannot less than 1                      | Less than 1 mnode                                            | Operation not allowed                                        |
 | 0x800003A9 | The replica of mnode cannot exceed 3                         | More than 1 mnode                                            | Operation not allowed                                        |
-| 0x800003AE | No VGroup's leader for ready to operate                      | No vgroup leader exist                                       | Try this operation later                                         |
+| 0x800003AE | VGroup is offline                      | VGroup is offline                                       | check if dnode is offline                                       |
 | 0x800003B1 | No enough memory in dnode                                    | Insufficient memory                                          | Adjust configuration                                         |
 | 0x800003B3 | Invalid dnode end point                                      | Incorrect ep configuration                                   | Confirm if the operation is correct                          |
 | 0x800003B6 | Offline dnode exists                                         | Dnode offline                                                | Check node status                                            |
