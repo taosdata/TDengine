@@ -95,12 +95,6 @@ add_test(
 add_executable(osTimeTests "osTimeTests.cpp")
 DEP_ext_gtest(osTimeTests)
 target_link_libraries(osTimeTests PRIVATE os util)
-# NOTE: temporarily add this, for debugging purpose
-if(${TD_WINDOWS})
-  target_link_options(osTimeTests PRIVATE
-    /NODEFAULTLIB:cpmt
-  )
-endif()
 add_test(
     NAME osTimeTests
     COMMAND osTimeTests
