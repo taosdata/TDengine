@@ -49,7 +49,7 @@ CONTAINER_TESTDIR=/home/TDinternal/community
 
 ulimit -c unlimited
 
-docker run --privileged=true \
+docker run \
     --name taos_coverage_internal \
     -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
     -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/debug \
