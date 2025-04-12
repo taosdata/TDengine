@@ -85,6 +85,7 @@ EOF
     cat $TDINTERNAL_DIR/coverage_internal.info | grep SF
 
     # push result to https://app.codecov.io/
+    pip3 install codecov
     echo "开始上传覆盖率数据到 Codecov..."
     echo "branch: $branch"
     echo "coverage_internal.info: $TDINTERNAL_DIR/coverage_internal.info"
