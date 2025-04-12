@@ -914,8 +914,6 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
 
     (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
     (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
-
-    pStmt->bindThread = NULL;
   }
 
   char*             db = pStmt->db;
