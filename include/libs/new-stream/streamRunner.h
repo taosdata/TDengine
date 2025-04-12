@@ -17,13 +17,36 @@
 #define TDENGINE_STREAM_RUNNER_H
 
 #include <stdint.h>
+#include "stream.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t stRunnerDeployTask(void* pNode, const char* pMsg, int32_t msgLen);
-int32_t stRunnerUndeplyTask(void* pNode, const char* pMsg, int32_t msgLen);
-int32_t stRunnerExecuteTask(void* pNode, const char* pMsg, int32_t msgLen);
+struct SStreamRunnerTask;
+typedef int32_t (*StreamBuildTaskFn)(struct SStreamRunnerTask* pTask);
+
+typedef struct SStreamRunnerTask {
+  SStreamTask       streamTask;
+  const char*       pMsg;
+  void*             pExecutor;
+  StreamBuildTaskFn buildTaskFn;
+} SStreamRunnerTask;
+
+typedef struct SStreamRunnerDeployMsg {
+  SStreamTask       task;
+  const char*       pPlan;
+  StreamBuildTaskFn buildTaskFn;
+} SStreamRunnerDeployMsg;
+struct SStreamRunnerUndeployMsg;
+struct SStreamRunnerTaskStatus;
+
+typedef struct SStreamRunaaaanerUndeployMsg SStreamRunnerUndeployMsg;
+typedef struct SStreamRunnerTaskStatus  SStreamRunnerTaskStatus;
+
+int32_t stRunnerTaskDeploy(SStreamRunnerTask** pTask, const SStreamRunnerDeployMsg* pMsg);
+int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamRunnerUndeployMsg* pMsg);
+int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t msgLen);
+int32_t stRunnerTaskRetrieveStatus(SStreamRunnerTask* pTask, SStreamRunnerTaskStatus* pStatus);
 
 #ifdef __cplusplus
 }
