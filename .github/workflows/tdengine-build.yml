@@ -55,7 +55,7 @@ jobs:
           echo "The number of CPU cores is: ${{ env.CPU_CORES }}"
 
       - name: prepare install path
-        if: runner.os == 'Darwin'
+        if: runner.os == 'macOS'
         run: |
           sudo mkdir -p /usr/local/lib
           sudo mkdir -p /usr/local/include
@@ -215,7 +215,7 @@ jobs:
           find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd || true
 
       - name: Statistics otool
-        if: runner.os == 'Darwin'
+        if: runner.os == 'macOS'
         run: |
           find ${{ github.workspace }}/debug/build/lib -type f -name "*.dylib" -print0 | xargs -0 otool -L || true
           find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 otool -L || true
