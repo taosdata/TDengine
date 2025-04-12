@@ -54,7 +54,7 @@ EOF
         --no-external \
         --config-file lcov_internal.config \
         -b $TDINTERNAL_DIR/enterprise \
-        -o coverage_internal.info | tee -a $TDENGINE_COVERAGE_REPORT
+        -o coverage_internal.info #| tee -a $TDENGINE_COVERAGE_REPORT
     
 
     # remove exclude paths (确保只保留 enterprise 相关的文件)
@@ -111,7 +111,7 @@ TDINTRENAL_DIR="/home/TDinternal"
 #TDENGINE_DIR="/home/TDinternal/community"
 CAPTURE_GCDA_DIR="/home/TDinternal/debug"
 BRANCH=""
-TDENGINE_COVERAGE_REPORT=$TDINTERNAL_DIR/community/tests/coverage-report-$today.log
+#TDENGINE_COVERAGE_REPORT=$TDINTERNAL_DIR/community/tests/coverage-report-$today.log
 
 # Parse command line parameters
 while getopts "hd:b:f:" arg; do
