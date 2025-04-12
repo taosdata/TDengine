@@ -49,8 +49,8 @@ CONTAINER_TESTDIR=/home/TDinternal/community
 
 ulimit -c unlimited
 
-docker run \
-    --name taos_coverage \
+docker run --privileged=true \
+    --name taos_coverage_tdengine \
     -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
     -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/community/debug \
     --rm --ulimit core=-1 taos_test:v1.0 sh -c "bash ${CONTAINER_TESTDIR}/tests/run_workflow_coverage.sh -b ${branch_name_id} " 
