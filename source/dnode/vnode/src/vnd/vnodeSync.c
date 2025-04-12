@@ -119,74 +119,74 @@ static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code)
   }
 }
 
-static int32_t vnodeRebuildSubSubmitMsg(SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  uint32_t hasBlob = 0;
-  int32_t  flags = 0;
+// static int32_t vnodeRebuildSubSubmitMsg(SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
+//   int32_t  code = 0;
+//   int32_t  lino = 0;
+//   uint32_t hasBlob = 0;
+//   int32_t  flags = 0;
 
-  if (tStartDecode(pCoder) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+//   if (tStartDecode(pCoder) < 0) {
+//     code = TSDB_CODE_INVALID_MSG;
+//     TSDB_CHECK_CODE(code, lino, _exit);
+//   }
 
-  uint8_t version;
-  if (tDecodeI32v(pCoder, &flags) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  if (flags & SUBMIT_REQ_WITH_BLOB) {
-    hasBlob = 1;
-  } else {
-    return 0;
-  }
+//   uint8_t version;
+//   if (tDecodeI32v(pCoder, &flags) < 0) {
+//     code = TSDB_CODE_INVALID_MSG;
+//     TSDB_CHECK_CODE(code, lino, _exit);
+//   }
+//   if (flags & SUBMIT_REQ_WITH_BLOB) {
+//     hasBlob = 1;
+//   } else {
+//     return 0;
+//   }
 
-  pSubmitTbData->flags = flags & 0xff;
-  version = (flags >> 8) & 0xff;
+//   pSubmitTbData->flags = flags & 0xff;
+//   version = (flags >> 8) & 0xff;
 
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->suid));
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->uid));
-  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pSubmitTbData->sver));
+//   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->suid));
+//   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->uid));
+//   TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pSubmitTbData->sver));
 
-  if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    return TSDB_CODE_INVALID_MSG;
-  }
+//   if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+//     return TSDB_CODE_INVALID_MSG;
+//   }
+//   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+//     return TSDB_CODE_INVALID_MSG;
+//   }
 
-  uint64_t nRow;
-  TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
+//   uint64_t nRow;
+//   TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
 
-  pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
-  if (pSubmitTbData->aRowP == NULL) {
-    TAOS_CHECK_EXIT(terrno);
-  }
+//   pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
+//   if (pSubmitTbData->aRowP == NULL) {
+//     TAOS_CHECK_EXIT(terrno);
+//   }
 
-  for (int32_t iRow = 0; iRow < nRow; ++iRow) {
-    SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
-    if (ppRow == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
+//   for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+//     SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
+//     if (ppRow == NULL) {
+//       TAOS_CHECK_EXIT(terrno);
+//     }
 
-    TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
-  }
-  pSubmitTbData->ctimeMs = 0;
-  if (!tDecodeIsEnd(pCoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->ctimeMs));
-  }
+//     TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
+//   }
+//   pSubmitTbData->ctimeMs = 0;
+//   if (!tDecodeIsEnd(pCoder)) {
+//     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->ctimeMs));
+//   }
 
-  if (!tDecodeIsEnd(pCoder) && hasBlob) {
-    TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, &pSubmitTbData->pBlobRow));
-  }
-  tEndDecode(pCoder);
+//   if (!tDecodeIsEnd(pCoder) && hasBlob) {
+//     TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, &pSubmitTbData->pBlobRow));
+//   }
+//   tEndDecode(pCoder);
 
-_exit:
-  if (code != 0) {
-    vError("failed to rebuild submit msg since %s", tstrerror(code));
-  }
-  return 0;
-}
+// _exit:
+//   if (code != 0) {
+//     vError("failed to rebuild submit msg since %s", tstrerror(code));
+//   }
+//   return 0;
+// }
 static int32_t tEncodeSubSubmitReq2(SEncoder *pEncoder, SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
   int32_t lino = 0;

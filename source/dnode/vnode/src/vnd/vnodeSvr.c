@@ -608,15 +608,18 @@ static int32_t inline vnodeSubmitSubBlobData(SVnode *pVnode, SSubmitTbData *pSub
   code = bseBatchInit(pVnode->pBse, &pBatch, sz);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  SRow **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+  SRow  **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+  int32_t rowIdx = -1;
   for (int32_t i = 0; i < sz; i++) {
     int64_t     seq = 0;
     SBlobValue *p = taosArrayGet(pBlobRow->pSeqTable, i);
     if (p->len != 0) {
       code = bseBatchPut(pBatch, &seq, pBlobRow->data + p->offset, p->len);
       TSDB_CHECK_CODE(code, lino, _exit);
-
-      memcpy(pRow[i]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
+      if (p->nextRow == 1) {
+        rowIdx++;
+      }
+      memcpy(pRow[rowIdx]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
     }
   }
 

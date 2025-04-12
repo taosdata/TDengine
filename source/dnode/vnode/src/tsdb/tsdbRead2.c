@@ -1158,7 +1158,7 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
           TSDB_CHECK_CODE(code, lino, _end);
         }
 
-        if (pColVal->value.type == TSDB_DATA_TYPE_BLOB || pColVal->value.type == TSDB_DATA_TYPE_MEDIUMBLOB) {
+        if (IS_STR_DATA_BLOB(pColVal->value.type)) {
           code = doReallocBuf(pSup, colIndex, pColInfoData->info.bytes, len);
         } else {
           varDataSetLen(pSup->buildBuf[colIndex], len);

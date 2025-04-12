@@ -148,6 +148,7 @@ typedef struct {
   uint64_t offset;
   uint32_t len;
   uint32_t dataOffset;
+  int8_t   nextRow;
 } SBlobValue;
 
 typedef struct {
@@ -158,7 +159,7 @@ typedef struct {
   int32_t  dataLen;
 } SBlobItem;
 int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
-int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pBlobItem, uint64_t *seq);
+int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
 int32_t tBlobRowSize(SBlobRow2 *pBlobRow);
 
