@@ -112,8 +112,8 @@ TEST(benchUtil, convertHostToServAddr) {
   ASSERT_EQ(convertHostToServAddr((char *)"invalid.host", 0, &serv_addr), -1);
 }
 
-// baseic
-TEST(BenchUtil, Base) {
+// basic
+TEST(benchUtil, Base) {
   int ret;
   // check crash
   engineError((char *)"util", (char *)"taos_connect", 1);
@@ -140,7 +140,7 @@ TEST(BenchUtil, Base) {
   ASSERT_EQ(ret, -1);
 
   // bench
-  ASSERT_EQ(benchCalloc(100000000000, 1000000000000, false), NULL);
+  ASSERT_EQ(benchCalloc(100000000000, 1000000000000, false), nullptr);
 
   // close
   closeBenchConn(NULL);
