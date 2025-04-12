@@ -108,7 +108,7 @@ EOF
 ######################
 
 # Initialization parameter
-TDINTRENAL_DIR="/home/TDinternal"
+TDINTERNAL_DIR="/home/TDinternal" 
 #TDENGINE_DIR="/home/TDinternal/community"
 CAPTURE_GCDA_DIR="/home/TDinternal/debug"
 BRANCH=""
@@ -139,14 +139,14 @@ done
 # Show all parameters
 print_color "$GREEN" "Run coverage test on workflow!"
 
-echo "TDINTRENAL_DIR = $TDINTRENAL_DIR"
+echo "TDINTERNAL_DIR = $TDINTERNAL_DIR"
 #echo "TDENGINE_DIR = $TDENGINE_DIR"
 echo "CAPTURE_GCDA_DIR = $CAPTURE_GCDA_DIR"
 echo "BRANCH = $BRANCH"
 
 lcovFunc
 
-COVERAGE_INFO="$TDINTRENAL_DIR/coverage.info"
+COVERAGE_INFO="$TDINTERNAL_DIR/coverage.info"
 OUTPUT_DIR="$CAPTURE_GCDA_DIR/coverage_report"
 # Generate local HTML reports
 genhtml "$COVERAGE_INFO"  --branch-coverage --function-coverage --output-directory "$OUTPUT_DIR"
