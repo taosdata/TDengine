@@ -178,8 +178,15 @@ jobs:
           which taosd
           which taosadapter
           which taoskeeper
+          which taos
           taosd --help
           taosadapter --help
+          ls -l debug/build/bin/taos*
+          ls -l debug/build/bin/libtaos*
+          ls -l debug/build/lib/libtaos*
+          ls -l /usr/local/bin/taos*
+          ls -l /usr/local/bin/libtaos*
+          ls -l /usr/local/lib/libtaos*
 
       - name: Build and install TDengine on Windows
         if: runner.os == 'Windows'
