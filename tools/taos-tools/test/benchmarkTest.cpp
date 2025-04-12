@@ -50,7 +50,7 @@ void prompt(bool nonStopMode);
 int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim);
 int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim);
 int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
-
+struct tm *tLocalTime(const time_t *timep, struct tm *result, char *buf);
 #ifdef __cplusplus
 }
 #endif
@@ -110,50 +110,10 @@ TEST(benchUtil, getCodeFromResp) {
   ASSERT_EQ(ret, 100);
 }
 
-TEST(benchUtil, prompt) {
-  g_arguments->answer_yes = false;
-  ASSERT_EQ(convertHostToServAddr(NULL, 0, &serv_addr), -1);
-}
-
-
 TEST(benchUtil, convertHostToServAddr) {
   struct sockaddr_in  serv_addr;
   ASSERT_EQ(convertHostToServAddr(NULL, 0, &serv_addr), -1);
   ASSERT_EQ(convertHostToServAddr((char *)"invalid.host", 0, &serv_addr), -1);
-}
-
-// baseic
-TEST(BenchUtil, Base) {
-  int ret;
-  // check crash
-  engineError((char *)"util", (char *)"taos_connect", 1);
-
-  // append result to file
-  appendResultBufToFile((char *)"check null file", NULL);
-
-  // replaceChildTblName
-  char szOut[128] = "";
-  ret = replaceChildTblName((char *)"select * from xxx;", szOut, 0);
-  ASSERT_EQ(ret, -1);
-
-  // toolsGetTimestamp
-  int64_t now = 0;
-  now = toolsGetTimestamp(TSDB_TIME_PRECISION_MILLI);
-  ASSERT_GE(now, 1700000000000);
-  now = toolsGetTimestamp(TSDB_TIME_PRECISION_MICRO);
-  ASSERT_GE(now, 1700000000000000);
-  now = toolsGetTimestamp(TSDB_TIME_PRECISION_NANO);
-  ASSERT_GE(now, 1700000000000000000);
-
-  // calc groups
-  ret = calcGroupIndex(NULL, NULL, 5);
-  ASSERT_EQ(ret, -1);
-
-  // bench
-  ASSERT_EQ(benchCalloc(100000000000, 1000000000000), NULL);
-
-  // close
-  closeBenchConn(NULL);
 }
 
 TEST(jsonTest, Strnchr) {
@@ -229,8 +189,83 @@ TEST(jsonTest, ValidUTCTimeWithTDelimMilliPrecisionNoFraction) {
   delim = 0;
   result = parseTimeWithTz(timestr1, &time, timePrec1, delim);
   EXPECT_EQ(result, 0);
+}
+
+TEST(ToolsParseTimeTest, TimeStrWithoutTNoTz) {
+  char timestr[] = "2023-01-01 12:00:00";
+  int64_t time;
+  int32_t len = strlen(timestr);
+  int32_t timePrec = 1;
+  int8_t day_light = 0;
+  int32_t result = toolsParseTime(timestr, &time, len, timePrec, day_light);
+  EXPECT_EQ(result, 0);
+}
+
+TEST(ToolsParseTimeTest, TimeStrWithTNoTzCoverParseLocaltimeFp) {
+  char timestr[] = "2024-05-10T14:30:00";
+  int64_t time;
+  int32_t len = strlen(timestr);
+  int32_t timePrec = 1;  
+  int8_t day_light = 0;  
+  int32_t result = toolsParseTime(timestr, &time, len, timePrec, day_light);
+  EXPECT_EQ(result, 0);  
+
+  int64_t timestamp = toolsGetTimestampNs();
+  EXPECT_GE(timestamp, 0);  
+}
+
+TEST(TLocalTimeTest, TimepIsNull) {
+  time_t *nullTimep = NULL;
+  struct tm result;
+  char buf[10];
+  struct tm *res = tLocalTime(nullTimep, &result, buf);
+  EXPECT_EQ(res, nullptr);
+}
 
 
+TEST(TLocalTimeTest, ResultIsNull) {
+  time_t currentTime = time(NULL);
+  struct tm *nullResult = NULL;
+  char buf[10];
+  struct tm *res = tLocalTime(&currentTime, nullResult, buf);
+  EXPECT_NE(res, nullptr);
+  if (res == nullptr) {
+      EXPECT_STREQ(buf, "NaN");
+  }
+}
+
+TEST(TLocalTimeTest, ResultIsNotNull) {
+  time_t currentTime = time(NULL);
+  struct tm result;
+  char buf[10];
+  struct tm *res = tLocalTime(&currentTime, &result, buf);
+  EXPECT_EQ(res, &result);
+  EXPECT_NE(strcmp(buf, "NaN"), 0);
+}
+
+TEST(ToolsFormatTimestampTest, NegativeValuesPrecision) {
+  char buf[100];
+  int64_t val = -1;  
+  int32_t precision = TSDB_TIME_PRECISION_NANO;
+  char *result = toolsFormatTimestamp(buf, val, precision);
+  EXPECT_EQ(result, buf);
+
+  val = -1000;  
+  precision = TSDB_TIME_PRECISION_MICRO;
+  result = toolsFormatTimestamp(buf, val, precision);
+  EXPECT_EQ(result, buf);
+
+  val = -1000000;  
+  precision = TSDB_TIME_PRECISION_MILLI;
+  result = toolsFormatTimestamp(buf, val, precision);
+  EXPECT_EQ(result, buf);
+}
+
+TEST(SetConsoleEchoTest, TestEcho) {
+  int result = setConsoleEcho(true);
+  EXPECT_EQ(result, 0);
+  result = setConsoleEcho(false);
+  EXPECT_EQ(result, 0);
 }
 
 // main

@@ -10,6 +10,7 @@ IF(TD_LINUX)
     # benchmark
     SET(BENCHMARK_SRC 
         "../src/toolstime.c"
+        "../src/toolsSys.c"
         "../src/benchUtil.c"
         "../src/benchLog.c"
         "../src/toolstime.c"
