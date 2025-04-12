@@ -106,12 +106,6 @@ TEST(benchUtil, getCodeFromResp) {
   ASSERT_EQ(ret, 100);
 }
 
-TEST(benchUtil, prompt) {
-  g_arguments->answer_yes = false;
-  ASSERT_EQ(convertHostToServAddr(NULL, 0, &serv_addr), -1);
-}
-
-
 TEST(benchUtil, convertHostToServAddr) {
   struct sockaddr_in  serv_addr;
   ASSERT_EQ(convertHostToServAddr(NULL, 0, &serv_addr), -1);
@@ -146,7 +140,7 @@ TEST(BenchUtil, Base) {
   ASSERT_EQ(ret, -1);
 
   // bench
-  ASSERT_EQ(benchCalloc(100000000000, 1000000000000), NULL);
+  ASSERT_EQ(benchCalloc(100000000000, 1000000000000, false), NULL);
 
   // close
   closeBenchConn(NULL);
