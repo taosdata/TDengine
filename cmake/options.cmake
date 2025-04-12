@@ -204,8 +204,7 @@ option(
 )
 
 # NOTE: set option variable in this ways is not a good practice
-# TODO: we currently disable this in order to test S3/COS
-IF(FALSE AND NOT TD_ENTERPRISE)
+IF(NOT TD_ENTERPRISE)
   MESSAGE("switch s3 off with community version")
   set(BUILD_S3 OFF)
   set(BUILD_WITH_S3 OFF)
@@ -214,16 +213,14 @@ IF(FALSE AND NOT TD_ENTERPRISE)
 ENDIF ()
 
 # NOTE: set option variable in this ways is not a good practice
-# TODO: we currently disable this in order to test S3/COS
-IF(FALSE AND ${BUILD_WITH_ANALYSIS})
+IF(${BUILD_WITH_ANALYSIS})
     message("build with analysis")
     set(BUILD_S3 ON)
     set(BUILD_WITH_S3 ON)
 ENDIF()
 
 # NOTE: set option variable in this ways is not a good practice
-# TODO: we currently disable this in order to test S3/COS
-IF(FALSE AND ${TD_LINUX})
+IF(${TD_LINUX})
     set(BUILD_WITH_ANALYSIS ON)
 ENDIF()
 

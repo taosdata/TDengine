@@ -4,8 +4,7 @@ target_link_libraries(
   dnode PUBLIC mgmt_mnode mgmt_qnode mgmt_snode mgmt_vnode mgmt_dnode monitorfw tcs
 )
 
-# TODO: we currently enable this in order to test S3/COS
-IF(TRUE OR TD_ENTERPRISE)
+IF(TD_ENTERPRISE)
   IF(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
   ELSEIF(${BUILD_WITH_COS})

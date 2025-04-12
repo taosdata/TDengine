@@ -20,8 +20,7 @@ target_include_directories(
 
 target_link_libraries(taosd PUBLIC dnode crypt)
 
-# TODO: we currently enable this in order to test S3/COS
-if(TRUE OR TD_ENTERPRISE)
+if(TD_ENTERPRISE)
   if(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
   elseif(${BUILD_WITH_COS})
