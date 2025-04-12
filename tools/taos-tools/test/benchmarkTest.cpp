@@ -45,6 +45,7 @@ int getServerVersionRest(int16_t rest_port);
 void appendResultBufToFile(char *resultBuf, char * filePath);
 int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
+void prompt(bool nonStopMode);
 
 #ifdef __cplusplus
 }
@@ -105,6 +106,18 @@ TEST(benchUtil, getCodeFromResp) {
   ASSERT_EQ(ret, 100);
 }
 
+TEST(benchUtil, prompt) {
+  g_arguments->answer_yes = false;
+  ASSERT_EQ(convertHostToServAddr(NULL, 0, &serv_addr), -1);
+}
+
+
+TEST(benchUtil, convertHostToServAddr) {
+  struct sockaddr_in  serv_addr;
+  ASSERT_EQ(convertHostToServAddr(NULL, 0, &serv_addr), -1);
+  ASSERT_EQ(convertHostToServAddr((char *)"invalid.host", 0, &serv_addr), -1);
+}
+
 // baseic
 TEST(BenchUtil, Base) {
   int ret;
@@ -131,6 +144,12 @@ TEST(BenchUtil, Base) {
   // calc groups
   ret = calcGroupIndex(NULL, NULL, 5);
   ASSERT_EQ(ret, -1);
+
+  // bench
+  ASSERT_EQ(benchCalloc(100000000000, 1000000000000), NULL);
+
+  // close
+  closeBenchConn(NULL);
 }
 
 // main

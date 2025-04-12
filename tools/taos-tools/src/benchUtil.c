@@ -33,7 +33,7 @@ FORCE_INLINE void* benchCalloc(size_t nmemb, size_t size, bool record) {
     void* ret = calloc(nmemb, size);
     if (NULL == ret) {
         errorPrint("%s", "failed to allocate memory\n");
-        exit(EXIT_FAILURE);
+        return NULL;
     }
     if (record) {
         g_memoryUsage += nmemb * size;
