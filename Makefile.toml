@@ -792,6 +792,13 @@ exec pnpm run build
 cp ./static ./dist
 """
 
+[tasks.explorer-ui-prod.windows]
+cwd = "explorer"
+script_runner = "@shell"
+script = """
+pnpm install && pnpm run build && cp -r ./static ./dist
+"""
+
 # linux 环境下使用 docker 构建
 [tasks.explorer-ui-prod.linux]
 cwd = "explorer"
