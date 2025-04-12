@@ -18,14 +18,6 @@ IF(TD_WEBSOCKET)
             set(ext_taosws_link     ${ext_taosws_lib_to})
         endif()
 
-        macro(DEP_ext_taosws tgt)        # {
-          target_include_directories(${tgt}
-              PUBLIC ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws)
-          target_link_libraries(${tgt}
-              PRIVATE ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_link})
-          add_dependencies(${tgt} ext_taosws)
-        endmacro()                       # }
-
         get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
         ExternalProject_Add(ext_taosws
             GIT_REPOSITORY ${_git_url}
@@ -49,13 +41,8 @@ IF(TD_WEBSOCKET)
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
-        add_library(ext_taosws_imp STATIC IMPORTED)
-        set_target_properties(ext_taosws_imp PROPERTIES
-            IMPORTED_LOCATION
-                ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
-                ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
-                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws/taosws.h
-        )
+        add_custom_target(build_ext_taosws ALL)
+        add_dependencies(build_ext_taosws ext_taosws)
 ENDIF()
 
 IF(TD_TAOS_TOOLS)
@@ -177,8 +164,8 @@ ELSE()
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
-				add_custom_target(build_ext_taosadapter ALL)
-				add_dependencies(build_ext_taosadapter ext_taosadapter)
+        add_custom_target(build_ext_taosadapter ALL)
+        add_dependencies(build_ext_taosadapter ext_taosadapter)
 ENDIF()
 
 IF(TD_BUILD_KEEPER)
@@ -237,6 +224,6 @@ IF(TD_BUILD_KEEPER)
             COMMAND cmake -E echo "Copy taoskeeper.service"
             COMMAND cmake -E copy_if_different ./taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/taoskeeper.service
         )
-		add_custom_target(build_taoskeeper ALL)
-		add_dependencies(build_taoskeeper taoskeeper)
+    add_custom_target(build_taoskeeper ALL)
+    add_dependencies(build_taoskeeper taoskeeper)
 ENDIF()

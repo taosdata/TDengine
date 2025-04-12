@@ -120,11 +120,6 @@ ENDIF ()
 target_link_libraries(taosdump PRIVATE toolscJson)
 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE toolscJson)
 
-IF (${WEBSOCKET})
-    DEP_ext_taosws(taosBenchmark)
-    DEP_ext_taosws(taosdump)
-ENDIF ()
-
 TARGET_LINK_LIBRARIES(taosdump PRIVATE taos)
 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos)
 

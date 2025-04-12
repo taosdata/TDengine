@@ -57,9 +57,6 @@ IF(TD_LINUX)
     # shell_ut library
     add_library(shell_ut STATIC ${SHELL_SRC} ../src/pub.c)
 
-    IF(TD_WEBSOCKET)
-        DEP_ext_taosws(shell_ut)
-    ENDIF()
     target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
     target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
