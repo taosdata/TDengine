@@ -1,71 +1,55 @@
 #include "streamRunner.h"
 #include "executor.h"
 
+static const int32_t taskConcurrentExecutionNum = 4;  // TODO wjm make it configurable
+                                                      //
+static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask) {
+  SStreamRunnerTaskExecMgr*  pMgr = &pTask->pExecMgr;
+  SStreamRunnerTaskExecution exec = {.pExecutor = NULL, .pPlan = pTask->pPlan};
+  int32_t                    code = 0;
+  code = taosThreadMutexInit(&pMgr->lock, 0);
+  if (code != 0) {
+    stError("failed to init stream runner task mgr mutex(%" PRId64 ", %" PRId64 "), code:%s",
+            pTask->streamTask.streamId, pTask->streamTask.taskId, tstrerror(code));
+    return code;
+  }
+  pMgr->pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
+  if (!pMgr->pFreeExecs) return terrno;
 
-typedef struct SStreamTaskExecutionInfo {
-  int32_t        parallelExecutionNun;
-  TdThreadRwlock lock;
-  SArray*        pExecTaskInfos;
-} SStreamTaskExecInfo;
+  for (int32_t i = 0; i < taskConcurrentExecutionNum && code == 0; ++i) {
+    code = tdListAppend(pMgr->pFreeExecs, &exec);
+  }
+  if (code != 0) return code;
 
-typedef struct SStreamRunnerMgr {
-  void*          pNode;
-  TdThreadRwlock lock;
-  int32_t        vgId;
-  SHashObj*      pTaskMap;
-  int32_t        (*initTask)(SStreamTask* pTask);
-  int32_t        (*buildTask)(SStreamTask* pTask);
-} SStreamRunnerMgr;
-
-typedef struct SStreamTaskId {
-  int64_t streamId;
-  int64_t taskId;
-} SStreamTaskId;
-
-static int32_t stRunnerDoExecuteTask(SStreamRunnerMgr* pMgr, SStreamTask* pTask);
-
-static int32_t stRunnerBuildTask(SStreamRunnerMgr* pMgr, SStreamTask* pTask) {
-  int32_t code = 0;
-  SReadHandle pReader = {};
-  qCreateStreamExecTaskInfo(0, 0, 0, 0, 0);
+  pMgr->pRunningExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
+  if (!pMgr->pRunningExecs) return terrno;
   return 0;
 }
 
-static int32_t stRunnerDoExecuteTask(SStreamRunnerMgr* pMgr, SStreamTask* pTask) {
-  int32_t              code = 0;
-  static const int32_t taskConcurrentExecutionNum = 4; // TODO wjm make it configurable
-  SStreamTaskExecInfo* pTaskExecInfo = NULL;
-  //pTaskExecInfo = (SStreamTaskExecInfo*)pTask->pTaskInfo;
+static int32_t stRunnerTaskExecMgrGetExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution** ppExec) {
+  SStreamRunnerTaskExecMgr* pMgr = &pTask->pExecMgr;
+  int32_t                   code = 0;
+  taosThreadMutexLock(&pMgr->lock);
+  if (pMgr->pFreeExecs->dl_neles_ > 0) {
+    SListNode* pNode = tdListPopHead(pMgr->pFreeExecs);
+    tdListAppendNode(pTask->pExecMgr.pRunningExecs, pNode);
+    *ppExec = (SStreamRunnerTaskExecution*)pNode->data;
+  } else {
+    stError("too many exec tasks scheduled (%" PRId64 ",%" PRId64 ")", pTask->streamTask.streamId,
+            pTask->streamTask.taskId);
+    code = TSDB_CODE_INTERNAL_ERROR;
+  }
+  taosThreadMutexUnlock(&pMgr->lock);
+  return code;
+}
 
-  int32_t curRunningNum = pTaskExecInfo->parallelExecutionNun;
-  while (curRunningNum < taskConcurrentExecutionNum) {
-    int32_t newVal = atomic_val_compare_exchange_32(&pTaskExecInfo->parallelExecutionNun, curRunningNum, curRunningNum + 1);
-    if (newVal == curRunningNum + 1) {
-      break;
-    } else {
-      curRunningNum = newVal;
-    }
-  }
-  if (curRunningNum >= taskConcurrentExecutionNum) {
-    stError("vgId:%d failed to exec task: (%" PRId64 ", %" PRId64 "), already have %d running", pMgr->vgId,
-            pTask->streamId, pTask->taskId, curRunningNum);
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;  // TODO wjm define the error code
-  }
-  // try build this task and execute it
-  code = pMgr->buildTask(pTask);
-  if (code != 0) {
-    stError("vgId:%d failed to build task (%" PRId64 ", %" PRId64 "), code:%s", pMgr->vgId, pTask->streamId,
-            pTask->taskId, tstrerror(code));
-    atomic_fetch_sub_32(&pTaskExecInfo->parallelExecutionNun, 1);
-    return code;
-  }
-  void* pTaskInfo = taosArrayGet(pTaskExecInfo->pExecTaskInfos, curRunningNum);
-  if (!pTaskInfo) {
-    stError("vgId:%d failed to get task info for task (%" PRId64 ", %" PRId64 "), code:%s", pMgr->vgId, pTask->streamId,
-            pTask->taskId, tstrerror(code));
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;  // TODO wjm define the error code
-  }
-  return 0;
+static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
+  SStreamRunnerTaskExecMgr* pMgr = &pTask->pExecMgr;
+  taosThreadMutexLock(&pMgr->lock);
+  SListNode* pNode = listNode(pExec);
+  pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
+  tdListAppendNode(pMgr->pFreeExecs, pNode);
+  taosThreadMutexUnlock(&pMgr->lock);
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask** ppTask, const SStreamRunnerDeployMsg* pMsg) {
@@ -77,6 +61,15 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask** ppTask, const SStreamRunnerDeploy
   }
   pTask->streamTask = pMsg->task;
   pTask->buildTaskFn = pMsg->buildTaskFn;
+  pTask->pPlan = pMsg->pPlan;  // TODO wjm do we need to deep copy this char*
+  int32_t code = stRunnerInitTaskExecMgr(pTask);
+  if (code != 0) {
+    stError("failed to init task exec mgr %" PRId64 ", %" PRId64 "), code:%s", pTask->streamTask.streamId,
+            pTask->streamTask.taskId, tstrerror(code));
+    taosMemoryFree(pTask);
+    return code;
+  }
+
   *ppTask = pTask;
   return 0;
 }
@@ -87,13 +80,48 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamRunnerUndepl
   return 0;
 }
 
+static int32_t stRunnerTryGetExecTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution** ppExec) {
+  int32_t                     code = 0;
+  SStreamRunnerTaskExecution* pExec = NULL;
+  code = stRunnerTryGetExecTask(pTask, &pExec);
+  if (code == 0) {
+    if (!pExec->pExecutor) {
+      code = pTask->buildTaskFn(pTask, pExec);
+    } else {
+      // TODO wjm clear all states in this pExecTask
+    }
+    *ppExec = pExec;
+  }
+  return code;
+}
+
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, const char* pMsg, int32_t msgLen) {
-  int32_t code = pTask->buildTaskFn(pTask);
+  SStreamRunnerTaskExecution* pExec = NULL;
+  int32_t                     code = stRunnerTryGetExecTask(pTask, &pExec);
   if (code != 0) {
     stError("failed to build task (%" PRId64 ", %" PRId64 "), code:%s", pTask->streamTask.streamId,
             pTask->streamTask.taskId, tstrerror(code));
     return code;
   }
+
+  SSDataBlock* pBlock = NULL;
+  uint64_t     ts = 0;
+  code = qExecTask(pExec->pExecutor, &pBlock, &ts);
+  if (code != 0) {
+    stError("failed to exec task (%" PRId64 ", %" PRId64 ") code: %s", pTask->streamTask.streamId,
+            pTask->streamTask.taskId, tstrerror(code));
+    return code;
+  }
+  // reset state in all operators
+  if (!pBlock && pTask->forceWindowClose) {
+    // add one dummy row if force_window_close
+    // how to get the schema???
+  }
+
+  if (pBlock && pBlock->info.rows > 0) {
+    // dump blocks to DataInserter
+  }
+  stRunnerTaskExecMgrReleaseExec(pTask, pExec);
   return code;
 }
 

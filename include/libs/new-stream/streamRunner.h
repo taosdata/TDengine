@@ -18,30 +18,51 @@
 
 #include <stdint.h>
 #include "stream.h"
+#include "tlist.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+struct SStreamRunnerTaskExecution;
 struct SStreamRunnerTask;
-typedef int32_t (*StreamBuildTaskFn)(struct SStreamRunnerTask* pTask);
+typedef int32_t (*StreamBuildTaskExecFn)(const struct SStreamRunnerTask*    pTask,
+                                         struct SStreamRunnerTaskExecution* pTaskExec);
+
+typedef struct SStreamRunnerTaskExecution {
+  const char* pPlan;
+  void*       pExecutor;
+} SStreamRunnerTaskExecution;
+
+typedef struct SStreamRunnerTaskOutput {
+} SStreamRunnerTaskOutput;
+
+typedef struct SStreamRunnerTaskExecMgr {
+  SList*        pFreeExecs;
+  SList*        pRunningExecs;
+  TdThreadMutex lock;
+} SStreamRunnerTaskExecMgr;
 
 typedef struct SStreamRunnerTask {
-  SStreamTask       streamTask;
-  const char*       pMsg;
-  void*             pExecutor;
-  StreamBuildTaskFn buildTaskFn;
+  SStreamTask              streamTask;
+  StreamBuildTaskExecFn    buildTaskFn;
+  SStreamRunnerTaskExecMgr pExecMgr;
+  SStreamRunnerTaskOutput  output;
+  bool                     forceWindowClose;
+  const char*              pPlan;
+  int32_t                  parallelExecutionNun;
 } SStreamRunnerTask;
 
 typedef struct SStreamRunnerDeployMsg {
-  SStreamTask       task;
-  const char*       pPlan;
-  StreamBuildTaskFn buildTaskFn;
+  SStreamTask           task;
+  const char*           pPlan;
+  StreamBuildTaskExecFn buildTaskFn;
+  bool                  forceWindowClose;
 } SStreamRunnerDeployMsg;
 struct SStreamRunnerUndeployMsg;
 struct SStreamRunnerTaskStatus;
 
 typedef struct SStreamRunaaaanerUndeployMsg SStreamRunnerUndeployMsg;
-typedef struct SStreamRunnerTaskStatus  SStreamRunnerTaskStatus;
+typedef struct SStreamRunnerTaskStatus      SStreamRunnerTaskStatus;
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask** pTask, const SStreamRunnerDeployMsg* pMsg);
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask* pTask, const SStreamRunnerUndeployMsg* pMsg);
