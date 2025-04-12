@@ -148,7 +148,8 @@ ELSE()
         get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
         ExternalProject_Add(ext_taosadapter
             GIT_REPOSITORY ${_git_url}
-            GIT_TAG ver-3.3.6.0
+            #GIT_TAG ver-3.3.6.0
+            GIT_TAG ver-3.3.6.3
             GIT_SHALLOW TRUE
             BUILD_IN_SOURCE TRUE
             DEPENDS ${TAOS_NATIVE_LIB}
