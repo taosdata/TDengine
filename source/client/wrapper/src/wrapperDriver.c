@@ -76,7 +76,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   }
 
   if (tsDriver == NULL) {
-    printf("failed to load %s since %s [0x%X]\r\n", driverName, terrstr(), terrno);
+    printf("failed to load %s (%s) since %s [0x%X]\r\n", driverName, driverPath, terrstr(), terrno);
     return code;
   }
 
