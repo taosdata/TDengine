@@ -100,6 +100,8 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
+,,y,army,./pytest.sh python3 ./test.py -f inspect-tools/taosinspect.py
+
 #
 # army/tools
 #
