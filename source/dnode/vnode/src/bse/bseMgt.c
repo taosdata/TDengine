@@ -85,7 +85,7 @@ static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int
 
 _err:
   if (code != 0) {
-    bseError("vgId:%d, %s failed at line %d since %s", pBse->cfg.vgId, __func__, line, tstrerror(code));
+    bseError("vgId:%d failed at line %d since %s", pBse->cfg.vgId, line, tstrerror(code));
     cJSON_Delete(pFileSet);
   }
   cJSON_Delete(pRoot);
@@ -130,7 +130,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d, failed to read current since %s at line %d", pBse->cfg.vgId, tstrerror(code), lino);
+    bseError("vgId:%d, failed to read current at line %d since %s", pBse->cfg.vgId, lino, tstrerror(code));
     taosCloseFile(&fd);
     taosMemoryFree(pCurrent);
   }
@@ -476,7 +476,7 @@ int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch) {
   }
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to append batch since %s at line %d", BSE_GET_VGID(pBse), tstrerror(code), lino);
+    bseError("vgId:%d failed to append batch at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
   }
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
@@ -514,7 +514,7 @@ static int32_t bseBatchMgtInit(SBatchMgt *pBatchMgt, SBse *pBse) {
   BSE_QUEUE_INIT(&pBatchMgt->queue);
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to init batch mgt since %s at line %d", BSE_GET_VGID(pBse), tstrerror(code), lino);
+    bseError("vgId:%d failed to init batch mgt at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
   }
   return code;
 }
@@ -570,8 +570,8 @@ static int32_t bseBatchMgtGet(SBatchMgt *pBatchMgt, SBseBatch **pBatch) {
 
 _error:
   if (code != 0) {
-    bseInfo("vgId:%d failed to get bse batch since %s at line %d", BSE_GET_VGID((SBse *)pBatchMgt->pBse),
-            tstrerror(code), lino);
+    bseInfo("vgId:%d failed to get bse batch at line %d since %s", BSE_GET_VGID((SBse *)pBatchMgt->pBse), lino,
+            tstrerror(code));
   }
   return code;
 }
@@ -642,7 +642,6 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
 _error:
   if (code != 0) {
     bseError("vgId:%d failed to build batch since %s", BSE_GET_VGID((SBse *)p->pBse), tstrerror(code));
-    BSE_QUEUE_REMOVE(&p->node);
     bseBatchDestroy(p);
   }
   return code;
@@ -677,8 +676,8 @@ int32_t bseBatchPut(SBseBatch *pBatch, int64_t *seq, uint8_t *value, int32_t len
 
 _error:
   if (code != 0) {
-    bseError("vgId:%d failed to put value by seq %" PRId64 " since %s at lino %d", BSE_GET_VGID((SBse *)pBatch->pBse),
-             lseq, tstrerror(code), lino);
+    bseError("vgId:%d failed to put value by seq %" PRId64 " at line %d since %s", BSE_GET_VGID((SBse *)pBatch->pBse),
+             lseq, lino, tstrerror(code));
   }
   return code;
 }
@@ -712,6 +711,7 @@ int32_t bseBatchDestroy(SBseBatch *pBatch) {
   int32_t code = 0;
   taosMemoryFree(pBatch->buf);
   taosArrayDestroy(pBatch->pSeq);
+  BSE_QUEUE_REMOVE(&pBatch->node);
 
   taosMemoryFree(pBatch);
   return code;
@@ -743,7 +743,7 @@ _error:
   return code;
 }
 
-int32_t seqComparFunc(const void *p1, const void *p2) {
+static int32_t seqComparFunc(const void *p1, const void *p2) {
   uint64_t pu1 = *(const uint64_t *)p1;
   uint64_t pu2 = *(const uint64_t *)p2;
   if (pu1 == pu2) {
@@ -988,7 +988,7 @@ int32_t bseUpdatCfgNoLock(SBse *pBse, SBseCfg *pCfg) {
   }
   return code;
 }
-int32_t bseUpdateCompresType(SBse *pBse, int8_t compressType) {
+int32_t bseSetCompressType(SBse *pBse, int8_t compressType) {
   int32_t code = 0;
   if (compressType < kNoCompres || compressType > kZxCompress) {
     return TSDB_CODE_INVALID_MSG;
@@ -999,7 +999,7 @@ int32_t bseUpdateCompresType(SBse *pBse, int8_t compressType) {
 
   return code;
 }
-int32_t bseUpdateBlockSize(SBse *pBse, int32_t blockSize) {
+int32_t bseSetBlockSize(SBse *pBse, int32_t blockSize) {
   int32_t code = 0;
   if (blockSize <= 0) {
     return TSDB_CODE_INVALID_MSG;
@@ -1010,29 +1010,33 @@ int32_t bseUpdateBlockSize(SBse *pBse, int32_t blockSize) {
 
   return code;
 }
-int32_t bseUpdateBlockCacheSize(SBse *pBse, int32_t blockCacheSize) {
+int32_t bseSetBlockCacheSize(SBse *pBse, int32_t blockCacheSize) {
   int32_t code = 0;
   if (blockCacheSize <= 0) {
     return TSDB_CODE_INVALID_MSG;
   }
   taosThreadMutexLock(&pBse->mutex);
   pBse->cfg.blockCacheSize = blockCacheSize;
+
+  code = bseTableMgtSetBlockCacheSize(pBse->pTableMgt, blockCacheSize);
   taosThreadMutexUnlock(&pBse->mutex);
 
   return code;
 }
-int32_t bseUpdateTableCacheSize(SBse *pBse, int32_t blockCacheSize) {
+int32_t bseSetTableCacheSize(SBse *pBse, int32_t tableCacheSize) {
   int32_t code = 0;
-  if (blockCacheSize <= 0) {
+  if (tableCacheSize <= 0) {
     return TSDB_CODE_INVALID_MSG;
   }
   taosThreadMutexLock(&pBse->mutex);
-  pBse->cfg.tableCacheSize = blockCacheSize;
+
+  pBse->cfg.tableCacheSize = tableCacheSize;
+  code = bseTableMgtSetTableCacheSize(pBse->pTableMgt, tableCacheSize);
   taosThreadMutexUnlock(&pBse->mutex);
 
   return code;
 }
-int32_t bseUpdateKeepDays(SBse *pBse, int32_t keepDays) {
+int32_t bseSetKeepDays(SBse *pBse, int32_t keepDays) {
   int32_t code = 0;
   if (keepDays <= 0) {
     return TSDB_CODE_INVALID_MSG;

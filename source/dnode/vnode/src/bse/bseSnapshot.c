@@ -37,8 +37,8 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
   if (p == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
-  SSeqRange *range = &pMeta->range;
 
+  SSeqRange *range = &pMeta->range;
   bseBuildDataName(p->pBse, range->sseq, p->name);
 
   char path[TSDB_FILENAME_LEN] = {0};
@@ -57,7 +57,7 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
 _error:
   if (code) {
     if (p != NULL) {
-      bseError("vgId:%d failed to open table pWriter at line %d since %s at line %d", BSE_GET_VGID((SBse *)pBse), lino,
+      bseError("vgId:%d failed to open table pWriter at line %d since %s", BSE_GET_VGID((SBse *)pBse), lino,
                tstrerror(code));
       bseRawFileWriterClose(p, 0);
     }
@@ -96,6 +96,7 @@ void bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo) {
   pInfo->size = p->offset;
   memcpy(pInfo->name, p->name, sizeof(p->name));
 }
+
 static int32_t bseSnapShouldOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMeta) {
   int32_t code = 0;
 
@@ -136,6 +137,7 @@ int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter
   if (p == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   p->pFileSet = taosArrayInit(128, sizeof(SBseLiveFileInfo));
   if (p->pFileSet == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
@@ -146,7 +148,7 @@ int32_t bseSnapWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapWriter
 _error:
   if (code) {
     if (p != NULL) {
-      bseError("vgId:%d failed to open table pWriter at line %d since %s at line %d", BSE_GET_VGID((SBse *)pBse), lino,
+      bseError("vgId:%d failed to open table pWriter at line %d since %s", BSE_GET_VGID((SBse *)pBse), lino,
                tstrerror(code));
       bseSnapWriterClose(&p, 0);
     }
@@ -214,7 +216,7 @@ int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader
 _error:
   if (code) {
     if (p != NULL) {
-      bseError("vgId:%d failed to open table pReader at line %d since %s at line %d", BSE_GET_VGID((SBse *)pBse), lino,
+      bseError("vgId:%d failed to open table pReader at line %d since %s", BSE_GET_VGID((SBse *)pBse), lino,
                tstrerror(code));
       bseSnapReaderClose(&p);
     }

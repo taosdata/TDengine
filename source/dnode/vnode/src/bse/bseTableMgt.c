@@ -57,8 +57,8 @@ int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
 _error:
   if (code != 0) {
     if (p != NULL)
-      bseError("vgId:%d failed to open table pBuilderMgt since %s at line %d", BSE_GET_VGID((SBse *)p->pBse),
-               tstrerror(code), lino);
+      bseError("vgId:%d failed to open table pBuilderMgt at line %d since %s", BSE_GET_VGID((SBse *)p->pBse), lino,
+               tstrerror(code));
     bseTableMgtCleanup(p);
   }
   return code;
@@ -137,6 +137,14 @@ int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileSet) {
   return tableReaderMgtAddLiveFileSet(pMgt->pReaderMgt, pLiveFileSet);
 }
 
+int32_t bseTableMgtSetBlockCacheSize(STableMgt *pMgt, int32_t cap) {
+  return blockCacheResize(pMgt->pReaderMgt->pBlockCache, cap);
+}
+
+int32_t bseTableMgtSetTableCacheSize(STableMgt *pMgt, int32_t cap) {
+  return tableCacheResize(pMgt->pReaderMgt->pTableCache, cap);
+}
+
 int32_t bseTableMgtClear(STableMgt *pMgt) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -185,7 +193,7 @@ int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse) {
 
 _error:
   if (code != 0) {
-    bseError("failed to init table pReaderMgt mgt since %s at line %d", tstrerror(code), lino);
+    bseError("failed to init table pReaderMgt mgt at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -260,7 +268,7 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
       if (pReader->putInCache == 1) {
         code = tableCachePut(pReaderMgt->pTableCache, &range, pReader);
         if (code != 0) {
-          bseError("failed to put table reader to cache since %s at line %d", tstrerror(code), lino);
+          bseError("failed to put table reader to cache at lino %d since %s", lino, tstrerror(code));
           TSDB_CHECK_CODE(code, lino, _error);
         }
       }
@@ -275,7 +283,7 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
   }
 _error:
   if (code != 0) {
-    bseError("failed to seek table pReaderMgt since %s at line %d", tstrerror(code), lino);
+    bseError("failed to seek table pReaderMgt at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -317,7 +325,7 @@ int32_t tableReaderMgtAddLiveFileSet(STableReaderMgt *pReader, SArray *pFileSet)
   }
 _error:
   if (code != 0) {
-    bseError("failed to recover table pReaderMgt since %s at line %d", tstrerror(code), lino);
+    bseError("failed to recover table pReaderMgt at line %d since %s", lino, tstrerror(code));
   }
   taosThreadRwlockUnlock(&pReader->mutex);
   return code;

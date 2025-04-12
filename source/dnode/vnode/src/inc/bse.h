@@ -63,11 +63,11 @@ int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
 
 int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg);
 
-int32_t bseUpdateCompresType(SBse *pBse, int8_t compressType);
-int32_t bseUpdateBlockSize(SBse *pBse, int32_t blockSize);
-int32_t bseUpdateBlockCacheSize(SBse *pBse, int32_t blockCacheSize);
-int32_t bseUpdateTableCacheSize(SBse *pBse, int32_t blockCacheSize);
-int32_t bseUpdateKeepDays(SBse *pBse, int32_t keepDays);
+int32_t bseSetCompressType(SBse *pBse, int8_t compressType);
+int32_t bseSetBlockSize(SBse *pBse, int32_t blockSize);
+int32_t bseSetBlockCacheSize(SBse *pBse, int32_t blockCacheSize);
+int32_t bseSetTableCacheSize(SBse *pBse, int32_t blockCacheSize);
+int32_t bseSetKeepDays(SBse *pBse, int32_t keepDays);
 
 #define BSE_GET_BLOCK_SIZE(p)       ((p)->cfg.blockSize)
 #define BSE_GET_COMPRESS_TYPE(p)    ((p)->cfg.compressType)

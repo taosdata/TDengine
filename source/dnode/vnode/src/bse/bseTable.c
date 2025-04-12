@@ -115,7 +115,7 @@ int32_t tableBuilderSeekData(STableBuilder *p, SBlkHandle *pHandle, int64_t seq,
   blockWrapperCleanup(&blockWrapper);
 _error:
   if (code != 0) {
-    bseError("failed to seek data from table builder since %s at line %d", tstrerror(code), lino);
+    bseError("failed to seek data from table builder at lino %d ince %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -129,7 +129,7 @@ int32_t tableBuilderLoadBlock(STableBuilder *p, SBlkHandle *pHandle, SBlockWrapp
   code = tableLoadBlock(p->pDataFile, pHandle, pBlkWrapper);
 _error:
   if (code != 0) {
-    bseError("failed to load block from table builder since %s at line %d", tstrerror(code), lino);
+    bseError("failed to load block from table builder at lino %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -172,7 +172,7 @@ int32_t tableBuilderOpen(char *path, STableBuilder **pBuilder, SBse *pBse) {
 _error:
   if (code != 0) {
     (void)tableBuilderClose(p, 0);
-    bseError("failed to open table builder since %s at line %d", tstrerror(code), lino);
+    bseError("failed to open table builder at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -193,7 +193,7 @@ int32_t tableBuilderOpenFile(STableBuilder *p) {
 
 _error:
   if (code != 0) {
-    bseError("failed to reinit table builder since %s at line %d", tstrerror(code), lino);
+    bseError("failed to reinit table builder at lino %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -216,7 +216,7 @@ int32_t tableBuildAddFooter(STableBuilder *p) {
 
 _error:
   if (code != 0) {
-    bseError("failed to add footer to table builder since %s at line %d", tstrerror(code), lino);
+    bseError("failed to add footer to table builder at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -290,7 +290,7 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
   blockWrapperCleanup(&wrapper);
 _error:
   if (code != 0) {
-    bseError("failed to flush table builder since %s at line %d", tstrerror(code), lino);
+    bseError("failed to flush table builder at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -383,7 +383,7 @@ int32_t tableBuilderPut(STableBuilder *p, int64_t *seq, uint8_t *value, int32_t 
 
 _error:
   if (code != 0) {
-    bseError("failed to put value by seq %" PRId64 " since %s at lino %d", *seq, tstrerror(code), lino);
+    bseError("failed to put value by seq %" PRId64 " at line %d since %s", *seq, lino, tstrerror(code));
   }
   return code;
 }
@@ -464,7 +464,7 @@ int32_t tableBuildAddMetaBlock(STableBuilder *p) {
 
 _error:
   if (code != 0) {
-    bseError("failed to add meta block to table builder since %s at line %d", tstrerror(code), 0);
+    bseError("failed to add meta block to table builder at line %d since %s", 0, tstrerror(code));
   }
   return code;
 }
@@ -503,7 +503,7 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
   return code;
 _error:
   if (code != 0) {
-    bseError("failed to commit table builder since %s at line %d", tstrerror(code), lino);
+    bseError("failed to commit table builder at line %d since %s ", lino, tstrerror(code));
   } else {
     bseInfo("succ to commit table %s", p->name);
   }
@@ -555,7 +555,7 @@ int32_t tableReadLoadFooter(STableReader *p) {
 
 _error:
   if (code != 0) {
-    bseError("failed to load table footer since %s at lino", tstrerror(code), lino);
+    bseError("failed to load table footer at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -576,7 +576,7 @@ int32_t tableReaderInitMeta(STableReader *pReader, SBlock *p) {
 
 _error:
   if (code != 0) {
-    bseError("failed to load meta from table pReaderMgt since %s at line %d", tstrerror(code), lino);
+    bseError("failed to load meta from table pReaderMgt at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -641,7 +641,7 @@ int32_t tableReaderLoadRawBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrap
 
 _error:
   if (code != 0) {
-    bseError("table reader failed to load block since %s at line %d", tstrerror(code), lino);
+    bseError("table reader failed to load block at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -661,7 +661,7 @@ int32_t tableReaderLoadRawMeta(STableReader *p, SBlockWrapper *blkWrapper) {
   addSnapmetaToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_META_TYPE, 365);
 _error:
   if (code != 0) {
-    bseError("failed to load raw meta from table pReaderMgt since %s at line %d", tstrerror(code), lino);
+    bseError("failed to load raw meta from table pReaderMgt at line %d lino since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -684,7 +684,7 @@ int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
   addSnapmetaToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_FOOTER_TYPE, 365);
 _error:
   if (code != 0) {
-    bseError("failed to load raw footer from table pReaderMgt since %s at line %d", tstrerror(code), lino);
+    bseError("failed to load raw footer from table pReaderMgt at lino %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -717,7 +717,7 @@ int32_t tableReadOpenImpl(STableReader *p) {
 
 _error:
   if (code != 0) {
-    bseError("failed to init table pReaderMgt name %s since %s at line %d", p->name, tstrerror(code), lino);
+    bseError("failed to init table pReaderMgt name %s at line %d since %s", p->name, lino, tstrerror(code));
   }
   return code;
 }
@@ -754,7 +754,7 @@ int32_t tableReaderOpen(char *name, STableReader **pReader, void *pReaderMgt) {
 _error:
   if (code != 0) {
     tableReaderClose(p);
-    bseError("failed to open table pReaderMgt file %s since %s at line %d", name, tstrerror(code), lino);
+    bseError("failed to open table pReaderMgt file %s at line %d since %s", name, lino, tstrerror(code));
   }
   return code;
 }
@@ -788,7 +788,7 @@ int32_t tableReaderGetMeta(STableReader *p, SArray **pMeta) {
 
 _error:
   if (code != 0) {
-    bseError("failed to get table reader meta since %s at line %d", tstrerror(code), lino);
+    bseError("failed to get table reader meta at lino %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -830,7 +830,7 @@ int32_t tableReaderLoadBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper
 
 _error:
   if (code != 0) {
-    bseError("table reader failed to load block since %s at line %d", tstrerror(code), lino);
+    bseError("table reader failed to load block at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -856,7 +856,7 @@ int32_t tableReaderSeekData(STableReader *p, SBlkHandle *pHandle, int64_t seq, u
 
 _error:
   if (code != 0) {
-    bseError("failed to seek data from table reader since %s at line %d", tstrerror(code), lino);
+    bseError("failed to seek data from table reader at lino %d since %s", lino, tstrerror(code));
   }
   blockWrapperCleanup(&wrapper);
   return code;
@@ -1054,7 +1054,7 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
   }
 _error:
   if (code != 0) {
-    bseError("failed to load block since %s at line %d", tstrerror(code), lino);
+    bseError("failed to load block at lino %d since %s", lino, tstrerror(code));
   }
   blockWrapperCleanup(&pHelp);
   return code;
@@ -1082,7 +1082,7 @@ int32_t tableLoadRawBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *p
   pBlkW->size = pHandle->size + sizeof(SBseSnapMeta);
 _error:
   if (code != 0) {
-    bseError("failed to load block since %s at line %d", tstrerror(code), lino);
+    bseError("failed to load block at lino %d since %s", lino, tstrerror(code));
   }
   return code;
 }

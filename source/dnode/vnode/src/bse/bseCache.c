@@ -71,7 +71,7 @@ int32_t lruCacheCreate(int32_t cap, int32_t keySize, CacheElemFn freeElemFunc, S
 _error:
   if (code != 0) {
     lruCacheFree(p);
-    bseError("failed to create cache lru at line %d since %d", lino, tstrerror(code));
+    bseError("failed to create cache lru at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -110,7 +110,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
   if (ppItem != NULL && *ppItem != NULL) {
     SCacheItem *pItem = (SCacheItem *)*ppItem;
-    SListNode  *t = tdListPopNode(pCache->lruList, pItem->pNode);
+    (void)(tdListPopNode(pCache->lruList, pItem->pNode));
 
     bseCacheRefItem(pItem);
     (void)taosHashRemove(pCache->pCache, key, keyLen);
@@ -149,7 +149,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
 
 _error:
   if (code != 0) {
-    bseError("failed to put cache lru at line %d since %d", __LINE__, tstrerror(code));
+    bseError("failed to put cache lru at line %d since %s", lino, tstrerror(code));
   } else {
     pCache->size++;
   }
@@ -166,16 +166,15 @@ int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) 
   }
   SCacheItem *pItem = (SCacheItem *)*ppItem;
 
-  SListNode *pNode = tdListPopNode(pCache->lruList, pItem->pNode);
-  bseCacheUnrefItem(pItem);
-
   code = taosHashRemove(pCache->pCache, key, keyLen);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  taosMemFreeClear(pNode);
+  (void)tdListPopNode(pCache->lruList, pItem->pNode);
+  bseCacheUnrefItem(pItem);
+
 _error:
   if (code != 0) {
-    bseError("failed to remove cache lru at line %d since %d", lino, tstrerror(code));
+    bseError("failed to remove cache lru at line %d since %s", lino, tstrerror(code));
   } else {
     pCache->size--;
   }
@@ -198,7 +197,7 @@ int32_t lruCacheResize(SLruCache *pCache, int32_t newCap) {
   }
 _error:
   if (code != 0) {
-    bseError("failed to resize cache lru at line %d since %d", lino, tstrerror(code));
+    bseError("failed to resize cache lru at line %d since %s", lino, tstrerror(code));
   }
   taosThreadMutexUnlock(&pCache->mutex);
   return code;
@@ -216,11 +215,13 @@ int32_t lruCacheRemove(SLruCache *pCache, SSeqRange *key, int32_t keyLen) {
 void lruCacheFree(SLruCache *pCache) {
   taosHashCleanup(pCache->pCache);
 
-  while (isListEmpty(pCache->lruList) == 0) {
-    SListNode  *pNode = tdListPopTail(pCache->lruList);
+  while (!isListEmpty(pCache->lruList)) {
+    SListNode *pNode = tdListPopTail(pCache->lruList);
+    if (pNode == NULL) {
+      break;
+    }
     SCacheItem *pCacheItem = *(SCacheItem **)pNode->data;
     bseCacheUnrefItem(pCacheItem);
-    taosMemoryFree(pNode);
   }
 
   tdListFree(pCache->lruList);
@@ -231,12 +232,11 @@ void lruCacheFree(SLruCache *pCache) {
 }
 int32_t lruCacheClear(SLruCache *pCache) {
   taosThreadMutexLock(&pCache->mutex);
-  while (isListEmpty(pCache->lruList) == 0) {
+  while (!isListEmpty(pCache->lruList)) {
     SListNode *pNode = tdListPopTail(pCache->lruList);
 
     SCacheItem *pCacheItem = *(SCacheItem **)pNode->data;
     bseCacheUnrefItem(pCacheItem);
-    taosMemFreeClear(pNode);
   }
 
   taosHashClear(pCache->pCache);
@@ -265,7 +265,7 @@ int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p) {
   *p = pCache;
 _error:
   if (code != 0) {
-    bseError("failed to create table cache at line %d since %d", __LINE__, tstrerror(code));
+    bseError("failed to create table cache at line %d since %s", line, tstrerror(code));
   }
   return code;
 }
@@ -310,7 +310,7 @@ int32_t tableCachePut(STableCache *pCache, SSeqRange *key, STableReader *pReader
 
 _error:
   if (code != 0) {
-    bseError("failed to put table cache at line %d since %d", lino, tstrerror(code));
+    bseError("failed to put table cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -322,7 +322,7 @@ int32_t tableCacheRemove(STableCache *pCache, SSeqRange *key) {
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {
-    bseError("failed to remove table cache at line %d since %d", lino, tstrerror(code));
+    bseError("failed to remove table cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -352,7 +352,7 @@ int32_t blockCacheOpen(int32_t cap, CacheElemFn freeFn, SBlockCache **pCache) {
 _error:
   if (code != 0) {
     blockCacheClose(p);
-    bseError("failed to create block cache at line %d since %d", lino, tstrerror(code));
+    bseError("failed to create block cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -379,7 +379,7 @@ int32_t blockCachePut(SBlockCache *pCache, SSeqRange *key, void *pBlock) {
 
 _error:
   if (code != 0) {
-    bseError("failed to put block cache at line %d since %d", lino, tstrerror(code));
+    bseError("failed to put block cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -392,7 +392,7 @@ int32_t blockCacheRemove(SBlockCache *pCache, SSeqRange *key) {
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {
-    bseError("failed to remove block cache at line %d since %d", lino, tstrerror(code));
+    bseError("failed to remove block cache at line %d since %s", lino, tstrerror(code));
   }
   return code;
 }
@@ -424,6 +424,7 @@ void freeCacheItem(SCacheItem *pItem) {
   if (pItem == NULL) return;
   if (pItem->pNode != NULL) {
     freeItemInListNode(pItem->pNode, pItem->freeFunc);
+    taosMemoryFree(pItem->pNode);
   }
   taosMemoryFree(pItem);
 }
