@@ -117,7 +117,7 @@ IF(TD_WINDOWS)
 
     IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
         MESSAGE("${Green} will build Release version! ${ColourReset}")
-        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MT")
+        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
 
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
