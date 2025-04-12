@@ -91,8 +91,8 @@ static const char *am_pm[2] = {"AM", "PM"};
 #include <sys/time.h>
 #endif
 
-static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim);
-static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim);
+int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim);
+int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim);
 
 static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec, char delim) = {
     parseLocaltime,

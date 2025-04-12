@@ -18,6 +18,7 @@
 #include "pub.h"
 #include "bench.h"
 #include "benchLog.h"
+#include "toolsdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,9 @@ void appendResultBufToFile(char *resultBuf, char * filePath);
 int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
 void prompt(bool nonStopMode);
+int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec, char delim);
+int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec, char delim);
+int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
 
 #ifdef __cplusplus
 }
@@ -150,6 +154,83 @@ TEST(BenchUtil, Base) {
 
   // close
   closeBenchConn(NULL);
+}
+
+TEST(jsonTest, Strnchr) {
+  char haystack[] = "hello 'world'";
+  char needle = 'r';
+  int32_t len = sizeof(haystack) - 1;
+  bool skipquote = false;
+
+  char *result = tools_strnchr(haystack, needle, len, skipquote);
+  ASSERT_NE(result, nullptr);
+
+  skipquote = true;
+  result = tools_strnchr(haystack, needle, len, skipquote);
+  ASSERT_EQ(result, nullptr);
+}
+
+TEST(jsonTest, StringConversion) {
+
+  char num[] = "12345";
+  int32_t len = sizeof(num) - 1;
+  int64_t result = tools_strnatoi(num, len);
+  EXPECT_EQ(result, 12345);
+
+  char hexNum1[] = "0X1A";
+  len = sizeof(hexNum1) - 1;
+  result = tools_strnatoi(hexNum1, len);
+  EXPECT_EQ(result, 26);
+
+  char hexNum2[] = "0x1a";
+  len = sizeof(hexNum2) - 1;
+  result = tools_strnatoi(hexNum2, len);
+  EXPECT_EQ(result, 26);
+}
+
+TEST(jsonTest, ValidTimezoneWithColon) {
+  char str[] = "+08:00";
+  int64_t tzOffset;
+  int32_t result = toolsParseTimezone(str, &tzOffset);
+  EXPECT_EQ(result, 0);
+  EXPECT_EQ(tzOffset, -28800);  // 8 小时转换为秒：8 * 3600
+}
+
+
+TEST(jsonTest, ValidTimeStrWithTDelimWithFraction) {
+  char timestr[] = "2023-01-01T12:00:00.123";
+  int64_t time;
+  int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
+  char delim = 'T';
+  int32_t result = parseLocaltimeWithDst(timestr, &time, timePrec, delim);
+  EXPECT_EQ(result, 0);
+
+  char timestr1[] = "2023-01-01 12:00:00.456";
+  delim = 0;
+  result = parseLocaltimeWithDst(timestr1, &time, timePrec, delim);
+  EXPECT_EQ(result, 0);
+
+  delim = 'a';
+  result = parseLocaltimeWithDst(timestr1, &time, timePrec, delim);
+  EXPECT_EQ(result, -1);
+
+}
+
+TEST(jsonTest, ValidUTCTimeWithTDelimMilliPrecisionNoFraction) {
+  char timestr[] = "2023-01-01T12:00:00Z";
+  int64_t time;
+  int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
+  char delim = 'T';
+  int32_t result = parseTimeWithTz(timestr, &time, timePrec, delim);
+  EXPECT_EQ(result, 0);
+
+  char timestr1[] = "2023-01-01 12:00:00.123456Z";
+  int32_t timePrec1 = TSDB_TIME_PRECISION_MICRO;
+  delim = 0;
+  result = parseTimeWithTz(timestr1, &time, timePrec1, delim);
+  EXPECT_EQ(result, 0);
+
+
 }
 
 // main
