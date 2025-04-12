@@ -42,9 +42,9 @@ exclude_patterns=/home/TDinternal/community/*
 EOF
 
 
-    # # 调试输出配置文件内容
-    # echo "lcov_internal.config 内容:"
-    # cat lcov_internal.config
+    # 调试输出配置文件内容
+    echo "lcov_internal.config 内容:"
+    cat lcov_internal.config
 
     # 收集数据时仅处理 enterprise 开头的文件
     # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。
