@@ -128,7 +128,7 @@ class TDTestCase(TBase):
         # 10. information_schema.ins_grants
         if server_version.startswith("3.1"):
             result = tdSql.getResult("desc information_schema.ins_grants")
-            # ????
+            # todo 
         if server_version.startswith("3.2") or server_version.startswith("3.3"):
             result = tdSql.getResult("desc information_schema.ins_grants_full")
             self.check_column(result, "display_name", "information_schema.ins_grants_full")
