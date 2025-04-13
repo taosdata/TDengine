@@ -16,7 +16,7 @@ class TDTestCase:
         tdCases.taosBenchmarkExec("-t 2 -n 1000000 -b int,float,nchar -y")
         
         while True:
-            tdSql.query("select ts from test.d0;")
+            tdSql.query("select ts from test.d0;;")
             num1 = tdSql.queryRows
             tdSql.query("select ts from test.d1;")
             num2 = tdSql.queryRows
