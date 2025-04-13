@@ -54,7 +54,7 @@ EOF
         --no-external \
         --config-file lcov_internal.config \
         -b $TDINTERNAL_DIR/enterprise \
-        -o $TDINTERNAL_DIR/coverage_internal.info #| tee -a $TDENGINE_COVERAGE_REPORT
+        -o $TDINTERNAL_DIR/coverage_internal.info 
     
 
     # remove exclude paths (确保只保留 enterprise 相关的文件)
@@ -85,7 +85,6 @@ EOF
     cat $TDINTERNAL_DIR/coverage_internal.info | grep SF
 
     # push result to https://app.codecov.io/
-    pip3 install codecov
     echo "开始上传覆盖率数据到 Codecov..."
     echo "branch: $branch"
     echo "coverage_internal.info: $TDINTERNAL_DIR/coverage_internal.info"
@@ -114,8 +113,7 @@ EOF
 TDINTERNAL_DIR="/home/TDinternal" 
 #TDENGINE_DIR="/home/TDinternal/community"
 CAPTURE_GCDA_DIR="/home/TDinternal/debug"
-BRANCH=""
-#TDENGINE_COVERAGE_REPORT=$TDINTERNAL_DIR/community/tests/coverage-report-$today.log
+BRANCH="cover/3.0"
 
 # Parse command line parameters
 while getopts "hd:b:f:" arg; do
