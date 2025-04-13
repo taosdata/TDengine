@@ -178,7 +178,7 @@ Active: inactive (dead)
 :::info
 
 - `systemctl` 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 `sudo`。
-- 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taoskeeper` 方式启动 taoskeeper 服务。
+- 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taoskeeper` 方式启动taoskeeper 服务。
 - 故障排查：如果服务异常请查看日志获取更多信息。日志文件默认放在 `/var/log/taos` 下。
 
 :::

@@ -57,6 +57,7 @@ jobs:
         with:
           args: --lint docs/zh/* docs/en/*
       - name: Report ReviewDog
+        if: always()
         uses: tomchon/autocorrect-action@fix/review-dog
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
