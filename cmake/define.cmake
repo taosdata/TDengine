@@ -125,7 +125,8 @@ IF(TD_WINDOWS)
     IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
         MESSAGE("${Green} will build Release version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
-        # SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MT")
+        message(STATUS "do NOT forget to remove the following line and check if it works or not!!!")
+        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
