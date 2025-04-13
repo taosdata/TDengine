@@ -86,11 +86,11 @@ EOF
 
     # push result to https://app.codecov.io/
     echo "开始上传覆盖率数据到 Codecov..."
-    echo "branch: $branch"
+    echo "BRANCH: $BRANCH"
     echo "coverage_internal.info: $TDINTERNAL_DIR/coverage_internal.info"
     codecov -t 88ed2789-23be-455d-acb6-3f729d285d1c \
         -f $TDINTERNAL_DIR/coverage_internal.info \
-        -b $branch \
+        -b $BRANCH \
         -n "TDinternal Coverage Report" \
         -F "TDinternal" \
         --gcov-args="-q" --no-gcov-out
@@ -150,7 +150,7 @@ lcovFunc
 COVERAGE_INFO="$TDINTERNAL_DIR/coverage.info"
 OUTPUT_DIR="$CAPTURE_GCDA_DIR/coverage_report"
 # Generate local HTML reports
-genhtml "$COVERAGE_INFO"  --branch-coverage --function-coverage --output-directory "$OUTPUT_DIR"
+# genhtml "$COVERAGE_INFO"  --branch-coverage --function-coverage --output-directory "$OUTPUT_DIR"
 
 
 print_color "$GREEN" "End of coverage test on workflow!"
