@@ -5744,10 +5744,6 @@ static int32_t createMultiResFuncsParas(STranslateContext* pCxt, SNodeList* pSrc
     } else if (nodesIsTableStar(pPara)) {
       code = createTableAllCols(pCxt, (SColumnNode*)pPara, !tsMultiResultFunctionStarReturnTags, &pExprs);
     } else {
-      if (((SColumnNode*)pPara)->node.type == QUERY_NODE_VALUE) {
-        continue;
-      }
-
       SNode* pClonedNode = NULL;
       code = nodesCloneNode(pPara, &pClonedNode);
       if (TSDB_CODE_SUCCESS != code) break;
