@@ -1562,6 +1562,24 @@ static bool isInternalPrimaryKey(const SColumnNode* pCol) {
          (0 == strcmp(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME) || 0 == strcmp(pCol->colName, C0_PSEUDO_COLUMN_NAME));
 }
 
+static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFuncNode) {
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)pFuncNode);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  tstrncpy((*pFuncNode)->functionName, "tbname", TSDB_FUNC_NAME_LEN);
+  (*pFuncNode)->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  (*pFuncNode)->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+
+  if (pCol->tableAlias[0] != '\0') {
+    snprintf((*pFuncNode)->node.userAlias, sizeof((*pFuncNode)->node.userAlias), "%s.tbname", pCol->tableAlias);
+  } else {
+    snprintf((*pFuncNode)->node.userAlias, sizeof((*pFuncNode)->node.userAlias), "tbname");
+  }
+
+  tstrncpy((*pFuncNode)->node.aliasName, (*pFuncNode)->functionName, TSDB_COL_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable, bool* pFound) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SColumnNode* pCol = *pColRef;
@@ -1582,10 +1600,12 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
   if (TSDB_SUPER_TABLE == pMeta->tableType) {
     // 处理tbname列
     if (0 == strcmp(pCol->colName, "tbname")) {
-      pCol->colType = COLUMN_TYPE_TBNAME;
-      pCol->colId = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns + 1;
-      pCol->node.resType.type = TSDB_DATA_TYPE_BINARY;
-      pCol->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+      SFunctionNode* tbnameFuncNode = NULL;
+      code = createTbnameFunctionNode(pCol, &tbnameFuncNode);
+      if (TSDB_CODE_SUCCESS != code) return code;
+
+      nodesDestroyNode((SNode*)*pColRef);
+      *pColRef = (SColumnNode*)tbnameFuncNode;
       *pFound = true;
       return TSDB_CODE_SUCCESS;
     }
