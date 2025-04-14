@@ -53,7 +53,7 @@ docker run --privileged=true \
     --name taos_coverage_tdengine \
     -v /var/lib/jenkins/workspace/TDinternal/:/home/TDinternal/ \
     -v /var/lib/jenkins/workspace/debugNoSan/:/home/TDinternal/community/debug \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "bash ${CONTAINER_TESTDIR}/tests/run_workflow_coverage.sh -b ${branch_name_id} " 
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "bash ${CONTAINER_TESTDIR}/tests/parallel_test/run_workflow_coverage_tdengine.sh -b ${branch_name_id} " 
 
 
 ret=$?
