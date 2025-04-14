@@ -778,6 +778,26 @@ static SRaftId syncGetRaftIdByEp(SSyncNode* pSyncNode, const SEp* pEp) {
   return EMPTY_RAFT_ID;
 }
 
+static void epsetToString(const SEpSet* pEpSet, char* buffer, size_t bufferSize) {
+  if (pEpSet == NULL || buffer == NULL) {
+    snprintf(buffer, bufferSize, "EpSet is NULL");
+    return;
+  }
+
+  size_t offset = 0;
+  offset += snprintf(buffer + offset, bufferSize - offset, "EpSet: [");
+
+  for (int i = 0; i < pEpSet->numOfEps; ++i) {
+    if (offset >= bufferSize) break;
+    offset += snprintf(buffer + offset, bufferSize - offset, "%s:%d%s", pEpSet->eps[i].fqdn, pEpSet->eps[i].port,
+                       (i + 1 < pEpSet->numOfEps) ? ", " : "");
+  }
+
+  if (offset < bufferSize) {
+    snprintf(buffer + offset, bufferSize - offset, "]");
+  }
+}
+
 void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   pEpSet->numOfEps = 0;
 
@@ -786,6 +806,8 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
 
   int index = -1;
 
+  sDebug("vgId:%d, sync get retry epset, leaderCache:%" PRIx64 ", leaderCacheEp.fqdn:%s, leaderCacheEp.port:%d",
+         pSyncNode->vgId, pSyncNode->leaderCache.addr, pSyncNode->leaderCacheEp.fqdn, pSyncNode->leaderCacheEp.port);
   int j = 0;
   for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.totalReplicaNum; ++i) {
     if (pSyncNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_LEARNER) continue;
@@ -793,11 +815,14 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
     tstrncpy(pEp->fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
     pEp->port = (pSyncNode->raftCfg.cfg.nodeInfo)[i].nodePort;
     pEpSet->numOfEps++;
-    sDebug("vgId:%d, sync get retry epset, index:%d %s:%d", pSyncNode->vgId, i, pEp->fqdn, pEp->port);
     SRaftId id = syncGetRaftIdByEp(pSyncNode, pEp);
-    if (id.addr == pSyncNode->leaderCache.addr && id.vgId == pSyncNode->leaderCache.vgId && id.addr != 0 &&
-        id.vgId != 0)
+    sDebug("vgId:%d, sync get retry epset, index:%d id:%" PRIx64 " %s:%d", pSyncNode->vgId, i, id.addr, pEp->fqdn,
+           pEp->port);
+    if (pEp->port == pSyncNode->leaderCacheEp.port &&
+        strncmp(pEp->fqdn, pSyncNode->leaderCacheEp.fqdn, TSDB_FQDN_LEN) == 0 /*&&
+        id.vgId == pSyncNode->leaderCache.vgId && id.addr != 0 && id.vgId != 0*/) {
       index = j;
+    }
     j++;
   }
   if (pEpSet->numOfEps > 0) {
@@ -815,7 +840,10 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   }
   epsetSort(pEpSet);
 
-  sInfo("vgId:%d, sync get retry epset numOfEps:%d inUse:%d", pSyncNode->vgId, pEpSet->numOfEps, pEpSet->inUse);
+  char buffer[1024];
+  epsetToString(pEpSet, buffer, sizeof(buffer));
+  sInfo("vgId:%d, sync get retry epset numOfEps:%d %s inUse:%d", pSyncNode->vgId, pEpSet->numOfEps, buffer,
+        pEpSet->inUse);
   syncNodeRelease(pSyncNode);
 }
 
@@ -1214,6 +1242,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncInfo->pFsm = NULL;
   pSyncNode->quorum = syncUtilQuorum(pSyncNode->raftCfg.cfg.replicaNum);
   pSyncNode->leaderCache = EMPTY_RAFT_ID;
+  pSyncNode->leaderCacheEp.port = 0;
+  pSyncNode->leaderCacheEp.fqdn[0] = '\0';
 
   // init life cycle outside
 
@@ -2095,11 +2125,21 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, SRaftId leaderId, const char* 
   int32_t code = 0;  // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     pSyncNode->leaderCache = EMPTY_RAFT_ID;
+    pSyncNode->leaderCacheEp.port = 0;
+    pSyncNode->leaderCacheEp.fqdn[0] = '\0';
   }
 
   pSyncNode->hbSlowNum = 0;
 
   pSyncNode->leaderCache = leaderId;  // state change
+
+  for (int32_t i = 0; i < pSyncNode->totalReplicaNum; ++i) {
+    if (syncUtilSameId(&pSyncNode->replicasId[i], &leaderId)) {
+      pSyncNode->leaderCacheEp.port = pSyncNode->raftCfg.cfg.nodeInfo[i].nodePort;
+      strncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
+      break;
+    }
+  }
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   pSyncNode->roleTimeMs = taosGetTimestampMs();
   if ((code = syncNodeStopHeartbeatTimer(pSyncNode)) != 0) {
@@ -2191,6 +2231,9 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
   // set leader cache
   pSyncNode->leaderCache = pSyncNode->myRaftId;
+  strncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeFqdn,
+          TSDB_FQDN_LEN);
+  pSyncNode->leaderCacheEp.port = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodePort;
 
   for (int32_t i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {
     SyncIndex lastIndex;
