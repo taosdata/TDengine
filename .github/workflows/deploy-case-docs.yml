@@ -1,12 +1,6 @@
 name: Deploy Case Docs
 
 on:
-  push:
-    branches:
-      - 'new_test_framework'
-    paths:
-      - 'test/cases/**/test_*.py'
-      - 'test/new_test_framework/utils/*.py'
   pull_request:
     branches:
       - 'main'
@@ -18,7 +12,7 @@ on:
 
 jobs:
   generate_and_deploy:
-    if: github.event.pull_request.merged == true || ${{ github.event_name }} == "push"  # Only run on PR close or push to new_test_framework branch(for testing)
+    if: github.event.pull_request.merged == true || ${{ github.event_name }} == "push"  # Only run on PR close or push to branch(for testing)
     runs-on: ubuntu-latest
 
     permissions:

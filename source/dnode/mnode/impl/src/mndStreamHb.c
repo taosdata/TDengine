@@ -264,7 +264,7 @@ int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
     for (int i = 0; i < numOfNodes; ++i) {
       SNodeEntry *pNodeEntry = taosArrayGet(execInfo.pNodeList, i);
       if ((pNodeEntry) && (pNodeEntry->nodeId == *pVgId)) {
-        mInfo("vgId:%d expired for some stream tasks, needs update nodeEp", *pVgId);
+        mInfo("vgId:%d expired for some stream tasks, total in update list:%d", *pVgId, numOfNodes + 1);
         pNodeEntry->stageUpdated = true;
         setFlag = true;
         break;
@@ -527,7 +527,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     }
   }
 
-  if (pMnode != NULL) {  // make sure that the unit test case can work
+  int64_t now = taosGetTimestampMs();
+  if (pMnode != NULL && (now > execInfo.chkptReportScanTs) && (now - execInfo.chkptReportScanTs) > 10000) {
+    // make sure that the unit test case can work
     code = mndStreamSendUpdateChkptInfoMsg(pMnode);
     if (code) {
       mError("failed to send update checkpointInfo msg, code:%s, try next time", tstrerror(code));

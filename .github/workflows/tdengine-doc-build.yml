@@ -1,4 +1,4 @@
-name: TDengine Doc Build
+name: TDengine Doc Build and Check
 
 on:
   pull_request:
@@ -8,6 +8,7 @@ on:
       - 'docs-cloud'
     paths:
       - 'docs/**'
+      - '**/*.md'
 
 env:
   DOC_WKC: '/root/doc_ci_work'
@@ -15,12 +16,64 @@ env:
   EN_DOC_REPO: 'docs.tdengine.com'
   TD_REPO: 'TDengine'
   TOOLS_REPO: 'taos-tools'
-
+  
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
 jobs:
+  check-docs-typos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
+
+      - name: Use custom zh config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: 'docs/zh/**/*.md'
+          config: docs/typos.toml
+
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: 'docs/en/**/*.md'
+          config: docs/typos.toml
+
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: '**/*.md'
+          config: docs/typos.toml
+
+  check-docs-linter-formatter:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: AutoCorrect
+        uses: huacnlee/autocorrect-action@v2
+        with:
+          args: --lint docs/zh/* docs/en/*
+      - name: Report ReviewDog
+        if: always()
+        uses: tomchon/autocorrect-action@fix/review-dog
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          reviewdog: true
+          args: ./docs/zh/*  ./docs/en/*  **/*.md
+        
+        
+          
   build-doc:
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
+    needs: 
+        - check-docs-typos
+        - check-docs-linter-formatter 
     steps:
       - name: Get the latest document contents
         run: |
@@ -35,21 +88,12 @@ jobs:
           git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
           git checkout -qf FETCH_HEAD
 
-      - name: Check tj-actions repo
-        uses: actions/checkout@v4
-        with:
-          repository: 'tj-actions/changed-files'
-          ref: 'v46'
-          fetch-depth: 0
-
       - name: Check document changes
         id: changed-doc-files
         uses: tj-actions/changed-files@v46
         with:
           files: 'docs/**'
           path: ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
-          # settings for push event
-          since_last_remote_commit: ${{ github.event_name == 'push' }}
           # settings for pull request event
           base_sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -97,3 +141,4 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass local
           yarn build
+

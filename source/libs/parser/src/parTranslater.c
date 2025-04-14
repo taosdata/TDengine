@@ -2987,7 +2987,7 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
     SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
     if (isStarParam(pPara)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                     "%s(*) is only supported in SELECTed list", pFunc->functionName);
+                                     "%s(*) is only supported in selected list", pFunc->functionName);
     }
   }
   if (tsKeepColumnName && 1 == LIST_LENGTH(pFunc->pParameterList) && !pFunc->node.asAlias && !pFunc->node.asParam) {
@@ -5513,7 +5513,12 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
       if (NULL == pRealTable->pMeta) {
         SName name = {0};
         toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
-        code = getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true);
+        if (pCxt->refTable) {
+          code = collectUseTable(&name, pCxt->pTargetTables);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true);
+        }
         if (TSDB_CODE_SUCCESS != code) {
           (void)generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
           return code;
@@ -5833,6 +5838,11 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       SNodeList* pCols = NULL;
       code = createAllColumns(pCxt, false, &pCols);
       if (TSDB_CODE_SUCCESS == code) {
+        SNode* tmp = NULL;
+        FOREACH(tmp, pCols) {
+          ((SExprNode*)tmp)->bindExprID = ((SExprNode*)pNode)->bindExprID;
+          ((SExprNode*)tmp)->relatedTo = ((SExprNode*)pNode)->relatedTo;
+        }
         INSERT_LIST(pSelect->pProjectionList, pCols);
         ERASE_NODE(pSelect->pProjectionList);
         continue;
@@ -5936,18 +5946,18 @@ static int32_t translateClausePosition(STranslateContext* pCxt, SNodeList* pProj
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList, SNodeList** selectFuncList);
+static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, SNodeList** nodeList, SNodeList** selectFuncList);
 static int32_t rewriteHavingColsNode(STranslateContext* pCxt, SNode** pNode, SNodeList** selectFuncList);
 
 static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t len = LIST_LENGTH(pSelect->pProjectionBindList);
   if (clause == SQL_CLAUSE_SELECT) {
-    code = rewriteColsFunction(pCxt, &pSelect->pProjectionList, &pSelect->pProjectionBindList);
+    code = rewriteColsFunction(pCxt, clause, &pSelect->pProjectionList, &pSelect->pProjectionBindList);
   } else if (clause == SQL_CLAUSE_HAVING) {
     code = rewriteHavingColsNode(pCxt, &pSelect->pHaving, &pSelect->pProjectionBindList);
   } else if (clause == SQL_CLAUSE_ORDER_BY) {
-    code = rewriteColsFunction(pCxt, &pSelect->pOrderByList, &pSelect->pProjectionBindList);
+    code = rewriteColsFunction(pCxt, clause, &pSelect->pOrderByList, &pSelect->pProjectionBindList);
   } else {
     code =
         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Invalid clause for column expansion");
@@ -7880,6 +7890,7 @@ typedef struct SCheckColsFuncCxt {
   bool        hasColsFunc;
   SNodeList** selectFuncList;
   int32_t     status;
+  ESqlClause  clause;
 } SCheckColsFuncCxt;
 
 static bool isColsFuncByName(SFunctionNode* pFunc) {
@@ -7953,6 +7964,16 @@ static EDealRes checkHasColsFunc(SNode** pNode, void* pContext){
   return DEAL_RES_CONTINUE;
 }
 
+static bool isStarColumn(SNode* pNode) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (strcmp(pCol->colName, "*") == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t checkMultColsFuncParam(SNodeList* pParameterList) {
   if (!pParameterList || pParameterList->length < 2) {
     return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
@@ -7998,7 +8019,7 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
   SFunctionNode* pFunc = (SFunctionNode*)*pNode;
   if (isColsFuncByName(pFunc)) {
     if(pFunc->pParameterList->length > 2) {
-      pCxt->status = TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC;
+      pCxt->status = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
       return DEAL_RES_ERROR;
     }
     SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
@@ -8006,6 +8027,11 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
     if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION || isColsFuncByName((SFunctionNode*)pSelectFunc)) {
       pCxt->status = TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC;
       parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
+      return DEAL_RES_ERROR;
+    }
+    if (pCxt->clause != SQL_CLAUSE_SELECT && isStarColumn(pExpr)) {
+      pCxt->status = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+      parserError("%s Invalid cols function, the parameters '*' is invalid.", __func__);
       return DEAL_RES_ERROR;
     }
     if (pFunc->node.asAlias) {
@@ -8074,7 +8100,7 @@ static int32_t rewriteHavingColsNode(STranslateContext* pCxt, SNode** pNode, SNo
   return code;
 }
 
-static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList, SNodeList** selectFuncList) {
+static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, SNodeList** nodeList, SNodeList** selectFuncList) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    needRewrite = false;
   SNode**  pNode = NULL;
@@ -8086,7 +8112,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
       }
       needRewrite = true;
     } else {
-      SCheckColsFuncCxt pSelectFuncCxt = {false, selectFuncList, TSDB_CODE_SUCCESS};
+      SCheckColsFuncCxt pSelectFuncCxt = {false, selectFuncList, TSDB_CODE_SUCCESS, clause};
       nodesRewriteExpr(pNode, rewriteSingleColsFunc, &pSelectFuncCxt);
       if (pSelectFuncCxt.status != TSDB_CODE_SUCCESS) {
         return pSelectFuncCxt.status; 
@@ -8097,9 +8123,6 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
   SNodeList* pNewNodeList = NULL;
   SNode*  pNewNode = NULL;
   if (needRewrite) {
-    if (pCxt->createStream) {
-      return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
-    }
     code = nodesMakeList(&pNewNodeList);
     if (NULL == pNewNodeList) {
       return code;
@@ -8143,6 +8166,12 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
         // start from index 1, because the first parameter is select function which needn't to output.
         for (int i = 1; i < pFunc->pParameterList->length; ++i) {
           SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
+
+          if (clause != SQL_CLAUSE_SELECT && isStarColumn(pExpr)) {
+            code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+            parserError("%s Invalid cols function, the parameters '*' is invalid.", __func__);
+            goto _end;
+          }
 
           code = nodesCloneNode(pExpr, &pNewNode);
           if(TSDB_CODE_SUCCESS != code) goto _end;

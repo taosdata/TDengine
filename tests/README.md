@@ -20,7 +20,7 @@ This manual is intended to give developers a comprehensive guidance to test TDen
 > - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.7+.
 > - The commands and steps described below are to run the tests on a single host.
 > - The testing framework is currently compatible with Python versions 3.8 through 3.10.
-> - Vitural Environment is advised when setting up the environment, pease refer to [venv](https://docs.python.org/3/library/venv.html) for details.
+> - Vitural Environment is advised when setting up the environment, please refer to [venv](https://docs.python.org/3/library/venv.html) for details.
 
 
 # 2. Prerequisites
@@ -83,7 +83,7 @@ bash test.sh -e 0
 
 <summary>Detailed steps to add new unit test case</summary>
 
-The Google test framwork is used for unit testing to specific function module, please refer to steps below to add a new test case:
+The Google test framework is used for unit testing to specific function module, please refer to steps below to add a new test case:
 
 ##### a. Create test case file and develop the test scripts
 
@@ -111,7 +111,7 @@ Use the add_test command to add new compiled test cases into CI test collection,
 
 ## 3.2 System Test
 
-System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different gruops in the future.
+System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different groups in the future.
 
 ### 3.2.1 How to run a single test case?
 
@@ -185,7 +185,7 @@ cd tests
 ### 3.3.3 How to add new cases?
 
 > [!NOTE] 
-> TSIM test framwork is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#32-system-test) for details.
+> TSIM test framework is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#32-system-test) for details.
 
 ## 3.4 Smoke Test
 
@@ -235,7 +235,7 @@ cd tests
 
 ### 3.6.2 How to add new cases?
 
-Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) and [Legacy Test](#33-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
+Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) and [Legacy Test](#33-legacy-test) sections for detailed steps to add new test cases, when new cases are added in above tests, they will be run automatically by CI test.
 
 
 ## 3.7 TSBS Test

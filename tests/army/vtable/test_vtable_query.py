@@ -224,7 +224,7 @@ class TDTestCase(TBase):
     def test_select_virtual_normal_table(self):
         self.test_normal_query("test_vtable_select_test_projection")
         self.test_normal_query("test_vtable_select_test_projection_filter")
-        #self.test_normal_query("test_vtable_select_test_function")
+        self.test_normal_query("test_vtable_select_test_function")
 
         self.test_normal_query("test_vtable_select_test_interval")
         self.test_normal_query("test_vtable_select_test_state")
@@ -239,7 +239,7 @@ class TDTestCase(TBase):
     def test_select_virtual_child_table(self):
         self.test_normal_query("test_vctable_select_test_projection")
         self.test_normal_query("test_vctable_select_test_projection_filter")
-        #self.test_normal_query("test_vctable_select_test_function")
+        self.test_normal_query("test_vctable_select_test_function")
 
         self.test_normal_query("test_vctable_select_test_interval")
         self.test_normal_query("test_vctable_select_test_state")

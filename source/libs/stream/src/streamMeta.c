@@ -620,12 +620,15 @@ void streamMetaClear(SStreamMeta* pMeta) {
   pMeta->numOfStreamTasks = 0;
   pMeta->numOfPausedTasks = 0;
 
-  // the willrestart/starting flag can NOT be cleared
+  // NOTE: the willrestart/starting flag can NOT be cleared
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   taosHashClear(pMeta->startInfo.pFailedTaskSet);
-
   taosArrayClear(pMeta->startInfo.pStagesList);
+  taosArrayClear(pMeta->startInfo.pRecvChkptIdTasks);
+
   pMeta->startInfo.readyTs = 0;
+  pMeta->startInfo.elapsedTime = 0;
+  pMeta->startInfo.startTs = 0;
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
@@ -1133,6 +1136,45 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
   return checkpointId;
 }
 
+static void dropHistoryTaskIfNoStreamTask(SStreamMeta* pMeta, SArray*  pRecycleList) {
+  int32_t i = 0;
+  while (i < taosArrayGetSize(pMeta->pTaskList)) {
+    SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    if (pTaskId == NULL) {
+      i++;
+      continue;
+    }
+    SStreamTask* task = taosAcquireRef(streamTaskRefPool, pTaskId->refId);
+    if (task != NULL && task->info.fillHistory == 1) {
+      if (taosHashGet(pMeta->pTasksMap, &task->streamTaskId, sizeof(STaskId)) == NULL &&
+        task->status.taskStatus != TASK_STATUS__DROPPING) {
+        STaskId id = streamTaskGetTaskId(task);
+        if (taosArrayPush(pRecycleList, &id) == NULL) {
+          stError("%s s-task:0x%x failed to add into pRecycleList list due to:%d", __FUNCTION__, task->id.taskId, terrno);
+        } else {
+          int32_t total = taosArrayGetSize(pRecycleList);
+          stInfo("%s s-task:0x%x is already dropped, add into recycle list, total:%d", __FUNCTION__, task->id.taskId, total);
+        }
+        int32_t code = taosHashRemove(pMeta->pTasksMap, &id, sizeof(STaskId));
+        if (code == 0) {
+          taosArrayRemove(pMeta->pTaskList, i);
+        } else {
+          i++;
+          stError("%s s-task:0x%x failed to remove task from taskmap, code:%d", __FUNCTION__, task->id.taskId, code);
+        }
+        if (taosReleaseRef(streamTaskRefPool, pTaskId->refId) != 0) {
+          stError("%s s-task:0x%x failed to release refId:%" PRId64, __FUNCTION__, task->id.taskId, pTaskId->refId);
+        }
+        continue;
+      }
+    }
+    if (task != NULL && taosReleaseRef(streamTaskRefPool, pTaskId->refId) != 0) {
+      stError("%s s-task:0x%x failed to release refId:%" PRId64, __FUNCTION__, task->id.taskId, pTaskId->refId);
+    }
+    i++;
+  }
+}
+
 // not allowed to return error code
 void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC*     pCur = NULL;
@@ -1266,6 +1308,8 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   tdbFree(pVal);
 
   tdbTbcClose(pCur);
+
+  dropHistoryTaskIfNoStreamTask(pMeta, pRecycleList);
 
   if (taosArrayGetSize(pRecycleList) > 0) {
     for (int32_t i = 0; i < taosArrayGetSize(pRecycleList); ++i) {
@@ -1403,24 +1447,39 @@ int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
   return TSDB_CODE_SUCCESS;  // always return true
 }
 
-void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader) {
+void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t term, bool isLeader) {
   streamMetaWLock(pMeta);
 
-  int64_t prevStage = pMeta->stage;
-  pMeta->stage = stage;
+  int64_t prevTerm = pMeta->stage;
+  int32_t prevRole = pMeta->role;
+
+  pMeta->stage = term;
+  pMeta->role = (isLeader) ? NODE_ROLE_LEADER : NODE_ROLE_FOLLOWER;
 
   // mark the sign to send msg before close all tasks
-  // 1. for leader vnode, always send msg before closing
-  // 2. for follower vnode, if it's changed from leader, also sending msg before closing.
-  if (pMeta->role == NODE_ROLE_LEADER) {
+  // 1. for a leader vnode, always send msg before closing itself
+  // 2. for a follower vnode, if it's changed from a leader, also sending msg before closing.
+  if (prevRole == NODE_ROLE_LEADER) {
     pMeta->sendMsgBeforeClosing = true;
   }
 
-  pMeta->role = (isLeader) ? NODE_ROLE_LEADER : NODE_ROLE_FOLLOWER;
+  if ((prevRole == NODE_ROLE_FOLLOWER || prevRole == NODE_ROLE_LEADER) && (prevRole != pMeta->role) &&
+      (taosArrayGetSize(pMeta->pTaskList) > 0)) {
+    SStreamTask* pTask = NULL;
+    STaskId*     pId = taosArrayGet(pMeta->pTaskList, 0);
+
+    int32_t code = streamMetaAcquireTaskUnsafe(pMeta, pId, &pTask);
+    if (code == 0) {
+      stInfo("vgId:%d role changed, added into nodeUpdate list, use s-task:0x%s", pMeta->vgId, pTask->id.idStr);
+      int32_t unused = streamTaskAddIntoNodeUpdateList(pTask, pMeta->vgId);
+      streamMetaReleaseTask(pMeta, pTask);
+    }
+  }
+
   if (!isLeader) {
     streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
   } else {  // wait for nodeep update if become leader from follower
-    if (prevStage == NODE_ROLE_FOLLOWER) {
+    if (prevRole == NODE_ROLE_FOLLOWER) {
       pMeta->startInfo.tasksWillRestart = 1;
     }
   }
@@ -1428,18 +1487,19 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   streamMetaWUnLock(pMeta);
 
   if (isLeader) {
-    if (prevStage == NODE_ROLE_FOLLOWER) {
-      stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64
-             " restart after nodeEp being updated",
-             pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+    if (prevRole == NODE_ROLE_FOLLOWER) {
+      stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
+             " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64 " restart after nodeEp being updated",
+             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
     } else {
-      stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb, rid:%" PRId64,
-             pMeta->vgId, stage, prevStage, isLeader, pMeta->rid);
+      stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
+             " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64,
+             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
     }
     streamMetaStartHb(pMeta);
   } else {
-    stInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d sendMsg beforeClosing:%d", pMeta->vgId,
-           stage, prevStage, isLeader, pMeta->sendMsgBeforeClosing);
+    stInfo("vgId:%d update term:%" PRId64 " prevTerm:%" PRId64 " prevRole:%d leader:%d sendMsg beforeClosing:%d",
+           pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->sendMsgBeforeClosing);
   }
 }
 
@@ -1540,8 +1600,19 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
       taosHashClear(pInfo->pTasks);
       pInfo->activeTransId = transId;
 
-      stInfo("vgId:%d set the active epset update transId:%d, prev complete transId:%d", pMeta->vgId, transId,
-             pInfo->completeTransId);
+      // interrupt the start all tasks procedure, only partial tasks will be started
+      // the completion of this processed is based on the partial started tasks.
+      if (pMeta->startInfo.startAllTasks == 1) {
+        int32_t num = taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks);
+        pMeta->startInfo.partialTasksStarted = true;
+        stInfo(
+            "vgId:%d set the active epset update transId:%d, prev complete transId:%d, start all interrupted, only %d "
+            "tasks were started",
+            pMeta->vgId, transId, pInfo->completeTransId, num);
+      } else {
+        stInfo("vgId:%d set the active epset update transId:%d, prev complete transId:%d", pMeta->vgId, transId,
+               pInfo->completeTransId);
+      }
       return true;
     } else {
       if (pInfo->activeTransId == transId) {

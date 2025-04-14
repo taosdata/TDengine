@@ -1873,7 +1873,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
   }
 
-  mInfo("user:%s, start to create, createdb:%d, is_import:%d", createReq.user, createReq.isImport, createReq.createDb);
+  mInfo("user:%s, start to create, createdb:%d, is_import:%d", createReq.user, createReq.createDb, createReq.isImport);
 
 #ifndef TD_ENTERPRISE
   if (createReq.isImport == 1) {
@@ -2931,14 +2931,14 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       }
 
       if (nodesStringToNode(value, &pAst) == 0) {
-        if (nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen) != 0) {
-          sqlLen = 5;
-          (void)tsnprintf(*sql, bufSz, "error");
+        if (nodesNodeToSQLFormat(pAst, *sql, bufSz, &sqlLen, true) != 0) {
+          sqlLen = tsnprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
-      } else {
-        sqlLen = 5;
-        (void)tsnprintf(*sql, bufSz, "error");
+      }
+
+      if (sqlLen == 0) {
+        sqlLen = tsnprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);

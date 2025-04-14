@@ -1,43 +1,56 @@
 {#- Template for Python functions.
 
-    This template renders a Python function or method.
-    
-    Context:
-      function (griffe.Function): The function to render.
-      root (bool): Whether this is the root object, injected with `:::` in a Markdown page.
-      heading_level (int): The HTML heading level to use.
-      config (dict): The configuration options.
+  This template renders a Python function or method.
+  
+  Context:
+    function (griffe.Function): The function to render.
+    root (bool): Whether this is the root object, injected with `:::` in a Markdown page.
+    heading_level (int): The HTML heading level to use.
+    config (dict): The configuration options.
+  -#}
+  
+  {% block logs scoped %}
+    {#- Logging block.
+  
+    This block can be used to log debug messages, deprecation messages, warnings, etc.
     -#}
-    
-    {% block logs scoped %}
-      {#- Logging block.
-    
-      This block can be used to log debug messages, deprecation messages, warnings, etc.
-      -#}
-      {{ log.debug("Rendering " + function.path) }}
-    {% endblock logs %}
-    
-    {% import "language"|get_template as lang with context %}
-    {#- Language module providing the `t` translation method. -#}
-    
-    <div class="doc doc-object doc-function">
-      {% with obj = function, html_id = function.path %}
-    
-        {% if root %}
-          {% set show_full_path = config.show_root_full_path %}
-          {% set root_members = True %}
-        {% elif root_members %}
-          {% set show_full_path = config.show_root_members_full_path or config.show_object_full_path %}
-          {% set root_members = False %}
+    {{ log.debug("Rendering " + function.path) }}
+  {% endblock logs %}
+  
+  {% import "language"|get_template as lang with context %}
+  {#- Language module providing the `t` translation method. -#}
+  
+  <div class="doc doc-object doc-function">
+    {% with obj = function, html_id = function.path %}
+  
+      {% if root %}
+        {% set show_full_path = config.show_root_full_path %}
+        {% set root_members = True %}
+      {% elif root_members %}
+        {% set show_full_path = config.show_root_members_full_path or config.show_object_full_path %}
+        {% set root_members = False %}
+      {% else %}
+        {% set show_full_path = config.show_object_full_path %}
+      {% endif %}
+  
+      {% set function_name = function.path if show_full_path else function.name %}
+      {#- Brief or full function name depending on configuration. -#}
+      {% set symbol_type = "method" if function.parent.is_class else "function" %}
+      {#- Symbol type: method when parent is a class, function otherwise. -#}
+  
+      {% if "cases/" in function.relative_filepath|string %}
+        {# Only generate docstring for methods starting with "test_" or "Test" in the "cases" directory #}
+        {% if function.name.startswith("test_") or function.name.startswith("Test") %}
+          {% set should_render = true %}
         {% else %}
-          {% set show_full_path = config.show_object_full_path %}
+          {% set should_render = false %}
         {% endif %}
-    
-        {% set function_name = function.path if show_full_path else function.name %}
-        {#- Brief or full function name depending on configuration. -#}
-        {% set symbol_type = "method" if function.parent.is_class else "function" %}
-        {#- Symbol type: method when parent is a class, function otherwise. -#}
-    
+      {% else %}
+        {# For other directories, generate docstring for all methods #}
+        {% set should_render = true %}
+      {% endif %}
+  
+      {% if should_render %}
         {% if not root or config.show_root_heading %}
           {% filter heading(
               heading_level,
@@ -50,10 +63,10 @@
                           function.name
                         ),
             ) %}
-    
+  
             {% block heading scoped %}
               {#- Heading block.
-    
+  
               This block renders the heading for the function.
               -#}
               {% if config.show_symbol_type_heading %}<code class="doc-symbol doc-symbol-heading doc-symbol-{{ symbol_type }}"></code>{% endif %}
@@ -65,17 +78,17 @@
                 {% endfilter %}
               {% endif %}
             {% endblock heading %}
-    
+  
             {% block labels scoped %}
               {#- Labels block.
-    
+  
               This block renders the labels for the function.
               -#}
               {% with labels = function.labels %}
                 {% include "labels"|get_template with context %}
               {% endwith %}
             {% endblock labels %}
-    
+  
           {% endfilter %}
     
           {% block signature scoped %}
@@ -118,45 +131,17 @@
           {% endif %}
           {% set heading_level = heading_level - 1 %}
         {% endif %}
-    
+
         <div class="doc doc-contents {% if root %}first{% endif %}">
           {% block contents scoped %}
-            {#- Contents block.
-    
-            This block renders the contents of the function.
-            It contains other blocks that users can override.
-            Overriding the contents block allows to rearrange the order of the blocks.
-            -#}
+            {# 渲染 docstring #}
             {% block docstring scoped %}
-              {#- Docstring block.
-    
-              This block renders the docstring for the function.
-              -#}
               {% with docstring_sections = function.docstring.parsed %}
                 {% include "docstring"|get_template with context %}
               {% endwith %}
             {% endblock docstring %}
-    
-            {% block source scoped %}
-              {#- Source block.
-    
-              This block renders the source code for the function.
-              -#}
-              {% if config.show_source and function.source %}
-                <details class="quote">
-                  <summary>{{ lang.t("Source code in") }} <code>
-                    {%- if function.relative_filepath.is_absolute() -%}
-                      {{ function.relative_package_filepath }}
-                    {%- else -%}
-                      {{ function.relative_filepath }}
-                    {%- endif -%}
-                  </code></summary>
-                  {{ function.source|highlight(language="python", linestart=function.lineno or 0, linenums=True) }}
-                </details>
-              {% endif %}
-            {% endblock source %}
           {% endblock contents %}
         </div>
-    
-      {% endwith %}
-    </div>
+      {% endif %}
+    {% endwith %}
+  </div>

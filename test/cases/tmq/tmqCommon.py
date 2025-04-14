@@ -10,28 +10,12 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-import pytest
 import math
-from asyncore import loop
-from collections import defaultdict
 import subprocess
-import random
-import string
 import threading
-import requests
 import time
-# import socketfrom
-import json
-import toml
-import taos
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
-
-# class actionType(Enum):
-#     CREATE_DATABASE = 0
-#     CREATE_STABLE   = 1
-#     CREATE_CTABLE   = 2
-#     INSERT_DATA     = 3
 
 class TMQCom:
     def __init__(self):

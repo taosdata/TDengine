@@ -1,4 +1,3 @@
-# ADD_SUBDIRECTORY(examples/c)
 ADD_SUBDIRECTORY(tsim)
 
 IF(${BUILD_TEST})
@@ -6,6 +5,4 @@ IF(${BUILD_TEST})
 ENDIF(${BUILD_TEST})
 
 # ADD_SUBDIRECTORY(comparisonTest/tdengine)
-IF(NOT "${TSZ_ENABLED}" MATCHES "false")
-  ADD_SUBDIRECTORY(TSZ)
-ENDIF()
+

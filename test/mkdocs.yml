@@ -30,10 +30,6 @@ plugins:
           show_bases: false
           show_source: false
           show_object_full_path: false
-          filters:
-            - "!^cases.*test_"  # exclude all symbols starting with test_
-            - "!^cases.*Test"   # exclude all symbols starting with Test
-            - ".*"              # include all other symbols
             
 - mike:
     alias_type: symlink

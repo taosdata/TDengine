@@ -36,7 +36,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: 1.23
 
       - name: Install dependencies on Linux
         if: runner.os == 'Linux'
@@ -74,6 +74,11 @@ jobs:
         run: |
           sudo mkdir -p /usr/local/lib
           sudo mkdir -p /usr/local/include
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
 
       - name: Build and install TDengine
         run: |

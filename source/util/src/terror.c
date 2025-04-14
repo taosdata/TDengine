@@ -294,6 +294,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_ALREADY_EXIST,   "Arbitrator group alre
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_NOT_EXIST,       "Arbitrator group not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARB_TOKEN_MISMATCH,       "Arbitrator token mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VNODE_NOT_OFFLINE,        "Vnode is not offline on this restoring dnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_OFFLINE,   "VGroup is offline")
 
 // mnode-dnode-part2
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DNODES,          "Too many dnodes")
@@ -376,9 +377,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_FOUND,          "Analysis algorithm is 
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_LOAD,           "Analysis algorithm not loaded")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_BUF_INVALID_TYPE,        "Analysis invalid buffer type")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_RETURN_ERROR,      "Analysis failed since anode return error")
-TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "Analysis internal error, not processed")
+TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS,   "Analysis failed since not enough rows")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -741,10 +743,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT,    "Invalid window offs
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED,     "Valid primary timestamp required")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR,       "Invalid expr in order by clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_WIN_FUNC,               "Column exists for window join with aggregation functions")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY,         "tag can not be primary key")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SECOND_COL_PK,              "primary key must be second column")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PK_TYPE,                "primary key column must be of type int, uint, bigint, ubigint, and varchar")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PK_OP,              "primary key column can not be added, modified, and dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY,         "tag can not be composite primary key")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SECOND_COL_PK,              "composite primary key must be second column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PK_TYPE,                "composite primary key column must be of type int, uint, bigint, ubigint, and varchar")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PK_OP,              "composite primary key column can not be added, modified, and dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL,        "Primary key column should not be null")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE,        "Primary key column should not be none")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Pseudo tag tbname not set")

@@ -1309,7 +1309,7 @@ TO_CHAR(ts, format_str_literal)
 
 - The output format for `Month`, `Day`, etc., is left-aligned with spaces added to the right, such as `2023-OCTOBER  -01`, `2023-SEPTEMBER-01`. September has the longest number of letters among the months, so there is no space for September. Weeks are similar.
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
-- Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
+- Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
 - It is recommended to include timezone information in the time format; if not included, the default output timezone is the timezone configured by the server or client.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
@@ -2233,7 +2233,7 @@ ignore_option: {
 - A single statement can use one or multiple diffs, and each diff can specify the same or different ignore_option; when there is more than one diff in a single statement, only when all diff results of a row are null and all ignore_options are set to ignore null values, the row is excluded from the result set
 - Can be used with associated columns. For example: select _rowts, DIFF() from.
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
-- When using composite primary keys, the timestamp and primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
+- When using composite primary keys, the timestamp and composite primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
 
 ### INTERP
 

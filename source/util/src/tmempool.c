@@ -76,7 +76,7 @@ int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup
     pGrp = pInfo->pGrpHead;
   } else {
     pGrp = (SMPCacheGroup*)taosMemoryCalloc(1, sizeof(SMPCacheGroup));
-    if (NULL == pInfo->pGrpHead) {
+    if (NULL == pGrp) {
       uError("malloc SMPCacheGroup failed, error:%s", tstrerror(terrno));
       MP_ERR_RET(terrno);
     }

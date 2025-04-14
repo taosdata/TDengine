@@ -81,7 +81,12 @@ int32_t tsQueryNoFetchTimeoutSec = 3600 * 5;
 
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
+#ifdef WINDOWS
+int32_t tsShareConnLimit = 1;
+#else
 int32_t tsShareConnLimit = 10;
+#endif
+
 int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 
@@ -122,7 +127,7 @@ bool    tsEnableWhiteList = false;  // ip white list cfg
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
 int32_t tsArbCheckSyncIntervalSec = 3;
-int32_t tsArbSetAssignedTimeoutSec = 6;
+int32_t tsArbSetAssignedTimeoutSec = 14;
 
 // dnode
 int64_t tsDndStart = 0;
@@ -339,7 +344,7 @@ int32_t tsS3MigrateIntervalSec = 60 * 60;  // interval of s3migrate db in all vg
 bool    tsS3MigrateEnabled = 0;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
-char    tsUdfdResFuncs[512] = "";  // taosudf resident funcs that teardown when taosudf exits
+char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 #ifdef USE_STREAM
 bool tsDisableStream = false;
@@ -3131,6 +3136,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
   int32_t   lino = 0;
   char     *buffer = NULL;
   TdFilePtr pFile = NULL;
+  char     *serialized = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
   snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
@@ -3146,7 +3152,6 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
     uError("failed to open file:%s since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
   }
-  char *serialized = NULL;
   TAOS_CHECK_GOTO(globalConfigSerialize(version, array, &serialized), &lino, _exit);
 
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
@@ -3170,6 +3175,7 @@ int32_t taosPersistLocalConfig(const char *path) {
   int32_t   lino = 0;
   char     *buffer = NULL;
   TdFilePtr pFile = NULL;
+  char     *serialized = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
   snprintf(filepath, sizeof(filepath), "%s%sconfig", path, TD_DIRSEP);
@@ -3187,7 +3193,6 @@ int32_t taosPersistLocalConfig(const char *path) {
     TAOS_RETURN(code);
   }
 
-  char *serialized = NULL;
   TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serialized), &lino, _exit);
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;
