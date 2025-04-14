@@ -2,7 +2,7 @@ from new_test_framework.utils import tdLog, tdSql
 
 
 class TestInsertDouble:
-
+    # verify the self-hosted-ruuner
     def setup_class(cls):
         cls.database = "db1"
         tdLog.debug(f"start to excute {__file__}")
