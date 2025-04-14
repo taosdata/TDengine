@@ -21,6 +21,7 @@ set(
     "src/vnd/vnodeInitApi.c"
     "src/vnd/vnodeAsync.c"
     "src/vnd/vnodeHash.c"
+    "src/vnd/vnodeStream.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -181,6 +182,7 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
     PUBLIC tqCommon
+    PUBLIC new-stream
 )
 
 if(TD_GRANT)
