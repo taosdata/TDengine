@@ -48,8 +48,8 @@ Options:
 - `backend`：后台运行安装工具，选择 True 后安装工具在自动在后台运行，默认为 False。
 - `workers`：集群安装部署时的并发数量，会影响同时向多节点服务文件的并发数，需根据机器资源情况调整，默认是 50。
 - `list`：指定部署 TDengine 的机器，前提是配置文件中指定的 firstep 安装完成并服务运行部正常，该参数是预留给安装中断后继续安装剩余节点的场景使用，默认值为 None。
-- `set-hostname`：根据配置文件的 FQDN 更新集群节点的 hostname。不配置则不更新hostname。
-- `set-ips`：根据配置文件的 FQDN 对应 IP 更新集群节点的 /etc/hosts。不配置则不更新hosts文件。
+- `set-hostname`：根据配置文件的 FQDN 更新集群节点的 hostname。不配置则不更新 hostname。
+- `set-ips`：根据配置文件的 FQDN 对应 IP 更新集群节点的 /etc/hosts。不配置则不更新 hosts 文件。
 - `version`：打印安装工具版本信息。
 
 #### 安装流程
