@@ -602,7 +602,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
-static int32_t vnodeProcessImportFileReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+static int32_t vnodeProcessLoadFileReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t code = 0;
 
   // Missing response initialization
@@ -616,23 +616,21 @@ static int32_t vnodeProcessImportFileReq(SVnode *pVnode, int64_t ver, void *pReq
 
   tDecoderInit(&decoder, (uint8_t *)pReq, len);
 
-  // Decode the request
-  // if (tDecodeVImportFileReq(&decoder, &req) != 0) {
-  //   code = TSDB_CODE_INVALID_MSG;
-  //   pRsp->code = code;  // Set error code in response
-  //   tDecoderClear(&decoder);
-  //   vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
-  //   return code;
-  // }
+  code = tDecodeVLoadFileReq(&decoder, &req);
+  if (code) {
+    pRsp->code = code;  // Set error code in response
+    tDecoderClear(&decoder);
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
+    return code;
+  }
 
-  // Process the request
-  // code = tsdbImportFile(pVnode->pTsdb, req.fileName);
-  // if (code) {
-  //   pRsp->code = code;  // Set error code in response
-  //   tDecoderClear(&decoder);
-  //   vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
-  //   return code;
-  // }
+  code = vnodeLoadFile(pVnode, req.fileName);
+  if (code) {
+    pRsp->code = code;  // Set error code in response
+    tDecoderClear(&decoder);
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, __LINE__, tstrerror(code));
+    return code;
+  }
 
   pRsp->code = 0;
   tDecoderClear(&decoder);
@@ -841,7 +839,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
       break;
     case TDMT_VND_LOAD_FILE:
-      vnodeProcessImportFileReq(pVnode, ver, pReq, len, pRsp);
+      vnodeProcessLoadFileReq(pVnode, ver, pReq, len, pRsp);
       break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);

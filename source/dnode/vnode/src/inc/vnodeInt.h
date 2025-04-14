@@ -625,6 +625,9 @@ int32_t vHashPut(SVHashTable* ht, void* obj);
 int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
+// vnodeLoad.c
+int32_t vnodeLoadFile(SVnode* pVnode, const char* fname);
+
 #ifdef __cplusplus
 }
 #endif
