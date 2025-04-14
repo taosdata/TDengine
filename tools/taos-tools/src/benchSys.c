@@ -235,7 +235,6 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
 
         case 'h':
             g_arguments->host = arg;
-            g_arguments->host_auto = false;
             break;
 
         case 'P':
@@ -248,8 +247,6 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                            "Invalid -P: %s, will auto set to default(6030)\n",
                            arg);
                 g_arguments->port = DEFAULT_PORT;
-            } else {
-                g_arguments->port_auto = false;
             }
             g_arguments->port_inputted = true;
             break;
