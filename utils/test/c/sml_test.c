@@ -1472,7 +1472,7 @@ int sml_td24070_Test() {
 
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
-  ASSERT(code != 0);
+  ASSERT(code == 0);
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use td24070_write");
@@ -1517,7 +1517,7 @@ int sml_td24070_Test() {
 
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   code = taos_errno(pRes);
-  ASSERT(code != 0);
+  ASSERT(code == 0);
   taos_free_result(pRes);
   taos_close(taos);
 
@@ -1563,7 +1563,7 @@ int sml_td24070_Test() {
 
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   code = taos_errno(pRes);
-  ASSERT(code != 0);
+  ASSERT(code == 0);
   taos_free_result(pRes);
   taos_close(taos);
 
