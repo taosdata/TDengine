@@ -40,6 +40,7 @@ typedef struct SStreamRunnerTaskExecMgr {
   SList*        pFreeExecs;
   SList*        pRunningExecs;
   TdThreadMutex lock;
+  bool          exit;
 } SStreamRunnerTaskExecMgr;
 
 typedef struct SStreamRunnerTask {
