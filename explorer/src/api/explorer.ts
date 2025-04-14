@@ -13,6 +13,7 @@ export function sendSQLReq(sqlStr: string, composeData = false) {
     transformResponse: [
       function (data) {
         try {
+          console.log('Got response', data);
           return JSONbig.parse(data);
         } catch (error) {
           return data;
@@ -21,10 +22,9 @@ export function sendSQLReq(sqlStr: string, composeData = false) {
     ],
     data: sqlStr
   })
-    .then(data => {
-      const cData = JSON.parse(JSON.stringify(data));
+    .then(cData => {
       if (cData.code == 0) return composeData ? compHeadAndData(cData.column_meta, cData.data) : cData;
-      return Promise.reject(cData?.desc ? cData : { desc: data || 'Service Unavailable, please try again later!' });
+      return Promise.reject(cData?.desc || 'Service Unavailable, please try again later!');
     })
     .catch(err => {
       return Promise.reject(err);

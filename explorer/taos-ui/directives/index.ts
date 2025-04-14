@@ -74,7 +74,7 @@ export const loadMore = {
        * delay 防抖时延，单位为ms
        * load-more-disabled 是否禁用无限加载
        */
-      const { target, distance = 0, func, delay = 200 } = binding.value;
+      const { target, distance = 0, func, func1, delay = 200 } = binding.value;
       if (typeof target !== 'string') return;
       const targetEl = el.querySelector(target);
       if (!targetEl) {
@@ -82,9 +82,13 @@ export const loadMore = {
         return;
       }
       el.handler = debounce(function () {
-        const { scrollTop, scrollHeight, clientHeight } = targetEl;
+        const { scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth } = targetEl;
         let disabled = el.getAttribute('load-more-disabled');
         disabled = vnode.disabled || disabled;
+        if (scrollWidth <= scrollLeft + clientWidth + distance) {
+          if (disabled) return;
+          func1 && func1();
+        }
         if (scrollHeight <= scrollTop + clientHeight + distance) {
           if (disabled) return;
           func && func();

@@ -5,7 +5,8 @@ import * as utils from '@/utils';
 import { PermissionMap } from '@/const.ts';
 import store from '@/store';
 import i18n from '@/lang/index.ts';
-import { debounce } from 'lodash-es';
+// import { debounce } from 'lodash-es';
+import { loadMore} from 'taos-ui/directives/index.ts';
 //长按
 const longpress: Directive = {
   beforeMount: function (el, binding) {
@@ -140,73 +141,6 @@ const highlight: Directive = {
   },
   unmounted(el) {
     el.hljsBlock = null;
-  }
-};
-// 加载更多
-const loadMore: Directive = {
-  beforeMount(el, binding, vnode) {
-    const { expand, immediate } = binding.modifiers;
-    // 使用更丰富的功能，支持父组件的指令作用在指定的子组件上
-    if (expand) {
-      /**
-       * target 目标DOM节点的类名
-       * distance 减少触发加载的距离阈值，单位为px
-       * func 触发的方法
-       * func 横向滚动触发的方法
-       * delay 防抖时延，单位为ms
-       * load-more-disabled 是否禁用无限加载
-       */
-      const { target, distance = 0, func, func1, delay = 200 } = binding.value;
-      if (typeof target !== 'string') return;
-      const targetEl = el.querySelector(target);
-      if (!targetEl) {
-        return;
-      }
-      binding.handler = debounce(function () {
-        const { scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth } = targetEl;
-        let disabled = el.getAttribute('load-more-disabled');
-        disabled = vnode[disabled] || disabled;
-        if (scrollWidth <= scrollLeft + clientWidth + distance) {
-          if (disabled) return;
-          func1 && func1();
-        }
-        if (scrollHeight <= scrollTop + clientHeight + distance) {
-          if (disabled) return;
-          func && func();
-        }
-      }, delay);
-
-      targetEl.addEventListener('scroll', binding.handler);
-    } else {
-      binding.handler = debounce(function () {
-        const { scrollTop, scrollHeight, clientHeight } = el;
-        if (scrollHeight === scrollTop + clientHeight) {
-          binding.value && binding.value();
-        }
-      }, 200);
-      el.addEventListener('scroll', binding.handler);
-    }
-    immediate && binding.handler();
-  },
-  unmounted(el, binding) {
-    const { arg } = binding;
-    // 使用更丰富的功能，支持父组件的指令作用在指定的子组件上
-    if (arg === 'expand') {
-      /**
-       * target 目标DOM节点的类名
-       * offset 触发加载的距离阈值，单位为px
-       * method 触发的方法
-       * delay 防抖时延，单位为ms
-       */
-      const { target } = binding.value;
-      if (typeof target !== 'string') return;
-      let targetEl = el.querySelector(target);
-      targetEl && targetEl.removeEventListener('scroll', binding.handler);
-      targetEl = null;
-    } else {
-      el.removeEventListener('scroll', binding.handler);
-      el = null;
-    }
   }
 };
 const directives: Record<string, any> = {
