@@ -4,7 +4,7 @@ MESSAGE(STATUS "build parser unit test")
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
 
-if(TD_LINUX)
+if(${TD_LINUX})
     add_executable(commonTest "commonTests.cpp")
     target_link_libraries(commonTest os util common gtest_main)
     target_include_directories(
@@ -44,7 +44,7 @@ add_test(
     COMMAND cosCpTest
 )
 
-if(TD_LINUX)
+if(${TD_LINUX})
     # cosTest.cpp
     add_executable(cosTest "cosTest.cpp")
     target_link_libraries(cosTest gtest gtest_main util common)
