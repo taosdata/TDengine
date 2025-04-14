@@ -2644,8 +2644,36 @@ bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BA
     return true;
 }
 
+static int seekFromCsv(FILE* fp, int64_t seek) {
+    size_t  n = 0;
+    char *  line = NULL;
+
+    if (seek > 0) {
+        for (size_t i = 0; i < seek; i++){
+            ssize_t readLen = 0;
+#if defined(WIN32) || defined(WIN64)
+            toolsGetLineFile(&line, &n, fp);
+            readLen = n;
+            if (0 == readLen) {
+#else
+            readLen = getline(&line, &n, fp);
+            if (-1 == readLen) {
+#endif
+                if (0 != fseek(fp, 0, SEEK_SET)) {
+                    return -1;
+                }
+                continue;
+            }           
+        }
+    }
+
+    tmfree(line);
+    infoPrint("seek data from csv file, seek rows=%" PRId64 "\n", seek);
+    return 0;
+}
+
 // open tag from csv file
-FILE* openTagCsv(SSuperTable* stbInfo) {
+FILE* openTagCsv(SSuperTable* stbInfo, uint64_t seek) {
     FILE* csvFile = NULL;
     if (stbInfo->tagsFile[0] != 0) {
         csvFile = fopen(stbInfo->tagsFile, "r");
@@ -2653,7 +2681,15 @@ FILE* openTagCsv(SSuperTable* stbInfo) {
             errorPrint("Failed to open tag sample file: %s, reason:%s\n", stbInfo->tagsFile, strerror(errno));
             return NULL;
         }
+        
+        if (seekFromCsv(csvFile, seek)) {
+            fclose(csvFile);
+            errorPrint("Failed to seek csv file: %s, reason:%s\n", stbInfo->tagsFile, strerror(errno));
+            return NULL;
+
+        }
         infoPrint("open tag csv file :%s \n", stbInfo->tagsFile);
+        
     }
     return csvFile;
 }

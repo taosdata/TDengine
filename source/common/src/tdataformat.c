@@ -3363,8 +3363,8 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
             *pDupTs = (res == 0);
           }
         }
-        lastRowKey = rowKey;
       }
+      lastRowKey = rowKey;
     }
   }
 _exit:

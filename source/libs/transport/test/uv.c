@@ -106,7 +106,7 @@ void child_on_new_connection(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf)
   }
 
   uv_handle_type pending = uv_pipe_pending_type(pipe);
-  assert(pending == UV_TCP);
+  TD_ALWAYS_ASSERT(pending == UV_TCP);
 
   SConnCtx *pConn = taosMemoryMalloc(sizeof(SConnCtx));
 

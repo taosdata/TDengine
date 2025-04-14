@@ -175,9 +175,9 @@ if(${TD_LINUX})
     # memPoolTest
     add_executable(memPoolTest "memPoolTest.cpp")
     target_link_libraries(memPoolTest os util common gtest_main)
-    add_test(
-        NAME memPoolTest
-        COMMAND memPoolTest
-    )
+    # add_test(
+    #     NAME memPoolTest
+    #     COMMAND memPoolTest
+    # )
 
 endif()

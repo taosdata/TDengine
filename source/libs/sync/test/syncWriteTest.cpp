@@ -65,7 +65,7 @@ SSyncNode *syncNodeInit() {
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", pDir);
 
   int code = walInit();
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
   SWalCfg walCfg;
   memset(&walCfg, 0, sizeof(SWalCfg));
   walCfg.vgId = syncInfo.vgId;
@@ -76,7 +76,7 @@ SSyncNode *syncNodeInit() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   pWal = walOpen("./write_test_wal", &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   syncInfo.pWal = pWal;
 
@@ -91,7 +91,7 @@ SSyncNode *syncNodeInit() {
   }
 
   SSyncNode *pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   // gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
@@ -147,17 +147,17 @@ int main(int argc, char **argv) {
   }
 
   int32_t ret = syncIOStart((char *)"127.0.0.1", ports[myIndex]);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   ret = syncInit();
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   taosRemoveDir("./wal_test");
 
   initFsm();
 
   gSyncNode = syncInitTest();
-  assert(gSyncNode != NULL);
+  TD_ALWAYS_ASSERT(gSyncNode != NULL);
   sNTrace(gSyncNode, "");
 
   initRaftId(gSyncNode);
