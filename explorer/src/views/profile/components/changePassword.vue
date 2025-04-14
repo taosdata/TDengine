@@ -11,7 +11,7 @@
     <el-form-item :label="t('login.oldPass')" prop="old_password">
       <el-input
         v-model.trim="changeForm.old_password"
-        maxlength="16"
+        maxlength="255"
         :show-password="true"
         minlength="8"
         :placeholder="t('login.oldPass')"
@@ -24,7 +24,7 @@
         <template #reference>
           <el-input
             v-model.trim="changeForm.new_password"
-            maxlength="16"
+            maxlength="255"
             :show-password="true"
             minlength="8"
             :placeholder="t('login.newPass')"
@@ -36,7 +36,7 @@
     <el-form-item :label="t('confirmPass')" prop="confirm_password">
       <el-input
         v-model.trim="changeForm.confirm_password"
-        maxlength="16"
+        maxlength="255"
         minlength="8"
         :show-password="true"
         :placeholder="t('confirmPass')"
@@ -175,8 +175,8 @@ function change() {
 }
 
 onMounted(async () => {
-  const result = await getDatabaseVariables('EnableStrongPassword');
-  enableStrongPassword.value = (result === true || result === 'true');
+  const result = await getDatabaseVariables('enableStrongPassword');
+  enableStrongPassword.value = (result === true || result === 'true' || result === '1');
 });
 
 </script>

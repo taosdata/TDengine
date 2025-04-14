@@ -1,20 +1,27 @@
 <template>
   <div class="gird">
     <el-table
+      v-load-more.expand.immediate="{
+        func: load,
+        func1: loadLeft,
+        target: '.el-scrollbar__wrap',
+        delay: 200,
+        distance: 100
+      }"
       stripe
       border
       tooltip-effect="light"
       size="small"
-      :data="dataSource"
+      :data="currentTableData"
       height="100%"
       style="border-bottom: none"
       @cell-dblclick="handleCellDblclick"
     >
       <!--数据源-->
 
-      <template v-if="head.length">
+      <template v-if="currentHead.length">
         <el-table-column
-          v-for="(item, index) in head"
+          v-for="(item, index) in currentHead"
           :key="item.field + index"
           :min-width="item.length + 'px'"
           :show-overflow-tooltip="true"
@@ -29,7 +36,7 @@
         </el-table-column>
       </template>
     </el-table>
-    <section v-if="currentHistory && dataSource.length" class="time-wrapper">
+    <section v-if="currentHistory && currentTableData.length" class="time-wrapper">
       <div class="time-block">
         <span class="title">{{ t('explorer.execute') }}:</span>
         <span class="value">{{ currentHistory.executTime }} ms</span>
@@ -53,6 +60,13 @@ import { sqlExecResult, addLogEvent } from './utils';
 const head = computed(() => sqlExecResult.head);
 const dataSource = computed(() => sqlExecResult.data);
 const currentHistory = ref<Recordable | null>(null);
+const currentTableData = ref<any[]>([]);
+const pageSize = ref(30);
+const currentCol = ref(1);
+const colSize = ref(20);
+const currentPage = ref(1);
+const key = ref(0);
+const currentHead = ref<any[]>([]);
 
 addLogEvent.on(log => {
   if (log.type == 1) {
@@ -64,6 +78,39 @@ addLogEvent.on(log => {
 
 function handleCellDblclick(row: Recordable, column: any) {
   copy(row[column.property]);
+}
+watch(
+  dataSource,
+  val => {
+    key.value++;
+    currentTableData.value = val.slice(0, pageSize.value);
+    currentPage.value = 1;
+  },
+  {
+    immediate: true
+  }
+);
+watch(
+  head,
+  val => {
+    currentHead.value = val.slice(0, colSize.value);
+  },
+  {
+    immediate: true
+  }
+);
+
+function load() {
+  if (currentTableData.value.length === dataSource.value.length) return;
+  currentPage.value++;
+  currentTableData.value.push(
+    ...dataSource.value.slice(pageSize.value * (currentPage.value - 1), pageSize.value * currentPage.value)
+  );
+}
+function loadLeft() {
+  if (currentHead.value.length === head.value.length) return;
+  currentCol.value++;
+  currentHead.value.push(...head.value.slice(colSize.value * (currentCol.value - 1), colSize.value * currentCol.value));
 }
 </script>
 <style lang="scss" scoped>

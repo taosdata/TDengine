@@ -1,5 +1,5 @@
 use anyhow::bail;
-use chrono::{DateTime, Local, Timelike, Utc};
+use chrono::{DateTime, Local, Utc};
 use std::io::Result as IoResult;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -156,18 +156,8 @@ impl ZFile {
     /// 根据 topic, timestamp, vg_id, index 生成文件名。注意：timestamp 的秒和纳秒部分都会被忽略
     fn file_name(name: (&str, Option<DateTime<Utc>>, i32, u64)) -> String {
         let ts = match name.1 {
-            None => Utc::now()
-                .with_second(0)
-                .unwrap()
-                .with_nanosecond(0)
-                .unwrap()
-                .timestamp(),
-            Some(t) => t
-                .with_second(0)
-                .unwrap()
-                .with_nanosecond(0)
-                .unwrap()
-                .timestamp(),
+            None => Utc::now().timestamp_millis(),
+            Some(t) => t.timestamp_millis(),
         };
         format!("{}-{}-{}-{}.z", name.0, ts, name.2, name.3)
     }
@@ -188,7 +178,8 @@ impl ZFile {
         let ts = splits[1]
             .parse::<i64>()
             .map_err(|_| anyhow::anyhow!("invalid timestamp in backup file name: {}", file_name))?;
-        let ts = DateTime::from_timestamp(ts, 0).ok_or(anyhow::anyhow!(
+
+        let ts = DateTime::from_timestamp_millis(ts).ok_or(anyhow::anyhow!(
             "invalid timestamp in backup file name: {}",
             file_name
         ))?;
@@ -612,11 +603,16 @@ mod tests {
     fn test_file_name() {
         let ts = Utc.with_ymd_and_hms(2021, 8, 27, 12, 0, 0).unwrap();
         let name = ZFile::file_name(("abc", Some(ts), 1, 1));
-        assert_eq!("abc-1630065600-1-1.z", name);
+        assert_eq!("abc-1630065600000-1-1.z", name);
 
         let ts = Utc.with_ymd_and_hms(2021, 8, 27, 12, 0, 33).unwrap();
         let name = ZFile::file_name(("abc", Some(ts), 1, 1));
-        assert_eq!("abc-1630065600-1-1.z", name);
+        assert_eq!("abc-1630065633000-1-1.z", name);
+
+        let ts = Utc::now();
+        let expect = format!("abc-{}-1-1.z", ts.timestamp_millis());
+        let name = ZFile::file_name(("abc", Some(ts), 1, 1));
+        assert_eq!(expect, name);
     }
 
     #[tokio::test]
@@ -643,10 +639,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_file_name() {
-        let file_name = "abc-1630000000-22-1.z";
+        let file_name = "abc-1630065633001-22-1.z";
         let (topic, ts, vg_id, index) = ZFile::parse_file_name(file_name).unwrap();
         assert_eq!("abc", topic);
-        assert_eq!(1630000000, ts.timestamp());
+        assert_eq!(1630065633001, ts.timestamp_millis());
         assert_eq!(22, vg_id);
         assert_eq!(1, index);
     }

@@ -384,7 +384,7 @@ const maxHeight = ref(500);
 const permitStartStatus = ['created', 'failed', 'stopped', 'suspended', 'completed'];
 const permitStopStatus = ['queued', 'running', 'interrupted', 'waiting', 'resumed'];
 const showErrStatus = ['waiting', 'suspending', 'suspended', 'failed', 'interrupted'];
-const permitDeleteStatus = ['completed', 'stopped', ' failed', 'interrupted', 'ticked'];
+const permitDeleteStatus = ['created', 'completed', 'stopped', ' failed', 'interrupted', 'ticked'];
 const showHealthStatus = ['running', 'stopping', 'waiting', 'resumed'];
 const multipleSelection = ref<any[]>([]);
 import { isEn } from 'config';

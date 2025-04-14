@@ -114,7 +114,7 @@ pub fn get_task_metrics_string(status: &Status, metrics: Arc<CoreMetrics>) -> St
         serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
     map.remove("task_id");
     map.remove("stable");
-    map.remove("task_name");
+    //map.remove("task_name");
     if is_tmq {
         map.remove("written_rows");
         map.remove("total_written_rows");
