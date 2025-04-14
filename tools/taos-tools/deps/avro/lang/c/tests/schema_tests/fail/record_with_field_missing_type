@@ -1,0 +1,5 @@
+{"type": "record",
+ "name": "Event",
+ "fields": [ 
+    { "name": "Sponsor"},
+    { "name": "City", "type": "string"}]}

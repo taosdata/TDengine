@@ -1,3 +1,4 @@
+## \brief Test create view and drop view functions
 sql connect
 sql use testa;
 

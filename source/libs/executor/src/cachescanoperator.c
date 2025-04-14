@@ -398,16 +398,16 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       // check for tag values
       if (pInfo->pRes->info.rows > 0) {
-        if (pInfo->pseudoExprSup.numOfExprs > 0) {
-          SExprSupp* pSup = &pInfo->pseudoExprSup;
+        SExprSupp* pSup = &pInfo->pseudoExprSup;
 
-          STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pList)[0];
-          pInfo->pRes->info.id.groupId = pKeyInfo->groupId;
+        STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pList)[0];
+        pInfo->pRes->info.id.groupId = pKeyInfo->groupId;
 
-          if (taosArrayGetSize(pInfo->pUidList) > 0) {
-            void* pUid = taosArrayGet(pInfo->pUidList, 0);
-            QUERY_CHECK_NULL(pUid, code, lino, _end, terrno);
-            pInfo->pRes->info.id.uid = *(tb_uid_t*)pUid;
+        if (taosArrayGetSize(pInfo->pUidList) > 0) {
+          void* pUid = taosArrayGet(pInfo->pUidList, 0);
+          QUERY_CHECK_NULL(pUid, code, lino, _end, terrno);
+          pInfo->pRes->info.id.uid = *(tb_uid_t*)pUid;
+          if (pInfo->pseudoExprSup.numOfExprs > 0) {
             code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
                                           pInfo->pRes->info.rows, pTaskInfo, NULL);
             QUERY_CHECK_CODE(code, lino, _end);

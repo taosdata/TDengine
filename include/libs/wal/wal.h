@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "ttrace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -170,7 +171,8 @@ void    walClose(SWal *);
 
 // write interfaces
 // By assigning index by the caller, wal gurantees linearizability
-int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
+int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen,
+                     const STraceId *trace);
 int32_t walFsync(SWal *, bool force);
 
 // apis for lifecycle management

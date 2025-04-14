@@ -1,0 +1,9 @@
+{"type": "record", "name": "org.apache.avro.tests.Hello", "fields": [
+  {"name": "f1", "type": {"type": "enum", "name": "MyEnum", "symbols": ["Foo", "Bar", "Baz"]}},
+  {"name": "f2", "type": "org.apache.avro.tests.MyEnum"},
+  {"name": "f3", "type": "MyEnum"},
+  {"name": "f4", "type": {"type": "enum", "name": "other.namespace.OtherEnum", "symbols": ["one", "two", "three"]}},
+  {"name": "f5", "type": "other.namespace.OtherEnum"},
+  {"name": "f6", "type": {"type": "enum", "name": "ThirdEnum", "namespace": "some.other", "symbols": ["Alice", "Bob"]}},
+  {"name": "f7", "type": "some.other.ThirdEnum"}
+]}

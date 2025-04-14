@@ -26,12 +26,12 @@ extern "C" {
 #include "parToken.h"
 #include "query.h"
 
-#define parserFatal(param, ...) qFatal("PARSER: " param, ##__VA_ARGS__)
-#define parserError(param, ...) qError("PARSER: " param, ##__VA_ARGS__)
-#define parserWarn(param, ...)  qWarn("PARSER: " param, ##__VA_ARGS__)
-#define parserInfo(param, ...)  qInfo("PARSER: " param, ##__VA_ARGS__)
-#define parserDebug(param, ...) qDebug("PARSER: " param, ##__VA_ARGS__)
-#define parserTrace(param, ...) qTrace("PARSER: " param, ##__VA_ARGS__)
+#define parserFatal(param, ...) qFatal("parser " param, ##__VA_ARGS__)
+#define parserError(param, ...) qError("parser " param, ##__VA_ARGS__)
+#define parserWarn(param, ...)  qWarn ("parser " param, ##__VA_ARGS__)
+#define parserInfo(param, ...)  qInfo ("parser " param, ##__VA_ARGS__)
+#define parserDebug(param, ...) qDebug("parser " param, ##__VA_ARGS__)
+#define parserTrace(param, ...) qTrace("parser " param, ##__VA_ARGS__)
 
 #define ROWTS_PSEUDO_COLUMN_NAME "_rowts"
 #define C0_PSEUDO_COLUMN_NAME    "_c0"
@@ -113,7 +113,9 @@ typedef struct SParseMetaCache {
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
   SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
   SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
-  SArray*   pDnodes;       // element is SEpSet
+  SArray*   pVSubTables;   // element is SVSubTablesRsp
+  SArray*   pVStbRefDbs;   // element is pVStbRefDbs
+  SArray*   pDnodes;       // element is SDNodeAddr
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
 } SParseMetaCache;
@@ -125,6 +127,7 @@ int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr);
 
 SSchema*      getTableColumnSchema(const STableMeta* pTableMeta);
+SSchemaExt*   getTableColumnExtSchema(const STableMeta* pTableMeta);
 SSchema*      getTableTagSchema(const STableMeta* pTableMeta);
 int32_t       getNumOfColumns(const STableMeta* pTableMeta);
 int32_t       getNumOfTags(const STableMeta* pTableMeta);
@@ -139,8 +142,8 @@ int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SS
                       SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void *charsetCxt);
 int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pFoundCtbName);
 
-int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
-int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache);
+int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
+int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);
 int32_t reserveTableUidInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
@@ -161,6 +164,8 @@ int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTab
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
 int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsmaName, SParseMetaCache* pMetaCache);
+int32_t reserveVSubTableInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
+int32_t reserveVStbRefDbsInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, char* pTbName);
 int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
@@ -186,6 +191,7 @@ int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, ST
  * @retval val range between [INT64_MIN, INT64_MAX]
  */
 int64_t int64SafeSub(int64_t a, int64_t b);
+STypeMod calcTypeMod(const SDataType* pType);
 
 #ifdef __cplusplus
 }

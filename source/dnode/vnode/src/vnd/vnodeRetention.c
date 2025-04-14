@@ -25,5 +25,9 @@ int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
 
 int32_t vnodeAsyncS3Migrate(SVnode *pVnode, int64_t now) {
   // async migration
+#ifdef USE_S3
   return tsdbAsyncS3Migrate(pVnode->pTsdb, now);
+#else
+  return TSDB_CODE_INTERNAL_ERROR;
+#endif
 }

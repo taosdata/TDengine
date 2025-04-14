@@ -450,6 +450,11 @@ class TDTestCase:
         tdsql.checkData(0,2,180)
         tdsql.checkData(0,3,0.53)
 
+        # check alter config
+        tdsql.execute('alter all dnodes "debugFlag 131"')
+        tdsql.execute('alter dnode 1 "debugFlag 143"')
+        tdsql.execute('alter local "debugFlag 131"')
+
         # check tmq
         conn = taos.connect()
 

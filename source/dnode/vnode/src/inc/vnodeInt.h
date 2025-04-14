@@ -19,7 +19,9 @@
 #include "executor.h"
 #include "filter.h"
 #include "qworker.h"
+#ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
+#endif
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
@@ -81,6 +83,8 @@ typedef struct SSnapDataHdr       SSnapDataHdr;
 typedef struct SCommitInfo        SCommitInfo;
 typedef struct SCompactInfo       SCompactInfo;
 typedef struct SQueryNode         SQueryNode;
+
+typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
@@ -168,7 +172,9 @@ int32_t         metaDropMultipleTables(SMeta* pMeta, int64_t version, SArray* tb
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
-SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, int64_t* createTime);
+SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema);
+int64_t         metaGetTableCreateTime(SMeta* pMeta, tb_uid_t uid, int lock);
+SExtSchema*     metaGetSExtSchema(const SMetaEntry* pME);
 int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
@@ -178,6 +184,8 @@ int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid);
+void    metaCacheClear(SMeta* pMeta);
 
 int32_t metaAddIndexToSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int32_t metaDropIndexFromSuperTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
@@ -242,14 +250,16 @@ void    tqClose(STQ*);
 int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
-int     tqScanWalAsync(STQ* pTq, bool ckPause);
+void    tqScanWalAsync(STQ* pTq);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
+int32_t tqStopStreamAllTasksAsync(SStreamMeta* pMeta, SMsgCb* pMsgCb);
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveTriggerRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessAllTaskStopReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -257,6 +267,9 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
+
+// injection error
+void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
@@ -268,7 +281,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessPollPush(STQ* pTq);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 
@@ -461,12 +474,12 @@ typedef struct {
 } SVATaskID;
 
 struct SVnode {
-  char*     path;
-  SVnodeCfg config;
   SVState   state;
   SVStatis  statis;
+  char*     path;
   STfs*     pTfs;
   int32_t   diskPrimary;
+  SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
 
@@ -485,13 +498,18 @@ struct SVnode {
   SVATaskID commitTask;
   SVATaskID commitTask2;
 
-  SMeta* pMeta;
-  SSma*  pSma;
-  STsdb* pTsdb;
-  SWal*  pWal;
-  STQ*   pTq;
-  SBse*  pBse;
+  struct {
+    TdThreadRwlock metaRWLock;
+    SMeta*         pMeta;
+    SMeta*         pNewMeta;
+    SVATaskID      metaCompactTask;
+  };
 
+  SSma*         pSma;
+  STsdb*        pTsdb;
+  SWal*         pWal;
+  STQ*          pTq;
+  SBse*         pBse;
   SSink*        pSink;
   int64_t       sync;
   TdThreadMutex lock;
@@ -502,6 +520,9 @@ struct SVnode {
   int64_t       blockSeq;
   SQHandle*     pQuery;
   SVMonitorObj  monitor;
+
+  // Notification Handles
+  SStreamNotifyHandleMap* pNotifyHandleMap;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

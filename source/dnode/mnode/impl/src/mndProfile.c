@@ -722,6 +722,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   batchRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   batchRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
   batchRsp.enableAuditDelete = tsEnableAuditDelete;
+  batchRsp.enableStrongPass = tsEnableStrongPassword;
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);
   for (int i = 0; i < sz; i++) {
@@ -778,7 +779,7 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   uint64_t queryId = 0;
   char    *p = strchr(killReq.queryStrId, ':');
   if (NULL == p) {
-    mError("invalid query id %s", killReq.queryStrId);
+    mError("invalid QID:%s", killReq.queryStrId);
     code = TSDB_CODE_MND_INVALID_QUERY_ID;
     TAOS_RETURN(code);
   }

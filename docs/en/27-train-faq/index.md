@@ -73,7 +73,7 @@ If the client encounters a connection failure, please follow the steps below to 
 
 ### 5. What to do if you encounter the error "Unable to resolve FQDN"?
 
-This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For the TAOS Shell or client applications, please check the following:
+This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For the TDengine CLI or client applications, please check the following:
 
 1. Check if the FQDN of the server you are connecting to is correct.
 2. If there is a DNS server in the network configuration, check if it is working properly
@@ -244,15 +244,15 @@ launchctl limit maxfiles
 This prompt indicates that the number of vnodes required for creating the db is not enough, exceeding the upper limit of vnodes in the dnode. By default, a dnode contains twice the number of CPU cores worth of vnodes, which can also be controlled by the supportVnodes parameter in the configuration file.
 Normally, increase the supportVnodes parameter in taos.cfg.
 
-### 21 Why can data from a specified time period be queried using taos-CLI on the server, but not on the client machine?
+### 21 Why can data from a specified time period be queried using TDengine CLI on the server, but not on the client machine?
 
 This issue is due to the client and server having different time zone settings. Adjusting the client's time zone to match the server's will resolve the issue.
 
 ### 22 The table name is confirmed to exist, but returns "table name does not exist" when writing or querying, why?
 
-In TDengine, all names, including database names and table names, are case-sensitive. If these names are not enclosed in backticks (\`) in the program or taos-CLI, even if you input them in uppercase, the engine will convert them to lowercase for use. If the names are enclosed in backticks, the engine will not convert them to lowercase and will use them as is.
+In TDengine, all names, including database names and table names, are case-sensitive. If these names are not enclosed in backticks (\`) in the program or TDengine CLI, even if you input them in uppercase, the engine will convert them to lowercase for use. If the names are enclosed in backticks, the engine will not convert them to lowercase and will use them as is.
 
-### 23 How to fully display field content in taos-CLI queries?
+### 23 How to fully display field content in TDengine CLI queries?
 
 You can use the \G parameter for vertical display, such as `show databases\G\;` (for ease of input, press TAB after "\" to automatically complete the content).
 
@@ -315,4 +315,15 @@ Problem solving: You should configure the automatic mount of the dataDir directo
 Directly querying from child table is fast. The query from super table with TAG filter is designed to meet the convenience of querying. It can filter data from multiple child tables at the same time. If the goal is to pursue performance and the child table has been clearly queried, directly querying from the sub table can achieve higher performance
 
 ### 35 How to view data compression ratio indicators?
-Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client taos-CLI. The table_name can be a super table, regular table, or subtable. For details [Click Here](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed)
+Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details [Click Here](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed)
+
+### 36 Why didn't my configuration parameter take effect even though I modified the configuration file?
+
+**Problem Description:**
+In TDengine versions 3.3.5.0 and above, some users might encounter an issue: they modify a configuration parameter in `taos.cfg`, but after restarting, the parameter doesn't seem to take effect, and no errors are found in the logs.
+
+**Problem Reason:**
+This is because TDengine versions 3.3.5.0 and above support persisting dynamically modified configuration parameters. This means that parameters you change dynamically using the `ALTER` command will remain effective even after a restart. Therefore, when restarting, TDengine versions 3.3.5.0 and above will, by default, load configuration parameters (except for `dataDir` itself) from the `dataDir`, rather than using the parameters configured in `taos.cfg`.
+
+**Problem Solution:**
+If you understand the feature of persistent configuration parameters but still wish to load configuration parameters from the configuration file upon restart, you can add `forceReadConfig 1` to the configuration file. This will force TDengine to read configuration parameters from the file.

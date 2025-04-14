@@ -12,7 +12,7 @@ taos> select SIGN(1)
 taos> select SIGN(1.5)
          sign(1.5)         |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select SIGN(100)
        sign(100)       |
@@ -27,7 +27,7 @@ taos> select SIGN(-1)
 taos> select SIGN(-1.5)
         sign(-1.5)         |
 ============================
-        -1.000000000000000 |
+                        -1 |
 
 taos> select SIGN(-100)
       sign(-100)       |
@@ -37,22 +37,22 @@ taos> select SIGN(-100)
 taos> select SIGN(1) + 1
         sign(1) + 1        |
 ============================
-         2.000000000000000 |
+                         2 |
 
 taos> select SIGN(1) - 1
         sign(1) - 1        |
 ============================
-         0.000000000000000 |
+                         0 |
 
 taos> select SIGN(1) * 1
         sign(1) * 1        |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select SIGN(1) / 1
         sign(1) / 1        |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select SIGN(1) from ts_4893.meters limit 5
         sign(1)        |
@@ -66,60 +66,60 @@ taos> select SIGN(1) from ts_4893.meters limit 5
 taos> select SIGN(1) + 1 from ts_4893.meters limit 1
         sign(1) + 1        |
 ============================
-         2.000000000000000 |
+                         2 |
 
 taos> select SIGN(1) - 1 from ts_4893.meters limit 1
         sign(1) - 1        |
 ============================
-         0.000000000000000 |
+                         0 |
 
 taos> select SIGN(1) * 2 from ts_4893.meters limit 1
         sign(1) * 2        |
 ============================
-         2.000000000000000 |
+                         2 |
 
 taos> select SIGN(1) / 2 from ts_4893.meters limit 1
         sign(1) / 2        |
 ============================
-         0.500000000000000 |
+                       0.5 |
 
 taos> select SIGN(2) + SIGN(1) from ts_4893.meters limit 1
      sign(2) + sign(1)     |
 ============================
-         2.000000000000000 |
+                         2 |
 
 taos> select SIGN(2) - SIGN(1) from ts_4893.meters limit 1
      sign(2) - sign(1)     |
 ============================
-         0.000000000000000 |
+                         0 |
 
 taos> select SIGN(2) * SIGN(1) from ts_4893.meters limit 1
      sign(2) * sign(1)     |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select SIGN(2) / SIGN(1) from ts_4893.meters limit 1
      sign(2) / sign(1)     |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select SIGN(1) + id from ts_4893.meters order by ts limit 5
        sign(1) + id        |
 ============================
-         1.000000000000000 |
-         2.000000000000000 |
-         3.000000000000000 |
-         4.000000000000000 |
-         5.000000000000000 |
+                         1 |
+                         2 |
+                         3 |
+                         4 |
+                         5 |
 
 taos> select SIGN(id) + id from ts_4893.meters order by ts limit 5
        sign(id) + id       |
 ============================
-         0.000000000000000 |
-         2.000000000000000 |
-         3.000000000000000 |
-         4.000000000000000 |
-         5.000000000000000 |
+                         0 |
+                         2 |
+                         3 |
+                         4 |
+                         5 |
 
 taos> select sign(cast(1 as tinyint))
  sign(cast(1 as tinyint)) |
@@ -164,12 +164,12 @@ taos> select sign(cast(1 as bigint unsigned))
 taos> select sign(cast(1 as float))
  sign(cast(1 as float)) |
 =========================
-          1.0000000e+00 |
+                      1 |
 
 taos> select sign(cast(1 as double))
   sign(cast(1 as double))  |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select sign(cast(NULL as tinyint))
  sign(cast(null as tinyint)) |
@@ -239,12 +239,12 @@ taos> select abs(SIGN(10))
 taos> select pow(SIGN(10), 2)
      pow(sign(10), 2)      |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select sqrt(SIGN(10))
       sqrt(sign(10))       |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select cast(SIGN(10) as int)
  cast(sign(10) as int) |
@@ -254,11 +254,11 @@ taos> select cast(SIGN(10) as int)
 taos> select SIGN(sqrt(id)) from ts_4893.meters order by ts limit 5
       sign(sqrt(id))       |
 ============================
-         0.000000000000000 |
-         1.000000000000000 |
-         1.000000000000000 |
-         1.000000000000000 |
-         1.000000000000000 |
+                         0 |
+                         1 |
+                         1 |
+                         1 |
+                         1 |
 
 taos> select SIGN(SIGN(SIGN(SIGN(0))))
  sign(sign(sign(sign(0)))) |
@@ -288,58 +288,58 @@ taos> select sign(-10)
 taos> select sign(current) from ts_4893.d0 order by ts limit 10
     sign(current)     |
 =======================
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
 
 taos> select sign(current) from ts_4893.meters order by ts limit 10
     sign(current)     |
 =======================
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
-            1.0000000 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
+                    1 |
 
 taos> select sign(cast(current as float)) from ts_4893.d0 order by ts limit 10
  sign(cast(current as float)) |
 ===============================
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
 
 taos> select sign(cast(current as float)) from ts_4893.meters order by ts limit 10
  sign(cast(current as float)) |
 ===============================
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
-                1.0000000e+00 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
+                            1 |
 
 taos> select sign(null)
       sign(null)       |
@@ -359,17 +359,17 @@ taos> select sign(-10)
 taos> select sign(0.1)
          sign(0.1)         |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select sign(-0.1)
         sign(-0.1)         |
 ============================
-        -1.000000000000000 |
+                        -1 |
 
 taos> select sign(current) from ts_4893.meters limit 1
     sign(current)     |
 =======================
-            1.0000000 |
+                    1 |
 
 taos> select sign(voltage) from ts_4893.meters limit 1
  sign(voltage) |
@@ -379,7 +379,7 @@ taos> select sign(voltage) from ts_4893.meters limit 1
 taos> select sign(phase) from ts_4893.meters limit 1
      sign(phase)      |
 =======================
-            1.0000000 |
+                    1 |
 
 taos> select sign(abs(voltage)) from ts_4893.meters limit 1
  sign(abs(voltage)) |
@@ -389,15 +389,15 @@ taos> select sign(abs(voltage)) from ts_4893.meters limit 1
 taos> select sign(round(current)) from ts_4893.meters limit 1
  sign(round(current)) |
 =======================
-            1.0000000 |
+                    1 |
 
 taos> select sign(sqrt(voltage)) from ts_4893.meters limit 1
     sign(sqrt(voltage))    |
 ============================
-         1.000000000000000 |
+                         1 |
 
 taos> select sign(log(current + 1)) from ts_4893.meters limit 1
   sign(log(current + 1))   |
 ============================
-         1.000000000000000 |
+                         1 |
 

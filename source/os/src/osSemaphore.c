@@ -131,7 +131,7 @@ int32_t tsem_destroy(tsem_t* sem) {
 int32_t tsem_init(tsem_t *psem, int flags, unsigned int count) {
   OS_PARAM_CHECK(psem);
   *psem = dispatch_semaphore_create(count);
-  if (*psem == NULL) return TAOS_SYSTEM_ERROR(errno);
+  if (*psem == NULL) return TAOS_SYSTEM_ERROR(ERRNO);
   return 0;
 }
 
@@ -202,16 +202,21 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {return -1;}
 /*
  * linux implementation
  */
-
+#ifndef TD_ASTRA
 #include <sys/syscall.h>
+#endif
 #include <unistd.h>
 
 bool taosCheckPthreadValid(TdThread thread) { return thread != 0; }
 
 int64_t taosGetSelfPthreadId() {
-  static __thread int id = 0;
+  static __thread int64_t id = 0;
   if (id != 0) return id;
+#ifndef TD_ASTRA
   id = syscall(SYS_gettid);
+#else
+  id = (int64_t) taosThreadSelf();
+#endif
   return id;
 }
 
@@ -226,17 +231,22 @@ bool    taosComparePthread(TdThread first, TdThread second) { return first == se
 int32_t taosGetPId() {
   static int32_t pid;
   if (pid != 0) return pid;
+#ifndef TD_ASTRA
   pid = getpid();
+#else
+  pid = (int32_t)taosThreadSelf(); // TD_ASTRA_TODO
+#endif
   return pid;
 }
 
 int32_t taosGetAppName(char* name, int32_t* len) {
+#ifndef TD_ASTRA
   OS_PARAM_CHECK(name);
   const char* self = "/proc/self/exe";
   char        path[PATH_MAX] = {0};
 
   if (-1 == readlink(self, path, PATH_MAX)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -249,7 +259,9 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   }
 
   tstrncpy(name, end, TSDB_APP_NAME_LEN);
-
+#else
+  tstrncpy(name, "tdastra", TSDB_APP_NAME_LEN); // TD_ASTRA_TODO
+#endif
   if (len != NULL) {
     *len = strlen(name);
   }
@@ -258,6 +270,7 @@ int32_t taosGetAppName(char* name, int32_t* len) {
 }
 
 int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
+#ifndef TD_ASTRA
   OS_PARAM_CHECK(name);
   OS_PARAM_CHECK(pPId);
   DIR*           dir = NULL;
@@ -270,7 +283,7 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
   *pPId = -1;
   dir = opendir("/proc");
   if (dir == NULL) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   while ((ptr = readdir(dir)) != NULL) {
@@ -310,13 +323,16 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
   } else {
     return TSDB_CODE_SUCCESS;
   }
+#else
+  return TSDB_CODE_APP_ERROR;
+#endif
 }
 
 int32_t tsem_init(tsem_t* psem, int flags, unsigned int count) {
   if (sem_init(psem, flags, count) == 0) {
     return 0;
   } else {
-    return terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 }
 
@@ -327,7 +343,7 @@ int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   struct timespec ts = {0};
 
   if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -336,12 +352,12 @@ int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   ts.tv_nsec %= 1000000000;
 
   while ((ret = sem_timedwait(sem, &ts)) == -1) {
-    if (errno == EINTR) {
+    if (ERRNO == EINTR) {
       continue;
-    } else if (errno == ETIMEDOUT) {
+    } else if (ERRNO == ETIMEDOUT) {
       return TSDB_CODE_TIMEOUT_ERROR;
     } else {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       return terrno;
     }
   }
@@ -354,10 +370,10 @@ int32_t tsem_wait(tsem_t* sem) {
   int ret = 0;
   do {
     ret = sem_wait(sem);
-  } while (-1 == ret && errno == EINTR);
+  } while (-1 == ret && ERRNO == EINTR);
 
   if (-1 == ret) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -399,7 +415,7 @@ int32_t tsem_post(tsem_t* psem) {
   if (sem_post(psem) == 0) {
     return 0;
   } else {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 }
 
@@ -408,7 +424,7 @@ int32_t tsem_destroy(tsem_t* sem) {
   if (sem_destroy(sem) == 0) {
     return 0;
   } else {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 }
 
@@ -480,7 +496,7 @@ int32_t tsem2_timewait(tsem2_t* sem, int64_t ms) {
   if (sem->count <= 0) {
     struct timespec ts = {0};
     if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       (void)taosThreadMutexUnlock(&sem->mutex);
       terrno = code;
       return code;

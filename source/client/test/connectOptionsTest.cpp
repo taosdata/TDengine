@@ -55,7 +55,13 @@ TAOS* getConnWithOption(const char *tz){
 
 void execQuery(TAOS* pConn, const char *sql){
   TAOS_RES* pRes = taos_query(pConn, sql);
-  ASSERT(taos_errno(pRes) == TSDB_CODE_SUCCESS);
+  int       code = taos_errno(pRes);
+  while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+    taosMsleep(2000);
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    code = taos_errno(pRes);
+  }
+  ASSERT(code == TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 }
 
@@ -213,7 +219,7 @@ TEST(connectionCase, setConnectionOption_Test) {
   int32_t code = taos_options_connection(NULL, TSDB_OPTION_CONNECTION_CHARSET, NULL);
   ASSERT(code != 0);
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConn != nullptr);
+  ASSERT_NE(pConn, nullptr);
 
   code = taos_options_connection(pConn, TSDB_MAX_OPTIONS_CONNECTION, NULL);
   ASSERT(code != 0);

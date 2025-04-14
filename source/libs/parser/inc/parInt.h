@@ -36,18 +36,18 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
-int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
+int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema, SExtSchema** pExtSchema);
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock);
 int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock);
 int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock);
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray** pPlaceholderValues);
-int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinParent);
+int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin);
 int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput);
 void    tfreeSParseQueryRes(void* p);
 
 #ifdef TD_ENTERPRISE
-int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName);
+int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
 #endif
 #ifdef __cplusplus

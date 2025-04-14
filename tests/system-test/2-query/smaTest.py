@@ -12,8 +12,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-
-from numpy.lib.function_base import insert
 import taos
 from util.log import *
 from util.cases import *
@@ -75,6 +73,7 @@ class TDTestCase:
         tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
         self.test_TD_33336()
+        self.ts5900()
 
     # stop
     def stop(self):
@@ -137,6 +136,47 @@ class TDTestCase:
 
         tdLog.debug("INSERT TABLE DATA ............ [OK]")
         return
+    
+    def ts5900query(self):
+        sql = "select max(c0) from ts5900.tt1"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '99.0')
+        sql = "select min(c0) from ts5900.tt1"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '1.0')      
+
+    def ts5900(self):
+        tdSql.execute("drop database if exists ts5900;")
+        tdSql.execute("create database ts5900;")
+        
+        tdSql.execute("create table ts5900.meters (ts timestamp, c0 varchar(64)) tags(t0 varchar(64));")
+        
+        sql = "CREATE TABLE ts5900.`tt1` USING ts5900.`meters` TAGS ('t11')"
+        tdSql.execute(sql)
+        for i in range(155):
+            tdSql.query(f"insert into ts5900.tt1 values(now+{i*10}s, '{i+1}.0')")
+        tdSql.query("insert into ts5900.tt1 values(now, '1.2')")
+        tdSql.query("insert into ts5900.tt1 values(now+1s, '2.0')")
+        tdSql.query("insert into ts5900.tt1 values(now+2s, '3.0')")
+        tdSql.query("insert into ts5900.tt1 values(now+3s, '105.0')")
+        tdSql.query("insert into ts5900.tt1 values(now+4s, '4.0')")
+        
+        sql = "select count(*) from ts5900.tt1"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '160')
+        
+        for i in range(10):
+            tdSql.execute("flush database ts5900")
+            time.sleep(1)
+            self.ts5900query()
+            tdSql.query(f"insert into ts5900.tt1 values(now, '23.0')")
+            self.ts5900query()
+            tdLog.info(f"ts5900 test {i} ............ [OK]")
+            time.sleep(1)
+               
 
     # test case1 base
     # def test_case1(self):

@@ -25,6 +25,9 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.1.5                     | Password supports special characters. |  - |
+| 3.1.4                     | Modified the readme.| -                           |
+| 3.1.3                     | Upgraded the es5-ext version to address vulnerabilities in the lower version. | -                      |
 | 3.1.2                     | Optimized data protocol and parsing, significantly improved performance. | -                           |
 | 3.1.1                     | Optimized data transmission performance.                                 | 3.3.2.0 and higher versions |
 | 3.1.0                     | New release, supports WebSocket connection.                              | 3.2.0.0 and higher versions |
@@ -132,16 +135,20 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
 In addition to obtaining a connection through a specified URL, you can also use WSConfig to specify parameters when establishing a connection.
 
 ```js
-try {
-    let url = 'ws://127.0.0.1:6041'
-    let conf = WsSql.NewConfig(url)
-    conf.setUser('root')
-    conf.setPwd('taosdata')
-    conf.setDb('db')
-    conf.setTimeOut(500)
-    let wsSql = await WsSql.open(conf);
-} catch (e) {
-    console.error(e);
+const taos = require("@tdengine/websocket");
+
+async function createConnect() {
+    try {
+        let url = 'ws://127.0.0.1:6041'
+        let conf = new taos.WSConfig(url)
+        conf.setUser('root')
+        conf.setPwd('taosdata')
+        conf.setDb('db')
+        conf.setTimeOut(500)
+        let wsSql = await taos.sqlConnect(conf)
+    } catch (e) {
+        console.error(e);
+    }
 }
 ```
 

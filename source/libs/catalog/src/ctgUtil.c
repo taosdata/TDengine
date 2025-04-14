@@ -202,6 +202,12 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTsmas);
   pData->pTsmas = NULL;
 
+  taosArrayDestroyEx(pData->pVSubTables, tDestroySVSubTablesRsp);
+  pData->pVSubTables = NULL;
+
+  taosArrayDestroyEx(pData->pVStbRefDbs, tDestroySVStbRefDbsRsp);
+  pData->pVStbRefDbs = NULL;
+
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -430,7 +436,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   taosMemoryFree(pCtg);
 
-  ctgInfo("handle freed, clusterId:0x%" PRIx64, clusterId);
+  ctgInfo("clusterId:0x%" PRIx64 ", handle freed", clusterId);
 }
 
 void ctgClearHandleMeta(SCatalog* pCtg, int64_t* pClearedSize, int64_t* pCleardNum, bool* roundDone) {
@@ -541,7 +547,7 @@ void ctgClearHandle(SCatalog* pCtg) {
 
   CTG_STAT_RT_INC(numOfOpClearCache, 1);
 
-  ctgInfo("handle cleared, clusterId:0x%" PRIx64, clusterId);
+  ctgInfo("clusterId:0x%" PRIx64 ", handle cleared", clusterId);
 }
 
 void ctgFreeSUseDbOutput(SUseDbOutput* pOutput) {
@@ -591,6 +597,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_VND_TABLE_NAME: {
       STableMetaOutput* pOut = (STableMetaOutput*)pCtx->out;
       taosMemoryFree(pOut->tbMeta);
+      taosMemoryFree(pOut->vctbMeta);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -656,6 +663,14 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       }
       break;
     }
+    case TDMT_VND_VSUBTABLES_META: {
+      taosMemoryFreeClear(pCtx->target);
+      break;
+    }
+    case TDMT_VND_VSTB_REF_DBS: {
+      taosMemoryFreeClear(pCtx->target);
+      break;
+    }
     default:
       qError("invalid reqType %d", pCtx->reqType);
       break;
@@ -676,6 +691,7 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
   }
 
   taosMemoryFree(pOutput->tbMeta);
+  taosMemoryFree(pOutput->vctbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -857,6 +873,10 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;  // no need to free it
       break;
     }
+    case CTG_TASK_GET_V_SUBTABLES:
+    case CTG_TASK_GET_V_STBREFDBS: {
+      break;
+    }
     default:
       qError("invalid task type %d", type);
       break;
@@ -923,6 +943,10 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
       taosArrayDestroyEx(*pRes, ctgFreeBatchMeta);
       *pRes = NULL;
       break;
+    }
+    case CTG_TASK_GET_V_SUBTABLES:
+    case CTG_TASK_GET_V_STBREFDBS: {
+
     }
     default:
       qError("invalid task type %d", type);
@@ -1049,6 +1073,40 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
+    case CTG_TASK_GET_V_SUBTABLES: {
+      SCtgVSubTablesCtx* taskCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
+      if (taskCtx->clonedVgroups) {
+        taosArrayDestroy(taskCtx->pVgroups);
+        taskCtx->pVgroups = NULL;
+      }
+      if (taskCtx->pResList) {
+        for (int32_t i = 0; i < taskCtx->vgNum; ++i) {
+          SVSubTablesRsp* pVg = taskCtx->pResList + i;
+          tDestroySVSubTablesRsp(pVg);
+        }
+        taosMemoryFreeClear(taskCtx->pResList);
+      }
+      taosMemoryFreeClear(taskCtx->pMeta);
+      taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }
+    case CTG_TASK_GET_V_STBREFDBS: {
+      SCtgVStbRefDbsCtx* taskCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
+      if (taskCtx->clonedVgroups) {
+        taosArrayDestroy(taskCtx->pVgroups);
+        taskCtx->pVgroups = NULL;
+      }
+      if (taskCtx->pResList) {
+        for (int32_t i = 0; i < taskCtx->vgNum; ++i) {
+          SVStbRefDbsRsp* pVg = taskCtx->pResList + i;
+          tDestroySVSubTablesRsp(pVg);
+        }
+        taosMemoryFreeClear(taskCtx->pResList);
+      }
+      taosMemoryFreeClear(taskCtx->pMeta);
+      taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }
     default:
       qError("invalid task type %d", pTask->type);
       break;
@@ -1097,7 +1155,7 @@ void ctgFreeJob(void* job) {
 
   taosMemoryFree(job);
 
-  qDebug("QID:0x%" PRIx64 ", ctg job 0x%" PRIx64 " freed", qid, rid);
+  qTrace("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog job freed", qid, rid);
 }
 
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target) {
@@ -1147,12 +1205,28 @@ int32_t ctgGetHashFunction(int8_t hashMethod, tableNameHashFp* fp) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList) {
+int32_t ctgVgInfoIdComp(void const *lp, void const *rp) {
+  SVgroupInfo* pVg1 = (SVgroupInfo*)lp;
+  SVgroupInfo* pVg2 = (SVgroupInfo*)rp;
+
+  if (pVg1->vgId < pVg2->vgId) {
+    return -1;
+  } else if (pVg1->vgId > pVg2->vgId) {
+    return 1;
+  }
+
+  return 0;
+}
+
+int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, const char* dbFName) {
   SHashObj*    vgroupHash = NULL;
   SVgroupInfo* vgInfo = NULL;
   SArray*      vgList = NULL;
   int32_t      code = 0;
   int32_t      vgNum = taosHashGetSize(vgHash);
+  SName        name = {0};
+  code = tNameFromString(&name, dbFName, T_NAME_ACCT | T_NAME_DB);
+  CTG_ERR_RET(code);
 
   vgList = taosArrayInit(vgNum, sizeof(SVgroupInfo));
   if (NULL == vgList) {
@@ -1173,11 +1247,14 @@ int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList) {
     pIter = taosHashIterate(vgHash, pIter);
   }
 
-  taosArraySort(vgList, ctgVgInfoComp);
+  if (IS_SYS_DBNAME(name.dbname))
+    taosArraySort(vgList, ctgVgInfoIdComp);
+  else
+    taosArraySort(vgList, ctgVgInfoComp);
 
   *pList = vgList;
 
-  ctgDebug("Got vgList from cache, vgNum:%d", vgNum);
+  ctgDebug("get vgList from cache, vgNum:%d", vgNum);
 
   return TSDB_CODE_SUCCESS;
 
@@ -1218,7 +1295,7 @@ int32_t ctgHashValueComp(void const* lp, void const* rp) {
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* dbInfo, const SName* pTableName,
                                   SVgroupInfo* pVgroup) {
   int32_t code = 0;
-  CTG_ERR_RET(ctgMakeVgArray(dbInfo));
+  CTG_ERR_RET(ctgMakeVgArray(dbInfo, pTableName->dbname, false));
 
   int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
   char    db[TSDB_DB_FNAME_LEN] = {0};
@@ -1267,14 +1344,14 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
   */
 
   if (NULL == vgInfo) {
-    ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, db,
+    ctgError("tb:%s, no hash range found for hash value [%u], db:%s, numOfVgId:%d", tbFullName, hashValue, db,
              (int32_t)taosArrayGetSize(dbInfo->vgArray));
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   *pVgroup = *vgInfo;
 
-  ctgDebug("Got tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
            vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1288,7 +1365,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
   SMetaRes     res = {0};
   SVgroupInfo* vgInfo = NULL;
 
-  CTG_ERR_RET(ctgMakeVgArray(dbInfo));
+  CTG_ERR_RET(ctgMakeVgArray(dbInfo, dbFName, true));
 
   int32_t tbNum = taosArrayGetSize(pNames);
 
@@ -1308,7 +1385,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
       TAOS_MEMCPY(vgInfo, &mgmtInfo, sizeof(mgmtInfo));
 
-      ctgDebug("Got tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
+      ctgDebug("get tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
                vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
       if (update) {
@@ -1357,7 +1434,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
       TAOS_MEMCPY(vgInfo, pSrcVg, sizeof(*pSrcVg));
 
-      ctgDebug("Got tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
+      ctgDebug("get tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
                vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
       if (update) {
@@ -1418,7 +1495,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
     *pNewVg = *vgInfo;
 
-    ctgDebug("Got tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+    ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
              vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
              vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1450,7 +1527,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFName, const char* pTbs[], int32_t tbNum,
                                  int32_t* vgId) {
   int32_t code = 0;
-  CTG_ERR_RET(ctgMakeVgArray(dbInfo));
+  CTG_ERR_RET(ctgMakeVgArray(dbInfo, dbFName, true));
 
   int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
   if (vgNum <= 0) {
@@ -1477,7 +1554,7 @@ int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFNam
 
     vgId[i] = vgInfo->vgId;
 
-    ctgDebug("Got tb %s vgId:%d", tbFullName, vgInfo->vgId);
+    ctgDebug("tb:%s, get vgId:%d", tbFullName, vgInfo->vgId);
   }
 
   CTG_RET(code);
@@ -1563,7 +1640,22 @@ int32_t ctgTSMAVersionSortCompare(const void* key1, const void* key2) {
   }
 }
 
-int32_t ctgMakeVgArray(SDBVgInfo* dbInfo) {
+int32_t ctgMakeVgArray(SDBVgInfo* dbInfo, const char* dbName, bool isFullName) {
+  __compar_fn_t sortFunc = ctgVgInfoComp;
+  if (dbName) {
+    const char*   realDbName = dbName;
+    SName         name = {0};
+    if (isFullName) {
+      int32_t code = tNameFromString(&name, dbName, T_NAME_ACCT | T_NAME_DB);
+      CTG_ERR_RET(code);
+      realDbName = name.dbname;
+    }
+    if (IS_SYS_DBNAME(realDbName)) sortFunc = ctgVgInfoIdComp;
+  }
+  return ctgMakeVgArraySortBy(dbInfo, sortFunc);
+}
+
+int32_t ctgMakeVgArraySortBy(SDBVgInfo* dbInfo, __compar_fn_t sort_func) {
   if (NULL == dbInfo) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1585,14 +1677,14 @@ int32_t ctgMakeVgArray(SDBVgInfo* dbInfo) {
       pIter = taosHashIterate(dbInfo->vgHash, pIter);
     }
 
-    taosArraySort(dbInfo->vgArray, ctgVgInfoComp);
+    taosArraySort(dbInfo->vgArray, sort_func);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst) {
-  CTG_ERR_RET(ctgMakeVgArray(src));
+  CTG_ERR_RET(ctgMakeVgArray(src, NULL, false));
 
   *dst = taosMemoryMalloc(sizeof(SDBVgInfo));
   if (NULL == *dst) {
@@ -1647,15 +1739,42 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 
   TAOS_MEMCPY(*pOutput, output, sizeof(STableMetaOutput));
 
+  if (output->vctbMeta) {
+    int32_t metaSize = sizeof(SVCTableMeta);
+    int32_t colRefSize = 0;
+    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+      colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
+    }
+    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
+    if (NULL == (*pOutput)->vctbMeta) {
+      qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(terrno);
+    }
+
+    TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
+    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+      (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->vctbMeta->colRef = NULL;
+    }
+  }
+
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     int32_t schemaExtSize = 0;
-    if (useCompress(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
+    int32_t colRefSize = 0;
+    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
       schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      colRefSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+    }
 
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize);
-    qDebug("tbMeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
+    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
+    qTrace("tbmeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
+
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1663,11 +1782,17 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->tbMeta, output->tbMeta, metaSize);
-    if (useCompress(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
+    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
       (*pOutput)->tbMeta->schemaExt = (SSchemaExt*)((char*)(*pOutput)->tbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
     } else {
       (*pOutput)->tbMeta->schemaExt = NULL;
+    }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      (*pOutput)->tbMeta->colRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->tbMeta->colRef = NULL;
     }
   }
 
@@ -1707,7 +1832,8 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
   if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META ||
-      msgType == TDMT_VND_TABLE_NAME) {
+      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSUBTABLES_META ||
+      msgType == TDMT_VND_GET_STREAM_PROGRESS || msgType == TDMT_VND_VSTB_REF_DBS) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = taosStrdup(dbFName);
@@ -2042,7 +2168,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
     if (NULL == pMeta) {
       if (req->onlyCache) {
         res->metaNotExists = true;
-        ctgDebug("db %s tb %s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
+        ctgDebug("db:%s, tb:%s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
         goto _return;
       }
 
@@ -2053,17 +2179,17 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
-    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType || TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
       res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
     }
 
-    if (TSDB_CHILD_TABLE == pMeta->tableType) {
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
       CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
       if (NULL == stbName) {
         if (req->onlyCache) {
           res->metaNotExists = true;
-          ctgDebug("suid %" PRIu64 " name not in cache for auth", pMeta->suid);
+          ctgDebug("suid:%" PRIu64 ", name not in cache for auth", pMeta->suid);
           goto _return;
         }
 
@@ -2074,7 +2200,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       continue;
     }
 
-    ctgError("Invalid table type %d for %s", pMeta->tableType, tbFName);
+    ctgError("invalid table type %d for %s", pMeta->tableType, tbFName);
     CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
 
@@ -2376,6 +2502,8 @@ FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
       return sizeof(*pMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
     case TSDB_CHILD_TABLE:
       return sizeof(SCTableMeta);
+    case TSDB_VIRTUAL_CHILD_TABLE:
+      return sizeof(SVCTableMeta);
     default:
       return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
   }
@@ -2706,8 +2834,8 @@ bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
   bool    ret = !pTsmaCache->fillHistoryFinished ||
              (tsMaxTsmaCalcDelay * 1000 - pTsmaCache->delayDuration) < (now - pTsmaCache->reqTs);
   if (ret) {
-    qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
-           " passed: %" PRId64,
+    qDebug("tsma:%s.%s in cache has been out of date, history finished:%d, remain valid after:%" PRId64
+           " passed:%" PRId64,
            pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
            tsMaxTsmaCalcDelay * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
   }
@@ -2741,3 +2869,70 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t ctgBuildNormalChildVtbList(SCtgVSubTablesCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS, line = 0;
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  pCtx->pResList = taosMemoryCalloc(1, sizeof(*pCtx->pResList));
+  QUERY_CHECK_NULL(pCtx->pResList, code, line, _return, terrno);
+
+  pCtx->pResList->vgId = pCtx->pMeta->vgId;
+
+  pCtx->pResList->pTables = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pCtx->pResList->pTables, code, line, _return, terrno);
+
+  SSHashObj* pSrcTbls = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  QUERY_CHECK_NULL(pSrcTbls, code, line, _return, terrno);
+
+  int32_t refColsNum = 0;
+  for (int32_t i = 0; i < pCtx->pMeta->numOfColRefs; ++i) {
+    if (!pCtx->pMeta->colRef[i].hasRef) {
+      continue;
+    }
+    
+    refColsNum++;
+  }
+  
+  SVCTableRefCols* pTb = (SVCTableRefCols*)taosMemoryCalloc(1, refColsNum * sizeof(SRefColInfo) + sizeof(SVCTableRefCols));
+  QUERY_CHECK_NULL(pTb, code, line, _return, terrno);
+  pTb->uid = pCtx->pMeta->uid;
+  pTb->numOfColRefs = refColsNum;
+  pTb->refCols = (SRefColInfo*)(pTb + 1);
+  
+  refColsNum = 0;
+  for (int32_t j = 0; j < pCtx->pMeta->numOfColRefs; j++) {
+    if (!pCtx->pMeta->colRef[j].hasRef) {
+      continue;
+    }
+
+    pTb->refCols[refColsNum].colId = pCtx->pMeta->colRef[j].id;
+    tstrncpy(pTb->refCols[refColsNum].refColName, pCtx->pMeta->colRef[j].refColName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTb->refCols[refColsNum].refTableName, pCtx->pMeta->colRef[j].refTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pTb->refCols[refColsNum].refDbName,pCtx->pMeta->colRef[j].refDbName, TSDB_DB_NAME_LEN);
+
+    snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->refCols[refColsNum].refDbName, pTb->refCols[refColsNum].refTableName);
+
+    if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
+      QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
+    }
+    
+    refColsNum++;
+  }
+
+  pTb->numOfSrcTbls = tSimpleHashGetSize(pSrcTbls);
+  QUERY_CHECK_NULL(taosArrayPush(pCtx->pResList->pTables, &pTb), code, line, _return, terrno);
+  pTb = NULL;
+
+_return:
+
+  tSimpleHashCleanup(pSrcTbls);
+  taosMemoryFree(pTb);
+  
+  if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+
+  return code;
+}
+
+

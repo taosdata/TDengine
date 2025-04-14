@@ -1,0 +1,36 @@
+{
+	"filetype": "query",
+	"cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"confirm_parameter_prompt": "no",
+	"databases": "test",
+	"query_times": 5,
+	"query_mode": "rest",
+	"specified_table_query": {
+		"concurrent": 5,
+		"query_interval": 1000,
+		"mixed_query": "yes",
+		"batch_query": "yes",
+		"sqls": [
+			{
+				"sql": "select last_row(*) from test.meters"
+			},
+			{
+				"sql": "select count(*) from test.meters"
+			},
+			{
+				"sql": "select * from test.d0",
+				"result": "./query_res1.txt"
+			},
+			{
+				"sql": "select count(*) from test.d1"
+			},
+			{
+				"sql": "select * from test.d2"
+			}
+		]
+	}
+}

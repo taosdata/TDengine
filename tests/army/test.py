@@ -24,7 +24,7 @@ import platform
 import socket
 import threading
 import importlib
-
+import ast
 import toml
 
 from frame.log import *
@@ -56,6 +56,17 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
+def get_local_classes_in_order(file_path):
+    with open(file_path, "r", encoding="utf-8") as file:
+        tree = ast.parse(file.read(), filename=file_path)
+    
+    classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    return classes
+
+def dynamicLoadModule(fileName):
+    moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+    return importlib.import_module(moduleName, package='..')
+
 # 
 # run case on previous cluster
 #
@@ -66,9 +77,11 @@ def runOnPreviousCluster(host, config, fileName):
     sep = "/"
     if platform.system().lower() == 'windows':
         sep = os.sep
-    moduleName = fileName.replace(".py", "").replace(sep, ".")
-    uModule = importlib.import_module(moduleName)
-    case = uModule.TDTestCase()
+    
+    uModule = dynamicLoadModule(fileName)
+    class_names = get_local_classes_in_order(fileName)
+    case_class = getattr(uModule, class_names[-1])
+    case = case_class()    
 
     # create conn
     conn = taos.connect(host, config)
@@ -113,10 +126,11 @@ if __name__ == "__main__":
     previousCluster = False
     level = 1
     disk  = 1
+    taosAdapter = False
 
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWU:n:i:aPL:D:', [
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWBU:n:i:aPL:D:', [
         'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums',
-        'queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode',"asan",'previous','level','disk'])
+        'queryPolicy','createDnodeNums','restful','websocket','adapter','adaptercfgupdate','replicaVar','independentMnode',"asan",'previous','level','disk'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -145,7 +159,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-P run case with [P]revious cluster, do not create new cluster to run case.')
             tdLog.printNoPrefix('-L set multiple level number.     range 1 ~ 3')
             tdLog.printNoPrefix('-D set disk number on each level. range 1 ~ 10')
-
+            tdLog.printNoPrefix('-B start taosadapter process')
             sys.exit(0)
 
         if key in ['-r', '--restart']:
@@ -238,11 +252,14 @@ if __name__ == "__main__":
         if key in ['-D', '--disk']:
             disk = value
 
+        if key in ['-B']:
+            taosAdapter = True
+
     #
     # do exeCmd command
     #
     if not execCmd == "":
-        if restful or websocket:
+        if taosAdapter or taosAdapter or restful or websocket:
             tAdapter.init(deployPath)
         else:
             tdDnodes.init(deployPath)
@@ -281,7 +298,7 @@ if __name__ == "__main__":
         if valgrind:
             time.sleep(2)
 
-        if restful or websocket:
+        if taosAdapter or restful or websocket:
             toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
@@ -354,10 +371,11 @@ if __name__ == "__main__":
         updateCfgDictStr = ''
         # adapter_cfg_dict_str = ''
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
+                ucase = case_class()
                 if ((json.dumps(updateCfgDict) == '{}') and hasattr(ucase, 'updatecfgDict')):
                     updateCfgDict = ucase.updatecfgDict
                     updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
@@ -377,7 +395,7 @@ if __name__ == "__main__":
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
-            if restful or websocket:
+            if taosAdapter or restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -416,7 +434,7 @@ if __name__ == "__main__":
                 clusterDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
                             
-            if restful or websocket:
+            if taosAdapter or restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -526,10 +544,11 @@ if __name__ == "__main__":
         except:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
+                ucase = case_class()
                 if (json.dumps(updateCfgDict) == '{}'):
                     updateCfgDict = ucase.updatecfgDict
                 if (json.dumps(adapter_cfg_dict) == '{}'):
@@ -537,7 +556,7 @@ if __name__ == "__main__":
             except:
                 pass
 
-        if restful or websocket:
+        if taosAdapter or restful or websocket:
             tAdapter.init(deployPath, masterIp)
             tAdapter.stop(force_kill=True)
 
@@ -548,7 +567,7 @@ if __name__ == "__main__":
             tdDnodes.start(1)
             tdCases.logSql(logSql)
 
-            if restful or websocket:
+            if taosAdapter or restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -591,7 +610,7 @@ if __name__ == "__main__":
                 clusterDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if restful or websocket:
+            if taosAdapter or restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 

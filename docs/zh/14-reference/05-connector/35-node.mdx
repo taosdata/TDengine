@@ -24,7 +24,10 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine 版本    |
 | ------------------| ----------------------| ----------------|
-|        3.1.2       | 对数据协议和解析进行了优化，性能得到大幅提升|  - |
+|        3.1.5       | 密码支持特殊字符 |  - |
+|        3.1.4       | 修改 readme |  - |
+|        3.1.3       | 升级了 es5-ext 版本，解决低版本的漏洞 |  - |
+|        3.1.2       | 对数据协议和解析进行了优化，性能得到大幅提升 |  - |
 |        3.1.1       | 优化了数据传输性能          |  3.3.2.0 及更高版本 |
 |        3.1.0       | 新版本发布，支持 WebSocket 连接 |  3.2.0.0 及更高版本 |
 
@@ -100,7 +103,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 1. "Unable to establish connection" 或 "Unable to resolve FQDN"
 
-   **原因**：一般都是因为配置 FQDN 不正确。 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
+   **原因**：一般都是因为配置 FQDN 不正确。可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
 
 ## API 参考
 
@@ -114,11 +117,11 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 |   protocol |   | username  | password  | host | port |  database  |  params               |
 ```
 
-- **protocol**: 使用 websocket 协议建立连接。例如`ws://localhost:6041`
-- **username/password**: 数据库的用户名和密码。
-- **host/port**: 主机地址和端口号。例如`localhost:6041`
-- **database**: 数据库名称。
-- **params**: 其他参数。 例如token。
+- **protocol**：使用 websocket 协议建立连接。例如`ws://localhost:6041`
+- **username/password**：数据库的用户名和密码。
+- **host/port**：主机地址和端口号。例如`localhost:6041`
+- **database**：数据库名称。
+- **params**：其他参数。例如 token。
 
 - 完整 URL 示例：
 
@@ -130,16 +133,20 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 除了通过指定的 URL 获取连接，还可以使用 WSConfig 指定建立连接时的参数。
 
 ```js
-try {
-    let url = 'ws://127.0.0.1:6041'
-    let conf = WsSql.NewConfig(url)
-    conf.setUser('root')
-    conf.setPwd('taosdata')
-    conf.setDb('db')
-    conf.setTimeOut(500)
-    let wsSql = await WsSql.open(conf);
-} catch (e) {
-    console.error(e);
+const taos = require("@tdengine/websocket");
+
+async function createConnect() {
+    try {
+        let url = 'ws://127.0.0.1:6041'
+        let conf = new taos.WSConfig(url)
+        conf.setUser('root')
+        conf.setPwd('taosdata')
+        conf.setDb('db')
+        conf.setTimeOut(500)
+        let wsSql = await taos.sqlConnect(conf)
+    } catch (e) {
+        console.error(e);
+    }
 }
 ```
 
@@ -149,7 +156,7 @@ WSConfig 中的配置如下：
 - setPwd(pws:string) 设置数据库密码。
 - setDb(db: string) 设置数据库名称。
 - setTimeOut(ms : number) 设置连接超时，单位毫秒。
-- setToken(token: string) 设置 taosAdapter 认证token。
+- setToken(token: string) 设置 taosAdapter 认证 token。
 
 ### 连接功能
 
@@ -174,7 +181,7 @@ WSConfig 中的配置如下：
     - **接口说明**：执行 sql 语句。
     - **参数说明**：
         - `sql`：待执行的 sql 语句。
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **返回值**：执行结果
         ```js
         TaosResult {
@@ -188,7 +195,7 @@ WSConfig 中的配置如下：
     - **接口说明**：查询数据。
     - **参数说明**：
         - `sql`：待执行的查询 sql 语句。
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **返回值**：WSRows 数据集对象。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 
@@ -219,43 +226,43 @@ WSConfig 中的配置如下：
     - **接口说明**：无模式写入。
     - **参数说明**：
         - `lines`：待写入的数据数组，无模式具体的数据格式可参考 `Schemaless 写入`。
-        - `protocol`: 协议类型
+        - `protocol`：协议类型
             - `SchemalessProto.InfluxDBLineProtocol`：InfluxDB 行协议（Line Protocol)。
             - `SchemalessProto.OpenTSDBTelnetLineProtocol`：OpenTSDB 文本行协议。
             - `SchemalessProto.OpenTSDBJsonFormatProtocol`：JSON 协议格式。
-        - `precision`: 时间精度
-            - `Precision.HOURS`：  小时
+        - `precision`：时间精度
+            - `Precision.HOURS`：小时
             - `Precision.MINUTES`：分钟
             - `Precision.SECONDS`：秒
             - `Precision.MILLI_SECONDS`：毫秒
             - `Precision.MICRO_SECONDS`：微秒
-            - `Precision.NANO_SECONDS`： 纳秒
+            - `Precision.NANO_SECONDS`：纳秒
         - `ttl`：表过期时间，单位天。
-        - `reqId`: 用于问题追踪，可选。    
+        - `reqId`：用于问题追踪，可选。    
     - **异常**：连接失败抛出 `TaosResultError` 异常。
 
 ### 参数绑定
 - `async stmtInit(reqId?:number): Promise<WsStmt>`
     - **接口说明** 使用 WsSql 对象创建 stmt 对象。
     - **参数说明**：
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **返回值**：stmt 对象。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 - `async prepare(sql: string): Promise<void>`
     - **接口说明** 绑定预编译 sql 语句。
     - **参数说明**：
-        - `sql`: 预编译的 SQL 语句。
+        - `sql`：预编译的 SQL 语句。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 - `async setTableName(tableName: string): Promise<void>`
     - **接口说明** 设置将要写入数据的表名。
     - **参数说明**：
-        - `tableName`: 表名，如果需要指定数据库, 例如： `db_name.table_name` 即可。
+        - `tableName`：表名，如果需要指定数据库，例如：`db_name.table_name` 即可。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 通过 StmtBindParams 对象设置绑定数据。
 - `setBoolean(params :any[])`
     - **接口说明** 设置布尔值。
     - **参数说明**：
-        - `params`: 布尔类型列表。
+        - `params`：布尔类型列表。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。   
 - 下面接口除了要设置的值类型不同外，其余同 setBoolean：
     - `setTinyInt(params :any[])`
@@ -278,12 +285,12 @@ WSConfig 中的配置如下：
 - `async setTags(paramsArray:StmtBindParams): Promise<void>`
     - **接口说明** 设置表 Tags 数据，用于自动建表。
     - **参数说明**：
-        - `paramsArray`: Tags 数据。
+        - `paramsArray`：Tags 数据。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 - `async bind(paramsArray:StmtBindParams): Promise<void>`
     - **接口说明** 绑定数据。
     - **参数说明**：
-        - `paramsArray`: 绑定数据。
+        - `paramsArray`：绑定数据。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。    
 - `async batch(): Promise<void>`
     - **接口说明** 提交绑定数据。
@@ -301,69 +308,69 @@ WSConfig 中的配置如下：
 ### 数据订阅
 
 - **创建消费者支持属性列表**：
-    - taos.TMQConstants.CONNECT_USER: 用户名。
-    - taos.TMQConstants.CONNECT_PASS: 密码。
-    - taos.TMQConstants.GROUP_ID: 所在的 group。
-    - taos.TMQConstants.CLIENT_ID: 客户端id。
-    - taos.TMQConstants.WS_URL: taosAdapter 的url地址。
-    - taos.TMQConstants.AUTO_OFFSET_RESET: 来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
-    - taos.TMQConstants.ENABLE_AUTO_COMMIT: 是否允许自动提交。
-    - taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS: 自动提交间隔。
-    - taos.TMQConstants.CONNECT_MESSAGE_TIMEOUT: 数据传输超时参数，单位 ms，默认为 10000 ms。
+    - taos.TMQConstants.CONNECT_USER：用户名。
+    - taos.TMQConstants.CONNECT_PASS：密码。
+    - taos.TMQConstants.GROUP_ID：所在的 group。
+    - taos.TMQConstants.CLIENT_ID：客户端 id。
+    - taos.TMQConstants.WS_URL：taosAdapter 的 url 地址。
+    - taos.TMQConstants.AUTO_OFFSET_RESET：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
+    - taos.TMQConstants.ENABLE_AUTO_COMMIT：是否允许自动提交。
+    - taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS：自动提交间隔。
+    - taos.TMQConstants.CONNECT_MESSAGE_TIMEOUT：数据传输超时参数，单位 ms，默认为 10000 ms。
 - `static async newConsumer(wsConfig:Map<string, any>):Promise<WsConsumer>`
     - **接口说明** 消费者构造函数。
     - **参数说明**：
-        - `wsConfig`: 创建消费者属性配置。
+        - `wsConfig`：创建消费者属性配置。
     - **返回值**：WsConsumer 消费者对象。
     - **异常**：如果在执行过程中出现异常，抛出 `TDWebSocketClientError` 错误。
 - `async subscribe(topics: Array<string>, reqId?:number): Promise<void>`
     - **接口说明** 订阅一组主题。
     - **参数说明**：
-        - `topics`: 订阅的主题列表。
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `topics`：订阅的主题列表。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **异常**：失败抛出 `TDWebSocketClientError` 异常。
 - `async unsubscribe(reqId?:number): Promise<void>`
     - **接口说明** 取消订阅。
     - **参数说明**：
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **异常**：失败抛出 `TDWebSocketClientError` 异常。
 - `async poll(timeoutMs: number, reqId?:number):Promise<Map<string, TaosResult>>`
     - **接口说明** 轮询消息。
     - **参数说明**：
-        - `timeoutMs`: 表示轮询的超时时间，单位毫秒。
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `timeoutMs`：表示轮询的超时时间，单位毫秒。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **返回值**：`Map<string, TaosResult>` 每个主题对应的数据。
     - **异常**：失败抛出 `TDWebSocketClientError` 异常。
 - `async subscription(reqId?:number):Promise<Array<string>>`
     - **接口说明** 获取当前订阅的所有主题。
     - **参数说明**：
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **返回值**：`Array<string>` 主题列表。
     - **异常**：失败抛出 `TDWebSocketClientError` 异常。 
 - `async commit(reqId?:number):Promise<Array<TopicPartition>>`
     - **接口说明** 提交当前处理的消息的偏移量。
     - **参数说明**：
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **返回值**：`Array<TopicPartition>` 每个主题的消费进度。
     - **异常**：失败抛出 `TDWebSocketClientError` 异常。
 - `async committed(partitions:Array<TopicPartition>, reqId?:number):Promise<Array<TopicPartition>>`
     - **接口说明**：获取一组分区最后提交的偏移量。
     - **参数说明**：
         - `partitions`：一个 `Array<TopicPartition>` 类型的参数，表示要查询的分区集合。
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **返回值**：`Array<TopicPartition>`，即一组分区最后提交的偏移量。
     - **异常**：如果在获取提交的偏移量过程中发生错误，将抛出 `TDWebSocketClientError` 异常。    
 - `async seek(partition:TopicPartition, reqId?:number):Promise<void>`
     - **接口说明**：将给定分区的偏移量设置到指定的位置。
     - **参数说明**：
         - `partition`：一个 `TopicPartition` 类型的参数，表示要操作的分区和要设置的偏移量。
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **异常**：如果在设置偏移量过程中发生错误，将抛出 `TDWebSocketClientError` 异常。
 - `async positions(partitions:Array<TopicPartition>, reqId?:number):Promise<Array<TopicPartition>>`
     - **接口说明**：获取给定分区当前的偏移量。
     - **参数说明**：
         - `partitions`：一个 `TopicPartition` 类型的参数，表示要查询的分区。
-        - `reqId`: 请求 id 非必填，用于问题追踪。
+        - `reqId`：请求 id 非必填，用于问题追踪。
     - **返回值**：`Array<TopicPartition>`，即一组分区最后提交的偏移量。
     - **异常**：如果在获取偏移量过程中发生错误，将抛出 `TDWebSocketClientError` 异常。    
 - `async seekToBeginning(partitions:Array<TopicPartition>):Promise<void>`

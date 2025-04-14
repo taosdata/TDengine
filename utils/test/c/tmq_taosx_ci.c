@@ -34,6 +34,7 @@ typedef struct {
   int  dstVgroups;
   char dir[256];
   bool btMeta;
+  bool rawData;
 } Config;
 
 Config g_conf = {0};
@@ -426,10 +427,28 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
 
   pRes =
       taos_query(pConn,
+                 "insert into stt1 values(now + 322s, 3, 2, 'stt1')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes =
+      taos_query(pConn,
                  "insert into stt1 values(now + 2s, 3, 2, 'stt1') stt3 using stt tags(23, \"stt3\", true) values(now + "
                  "1s, 1, 2, 'stt3') sttb3 using sttb tags(4, \"sttb3\", true) values(now + 2s, 13, 22, 'sttb3') "
                  "stt4 using stt tags(433, \"stt4\", false) values(now + 3s, 21, 21, 'stt4') sttb4 using sttb "
                  "tags(543, \"sttb4\", true) values(now + 4s, 16, 25, 'sttb4')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes =
+      taos_query(pConn,
+                 "insert into stt1 values(now + 442s, 3, 2, 'stt1')");
   if (taos_errno(pRes) != 0) {
     printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -633,6 +652,9 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.consume.excluded", "1");
+  if (g_conf.rawData) {
+    tmq_conf_set(conf, "msg.consume.rawdata", "1");
+  }
   //  tmq_conf_set(conf, "session.timeout.ms", "1000000");
   //  tmq_conf_set(conf, "max.poll.interval.ms", "20000");
 
@@ -1238,6 +1260,8 @@ int main(int argc, char* argv[]) {
       g_conf.meta = 1;
     } else if (strcmp(argv[i], "-bt") == 0) {
       g_conf.btMeta = true;
+    } else if (strcmp(argv[i], "-raw") == 0) {
+      g_conf.rawData = true;
     }
   }
 

@@ -6,6 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +19,9 @@ public class WeatherService {
 
     @Autowired
     private WeatherMapper weatherMapper;
+
+    @Autowired
+    private DatabaseConnectionService databaseConnectionService;
     private Random random = new Random(System.currentTimeMillis());
     private String[] locations = {"北京", "上海", "广州", "深圳", "天津"};
 
@@ -32,7 +38,7 @@ public class WeatherService {
             weather.setGroupId(i % locations.length);
             weather.setNote("note-" + i);
             weather.setBytes(locations[random.nextInt(locations.length)].getBytes(StandardCharsets.UTF_8));
-            weatherMapper.createTable(weather);
+            createTable(weather);
             count += weatherMapper.insert(weather);
         }
         return count;
@@ -77,5 +83,15 @@ public class WeatherService {
         weather.setGroupId(groupId);
         weather.setLocation(location);
         return weather;
+    }
+
+    public void createTable(Weather weather) {
+        try (Connection connection = databaseConnectionService.getConnection();
+             Statement statement = connection.createStatement()) {
+            String tableName = "t" + weather.getGroupId();
+            statement.executeUpdate("create table if not exists " + tableName +  " using test.weather tags( '" + weather.getLocation() +"', " + weather.getGroupId() + ")");
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

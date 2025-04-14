@@ -268,7 +268,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   QRY_ERR_JRET(taosWriteQitem(pDispatcher->pDataBlocks, pBuf));
 
   int32_t status = updateStatus(pDispatcher);
-  *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY);
+  *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY) && !(pDispatcher->flags & DS_FLAG_PROCESS_ONE_BLOCK);
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -438,7 +438,7 @@ int32_t getOutputColCounts(SDataBlockDescNode* pInputDataBlockDesc) {
   return numOfCols;
 }
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle) {
+int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, bool processOneBlock) {
   int32_t code;
   SDataSinkNode* pDataSink = *ppDataSink;
   code = blockDescNodeCheck(pDataSink->pInputDataBlockDesc);
@@ -480,6 +480,9 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataS
   }
 
   dispatcher->flags = DS_FLAG_USE_MEMPOOL;
+  if (processOneBlock) {
+    dispatcher->flags |= DS_FLAG_PROCESS_ONE_BLOCK;
+  }
 
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;

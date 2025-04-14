@@ -97,13 +97,14 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   }
 
   if (pVal->value[0] == 'g' || pVal->value[0] == 'G') {  // geometry
+#ifdef USE_GEOS
     if (pVal->length >= NCHAR_ADD_LEN && pVal->value[1] == '"' && pVal->value[pVal->length - 1] == '"') {
       int32_t code = initCtxGeomFromText();
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
-      char* tmp = taosMemoryCalloc(pVal->length, 1);
-      if (tmp == NULL){
+      char *tmp = taosMemoryCalloc(pVal->length, 1);
+      if (tmp == NULL) {
         return terrno;
       }
       (void)memcpy(tmp, pVal->value + NCHAR_ADD_LEN - 1, pVal->length - NCHAR_ADD_LEN);
@@ -115,12 +116,15 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
 
       pVal->type = TSDB_DATA_TYPE_GEOMETRY;
       if (pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
-        geosFreeBuffer((void*)(pVal->value));
+        geosFreeBuffer((void *)(pVal->value));
         return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
       }
       return TSDB_CODE_SUCCESS;
     }
     return TSDB_CODE_TSC_INVALID_VALUE;
+#else
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
   }
 
   if (pVal->value[0] == 'b' || pVal->value[0] == 'B') {  // varbinary

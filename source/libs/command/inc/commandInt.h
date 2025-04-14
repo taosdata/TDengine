@@ -29,6 +29,7 @@ extern "C" {
 
 //newline area
 #define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s"
+#define EXPLAIN_VIRTUAL_TABLE_SCAN_FORMAT "Virtual Table Scan on %s"
 #define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s"
 #define EXPLAIN_TBL_MERGE_SCAN_FORMAT "Table Merge Scan on %s"
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
@@ -202,13 +203,13 @@ do {                                                                \
 #define EXPLAIN_SUM_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; } while (0)
 
 #define EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, sl) do {                                            \
-  if (_pLimit) {                                                                                   \
+  if (_pLimit && ((SLimitNode*)_pLimit)->limit) {                                                  \
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);                                                      \
     SLimitNode* pLimit = (SLimitNode*)_pLimit;                                                     \
-    EXPLAIN_ROW_APPEND(((sl) ? EXPLAIN_SLIMIT_FORMAT : EXPLAIN_LIMIT_FORMAT), pLimit->limit);      \
+    EXPLAIN_ROW_APPEND(((sl) ? EXPLAIN_SLIMIT_FORMAT : EXPLAIN_LIMIT_FORMAT), pLimit->limit->datum.i);      \
     if (pLimit->offset) {                                                                          \
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);                                                    \
-      EXPLAIN_ROW_APPEND(((sl) ? EXPLAIN_SOFFSET_FORMAT : EXPLAIN_OFFSET_FORMAT), pLimit->offset);\
+      EXPLAIN_ROW_APPEND(((sl) ? EXPLAIN_SOFFSET_FORMAT : EXPLAIN_OFFSET_FORMAT), pLimit->offset->datum.i);\
     }                                                                                              \
   }                                                                                                \
 } while (0)

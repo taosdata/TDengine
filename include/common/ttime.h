@@ -82,7 +82,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
 int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision);
 
 int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
-
+char*   formatTimestampLocal(char* buf, int64_t val, int precision);
 struct STm {
   struct tm tm;
   int64_t   fsec;  // in NANOSECOND

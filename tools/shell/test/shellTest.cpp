@@ -18,7 +18,7 @@
 #include "shellAuto.h"
 
 TEST(fieldOptionsArea, autoTabTest) {
-  printf("hellow world  SHELL tab test\n");
+  printf("hello world  SHELL tab test\n");
 
   // str false
   const char *s0[] = {

@@ -292,11 +292,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbWalRetentionSize(-1);
   setDbWalRollPeriod(10);
   setDbWalSegmentSize(20);
-#ifndef _STORAGE
   setDbSstTrigger(1);
-#else
-  setDbSstTrigger(16);
-#endif
   setDbHashPrefix(3);
   setDbHashSuffix(4);
   setDbTsdbPageSize(32);
@@ -354,7 +350,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "WAL_RETENTION_SIZE -1 "
       "WAL_ROLL_PERIOD 10 "
       "WAL_SEGMENT_SIZE 20 "
-      "STT_TRIGGER 16 "
+      "STT_TRIGGER 1 "
       "TABLE_PREFIX 3 "
       "TABLE_SUFFIX 4 "
       "TSDB_PAGESIZE 32");
@@ -486,7 +482,7 @@ TEST_F(ParserInitialCTest, createFunction) {
       file << 123 << "abc" << '\n';
       file.close();
     }
-    ~udfFile() { assert(0 == remove(path_.c_str())); }
+    ~udfFile() { TD_ALWAYS_ASSERT(0 == remove(path_.c_str())); }
     std::string path_;
   } udffile("udf");
 
@@ -1349,11 +1345,11 @@ TEST_F(ParserInitialCTest, createUser) {
 
   auto setCreateUserReq = [&](const char* pUser, const char* pPass, int8_t sysInfo = 1) {
     strcpy(expect.user, pUser);
-    strcpy(expect.pass, pPass);
     expect.createType = 0;
     expect.superUser = 0;
     expect.sysInfo = sysInfo;
     expect.enable = 1;
+    taosEncryptPass_c((uint8_t*)pPass, strlen(pPass), expect.pass);
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -1370,12 +1366,12 @@ TEST_F(ParserInitialCTest, createUser) {
     tFreeSCreateUserReq(&req);
   });
 
-  setCreateUserReq("wxy", "123456");
-  run("CREATE USER wxy PASS '123456'");
+  setCreateUserReq("wxy", "12345678@Abc");
+  run("CREATE USER wxy PASS '12345678@Abc'");
   clearCreateUserReq();
 
-  setCreateUserReq("wxy1", "a123456", 1);
-  run("CREATE USER wxy1 PASS 'a123456' SYSINFO 1");
+  setCreateUserReq("wxy1", "12345678@Abc", 1);
+  run("CREATE USER wxy1 PASS '12345678@Abc' SYSINFO 1");
   clearCreateUserReq();
 }
 

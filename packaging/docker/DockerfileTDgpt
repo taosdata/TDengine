@@ -1,0 +1,26 @@
+FROM tdgpt_env:1.0
+WORKDIR /root
+ENV DEBIAN_FRONTEND=noninteractive
+ARG pkgFile
+ARG dirName
+ARG modelDlUrl
+
+# for timer-moe
+# ADD ${modelDlUrl}/timer-moe.tar.gz /root/
+# RUN tar -xzf timer-moe.tar.gz && rm -rf timer-moe.tar.gz
+
+ADD ${pkgFile} \
+    ${modelDlUrl}/taos.pth \
+    ${modelDlUrl}/taos_ts_server.py \
+    ${modelDlUrl}/fc_australia.sql \
+    /root/
+
+RUN cd ${dirName}/ && \
+    /bin/bash install.sh -e no && \
+    cd .. && \
+    rm -rf ${dirName}
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /root/taos_ts_server.py
+EXPOSE 6090 8387 5000
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+

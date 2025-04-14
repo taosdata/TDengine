@@ -29,6 +29,17 @@ SELECT a.* FROM meters a LEFT ASOF JOIN meters b ON timetruncate(a.ts, 1s) < tim
 ### Main Join Condition
 
 As a time-series database, all join queries in TDengine revolve around the primary key timestamp column. Therefore, all join queries (except ASOF/Window Join) must include an equality condition on the primary key column, and the first primary key column equality condition that appears in the join conditions will be considered the main join condition. ASOF Join's main join condition can include non-equality conditions, while Window Join's main join condition is specified through `WINDOW_OFFSET`.
+Starting from version 3.3.6.0, TDengine supports constant timestamps in subqueries (including constant functions with return timestamps such as today (), now (), etc., constant timestamps and their addition and subtraction operations) as equivalent primary key columns that can appear in the main join condition. For example:
+
+```sql
+SELECT * from d1001 a JOIN (SELECT today() as ts1, * from d1002 WHERE ts = '2025-03-19 10:00:00.000') b ON timetruncate(a.ts, 1d) = b.ts1;
+```
+
+The above example SQL will perform join operation between all records in table d1001 today and a certain time record in table d1002. It should be noticed that the constant time string appears in SQL will not be treated as a timestamp by default. For example, "2025-03-19 10:00:00.000" will only be treated as a string instead of a timestamp. Therefore, when it needs to be treated as a constant timestamp, you can specify the constant string as a timestamp type by using the type prefix timestamp. For example:
+
+```sql
+SELECT * from d1001 a JOIN (SELECT timestamp '2025-03-19 10:00:00.000' as ts1, * from d1002 WHERE ts = '2025-03-19 10:00:00.000') b ON timetruncate(a.ts, 1d) = b.ts1;
+```
 
 Apart from Window Join, TDengine supports the `timetruncate` function operation in the main join condition, such as `ON timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)`, but does not support other functions and scalar operations.
 
@@ -38,7 +49,7 @@ The characteristic ASOF/Window Join of time-series databases supports grouping t
 
 ### Primary Key Timeline
 
-As a time-series database, TDengine requires each table (subtable) to have a primary key timestamp column, which will serve as the primary key timeline for many time-related operations. The result of a subquery or the result of a Join operation also needs to clearly identify which column will be considered the primary key timeline for subsequent time-related operations. In subqueries, the first appearing ordered primary key column (or its operation) or a pseudocolumn equivalent to the primary key column (`_wstart`/`_wend`) will be considered the primary key timeline of the output table. The selection of the primary key timeline in Join output results follows these rules:
+As a time-series database, TDengine requires each table (subtable) to have a primary key timestamp column, which will serve as the primary key timeline for many time-related operations. The result of a subquery or the result of a Join operation also needs to clearly identify which column will be considered the primary key timeline for subsequent time-related operations. In subqueries, the first appearing ordered primary key column (or its operation) or a pseudocolumn equivalent to the primary key column (`_wstart`/`_wend`) will be considered the primary key timeline of the output table. In addition, starting with version 3.3.6.0, TDengine also supports constant timestamp columns in subquery results as the primary key timeline for the output table. The selection of the primary key timeline in Join output results follows these rules:
 
 - In the Left/Right Join series, the primary key column of the driving table (subquery) will be used as the primary key timeline for subsequent queries; additionally, within the Window Join window, since both tables are ordered, any table's primary key column can be used as the primary key timeline, with a preference for the primary key column of the same table.
 - Inner Join can use the primary key column of any table as the primary key timeline, but when there are grouping conditions similar to tag column equality conditions related by `AND` with the main join condition, it will not produce a primary key timeline.

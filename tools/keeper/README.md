@@ -1,273 +1,123 @@
-# TaosKeeper
+<!-- omit in toc -->
+# taosKeeper
 
-TDengine Metrics Exporter for Kinds of Collectors, you can obtain the running status of TDengine by performing several simple configurations.
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/TDengine)
+![GitHub License](https://img.shields.io/github/license/taosdata/TDengine)
+![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)
+<br />
+[![Twitter Follow](https://img.shields.io/twitter/follow/tdenginedb?label=TDengine&style=social)](https://twitter.com/tdenginedb)
+[![YouTube Channel](https://img.shields.io/badge/Subscribe_@tdengine--white?logo=youtube&style=social)](https://www.youtube.com/@tdengine)
+[![Discord Community](https://img.shields.io/badge/Join_Discord--white?logo=discord&style=social)](https://discord.com/invite/VZdSuUg4pS)
+[![LinkedIn](https://img.shields.io/badge/Follow_LinkedIn--white?logo=linkedin&style=social)](https://www.linkedin.com/company/tdengine)
+[![StackOverflow](https://img.shields.io/badge/Ask_StackOverflow--white?logo=stackoverflow&style=social&logoColor=orange)](https://stackoverflow.com/questions/tagged/tdengine)
 
-This tool uses TDengine RESTful API, so you could just build it without TDengine client.
+English | [简体中文](./README-CN.md)
 
-## Build
+<!-- omit in toc -->
+## Table of Contents
 
-### Get the source codes
+- [1. Introduction](#1-introduction)
+- [2. Documentation](#2-documentation)
+- [3. Prerequisites](#3-prerequisites)
+- [4. Build](#4-build)
+- [5. Testing](#5-testing)
+  - [5.1 Test Execution](#51-test-execution)
+  - [5.2 Test Case Addition](#52-test-case-addition)
+  - [5.3 Performance Testing](#53-performance-testing)
+- [6. CI/CD](#6-cicd)
+- [7. Submitting Issues](#7-submitting-issues)
+- [8. Submitting PR](#8-submitting-pr)
+- [9. References](#9-references)
+- [10. License](#10-license)
 
-```sh
-git clone https://github.com/taosdata/TDengine
-cd TDengine/tools/keeper
-```
+## 1. Introduction
 
-### compile
+taosKeeper is a new monitoring indicator export tool introduced in TDengine 3.0, which is designed to facilitate users to monitor the operating status and performance indicators of TDengine in real time. With simple configuration, TDengine can report its own operating status and various indicators to taosKeeper. After receiving the monitoring data, taosKeeper will use the RESTful interface provided by taosAdapter to store the data in TDengine.
 
-```sh
-go mod tidy
+An important value of taosKeeper is that it can store the monitoring data of multiple or even a batch of TDengine clusters in a unified platform. In this way, the monitoring software can easily obtain this data, and then realize comprehensive monitoring and real-time analysis of the TDengine cluster. Through taosKeeper, users can more easily understand the operation status of TDengine, discover and solve potential problems in a timely manner, and ensure the stability and efficiency of the system.
+
+## 2. Documentation
+
+- To use taosKeeper, please refer to the [taosKeeper Reference](https://docs.tdengine.com/tdengine-reference/components/taoskeeper/), which includes installation, configuration, startup, data collection and monitoring, and Prometheus integration.
+- This README is mainly for developers who want to contribute code, compile and test taosKeeper. If you want to learn TDengine, you can browse the [official documentation](https://docs.tdengine.com/).
+
+## 3. Prerequisites
+
+1. Go 1.23 or above has been installed.
+2. TDengine has been deployed locally. For specific steps, please refer to [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/), and taosd and taosAdapter have been started.
+
+## 4. Build
+
+Run the following command in the `TDengine/tools/keeper` directory to build the project:
+
+```bash
 go build
 ```
 
-## Install
+## 5. Testing
 
-If you build the tool by your self, just copy the `taoskeeper` binary to your `PATH`.
+### 5.1 Test Execution
 
-```sh
-sudo install taoskeeper /usr/bin/
+Run the test by executing the following command in the `TDengine/tools/keeper` directory:
+
+```bash
+sudo go test ./...
 ```
 
-## Start
+The test case will connect to the local TDengine server and taosAdapter for testing. After the test is completed, you will see a result summary similar to the following. If all test cases pass, there will be no `FAIL` in the output.
 
-Before start, you should configure some options like database ip, port or the prefix and others for exported metrics.
-
-in `/etc/taos/taoskeeper.toml`.
-
-```toml
-# Start with debug middleware for gin
-debug = false
-
-# Listen port, default is 6043
-port = 6043
-
-# log level
-loglevel = "info"
-
-# go pool size
-gopoolsize = 50000
-
-# interval for TDengine metrics
-RotationInterval = "15s"
-
-[tdengine]
-host = "127.0.0.1"
-port = 6041
-username = "root"
-password = "taosdata"
-
-# list of taosAdapter that need to be monitored
-[taosAdapter]
-address = ["127.0.0.1:6041"]
-
-[metrics]
-# metrics prefix in metrics names.
-prefix = "taos"
-
-# database for storing metrics data
-database = "log"
-
-# export some tables that are not super table
-tables = []
-
-[environment]
-# Whether running in cgroup.
-incgroup = false
+```text
+ok      github.com/taosdata/taoskeeper/api      17.405s
+ok      github.com/taosdata/taoskeeper/cmd      1.819s
+ok      github.com/taosdata/taoskeeper/db       0.484s
+ok      github.com/taosdata/taoskeeper/infrastructure/config    0.417s
+ok      github.com/taosdata/taoskeeper/infrastructure/log       0.785s
+ok      github.com/taosdata/taoskeeper/monitor  4.623s
+ok      github.com/taosdata/taoskeeper/process  0.606s
+ok      github.com/taosdata/taoskeeper/system   3.420s
+ok      github.com/taosdata/taoskeeper/util     0.097s
+ok      github.com/taosdata/taoskeeper/util/pool        0.146s
 ```
 
-Now you could run the tool:
+### 5.2 Test Case Addition
 
-```sh
-taoskeeper
-```
+Add test cases in files ending with `_test.go` and make sure the new code is covered by the corresponding test cases.
 
-If you use `systemd`, copy the `taoskeeper.service` to `/lib/systemd/system/` and start the service.
+### 5.3 Performance Testing
 
-```sh
-sudo cp taoskeeper.service /lib/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl start taoskeeper
-```
+Performance testing is under development.
 
-To start taoskeeper whenever os rebooted, you should enable the systemd service:
+## 6. CI/CD
 
-```sh
-sudo systemctl enable taoskeeper
-```
+- [Build Workflow](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
+- Code Coverage - TODO
 
-So if use `systemd`, you'd better install it with these lines all-in-one:
+## 7. Submitting Issues
 
-```sh
-go mod tidy
-go build
-sudo install taoskeeper /usr/bin/
-sudo cp taoskeeper.service /lib/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl start taoskeeper
-sudo systemctl enable taoskeeper
-```
+We welcome submissions of [GitHub Issues](https://github.com/taosdata/TDengine/issues). Please provide the following information when submitting so that the problem can be quickly located:
 
-## Docker
+- Problem description: The specific problem manifestation and whether it must occur. It is recommended to attach detailed call stack or log information.
+- taosKeeper version: You can get the version information through `taoskeeper -V`.
+- TDengine server version: You can get the version information through `taos -V`.
 
-Here is an example to show how to build this tool in docker:
+If you have other relevant information (such as environment configuration, operating system version, etc.), please add it so that we can understand the problem more comprehensively.
 
-Before building, you should configure `./config/taoskeeper.toml` with proper parameters and edit Dockerfile. Take following as example.
+## 8. Submitting PR
 
-```dockerfile
-FROM golang:1.18.2 as builder
+We welcome developers to participate in the development of this project. Please follow the steps below when submitting a PR:
 
-WORKDIR /usr/src/taoskeeper
-COPY ./ /usr/src/taoskeeper/
-ENV GO111MODULE=on \
-    GOPROXY=https://goproxy.cn,direct
-RUN go mod tidy && go build
+1. Fork the repository: Please fork this repository first. For specific steps, please refer to [How to Fork a Repository](https://docs.github.com/en/get-started/quickstart/fork-a-repo).
+2. Create a new branch: Create a new branch based on the `main` branch and use a meaningful branch name (for example: `git checkout -b feature/my_feature`). Do not modify it directly on the main branch.
+3. Development and testing: After completing the code modification, make sure that all unit tests pass, and add corresponding test cases for new features or fixed bugs.
+4. Submit code: Submit the changes to the remote branch (for example: `git push origin feature/my_feature`).
+5. Create a Pull Request: Initiate a [Pull Request](https://github.com/taosdata/TDengine/pulls) on GitHub. For specific steps, please refer to [How to Create a Pull Request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
+6. Check CI: After submitting the PR, you can find the PR you submitted in the Pull Request and click the corresponding link to check whether the CI of the PR has passed. If it has passed, it will show `All checks have passed`. Regardless of whether CI has passed or not, you can click `Show all checks/Details` to view detailed test case logs.
 
-FROM alpine:3
-RUN mkdir -p /etc/taos
-COPY --from=builder /usr/src/taoskeeper/taoskeeper /usr/bin/
-COPY ./config/taoskeeper.toml /etc/taos/taoskeeper.toml
-EXPOSE 6043
-CMD ["taoskeeper"]
-```
+## 9. References
 
-If you already have taosKeeper binary file, you can build this tool like:
+[TDengine Official Website](https://www.tdengine.com/)
 
-```dockerfile
-FROM ubuntu:18.04
-RUN mkdir -p /etc/taos
-COPY ./taoskeeper /usr/bin/
-COPY ./taoskeeper.toml /etc/taos/taoskeeper.toml
-EXPOSE 6043
-CMD ["taoskeeper"]
-```
+## 10. License
 
-## Usage (**Enterprise Edition**)
-
-### Prometheus (by scrape)
-
-It's now act as a prometheus exporter like `node-exporter`.
-
-Here's how to add this in scrape configs of `/etc/prometheus/prometheus.yml`:
-
-```yml
-global:
-  scrape_interval: 5s
-
-scrape_configs:
-  - job_name: "taoskeeper"
-    static_configs:
-      - targets: [ "taoskeeper:6043" ]
-```
-
-Now PromQL query will show the right result, for example, to show disk used percent in an specific host with FQDN regex
-match expression:
-
-```promql
-taos_dn_disk_used / taos_dn_disk_total {fqdn=~ "tdengine.*"}
-```
-
-You can use `docker-compose` with the current `docker-compose.yml` to test the whole stack.
-
-Here is the `docker-compose.yml`:
-
-```yml
-version: "3.7"
-
-services:
-  tdengine:
-    image: tdengine/tdengine
-    environment:
-      TAOS_FQDN: tdengine
-    volumes:
-      - taosdata:/var/lib/taos
-  taoskeeper:
-    build: ./
-    depends_on:
-      - tdengine
-    environment:
-      TDENGINE_HOST: tdengine
-      TDENGINE_PORT: 6041
-    volumes:
-      - ./config/taoskeeper.toml:/etc/taos/taoskeeper.toml
-    ports:
-      - 6043:6043
-  prometheus:
-    image: prom/prometheus
-    volumes:
-      - ./prometheus/:/etc/prometheus/
-    ports:
-      - 9090:9090
-volumes:
-  taosdata:
-
-```
-
-Start the stack:
-
-```sh
-docker-compose up -d
-```
-
-Now you point to <http://localhost:9090> (if you have not started a prometheus server by yourself) and query.
-
-For a quick demo with TaosKeeper + Prometheus + Grafana, we provide
-a [simple dashboard](https://grafana.com/grafana/dashboards/15164) to monitor TDengine.
-
-### Telegraf
-
-If you are using telegraf to collect metrics, just add inputs like this:
-
-```toml
-[[inputs.prometheus]]
-  ## An array of urls to scrape metrics from.
-  urls = ["http://taoskeeper:6043/metrics"]
-```
-
-You can test it with `docker-compose`:
-
-```sh
-docker-compose -f docker-compose.yml -f telegraf.yml up -d telegraf taoskeeper
-```
-
-Since we have set an stdout file output in `telegraf.conf`:
-
-```toml
-[[outputs.file]]
-  files = ["stdout"]
-```
-
-So you can track with TDengine metrics in standard output with `docker-compose logs`:
-
-```sh
-docker-compose -f docker-compose.yml -f telegraf.yml logs -f telegraf
-```
-
-### Zabbix
-
-1. Import the zabbix template file `zbx_taos_keeper_templates.xml`.
-2. Use the template `TDengine` to create the host and modify the macros `{$TAOSKEEPER_HOST}`
-   and `{$COLLECTION_INTERVAL}`.
-3. Waiting for monitoring items to be created automatically.
-
-### FAQ
-
-* Error occurred: Connection refused, while taosKeeper was starting
-
-  **Answer**: taoskeeper relies on restful interfaces to query data. Check whether the taosAdapter is running or whether
-  the taosAdapter address in taoskeeper.toml is correct.
-
-* Why detection metrics displayed by different TDengine's inconsistent with taoskeeper monitoring?
-
-  **Answer**: If a metric is not created in TDengine, taoskeeper cannot get the corresponding test results.
-
-* Cannot receive log from TDengine server.
-  
-  **Answer**: Modify `/etc/taos/taos.cfg` file and add parameters like:
-
-  ```cfg
-  monitor                  1          // start monitor
-  monitorInterval          30         // send log interval (s)
-  monitorFqdn              localhost
-  monitorPort              6043       // taosKeeper port
-  monitorMaxLogs           100
-  ```
+[AGPL-3.0 License](../../LICENSE)

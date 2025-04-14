@@ -106,7 +106,7 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
   int32_t      ret = 0;
   SyncTimeout* pMsg = pRpc->pCont;
 
-  syncLogRecvTimer(ths, pMsg, "");
+  syncLogRecvTimer(ths, pMsg, &pRpc->info.traceId);
 
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {

@@ -145,19 +145,18 @@ Query OK, 10 row(s) in set (2.415961s)
 
 In TDengine, you can use the window clause to perform aggregation queries by time window partitioning, which is particularly suitable for scenarios requiring analysis of large amounts of time-series data, such as smart meters collecting data every 10s but needing to query the average temperature every 1min.
 
-The window clause allows you to partition the queried data set by windows and aggregate the data within each window, including:
-
-- Time window (time window)
-- State window (status window)
-- Session window (session window)
-- Event window (event window)
-
-The logic of window partitioning is shown in the following image:
+The window clause allows you to partition the queried data set by windows and aggregate the data within each window. The logic of window partitioning is shown in the following image:
 
 <figure>
 <Image img={windowModel} alt="Windowing description"/>
 <figcaption>Figure 1. Windowing logic</figcaption>
 </figure>
+
+- Time Window: Data is divided based on time intervals, supporting sliding and tumbling time windows, suitable for data aggregation over fixed time periods.
+- Status Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
+- Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
+- Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
+- Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
 
 The syntax for the window clause is as follows:
 
@@ -192,7 +191,7 @@ INTERVAL(interval_val [, interval_offset])
 
 The time window clause includes 3 sub-clauses:
 
-- INTERVAL clause: used to generate windows of equal time periods, where interval_val specifies the size of each time window, and interval_offset specifies;
+- INTERVAL clause: used to generate windows of equal time periods, where interval_val specifies the size of each time window, and interval_offset specifies its starting offset. By default, windows begin at Unix time 0 (1970-01-01 00:00:00 UTC). If interval_offset is specified, the windows start from "Unix time 0 + interval_offset";
 - SLIDING clause: used to specify the time the window slides forward;
 - FILL: used to specify the filling mode of data in case of missing data in the window interval.
 

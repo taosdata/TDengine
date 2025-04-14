@@ -135,11 +135,9 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             vgroup_status = []
             for ind , role in enumerate(vgroup_info[3:-4]):
-
-                if ind%2==0:
-                    continue
-                else:
+                if role in ['leader', 'leader*', 'leader**', 'follower']:
                     vgroup_status.append(role)
+
             if vgroup_status.count("leader")!=1 or vgroup_status.count("follower")!=2:
                 status = False
                 return status
@@ -191,12 +189,21 @@ class TDTestCase:
         tdSql.execute(create_db_replica_3_vgroups_100)
         self.vote_leader_time_costs(db3)
 
-
+    def test_TS_5968(self):
+        conn = TDCom().newTdSql()
+        sql = "select db_name,sum(columns-1) from information_schema.ins_tables group by db_name"
+        conn.query(sql, queryTimes=10)
+        balance_sql = "balance vgroup leader database db_2"
+        tdSql.execute(balance_sql, queryTimes=1)
+        conn.query(sql, queryTimes=10)
+        tdLog.info("waiting for catalog update finished")
+        conn.close()
 
     def run(self):
         self.check_setup_cluster_status()
         self.test_init_vgroups_time_costs()
 
+        self.test_TS_5968()
 
 
     def stop(self):

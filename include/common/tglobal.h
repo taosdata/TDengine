@@ -34,6 +34,9 @@ extern "C" {
 #define GLOBAL_CONFIG_FILE_VERSION 1
 #define LOCAL_CONFIG_FILE_VERSION  1
 
+#define RPC_MEMORY_USAGE_RATIO   0.1
+#define QUEUE_MEMORY_USAGE_RATIO 0.6
+
 typedef enum {
   DND_CA_SM4 = 1,
 } EEncryptAlgor;
@@ -66,6 +69,7 @@ extern EEncryptAlgor tsiEncryptAlgorithm;
 extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
 extern char tsEncryptKey[];
+extern int8_t tsEnableStrongPassword;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -110,6 +114,7 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
+extern int64_t tsApplyMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
 
 extern int32_t tsNumOfCompactThreads;
@@ -286,12 +291,23 @@ extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
+extern int64_t tsStreamFailedTimeout;
 extern int     tsStreamAggCnt;
 extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern bool    tsStreamCoverage;
 extern int8_t  tsS3EpNum;
+extern int32_t tsStreamNotifyMessageSize;
+extern int32_t tsStreamNotifyFrameSize;
+extern bool    tsCompareAsStrInGreatest;
+extern int32_t tsStreamVirtualMergeMaxDelayMs;
+extern int32_t tsStreamVirtualMergeMaxMemKb;
+extern int32_t tsStreamVirtualMergeWaitMode;
+
+extern char     tsAdapterFqdn[];
+extern uint16_t tsAdapterPort;
+extern char     tsAdapterToken[];
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
@@ -322,7 +338,6 @@ int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
 int32_t setAllConfigs(SConfig *pCfg);
 void    printConfigNotMatch(SArray *array);
 
-int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 

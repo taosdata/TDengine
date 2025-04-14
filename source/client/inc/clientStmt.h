@@ -48,7 +48,7 @@ typedef struct SStmtTableCache {
 } SStmtTableCache;
 
 typedef struct SStmtQueryResInfo {
-  TAOS_FIELD *fields;
+  TAOS_FIELD_E *fields;
   TAOS_FIELD *userFields;
   uint32_t    numOfCols;
   int32_t     precision;
@@ -64,7 +64,7 @@ typedef struct SStmtBindInfo {
   int32_t  sBindLastIdx;
   int8_t   tbType;
   bool     tagsCached;
-  bool     preCtbname;
+  uint8_t  tbNameFlag;
   void    *boundTags;
   char     tbName[TSDB_TABLE_FNAME_LEN];
   char     tbFName[TSDB_TABLE_FNAME_LEN];
@@ -123,6 +123,7 @@ typedef struct SStmtStatInfo {
 typedef struct SStmtQNode {
   bool                 restoreTbCols;
   STableColsData       tblData;
+  SVCreateTbReq       *pCreateTbReq;
   struct SStmtQNode*   next;
 } SStmtQNode;
 
@@ -130,7 +131,9 @@ typedef struct SStmtQueue {
   bool        stopQueue;
   SStmtQNode* head;
   SStmtQNode* tail;
-  uint64_t    qRemainNum;
+  int64_t       qRemainNum;
+  TdThreadMutex mutex;
+  TdThreadCond  waitCond;
 } SStmtQueue;
 
 typedef struct STscStmt {
@@ -203,12 +206,12 @@ extern char *gStmtStatusStr[];
     }                                \
   } while (0)
 
-#define STMT_FLOG(param, ...) qFatal("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)
+#define STMT_FLOG(param, ...) qFatal("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_ELOG(param, ...) qError("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_DLOG(param, ...) qDebug("stmt:%p, " param, pStmt, __VA_ARGS__)
 
-#define STMT_ELOG_E(param) qError("stmt:%p " param, pStmt)
-#define STMT_DLOG_E(param) qDebug("stmt:%p " param, pStmt)
+#define STMT_ELOG_E(param) qError("stmt:%p, " param, pStmt)
+#define STMT_DLOG_E(param) qDebug("stmt:%p, " param, pStmt)
 
 TAOS_STMT  *stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions);
 int         stmtClose(TAOS_STMT *stmt);

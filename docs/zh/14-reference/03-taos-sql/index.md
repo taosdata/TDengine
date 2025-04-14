@@ -16,7 +16,7 @@ TDengine SQL 是用户对 TDengine 进行数据写入和查询的主要工具。
 - | 表示多选一，选择其中一个即可，但不能输入 | 本身
 - … 表示前面的项可重复多个
 
-为更好地说明 SQL 语法的规则及其特点，本文假设存在一个数据集。以智能电表(meters)为例，假设每个智能电表采集电流、电压、相位三个量。其建模如下：
+为更好地说明 SQL 语法的规则及其特点，本文假设存在一个数据集。以智能电表（meters）为例，假设每个智能电表采集电流、电压、相位三个量。其建模如下：
 
 ```
 taos> DESCRIBE meters;
@@ -30,7 +30,7 @@ taos> DESCRIBE meters;
  groupid                        | INT                |           4 | TAG        |
 ```
 
-数据集包含 4 个智能电表的数据，按照 TDengine 的建模规则，对应 4 个子表，其名称分别是 d1001, d1002, d1003, d1004。
+数据集包含 4 个智能电表的数据，按照 TDengine 的建模规则，对应 4 个子表，其名称分别是 d1001、d1002、d1003、d1004。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

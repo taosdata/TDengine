@@ -414,6 +414,29 @@ class TDSql:
         self.checkRowCol(row, col)
         return self.cursor.istype(col, dataType)
 
+    def checkFloatString(self, row, col, data, show = False):
+        if row >= self.queryRows:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        if col >= self.queryCols:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, col+1, self.queryCols)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)   
+      
+        self.checkRowCol(row, col)
+
+        val = float(self.queryResult[row][col])
+        if abs(data) >= 1 and abs((val - data) / data) <= 0.000001:
+            if(show):
+                tdLog.info("check successfully")
+        elif abs(data) < 1 and abs(val - data) <= 0.000001:
+            if(show):
+                tdLog.info("check successfully")
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+            tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
 
     def checkData(self, row, col, data, show = False):
         if row >= self.queryRows:
@@ -648,6 +671,15 @@ class TDSql:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
+            
+    def checkResColNameList(self, expect_col_name_list):
+        col_name_list = []
+        col_type_list = []
+        for query_col in self.cursor.description:
+            col_name_list.append(query_col[0])
+            col_type_list.append(query_col[1])
+
+        self.checkColNameList(col_name_list, expect_col_name_list)
 
     def __check_equal(self, elm, expect_elm):
         if elm == expect_elm:
@@ -672,6 +704,17 @@ class TDSql:
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
             return True
         self.print_error_frame_info(elm, expect_elm)
+    
+    def checkGreater(self, elm, expect_elm):
+        if elm > expect_elm:
+            tdLog.info("sql:%s, elm:%s > expect_elm:%s" % (self.sql, elm, expect_elm))
+            return True
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+            tdLog.info("%s(%d) failed: sql:%s, elm:%s <= expect_elm:%s" % args)
+            self.print_error_frame_info(elm, expect_elm)
+            return False
         
     def checkNotEqual(self, elm, expect_elm):
         if elm != expect_elm:

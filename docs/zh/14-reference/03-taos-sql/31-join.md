@@ -14,9 +14,9 @@ description: 关联查询详细描述
 
 连接条件是指进行表关联所指定的条件，TDengine 支持的所有关联查询都需要指定连接条件，连接条件通常（Inner Join 和 Window Join 例外）只出现在 `ON` 之后。根据语义，Inner Join 中出现在 `WHERE` 之后的条件也可以视作连接条件，而 Window Join 是通过 `WINDOW_OFFSET` 来指定连接条件。
 
-  除 ASOF Join 外，TDengine 支持的所有 Join 类型都必须显式指定连接条件，ASOF Join 因为默认定义有隐式的连接条件，所以（在默认条件可以满足需求的情况下）可以不必显式指定连接条件。
+除 ASOF Join 外，TDengine 支持的所有 Join 类型都必须显式指定连接条件，ASOF Join 因为默认定义有隐式的连接条件，所以（在默认条件可以满足需求的情况下）可以不必显式指定连接条件。
 
-除 ASOF/Window Join 外，连接条件中除了包含主连接条件外，还可以包含任意多条其他连接条件，主连接条件与其他连接条件间必须是 `AND` 关系，而其他连接条件之间则没有这个限制。其他连接条件中可以包含主键列、Tag 、普通列、常量及其标量函数或运算的任意逻辑运算组合。
+除 ASOF/Window Join 外，连接条件中除了包含主连接条件外，还可以包含任意多条其他连接条件，主连接条件与其他连接条件间必须是 `AND` 关系，而其他连接条件之间则没有这个限制。其他连接条件中可以包含主键列、Tag、普通列、常量及其标量函数或运算的任意逻辑运算组合。
 
 以智能电表为例，下面这几条 SQL 都包含合法的连接条件：
 
@@ -30,6 +30,17 @@ SELECT a.* FROM meters a LEFT ASOF JOIN meters b ON timetruncate(a.ts, 1s) < tim
 ### 主连接条件
 
 作为一款时序数据库，TDengine 所有的关联查询都围绕主键时戳列进行，因此要求除 ASOF/Window Join 外的所有关联查询都必须含有主键列的等值连接条件，而按照顺序首次出现在连接条件中的主键列等值连接条件将会被作为主连接条件。ASOF Join 的主连接条件可以包含非等值的连接条件，而 Window Join 的主连接条件则是通过 `WINDOW_OFFSET` 来指定。
+从 3.3.6.0 版本开始，TDengine 支持子查询中的常量（包含返回时戳的常量函数如 today()、now() 等，常量时戳及其加减运算）作为等价主键列可以出现在主连接条件中。例如：
+
+```sql
+SELECT * from d1001 a JOIN (SELECT today() as ts1, * from d1002 WHERE ts = '2025-03-19 10:00:00.000') b ON timetruncate(a.ts, 1d) = b.ts1;
+```
+
+上面的示例语句可以实现表 d1001 今天的所有记录与表 d1002 中某一时刻的某条记录进行关联运算。需要注意的是，SQL 中出现的时间字符串常量默认不会被当作时戳，例如 `'2025-03-19 10:00:00.000'` 只会被当作字符串而不是时戳，因此当需要作为常量时戳处理时，可以通过类型前缀 timestamp 来指定字符串常量为时间戳类型，例如：
+
+```sql
+SELECT * from d1001 a JOIN (SELECT timestamp '2025-03-19 10:00:00.000' as ts1, * from d1002 WHERE ts = '2025-03-19 10:00:00.000') b ON timetruncate(a.ts, 1d) = b.ts1;
+```
 
 除 Window Join 外，TDengine 支持在主连接条件中进行 `timetruncate` 函数操作，例如 `ON timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)`，除此之外，暂不支持其他函数及标量运算。
 
@@ -39,7 +50,7 @@ SELECT a.* FROM meters a LEFT ASOF JOIN meters b ON timetruncate(a.ts, 1s) < tim
 
 ### 主键时间线
 
-TDengine 作为时序数据库要求每个表（子表）中必须有主键时间戳列，它将作为该表的主键时间线进行很多跟时间相关的运算，而子查询的结果或者 Join 运算的结果中也需要明确哪一列将被视作主键时间线参与后续的时间相关的运算。在子查询中，查询结果中存在的有序的第一个出现的主键列（或其运算）或等同主键列的伪列（`_wstart`/`_wend`）将被视作该输出表的主键时间线。Join 输出结果中主键时间线的选择遵从以下规则：
+TDengine 作为时序数据库要求每个表（子表）中必须有主键时间戳列，它将作为该表的主键时间线进行很多跟时间相关的运算，而子查询的结果或者 Join 运算的结果中也需要明确哪一列将被视作主键时间线参与后续的时间相关的运算。在子查询中，查询结果中存在的有序的第一个出现的主键列（或其运算）或等同主键列的伪列（`_wstart`/`_wend`）将被视作该输出表的主键时间线。此外，从 3.3.6.0 版本开始，TDengine 也开始支持子查询结果中的常量时戳列作为输出表的主键时间线。Join 输出结果中主键时间线的选择遵从以下规则：
 - Left/Right Join 系列中驱动表（子查询）的主键列将被作为后续查询的主键时间线；此外，在 Window Join 窗口内，因为左右表同时有序所以在窗口内可以把任意一个表的主键列做作主键时间线，优先选择本表的主键列作为主键时间线。
 - Inner Join 可以把任意一个表的主键列做作主键时间线，当存在类似分组条件（Tag 列的等值条件且与主连接条件 `AND` 关系）时将无法产生主键时间线。
 - Full Join 因为无法产生任何一个有效的主键时间序列，因此没有主键时间线，这也就意味着 Full Join 中无法进行时间线相关的运算。
@@ -193,10 +204,10 @@ SELECT ... FROM table_name1 LEFT|RIGHT ASOF JOIN table_name2 [ON ...] [JLIMIT jl
 
   对于 Right ASOF 来说，上述运算符含义正好相反。
 
-- 如果不含 `ON` 子句或 `ON` 子句中未指定主键列的匹配规则，则默认主键匹配规则运算符是 “>=”， 即（对 Left ASOF Join 来说）右表中主键时戳小于等于左表主键时戳的行数据。不支持多个主连接条件。
+- 如果不含 `ON` 子句或 `ON` 子句中未指定主键列的匹配规则，则默认主键匹配规则运算符是“>=”，即（对 Left ASOF Join 来说）右表中主键时戳小于等于左表主键时戳的行数据。不支持多个主连接条件。
 - `ON` 子句中还可以指定除主键列外的 Tag、普通列（不支持标量函数及运算）之间的等值条件用于分组计算，除此之外不支持其他类型的条件。
 - 所有 ON 条件间只支持 `AND` 运算。
-- `JLIMIT` 用于指定单行匹配结果的最大行数，可选，未指定时默认值为1，即左/右表每行数据最多从右/左表中获得一行匹配结果。`JLIMIT` 取值范围为 [0, 1024]。符合匹配条件的 `jlimit_num` 条数据不要求时间戳相同，当右/左表中不存在满足条件的 `jlimit_num` 条数据时，返回的结果行数可能小于 `jlimit_num`；当右/左表中存在符合条件的多于 `jlimit_num` 条数据时，如果时间戳相同将随机返回 `jlimit_num` 条数据。
+- `JLIMIT` 用于指定单行匹配结果的最大行数，可选，未指定时默认值为 1，即左/右表每行数据最多从右/左表中获得一行匹配结果。`JLIMIT` 取值范围为 [0, 1024]。符合匹配条件的 `jlimit_num` 条数据不要求时间戳相同，当右/左表中不存在满足条件的 `jlimit_num` 条数据时，返回的结果行数可能小于 `jlimit_num`；当右/左表中存在符合条件的多于 `jlimit_num` 条数据时，如果时间戳相同将随机返回 `jlimit_num` 条数据。
 
 #### 示例
 
@@ -225,21 +236,21 @@ SELECT ... FROM table_name1 LEFT|RIGHT WINDOW JOIN table_name2 [ON ...] WINDOW_O
 #### 说明
 - 只支持表间 Window Join，不支持子查询间 Window Join；
 - `ON` 子句可选，只支持指定除主键列外的 Tag、普通列（不支持标量函数及运算）之间的等值条件用于分组计算，所有条件间只支持 `AND` 运算；
-- `WINDOW_OFFSET` 用于指定窗口的左右边界相对于左/右表主键时间戳的偏移量，支持自带时间单位的形式，例如：`WINDOW_OFFSET(-1a， 1a)`，对于 Left Window Join 来说，表示每个窗口为 [左表主键时间戳 - 1毫秒，左表主键时间戳 + 1毫秒] ，左右边界均为闭区间。数字后面的时间单位可以是 `b`（纳秒）、`u`（微秒）、`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周），不支持自然月（`n`）、自然年（`y`），支持的最小时间单位为数据库精度，左右表所在数据库精度需保持一致。
+- `WINDOW_OFFSET` 用于指定窗口的左右边界相对于左/右表主键时间戳的偏移量，支持自带时间单位的形式，例如：`WINDOW_OFFSET(-1a， 1a)`，对于 Left Window Join 来说，表示每个窗口为 [左表主键时间戳 - 1 毫秒，左表主键时间戳 + 1 毫秒] ，左右边界均为闭区间。数字后面的时间单位可以是 `b`（纳秒）、`u`（微秒）、`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周），不支持自然月（`n`）、自然年（`y`），支持的最小时间单位为数据库精度，左右表所在数据库精度需保持一致。
 - `JLIMIT` 用于指定单个窗口内的最大匹配行数，可选，未指定时默认获取每个窗口内的所有匹配行。`JLIMIT` 取值范围为 [0, 1024]，当右表中不存在满足条件的 `jlimit_num` 条数据时，返回的结果行数可能小于 `jlimit_num`；当右表中存在超过 `jlimit_num` 条满足条件的数据时，优先返回窗口内主键时间戳最小的 `jlimit_num` 条数据。
 - SQL 语句中不能含其他 `GROUP BY`/`PARTITION BY`/窗口查询；
 - 支持在 `WHERE` 子句中进行标量过滤，支持在 `HAVING` 子句中针对每个窗口进行聚合函数过滤（不支持标量过滤），不支持 `SLIMIT`，不支持各种窗口伪列；
 
 #### 示例
 
-表 d1001 电压值大于 220V 时前后1秒的区间内表 d1002 的电压值：
+表 d1001 电压值大于 220V 时前后 1 秒的区间内表 d1002 的电压值：
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET（-1s, 1s) where a.voltage > 220
+SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) where a.voltage > 220
 ```
 
-表 d1001 电压值大于 220V 且前后1秒的区间内表 d1002 的电压平均值也大于 220V 的时间及电压值：
+表 d1001 电压值大于 220V 且前后 1 秒的区间内表 d1002 的电压平均值也大于 220V 的时间及电压值：
 ```sql
-SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET（-1s, 1s) where a.voltage > 220 HAVING(avg(b.voltage) > 220)
+SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) where a.voltage > 220 HAVING(avg(b.voltage) > 220)
 ```
 
 ### Full Outer Join
@@ -251,7 +262,7 @@ SELECT a.ts, a.voltage, avg(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WIN
 SELECT ... FROM table_name1 FULL [OUTER] JOIN table_name2 ON ... [WHERE ...] [...]
 
 #### 结果集
-Inner Join 的结果集 + 左表中不符合连接条件的行加上右表的空数据组成的行数据集合 + 右表中不符合连接条件的行加上左表的空数据(`NULL`)组成的行数据集合。
+Inner Join 的结果集 + 左表中不符合连接条件的行加上右表的空数据组成的行数据集合 + 右表中不符合连接条件的行加上左表的空数据 (`NULL`) 组成的行数据集合。
 
 #### 适用范围
 支持超级表、普通表、子表、子查询间 Full Outer Join。
@@ -272,7 +283,7 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b on a.ts =
 - 目前所有 Join 都要求输入数据含有效的主键时间线，所有表查询都可以满足，子查询需要注意输出数据是否含有效的主键时间线。
 
 ### 连接条件限制
-- 除 ASOF 和 Window Join 之外，其他 Join 的连接条件中必须含主键列的主连接条件； 且
+- 除 ASOF 和 Window Join 之外，其他 Join 的连接条件中必须含主键列的主连接条件；且
 - 主连接条件与其他连接条件间只支持 `AND` 运算；
 - 作为主连接条件的主键列只支持 `timetruncate` 函数运算（不支持其他函数和标量运算），作为其他连接条件时无限制；
 
@@ -283,7 +294,7 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b on a.ts =
 
 ### 查询结果顺序限制
 - 普通表、子表、子查询且无分组条件无排序的场景下，查询结果会按照驱动表的主键列顺序输出；
-- 超级表查询、Full Join或有分组条件无排序的场景下，查询结果没有固定的输出顺序；
+- 超级表查询、Full Join 或有分组条件无排序的场景下，查询结果没有固定的输出顺序；
 因此，在有排序需求且输出无固定顺序的场景下，需要进行排序操作。部分依赖时间线的函数可能会因为没有有效的时间线输出而无法执行。
 
 ### 嵌套 Join 与多表 Join 限制

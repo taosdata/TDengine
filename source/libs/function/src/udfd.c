@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_UDF
 // clang-format off
 #include "uv.h"
 #include "os.h"
@@ -103,7 +104,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   }
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
+    fnError("can not load library %s. error: %s, %s", udf->path, uv_strerror(err), udfCtx->lib.errmsg);
     taosMemoryFree(udfCtx);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
@@ -391,7 +392,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
   TAOS_UDF_CHECK_PTR_RCODE(libPath, pLib, funcName, func);
   int err = uv_dlopen(libPath, pLib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s", libPath, uv_strerror(err));
+    fnError("can not load library %s. error: %s, %s", libPath, uv_strerror(err), pLib->errmsg);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
 
@@ -1078,7 +1079,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (file == NULL) {
-    fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(terrno));
+    fnError("udfd write udf shared library: %s failed, error: %d %s", path, ERRNO, strerror(ERRNO));
     return TSDB_CODE_FILE_CORRUPTED;
   }
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
@@ -1106,7 +1107,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
-    fnError("udfd rpc error. code: %s", tstrerror(pMsg->code));
+    fnError("udfd rpc error, code:%s", tstrerror(pMsg->code));
     msgInfo->code = pMsg->code;
     goto _return;
   }
@@ -1312,7 +1313,7 @@ void udfdOnWrite(uv_write_t *req, int status) {
   TAOS_UDF_CHECK_PTR_RVOID(req);
   SUvUdfWork *work = (SUvUdfWork *)req->data;
   if (status < 0) {
-    fnError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
+    fnError("udfd send response error, length:%zu code:%s", work->output.len, uv_err_name(status));
   }
   // remove work from the connection work list
   if (work->conn != NULL) {
@@ -1477,7 +1478,7 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 void udfdOnNewConnection(uv_stream_t *server, int status) {
   TAOS_UDF_CHECK_PTR_RVOID(server);
   if (status < 0) {
-    fnError("udfd new connection error. code: %s", uv_strerror(status));
+    fnError("udfd new connection error, code:%s", uv_strerror(status));
     return;
   }
   int32_t code = 0;
@@ -1558,7 +1559,7 @@ static int32_t udfdParseArgs(int32_t argc, char *argv[]) {
 }
 
 static void udfdPrintVersion() {
-  (void)printf("udfd version: %s compatible_version: %s\n", td_version, td_compatible_version);
+  (void)printf("%sudf version: %s compatible_version: %s\n", CUS_PROMPT, td_version, td_compatible_version);
   (void)printf("git: %s\n", td_gitinfo);
   (void)printf("build: %s\n", td_buildinfo);
 }
@@ -1865,3 +1866,4 @@ _exit:
 
   return code;
 }
+#endif

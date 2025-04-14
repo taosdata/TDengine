@@ -19,6 +19,7 @@
 #include "mndSync.h"
 #include "thttp.h"
 #include "tjson.h"
+#include "mndAnode.h"
 
 typedef struct {
   int64_t numOfDnode;
@@ -32,6 +33,7 @@ typedef struct {
   int64_t totalPoints;
   int64_t totalStorage;
   int64_t compStorage;
+  int32_t numOfAnalysisAlgos;
 } SMnodeStat;
 
 static void mndGetStat(SMnode* pMnode, SMnodeStat* pStat) {
@@ -58,18 +60,21 @@ static void mndGetStat(SMnode* pMnode, SMnodeStat* pStat) {
 
     sdbRelease(pSdb, pVgroup);
   }
+}
 
-  pStat->numOfChildTable = 100;
-  pStat->numOfColumn = 200;
-  pStat->totalPoints = 300;
-  pStat->totalStorage = 400;
-  pStat->compStorage = 500;
+static int32_t algoToJson(const void* pObj, SJson* pJson) {
+  const SAnodeAlgo* pNode = (const SAnodeAlgo*)pObj;
+  int32_t code = tjsonAddStringToObject(pJson, "name", pNode->name);
+  return code;
 }
 
 static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
   SMnodeStat mstat = {0};
   int32_t    code = 0;
   int32_t    lino = 0;
+  SArray*    pFcList = NULL;
+  SArray*    pAdList = NULL;
+
   mndGetStat(pMnode, &mstat);
 
   TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfDnode", mstat.numOfDnode), &lino, _OVER);
@@ -82,8 +87,55 @@ static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
   TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfPoint", mstat.totalPoints), &lino, _OVER);
   TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "totalStorage", mstat.totalStorage), &lino, _OVER);
   TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "compStorage", mstat.compStorage), &lino, _OVER);
+
+  pFcList = taosArrayInit(4, sizeof(SAnodeAlgo));
+  pAdList = taosArrayInit(4, sizeof(SAnodeAlgo));
+  if (pFcList == NULL || pAdList == NULL) {
+    lino = __LINE__;
+    goto _OVER;
+  }
+
+  mndRetrieveAlgoList(pMnode, pFcList, pAdList);
+
+  if (taosArrayGetSize(pFcList) > 0) {
+    SJson* items = tjsonAddArrayToObject(pJson, "forecast");
+    TSDB_CHECK_NULL(items, code, lino, _OVER, terrno);
+
+    for (int32_t i = 0; i < taosArrayGetSize(pFcList); ++i) {
+      SJson* item = tjsonCreateObject();
+
+      TSDB_CHECK_NULL(item, code, lino, _OVER, terrno);
+      TAOS_CHECK_GOTO(tjsonAddItemToArray(items, item), &lino, _OVER);
+
+      SAnodeAlgo* p = taosArrayGet(pFcList, i);
+      TSDB_CHECK_NULL(p, code, lino, _OVER, terrno);
+      TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "name", p->name), &lino, _OVER);
+    }
+  }
+
+  if (taosArrayGetSize(pAdList) > 0) {
+    SJson* items1 = tjsonAddArrayToObject(pJson, "anomaly_detection");
+    TSDB_CHECK_NULL(items1, code, lino, _OVER, terrno);
+
+    for (int32_t i = 0; i < taosArrayGetSize(pAdList); ++i) {
+      SJson* item = tjsonCreateObject();
+
+      TSDB_CHECK_NULL(item, code, lino, _OVER, terrno);
+      TAOS_CHECK_GOTO(tjsonAddItemToArray(items1, item), &lino, _OVER);
+
+      SAnodeAlgo* p = taosArrayGet(pAdList, i);
+      TSDB_CHECK_NULL(p, code, lino, _OVER, terrno);
+      TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "name", p->name), &lino, _OVER);
+    }
+  }
+
 _OVER:
-  if (code != 0) mError("failed to mndBuildRuntimeInfo at line:%d since %s", lino, tstrerror(code));
+  taosArrayDestroy(pFcList);
+  taosArrayDestroy(pAdList);
+
+  if (code != 0) {
+    mError("failed to mndBuildRuntimeInfo at line:%d since %s", lino, tstrerror(code));
+  }
 }
 
 static char* mndBuildTelemetryReport(SMnode* pMnode) {
@@ -136,21 +188,24 @@ static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
   int32_t     line = 0;
   SMnode*     pMnode = pReq->info.node;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  if (!tsEnableTelem) return 0;
+
+  if (!tsEnableTelem) {
+    return 0;
+  }
 
   (void)taosThreadMutexLock(&pMgmt->lock);
   char* pCont = mndBuildTelemetryReport(pMnode);
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  if (pCont == NULL) {
-    return 0;
-  }
+  TSDB_CHECK_NULL(pCont, code, line, _end, terrno);
+
   code = taosSendTelemReport(&pMgmt->addrMgt, tsTelemUri, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT);
   taosMemoryFree(pCont);
   return code;
+
 _end:
   if (code != 0) {
-    mError("%s failed to send at line %d since %s", __func__, line, tstrerror(code));
+    mError("%s failed to send telemetry report, line %d since %s", __func__, line, tstrerror(code));
   }
   taosMemoryFree(pCont);
   return code;
@@ -161,15 +216,17 @@ int32_t mndInitTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
 
   (void)taosThreadMutexInit(&pMgmt->lock, NULL);
-  if ((code = taosGetEmail(pMgmt->email, sizeof(pMgmt->email))) != 0)
+  if ((code = taosGetEmail(pMgmt->email, sizeof(pMgmt->email))) != 0) {
     mWarn("failed to get email since %s", tstrerror(code));
+  }
+
   code = taosTelemetryMgtInit(&pMgmt->addrMgt, tsTelemServer);
   if (code != 0) {
     mError("failed to init telemetry management since %s", tstrerror(code));
     return code;
   }
-  mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 
+  mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
   return 0;
 }
 

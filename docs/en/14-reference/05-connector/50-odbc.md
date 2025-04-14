@@ -46,11 +46,11 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
 ### WebSocket Connection
 
-1. Search and open the 【ODBC Data Sources (32-bit)】or【ODBC Data Sources (64-bit)】management tool from the 【Start】menu
+1. Search and open the **ODBC Data Sources (32-bit)** or **ODBC Data Sources (64-bit)** management tool from the **Start** menu
 
-2. Select the 【User DSN】tab, and proceed to the "Create Data Source" interface via the 【Add(D)】button
+2. Select the **User DSN** tab, and proceed to the "Create Data Source" interface via the **Add(D)** button
 
-3. Choose the data source you want to add, here we select 【TDengine】
+3. Choose the data source you want to add, here we select **TDengine**
 
 4. Click finish, enter the TDengine ODBC data source configuration page, fill in the following necessary information
 
@@ -58,19 +58,19 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
     <Image img={imgStep01} alt=""/>
     </figure>
 
-    4.1 【DSN】: Data Source Name, required, name the newly added ODBC data source
+    4.1 **DSN**: Data Source Name, required, name the newly added ODBC data source
 
-    4.2【Connection Type】: Required, select the connection type, here choose 【WebSocket】
+    4.2 **Connection Type**: Required, select the connection type, here choose **WebSocket**
 
-    4.3【URL】: Required, ODBC data source URL, example: `http://localhost:6041`, cloud service URL example: `https://gw.cloud.tdengine.com?token=your_token`
+    4.3 **URL**: Required, ODBC data source URL, example: `http://localhost:6041`, cloud service URL example: `https://gw.cloud.tdengine.com?token=your_token`
 
-    4.4【Database】: Optional, the default database to connect to
+    4.4 **Database**: Optional, the default database to connect to
 
-    4.5【Username】: Optional, for use in step 5 connection testing only, database username, if not specified, TDengine defaults to root
+    4.5 **Username**: Optional, for use in step 5 connection testing only, database username, if not specified, TDengine defaults to root
 
-    4.6【Password】: Optional, for use in step 5 connection testing only, database user password, if not specified, TDengine defaults to taosdata
+    4.6 **Password**: Optional, for use in step 5 connection testing only, database user password, if not specified, TDengine defaults to taosdata
 
-    4.7【Compatible Software】: Supports compatibility adaptation for industrial software such as KingSCADA, Kepware, etc., usually, the default value General is sufficient
+    4.7 **Compatible Software**: Supports compatibility adaptation for industrial software such as KingSCADA, Kepware, etc., usually, the default value General is sufficient
 
 5. Click **Test Connection** to test the connection status. If successful, a "Successfully connected to URL" message will appear.
 
@@ -138,7 +138,7 @@ The table below explains how the ODBC connector maps server data types to defaul
 | BIGINT             | SQL_BIGINT        | SQL_C_SBIGINT     |
 | BIGINT UNSIGNED    | SQL_BIGINT        | SQL_C_UBIGINT     |
 | FLOAT              | SQL_REAL          | SQL_C_FLOAT       |
-| DOUBLE             | SQL_REAL          | SQL_C_DOUBLE      |
+| DOUBLE             | SQL_DOUBLE        | SQL_C_DOUBLE      |
 | BINARY             | SQL_BINARY        | SQL_C_BINARY      |
 | SMALLINT           | SQL_SMALLINT      | SQL_C_SSHORT      |
 | SMALLINT UNSIGNED  | SQL_SMALLINT      | SQL_C_USHORT      |
@@ -146,33 +146,145 @@ The table below explains how the ODBC connector maps server data types to defaul
 | TINYINT UNSIGNED   | SQL_TINYINT       | SQL_C_UTINYINT    |
 | BOOL               | SQL_BIT           | SQL_C_BIT         |
 | NCHAR              | SQL_VARCHAR       | SQL_C_CHAR        |
-| JSON               | SQL_VARCHAR       | SQL_C_CHAR        |
 | VARCHAR            | SQL_VARCHAR       | SQL_C_CHAR        |
+| JSON               | SQL_WVARCHAR      | SQL_C_WCHAR       |
 | GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
 | VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
 
 ## API Reference
 
-This section summarizes the ODBC API by functionality. For a complete ODBC API reference, please visit the [ODBC Programmer's Reference page](http://msdn.microsoft.com/en-us/library/ms714177.aspx).
+### API List
 
-### Data Source and Driver Management
+- **Currently exported ODBC functions are**:
+
+| ODBC/Setup API | Linux | macOS | Windows | Note |
+| :----- | :---- | :---- | :---- | :---- |
+| ConfigDSN | ❌ | ❌ | ✅ | |
+| ConfigDriver | ❌ | ❌ | ✅ | |
+| ConfigTranslator | ❌ | ❌ | ❌ | |
+| SQLAllocHandle | ✅ | ✅ | ✅ | |
+| SQLBindCol  | ✅ | ✅ | ✅ | Column-Wise Binding only |
+| SQLBindParameter | ✅ | ✅ | ✅ | Column-Wise Binding only |
+| SQLBrowseConnect | ❌ | ❌ | ❌ | |
+| SQLBulkOperations | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLCloseCursor | ✅ | ✅ | ✅ | |
+| SQLColAttribute | ✅ | ✅ | ✅ | |
+| SQLColumnPrivileges | ❌ | ❌ | ❌ | TDengine has no strict counterpart |
+| SQLColumns | ✅ | ✅ | ✅ | |
+| SQLCompleteAsync | ❌ | ❌ | ❌ | |
+| SQLConnect | ✅ | ✅ | ✅ | |
+| SQLCopyDesc | ❌ | ❌ | ❌ | |
+| SQLDescribeCol | ✅ | ✅ | ✅ | |
+| SQLDescribeParam | ✅ | ✅ | ✅ | |
+| SQLDisconnect | ✅ | ✅ | ✅ | |
+| SQLDriverConnect | ✅ | ✅ | ✅ | |
+| SQLEndTran | ✅ | ✅ | ✅ | TDengine is non-transactional, thus this is at most simulating |
+| SQLExecDirect | ✅ | ✅ | ✅ | |
+| SQLExecute | ✅ | ✅ | ✅ | |
+| SQLExtendedFetch | ❌ | ❌ | ❌ | |
+| SQLFetch | ✅ | ✅ | ✅ | |
+| SQLFetchScroll | ✅ | ✅ | ✅ | TDengine has no counterpart, just implement SQL_FETCH_NEXT |
+| SQLForeignKeys | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLFreeHandle | ✅ | ✅ | ✅ | |
+| SQLFreeStmt | ✅ | ✅ | ✅ | |
+| SQLGetConnectAttr | ✅ | ✅ | ✅ | Supports partial attributes; unsupported attributes are listed below. |
+| SQLGetCursorName | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLGetData | ✅ | ✅ | ✅ | |
+| SQLGetDescField | ❌ | ❌ | ❌ | |
+| SQLGetDescRec | ❌ | ❌ | ❌ | |
+| SQLGetDiagField | ✅ | ✅ | ✅ | |
+| SQLGetDiagRec | ✅ | ✅ | ✅ | |
+| SQLGetEnvAttr | ✅ | ✅ | ✅ | |
+| SQLGetInfo | ✅ | ✅ | ✅ | |
+| SQLGetStmtAttr | ✅ | ✅ | ✅ | Supports partial attributes; unsupported attributes are listed below. |
+| SQLGetTypeInfo | ✅ | ✅ | ✅ | |
+| SQLMoreResults | ✅ | ✅ | ✅ | |
+| SQLNativeSql | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLNumParams | ✅ | ✅ | ✅ | |
+| SQLNumResultCols | ✅ | ✅ | ✅ | |
+| SQLParamData | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLPrepare | ✅ | ✅ | ✅ | |
+| SQLPrimaryKeys | ✅ | ✅ | ✅ | |
+| SQLProcedureColumns | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLProcedures | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLPutData | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLRowCount | ✅ | ✅ | ✅ | |
+| SQLSetConnectAttr | ✅ | ✅ | ✅ | Supports partial attributes; unsupported attributes are listed below. |
+| SQLSetCursorName | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLSetDescField | ❌ | ❌ | ❌ | |
+| SQLSetDescRec | ❌ | ❌ | ❌ | |
+| SQLSetEnvAttr | ✅ | ✅ | ✅ | |
+| SQLSetPos | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLSetStmtAttr | ✅ | ✅ | ✅ | Supports partial attributes; unsupported attributes are listed below. |
+| SQLSpecialColumns | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLStatistics | ❌ | ❌ | ❌ | TDengine has no counterpart |
+| SQLTablePrivileges | ❌ | ❌ | ❌ | TDengine has no strict counterpart |
+| SQLTables | ✅ | ✅ | ✅ | |
+
+- **Non-supported-statement-attributes (SQLSetStmtAttr)**
+
+| Attribute | Note |
+| :----- | :---- |
+| SQL_ATTR_CONCURRENCY | TDengine has no updatable-CURSOR mechanism |
+| SQL_ATTR_FETCH_BOOKMARK_PTR | TDengine has no BOOKMARK mechanism |
+| SQL_ATTR_IMP_PARAM_DESC | |
+| SQL_ATTR_IMP_ROW_DESC | |
+| SQL_ATTR_KEYSET_SIZE | |
+| SQL_ATTR_PARAM_BIND_OFFSET_PTR | |
+| SQL_ATTR_PARAM_OPERATION_PTR | |
+| SQL_ATTR_ROW_NUMBER | Readonly attribute |
+| SQL_ATTR_ROW_OPERATION_PTR | |
+| SQL_ATTR_SIMULATE_CURSOR | |
+
+- **Non-supported-connection-attributes (SQLSetConnectAttr)**
+
+| Attribute | Note |
+| :----- | :---- |
+| SQL_ATTR_AUTO_IPD | Readonly attribute |
+| SQL_ATTR_CONNECTION_DEAD | Readonly attribute |
+| SQL_ATTR_ENLIST_IN_DTC | |
+| SQL_ATTR_PACKET_SIZE | |
+| SQL_ATTR_TRACE | |
+| SQL_ATTR_TRACEFILE | |
+| SQL_ATTR_TRANSLATE_LIB | |
+| SQL_ATTR_TRANSLATE_OPTION | |
+
+- **Enable any programming language with ODBC-bindings/ODBC-plugings to communicate with TDengine:**
+
+| programming language | ODBC-API or bindings/plugins |
+| :----- | :---- |
+| C/C++ | ODBC-API |
+| CSharp | System.Data.Odbc |
+| Erlang | odbc module |
+| Go | [odbc](https://github.com/alexbrainman/odbc), database/sql |
+| Haskell | HDBC, HDBC-odbc |
+| Common Lisp | plain-odbc |
+| Nodejs | odbc |
+| Python3 | pyodbc |
+| Rust | odbc |
+
+### API Functional Categories
+
+This section summarizes the ODBC API by functionality. For a complete ODBC API reference, please visit the [Microsoft Open Database Connectivity (ODBC)](https://learn.microsoft.com/en-us/sql/odbc/microsoft-open-database-connectivity-odbc).
+
+#### Data Source and Driver Management
 
 - API: ConfigDSN
-  - **Supported**: Yes
+  - **Supported**: Yes (Windows only)
   - **Standard**: ODBC
   - **Function**: Configures data sources
   
 - API: ConfigDriver
-  - **Supported**: Yes
+  - **Supported**: Yes (Windows only)
   - **Standard**: ODBC
   - **Function**: Used to perform installation and configuration tasks related to a specific driver
   
 - API: ConfigTranslator
-  - **Supported**: Yes
+  - **Supported**: No
   - **Standard**: ODBC
   - **Function**: Used to parse the DSN configuration, translating or converting between DSN configuration and actual database driver configuration
 
-### Connecting to Data Sources
+#### Connecting to Data Sources
 
 - API: SQLAllocHandle
   - **Supported**: Yes
@@ -204,7 +316,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: Deprecated
   - **Function**: In ODBC 3.x, the ODBC 2.x function SQLAllocConnect has been replaced by SQLAllocHandle
 
-### Retrieving Information about Drivers and Data Sources
+#### Retrieving Information about Drivers and Data Sources
 
 - API: SQLDataSources
   - **Supported**: No
@@ -231,7 +343,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: ISO 92
   - **Function**: Returns information about supported data types
 
-### Setting and Retrieving Driver Properties
+#### Setting and Retrieving Driver Properties
 
 - API: SQLSetConnectAttr
   - **Supported**: Yes
@@ -283,7 +395,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: Deprecated
   - **Purpose**: In ODBC 3.x, the ODBC 2.0 function SQLSetStmtOption has been replaced by SQLGetStmtAttr
 
-### Preparing SQL Requests
+#### Preparing SQL Requests
 
 - API: SQLAllocStmt
   - **Supported**: Not supported
@@ -320,7 +432,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: ODBC
   - **Purpose**: Sets options that control cursor behavior
 
-### Submitting Requests
+#### Submitting Requests
 
 - API: SQLExecute
   - **Supported**: Supported
@@ -357,7 +469,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: ISO 92
   - **Function**: When using stream input mode, it can be used to send data blocks to output parameters
 
-### Retrieving Results and Information About Results
+#### Retrieving Results and Information About Results
 
 - API: SQLRowCount
   - **Support**: Supported
@@ -419,7 +531,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: ODBC
   - **Function**: Performs bulk insert and bulk bookmark operations, including updates, deletions, and fetching by bookmark
 
-### Retrieving Error or Diagnostic Information
+#### Retrieving Error or Diagnostic Information
 
 - API: SQLError
   - **Support**: Not supported
@@ -436,7 +548,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: ISO 92
   - **Function**: Returns additional diagnostic information (multiple diagnostic results)
 
-### Retrieving Information About System Table Entries Related to the Data Source
+#### Retrieving Information About System Table Entries Related to the Data Source
 
 - API: SQLColumnPrivileges
   - **Support**: Not supported
@@ -488,7 +600,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: ODBC
   - **Function**: Returns column information for stored procedures, including details of input and output parameters
 
-### Transaction Execution
+#### Transaction Execution
 
 - API: SQLTransact
   - **Support**: Not supported
@@ -498,9 +610,9 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
 - API: SQLEndTran
   - **Support**: Supported
   - **Standard**: ISO 92
-  - **Function**: Used to commit or rollback transactions, TDengine does not support transactions, therefore rollback operation is not supported
+  - **Function**: Used to commit or rollback transactions. TDengine is non-transactional, so this function can at most simulate commit or rollback operations. If there are any outstanding connections or statements, neither commit nor rollback will succeed
 
-### Connection Termination
+#### Connection Termination
 
 - API: SQLDisconnect
   - **Support**: Supported
@@ -532,6 +644,3 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: ODBC
   - **Function**: Closes the cursor associated with the current statement handle and releases all resources used by the cursor
 
-## Integration with Third Parties
-
-As an example of using the TDengine ODBC driver, you can use Power BI to analyze time-series data with TDengine. For more details, please refer to [Power BI](../../../third-party-tools/analytics/power-bi/)

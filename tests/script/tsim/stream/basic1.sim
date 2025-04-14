@@ -809,7 +809,6 @@ sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc i
 sql create table ts1 using st tags(1,1,1);
 sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt5 as select count(*), _wstart, _wend, max(a) from ts1 interval(10s) ;
 sql create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt6 as select count(*), _wstart, _wend, max(a), _wstart as ts from ts1 interval(10s) ;
-
 run tsim/stream/checkTaskStatus.sim
 
 sql_error create stream streams7 trigger at_once into streamt7 as select _wstart, count(*), _wstart, _wend, max(a) from ts1 interval(10s) ;
@@ -833,14 +832,14 @@ if $loop_count == 10 then
 endi
 
 if $rows != 1 then
-  print =====rows=$rows
+  print ===== streamt5: rows=$rows
   goto loop170
 endi
 
 sql select * from streamt6;
 
 if $rows != 1 then
-  print =====rows=$rows
+  print ===== streamt6: rows=$rows
   goto loop170
 endi
 

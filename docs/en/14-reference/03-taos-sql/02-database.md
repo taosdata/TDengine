@@ -44,7 +44,7 @@ database_option: {
 - VGROUPS: The number of initial vgroups in the database.
 - PRECISION: The timestamp precision of the database. ms for milliseconds, us for microseconds, ns for nanoseconds, default is ms.
 - REPLICA: Indicates the number of database replicas, which can be 1, 2, or 3, default is 1; 2 is only available in the enterprise version 3.3.0.0 and later. In a cluster, the number of replicas must be less than or equal to the number of DNODEs. The following restrictions apply:
-  - Operations such as SPLITE VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
+  - Operations such as SPLIT VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
   - A single-replica database can be changed to a double-replica database, but changing from double replicas to other numbers of replicas, or from three replicas to double replicas is not supported.
 - BUFFER: The size of the memory pool for writing into a VNODE, in MB, default is 256, minimum is 3, maximum is 16384.
 - PAGES: The number of cache pages in a VNODE's metadata storage engine, default is 256, minimum 64. A VNODE's metadata storage occupies PAGESIZE * PAGES, which by default is 1MB of memory.
@@ -65,7 +65,7 @@ database_option: {
 - MINROWS: The minimum number of records in a file block, default is 100.
 - KEEP: Indicates the number of days data files are kept, default value is 3650, range [1, 365000], and must be greater than or equal to 3 times the DURATION parameter value. The database will automatically delete data that has been saved for longer than the KEEP value to free up storage space. KEEP can use unit-specified formats, such as KEEP 100h, KEEP 10d, etc., supports m (minutes), h (hours), and d (days) three units. It can also be written without a unit, like KEEP 50, where the default unit is days. The enterprise version supports multi-tier storage feature, thus, multiple retention times can be set (multiple separated by commas, up to 3, satisfying keep 0 \<= keep 1 \<= keep 2, such as KEEP 100h,100d,3650d); the community version does not support multi-tier storage feature (even if multiple retention times are configured, it will not take effect, KEEP will take the longest retention time).
 - KEEP_TIME_OFFSET: Effective from version 3.2.0.0. The delay execution time for deleting or migrating data that has been saved for longer than the KEEP value, default value is 0 (hours). After the data file's save time exceeds KEEP, the deletion or migration operation will not be executed immediately, but will wait an additional interval specified by this parameter, to avoid peak business periods.
-- STT_TRIGGER: Indicates the number of file merges triggered by disk files. The open-source version is fixed at 1, the enterprise version can be set from 1 to 16. For scenarios with few tables and high-frequency writing, this parameter is recommended to use the default configuration; for scenarios with many tables and low-frequency writing, this parameter is recommended to be set to a larger value.
+- STT_TRIGGER: Indicates the number of file merges triggered by disk files. For scenarios with few tables and high-frequency writing, this parameter is recommended to use the default configuration; for scenarios with many tables and low-frequency writing, this parameter is recommended to be set to a larger value.
 - SINGLE_STABLE: Indicates whether only one supertable can be created in this database, used in cases where the supertable has a very large number of columns.
   - 0: Indicates that multiple supertables can be created.
   - 1: Indicates that only one supertable can be created.
@@ -143,10 +143,6 @@ You can view cacheload through show \<db_name>.vgroups;
 3. Determine if cachesize is sufficient
 
 If cacheload is very close to cachesize, then cachesize may be too small. If cacheload is significantly less than cachesize, then cachesize is sufficient. You can decide whether to modify cachesize based on this principle. The specific modification value can be determined based on the available system memory, whether to double it or increase it several times.
-
-4. stt_trigger
-
-Please stop database writing before modifying the stt_trigger parameter.
 
 :::note
 Other parameters are not supported for modification in version 3.0.0.0

@@ -20,17 +20,9 @@ if(${BUILD_WITH_SQLITE})
     add_subdirectory(sqlite)
 endif(${BUILD_WITH_SQLITE})
 
-if(${BUILD_WITH_CRAFT})
-    add_subdirectory(craft)
-endif(${BUILD_WITH_CRAFT})
-
-if(${BUILD_WITH_TRAFT})
-    # add_subdirectory(traft)
-endif(${BUILD_WITH_TRAFT})
-
-if(${BUILD_S3})
-  add_subdirectory(azure)
-endif()
+# if(${BUILD_S3})
+#   add_subdirectory(azure)
+# endif()
 
 add_subdirectory(tdev)
 add_subdirectory(lz4)

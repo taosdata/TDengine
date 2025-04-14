@@ -71,13 +71,32 @@ typedef struct SStbJoinDynCtrlInfo {
   SDynQueryCtrlExecInfo execInfo;
   SStbJoinDynCtrlBasic  basic;
   SStbJoinDynCtrlCtx    ctx;
-  int16_t               outputBlkId;
+  SDataBlockDescNode*   pOutputDataBlockDesc;
 } SStbJoinDynCtrlInfo;
+
+typedef struct SVtbScanDynCtrlInfo {
+  bool             scanAllCols;
+  char*            dbName;
+  tsem_t           ready;
+  SEpSet           epSet;
+  SUseDbRsp*       pRsp;
+  uint64_t         suid;
+  int32_t          acctId;
+  int32_t          curTableIdx;
+  int32_t          lastTableIdx;
+  SArray*          readColList;
+  SArray*          childTableList;
+  SHashObj*        dbVgInfoMap;
+  SHashObj*        orgTbVgColMap;
+  SReadHandle      readHandle;
+  SOperatorParam*  vtbScanParam;
+} SVtbScanDynCtrlInfo;
 
 typedef struct SDynQueryCtrlOperatorInfo {
   EDynQueryType         qType;
   union {
     SStbJoinDynCtrlInfo stbJoin;
+    SVtbScanDynCtrlInfo vtbScan;
   };
 } SDynQueryCtrlOperatorInfo;
 

@@ -8,49 +8,56 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(clientTest clientTests.cpp)
 TARGET_LINK_LIBRARIES(
         clientTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler gtest ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
 ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
 TARGET_LINK_LIBRARIES(
         connectOptionsTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler gtest ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
 TARGET_LINK_LIBRARIES(
         tmqTest
-        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom
+        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_NATIVE_LIB_STATIC} qcom
 )
 
 ADD_EXECUTABLE(smlTest smlTest.cpp)
 TARGET_LINK_LIBRARIES(
         smlTest
-        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom geometry
+        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_NATIVE_LIB_STATIC} qcom geometry
 )
 
 #ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
 #TARGET_LINK_LIBRARIES(
 #        clientMonitorTest
-#        PUBLIC os util common transport monitor parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom executor
+#        PUBLIC os util common transport monitor parser catalog scheduler function gtest ${TAOS_NATIVE_LIB_STATIC} qcom executor
 #)
 
 ADD_EXECUTABLE(userOperTest ../../../tests/script/api/passwdTest.c)
+if (TD_WINDOWS)
 TARGET_LINK_LIBRARIES(
         userOperTest
-        PUBLIC ${TAOS_LIB}
+        PUBLIC ${TAOS_NATIVE_LIB_STATIC}
 )
+else()
+TARGET_LINK_LIBRARIES(
+        userOperTest
+	PUBLIC ${TAOS_NATIVE_LIB}
+)
+endif()
 
 ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
 TARGET_LINK_LIBRARIES(
         stmt2Test
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler gtest ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
 ADD_EXECUTABLE(stmtTest stmtTest.cpp)
 TARGET_LINK_LIBRARIES(
         stmtTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler gtest ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
 TARGET_INCLUDE_DIRECTORIES(

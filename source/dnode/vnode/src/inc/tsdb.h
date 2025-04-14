@@ -28,12 +28,12 @@ extern "C" {
 
 // tsdbDebug ================
 // clang-format off
-#define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TSD FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define tsdbError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TSD ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define tsdbWarn(...)  do { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TSD WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TSD ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSD ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
-#define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TSD FATAL ", DEBUG_FATAL, 255,           __VA_ARGS__); }} while(0)
+#define tsdbError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TSD ERROR ", DEBUG_ERROR, 255,           __VA_ARGS__); }} while(0)
+#define tsdbWarn(...)  do { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TSD WARN  ", DEBUG_WARN,  255,           __VA_ARGS__); }} while(0)
+#define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TSD INFO  ", DEBUG_INFO,  255,           __VA_ARGS__); }} while(0)
+#define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSD DEBUG ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD TRACE ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 typedef struct TSDBROW          TSDBROW;
@@ -334,6 +334,7 @@ struct STsdbFS {
 };
 
 typedef struct {
+#ifdef USE_ROCKSDB
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
   rocksdb_block_based_table_options_t *tableoptions;
@@ -343,6 +344,7 @@ typedef struct {
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
   TdThreadMutex                        writeBatchMutex;
+#endif
   int32_t                              sver;
   tb_uid_t                             suid;
   tb_uid_t                             uid;
@@ -962,7 +964,7 @@ int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
-int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size);
+int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
@@ -1084,6 +1086,9 @@ void tsdbRemoveFile(const char *path);
       tsdbTrace("failed to close file"); \
     }                                    \
   } while (0)
+
+int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDiskID *diskId);
+int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t level, const char *label, SDiskID *diskId);
 
 #ifdef __cplusplus
 }

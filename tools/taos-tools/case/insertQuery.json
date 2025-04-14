@@ -1,0 +1,84 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "u1-64",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "num_of_records_per_req": 200,
+    "thread_count": 20,
+    "create_table_thread_count": 10,
+    "result_file": "./insert_res_mix.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "chinese": "no",
+    "check_sql": "yes",
+    "continue_if_fail": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "db",
+                "drop": "yes",
+                "vgroups": 6,
+                "replica": 3,
+                "precision": "ms",
+                "keep": 3650,
+                "minRows": 100,
+                "maxRows": 4096
+            },
+            "super_tables": [
+                {
+                    "name": "stb0",
+                    "child_table_exists": "no",
+                    "childtable_count": 13,
+                    "insert_rows": 900000000000,
+                    "childtable_prefix": "stb0_",
+                    "escape_character": "yes",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "insert_mode": "taosc",
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "disorder_range": 100000,
+                    "timestamp_step": 1000,
+                    "start_timestamp":"2023-01-01 00:00:00",
+                    "disorder_ratio": 10,
+                    "update_ratio": 5,
+                    "delete_ratio": 1,
+                    "disorder_fill_interval": 100,
+                    "update_fill_interval": 25,
+                    "generate_row_rule": 2,
+                    "binary_prefix": "varchar.",
+                    "nchar_prefix": "nchar.",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        { "type": "int",         "name": "c0",  "max": 1000000, "min": 0 },
+                        { "type": "tinyint",     "name": "c1",  "max": 200, "min": 0 },
+                        { "type": "double",      "name": "c2",  "max": 100000, "min": 0 },
+                        { "type": "binary",      "name": "c3", "len": 100},
+                        { "type": "nchar",       "name": "c4", "len": 100}
+                    ],
+                    "tags": [
+                        {
+                            "type": "tinyint",
+                            "name": "t0",
+                            "max": 5,
+                            "min": 1
+                        },
+                        {
+                            "name": "t1",
+                            "type": "binary",
+                            "len": 16,
+                            "values": [ "varchar1", "varchar2", "varchar3", "varchar4", "varchar5",  "varchar6", 
+                                        "varchar7", "varchar8", "varchar9", "varchar10","varchar11", "varchar12" ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -9,7 +9,7 @@ IF(NOT TD_DARWIN)
         ADD_EXECUTABLE(catalogTest ${SOURCE_LIST})
         TARGET_LINK_LIBRARIES(
                 catalogTest
-                PUBLIC os util common nodes catalog transport gtest qcom ${TAOS_LIB_STATIC}
+                PUBLIC os util common nodes catalog transport gtest qcom ${TAOS_NATIVE_LIB_STATIC}
         )
 
         TARGET_INCLUDE_DIRECTORIES(
@@ -19,7 +19,7 @@ IF(NOT TD_DARWIN)
         )
 
         add_test(
-            NAME catalogTest
-            COMMAND catalogTest
+                NAME catalogTest
+                COMMAND catalogTest
         )
 ENDIF()

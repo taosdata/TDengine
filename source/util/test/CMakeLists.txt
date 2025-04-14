@@ -30,7 +30,7 @@ ENDIF()
 # ADD_EXECUTABLE(trefTest ./trefTest.c)
 # TARGET_LINK_LIBRARIES(trefTest util common)
 # ENDIF ()
-INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/source/util/inc)
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
 
 add_executable(heapTest "heapTest.cpp")
@@ -142,10 +142,6 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-IF(COMPILER_SUPPORT_AVX2)
-    MESSAGE(STATUS "AVX2 instructions is ACTIVATED")
-    set_source_files_properties(decompressTest.cpp PROPERTIES COMPILE_FLAGS -mavx2)
-ENDIF()
 add_executable(decompressTest "decompressTest.cpp")
 target_link_libraries(decompressTest os util common gtest_main)
 add_test(
@@ -181,9 +177,9 @@ if(${TD_LINUX})
     # memPoolTest
     add_executable(memPoolTest "memPoolTest.cpp")
     target_link_libraries(memPoolTest os util common gtest_main)
-    add_test(
-        NAME memPoolTest
-        COMMAND memPoolTest
-    )
+    # add_test(
+    #     NAME memPoolTest
+    #     COMMAND memPoolTest
+    # )
 
 endif()

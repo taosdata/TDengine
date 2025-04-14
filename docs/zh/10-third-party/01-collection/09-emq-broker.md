@@ -4,7 +4,7 @@ title: EMQX Broker 写入
 description: 使用 EMQX Broker 写入 TDengine
 ---
 
-MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/emqx)是一开源的 MQTT Broker 软件，无需任何代码，只需要在 EMQX Dashboard 里使用“规则”做简单配置，即可将 MQTT 的数据直接写入 TDengine。EMQX 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。
+MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/emqx) 是一开源的 MQTT Broker 软件，无需任何代码，只需要在 EMQX Dashboard 里使用“规则”做简单配置，即可将 MQTT 的数据直接写入 TDengine。EMQX 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。
 
 ## 前置条件
 
@@ -30,7 +30,7 @@ USE test;
 CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volume FLOAT, pm10 FLOAT, pm25 FLOAT, so2 FLOAT, no2 FLOAT, co FLOAT, sensor_id NCHAR(255), area TINYINT, coll_time TIMESTAMP);
 ```
 
-注：表结构以博客[数据传输、存储、展现，EMQX + TDengine 搭建 MQTT 物联网数据可视化平台](https://www.taosdata.com/blog/2020/08/04/1722.html)为例。后续操作均以此博客场景为例进行，请你根据实际应用场景进行修改。
+注：表结构以博客 [数据传输、存储、展现，EMQX + TDengine 搭建 MQTT 物联网数据可视化平台](https://www.taosdata.com/blog/2020/08/04/1722.html) 为例。后续操作均以此博客场景为例进行，请你根据实际应用场景进行修改。
 
 ## 配置 EMQX 规则
 
@@ -59,7 +59,7 @@ FROM
   "sensor/data"
 ```
 
-其中 `payload` 代表整个消息体， `sensor/data` 为本规则选取的消息主题。
+其中 `payload` 代表整个消息体，`sensor/data` 为本规则选取的消息主题。
 
 ![TDengine Database EMQX create rule](./emqx/create-rule.webp)
 
@@ -75,7 +75,7 @@ FROM
 
 ### 编辑“资源（Resource）”
 
-选择“WebHook”并填写“请求 URL”为 taosAdapter 提供 REST 服务的地址，如果是本地启动的 taosadapter， 那么默认地址为：
+选择“WebHook”并填写“请求 URL”为 taosAdapter 提供 REST 服务的地址，如果是本地启动的 taosadapter，那么默认地址为：
 
 ```
 http://127.0.0.1:6041/rest/sql
@@ -93,7 +93,7 @@ Basic cm9vdDp0YW9zZGF0YQ==
 ```
 相关文档请参考[ TDengine REST API 文档](../../../reference/connector/rest-api/)。
 
-在消息体中输入规则引擎替换模板:
+在消息体中输入规则引擎替换模板：
 
 ```sql
 INSERT INTO test.sensor_data VALUES(
@@ -114,7 +114,7 @@ INSERT INTO test.sensor_data VALUES(
 
 ![TDengine Database EMQX edit action](./emqx/edit-action.webp)
 
-最后点击左下方的 “Create” 按钮，保存规则。
+最后点击左下方的“Create”按钮，保存规则。
 ## 编写模拟测试程序
 
 ```javascript

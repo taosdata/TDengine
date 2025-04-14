@@ -16,21 +16,19 @@
 #include "tq.h"
 #include "vnd.h"
 
-#define MAX_REPEAT_SCAN_THRESHOLD 3
-#define SCAN_WAL_IDLE_DURATION    500    // idle for 500ms to do next wal scan
+#define SCAN_WAL_IDLE_DURATION    250  // idle for 500ms to do next wal scan
+#define SCAN_WAL_WAIT_COUNT       2
 
 typedef struct SBuildScanWalMsgParam {
   int64_t metaId;
-  int32_t numOfTasks;
+  SMsgCb  msgCb;
 } SBuildScanWalMsgParam;
 
-static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta);
+static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, int32_t* pNumOfTasks);
 static int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId);
 static bool    handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver);
 static bool    taskReadyForDataFromWal(SStreamTask* pTask);
 static int32_t doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems, bool* pSucc);
-static int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration);
-static int32_t doScanWalAsync(STQ* pTq, bool ckPause);
 
 // extract data blocks(submit/delete) from WAL, and add them into the input queue for all the sources tasks.
 int32_t tqScanWal(STQ* pTq) {
@@ -38,46 +36,58 @@ int32_t tqScanWal(STQ* pTq) {
   int32_t      vgId = pMeta->vgId;
   int64_t      st = taosGetTimestampMs();
   int32_t      numOfTasks = 0;
+  int64_t      el = 0;
+  int32_t      code = 0;
 
-  tqDebug("vgId:%d continue to check if data in wal are available, scanCounter:%d", vgId, pMeta->scanInfo.scanCounter);
-
-  // check all tasks
-  int32_t code = doScanWalForAllTasks(pMeta);
-  if (code) {
-    tqError("vgId:%d failed to start all tasks, try next time, code:%s", vgId, tstrerror(code));
+  int32_t old = atomic_val_compare_exchange_32(&pMeta->scanInfo.scanSentinel, 0, 1);
+  if (old == 0) {
+    tqDebug("vgId:%d try to scan wal to extract data", vgId);
+  } else {
+    tqDebug("vgId:%d already in wal scan, abort", vgId);
     return code;
   }
 
-  streamMetaWLock(pMeta);
-  int32_t times = (--pMeta->scanInfo.scanCounter);
-  if (times < 0) {
-    tqError("vgId:%d invalid scan counter:%d, reset to 0", vgId, times);
-    times = 0;
+  // the scan wal interval less than 200, not scan, actually.
+  if ((pMeta->scanInfo.lastScanTs > 0) && (st - pMeta->scanInfo.lastScanTs < 200)) {
+    tqDebug("vgId:%d scan wal less than 200ms, do nothing", vgId);
+    atomic_store_32(&pMeta->scanInfo.scanSentinel, 0);
+    return code;
   }
 
-  numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  streamMetaWUnLock(pMeta);
+  // check all tasks
+  code = doScanWalForAllTasks(pMeta, &numOfTasks);
 
-  int64_t el = (taosGetTimestampMs() - st);
-  tqDebug("vgId:%d scan wal for stream tasks completed, elapsed time:%" PRId64 " ms", vgId, el);
+  pMeta->scanInfo.lastScanTs = taosGetTimestampMs();
+  el = (pMeta->scanInfo.lastScanTs - st);
 
-  if (times > 0) {
-    tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
-    code = tqScanWalInFuture(pTq, numOfTasks, SCAN_WAL_IDLE_DURATION);
-    if (code) {
-      tqError("vgId:%d sched scan wal in %dms failed, ignore this failure", vgId, SCAN_WAL_IDLE_DURATION);
-    }
+  if (code) {
+    tqError("vgId:%d failed to scan wal for all tasks, try next time, elapsed time:%" PRId64 "ms code:%s", vgId, el,
+            tstrerror(code));
+  } else {
+    tqDebug("vgId:%d scan wal for stream tasks completed, elapsed time:%" PRId64 "ms", vgId, el);
   }
 
+  atomic_store_32(&pMeta->scanInfo.scanSentinel, 0);
   return code;
 }
 
-static void doStartScanWal(void* param, void* tmrId) {
-  int32_t vgId = 0;
-  STQ*    pTq = NULL;
-  int32_t code = 0;
+static bool waitEnoughDuration(SStreamMeta* pMeta) {
+  if ((++pMeta->scanInfo.tickCounter) >= SCAN_WAL_WAIT_COUNT) {
+    pMeta->scanInfo.tickCounter = 0;
+    return true;
+  }
 
+  return false;
+}
+
+static void doStartScanWal(void* param, void* tmrId) {
+  int32_t                vgId = 0;
+  int32_t                code = 0;
+  int32_t                numOfTasks = 0;
+  tmr_h                  pTimer = NULL;
   SBuildScanWalMsgParam* pParam = (SBuildScanWalMsgParam*)param;
+
+  tqTrace("start to do scan wal in tmr, metaRid:%" PRId64, pParam->metaId);
 
   SStreamMeta* pMeta = taosAcquireRef(streamMetaRefPool, pParam->metaId);
   if (pMeta == NULL) {
@@ -87,71 +97,126 @@ static void doStartScanWal(void* param, void* tmrId) {
   }
 
   vgId = pMeta->vgId;
-  pTq = pMeta->ahandle;
-
-  tqDebug("vgId:%d create msg to start wal scan, numOfTasks:%d, vnd restored:%d", vgId, pParam->numOfTasks,
-          pTq->pVnode->restored);
-
-  code = streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
+  code = streamTimerGetInstance(&pTimer);
   if (code) {
-    tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
+    tqFatal("vgId:%d failed to get tmr ctrl during sched scan wal, not scan wal, code:%s", vgId, tstrerror(code));
+    taosMemoryFree(pParam);
+    return;
   }
+
+  if (pMeta->closeFlag) {
+    code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
+    if (code == TSDB_CODE_SUCCESS) {
+      tqInfo("vgId:%d jump out of scan wal timer since closed", vgId);
+    } else {
+      tqError("vgId:%d failed to release ref for streamMeta, rid:%" PRId64 " code:%s", vgId, pParam->metaId,
+              tstrerror(code));
+    }
+
+    taosMemoryFree(pParam);
+    return;
+  }
+
+  if (pMeta->role != NODE_ROLE_LEADER) {
+    tqDebug("vgId:%d not leader, role:%d not scan wal anymore", vgId, pMeta->role);
+
+    code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
+    if (code == TSDB_CODE_SUCCESS) {
+      tqDebug("vgId:%d jump out of scan wal timer since not leader", vgId);
+    } else {
+      tqError("vgId:%d failed to release ref for streamMeta, rid:%" PRId64 " code:%s", vgId, pParam->metaId,
+              tstrerror(code));
+    }
+
+    taosMemFree(pParam);
+    return;
+  }
+
+  if (pMeta->startInfo.startAllTasks) {
+    tqDebug("vgId:%d in restart procedure, not ready to scan wal", vgId);
+    goto _end;
+  }
+
+  if (!waitEnoughDuration(pMeta)) {
+    streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId,
+                   "scan-wal");
+    code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
+    if (code) {
+      tqError("vgId:%d failed to release ref for streamMeta, rid:%" PRId64 " code:%s", vgId, pParam->metaId,
+              tstrerror(code));
+    }
+    return;
+  }
+
+  // failed to lock, try 500ms later
+  code = streamMetaTryRlock(pMeta);
+  if (code == 0) {
+    numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+    streamMetaRUnLock(pMeta);
+  } else {
+    numOfTasks = 0;
+  }
+
+  if (numOfTasks > 0) {
+    tqDebug("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
+
+#if 0
+  //  wait for the vnode is freed, and invalid read may occur.
+  taosMsleep(10000);
+#endif
+
+    code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA, false);
+    if (code) {
+      tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
+    }
+  }
+
+_end:
+  streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId, "scan-wal");
+  tqTrace("vgId:%d try scan-wal will start in %dms", vgId, SCAN_WAL_IDLE_DURATION*SCAN_WAL_WAIT_COUNT);
 
   code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
   if (code) {
     tqError("vgId:%d failed to release ref for streamMeta, rid:%" PRId64 " code:%s", vgId, pParam->metaId,
             tstrerror(code));
   }
-
-  taosMemoryFree(pParam);
 }
 
-int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
+void tqScanWalAsync(STQ* pTq) {
   SStreamMeta*           pMeta = pTq->pStreamMeta;
   int32_t                code = 0;
   int32_t                vgId = TD_VID(pTq->pVnode);
   tmr_h                  pTimer = NULL;
   SBuildScanWalMsgParam* pParam = NULL;
 
+  // 1. the vnode should be the leader.
+  // 2. the stream isn't disabled
+  if ((pMeta->role != NODE_ROLE_LEADER) || tsDisableStream) {
+    tqInfo("vgId:%d follower node or stream disabled, not scan wal", vgId);
+    return;
+  }
+
   pParam = taosMemoryMalloc(sizeof(SBuildScanWalMsgParam));
   if (pParam == NULL) {
-    return terrno;
+    tqError("vgId:%d failed to start scan wal, stream not executes, code:%s", vgId, tstrerror(code));
+    return;
   }
 
   pParam->metaId = pMeta->rid;
-  pParam->numOfTasks = numOfTasks;
+  pParam->msgCb = pTq->pVnode->msgCb;
 
   code = streamTimerGetInstance(&pTimer);
   if (code) {
-    tqError("vgId:%d failed to get tmr ctrl during sched scan wal", vgId);
+    tqFatal("vgId:%d failed to get tmr ctrl during sched scan wal", vgId);
     taosMemoryFree(pParam);
   } else {
-    streamTmrStart(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId, "scan-wal-fut");
+    streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId,
+                   "scan-wal");
   }
-
-  return code;
 }
 
-int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  bool         alreadyRestored = pTq->pVnode->restored;
-  int32_t      code = 0;
-
-  // do not launch the stream tasks, if it is a follower or not restored vnode.
-  if (!(vnodeIsRoleLeader(pTq->pVnode) && alreadyRestored)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  streamMetaWLock(pMeta);
-  code = doScanWalAsync(pTq, ckPause);
-  streamMetaWUnLock(pMeta);
-  return code;
-}
-
-int32_t tqStopStreamTasksAsync(STQ* pTq) {
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  int32_t      vgId = pMeta->vgId;
-  return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_STOP_ALL_TASKS);
+int32_t tqStopStreamAllTasksAsync(SStreamMeta* pMeta, SMsgCb* pMsgCb) {
+  return streamTaskSchedTask(pMsgCb, pMeta->vgId, 0, 0, STREAM_EXEC_T_STOP_ALL_TASKS, false);
 }
 
 int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
@@ -235,7 +300,11 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
     return false;
   }
 
-  if (pInfo->taskLevel == TASK_LEVEL__SOURCE && pInfo->trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+  if (pInfo->trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    return false;
+  }
+
+  if (pInfo->fillHistory == STREAM_RECALCUL_TASK) {
     return false;
   }
 
@@ -246,17 +315,21 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
     return false;
   }
 
-  // fill-history task has entered into the last phase, no need to anything
-  if ((pInfo->fillHistory == 1) && pTask->status.appendTranstateBlock) {
+  // fill-history task has entered into the last phase, no need to do anything
+  if ((pInfo->fillHistory == STREAM_HISTORY_TASK) && pTask->status.appendTranstateBlock) {
     // the maximum version of data in the WAL has reached already, the step2 is done
     tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);
     return false;
   }
 
-  // check if input queue is full or not
+  // check whether input queue is full or not
   if (streamQueueIsFull(pTask->inputq.queue)) {
-    tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
+    tqTrace("s-task:%s input queue is full, launch task without scanning wal", pTask->id.idStr);
+    int32_t code = streamTrySchedExec(pTask, false);
+    if (code) {
+      tqError("s-task:%s failed to start task while inputQ is full", pTask->id.idStr);
+    }
     return false;
   }
 
@@ -328,15 +401,12 @@ int32_t doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfIt
   return code;
 }
 
-int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta) {
+int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, int32_t* pNumOfTasks) {
   int32_t vgId = pStreamMeta->vgId;
-  int32_t numOfTasks = taosArrayGetSize(pStreamMeta->pTaskList);
-  if (numOfTasks == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
+  SArray* pTaskList = NULL;
+  int32_t numOfTasks = 0;
 
   // clone the task list, to avoid the task update during scan wal files
-  SArray* pTaskList = NULL;
   streamMetaWLock(pStreamMeta);
   pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
   streamMetaWUnLock(pStreamMeta);
@@ -345,10 +415,13 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta) {
     return terrno;
   }
 
-  tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
-
   // update the new task number
   numOfTasks = taosArrayGetSize(pTaskList);
+  if (pNumOfTasks != NULL) {
+    *pNumOfTasks = numOfTasks;
+  }
+
+  tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     STaskId* pTaskId = taosArrayGet(pTaskList, i);
@@ -392,7 +465,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta) {
     streamMutexUnlock(&pTask->lock);
 
     if ((numOfItems > 0) || hasNewData) {
-      code = streamTrySchedExec(pTask);
+      code = streamTrySchedExec(pTask, false);
       if (code != TSDB_CODE_SUCCESS) {
         streamMetaReleaseTask(pStreamMeta, pTask);
         taosArrayDestroy(pTaskList);
@@ -407,43 +480,9 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doScanWalAsync(STQ* pTq, bool ckPause) {
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  bool         alreadyRestored = pTq->pVnode->restored;
-  int32_t      vgId = pMeta->vgId;
-  int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+void streamMetaFreeTQDuringScanWalError(STQ* pTq) {
+  SBuildScanWalMsgParam* p = taosMemoryCalloc(1, sizeof(SBuildScanWalMsgParam));
+  p->metaId = pTq->pStreamMeta->rid;
 
-  if (numOfTasks == 0) {
-    tqDebug("vgId:%d no stream tasks existed to run", vgId);
-    return 0;
-  }
-
-  if (pMeta->startInfo.startAllTasks) {
-    tqTrace("vgId:%d in restart procedure, not scan wal", vgId);
-    return 0;
-  }
-
-  pMeta->scanInfo.scanCounter += 1;
-  if (pMeta->scanInfo.scanCounter > MAX_REPEAT_SCAN_THRESHOLD) {
-    pMeta->scanInfo.scanCounter = MAX_REPEAT_SCAN_THRESHOLD;
-  }
-
-  if (pMeta->scanInfo.scanCounter > 1) {
-    tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->scanInfo.scanCounter);
-    return 0;
-  }
-
-  int32_t numOfPauseTasks = pMeta->numOfPausedTasks;
-  if (ckPause && numOfTasks == numOfPauseTasks) {
-    tqDebug("vgId:%d ignore all submit, all streams had been paused, reset the walScanCounter", vgId);
-
-    // reset the counter value, since we do not launch the scan wal operation.
-    pMeta->scanInfo.scanCounter = 0;
-    return 0;
-  }
-
-  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d, vnd restored:%d", vgId,
-          numOfTasks, alreadyRestored);
-
-  return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
+  doStartScanWal(p, 0);
 }

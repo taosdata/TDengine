@@ -69,7 +69,8 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  code = addSearchItem(pFileState, pWinStates, pKey);
+  bool isEnd = false;
+  code = addSearchItem(pFileState, pWinStates, pKey, &isEnd);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:

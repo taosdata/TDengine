@@ -18,6 +18,8 @@
 #include "tsdbFS2.h"
 #include "vnd.h"
 
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
+
 typedef struct {
   STsdb  *tsdb;
   int32_t szPage;
@@ -240,59 +242,70 @@ _exit:
   return code;
 }
 
+static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, int32_t expLevel, STFileObj *fobj) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (fobj == NULL) {
+    return code;
+  }
+
+  if (expLevel < 0) {
+    // remove the file
+    code = tsdbDoRemoveFileObject(rtner, fobj);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else if (expLevel > fobj->f->did.level) {
+    // Try to move the file to a new level
+    for (; expLevel > fobj->f->did.level; expLevel--) {
+      SDiskID diskId = {0};
+
+      code = tsdbAllocateDiskAtLevel(rtner->tsdb, expLevel, tsdbFTypeLabel(fobj->f->type), &diskId);
+      if (code) {
+        tsdbTrace("vgId:%d, cannot allocate disk for file %s, level:%d, reason:%s, skip!", TD_VID(rtner->tsdb->pVnode),
+                  fobj->fname, expLevel, tstrerror(code));
+        code = 0;
+        continue;
+      } else {
+        tsdbInfo("vgId:%d start to migrate file %s from level %d to %d, size:%" PRId64, TD_VID(rtner->tsdb->pVnode),
+                 fobj->fname, fobj->f->did.level, diskId.level, fobj->f->size);
+
+        code = tsdbDoMigrateFileObj(rtner, fobj, &diskId);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        tsdbInfo("vgId:%d end to migrate file %s from level %d to %d, size:%" PRId64, TD_VID(rtner->tsdb->pVnode),
+                 fobj->fname, fobj->f->did.level, diskId.level, fobj->f->size);
+        break;
+      }
+    }
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d, %s failed at %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t tsdbDoRetention(SRTNer *rtner) {
   int32_t    code = 0;
   int32_t    lino = 0;
   STFileObj *fobj = NULL;
   STFileSet *fset = rtner->fset;
-  int32_t    expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
 
-  if (expLevel < 0) {  // remove the fileset
-    for (int32_t ftype = 0; (ftype < TSDB_FTYPE_MAX) && (fobj = fset->farr[ftype], 1); ++ftype) {
-      if (fobj == NULL) continue;
-      TAOS_CHECK_GOTO(tsdbDoRemoveFileObject(rtner, fobj), &lino, _exit);
-    }
-
-    SSttLvl *lvl;
-    TARRAY2_FOREACH(fset->lvlArr, lvl) {
-      TARRAY2_FOREACH(lvl->fobjArr, fobj) { TAOS_CHECK_GOTO(tsdbDoRemoveFileObject(rtner, fobj), &lino, _exit); }
-    }
-  } else if (expLevel == 0) {  // only migrate to upper level
-    return 0;
-  } else {  // migrate
-    SDiskID did;
-
-    TAOS_CHECK_GOTO(tfsAllocDisk(rtner->tsdb->pVnode->pTfs, expLevel, &did), &lino, _exit);
-    code = tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+  // handle data file sets
+  int32_t expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
+  for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fset->farr[ftype]);
     TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
-    // data
-    for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = fset->farr[ftype], 1); ++ftype) {
-      if (fobj == NULL) continue;
-
-      if (fobj->f->did.level == did.level) {
-        continue;
-      }
-
-      if (fobj->f->did.level > did.level) {
-        continue;
-      }
-      tsdbInfo("file:%s size: %" PRId64 " do migrate from %d to %d", fobj->fname, fobj->f->size, fobj->f->did.level,
-               did.level);
-
-      TAOS_CHECK_GOTO(tsdbDoMigrateFileObj(rtner, fobj, &did), &lino, _exit);
-    }
-
-    // stt
-    SSttLvl *lvl;
-    TARRAY2_FOREACH(fset->lvlArr, lvl) {
-      TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-        if (fobj->f->did.level == did.level) {
-          continue;
-        }
-
-        TAOS_CHECK_GOTO(tsdbDoMigrateFileObj(rtner, fobj, &did), &lino, _exit);
-      }
+  // handle stt file
+  SSttLvl *lvl;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fobj);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
@@ -345,7 +358,9 @@ static int32_t tsdbRetention(void *arg) {
   // do retention
   if (rtner.fset) {
     if (rtnArg->s3Migrate) {
+#ifdef USE_S3
       TAOS_CHECK_GOTO(tsdbDoS3Migrate(&rtner), &lino, _exit);
+#endif
     } else {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
     }
@@ -415,6 +430,7 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
   return code;
 }
 
+#ifdef USE_S3
 static int32_t tsdbS3FidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3KeepLocal, int64_t nowSec) {
   int32_t localFid;
   TSKEY   key;
@@ -678,13 +694,11 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
     int32_t r = taosStatFile(fobj->fname, &size, &mtime, NULL);
     if (size > chunksize && mtime < rtner->now - tsS3UploadDelaySec) {
       if (pCfg->s3Compact && lcn < 0) {
-        extern int32_t tsdbAsyncCompact(STsdb * tsdb, const STimeWindow *tw, bool sync);
-
         STimeWindow win = {0};
         tsdbFidKeyRange(fset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
 
         tsdbInfo("vgId:%d, async compact begin lcn: %d.", TD_VID(rtner->tsdb->pVnode), lcn);
-        code = tsdbAsyncCompact(rtner->tsdb, &win, pCfg->sttTrigger == 1);
+        code = tsdbAsyncCompact(rtner->tsdb, &win, true);
         tsdbInfo("vgId:%d, async compact end lcn: %d.", TD_VID(rtner->tsdb->pVnode), lcn);
         goto _exit;
         return code;
@@ -747,29 +761,5 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
   return code;
 }
 
-static int32_t tsdbGetS3SizeImpl(STsdb *tsdb, int64_t *size) {
-  int32_t code = 0;
+#endif
 
-  SVnodeCfg *pCfg = &tsdb->pVnode->config;
-  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
-
-  STFileSet *fset;
-  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
-    if (fobj) {
-      int32_t lcn = fobj->f->lcn;
-      if (lcn > 1) {
-        *size += ((lcn - 1) * chunksize);
-      }
-    }
-  }
-
-  return code;
-}
-int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
-  int32_t code = 0;
-  (void)taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbGetS3SizeImpl(tsdb, size);
-  (void)taosThreadMutexUnlock(&tsdb->mutex);
-  return code;
-}

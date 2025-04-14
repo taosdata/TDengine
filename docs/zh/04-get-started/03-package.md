@@ -8,7 +8,7 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import PkgListV3 from "/components/PkgListV3";
 
-TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、命令行程序（CLI，taos）和一些工具软件。目前 TDinsight 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../../reference/components/taosadapter/) 提供 [RESTful 接口](../../reference/connector/rest-api/)。
+TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、命令行程序（TDengine CLI）和一些工具软件。目前 TDinsight 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../../reference/components/taosadapter/) 提供 [RESTful 接口](../../reference/connector/rest-api/)。
 
 为方便使用，标准的服务端安装包包含了 taosd、taosAdapter、taosc、taos、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 Lite 版本的安装包。
 
@@ -17,30 +17,27 @@ TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）�
 此外，TDengine 也提供 macOS x64/m1 平台的 pkg 安装包。
 
 ## 运行环境要求
-在linux系统中，运行环境最低要求如下:
 
-linux 内核版本 - 3.10.0-1160.83.1.el7.x86_64;
+在 linux 系统中，运行环境最低要求如下：
+1. linux 内核版本：3.10.0-1160.83.1.el7.x86_64 或以上
+2. glibc 版本：2.17 或以上
 
-glibc 版本    -  2.17;
-
-如果通过clone源码进行编译安装，还需要满足:
-
-cmake版本 - 3.26.4或以上;
-
-gcc 版本  - 9.3.1或以上;
-
+如果通过 Clone 源码进行编译安装，还需要满足：
+1. cmake 版本：3.26.4 或以上
+2. gcc 版本：9.3.1 或以上
 
 ## 安装
 
 **注意**
 
-从TDengine 3.0.6.0 开始，不再提供单独的 taosTools 安装包，原 taosTools 安装包中包含的工具都在 TDengine-server 安装包中，如果需要请直接下载 TDengine -server 安装包。
+从 TDengine 3.0.6.0 开始，不再提供单独的 taosTools 安装包，原 taosTools 安装包中包含的工具都在 TDengine-server 安装包中，如果需要请直接下载 TDengine-server 安装包。
 
 <Tabs>
 <TabItem label="Deb 安装" value="debinst">
 
-1. 从列表中下载获得 Deb 安装包；
+1. 从列表中下载获得 Deb 安装包：
    <PkgListV3 type={6}/>
+
 2. 进入到安装包所在目录，执行如下的安装命令：
 
 > 请将 `<version>` 替换为下载的安装包版本
@@ -53,8 +50,9 @@ sudo dpkg -i TDengine-server-<version>-Linux-x64.deb
 
 <TabItem label="RPM 安装" value="rpminst">
 
-1. 从列表中下载获得 RPM 安装包；
+1. 从列表中下载获得 RPM 安装包：
    <PkgListV3 type={5}/>
+
 2. 进入到安装包所在目录，执行如下的安装命令：
 
 > 请将 `<version>` 替换为下载的安装包版本
@@ -67,7 +65,7 @@ sudo rpm -ivh TDengine-server-<version>-Linux-x64.rpm
 
 <TabItem label="tar.gz 安装" value="tarinst">
 
-1. 从列表中下载获得 tar.gz 安装包；
+1. 从列表中下载获得 tar.gz 安装包：
    <PkgListV3 type={0}/>
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
@@ -126,14 +124,14 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 **注意**
 - 目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
 - 从 TDengine 3.1.0.0 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine 销售团队升级为企业版。
-- Windows 上需要安装 VC 运行时库，可在此下载安装 [VC运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170), 如果已经安装此运行库可忽略。
+- Windows 上需要安装 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)，如果已经安装此运行库可忽略。
 
 按照以下步骤安装：
 
-1. 从列表中下载获得 exe 安装程序；
+1. 从列表中下载获得 exe 安装程序：
    <PkgListV3 type={3}/>
 2. 运行可执行程序来安装 TDengine。
-Note: 从 3.0.1.7 开始，只提供 TDengine 客户端的 Windows 客户端的下载。想要使用TDengine 服务端的 Windows 版本，请联系销售升级为企业版本。
+Note: 从 3.0.1.7 版本开始，只提供 TDengine 客户端的 Windows 客户端的下载。想要使用 TDengine 服务端的 Windows 版本，请联系 TDengine 销售团队升级为企业版。
 
 </TabItem>
 <TabItem label="macOS 安装" value="macos">
@@ -210,12 +208,12 @@ sudo launchctl start com.tdengine.taoskeeper
 sudo launchctl start com.tdengine.taos-explorer
 ```
 
-你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
+你也可以直接运行 `start-all.sh` 脚本来启动上面的所有服务
 ```bash
 start-all.sh
 ```
 
-可以使用  `launchctl` 命令管理上面提到的每个 TDengine 服务，以下示例使用 `taosd` ：
+可以使用 `launchctl` 命令管理上面提到的每个 TDengine 服务，以下示例使用 `taosd`：
 
 ```bash
 sudo launchctl start com.tdengine.taosd
@@ -226,7 +224,7 @@ sudo launchctl print system/com.tdengine.taosd
 
 :::info
 
-- `launchctl` 命令管理`com.tdengine.taosd`需要管理员权限，务必在前面加 `sudo` 来增强安全性。
+- `launchctl` 命令管理 `com.tdengine.taosd` 需要管理员权限，务必在前面加 `sudo` 来增强安全性。
 - `sudo launchctl list | grep taosd` 指令返回的第一列是 `taosd` 程序的 PID，若为 `-` 则说明 TDengine 服务未运行。
 - 故障排查：
 - 如果服务异常请查看系统日志 `launchd.log` 或者 `/var/log/taos` 目录下 `taosdlog` 日志获取更多信息。
@@ -239,7 +237,7 @@ sudo launchctl print system/com.tdengine.taosd
 
 ## TDengine 命令行（CLI）
 
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` (Linux/Mac) 或 `taos.exe` (Windows) 即可。 TDengine CLI 的提示符号如下：
+为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` (Linux/Mac) 或 `taos.exe` (Windows) 即可。TDengine CLI 的提示符号如下：
 
 ```cmd
 taos>
@@ -269,7 +267,7 @@ Query OK, 2 row(s) in set (0.003128s)
 
 ### 体验写入
 
-taosBenchmark 是一个专为测试 TDengine 性能而设计的工具，它能够全面评估TDengine 在写入、查询和订阅等方面的功能表现。该工具能够模拟大量设备产生的数据，并允许用户灵活控制数据库、超级表、标签列的数量和类型、数据列的数量和类型、子表数量、每张子表的数据量、写入数据的时间间隔、工作线程数量以及是否写入乱序数据等策略。
+taosBenchmark 是一个专为测试 TDengine 性能而设计的工具，它能够全面评估 TDengine 在写入、查询和订阅等方面的功能表现。该工具能够模拟大量设备产生的数据，并允许用户灵活控制数据库、超级表、标签列的数量和类型、数据列的数量和类型、子表数量、每张子表的数据量、写入数据的时间间隔、工作线程数量以及是否写入乱序数据等策略。
 
 启动 TDengine 的服务，在终端中执行如下命令
 
@@ -277,7 +275,7 @@ taosBenchmark 是一个专为测试 TDengine 性能而设计的工具，它能�
 taosBenchmark -y
 ```
 
-系统将自动在数据库 test 下创建一张名为 meters的超级表。这张超级表将包含 10,000 张子表，表名从 d0 到 d9999，每张表包含 10,000条记录。每条记录包含 ts（时间戳）、current（电流）、voltage（电压）和 phase（相位）4个字段。时间戳范围从 “2017-07-14 10:40:00 000” 到 “2017-07-14 10:40:09 999”。每张表还带有 location 和 groupId 两个标签，其中，groupId 设置为 1 到 10，而 location 则设置为 California.Campbell、California.Cupertino 等城市信息。
+系统将自动在数据库 test 下创建一张名为 meters 的超级表。这张超级表将包含 10,000 张子表，表名从 d0 到 d9999，每张表包含 10,000 条记录。每条记录包含 ts（时间戳）、current（电流）、voltage（电压）和 phase（相位）4 个字段。时间戳范围从“2017-07-14 10:40:00 000”到“2017-07-14 10:40:09 999”。每张表还带有 location 和 groupId 两个标签，其中，groupId 设置为 1 到 10，而 location 则设置为 California.Campbell、California.Cupertino 等城市信息。
 
 执行该命令后，系统将迅速完成 1 亿条记录的写入过程。实际所需时间取决于硬件性能，但即便在普通 PC 服务器上，这个过程通常也只需要十几秒。
 
@@ -286,7 +284,7 @@ taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如
 taosBenchmark --help
 ```
 
-有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
+有关 taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
 
 ### 体验查询
 

@@ -19,7 +19,7 @@ script_dir=$(dirname $(readlink -f "$0"))
 PREFIX="taos"
 clientName="${PREFIX}"
 serverName="${PREFIX}d"
-udfdName="udfd"
+udfdName="${PREFIX}udf"
 configFile="${PREFIX}.cfg"
 productName="TDengine"
 emailName="taosdata.com"
@@ -37,6 +37,7 @@ demoName="${PREFIX}demo"
 xname="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
 keeperName="${PREFIX}keeper"
+inspect_name="${PREFIX}inspect"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -156,12 +157,13 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pagMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -225,6 +227,7 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
@@ -268,19 +271,29 @@ function install_lib() {
   # Remove links
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+  ${csudo}rm -f ${lib_link_dir}/libtaosnative.* || :
+  ${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
+  ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+  ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}              || :
   ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
+  #link lib/link_dir
   ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+  ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
+  ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
   [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
 
+  #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
+    ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
 
-    [ -f ${install_main_dir}/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
+    [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
@@ -521,14 +534,14 @@ function local_fqdn_check() {
 function install_taosx_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
-  fileName="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${fileName}
+  file_name="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
+  if [ -f ${file_name} ]; then
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${file_name}
     
     if [ -f "${configDir}/${xname}.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${xname}.toml.new
+      ${csudo}cp ${file_name} ${configDir}/${xname}.toml.new
     else
-      ${csudo}cp ${fileName} ${configDir}/${xname}.toml
+      ${csudo}cp ${file_name} ${configDir}/${xname}.toml
     fi
   fi
 }
@@ -538,18 +551,18 @@ function install_explorer_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
   if [ "$verMode" == "cluster" ]; then
-    fileName="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
+    file_name="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
   else
-    fileName="${script_dir}/cfg/explorer.toml"
+    file_name="${script_dir}/cfg/explorer.toml"
   fi
 
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i "s/localhost/${serverFqdn}/g" ${fileName}
+  if [ -f ${file_name} ]; then
+    ${csudo}sed -i "s/localhost/${serverFqdn}/g" ${file_name}
     
     if [ -f "${configDir}/explorer.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/explorer.toml.new
+      ${csudo}cp ${file_name} ${configDir}/explorer.toml.new
     else
-      ${csudo}cp ${fileName} ${configDir}/explorer.toml
+      ${csudo}cp ${file_name} ${configDir}/explorer.toml
     fi
   fi
 }
@@ -557,14 +570,14 @@ function install_explorer_config() {
 function install_adapter_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
-  fileName="${script_dir}/cfg/${adapterName}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" ${fileName}
+  file_name="${script_dir}/cfg/${adapterName}.toml"
+  if [ -f ${file_name} ]; then
+    ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" ${file_name}
     
     if [ -f "${configDir}/${adapterName}.toml" ]; then      
-      ${csudo}cp ${fileName} ${configDir}/${adapterName}.toml.new
+      ${csudo}cp ${file_name} ${configDir}/${adapterName}.toml.new
     else
-      ${csudo}cp ${fileName} ${configDir}/${adapterName}.toml      
+      ${csudo}cp ${file_name} ${configDir}/${adapterName}.toml      
     fi
   fi
 }
@@ -572,21 +585,21 @@ function install_adapter_config() {
 function install_keeper_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
-  fileName="${script_dir}/cfg/${keeperName}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${fileName}
+  file_name="${script_dir}/cfg/${keeperName}.toml"
+  if [ -f ${file_name} ]; then
+    ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${file_name}
 
     if [ -f "${configDir}/${keeperName}.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${keeperName}.toml.new
+      ${csudo}cp ${file_name} ${configDir}/${keeperName}.toml.new
     else
-      ${csudo}cp ${fileName} ${configDir}/${keeperName}.toml
+      ${csudo}cp ${file_name} ${configDir}/${keeperName}.toml
     fi
   fi
 }
 
 function install_taosd_config() {
-  fileName="${script_dir}/cfg/${configFile}"
-  if [ -f ${fileName} ]; then
+  file_name="${script_dir}/cfg/${configFile}"
+  if [ -f ${file_name} ]; then
     ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
     ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
     ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
@@ -595,15 +608,27 @@ function install_taosd_config() {
     fi
     
     if [ -f "${configDir}/${configFile}" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${configFile}.new
+      ${csudo}cp ${file_name} ${configDir}/${configFile}.new
     else
-      ${csudo}cp ${fileName} ${configDir}/${configFile}
+      ${csudo}cp ${file_name} ${configDir}/${configFile}
     fi
   fi
 
   ${csudo}ln -sf ${configDir}/${configFile} ${install_main_dir}/cfg
 }
   
+function install_taosinspect_config() {
+  file_name="${script_dir}/cfg/inspect.cfg"
+  if [ -f ${file_name} ]; then
+    if [ -f "${configDir}/inspect.cfg" ]; then
+      ${csudo}cp ${file_name} ${configDir}/inspect.cfg.new
+    else
+      ${csudo}cp ${file_name} ${configDir}/inspect.cfg
+    fi
+  fi
+
+  ${csudo}ln -sf ${configDir}/inspect.cfg ${install_main_dir}/cfg
+}
 
 function install_config() {
   
@@ -915,6 +940,10 @@ function updateProduct() {
       install_adapter_config
       install_taosx_config
       install_explorer_config
+      if [ "${verMode}" == "cluster" ]; then
+        install_taosinspect_config
+      fi
+      
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
@@ -1007,6 +1036,11 @@ function installProduct() {
       install_adapter_config
       install_taosx_config
       install_explorer_config
+
+      if [ "${verMode}" == "cluster" ]; then
+        install_taosinspect_config
+      fi
+      
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi

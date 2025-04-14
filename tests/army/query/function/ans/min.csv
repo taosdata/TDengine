@@ -7,7 +7,7 @@ taos> select MIN(id) from ts_4893.meters
 taos> select MIN(current) from ts_4893.meters
      min(current)     |
 =======================
-            8.0000000 |
+                    8 |
 
 taos> select MIN(voltage) from ts_4893.meters
  min(voltage) |
@@ -105,65 +105,65 @@ taos> select MIN(id) from ts_4893.meters interval(60d)
 taos> select MIN(current) from ts_4893.meters interval(60d)
      min(current)     |
 =======================
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0010004 |
-            8.0010004 |
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0019999 |
-            8.0010004 |
-            8.0000000 |
-            8.0030003 |
-            8.0000000 |
-            8.0000000 |
-            8.0019999 |
-            8.0010004 |
-            8.0000000 |
-            8.0030003 |
-            8.0000000 |
-            8.0000000 |
-            8.0019999 |
-            8.0010004 |
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0019999 |
-            8.0010004 |
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0010004 |
-            8.0089998 |
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0019999 |
-            8.0010004 |
-            8.0000000 |
-            8.0030003 |
-            8.0000000 |
-            8.0000000 |
-            8.0019999 |
-            8.0010004 |
-            8.0000000 |
-            8.0019999 |
-            8.0000000 |
-            8.0000000 |
-            8.0019999 |
-            8.0010004 |
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0000000 |
-            8.0019999 |
-            8.0010004 |
-            8.0000000 |
-            8.0050001 |
+                    8 |
+                    8 |
+                    8 |
+                8.001 |
+                8.001 |
+                    8 |
+                    8 |
+                    8 |
+                8.002 |
+                8.001 |
+                    8 |
+                8.003 |
+                    8 |
+                    8 |
+                8.002 |
+                8.001 |
+                    8 |
+                8.003 |
+                    8 |
+                    8 |
+                8.002 |
+                8.001 |
+                    8 |
+                    8 |
+                    8 |
+                    8 |
+                8.002 |
+                8.001 |
+                    8 |
+                    8 |
+                    8 |
+                    8 |
+                8.001 |
+                8.009 |
+                    8 |
+                    8 |
+                    8 |
+                8.002 |
+                8.001 |
+                    8 |
+                8.003 |
+                    8 |
+                    8 |
+                8.002 |
+                8.001 |
+                    8 |
+                8.002 |
+                    8 |
+                    8 |
+                8.002 |
+                8.001 |
+                    8 |
+                    8 |
+                    8 |
+                    8 |
+                8.002 |
+                8.001 |
+                    8 |
+                8.005 |
 
 taos> select MIN(voltage) from ts_4893.meters interval(60d)
  min(voltage) |
@@ -561,7 +561,7 @@ taos> select min(id) from ts_4893.meters where id <= 0
 taos> select min(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
       min(phase)      |
 =======================
-            0.0001700 |
+              0.00017 |
 
 taos> select min(voltage) from ts_4893.meters where voltage is not null
  min(voltage) |
@@ -576,17 +576,17 @@ taos> select min(total_voltage) from (select sum(voltage) as total_voltage from 
 taos> select round(min(current), 2) from ts_4893.meters
  round(min(current), 2) |
 =========================
-          8.0000000e+00 |
+                      8 |
 
 taos> select pow(min(current), 2) from ts_4893.meters
    pow(min(current), 2)    |
 ============================
-        64.000000000000000 |
+                        64 |
 
 taos> select log(min(voltage) + 1) from ts_4893.meters
    log(min(voltage) + 1)   |
 ============================
-         5.375278407684165 |
+          5.37527840768417 |
 
 taos> select groupid, min(voltage) from ts_4893.meters group by groupid order by groupid
  groupid | min(voltage) |
@@ -596,7 +596,7 @@ taos> select groupid, min(voltage) from ts_4893.meters group by groupid order by
 taos> select location, min(current) from ts_4893.meters group by location order by location
       location      |     min(current)     |
 ============================================
- beijing            |            8.0000000 |
+ beijing            |                    8 |
 
 taos> select location, min(id) from ts_4893.meters group by location order by location
       location      |   min(id)   |
@@ -651,10 +651,10 @@ taos> select min(cast(10000000000 as bigint unsigned))
 taos> select min(cast(1.1 as float))
  min(cast(1.1 as float)) |
 ==========================
-           1.1000000e+00 |
+                     1.1 |
 
 taos> select min(cast(1.1 as double))
  min(cast(1.1 as double))  |
 ============================
-         1.100000000000000 |
+                       1.1 |
 

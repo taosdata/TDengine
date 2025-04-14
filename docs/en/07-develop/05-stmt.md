@@ -15,6 +15,19 @@ When inserting data using parameter binding, it can avoid the resource consumpti
 
 **Tips: It is recommended to use parameter binding for data insertion**
 
+   :::note
+   We only recommend using the following two forms of SQL for parameter binding data insertion:
+
+    ```sql
+    a. Subtables already exists:
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
+    b. Automatic table creation on insert:
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
+       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+    ```
+
+   :::
+
 Next, we continue to use smart meters as an example to demonstrate the efficient writing functionality of parameter binding with various language connectors:
 
 1. Prepare a parameterized SQL insert statement for inserting data into the supertable `meters`. This statement allows dynamically specifying subtable names, tags, and column values.
@@ -133,9 +146,19 @@ Not supported
 ```
 </TabItem>
 <TabItem label="C" value="c">
+
+The example code for binding parameters with stmt2 (TDengine v3.3.5.0 or higher is required) is as follows:
+
+```c
+{{#include docs/examples/c/stmt2_insert_demo.c}}
+```
+
+The example code for binding parameters with stmt is as follows:
+
 ```c
 {{#include docs/examples/c/stmt_insert_demo.c}}
 ```
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 Not supported

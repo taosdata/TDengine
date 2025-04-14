@@ -75,12 +75,12 @@ http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_m
 
 参数说明：
 
-- fqdn: 集群中的任一台主机 FQDN 或 IP 地址。
-- port: 配置文件中 httpPort 配置项，缺省为 6041。
-- db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
-- tz: 可选参数，指定返回时间的时区，遵照 IANA Time Zone 规则，如 `America/New_York`。
-- req_id: 可选参数，指定请求 id，可以用于 tracing。
-- row_with_meta: 可选参数，指定是否每行数据都携带列名，缺省为 false。（3.3.2.0 版本开始支持）
+- fqdn：集群中的任一台主机 FQDN 或 IP 地址。
+- port：配置文件中 httpPort 配置项，缺省为 6041。
+- db_name：可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
+- tz：可选参数，指定返回时间的时区，遵照 IANA Time Zone 规则，如 `America/New_York`。
+- req_id：可选参数，指定请求 id，可以用于 tracing。
+- row_with_meta：可选参数，指定是否每行数据都携带列名，缺省为 false。（3.3.2.0 版本开始支持）
 
 例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
@@ -251,7 +251,7 @@ C 接口网络不可用相关错误码：
 说明：
 
 - code：（`int`）0 代表成功。
-- column_meta：（`[][3]any`） 列信息，每个列会用三个值来说明，分别为：列名（string）、列类型（string）、类型长度（int）。
+- column_meta：（`[][3]any`）列信息，每个列会用三个值来说明，分别为：列名（string）、列类型（string）、类型长度（int）。
 - rows：（`int`）数据返回行数。
 - data：（`[][]any`）具体数据内容（时间格式仅支持 RFC3339，结果集为 0 时区，指定 tz 时返回对应时区）。
 
@@ -349,7 +349,7 @@ curl --location 'http://<fqdn>:<port>/rest/sql' \
 
 错误码和错误描述请参考[错误码](../../../reference/error-code)
 
-#### 返回key-value形式数据
+#### 返回 key-value 形式数据
 
 当指定 url 参数 `row_with_meta=true` 时，返回的 data 中的数据会从数组的形式变成对象的形式，对象的 key 为列名，value 为数据，如下所示：
 
@@ -541,7 +541,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 | URI                  | TDengine 2.x         | TDengine 3.0                                         |
 | :--------------------| :------------------: | :--------------------------------------------------: |
-| /rest/sql            | 支持                 | 支持 （响应代码和消息体不同）                        |
+| /rest/sql            | 支持                 | 支持（响应代码和消息体不同）                        |
 | /rest/sqlt           | 支持                 | 不再支持                                             |
 | /rest/sqlutc         | 支持                 | 不再支持                                             |
 

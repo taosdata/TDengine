@@ -4,6 +4,10 @@ title: TDengine 数据查询
 toc_max_heading_level: 4
 ---
 
+import win from './window.png';
+import swin from './session-window.png';
+import ewin from './event-window.png';
+
 相较于其他众多时序数据库和实时数据库，TDengine 的一个独特优势在于，自其首个版本发布之初便支持标准的 SQL 查询功能。这一特性极大地降低了用户在使用过程中的学习难度。本章将以智能电表的数据模型为例介绍如何在 TDengine 中运用 SQL 查询来处理时序数据。如果需要进一步了解 SQL 语法的细节和功能，建议参阅 TDengine 的官方文档。通过本章的学习，你将能够熟练掌握 TDengine 的 SQL 查询技巧，进而高效地对时序数据进行操作和分析。
 
 ## 基本查询
@@ -14,7 +18,7 @@ toc_max_heading_level: 4
 taosBenchmark --start-timestamp=1600000000000 --tables=100 --records=10000000 --time-step=10000
 ```
 
-上面的命令，taosBenchmark 工具在 TDengine 中生成了一个用于测试的数据库，产生共 10 亿条时序数据。时序数据的时间戳从 `1600000000000`（2020-09-13T20:26:40+08:00）开始，包含 `100` 个设备（子表），每个设备有 `10000000` 条数据，时序数据的采集频率是 10 秒/ 条。
+上面的命令，taosBenchmark 工具在 TDengine 中生成了一个用于测试的数据库，产生共 10 亿条时序数据。时序数据的时间戳从 `1600000000000`（2020-09-13T20:26:40+08:00）开始，包含 `100` 个设备（子表），每个设备有 `10000000` 条数据，时序数据的采集频率是 10 秒/条。
 
 在 TDengine 中，用户可以通过 WHERE 语句指定条件，查询时序数据。以智能电表的数据为例
 
@@ -74,22 +78,22 @@ GROUP BY groupid;
 Query OK, 10 row(s) in set (0.042446s)
 ```
 
-**注意**: group by 子句在聚合数据时，并不保证结果集按照特定顺序排列。为了获得有序的结果集，可以使用 order by 子句对结果进行排序。这样，可以根据需要调整输出结果的顺序，以满足特定的业务需求或报告要求。
+**注意**：group by 子句在聚合数据时，并不保证结果集按照特定顺序排列。为了获得有序的结果集，可以使用 order by 子句对结果进行排序。这样，可以根据需要调整输出结果的顺序，以满足特定的业务需求或报告要求。
 
 TDengine 提供了多种内置的聚合函数。如下表所示：
 
 | 聚合函数                | 功能说明                                                       | 
 |:----------------------:|:--------------------------------------------------------------:|
-|APERCENTILE | 统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。 |
-|AVG | 统计指定字段的平均值 |
-|COUNT | 统计指定字段的记录行数 |
+|APERCENTILE | 统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。|
+|AVG | 统计指定字段的平均值。|
+|COUNT | 统计指定字段的记录行数。|
 |ELAPSED|elapsed 函数表达了统计周期内连续的时间长度，和 twa 函数配合使用可以计算统计曲线下的面积。在通过 INTERVAL 子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有 INTERVAL 子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED 返回的并不是时间范围的绝对值，而是绝对值除以 time_unit 所得到的单位个数。|
-|LEASTSQUARES | 统计表中某列的值的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。 |
+|LEASTSQUARES | 统计表中某列的值的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。|
 |SPREAD | 统计表中某列的最大值和最小值之差。|
-|STDDEV | 统计表中某列的均方差。 |
-|SUM | 统计表/超级表中某列的和。 |
-|HYPERLOGLOG | 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。在数据量较少的时候该算法不是很准确，可以使用 select count（data） from （select unique（col） as data from table） 的方法。 |
-|HISTOGRAM | 统计数据按照用户指定区间的分布。 |
+|STDDEV | 统计表中某列的均方差。|
+|SUM | 统计表/超级表中某列的和。|
+|HYPERLOGLOG | 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。在数据量较少的时候该算法不是很准确，可以使用 select count(data) from (select unique(col) as data from table) 的方法。|
+|HISTOGRAM | 统计数据按照用户指定区间的分布。|
 |PERCENTILE | 统计表中某列的值百分比分位数。|
 
 ## 数据切分查询
@@ -101,12 +105,12 @@ PARTITION BY part_list
 
 `part_list` 可以是任意的标量表达式，包括列、常量、标量函数和它们的组合。
 
-TDengine 按如下方式处理数据切分子句。
+TDengine 按如下方式处理数据切分子句：
 1. 数据切分子句位于 WHERE 子句之后；
 2. 数据切分子句将表数据按指定的维度进行切分，每个切分的分片进行指定的计算。计算由之后的子句定义（窗口子句、GROUP BY 子句或 SELECT 子句）；
 3. 数据切分子句可以和窗口切分子句（或 GROUP BY 子句）一起使用，此时后面的子句作用在每个切分的分片上。
 
-数据切分的 SQL 如下：s
+数据切分的 SQL 如下：
 
 ```sql
 SELECT location, avg(voltage) 
@@ -136,15 +140,15 @@ Query OK, 10 row(s) in set (2.415961s)
 
 在 TDengine 中，你可以使用窗口子句来实现按时间窗口切分方式进行聚合结果查询，这种查询方式特别适用于需要对大量时间序列数据进行分析的场景，例如智能电表每 10s 采集一次数据，但需要查询每隔 1min 的温度平均值。
 
-窗口子句允许你针对查询的数据集合按照窗口进行切分，并对每个窗口内的数据进行聚合，包含：
-- 时间窗口（time window）
-- 状态窗口（status window）
-- 会话窗口（session window）
-- 事件窗口（event window）
+窗口子句允许你针对查询的数据集合按照窗口进行切分，并对每个窗口内的数据进行聚合。窗口划分逻辑如下图所示。
 
-窗口划分逻辑如下图所示：
+<img src={win} width="500" alt="常用窗口划分逻辑" />
 
-![常用窗口划分逻辑](./window.png)
+- 时间窗口（time window）：根据时间间隔划分数据，支持滑动时间窗口和翻转时间窗口，适用于按固定时间周期进行数据聚合。
+- 状态窗口（status window）：基于设备状态值的变化划分窗口，相同状态值的数据归为一个窗口，状态值改变时窗口关闭。
+- 会话窗口（session window）：根据记录的时间戳差异划分会话，时间戳间隔小于预设值的记录属于同一会话。
+- 事件窗口（event window）：基于事件的开始条件和结束条件动态划分窗口，满足开始条件时窗口开启，满足结束条件时窗口关闭。
+- 计数窗口（count window）：根据数据行数划分窗口，每达到指定行数即为一个窗口，并进行聚合计算。
 
 窗口子句语法如下：
 
@@ -152,14 +156,15 @@ Query OK, 10 row(s) in set (2.415961s)
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 }
 ```
 
 **注意** 在使用窗口子句时应注意以下规则：
 1. 窗口子句位于数据切分子句之后，不可以和 GROUP BY 子句一起使用。
-2. 窗口子句将数据按窗口进行切分，对每个窗口进行 SELECT 列表中的表达式的计算，SELECT 列表中的表达式只能包含：常量；伪列：_wstart 伪列、_wend 伪列和 _wduration 伪列；聚合函数（包括选择函数和可以由参数确定输出行数的时序特有函数）
+2. 窗口子句将数据按窗口进行切分，对每个窗口进行 SELECT 列表中的表达式的计算，SELECT 列表中的表达式只能包含：常量；伪列：_wstart、_wend 和 _wduration；聚合函数：包括选择函数和可以由参数确定输出行数的时序特有函数。
 3. WHERE 语句可以指定查询的起止时间和其他过滤条件。
 
 ### 时间戳伪列
@@ -177,15 +182,14 @@ INTERVAL(interval_val [, interval_offset])
 ```
 
 时间窗口子句包括 3 个子句：
-- INTERVAL 子句：用于产生相等时间周期的窗口，interval_val 指定每个时间窗口的大小，interval_offset 指定；
+- INTERVAL 子句：用于产生相等时间周期的窗口，interval_val 指定每个时间窗口的大小，interval_offset 指定窗口偏移量；默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从 "Unix time 0 + interval_offset" 开始；
 - SLIDING 子句：用于指定窗口向前滑动的时间；
 - FILL：用于指定窗口区间数据缺失的情况下，数据的填充模式。
 
-对于时间窗口，interval_val 和 sliding_val 都表示时间段， 语法上支持三种方式。例如：
-1. INTERVAL(1s, 500a) SLIDING(1s)，带时间单位的形式，其中的时间单位是单字符表示， 分别为： a （毫秒）， b （纳秒）， d （天）， h （小时）， m （分钟）， n （月）， s （秒）， u （微秒）， w （周）， y （年）；
+对于时间窗口，interval_val 和 sliding_val 都表示时间段，语法上支持三种方式。例如：
+1. INTERVAL(1s, 500a) SLIDING(1s)，带时间单位的形式，其中的时间单位是单字符表示，分别为：a（毫秒）、b（纳秒），d（天）、h（小时）、m（分钟）、n（月）、s（秒）、u（微秒）、w（周）、y（年）；
 2. INTERVAL(1000, 500) SLIDING(1000)，不带时间单位的形式，将使用查询库的时间精度作为默认时间单位，当存在多个库时默认采用精度更高的库；
 3. INTERVAL('1s', '500a') SLIDING('1s')，带时间单位的字符串形式，字符串内部不能有任何空格等其它字符。
-
 
 示例 SQL 如下：
 ```sql
@@ -220,7 +224,7 @@ Query OK, 12 row(s) in set (0.021265s)
 
 #### 滑动窗口
 
-每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window ）大小和每次前向增量时间（forward sliding times）。如下图，[t0s， t0e] ，[t1s ， t1e]， [t2s， t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识 。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。
+每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如下图，[t0s, t0e]、[t1s, t1e]、[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。
 
 ![时间窗口示意图](./sliding-window.png)
 
@@ -238,7 +242,7 @@ SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 
 **使用时间窗口需要注意**
 1. 聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。
-2. 使用 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 taos.cfg 配置文件中的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
+2. 使用 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
 3. 返回的结果中时间序列严格单调递增。
 
 示例：
@@ -274,7 +278,7 @@ Query OK, 11 row(s) in set (0.013153s)
 
 #### 翻转窗口
 
-当 SLIDING 与 INTERVAL 相等的时候，滑动窗口即为翻转窗口。翻转窗口和滑动窗口的区别在于，滑动窗口因为 interval_val 和 sliding_val 不同，不同时间窗口之间，会存在数据重叠，翻转窗口则没有数据重叠。本质上，翻转窗口就是按照 interval_val 进行了时间窗口划分，INTERVAL(1m)和INTERVAL(1m) SLIDING(1m)是等效的。
+当 SLIDING 与 INTERVAL 相等的时候，滑动窗口即为翻转窗口。翻转窗口和滑动窗口的区别在于，滑动窗口因为 interval_val 和 sliding_val 不同，不同时间窗口之间，会存在数据重叠，翻转窗口则没有数据重叠。本质上，翻转窗口就是按照 interval_val 进行了时间窗口划分，INTERVAL(1m) 和 INTERVAL(1m) SLIDING(1m) 是等效的。
 
 示例：
 
@@ -304,7 +308,7 @@ Query OK, 5 row(s) in set (0.016812s)
 #### FILL 子句
 
 1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1, 若查询列表中有多列需要 FILL, 则需要给每一个 FILL 列指定 VALUE, 如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`, 注意, SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE, 如 `_wstart`, `_wstart+1a`, `now`, `1+1` 以及使用 partition by 时的 partition key (如 tbname)都不需要指定 VALUE, 如 `timediff(last(ts), _wstart)` 则需要指定VALUE。
+2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 partition by 时的 partition key (如 tbname) 都不需要指定 VALUE,，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
 3. PREV 填充：使用前一个非 NULL 值填充数据。例如：FILL(PREV)。
 4. NULL 填充：使用 NULL 填充数据。例如：FILL(NULL)。
 5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。
@@ -313,11 +317,11 @@ Query OK, 5 row(s) in set (0.016812s)
 以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。
 
 对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，TDengine 还支持两种新的填充模式：
-1. NULL_F: 强制填充 NULL 值
-2. VALUE_F: 强制填充 VALUE 值
+1. NULL_F：强制填充 NULL 值
+2. VALUE_F：强制填充 VALUE 值
 
-NULL、 NULL_F、 VALUE、 VALUE_F 这几种填充模式针对不同场景区别如下：
-1. INTERVAL 子句： NULL_F， VALUE_F 为强制填充模式；NULL， VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
+NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
+1. INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
 2. 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
 3. INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
 
@@ -373,7 +377,7 @@ STATE_WINDOW(
 SLIMIT 2;
 ```
 
-以上 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:05:00+08:00的数据；数据首先按照子表名 tbname 进行数据切分；根据电压是否在正常范围内进行状态窗口的划分；最后，取前 2 个分片的数据作为结果。查询结果如下：（由于数据是随机生成，结果集包含的数据条数会有不同）
+以上 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:05:00+08:00 的数据；数据首先按照子表名 tbname 进行数据切分；根据电压是否在正常范围内进行状态窗口的划分；最后，取前 2 个分片的数据作为结果。查询结果如下：（由于数据是随机生成，结果集包含的数据条数会有不同）
 
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |    status     |
@@ -405,9 +409,10 @@ Query OK, 22 row(s) in set (0.153403s)
 
 ### 会话窗口
 
-会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是：[2019-04-28 14:22:10，2019-04-28 14:22:30]和[2019-04-28 14:23:10，2019-04-28 14:23:30]。因为 2019-04-28 14:22:30 与 2019-04-28 14:23:10 之间的时间间隔是 40 秒，超过了连续时间间隔（12 秒）。
+会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是：[2019-04-28 14:22:10，2019-04-28 14:22:30] 和 [2019-04-28 14:23:10，2019-04-28 14:23:30]。因为 2019-04-28 14:22:30 与 2019-04-28 14:23:10 之间的时间间隔是 40 秒，超过了连续时间间隔（12 秒）。
 
-![会话窗口示意图](./session-window.png)
+<img src={swin} width="320" alt="会话窗口示意图" />
+
 
 在 tol_value 时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过 tol_val，则自动开启下一个窗口。
 
@@ -427,7 +432,7 @@ SESSION(ts, 10m)
 SLIMIT 10;
 ```
 
-上面的 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:10:00+08:00的数据；数据先按照子表名 tbname 进行数据切分，再根据 10 分钟的会话窗口进行切分；最后，取前 10 个分片的数据作为结果，返回子表名、窗口开始时间、窗口结束时间、窗口宽度、窗口内数据条数。查询结果如下：
+上面的 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:10:00+08:00 的数据；数据先按照子表名 tbname 进行数据切分，再根据 10 分钟的会话窗口进行切分；最后，取前 10 个分片的数据作为结果，返回子表名、窗口开始时间、窗口结束时间、窗口宽度、窗口内数据条数。查询结果如下：
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |   count(*)    |
 ===============================================================================================
@@ -452,7 +457,7 @@ Query OK, 10 row(s) in set (0.043489s)
 
 事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不够成一个窗口，不会被输出。
 
-如果直接在超级表上进行事件窗口查询，TDengine 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。 如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
+如果直接在超级表上进行事件窗口查询，TDengine 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
 
 以下面的 SQL 语句为例，事件窗口切分如下图所示。
 
@@ -460,7 +465,7 @@ Query OK, 10 row(s) in set (0.043489s)
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![事件窗口示意图](./event-window.png)
+<img src={ewin} width="350" alt="事件窗口示意图" />
 
 示例 SQL:
 
@@ -474,7 +479,7 @@ EVENT_WINDOW START WITH voltage >= 225 END WITH voltage < 235
 LIMIT 5;
 ```
 
-上面的 SQL，查询超级表meters中，时间戳大于等于2022-01-01T00:00:00+08:00，且时间戳小于2022-01-01T00:10:00+08:00的数据；数据先按照子表名tbname进行数据切分，再根据事件窗口条件：电压大于等于 225V，且小于 235V 进行切分；最后，取每个分片的前 5 行的数据作为结果，返回子表名、窗口开始时间、窗口结束时间、窗口宽度、窗口内数据条数。查询结果如下：
+上面的 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:10:00+08:00 的数据；数据先按照子表名 tbname 进行数据切分，再根据事件窗口条件：电压大于等于 225V，且小于 235V 进行切分；最后，取每个分片的前 5 行的数据作为结果，返回子表名、窗口开始时间、窗口结束时间、窗口宽度、窗口内数据条数。查询结果如下：
 
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |   count(*)    |
@@ -529,25 +534,25 @@ Query OK, 10 row(s) in set (0.062794s)
 
 时序数据特有函数是 TDengine 针对时序数据查询场景专门设计的一组函数。在通用数据库中，要实现类似的功能通常需要编写复杂的查询语句，而且效率较低。为了降低用户的使用成本和简化查询过程，TDengine 将这些功能以内置函数的形式提供，从而实现了高效且易于使用的时序数据处理能力。时序数据特有函数如下表所示。
 
-| 函数            |   功能说明                                                              |
-|:---------------:|:--------------------------------------------------------------------:|
-|CSUM  | 累加和（Cumulative sum），忽略 NULL 值。 |
-|DERIVATIVE | 统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。 |
-|DIFF | 统计表中某列的值与前一行对应值的差。 ignore_negative 取值为 0|1 ， 可以不填，默认值为 0。 不忽略负值。ignore_negative 为 1 时表示忽略负数。|
-|IRATE | 计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。 |
-|MAVG | 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。|
-|STATECOUNT | 返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加 1，条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据。 |
-|STATEDURATION | 返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为 0），条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据|
-|TWA | 时间加权平均函数。统计表中某列在一段时间内的时间加权平均。 |
+| 函数          |   功能说明                                                            |
+|:------------:|:--------------------------------------------------------------------:|
+|CSUM          | 累加和（Cumulative sum），忽略 NULL 值。|
+|DERIVATIVE    | 统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。|
+|DIFF          | 统计表中某列的值与前一行对应值的差。ignore_negative 取值为 0|1，可以不填，默认值为 0。不忽略负值。ignore_negative 为 1 时表示忽略负数。|
+|IRATE         | 计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。|
+|MAVG          | 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。|
+|STATECOUNT    | 返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加 1，条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据。|
+|STATEDURATION | 返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为 0），条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据 |
+|TWA           | 时间加权平均函数。统计表中某列在一段时间内的时间加权平均。|
 
 ## 嵌套查询
 
 嵌套查询，也称为 subquery（子查询），是指在一个 SQL 中，内层查询的计算结果可以作为外层查询的计算对象来使用。TDengine 支持在 from 子句中使用非关联 subquery。非关联是指 subquery 不会用到父查询中的参数。在 select 查询的 from 子句之后，可以接一个独立的 select 语句，这个 select 语句被包含在英文圆括号内。通过使用嵌套查询，你可以在一个查询中引用另一个查询的结果，从而实现更复杂的数据处理和分析。以智能电表为例进行说明，SQL 如下
 
 ```sql
-SELECT max(voltage),* 
+SELECT max(voltage), * 
 FROM (
-    SELECT tbname,last_row(ts),voltage,current,phase,groupid,location 
+    SELECT tbname, last_row(ts), voltage, current, phase, groupid, location 
     FROM meters 
     PARTITION BY tbname
 ) 
@@ -559,12 +564,12 @@ GROUP BY groupid;
 TDengine 的嵌套查询遵循以下规则：
 1. 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
 2. 外层查询支持直接通过列名或列名的形式引用内层查询的列或伪列。
-3. 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
+3. 在内层和外层查询中，都支持普通表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
 4. 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
 5. 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
-6. 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP， DERIVATIVE， IRATE， LAST_ROW， FIRST， LAST， TWA， STATEDURATION， TAIL， UNIQUE。
-7. 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES， ELAPSED， INTERP， DERIVATIVE， IRATE， TWA， DIFF， STATECOUNT， STATEDURATION， CSUM， MAVG， TAIL， UNIQUE。
-8. 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
+6. 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP、DERIVATIVE、IRATE、LAST_ROW、FIRST、LAST、TWA、STATEDURATION、TAIL、UNIQUE。
+7. 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES、ELAPSED、INTERP、DERIVATIVE、IRATE、TWA、DIFF、STATECOUNT、STATEDURATION、CSUM、MAVG、TAIL、UNIQUE。
+8. 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：PERCENTILE。
 
 ## UNION 子句
 
@@ -573,11 +578,11 @@ TDengine 支持 UNION 操作符。也就是说，如果多个 SELECT 子句返�
 示例：
 
 ```sql
-(SELECT tbname,* FROM d1 limit 1) 
+(SELECT tbname, * FROM d1 limit 1) 
 UNION ALL 
-(SELECT tbname,* FROM d11 limit 2) 
+(SELECT tbname, * FROM d11 limit 2) 
 UNION ALL 
-(SELECT tbname,* FROM d21 limit 3);
+(SELECT tbname, * FROM d21 limit 3);
 ```
 
 上面的 SQL，分别查询：子表 d1 的 1 条数据，子表 d11 的 2 条数据，子表 d21 的 3 条数据，并将结果合并。返回的结果如下：
@@ -594,7 +599,7 @@ UNION ALL
 Query OK, 6 row(s) in set (0.006438s)
 ```
 
-在同一个 sql 语句中，最多支持 100 个 UNION 子句。
+在同一个 SQL 语句中，最多支持 100 个 UNION 子句。
 
 ## 关联查询
 
@@ -606,7 +611,7 @@ Query OK, 6 row(s) in set (0.006438s)
 
 2. 连接条件
 
-在 TDengine 中，连接条件是指进行表关联所指定的条件。对于所有关联查询（除了ASOF Join 和 Window Join 以外），都需要指定连接条件，通常出现在 on 之后。在 ASOF Join 中，出现在 where 之后的条件也可以视作连接条件，而 Window Join 是通过 window_offset 来指定连接条件。
+在 TDengine 中，连接条件是指进行表关联所指定的条件。对于所有关联查询（除了 ASOF Join 和 Window Join 以外），都需要指定连接条件，通常出现在 on 之后。在 ASOF Join 中，出现在 where 之后的条件也可以视作连接条件，而 Window Join 是通过 window_offset 来指定连接条件。
 
 除了 ASOF Join 以外，TDengine 支持的所有 Join 类型都必须显式指定连接条件。ASOF Join 因为默认定义了隐式的连接条件，所以在默认条件可以满足需求的情况下，可以不必显式指定连接条件。
 
@@ -640,9 +645,9 @@ select a.* from meters a left asof join meters b on timetruncate(a.ts, 1s) < tim
 
 ### 语法说明
 
-在接下来的内容中，我们将通过统一的方式并行介绍 Left Join 和 Right Join 系列。因此，在后续关于 Outer、Semi、Anti-Semi、ASOF、Window 等系列内容的介绍中，我们采用了“ Left/Right”这种表述方式来同时涵盖 Left Join 和 Right Join 的相关知识。这里的“ /”符号前的描述专指应用于 Left Join，而“ /”符号后的描述则专指应用于 Right Join。通过这种表述方式，我们可以更加清晰地展示这两种 Join 操作的特点和用法。
+在接下来的内容中，我们将通过统一的方式并行介绍 Left Join 和 Right Join 系列。因此，在后续关于 Outer、Semi、Anti-Semi、ASOF、Window 等系列内容的介绍中，我们采用了“Left/Right”这种表述方式来同时涵盖 Left Join 和 Right Join 的相关知识。这里的“/”符号前的描述专指应用于 Left Join，而“/”符号后的描述则专指应用于 Right Join。通过这种表述方式，我们可以更加清晰地展示这两种 Join 操作的特点和用法。
 
-例如，当我们提及“左 / 右表”时，对于 Left Join，它特指左表，而对于 Right Join，它则特指右表。同理，当我们提及“右 / 左表”时，对于 Left Join，它特指右表，而对于 Right Join，它则特指左表。
+例如，当我们提及“左/右表”时，对于 Left Join，它特指左表，而对于 Right Join，它则特指右表。同理，当我们提及“右/左表”时，对于 Left Join，它特指右表，而对于 Right Join，它则特指左表。
 
 ### Join 功能
 
@@ -650,13 +655,13 @@ select a.* from meters a left asof join meters b on timetruncate(a.ts, 1s) < tim
 
 | Join 类型                 | 定义                                                     |
 |:------------------------:|:--------------------------------------------------------:|
-|Inner Join | 内连接，只有左右表中同时符合连接条件的数据才会被返回，可以视为两张表符合连接条件的数据的交集 |
-|Left/Right Outer Join | 左 / 右（外）连接，既包含左右表中同时符合连接条件的数据集合，也包括左 / 右表中不符合连接条件的数据集合 |
-|Left/Right Semi Join | 左 / 右半连接，通常表达的是 in、exists 的含义，即对左 / 右表任意一条数据来说，只有当右 / 左表中存在任一符合连接条件的数据时才返回左 / 右表行数据 |
+|Inner Join                | 内连接，只有左右表中同时符合连接条件的数据才会被返回，可以视为两张表符合连接条件的数据的交集 |
+|Left/Right Outer Join     | 左 / 右（外）连接，既包含左右表中同时符合连接条件的数据集合，也包括左 / 右表中不符合连接条件的数据集合 |
+|Left/Right Semi Join      | 左 / 右半连接，通常表达的是 in、exists 的含义，即对左 / 右表任意一条数据来说，只有当右 / 左表中存在任一符合连接条件的数据时才返回左 / 右表行数据 |
 |Left/Right Anti-Semi Join | 左 / 右反连接，同左 / 右半连接的逻辑正好相反，通常表达的是 not in、not exists 的含义，即对左 / 右表任意一条数据来说，只有当右 / 左表中不存在任何符合连接条件的数据时才返回左 / 右表行数据 |
-|left/Right ASOF Join | 左 / 右不完全匹配连接，不同于其他传统 Join 操作的完全匹配模式，ASOF Join 允许以指定的匹配模式进行不完全匹配，即按照主键时间戳最接近的方式进行匹配 |
-|Left/Right Window Join | 左 / 右窗口连接，根据左 / 右表中每一行的主键时间戳和窗口边界构造窗口并据此进行窗口连接，支持在窗口内进行投影、标量和聚合操作 |
-|Full Outer Join | 全（外）连接，既包含左右表中同时符合连接条件的数据集合，也包括左右表中不符合连接条件的数据集合 |
+|left/Right ASOF Join      | 左 / 右不完全匹配连接，不同于其他传统 Join 操作的完全匹配模式，ASOF Join 允许以指定的匹配模式进行不完全匹配，即按照主键时间戳最接近的方式进行匹配 |
+|Left/Right Window Join    | 左 / 右窗口连接，根据左 / 右表中每一行的主键时间戳和窗口边界构造窗口并据此进行窗口连接，支持在窗口内进行投影、标量和聚合操作 |
+|Full Outer Join           | 全（外）连接，既包含左右表中同时符合连接条件的数据集合，也包括左右表中不符合连接条件的数据集合 |
 
 ### 约束和限制
 

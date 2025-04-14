@@ -244,6 +244,8 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
         pNewGid->syncState = pOldGid->syncState;
         pNewGid->syncRestore = pOldGid->syncRestore;
         pNewGid->syncCanRead = pOldGid->syncCanRead;
+        pNewGid->syncAppliedIndex = pOldGid->syncAppliedIndex;
+        pNewGid->syncCommitIndex = pOldGid->syncCommitIndex;
       }
     }
   }
@@ -1122,7 +1124,22 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
           mError("vgId:%d, failed to set role, since %s", pVgroup->vgId, tstrerror(code));
           return code;
         }
+
+        char applyStr[TSDB_SYNC_APPLY_COMMIT_LEN + 1] = {0};
+        char buf[TSDB_SYNC_APPLY_COMMIT_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+        snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
+                 pVgroup->vnodeGid[i].syncCommitIndex);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, applyStr, pShow->pMeta->pSchemas[cols].bytes);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
+        if (code != 0) {
+          mError("vgId:%d, failed to set role, since %s", pVgroup->vgId, tstrerror(code));
+          return code;
+        }
       } else {
+        colDataSetNULL(pColInfo, numOfRows);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetNULL(pColInfo, numOfRows);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetNULL(pColInfo, numOfRows);
@@ -1232,6 +1249,21 @@ int64_t mndGetVnodesMemory(SMnode *pMnode, int32_t dnodeId) {
   return vnodeMemory;
 }
 
+void calculateRstoreFinishTime(double rate, int64_t applyCount, char *restoreStr, size_t restoreStrSize) {
+  if (rate == 0) {
+    snprintf(restoreStr, restoreStrSize, "0:0:0");
+    return;
+  }
+
+  int64_t costTime = applyCount / rate;
+  int64_t totalSeconds = costTime / 1000;
+  int64_t hours = totalSeconds / 3600;
+  totalSeconds %= 3600;
+  int64_t minutes = totalSeconds / 60;
+  int64_t seconds = totalSeconds % 60;
+  snprintf(restoreStr, restoreStrSize, "%" PRId64 ":%" PRId64 ":%" PRId64, hours, minutes, seconds);
+}
+
 static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
@@ -1314,6 +1346,26 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
+
+      int64_t unappliedCount = pGid->syncCommitIndex - pGid->syncAppliedIndex;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      char restoreStr[20] = {0};
+      if (unappliedCount > 0) {
+        calculateRstoreFinishTime(pGid->appliedRate, unappliedCount, restoreStr, sizeof(restoreStr));
+      }
+      STR_TO_VARSTR(buf, restoreStr);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set syncRestore finish time, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&unappliedCount, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
         return code;
@@ -2771,7 +2823,7 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
           pVgroup->vnodeGid[0].dnodeId);
 
     // add second
-    if (pNewVgroup->replica == 1){
+    if (pNewVgroup->replica == 1) {
       TAOS_CHECK_RETURN(mndAddVnodeToVgroup(pMnode, pTrans, pNewVgroup, pArray));
     }
 
@@ -2792,8 +2844,8 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, pNewDb, pNewVgroup));
 
     // add third
-    if (pNewVgroup->replica == 2){
-      TAOS_CHECK_RETURN (mndAddVnodeToVgroup(pMnode, pTrans, pNewVgroup, pArray));
+    if (pNewVgroup->replica == 2) {
+      TAOS_CHECK_RETURN(mndAddVnodeToVgroup(pMnode, pTrans, pNewVgroup, pArray));
     }
 
     pNewVgroup->vnodeGid[0].nodeRole = TAOS_SYNC_ROLE_VOTER;
@@ -2823,7 +2875,7 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     TAOS_CHECK_RETURN(mndRemoveVnodeFromVgroup(pMnode, pTrans, pNewVgroup, pArray, &del2));
     TAOS_CHECK_RETURN(mndAddDropVnodeAction(pMnode, pTrans, pNewDb, pNewVgroup, &del2, true));
     TAOS_CHECK_RETURN(
-      mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, pNewVgroup, pNewVgroup->vnodeGid[0].dnodeId));
+        mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, pNewVgroup, pNewVgroup->vnodeGid[0].dnodeId));
     TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, pNewDb, pNewVgroup));
   } else if (pNewDb->cfg.replications == 2) {
     mInfo("db:%s, vgId:%d, will add 1 vnode, vn:0 dnode:%d", pVgroup->dbName, pVgroup->vgId,
@@ -3580,11 +3632,12 @@ bool mndVgroupInDnode(SVgObj *pVgroup, int32_t dnodeId) {
 }
 
 static void *mndBuildCompactVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, int64_t compactTs,
-                                     STimeWindow tw) {
+                                     STimeWindow tw, bool metaOnly) {
   SCompactVnodeReq compactReq = {0};
   compactReq.dbUid = pDb->uid;
   compactReq.compactStartTime = compactTs;
   compactReq.tw = tw;
+  compactReq.metaOnly = metaOnly;
   tstrncpy(compactReq.db, pDb->name, TSDB_DB_FNAME_LEN);
 
   mInfo("vgId:%d, build compact vnode config req", pVgroup->vgId);
@@ -3615,13 +3668,13 @@ static void *mndBuildCompactVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgrou
 }
 
 static int32_t mndAddCompactVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
-                                        STimeWindow tw) {
+                                        STimeWindow tw, bool metaOnly) {
   int32_t      code = 0;
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, compactTs, tw);
+  void   *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, compactTs, tw, metaOnly);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -3641,7 +3694,7 @@ static int32_t mndAddCompactVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 }
 
 int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
-                                    STimeWindow tw) {
-  TAOS_CHECK_RETURN(mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw));
+                                    STimeWindow tw, bool metaOnly) {
+  TAOS_CHECK_RETURN(mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly));
   return 0;
 }

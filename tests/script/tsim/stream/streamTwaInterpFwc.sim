@@ -435,7 +435,7 @@ if $data01 != @t12@ then
   return -1
 endi
 
-if $data03 != @100000.000@ then
+if $data03 != @100000@ then
   return -1
 endi
 

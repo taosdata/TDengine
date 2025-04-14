@@ -47,6 +47,80 @@ class TDTestCase:
                     break
         return buildPath
 
+    def checkLogBak(self, logPath, expectLogBak):
+        if platform.system().lower() == 'windows':
+            return True
+        result = False
+        try:
+            for file in os.listdir(logPath):
+                file_path = os.path.join(logPath, file)
+                if os.path.isdir(file_path):
+                    continue
+                if file.endswith('.gz'):
+                    if expectLogBak:
+                        result = True
+                    else:
+                        raise Exception(f"Error: Found .gz file: {file_path}")
+                if '.' in file:
+                    prefix, num_part = file.split('.', 1)
+                    logNum=0
+                    if num_part.isdigit():
+                        logNum = int(num_part)
+                    if logNum > 100:
+                        if not expectLogBak:
+                            raise Exception(f"Error: Found log file number >= 100: {file_path}")
+        except Exception as e:
+            raise Exception(f"Error: error occurred. Reason: {e}")
+        return result
+
+    def checkTargetStrInFiles(self, filePaths, targetStr):
+        result = False
+        for filePath in filePaths:
+            if not os.path.exists(filePath):
+                continue
+            try:
+                with open(filePath, 'r', encoding='utf-8') as file:
+                    for line in file:
+                        if targetStr in line:
+                            result = True
+                            break
+            except Exception as e:
+                continue
+        return result
+
+    def logRotateOccurred(self, logFiles, targetStr, maxRetry=15):
+        result = False
+        for i in range(maxRetry):
+            if self.checkTargetStrInFiles(logFiles, targetStr):
+                result = True
+                break
+            tdLog.info(f"wait {i+1} second(s) for log rotate")
+            time.sleep(1)
+        return result
+
+    def checkLogCompress(self):
+        tdLog.info("Running check log compress")
+        dnodePath = self.buildPath + "/../sim/dnode1"
+        logPath = f"{dnodePath}/log"
+        taosdLogFiles = [f"{logPath}/taosdlog.0", f"{logPath}/taosdlog.1"]
+        logRotateStr="process log rotation"
+        logRotateResult = self.logRotateOccurred(taosdLogFiles, logRotateStr)
+        tdSql.checkEqual(True, logRotateResult)
+        tdSql.checkEqual(False, self.checkLogBak(logPath, False))
+        tdSql.execute("alter all dnodes 'logKeepDays 3'")
+        tdSql.execute("alter all dnodes 'numOfLogLines 1000'")
+        tdSql.execute("alter all dnodes 'debugFlag 143'")
+        logCompress=False
+        for i in range(30):
+            logCompress=self.checkLogBak(logPath, True)
+            if logCompress:
+                break
+            tdLog.info(f"wait {i+1} second(s) for log compress")
+            time.sleep(1)
+        tdSql.checkEqual(True, logCompress)
+        tdSql.execute("alter all dnodes 'numOfLogLines 1000000'")
+        tdSql.execute("alter all dnodes 'debugFlag 131'")
+
     def prepareCfg(self, cfgPath, cfgDict):
         tdLog.info("make dir %s" % cfgPath)
         os.makedirs(cfgPath, exist_ok=True)
@@ -338,6 +412,7 @@ class TDTestCase:
         tdSql.checkEqual(True, os.path.exists(f"{dnodePath}/log/taoslog0.0"))
 
     def run(self):
+        self.checkLogCompress()
         self.checkLogOutput()
         self.checkLogRotate()
         self.closeTaosd()

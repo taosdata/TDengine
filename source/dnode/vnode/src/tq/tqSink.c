@@ -16,8 +16,6 @@
 #include "tcommon.h"
 #include "tq.h"
 
-#define IS_NEW_SUBTB_RULE(_t) (((_t)->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) && ((_t)->subtableWithoutMd5 != 1))
-
 typedef struct STableSinkInfo {
   uint64_t uid;
   tstr     name;
@@ -41,7 +39,7 @@ static int32_t initCreateTableMsg(SVCreateTbReq* pCreateTableReq, uint64_t suid,
                                   int32_t numOfTags);
 static int32_t createDefaultTagColName(SArray** pColNameList);
 static int32_t setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDataBlock,
-                                          const char* stbFullName, int64_t gid, bool newSubTableRule);
+                                          const char* stbFullName, int64_t gid, bool newSubTableRule, const char* id);
 static int32_t doCreateSinkTableInfo(const char* pDstTableName, STableSinkInfo** pInfo);
 static int32_t doPutSinkTableInfoIntoCache(SSHashObj* pSinkTableMap, STableSinkInfo* pTableSinkInfo, uint64_t groupId,
                                            const char* id);
@@ -264,7 +262,7 @@ int32_t createDefaultTagColName(SArray** pColNameList) {
 }
 
 int32_t setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDataBlock, const char* stbFullName,
-                                   int64_t gid, bool newSubTableRule) {
+                                   int64_t gid, bool newSubTableRule, const char* id) {
   if (pDataBlock->info.parTbName[0]) {
     if (newSubTableRule && !isAutoTableName(pDataBlock->info.parTbName) &&
         !alreadyAddGroupId(pDataBlock->info.parTbName, gid) && gid != 0 && stbFullName) {
@@ -278,16 +276,17 @@ int32_t setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* 
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
-      //      tqDebug("gen name from:%s", pDataBlock->info.parTbName);
+      tqDebug("s-task:%s gen name from:%s blockdata", id, pDataBlock->info.parTbName);
     } else {
       pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
       if (pCreateTableReq->name == NULL) {
         return terrno;
       }
-      //      tqDebug("copy name:%s", pDataBlock->info.parTbName);
+      tqDebug("s-task:%s copy name:%s from blockdata", id, pDataBlock->info.parTbName);
     }
   } else {
     int32_t code = buildCtbNameByGroupId(stbFullName, gid, &pCreateTableReq->name);
+    tqDebug("s-task:%s no name in blockdata, auto-created table name:%s", id, pCreateTableReq->name);
     return code;
   }
 
@@ -393,7 +392,8 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
       }
     }
 
-    code = setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, gid, IS_NEW_SUBTB_RULE(pTask));
+    code = setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, gid, IS_NEW_SUBTB_RULE(pTask),
+                                      pTask->id.idStr);
     if (code) {
       goto _end;
     }
@@ -424,7 +424,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
   reqs.nReqs = taosArrayGetSize(reqs.pArray);
   code = tqPutReqToQueue(pVnode, &reqs, encodeCreateChildTableForRPC, TDMT_VND_CREATE_TABLE);
   if (code != TSDB_CODE_SUCCESS) {
-    tqError("s-task:%s failed to send create table msg", id);
+    tqError("s-task:%s failed to send create table msg, code:%s", id, tstrerror(code));
   }
 
 _end:
@@ -645,7 +645,7 @@ bool isValidDstChildTable(SMetaReader* pReader, int32_t vgId, const char* ctbNam
 }
 
 int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock,
-                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq) {
+                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq, const char* id) {
   *pReq = NULL;
 
   SVCreateTbReq* pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
@@ -678,8 +678,8 @@ int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t n
   }
 
   // set table name
-  code =
-      setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, pDataBlock->info.id.groupId, newSubTableRule);
+  code = setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, pDataBlock->info.id.groupId, newSubTableRule,
+                                    id);
   if (code) {
     return code;
   }
@@ -829,7 +829,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
             }
           } else {
             SValue sv = {.type = pCol->type};
-            memcpy(&sv.val, colData, tDataTypes[pCol->type].bytes);
+            valueSetDatum(&sv, pCol->type, colData, tDataTypes[pCol->type].bytes);
             SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             void*   p = taosArrayPush(pVals, &cv);
             if (p == NULL) {
@@ -866,11 +866,19 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
   int32_t     vgId = TD_VID(pVnode);
   int64_t     suid = pTask->outputInfo.tbSink.stbUid;
   const char* id = pTask->id.idStr;
+  int32_t     timeout = 60;  // 1min
+  int64_t     start = taosGetTimestampSec();
 
   while (pTableSinkInfo->uid == 0) {
     if (streamTaskShouldStop(pTask)) {
       tqDebug("s-task:%s task will stop, quit from waiting for table:%s create", id, dstTableName);
       return TSDB_CODE_STREAM_EXEC_CANCELLED;
+    }
+
+    int64_t waitingDuration = taosGetTimestampSec() - start;
+    if (waitingDuration > timeout) {
+      tqError("s-task:%s wait for table-creating:%s more than %dsec, failed", id, dstTableName, timeout);
+      return  TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
 
     // wait for the table to be created
@@ -981,6 +989,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       if (code) {
         tqDebug("s-task:%s failed to build auto create table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
         return code;
+      } else {
+        tqDebug("s-task:%s no table name given, generated sub-table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
       }
     } else {
       if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&
@@ -988,7 +998,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
         if (pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
           code = buildCtbNameAddGroupId(NULL, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
-        } else if (pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER && stbFullName) {
+        } else if (pTask->ver >= SSTREAM_TASK_APPEND_STABLE_NAME_VER && stbFullName) {
           code = buildCtbNameAddGroupId(stbFullName, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
         }
         if (code != TSDB_CODE_SUCCESS) {
@@ -1040,7 +1050,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
 
         pTableData->flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
         code = buildAutoCreateTableReq(stbFullName, suid, pTSchema->numOfCols + 1, pDataBlock, pTagArray,
-                                       IS_NEW_SUBTB_RULE(pTask), &pTableData->pCreateTbReq);
+                                       IS_NEW_SUBTB_RULE(pTask), &pTableData->pCreateTbReq, id);
         taosArrayDestroy(pTagArray);
 
         if (code) {
@@ -1155,10 +1165,16 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
     return;
   }
 
+  code = tqSendAllNotifyEvents(pBlocks, pTask, pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("vgId: %d, s-task:%s failed to send all event notifications", vgId, id);
+    // continue processing even if notification fails
+  }
+
   bool onlySubmitData = hasOnlySubmitData(pBlocks, numOfBlocks);
   if (!onlySubmitData || pTask->subtableWithoutMd5 == 1) {
-    tqDebug("vgId:%d, s-task:%s write %d stream resBlock(s) into table, has delete block, submit one-by-one", vgId, id,
-            numOfBlocks);
+    tqDebug("vgId:%d, s-task:%s write %d stream resBlock(s) into table, has other type block, submit one-by-one", vgId,
+            id, numOfBlocks);
 
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       if (streamTaskShouldStop(pTask)) {
@@ -1178,6 +1194,8 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         continue;
       } else if (pDataBlock->info.type == STREAM_DROP_CHILD_TABLE && pTask->subtableWithoutMd5) {
         code = doBuildAndSendDropTableMsg(pVnode, stbFullName, pDataBlock, pTask, suid);
+      } else if (pDataBlock->info.type == STREAM_NOTIFY_EVENT) {
+        continue;
       } else {
         code = handleResultBlockMsg(pTask, pDataBlock, i, pVnode, earlyTs);
       }
@@ -1323,6 +1341,10 @@ void rebuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVno
       continue;
     }
 
+    if (pDataBlock->info.type == STREAM_NOTIFY_EVENT) {
+      continue;
+    }
+
     hasSubmit = true;
     pTask->execInfo.sink.numOfBlocks += 1;
     uint64_t groupId = pDataBlock->info.id.groupId;
@@ -1417,6 +1439,7 @@ int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_
   code = setDstTableDataUid(pVnode, pTask, pDataBlock, stbFullName, &tbData);
   if (code != TSDB_CODE_SUCCESS) {
     tqError("vgId:%d s-task:%s dst-table not exist, stb:%s discard stream results", vgId, id, stbFullName);
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return code;
   }
 
@@ -1428,12 +1451,14 @@ int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_
       tbData.pCreateTbReq = NULL;
     }
 
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return code;
   }
 
   void* p = taosArrayPush(submitReq.aSubmitTbData, &tbData);
   if (p == NULL) {
     tqDebug("vgId:%d, s-task:%s failed to build submit msg, code:%s, data lost", vgId, id, tstrerror(terrno));
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return terrno;
   }
 

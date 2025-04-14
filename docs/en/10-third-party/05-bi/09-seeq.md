@@ -11,43 +11,44 @@ import imgStep04 from '../../assets/seeq-04.png';
 
 Seeq is advanced analytics software for the manufacturing and Industrial Internet of Things (IIOT). Seeq supports innovative new features using machine learning in process manufacturing organizations. These features enable organizations to deploy their own or third-party machine learning algorithms to advanced analytics applications used by frontline process engineers and subject matter experts, thus extending the efforts of a single data scientist to many frontline staff.
 
-Through the TDengine Java connector, Seeq can easily support querying time-series data provided by TDengine and offer data presentation, analysis, prediction, and other functions.
+Through the `TDengine Java connector`, Seeq can easily support querying time-series data provided by TDengine and offer data presentation, analysis, prediction, and other functions.
 
 ## Prerequisites
 
-- Seeq has been installed. Download the relevant software from [Seeq's official website](https://www.seeq.com/customer-download), such as Seeq Server and Seeq Data Lab, etc. Seeq Data Lab needs to be installed on a different server from Seeq Server and interconnected through configuration. For detailed installation and configuration instructions, refer to the [Seeq Knowledge Base](https://support.seeq.com/kb/latest/cloud/).
+- TDengine 3.1.0.3 and above version is installed and running normally (both Enterprise and Community versions are available).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/).
+- Seeq has been installed. Download the relevant software from [Seeq's official website](https://www.seeq.com/customer-download), such as `Seeq Server` and `Seeq Data Lab`, etc. `Seeq Data Lab` needs to be installed on a different server from `Seeq Server` and interconnected through configuration. For detailed installation and configuration instructions, refer to the [Seeq Knowledge Base](https://support.seeq.com/kb/latest/cloud/).
+- Install the JDBC driver. Download the `TDengine JDBC connector` file `taos-jdbcdriver-3.2.5-dist.jar` or a higher version from `maven.org`.
 
-- TDengine local instance has been installed. Please refer to the [official documentation](../../../get-started). If using TDengine Cloud, please go to https://cloud.taosdata.com apply for an account and log in to see how to access TDengine Cloud.
+## Configure Data Source
 
-## Configuring Seeq to Access TDengine
-
-1. Check the data storage location
+**Step 1**, Check the data storage location
 
 ```shell
 sudo seeq config get Folders/Data
 ```
 
-2. Download the TDengine Java connector package from maven.org, the latest version is [3.2.5](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar), and copy it to the plugins\lib in the data storage location.
+**Step 2**, Download the TDengine Java connector package from `maven.org` and copy it to the `plugins\lib` directory in the data storage location.
 
-3. Restart seeq server
+**Step 3**, Restart seeq server
 
 ```shell
 sudo seeq restart
 ```
 
-4. Enter License
+**Step 4**, Enter License
 
 Use a browser to visit ip:34216 and follow the instructions to enter the license.
 
-## Using Seeq to Analyze TDengine Time-Series Data
-
-This section demonstrates how to use Seeq software in conjunction with TDengine for time-series data analysis.
+## Data Analysis
 
 ### Scenario Introduction
 
 The example scenario is a power system where users collect electricity usage data from power station instruments daily and store it in the TDengine cluster. Now, users want to predict how power consumption will develop and purchase more equipment to support it. User power consumption varies with monthly orders, and considering seasonal changes, power consumption will differ. This city is located in the northern hemisphere, so more electricity is used in summer. We simulate data to reflect these assumptions.
 
-### Data Schema
+### Data preparation
+
+**Step 1**, Create tables in TDengine.
 
 ```sql
 CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
@@ -58,7 +59,7 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 <Image img={imgStep01} alt=""/>
 </figure>
 
-### Data Construction Method
+**Step 2**, Construct data in TDengine.
 
 ```shell
 python mockdata.py
@@ -67,11 +68,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 The source code is hosted on [GitHub Repository](https://github.com/sangshuduo/td-forecasting).
 
-## Using Seeq for Data Analysis
-
-### Configuring Data Source
-
-Log in using a Seeq administrator role account and create a new data source.
+**第 3 步**，Log in using a Seeq administrator role account and create a new data source.
 
 - Power
 
@@ -330,77 +327,7 @@ Program output results:
 <Image img={imgStep03} alt=""/>
 </figure>
 
-## Configuring Seeq Data Source Connection to TDengine Cloud
-
-Configuring a Seeq data source connection to TDengine Cloud is essentially no different from connecting to a local TDengine installation. Simply log in to TDengine Cloud, select "Programming - Java" and copy the JDBC string with a token to fill in as the DatabaseJdbcUrl value for the Seeq Data Source.
-Note that when using TDengine Cloud, the database name needs to be specified in SQL commands.
-
-### Configuration example using TDengine Cloud as a data source
-
-```json
-{
-    "QueryDefinitions": [
-        {
-            "Name": "CloudVoltage",
-            "Type": "SIGNAL",
-            "Sql": "SELECT  ts, voltage FROM test.meters",
-            "Enabled": true,
-            "TestMode": false,
-            "TestQueriesDuringSync": true,
-            "InProgressCapsulesEnabled": false,
-            "Variables": null,
-            "Properties": [
-                {
-                    "Name": "Name",
-                    "Value": "Voltage",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Interpolation Method",
-                    "Value": "linear",
-                    "Sql": null,
-                    "Uom": "string"
-                },
-                {
-                    "Name": "Maximum Interpolation",
-                    "Value": "2day",
-                    "Sql": null,
-                    "Uom": "string"
-                }
-            ],
-            "CapsuleProperties": null
-        }
-    ],
-    "Type": "GENERIC",
-    "Hostname": null,
-    "Port": 0,
-    "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
-    "InitialSql": null,
-    "TimeZone": null,
-    "PrintRows": false,
-    "UseWindowsAuth": false,
-    "SqlFetchBatchSize": 100000,
-    "UseSSL": false,
-    "JdbcProperties": null,
-    "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.tdengine.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
-        "ResolutionInNanoseconds": 1000,
-        "ZonedColumnTypes": []
-    }
-}
-```
-
-### Example of Seeq Workbench Interface with TDengine Cloud as Data Source
-
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
-
-## Solution Summary
+### Solution Summary
 
 By integrating Seeq and TDengine, users can fully leverage the efficient storage and querying capabilities of TDengine, while also benefiting from the powerful data visualization and analysis features provided by Seeq.
 

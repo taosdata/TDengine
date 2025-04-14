@@ -83,6 +83,7 @@ set(
     "src/bse/bseTableMgt.c"
     "src/bse/bseUtil.c"
     "src/bse/bseSnapshot.c"
+    "src/tq/tqStreamNotify.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
@@ -110,6 +111,7 @@ if(TD_VNODE_PLUGINS)
         vnode
         PRIVATE
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompact.c
+        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/metaCompact.c
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompactMonitor.c
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
     )

@@ -50,13 +50,6 @@
         ), groupId int)
     </update>
 
-    <update id="createTable" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
-        create table if not exists test.t#{groupId} using test.weather tags
-        (
-            #{location},
-            #{groupId}
-        )
-    </update>
 
     <select id="select" resultMap="BaseResultMap">
         select * from test.weather order by ts desc
@@ -69,8 +62,8 @@
     </select>
 
     <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
-        insert into test.t#{groupId} (ts, temperature, humidity, note, bytes)
-        values (#{ts}, ${temperature}, ${humidity}, #{note}, #{bytes})
+        insert into test.t${groupId} (ts, temperature, humidity, note, bytes)
+        values (#{ts}, #{temperature}, #{humidity}, #{note}, #{bytes})
     </insert>
 
     <select id="getSubTables" resultType="String">

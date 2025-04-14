@@ -24,18 +24,17 @@
 extern "C" {
 #endif
 
-typedef struct SMetaIdx   SMetaIdx;
 typedef struct SMetaDB    SMetaDB;
 typedef struct SMetaCache SMetaCache;
 
 // metaDebug ==================
 // clang-format off
-#define metaFatal(...) do { if (metaDebugFlag & DEBUG_FATAL) { taosPrintLog("MTA FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define metaError(...) do { if (metaDebugFlag & DEBUG_ERROR) { taosPrintLog("MTA ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define metaWarn(...)  do { if (metaDebugFlag & DEBUG_WARN)  { taosPrintLog("MTA WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define metaInfo(...)  do { if (metaDebugFlag & DEBUG_INFO)  { taosPrintLog("MTA ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define metaDebug(...) do { if (metaDebugFlag & DEBUG_DEBUG) { taosPrintLog("MTA ", DEBUG_DEBUG, metaDebugFlag, __VA_ARGS__); }} while(0)
-#define metaTrace(...) do { if (metaDebugFlag & DEBUG_TRACE) { taosPrintLog("MTA ", DEBUG_TRACE, metaDebugFlag, __VA_ARGS__); }} while(0)
+#define metaFatal(...) do { if (metaDebugFlag & DEBUG_FATAL) { taosPrintLog("MTA FATAL ", DEBUG_FATAL, 255,           __VA_ARGS__); }} while(0)
+#define metaError(...) do { if (metaDebugFlag & DEBUG_ERROR) { taosPrintLog("MTA ERROR ", DEBUG_ERROR, 255,           __VA_ARGS__); }} while(0)
+#define metaWarn(...)  do { if (metaDebugFlag & DEBUG_WARN)  { taosPrintLog("MTA WARN  ", DEBUG_WARN,  255,           __VA_ARGS__); }} while(0)
+#define metaInfo(...)  do { if (metaDebugFlag & DEBUG_INFO)  { taosPrintLog("MTA INFO  ", DEBUG_INFO,  255,           __VA_ARGS__); }} while(0)
+#define metaDebug(...) do { if (metaDebugFlag & DEBUG_DEBUG) { taosPrintLog("MTA DEBUG ", DEBUG_DEBUG, metaDebugFlag, __VA_ARGS__); }} while(0)
+#define metaTrace(...) do { if (metaDebugFlag & DEBUG_TRACE) { taosPrintLog("MTA TRACE ", DEBUG_TRACE, metaDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 // metaOpen ==================
@@ -72,7 +71,8 @@ int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo);
 int32_t metaStatsCacheDrop(SMeta* pMeta, int64_t uid);
 int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
-void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol);
+int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid);
+void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 
 struct SMeta {
@@ -102,8 +102,6 @@ struct SMeta {
 
   // stream
   TTB* pStreamDb;
-
-  SMetaIdx* pIdx;
 
   SMetaCache* pCache;
 };
@@ -167,7 +165,8 @@ int32_t metaFilterTableName(void* pVnode, SMetaFltParam* param, SArray* pUids);
 int32_t metaFilterTtl(void* pVnode, SMetaFltParam* param, SArray* pUids);
 
 int32_t metaGetColCmpr(SMeta* pMeta, tb_uid_t uid, SHashObj** colCmprObj);
-#ifndef META_REFACT
+int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t add, SColRef *pColRef);
+#if !defined(META_REFACT) && !defined(TD_ASTRA)
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);

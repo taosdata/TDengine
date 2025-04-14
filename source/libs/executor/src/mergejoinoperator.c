@@ -894,21 +894,7 @@ static int32_t mJoinInitFinColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoinTableCtx* pTable) {
-  if (NULL == pNode) {
-    pCtx->targetSlotId = pTable->primCol->srcSlot;
-    return TSDB_CODE_SUCCESS;
-  }
-  
-  if (QUERY_NODE_TARGET != nodeType(pNode)) {
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-  }  
-
-  STargetNode* pTarget = (STargetNode*)pNode;
-  if (QUERY_NODE_FUNCTION != nodeType(pTarget->pExpr)) {
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-  }
-
+static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pTarget) {
   SFunctionNode* pFunc = (SFunctionNode*)pTarget->pExpr;
   if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -937,6 +923,47 @@ static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoi
   pCtx->truncateUnit = pUnit->typeData;
   if ((NULL == pCurrTz || 1 == pCurrTz->typeData) && pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
     pCtx->timezoneUnit = offsetFromTz(varDataVal(pTimeZone->datum.p), TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
+  }
+
+  pCtx->type = E_PRIM_TIMETRUNCATE;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mJoinInitValPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pTarget) {
+  SValueNode* pVal = (SValueNode*)pTarget->pExpr;
+  if (TSDB_DATA_TYPE_TIMESTAMP != pVal->node.resType.type) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  pCtx->constTs = pVal->datum.i;
+  pCtx->type = E_PRIM_VALUE;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoinTableCtx* pTable) {
+  if (NULL == pNode) {
+    pCtx->targetSlotId = pTable->primCol->srcSlot;
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (QUERY_NODE_TARGET != nodeType(pNode)) {
+    qError("primary expr node is not target, type:%d", nodeType(pNode));
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }  
+
+  STargetNode* pTarget = (STargetNode*)pNode;
+  if (QUERY_NODE_FUNCTION != nodeType(pTarget->pExpr) && QUERY_NODE_VALUE != nodeType(pTarget->pExpr)) {
+    qError("Invalid primary expr node type:%d", nodeType(pTarget->pExpr));
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (QUERY_NODE_FUNCTION == nodeType(pTarget->pExpr)) {
+    MJ_ERR_RET(mJoinInitFuncPrimExprCtx(pCtx, pTarget));
+  } else if (QUERY_NODE_VALUE == nodeType(pTarget->pExpr)) {
+    MJ_ERR_RET(mJoinInitValPrimExprCtx(pCtx, pTarget));
   }
 
   pCtx->targetSlotId = pTarget->slotId;
@@ -986,7 +1013,7 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
     pTable->multiEqGrpRows = !((JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) && NULL == pJoin->pFPreFilter);
     pTable->multiRowsGrp = !((JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) && NULL == pJoin->pPreFilter);
     if (JOIN_STYPE_ASOF == pJoinNode->subType) {
-      pTable->eqRowLimit = pJoinNode->pJLimit ? ((SLimitNode*)pJoinNode->pJLimit)->limit : 1;
+      pTable->eqRowLimit = (pJoinNode->pJLimit && ((SLimitNode*)pJoinNode->pJLimit)->limit) ? ((SLimitNode*)pJoinNode->pJLimit)->limit->datum.i : 1;
     }
   } else {
     pTable->multiEqGrpRows = true;
@@ -1045,25 +1072,36 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SMJoinPrimExprCtx* pCtx = &pTable->primCtx;
-  SColumnInfoData* pPrimIn = taosArrayGet(pBlock->pDataBlock, pTable->primCol->srcSlot);
-  if (NULL == pPrimIn) {
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-  }
-
   SColumnInfoData* pPrimOut = taosArrayGet(pBlock->pDataBlock, pTable->primCtx.targetSlotId);
   if (NULL == pPrimOut) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  if (0 != pCtx->timezoneUnit) {
-    for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit) % pCtx->truncateUnit;
+  SMJoinPrimExprCtx* pCtx = &pTable->primCtx;
+  switch (pCtx->type) {
+    case E_PRIM_TIMETRUNCATE: {
+      SColumnInfoData* pPrimIn = taosArrayGet(pBlock->pDataBlock, pTable->primCol->srcSlot);
+      if (NULL == pPrimIn) {
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+
+      if (0 != pCtx->timezoneUnit) {
+        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+          ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit) % pCtx->truncateUnit;
+        }
+      } else {
+        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+          ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit;
+        }
+      }
+      break;
     }
-  } else {
-    for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit;
+    case E_PRIM_VALUE: {
+      MJ_ERR_RET(colDataSetNItems(pPrimOut, 0, (char*)&pCtx->constTs, pBlock->info.rows, false));
+      break;
     }
+    default:
+      break;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1169,7 +1207,7 @@ static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SM
 
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
   pJoin->ctx.mergeCtx.groupJoin = pJoinNode->grpJoin;
-  pJoin->ctx.mergeCtx.limit = pJoinNode->node.pLimit ? ((SLimitNode*)pJoinNode->node.pLimit)->limit : INT64_MAX;
+  pJoin->ctx.mergeCtx.limit = (pJoinNode->node.pLimit && ((SLimitNode*)pJoinNode->node.pLimit)->limit) ? ((SLimitNode*)pJoinNode->node.pLimit)->limit->datum.i : INT64_MAX;
   pJoin->retrieveFp = pJoinNode->grpJoin ? mJoinGrpRetrieveImpl : mJoinRetrieveImpl;
   pJoin->outBlkId = pJoinNode->node.pOutputDataBlockDesc->dataBlockId;
   

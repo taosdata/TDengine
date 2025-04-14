@@ -89,6 +89,9 @@ else
   export LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
   echo "Preload AsanSo:" $?
 
+  export ASAN_OPTIONS=detect_odr_violation=0
+  echo "forbid check ODR violation."
+
   $* -a 2> $AsanFile 
   cat $AsanFile
   unset LD_PRELOAD

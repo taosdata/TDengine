@@ -96,10 +96,10 @@ $leaderExist = 0
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -141,10 +141,10 @@ $leaderExist = 0
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -180,10 +180,10 @@ $leaderExist = 0
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -220,10 +220,10 @@ $leaderExist = 0
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -260,10 +260,10 @@ $leaderExist = 0
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -300,10 +300,10 @@ $leaderExist = 0
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -340,10 +340,10 @@ $leaderExist = 0
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then

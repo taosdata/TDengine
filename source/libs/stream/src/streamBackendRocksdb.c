@@ -228,7 +228,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       return terrno;
     }
 
-    nBytes = snprintf(chkp, cap, "%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
+    nBytes = snprintf(chkp, cap, "%s%s%s%scheckpoint%" PRId64, path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
     if (nBytes <= 0 || nBytes >= cap) {
       taosMemoryFree(state);
       taosMemoryFree(chkp);
@@ -249,7 +249,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
               tstrerror(terrno), state);
       code = taosMkDir(state);
       if (code != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
       }
     }
 
@@ -349,7 +349,7 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t ch
       goto _EXIT;
     }
 
-    nBytes = snprintf(src, cap, "%s%s%s_%" PRId64 "", path, TD_DIRSEP, key, pMeta->currChkptId);
+    nBytes = snprintf(src, cap, "%s%s%s_%" PRId64, path, TD_DIRSEP, key, pMeta->currChkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
       goto _EXIT;
@@ -402,7 +402,7 @@ int32_t remoteChkpGetDelFile(char* path, SArray* toDel) {
       return terrno;
     }
 
-    nBytes = snprintf(p, cap, "%s_%" PRId64 "", key, pMeta->currChkptId);
+    nBytes = snprintf(p, cap, "%s_%" PRId64, key, pMeta->currChkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       taosMemoryFree(pMeta);
       taosMemoryFree(p);
@@ -515,7 +515,7 @@ int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId
   } else {
     code = taosMkDir(defaultPath);
     if (code != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       goto _EXIT;
     }
   }
@@ -563,8 +563,8 @@ int32_t copyFiles_create(char* src, char* dst, int8_t type) {
   // create and copy file
   int32_t err = taosCopyFile(src, dst);
 
-  if (errno == EXDEV || errno == ENOTSUP) {
-    errno = 0;
+  if (ERRNO == EXDEV || ERRNO == ENOTSUP) {
+    SET_ERRNO(0);
     return 0;
   }
   return 0;
@@ -602,7 +602,7 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
     goto _ERROR;
   }
 
-  errno = 0;
+  SET_ERRNO(0);
   TdDirEntryPtr de = NULL;
   while ((de = taosReadDir(pDir)) != NULL) {
     char* name = taosGetDirEntryName(de);
@@ -625,14 +625,14 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
     if (strncmp(name, current, strlen(name) <= currLen ? strlen(name) : currLen) == 0) {
       code = copyFiles_create(srcName, dstName, 0);
       if (code != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         stError("failed to copy file, detail: %s to %s reason:%s", srcName, dstName, tstrerror(code));
         goto _ERROR;
       }
     } else if (strncmp(name, info, strlen(name) <= infoLen ? strlen(name) : infoLen) == 0) {
       code = copyFiles_create(srcName, dstName, 0);
       if (code != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         stError("failed to copy file, detail: %s to %s reason:%s", srcName, dstName, tstrerror(code));
         goto _ERROR;
       }
@@ -640,7 +640,7 @@ int32_t backendFileCopyFilesImpl(const char* src, const char* dst) {
     } else {
       code = copyFiles_hardlink(srcName, dstName, 0);
       if (code != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         stError("failed to hard link file, detail:%s to %s, reason:%s", srcName, dstName, tstrerror(code));
         goto _ERROR;
       } else {
@@ -722,7 +722,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   code = createDirIfNotExist(prefixPath);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _EXIT;
   }
 
@@ -734,7 +734,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   code = createDirIfNotExist(defaultPath);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _EXIT;
   }
 
@@ -746,13 +746,13 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   code = createDirIfNotExist(checkpointRoot);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _EXIT;
   }
 
   stDebug("%s check local backend dir:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
   if (chkptId > 0) {
-    nBytes = snprintf(checkpointPath, cap, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+    nBytes = snprintf(checkpointPath, cap, "%s%s%s%s%s%" PRId64, prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                       "checkpoint", chkptId);
     if (nBytes <= 0 || nBytes >= cap) {
       code = TSDB_CODE_OUT_OF_RANGE;
@@ -843,6 +843,8 @@ int32_t streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId, 
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pHandle->cfInst, code, lino, _EXIT, terrno);
 
+  pHandle->vgId = vgId;
+
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
 
   int32_t nBGThread = tsNumOfSnodeStreamThreads <= 2 ? 1 : tsNumOfSnodeStreamThreads / 2;
@@ -914,6 +916,7 @@ _EXIT:
   taosMemoryFree(backendPath);
   return code;
 }
+
 void streamBackendCleanup(void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)arg;
 
@@ -930,6 +933,7 @@ void streamBackendCleanup(void* arg) {
     rocksdb_close(pHandle->db);
     pHandle->db = NULL;
   }
+
   rocksdb_options_destroy(pHandle->dbOpt);
   rocksdb_env_destroy(pHandle->env);
   rocksdb_cache_destroy(pHandle->cache);
@@ -945,16 +949,16 @@ void streamBackendCleanup(void* arg) {
   streamMutexDestroy(&pHandle->mutex);
 
   streamMutexDestroy(&pHandle->cfMutex);
-  stDebug("destroy stream backend :%p", pHandle);
+  stDebug("vgId:%d destroy stream backend:%p", (int32_t)pHandle->vgId, pHandle);
   taosMemoryFree(pHandle);
-  return;
 }
+
 void streamBackendHandleCleanup(void* arg) {
   SBackendCfWrapper* wrapper = arg;
   bool               remove = wrapper->remove;
   TAOS_UNUSED(taosThreadRwlockWrlock(&wrapper->rwLock));
 
-  stDebug("start to do-close backendwrapper %p, %s", wrapper, wrapper->idstr);
+  stDebug("start to do-close backendWrapper %p, %s", wrapper, wrapper->idstr);
   if (wrapper->rocksdb == NULL) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&wrapper->rwLock));
     return;
@@ -1084,7 +1088,7 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   for (int i = 0; i < taosArrayGetSize(chkpDel); i++) {
     int64_t id = *(int64_t*)taosArrayGet(chkpDel, i);
     char    tbuf[256] = {0};
-    sprintf(tbuf, "%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, id);
+    sprintf(tbuf, "%s%scheckpoint%" PRId64, path, TD_DIRSEP, id);
     if (taosIsDir(tbuf)) {
       taosRemoveDir(tbuf);
     }
@@ -1099,18 +1103,13 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
  *  chkpInUse is doing translation, cannot del until
  *  replication is finished
  */
-int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
+int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path, SArray* pDroppedList) {
   int32_t         code = 0;
   STaskDbWrapper* pBackend = arg;
-  SArray *        chkpDel = NULL, *chkpDup = NULL;
+  SArray*         chkpDup = NULL;
   TAOS_UNUSED(taosThreadRwlockWrlock(&pBackend->chkpDirLock));
 
   if (taosArrayPush(pBackend->chkpSaved, &chkpId) == NULL) {
-    TAOS_CHECK_GOTO(terrno, NULL, _exception);
-  }
-
-  chkpDel = taosArrayInit(8, sizeof(int64_t));
-  if (chkpDel == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
@@ -1130,7 +1129,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       } else {
-        if (taosArrayPush(chkpDel, &id) == NULL) {
+        if (taosArrayPush(pDroppedList, &id) == NULL) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
         }
       }
@@ -1141,7 +1140,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
 
     for (int i = 0; i < dsz; i++) {
       int64_t id = *(int64_t*)taosArrayGet(pBackend->chkpSaved, i);
-      if (taosArrayPush(chkpDel, &id) == NULL) {
+      if (taosArrayPush(pDroppedList, &id) == NULL) {
         TAOS_CHECK_GOTO(terrno, NULL, _exception);
       }
     }
@@ -1159,24 +1158,24 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
 
   TAOS_UNUSED(taosThreadRwlockUnlock(&pBackend->chkpDirLock));
 
-  for (int i = 0; i < taosArrayGetSize(chkpDel); i++) {
-    int64_t id = *(int64_t*)taosArrayGet(chkpDel, i);
+  for (int i = 0; i < taosArrayGetSize(pDroppedList); i++) {
+    int64_t id = *(int64_t*)taosArrayGet(pDroppedList, i);
     char    tbuf[256] = {0};
-    if (snprintf(tbuf, sizeof(tbuf), "%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, id) >= sizeof(tbuf)) {
+    if (snprintf(tbuf, sizeof(tbuf), "%s%scheckpoint%" PRId64, path, TD_DIRSEP, id) >= sizeof(tbuf)) {
       code = TSDB_CODE_OUT_OF_RANGE;
       TAOS_CHECK_GOTO(code, NULL, _exception);
     }
 
-    stInfo("backend remove obsolete checkpoint: %s", tbuf);
+    stInfo("backend remove expired checkpoint: %s, remaining:%d", tbuf, pBackend->chkpCap);
     if (taosIsDir(tbuf)) {
       taosRemoveDir(tbuf);
     }
   }
-  taosArrayDestroy(chkpDel);
+
   return 0;
+
 _exception:
   taosArrayDestroy(chkpDup);
-  taosArrayDestroy(chkpDel);
   TAOS_UNUSED(taosThreadRwlockUnlock(&pBackend->chkpDirLock));
   return code;
 }
@@ -1218,7 +1217,7 @@ int32_t taskDbLoadChkpInfo(STaskDbWrapper* pBackend) {
       char    checkpointPrefix[32] = {0};
       int64_t checkpointId = 0;
 
-      int ret = sscanf(taosGetDirEntryName(de), "checkpoint%" PRId64 "", &checkpointId);
+      int ret = sscanf(taosGetDirEntryName(de), "checkpoint%" PRId64, &checkpointId);
       if (ret == 1) {
         if (taosArrayPush(pBackend->chkpSaved, &checkpointId) == NULL) {
           TAOS_CHECK_GOTO(terrno, NULL, _exception);
@@ -1366,10 +1365,10 @@ _EXIT:
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
   // vnode task->db
   SStreamMeta* pMeta = arg;
+  int32_t      code = 0;
 
   streamMutexLock(&pMeta->backendMutex);
   void*   pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
-  int32_t code = 0;
 
   while (pIter) {
     STaskDbWrapper* pTaskDb = *(STaskDbWrapper**)pIter;
@@ -1384,15 +1383,22 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
     // add chkpId to in-use-ckpkIdSet
     taskDbRefChkp(pTaskDb, pTaskDb->chkpId);
 
-    code = taskDbDoCheckpoint(pTaskDb, pTaskDb->chkpId, ((SStreamTask*)pTaskDb->pTask)->chkInfo.processedVer);
-    if (code != 0) {
-      // remove chkpId from in-use-ckpkIdSet
+    SArray* pList = taosArrayInit(4, sizeof(int64_t));
+    if (pList == NULL) {
+      stError("vgId:%d failed to prepare list during build snap, code:%s", pMeta->vgId, tstrerror(code));
+      continue;
+    }
+
+    SStreamTask* pTask = pTaskDb->pTask;
+    code = taskDbDoCheckpoint(pTaskDb, pTaskDb->chkpId, pTask->chkInfo.processedVer, pList);
+    taosArrayDestroy(pList);
+
+    if (code != 0) { // remove chkpId from in-use-ckpkIdSet
       taskDbUnRefChkp(pTaskDb, pTaskDb->chkpId);
       taskDbRemoveRef(pTaskDb);
       break;
     }
 
-    SStreamTask*    pTask = pTaskDb->pTask;
     SStreamTaskSnap snap = {.streamId = pTask->id.streamId,
                             .taskId = pTask->id.taskId,
                             .chkpId = pTaskDb->chkpId,
@@ -1435,7 +1441,7 @@ int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo) {
     }
     STaskDbWrapper** pTaskDb = taosHashGet(pMeta->pTaskDbUnique, buf, strlen(buf));
     if (pTaskDb == NULL || *pTaskDb == NULL) {
-      stWarn("stream backend:%p failed to find task db, streamId:% " PRId64 "", pMeta, pSnap->streamId);
+      stWarn("stream backend:%p failed to find task db, streamId:% " PRId64, pMeta, pSnap->streamId);
       memset(buf, 0, sizeof(buf));
       continue;
     }
@@ -1536,7 +1542,7 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
     goto _EXIT;
   }
 
-  if (sscanf(buf, "%" PRId64 " %" PRId64 "", chkpId, processId) < 2) {
+  if (sscanf(buf, "%" PRId64 " %" PRId64, chkpId, processId) < 2) {
     code = TSDB_CODE_INVALID_PARA;
     stError("failed to read file content to load extra info, file:%s, reason:%s", pDst, tstrerror(code));
     goto _EXIT;
@@ -1584,7 +1590,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
     goto _EXIT;
   }
 
-  nBytes = snprintf(buf, sizeof(buf), "%" PRId64 " %" PRId64 "", chkpId, processId);
+  nBytes = snprintf(buf, sizeof(buf), "%" PRId64 " %" PRId64, chkpId, processId);
   if (nBytes <= 0 || nBytes >= sizeof(buf)) {
     code = TSDB_CODE_OUT_OF_RANGE;
     stError("failed to build content to add extra info, dir:%s,reason:%s", pChkpIdDir, tstrerror(code));
@@ -1603,19 +1609,20 @@ _EXIT:
   taosMemoryFree(pDst);
   return code;
 }
-int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId) {
+
+int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processedVer, SArray *pList) {
   STaskDbWrapper* pTaskDb = arg;
   int64_t         st = taosGetTimestampMs();
   int32_t         code = 0;
   int64_t         refId = pTaskDb->refId;
+  char*           pChkpDir = NULL;
+  char*           pChkpIdDir = NULL;
 
   if (taosAcquireRef(taskDbWrapperId, refId) == NULL) {
     code = terrno;
     return code;
   }
 
-  char* pChkpDir = NULL;
-  char* pChkpIdDir = NULL;
   if ((code = chkpPreBuildDir(pTaskDb->path, chkpId, &pChkpDir, &pChkpIdDir)) < 0) {
     goto _EXIT;
   }
@@ -1629,11 +1636,11 @@ int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId) {
 
   // flush db
   if (written > 0) {
-    stDebug("stream backend:%p start to flush db at:%s, data written:%" PRId64 "", pTaskDb, pChkpIdDir, written);
+    stDebug("stream backend:%p start to flush db at:%s, data written:%" PRId64, pTaskDb, pChkpIdDir, written);
     code = chkpPreFlushDb(pTaskDb->db, ppCf, nCf);
     if (code != 0) goto _EXIT;
   } else {
-    stDebug("stream backend:%p not need flush db at:%s, data written:%" PRId64 "", pTaskDb, pChkpIdDir, written);
+    stDebug("stream backend:%p not need flush db at:%s, data written:%" PRId64, pTaskDb, pChkpIdDir, written);
   }
 
   // do checkpoint
@@ -1646,13 +1653,13 @@ int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId) {
   }
 
   // add extra info to checkpoint
-  if ((code = chkpAddExtraInfo(pChkpIdDir, chkpId, processId)) != 0) {
+  if ((code = chkpAddExtraInfo(pChkpIdDir, chkpId, processedVer)) != 0) {
     stError("stream backend:%p failed to add extra info to checkpoint at:%s", pTaskDb, pChkpIdDir);
     goto _EXIT;
   }
 
   // delete ttl checkpoint
-  code = chkpMayDelObsolete(pTaskDb, chkpId, pChkpDir);
+  code = chkpMayDelObsolete(pTaskDb, chkpId, pChkpDir, pList);
   if (code < 0) {
     goto _EXIT;
   }
@@ -1665,7 +1672,7 @@ _EXIT:
   // clear checkpoint dir if failed
   if (code != 0 && pChkpDir != NULL) {
     if (taosDirExist(pChkpIdDir)) {
-      TAOS_UNUSED(taosRemoveDir(pChkpIdDir));
+      taosRemoveDir(pChkpIdDir);
     }
   }
   taosMemoryFree(pChkpIdDir);
@@ -1676,8 +1683,8 @@ _EXIT:
   return code;
 }
 
-int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId, int64_t processVer) {
-  return taskDbDoCheckpoint(arg, chkpId, processVer);
+int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId, int64_t processVer, SArray* pList) {
+  return taskDbDoCheckpoint(arg, chkpId, processVer, pList);
 }
 
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
@@ -1795,6 +1802,7 @@ int stateKeyEncode(void* k, char* buf) {
   int        len = 0;
   len += taosEncodeFixedU64((void**)&buf, key->key.groupId);
   len += taosEncodeFixedI64((void**)&buf, key->key.ts);
+  len += taosEncodeFixedI32((void**)&buf, key->key.numInGroup);
   len += taosEncodeFixedI64((void**)&buf, key->opNum);
   return len;
 }
@@ -1804,6 +1812,7 @@ int stateKeyDecode(void* k, char* buf) {
   char*      p = buf;
   p = taosDecodeFixedU64(p, &key->key.groupId);
   p = taosDecodeFixedI64(p, &key->key.ts);
+  p = taosDecodeFixedI32(p, &key->key.numInGroup);
   p = taosDecodeFixedI64(p, &key->opNum);
   return p - buf;
 }
@@ -1904,6 +1913,7 @@ int winKeyEncode(void* k, char* buf) {
   int      len = 0;
   len += taosEncodeFixedU64((void**)&buf, key->groupId);
   len += taosEncodeFixedI64((void**)&buf, key->ts);
+  len += taosEncodeFixedI32((void**)&buf, key->numInGroup);
   return len;
 }
 
@@ -1913,6 +1923,7 @@ int winKeyDecode(void* k, char* buf) {
   char*    p = buf;
   p = taosDecodeFixedU64(p, &key->groupId);
   p = taosDecodeFixedI64(p, &key->ts);
+  p = taosDecodeFixedI32(p, &key->numInGroup);
   return len;
 }
 
@@ -2613,11 +2624,14 @@ int32_t taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* 
 
 void taskDbDestroy(void* pDb, bool flush) {
   STaskDbWrapper* wrapper = pDb;
-  if (wrapper == NULL) return;
+  if (wrapper == NULL) {
+    return;
+  }
 
+  int64_t st = taosGetTimestampMs();
   streamMetaRemoveDB(wrapper->pMeta, wrapper->idstr);
 
-  stDebug("succ to destroy stream backend:%p", wrapper);
+  stDebug("%s succ to destroy stream backend:%p", wrapper->idstr, wrapper);
 
   int8_t nCf = tListLen(ginitDict);
   if (flush && wrapper->removeAllFiles == 0) {
@@ -2674,25 +2688,26 @@ void taskDbDestroy(void* pDb, bool flush) {
     rocksdb_comparator_destroy(compare);
     rocksdb_block_based_options_destroy(tblOpt);
   }
+
   taosMemoryFree(wrapper->pCompares);
   taosMemoryFree(wrapper->pCfOpts);
   taosMemoryFree(wrapper->pCfParams);
 
   streamMutexDestroy(&wrapper->mutex);
-
   taskDbDestroyChkpOpt(wrapper);
-
-  taosMemoryFree(wrapper->idstr);
 
   if (wrapper->removeAllFiles) {
     char* err = NULL;
-    stInfo("drop task remove backend dat:%s", wrapper->path);
+    stInfo("drop task remove backend data:%s", wrapper->path);
     taosRemoveDir(wrapper->path);
   }
+
+  int64_t et = taosGetTimestampMs();
+  stDebug("%s destroy stream backend:%p completed, elapsed time:%.2fs", wrapper->idstr, wrapper, (et - st) / 1000.0);
+
+  taosMemoryFree(wrapper->idstr);
   taosMemoryFree(wrapper->path);
   taosMemoryFree(wrapper);
-
-  return;
 }
 
 void taskDbDestroy2(void* pDb) { taskDbDestroy(pDb, true); }
@@ -2716,7 +2731,7 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
   }
 
   nBytes =
-      snprintf(buf, cap, "%s%s%s%s%s%" PRId64 "", pDb->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkpId);
+      snprintf(buf, cap, "%s%s%s%s%s%" PRId64, pDb->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(buf);
     TAOS_UNUSED(taosReleaseRef(taskDbWrapperId, refId));
@@ -2757,7 +2772,7 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
     code = taosMkDir(temp);
     if (code != 0) {
       taosMemoryFree(temp);
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
     }
   }
 
@@ -3042,6 +3057,9 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
   }
   if (pState != NULL && idx != -1) {
     STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+    if (pState->pTdbState->recalc) {
+      wrapper = pState->pTdbState->pOwner->pRecalBackend;
+    }
     if (wrapper == NULL) {
       return -1;
     }
@@ -3084,6 +3102,9 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
   *readOpt = rocksdb_readoptions_create();
 
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   if (snapshot != NULL) {
     *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(wrapper->db);
     rocksdb_readoptions_set_snapshot(*readOpt, *snapshot);
@@ -3093,37 +3114,37 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
   return rocksdb_create_iterator_cf(wrapper->db, *readOpt, ((rocksdb_column_family_handle_t**)wrapper->pCf)[idx]);
 }
 
-#define STREAM_STATE_PUT_ROCKSDB(pState, funcname, key, value, vLen)                                              \
-  do {                                                                                                            \
-    code = 0;                                                                                                     \
-    char  buf[128] = {0};                                                                                         \
-    char* err = NULL;                                                                                             \
-    int   i = streamStateGetCfIdx(pState, funcname);                                                              \
-    if (i < 0) {                                                                                                  \
-      stWarn("streamState failed to get cf name: %s", funcname);                                                  \
-      code = TSDB_CODE_THIRDPARTY_ERROR;                                                                          \
-      break;                                                                                                      \
-    }                                                                                                             \
-    STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;                                                \
-    TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));                                                   \
-    char toString[128] = {0};                                                                                     \
-    if (stDebugFlag & DEBUG_TRACE) TAOS_UNUSED((ginitDict[i].toStrFunc((void*)key, toString)));                   \
-    int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                  \
-    rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pCf)[ginitDict[i].idx]; \
-    rocksdb_writeoptions_t*         opts = wrapper->writeOpt;                                                     \
-    rocksdb_t*                      db = wrapper->db;                                                             \
-    char*                           ttlV = NULL;                                                                  \
-    int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);             \
-    rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);          \
-    if (err != NULL) {                                                                                            \
-      stError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);                     \
-      taosMemoryFree(err);                                                                                        \
-      code = TSDB_CODE_THIRDPARTY_ERROR;                                                                          \
-    } else {                                                                                                      \
-      stTrace("streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d, %p", toString, funcname, vLen, \
-              ttlVLen, wrapper);                                                                                  \
-    }                                                                                                             \
-    taosMemoryFree(ttlV);                                                                                         \
+#define STREAM_STATE_PUT_ROCKSDB(pState, funcname, key, value, vLen)                                                 \
+  do {                                                                                                               \
+    code = 0;                                                                                                        \
+    char  buf[128] = {0};                                                                                            \
+    char* err = NULL;                                                                                                \
+    int   i = streamStateGetCfIdx(pState, funcname);                                                                 \
+    if (i < 0) {                                                                                                     \
+      stWarn("streamState failed to get cf name: %s", funcname);                                                     \
+      code = TSDB_CODE_THIRDPARTY_ERROR;                                                                             \
+      break;                                                                                                         \
+    }                                                                                                                \
+    STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;                                                   \
+    TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));                                                      \
+    char toString[128] = {0};                                                                                        \
+    TAOS_UNUSED((ginitDict[i].toStrFunc((void*)key, toString)));                                                     \
+    int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                     \
+    rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pCf)[ginitDict[i].idx];    \
+    rocksdb_writeoptions_t*         opts = wrapper->writeOpt;                                                        \
+    rocksdb_t*                      db = wrapper->db;                                                                \
+    char*                           ttlV = NULL;                                                                     \
+    int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                \
+    rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);             \
+    if (err != NULL) {                                                                                               \
+      stError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);                        \
+      taosMemoryFree(err);                                                                                           \
+      code = TSDB_CODE_THIRDPARTY_ERROR;                                                                             \
+    } else {                                                                                                         \
+      stTrace("[StreamInternal] write streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d, %p", toString, \
+             funcname, vLen, ttlVLen, wrapper);                                                                      \
+    }                                                                                                                \
+    taosMemoryFree(ttlV);                                                                                            \
   } while (0);
 
 #define STREAM_STATE_GET_ROCKSDB(pState, funcname, key, pVal, vLen)                                                   \
@@ -3138,7 +3159,10 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
       break;                                                                                                          \
     }                                                                                                                 \
     STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;                                                    \
-    char            toString[128] = {0};                                                                              \
+    if (pState->pTdbState->recalc) {                                                                                  \
+      wrapper = pState->pTdbState->pOwner->pRecalBackend;                                                             \
+    }                                                                                                                 \
+    char toString[128] = {0};                                                                                         \
     if (stDebugFlag & DEBUG_TRACE) TAOS_UNUSED((ginitDict[i].toStrFunc((void*)key, toString)));                       \
     int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                      \
     rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pCf)[ginitDict[i].idx];     \
@@ -3182,6 +3206,9 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
       break;                                                                                                      \
     }                                                                                                             \
     STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;                                                \
+    if (pState->pTdbState->recalc) {                                                                              \
+      wrapper = pState->pTdbState->pOwner->pRecalBackend;                                                         \
+    }                                                                                                             \
     TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));                                                   \
     char toString[128] = {0};                                                                                     \
     if (stDebugFlag & DEBUG_TRACE) TAOS_UNUSED(ginitDict[i].toStrFunc((void*)key, toString));                     \
@@ -3216,6 +3243,8 @@ int32_t streamStatePut_rocksdb(SStreamState* pState, const SWinKey* key, const v
     STREAM_STATE_PUT_ROCKSDB(pState, "state", &sKey, (void*)dst, (int32_t)size);
     taosMemoryFree(dst);
   }
+
+  stTrace("[StreamInternal] user len:%d, rocks len:%zu", vLen, size);
   return code;
 }
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
@@ -3250,6 +3279,10 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
   stDebug("streamStateClear_rocksdb");
 
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
+
   TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));
 
   char      sKeyStr[128] = {0};
@@ -3341,7 +3374,7 @@ void streamStateCurPrev_rocksdb(SStreamStateCur* pCur) {
 int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal,
                                       int32_t* pVLen) {
   if (!pCur) return -1;
-  SStateKey  tkey;
+  SStateKey  tkey = {0};
   SStateKey* pKtmp = &tkey;
 
   if (rocksdb_iter_valid(pCur->iter) && !iterValueIsStale(pCur->iter)) {
@@ -3407,6 +3440,9 @@ SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWin
     return NULL;
   }
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   pCur->number = pState->number;
   pCur->db = wrapper->db;
   pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
@@ -3458,7 +3494,13 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
   if (pCur == NULL) return NULL;
 
   pCur->number = pState->number;
-  pCur->db = ((STaskDbWrapper*)pState->pTdbState->pOwner->pBackend)->db;
+
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
+  pCur->db = ((STaskDbWrapper*)wrapper)->db;
+
   pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
 
@@ -3481,7 +3523,11 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
 
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   stDebug("streamStateGetCur_rocksdb");
+
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
 
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) return NULL;
@@ -3577,6 +3623,8 @@ int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* k
   if (code != 0) {
     return code;
   }
+
+  stTrace("[StreamInternal] raw len:%d to rocks len:%zu", vLen, size);
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &sKey, dst, (int32_t)size);
   taosMemoryFree(dst);
 
@@ -3628,6 +3676,9 @@ SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState, int6
     return NULL;
   }
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
 
   SStreamStateCur* pCur = createStreamStateCursor();
   pCur->number = pState->number;
@@ -3663,7 +3714,10 @@ int32_t streamStateSessionCurPrev_rocksdb(SStreamStateCur* pCur) {
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pState, const SSessionKey* key) {
   stDebug("streamStateSessionSeekKeyCurrentPrev_rocksdb");
 
-  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return NULL;
@@ -3711,9 +3765,13 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   }
   return pCur;
 }
-SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pState, SSessionKey* key) {
+SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pState, const SSessionKey* key) {
   stDebug("streamStateSessionSeekKeyCurrentNext_rocksdb");
-  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return NULL;
@@ -3751,7 +3809,11 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pSta
 
 SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, const SSessionKey* key) {
   stDebug("streamStateSessionSeekKeyNext_rocksdb");
-  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
+
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return NULL;
@@ -3791,7 +3853,10 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
 
 SStreamStateCur* streamStateSessionSeekKeyPrev_rocksdb(SStreamState* pState, const SSessionKey* key) {
   stDebug("streamStateSessionSeekKeyPrev_rocksdb");
-  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return NULL;
@@ -3886,6 +3951,8 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamState* pState, SStreamStateC
   if (pVLen != NULL) *pVLen = (int32_t)tVlen;
 
   *pKey = pKTmp->key;
+  qTrace("[StreamInternal]: rocsks val len:%d to user_val_len:%zu", len, tVlen);
+
   return 0;
 }
 // fill cf
@@ -3912,6 +3979,9 @@ SStreamStateCur* streamStateFillGetCur_rocksdb(SStreamState* pState, const SWinK
   stDebug("streamStateFillGetCur_rocksdb");
   SStreamStateCur* pCur = createStreamStateCursor();
   STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
 
   if (pCur == NULL) return NULL;
 
@@ -3969,7 +4039,10 @@ int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, 
 
 SStreamStateCur* streamStateFillSeekKeyNext_rocksdb(SStreamState* pState, const SWinKey* key) {
   stDebug("streamStateFillSeekKeyNext_rocksdb");
-  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   SStreamStateCur* pCur = createStreamStateCursor();
   if (!pCur) {
     return NULL;
@@ -4007,7 +4080,10 @@ SStreamStateCur* streamStateFillSeekKeyNext_rocksdb(SStreamState* pState, const 
 }
 SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const SWinKey* key) {
   stDebug("streamStateFillSeekKeyPrev_rocksdb");
-  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return NULL;
@@ -4052,7 +4128,10 @@ SStreamStateCur* streamStateFillSeekToLast_rocksdb(SStreamState* pState) {
 #ifdef BUILD_NO_CALL
 int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
   stDebug("streamStateSessionGetKeyByRange_rocksdb");
-  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return -1;
@@ -4192,22 +4271,16 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   int32_t     res = 0;
   SSessionKey tmpKey = *key;
   int32_t     valSize = *pVLen;
-  void*       tmp = taosMemoryMalloc(valSize);
-  if (!tmp) {
-    return -1;
-  }
 
   SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentPrev_rocksdb(pState, key);
   int32_t          code = streamStateSessionGetKVByCur_rocksdb(pState, pCur, key, pVal, pVLen);
   if (code == 0) {
     if (key->win.skey <= tmpKey.win.skey && tmpKey.win.ekey <= key->win.ekey) {
-      memcpy(tmp, *pVal, valSize);
       goto _end;
     }
 
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);
     if (fn(pKeyData, stateKey) == true) {
-      memcpy(tmp, *pVal, valSize);
       goto _end;
     }
 
@@ -4222,7 +4295,6 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
   if (code == 0) {
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);
     if (fn(pKeyData, stateKey) == true) {
-      memcpy(tmp, *pVal, valSize);
       goto _end;
     }
   }
@@ -4230,11 +4302,11 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
 
   *key = tmpKey;
   res = 1;
-  memset(tmp, 0, valSize);
 
 _end:
-  taosMemoryFreeClear(*pVal);
-  *pVal = tmp;
+  if (res == 0 && valSize > *pVLen){
+    stError("[StreamInternal] [skey:%"PRId64 ",ekey:%"PRId64 ",groupId:%"PRIu64 "],valSize:%d bigger than get rocksdb len:%d", key->win.skey, key->win.ekey, key->groupId, valSize, *pVLen);
+  }
   streamStateFreeCur(pCur);
   return res;
 }
@@ -4262,6 +4334,10 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
     return;
   }
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
+
   pCur->number = pState->number;
   pCur->db = wrapper->db;
   pCur->iter = streamStateIterCreate(pState, "partag", (rocksdb_snapshot_t**)&pCur->snapshot,
@@ -4293,8 +4369,7 @@ void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t gr
   }
 }
 
-int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal,
-                                            int32_t* pVLen) {
+int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, void** pVal, int32_t* pVLen) {
   stDebug("streamStateFillGetKVByCur_rocksdb");
   if (!pCur) {
     return -1;
@@ -4320,7 +4395,6 @@ int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGro
   return 0;
 }
 
-#ifdef BUILD_NO_CALL
 int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen) {
   int    code = 0;
   char*  tVal;
@@ -4335,7 +4409,7 @@ int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void
 
   return code;
 }
-#endif
+
 // parname cfg
 int32_t streamStatePutParName_rocksdb(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
   int code = 0;
@@ -4350,7 +4424,7 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
 }
 
 int32_t streamStateDeleteParName_rocksdb(SStreamState* pState, int64_t groupId) {
-  int    code = 0;
+  int code = 0;
   STREAM_STATE_DEL_ROCKSDB(pState, "parname", &groupId);
   return code;
 }
@@ -4375,7 +4449,10 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
   int   code = 0;
   char* err = NULL;
 
-  STaskDbWrapper*        wrapper = pState->pTdbState->pOwner->pBackend;
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   rocksdb_snapshot_t*    snapshot = NULL;
   rocksdb_readoptions_t* readopts = NULL;
   rocksdb_iterator_t*    pIter = streamStateIterCreate(pState, "default", &snapshot, &readopts);
@@ -4400,7 +4477,7 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
     }
     if (strncmp(key, start, strlen(start)) == 0 && strlen(key) >= strlen(start) + 1) {
       int64_t checkPoint = 0;
-      if (sscanf(key + strlen(key), ":%" PRId64 "", &checkPoint) == 1) {
+      if (sscanf(key + strlen(key), ":%" PRId64, &checkPoint) == 1) {
         if (taosArrayPush(result, &checkPoint) == NULL) {
           code = terrno;
           break;
@@ -4420,6 +4497,9 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
 void* streamDefaultIterCreate_rocksdb(SStreamState* pState) {
   SStreamStateCur* pCur = createStreamStateCursor();
   STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
 
   pCur->db = wrapper->db;
   pCur->iter = streamStateIterCreate(pState, "default", (rocksdb_snapshot_t**)&pCur->snapshot,
@@ -4477,6 +4557,9 @@ int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb
                             void* val, int32_t vlen, int64_t ttl) {
   int32_t         code = 0;
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));
 
   int i = streamStateGetCfIdx(pState, cfKeyName);
@@ -4507,6 +4590,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
                                     void* val, int32_t vlen, int64_t ttl, void* tmpBuf) {
   int32_t code = 0;
   char    buf[128] = {0};
+  char    toString[128] = {0};
 
   char*  dst = NULL;
   size_t size = 0;
@@ -4520,10 +4604,17 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
     }
   }
   int32_t klen = ginitDict[cfIdx].enFunc((void*)key, buf);
+
+  ginitDict[cfIdx].toStrFunc((void*)key, toString);
+  stTrace("[StreamInternal] write cfIdx:%d key:%s user len:%d, rocks len:%zu", cfIdx, toString, vlen, size);
+
   char*   ttlV = tmpBuf;
   int32_t ttlVLen = ginitDict[cfIdx].enValueFunc(dst, size, ttl, &ttlV);
 
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
 
   TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));
 
@@ -4548,6 +4639,9 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
 int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch) {
   char*           err = NULL;
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
   TAOS_UNUSED(atomic_add_fetch_64(&wrapper->dataWritten, 1));
   rocksdb_write(wrapper->db, wrapper->writeOpt, (rocksdb_writebatch_t*)pBatch, &err);
   if (err != NULL) {
@@ -4678,8 +4772,12 @@ void hashTableToDebug(SHashObj* pTbl, char** buf) {
       pIter = taosHashIterate(pTbl, pIter);
       continue;
     }
+
+    char* pTmp = taosStrndup(name, len);
     int32_t left = cap - strlen(p);
-    int32_t nBytes = snprintf(p + total, left, "%s,", name);
+    int32_t nBytes = snprintf(p + total, left, "%s,", pTmp);
+    taosMemoryFree(pTmp);
+
     if (nBytes <= 0 || nBytes >= left) {
       stError("failed to debug snapshot info since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
       taosMemoryFree(p);
@@ -4766,7 +4864,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   memset(p->buf, 0, p->len);
 
   nBytes =
-      snprintf(p->buf, p->len, "%s%s%s%scheckpoint%" PRId64 "", p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
+      snprintf(p->buf, p->len, "%s%s%s%scheckpoint%" PRId64, p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
   if (nBytes <= 0 || nBytes >= p->len) {
     TAOS_UNUSED(taosThreadRwlockUnlock(&p->rwLock));
     return TSDB_CODE_OUT_OF_RANGE;
@@ -4984,7 +5082,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   char* srcDir = &dstBuf[cap];
   char* dstDir = &srcDir[cap];
 
-  int nBytes = snprintf(srcDir, cap, "%s%s%s%s%s%" PRId64 "", p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+  int nBytes = snprintf(srcDir, cap, "%s%s%s%s%s%" PRId64, p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                         "checkpoint", p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
@@ -5029,7 +5127,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     }
 
     if (taosCopyFile(srcBuf, dstBuf) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       stError("failed to copy file from %s to %s, reason:%s", srcBuf, dstBuf, tstrerror(code));
       goto _ERROR;
     }
@@ -5059,14 +5157,14 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     goto _ERROR;
   }
 
-  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pCurrent, p->curChkpId);
+  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64, dstDir, TD_DIRSEP, p->pCurrent, p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
   }
 
   if (taosCopyFile(srcBuf, dstBuf) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     stError("failed to copy file from %s to %s, reason:%s", srcBuf, dstBuf, tstrerror(code));
     goto _ERROR;
   }
@@ -5081,7 +5179,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     goto _ERROR;
   }
 
-  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pManifest, p->curChkpId);
+  nBytes = snprintf(dstBuf, cap, "%s%s%s_%" PRId64, dstDir, TD_DIRSEP, p->pManifest, p->curChkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
@@ -5158,7 +5256,7 @@ int32_t bkdMgtCreate(char* path, SBkdMgt** mgt) {
   }
 
   if (taosThreadRwlockInit(&p->rwLock, NULL) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     bkdMgtDestroy(p);
     return code;
   }
@@ -5271,7 +5369,11 @@ int32_t bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname) {
 
 SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWinKey* key) {
   stDebug("streamStateSeekKeyPrev_rocksdb");
-  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  if (pState->pTdbState->recalc) {
+    wrapper = pState->pTdbState->pOwner->pRecalBackend;
+  }
+
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return NULL;
@@ -5282,8 +5384,9 @@ SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWin
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
 
-  char buf[128] = {0};
-  int  len = winKeyEncode((void*)key, buf);
+  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  char      buf[128] = {0};
+  int       len = stateKeyEncode((void*)&sKey, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
     streamStateFreeCur(pCur);
     return NULL;
@@ -5297,7 +5400,7 @@ SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWin
     size_t  kLen = 0;
     char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     TAOS_UNUSED(winKeyDecode((void*)&curKey, keyStr));
-    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) > 0) {
+    if (winKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) > 0) {
       return pCur;
     }
     rocksdb_iter_prev(pCur->iter);

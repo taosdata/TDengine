@@ -17,7 +17,7 @@ taosx -f <from-DSN> -t <to-DSN> <其它参数>
 
 taosX 的命令行参数分为三个主要部分：
 - `-f` 指定数据源，即 Source DSN
-- `-t` 指定写入目标，即Sink DSN
+- `-t` 指定写入目标，即 Sink DSN
 - 其它参数
 
 以下参数说明及示例中若无特殊说明 `<content>` 的格式均为占位符，使用时需要使用实际参数进行替换。
@@ -37,25 +37,25 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 ```
 [] 中的数据都为可选参数。
 
-1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项:
+1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项：
 
 - taos：使用查询接口从 TDengine 获取数据
 - tmq：启用数据订阅从 TDengine 获取数据
 - local：数据备份或恢复
-- pi: 启用 pi-connector从 pi 数据库中获取数据
+- pi：启用 pi-connector 从 pi 数据库中获取数据
 - opc：启用 opc-connector 从 opc-server 中获取数据
-- mqtt: 启用 mqtt-connector 获取 mqtt-broker 中的数据
-- kafka: 启用 Kafka 连接器从 Kafka Topics 中订阅消息写入
-- influxdb:  启用 influxdb 连接器从 InfluxDB 获取数据
+- mqtt：启用 mqtt-connector 获取 mqtt-broker 中的数据
+- kafka：启用 Kafka 连接器从 Kafka Topics 中订阅消息写入
+- influxdb：启用 influxdb 连接器从 InfluxDB 获取数据
 - csv：从 CSV 文件解析数据
 
 2. +protocol 包含如下选项：
-- +ws: 当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
-- +ua: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
-- +da: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
+- +ws：当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
+- +ua：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
+- +da：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
 
 3. host:port 表示数据源的地址和端口。
-4. object 表示具体的数据源，可以是TDengine的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
+4. object 表示具体的数据源，可以是 TDengine 的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
 5. username 和 password 表示该数据源的用户名和密码。
 6. params 代表了 dsn 的参数。
 
@@ -110,7 +110,7 @@ taosx privileges -i ./user-pass-privileges-backup.json -t "taos:///"
 taosx run -f 'taos://root:taosdata@localhost:6030/db1' -t 'taos:///db2' -v
 ```
 
-同步指定超级表:
+同步指定超级表：
 
 ```shell
 taosx run \
@@ -227,7 +227,7 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 }
 ```
 
-它将从 `./meters/meters.csv.gz`（一个gzip压缩的CSV文件）导入数据到超级表 `meters`，每一行都插入到指定的表名 - `${tbname}` 使用CSV内容中的 `tbname` 列作为表名（即在 JSON 解析器中的 `.model.name`）。
+它将从 `./meters/meters.csv.gz`（一个 gzip 压缩的 CSV 文件）导入数据到超级表 `meters`，每一行都插入到指定的表名 - `${tbname}` 使用 CSV 内容中的 `tbname` 列作为表名（即在 JSON 解析器中的 `.model.name`）。
 
 ## 服务模式
 
@@ -251,7 +251,7 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 - `monitor.port`：`taosKeeper` 服务的端口，默认`6043`。
 - `monitor.interval`：向 `taosKeeper` 发送指标的频率，默认为每 10 秒一次，只有 1 到 10 之间的值才有效。
 - `log.path`：日志文件存放的目录。
-- `log.level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
+- `log.level`：日志级别，可选值为 "error"、"warn"、"info"、"debug"、"trace"。
 - `log.compress`：日志文件滚动后的文件是否进行压缩。
 - `log.rotationCount`：日志文件目录下最多保留的文件数，超出数量的旧文件被删除。
 - `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件。
@@ -401,17 +401,17 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | -------------------------- | ----------------------------------------------------------------------------- |
 | sys_cpu_cores              | 系统 CPU 核数                                                                 |
 | sys_total_memory           | 系统总内存，单位：字节                                                        |
-| sys_used_memory            | 系统已用内存, 单位：字节                                                      |
-| sys_available_memory       | 系统可用内存, 单位：字节                                                      |
+| sys_used_memory            | 系统已用内存，单位：字节                                                      |
+| sys_available_memory       | 系统可用内存，单位：字节                                                      |
 | process_uptime             | taosX 运行时长，单位：秒                                                      |
 | process_id                 | taosX 进程 ID                                                                 |
 | running_tasks              | taosX 当前执行任务数                                                          |
-| completed_tasks            | taosX 进程在一个监控周期（比如10s）内完成的任务数                             |
-| failed_tasks               | taosX 进程在一个监控周期（比如10s）内失败的任务数                             |
-| process_cpu_percent        | taosX 进程占用 CPU 百分比， 单位 %                                            |
-| process_memory_percent     | taosX 进程占用内存百分比， 单位 %                                             |
-| process_disk_read_bytes    | taosX 进程在一个监控周期（比如10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
-| process_disk_written_bytes | taosX 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytres/s  |
+| completed_tasks            | taosX 进程在一个监控周期（比如 10s）内完成的任务数                             |
+| failed_tasks               | taosX 进程在一个监控周期（比如 10s）内失败的任务数                             |
+| process_cpu_percent        | taosX 进程占用 CPU 百分比，单位 %                                            |
+| process_memory_percent     | taosX 进程占用内存百分比，单位 %                                             |
+| process_disk_read_bytes    | taosX 进程在一个监控周期（比如 10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
+| process_disk_written_bytes | taosX 进程在一个监控周期（比如 10s）内写到硬盘的字节数的平均值，单位 bytres/s  |
 
 
 ### Agent
@@ -420,15 +420,15 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | -------------------------- | ----------------------------------------------------------------------------- |
 | sys_cpu_cores              | 系统 CPU 核数                                                                 |
 | sys_total_memory           | 系统总内存，单位：字节                                                        |
-| sys_used_memory            | 系统已用内存, 单位：字节                                                      |
-| sys_available_memory       | 系统可用内存, 单位：字节                                                      |
+| sys_used_memory            | 系统已用内存，单位：字节                                                      |
+| sys_available_memory       | 系统可用内存，单位：字节                                                      |
 | process_uptime             | agent 运行时长，单位：秒                                                      |
 | process_id                 | agent 进程 id                                                                 |
 | process_cpu_percent        | agent 进程占用 CPU 百分比                                                     |
 | process_memory_percent     | agent 进程占用内存百分比                                                      |
 | process_uptime             | 进程启动时间，单位秒                                                          |
-| process_disk_read_bytes    | agent 进程在一个监控周期（比如10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
-| process_disk_written_bytes | agent 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytes/s   |
+| process_disk_read_bytes    | agent 进程在一个监控周期（比如 10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
+| process_disk_written_bytes | agent 进程在一个监控周期（比如 10s）内写到硬盘的字节数的平均值，单位 bytes/s   |
 
 ### Connector
 
@@ -436,10 +436,10 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | -------------------------- | --------------------------------------------------------------------------------- |
 | process_id                 | connector 进程 id                                                                 |
 | process_uptime             | 进程启动时间，单位秒                                                              |
-| process_cpu_percent        | 进程占用 CPU 百分比， 单位 %                                                      |
-| process_memory_percent     | 进程占用内存百分比， 单位 %                                                       |
-| process_disk_read_bytes    | connector 进程在一个监控周期（比如10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
-| process_disk_written_bytes | connector 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytes/s   |
+| process_cpu_percent        | 进程占用 CPU 百分比，单位 %                                                      |
+| process_memory_percent     | 进程占用内存百分比，单位 %                                                       |
+| process_disk_read_bytes    | connector 进程在一个监控周期（比如 10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
+| process_disk_written_bytes | connector 进程在一个监控周期（比如 10s）内写到硬盘的字节数的平均值，单位 bytes/s   |
 
 ### taosX 通用数据源任务
 
@@ -457,7 +457,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 
 | 字段                  | 描述                                                                 |
 | --------------------- | -------------------------------------------------------------------- |
-| read_concurrency      | 并发读取数据源的数据 worker 数, 也等于并发写入 TDengine 的 worker 数 |
+| read_concurrency      | 并发读取数据源的数据 worker 数，也等于并发写入 TDengine 的 worker 数 |
 | total_stables         | 需要迁移的超级表数据数量                                             |
 | total_updated_tags    | 累计更新 tag 数                                                      |
 | total_created_tables  | 累计创建子表数                                                       |
@@ -488,7 +488,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 
 ### taosX 其他数据源 任务
 
-这些数据源包括： InfluxDB，OpenTSDB，OPC UA，OPC DA，PI，CSV，MQTT，AVEVA Historian 和 Kafka。  
+这些数据源包括：InfluxDB，OpenTSDB，OPC UA，OPC DA，PI，CSV，MQTT，AVEVA Historian 和 Kafka。  
 
 | 字段                    | 描述                                                        |
 | ----------------------- | ----------------------------------------------------------- |
@@ -498,7 +498,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | total_inserted_sqls     | 执行的 INSERT SQL 总条数                                    |
 | total_failed_sqls       | 执行失败的 INSERT SQL 总条数                                |
 | total_created_stables   | 创建的超级表总数（可能大于实际值）                          |
-| total_created_tables    | 尝试创建子表总数(可能大于实际值)                            |
+| total_created_tables    | 尝试创建子表总数 (可能大于实际值)                            |
 | total_failed_rows       | 写入失败的总行数                                            |
 | total_failed_point      | 写入失败的总点数                                            |
 | total_written_blocks    | 写入成功的 raw block 总数                                   |
@@ -510,7 +510,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | inserted_sqls           | 本次运行此任务执行的 INSERT SQL 总条数                      |
 | failed_sqls             | 本次运行此任务执行失败的 INSERT SQL 总条数                  |
 | created_stables         | 本次运行此任务尝试创建超级表数（可能大于实际值）            |
-| created_tables          | 本次运行此任务尝试创建子表数(可能大于实际值)                |
+| created_tables          | 本次运行此任务尝试创建子表数 (可能大于实际值)                |
 | failed_rows             | 本次运行此任务写入失败的行数                                |
 | failed_points           | 本次运行此任务写入失败的点数                                |
 | written_blocks          | 本次运行此任务写人成功的 raw block 数                       |
@@ -566,9 +566,9 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 **函数签名**：parser_resp_t parser_new(char* ctx, uint32_t len);
 
-char* ctx: 用户自定义配置字符串。
+char* ctx：用户自定义配置字符串。
 
-uint32_t len: 该字符串的二进制长度（不含 `\0`）。
+uint32_t len：该字符串的二进制长度（不含 `\0`）。
 
 **返回值**：
 
@@ -597,17 +597,17 @@ const char* parser_mutate(
 ); 
 ```
 
-`void* parser`: parser_new 生成的对象指针;
+`void* parser`：parser_new 生成的对象指针;
 
 `const uint8_t* in_ptr`：输入 Payload 的指针;
 
-`uint32_t in_len`: 输入 Payload 的 bytes 长度（不含 `\0`）;
+`uint32_t in_len`：输入 Payload 的 bytes 长度（不含 `\0`）;
 
 `const void* uint8_t* out_ptr`:输出 JSON 字符串的指针（不含 \0）。当 out_ptr 指向为空时，表示输出为空。
 
 `uint32_t * out_len`：输出 JSON 字符串长度。
 
-**返回值**： 当调用成功时，返回值为 NULL。
+**返回值**：当调用成功时，返回值为 NULL。
 
 #### 5. 释放解析器
 
@@ -615,4 +615,4 @@ const char* parser_mutate(
 
 **函数签名**： void parser_free(void* parser);
 
-void* parser: parser_new 生成的对象指针。
+void* parser：parser_new 生成的对象指针。

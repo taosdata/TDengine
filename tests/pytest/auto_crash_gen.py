@@ -244,7 +244,7 @@ def start_taosd():
     else:
         pass
 
-    start_cmd = 'cd %s && python3 test.py >>/dev/null '%(start_path)
+    start_cmd = 'cd %s && python3 test.py -G >>/dev/null '%(start_path)
     os.system(start_cmd)
 
 def get_cmds(args_list):
@@ -371,7 +371,7 @@ Result: {msg_dict[status]}
 Details
 Owner: Jayden Jia
 Start time: {starttime}
-End time: {endtime}       
+End time: {endtime}
 Hostname: {hostname}
 Commit:  {git_commit}
 Cmd: {cmd}
@@ -380,14 +380,13 @@ Core dir: {core_dir}
 '''
         text_result=text.split("Result: ")[1].split("Details")[0].strip()
         print(text_result)
-        
         if text_result == "success":
-            send_msg(notification_robot_url, get_msg(text))
+           send_msg(notification_robot_url, get_msg(text))
         else:
-            send_msg(alert_robot_url, get_msg(text))   
-            send_msg(notification_robot_url, get_msg(text)) 
-                
-        #send_msg(get_msg(text)) 
+           send_msg(alert_robot_url, get_msg(text))
+           send_msg(notification_robot_url, get_msg(text))
+
+        #send_msg(get_msg(text))
     except Exception as e:
         print("exception:", e)
     exit(status)

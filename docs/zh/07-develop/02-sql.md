@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL 语法进行数据的查询、插入和删除操作。 TDengine 的 SQL 还支持对数据库和数据表的管理操作，如创建、修改和删除数据库及数据表。TDengine 扩展了标准 SQL，引入了时序数据处理特有的功能，如时间序列数据的聚合查询、降采样、插值查询等，以适应时序数据的特点。这些扩展使得用户可以更高效地处理时间序列数据，进行复杂的数据分析和处理。 具体支持的 SQL 语法请参考  [TDengine SQL](../../reference/taos-sql/)  
+TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL 语法进行数据的查询、插入和删除操作。TDengine 的 SQL 还支持对数据库和数据表的管理操作，如创建、修改和删除数据库及数据表。TDengine 扩展了标准 SQL，引入了时序数据处理特有的功能，如时间序列数据的聚合查询、降采样、插值查询等，以适应时序数据的特点。这些扩展使得用户可以更高效地处理时间序列数据，进行复杂的数据分析和处理。具体支持的 SQL 语法请参考 [TDengine SQL](../../reference/taos-sql/)  
 
 下面介绍使用各语言连接器通过执行 SQL 完成建库、建表、写入数据和查询数据。
 
@@ -96,7 +96,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 
 </TabItem>
 </Tabs>
-> **注意**：建议采用 `<dbName>.<tableName>` 的格式构造SQL语句，不推荐在应用中采用 `USE DBName` 方式访问。
+> **注意**：建议采用 `<dbName>.<tableName>` 的格式构造 SQL 语句，不推荐在应用中采用 `USE DBName` 方式访问。
 
 ## 插入数据
 下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
@@ -108,7 +108,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 ```
 
 **Note**
-NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
+NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
 
 
 </TabItem>
@@ -160,7 +160,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 ```
 
 **Note**
-NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
+NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
 </TabItem>
 <TabItem label="REST API" value="rest">
 

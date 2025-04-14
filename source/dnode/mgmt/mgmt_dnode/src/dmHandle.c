@@ -25,6 +25,8 @@
 extern SConfig *tsCfg;
 
 SMonVloadInfo tsVinfo = {0};
+SMnodeLoad    tsMLoad = {0};
+SDnodeData    tsDnodeData = {0};
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   int32_t code = 0;
@@ -37,7 +39,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     auditSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
-      dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
+      dInfo("failed to set local info, dnodeId:%d clusterId:0x%" PRIx64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
             tstrerror(code));
     }
     (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
@@ -46,10 +48,10 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
 
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   int32_t code = 0;
-  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->ipWhiteVer, ver);
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
-      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->ipWhiteVer, ver);
       if (rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL) != 0) {
         dError("failed to disable ip white list on dnode");
       }
@@ -92,19 +94,19 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
 static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   int32_t code = 0;
-  int64_t oldVer = taosAnalGetVersion();
+  int64_t oldVer = taosAnalyGetVersion();
   if (oldVer == newVer) return;
   dDebug("analysis on dnode ver:%" PRId64 ", status ver:%" PRId64, oldVer, newVer);
 
-  SRetrieveAnalAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
-  int32_t              contLen = tSerializeRetrieveAnalAlgoReq(NULL, 0, &req);
+  SRetrieveAnalyticsAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
+  int32_t              contLen = tSerializeRetrieveAnalyticAlgoReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
     return;
   }
 
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveAnalAlgoReq(pHead, contLen, &req);
+  contLen = tSerializeRetrieveAnalyticAlgoReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
@@ -167,23 +169,30 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SStatusReq req = {0};
+  req.timestamp = taosGetTimestampMs();
+  pMgmt->statusSeq++;
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt lock", pMgmt->statusSeq);
-  (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt statusInfolock", pMgmt->statusSeq);
+  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to lock status info lock");
+    return;
+  }
+
+  dDebug("send status req to mnode, statusSeq:%d, begin to get dnode info", pMgmt->statusSeq);
   req.sver = tsVersion;
-  req.dnodeVer = pMgmt->pData->dnodeVer;
-  req.dnodeId = pMgmt->pData->dnodeId;
-  req.clusterId = pMgmt->pData->clusterId;
+  req.dnodeVer = tsDnodeData.dnodeVer;
+  req.dnodeId = tsDnodeData.dnodeId;
+  req.clusterId = tsDnodeData.clusterId;
   if (req.clusterId == 0) req.dnodeId = 0;
-  req.rebootTime = pMgmt->pData->rebootTime;
-  req.updateTime = pMgmt->pData->updateTime;
+  req.rebootTime = tsDnodeData.rebootTime;
+  req.updateTime = tsDnodeData.updateTime;
   req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = tsNumOfSupportVnodes;
   req.numOfDiskCfg = tsDiskCfgNum;
   req.memTotal = tsTotalMemoryKB * 1024;
-  req.memAvail = req.memTotal - tsQueueMemoryAllowed - 16 * 1024 * 1024;
+  req.memAvail = req.memTotal - tsQueueMemoryAllowed - tsApplyMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
-  tstrncpy(req.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
+  tstrncpy(req.machineId, tsDnodeData.machineId, TSDB_MACHINE_ID_LEN + 1);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
@@ -205,32 +214,26 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
-  (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
   dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
-  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
-    dError("failed to lock status info lock");
-    return;
-  }
+
   req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
+
+  dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
+  req.mload = tsMLoad;
+
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to unlock status info lock");
     return;
   }
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
-  SMonMloadInfo minfo = {0};
-  (*pMgmt->getMnodeLoadsFp)(&minfo);
-  req.mload = minfo.load;
-
   dDebug("send status req to mnode, statusSeq:%d, begin to get qnode loads", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
 
-  pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
-  req.analVer = taosAnalGetVersion();
+  req.analVer = taosAnalyGetVersion();
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
@@ -267,7 +270,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {
-    dError("failed to send status req since %s", tstrerror(code));
+    dError("failed to SendRecv with timeout %d status req since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
     return;
   }
 
@@ -275,7 +278,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[512];
     dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
-    dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
+    dInfo("Rotate mnode ep set since failed to SendRecv status req %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code),
+          tbuf, epSet.inUse);
   } else {
     if (epUpdated == 1) {
       dmSetMnodeEpSet(pMgmt->pData, &epSet);
@@ -403,7 +407,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {
-    dError("failed to send status req since %s", tstrerror(code));
+    dError("failed to SendRecv config req with timeout %d since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
     return;
   }
   if (rpcRsp.code != 0) {
@@ -414,14 +418,37 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
 }
 
 void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
-  SMonVloadInfo vinfo = {0};
+  dDebug("begin to get dnode info");
+  SDnodeData dnodeData = {0};
+  (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  dnodeData.dnodeVer = pMgmt->pData->dnodeVer;
+  dnodeData.dnodeId = pMgmt->pData->dnodeId;
+  dnodeData.clusterId = pMgmt->pData->clusterId;
+  dnodeData.rebootTime = pMgmt->pData->rebootTime;
+  dnodeData.updateTime = pMgmt->pData->updateTime;
+  tstrncpy(dnodeData.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
+  (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
+
   dDebug("begin to get vnode loads");
-  (*pMgmt->getVnodeLoadsFp)(&vinfo);
+  SMonVloadInfo vinfo = {0};
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);  // dmGetVnodeLoads
+
+  dDebug("begin to get mnode loads");
+  SMonMloadInfo minfo = {0};
+  (*pMgmt->getMnodeLoadsFp)(&minfo);  // dmGetMnodeLoads
+
   dDebug("begin to lock status info");
   if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to lock status info lock");
     return;
   }
+  tsDnodeData.dnodeVer = dnodeData.dnodeVer;
+  tsDnodeData.dnodeId = dnodeData.dnodeId;
+  tsDnodeData.clusterId = dnodeData.clusterId;
+  tsDnodeData.rebootTime = dnodeData.rebootTime;
+  tsDnodeData.updateTime = dnodeData.updateTime;
+  tstrncpy(tsDnodeData.machineId, dnodeData.machineId, TSDB_MACHINE_ID_LEN + 1);
+
   if (tsVinfo.pVloads == NULL) {
     tsVinfo.pVloads = vinfo.pVloads;
     vinfo.pVloads = NULL;
@@ -429,6 +456,9 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
     taosArrayDestroy(vinfo.pVloads);
     vinfo.pVloads = NULL;
   }
+
+  tsMLoad = minfo.load;
+
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to unlock status info lock");
     return;
@@ -660,7 +690,7 @@ _exit:
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  int32_t code = dumpConfToDataBlock(pBlock, 1);
+  int32_t code = dumpConfToDataBlock(pBlock, 1, NULL);
   if (code != 0) {
     return code;
   }

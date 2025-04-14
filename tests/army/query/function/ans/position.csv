@@ -201,7 +201,7 @@ taos> select ABS(POSITION('aaa' IN 'aaaaaaaaa'))
 taos> select POW(POSITION('aaa' IN 'aaaaaaaaa'), 2)
  pow(position('aaa' in 'aaaaaaaaa'), 2) |
 =========================================
-                  1.000000000000000e+00 |
+                                      1 |
 
 taos> select position('t' in 'taos')
  position('t' in 'taos') |

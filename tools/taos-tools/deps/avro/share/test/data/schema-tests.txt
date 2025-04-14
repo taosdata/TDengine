@@ -1,0 +1,192 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+// NOTE: the Java implementation provides a slow-but-direct implementation
+// of the fingerpriting algorithm which is used to cross-check the
+// "fingerprint" values below.  Thus, the Java unit-tests provide validation
+// for these values, so other languages can just assume they are correct.
+
+
+// 000
+<<INPUT "null"
+<<canonical "null"
+<<fingerprint 7195948357588979594
+
+// 001
+<<INPUT {"type":"null"}
+<<canonical "null"
+
+// 002
+<<INPUT "boolean"
+<<canonical "boolean"
+<<fingerprint -6970731678124411036
+
+// 003
+<<INPUT {"type":"boolean"}
+<<canonical "boolean"
+
+// 004
+<<INPUT "int"
+<<canonical "int"
+<<fingerprint 8247732601305521295
+
+// 005
+<<INPUT {"type":"int"}
+<<canonical "int"
+
+// 006
+<<INPUT "long"
+<<canonical "long"
+<<fingerprint -3434872931120570953
+
+// 007
+<<INPUT {"type":"long"}
+<<canonical "long"
+
+// 008
+<<INPUT "float"
+<<canonical "float"
+<<fingerprint 5583340709985441680
+
+// 009
+<<INPUT {"type":"float"}
+<<canonical "float"
+
+// 010
+<<INPUT "double"
+<<canonical "double"
+<<fingerprint -8181574048448539266
+
+// 011
+<<INPUT {"type":"double"}
+<<canonical "double"
+
+// 012
+<<INPUT "bytes"
+<<canonical "bytes"
+<<fingerprint 5746618253357095269
+
+// 013
+<<INPUT {"type":"bytes"}
+<<canonical "bytes"
+
+// 014
+<<INPUT "string"
+<<canonical "string"
+<<fingerprint -8142146995180207161
+
+// 015
+<<INPUT {"type":"string"}
+<<canonical "string"
+
+// 016
+<<INPUT [  ]
+<<canonical []
+<<fingerprint -1241056759729112623
+
+// 017
+<<INPUT [ "int"  ]
+<<canonical ["int"]
+<<fingerprint -5232228896498058493
+
+// 018
+<<INPUT [ "int" , {"type":"boolean"} ]
+<<canonical ["int","boolean"]
+<<fingerprint 5392556393470105090
+
+// 019
+<<INPUT {"fields":[], "type":"record", "name":"foo"}
+<<canonical {"name":"foo","type":"record","fields":[]}
+<<fingerprint -4824392279771201922
+
+// 020
+<<INPUT {"fields":[], "type":"record", "name":"foo", "namespace":"x.y"}
+<<canonical {"name":"x.y.foo","type":"record","fields":[]}
+<<fingerprint 5916914534497305771
+
+// 021
+<<INPUT {"fields":[], "type":"record", "name":"a.b.foo", "namespace":"x.y"}
+<<canonical {"name":"a.b.foo","type":"record","fields":[]}
+<<fingerprint -4616218487480524110
+
+// 022
+<<INPUT {"fields":[], "type":"record", "name":"foo", "doc":"Useful info"}
+<<canonical {"name":"foo","type":"record","fields":[]}
+<<fingerprint -4824392279771201922
+
+// 023
+<<INPUT {"fields":[], "type":"record", "name":"foo", "aliases":["foo","bar"]}
+<<canonical {"name":"foo","type":"record","fields":[]}
+<<fingerprint -4824392279771201922
+
+// 024
+<<INPUT {"fields":[], "type":"record", "name":"foo", "doc":"foo", "aliases":["foo","bar"]}
+<<canonical {"name":"foo","type":"record","fields":[]}
+<<fingerprint -4824392279771201922
+
+// 025
+<<INPUT {"fields":[{"type":{"type":"boolean"}, "name":"f1"}], "type":"record", "name":"foo"}
+<<canonical {"name":"foo","type":"record","fields":[{"name":"f1","type":"boolean"}]}
+<<fingerprint 7843277075252814651
+
+// 026
+<<INPUT
+{ "fields":[{"type":"boolean", "aliases":[], "name":"f1", "default":true},
+            {"order":"descending","name":"f2","doc":"Hello","type":"int"}],
+  "type":"record", "name":"foo"
+}
+INPUT
+<<canonical {"name":"foo","type":"record","fields":[{"name":"f1","type":"boolean"},{"name":"f2","type":"int"}]}
+<<fingerprint -4860222112080293046
+
+// 027
+<<INPUT {"type":"enum", "name":"foo", "symbols":["A1"]}
+<<canonical {"name":"foo","type":"enum","symbols":["A1"]}
+<<fingerprint -6342190197741309591
+
+// 028
+<<INPUT {"namespace":"x.y.z", "type":"enum", "name":"foo", "doc":"foo bar", "symbols":["A1", "A2"]}
+<<canonical {"name":"x.y.z.foo","type":"enum","symbols":["A1","A2"]}
+<<fingerprint -4448647247586288245
+
+// 029
+// <<INPUT {"type":"fixed", "name":"foo", "size":015} -- Avro parser broken???
+<<INPUT {"name":"foo","type":"fixed","size":15}
+<<canonical {"name":"foo","type":"fixed","size":15}
+<<fingerprint 1756455273707447556
+
+// 030
+<<INPUT {"namespace":"x.y.z", "type":"fixed", "name":"foo", "doc":"foo bar", "size":32}
+<<canonical {"name":"x.y.z.foo","type":"fixed","size":32}
+<<fingerprint -3064184465700546786
+
+// 031
+<<INPUT { "items":{"type":"null"}, "type":"array"}
+<<canonical {"type":"array","items":"null"}
+<<fingerprint -589620603366471059
+
+// 032
+<<INPUT { "values":"string", "type":"map"}
+<<canonical {"type":"map","values":"string"}
+<<fingerprint -8732877298790414990
+
+// 033
+<<INPUT
+  {"name":"PigValue","type":"record",
+   "fields":[{"name":"value", "type":["null", "int", "long", "PigValue"]}]}
+INPUT
+<<canonical {"name":"PigValue","type":"record","fields":[{"name":"value","type":["null","int","long","PigValue"]}]}
+<<fingerprint -1759257747318642341

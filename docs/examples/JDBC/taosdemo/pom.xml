@@ -67,7 +67,7 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.5.1</version>
+            <version>3.6.0</version>
             <!--  <scope>system</scope>-->
             <!--  <systemPath>${project.basedir}/src/main/resources/lib/taos-jdbcdriver-2.0.15-dist.jar</systemPath>-->
         </dependency>
@@ -76,13 +76,6 @@
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
             <version>1.2.83</version>
-        </dependency>
-        <!-- mysql: just for test -->
-        <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <version>8.0.28</version>
-            <scope>test</scope>
         </dependency>
         <!-- log4j -->
         <dependency>

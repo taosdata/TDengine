@@ -101,6 +101,9 @@ typedef struct {
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
   SBindInfo2       *pBindInfo;
+  bool              bindRowFormat;
+  bool              fixValueTags;
+  SVCreateTbReq    *fixValueTbReq;
 
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo2;
@@ -133,6 +136,19 @@ SStmtQNode* tail;
 uint64_t    qRemainNum;
 } SStmtQueue;
 */
+typedef struct {
+  TAOS_STMT2       *stmt;
+  TAOS_STMT2_BINDV *bindv;
+  int32_t           col_idx;
+  __taos_async_fn_t fp;
+  void             *param;
+} ThreadArgs;
+
+typedef struct AsyncBindParam {
+  TdThreadMutex mutex;
+  TdThreadCond  waitCond;
+  int8_t        asyncBindNum;
+} AsyncBindParam;
 
 typedef struct {
   STscObj          *taos;
@@ -150,12 +166,13 @@ typedef struct {
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
 
-  char         *db;
-  int64_t       reqid;
-  int32_t       errCode;
-  tsem_t        asyncQuerySem;
-  bool          semWaited;
-  SStmtStatInfo stat;
+  char          *db;
+  int64_t        reqid;
+  int32_t        errCode;
+  tsem_t         asyncExecSem;
+  bool           execSemWaited;
+  AsyncBindParam asyncBindParam;
+  SStmtStatInfo  stat;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -207,25 +224,28 @@ do {                               \
 } while (0)
 
 
-#define STMT_FLOG(param, ...) qFatal("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)
+#define STMT_FLOG(param, ...) qFatal("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_ELOG(param, ...) qError("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_DLOG(param, ...) qDebug("stmt:%p, " param, pStmt, __VA_ARGS__)
 
-#define STMT_ELOG_E(param) qError("stmt:%p " param, pStmt)
-#define STMT_DLOG_E(param) qDebug("stmt:%p " param, pStmt)
+#define STMT_ELOG_E(param) qError("stmt:%p, " param, pStmt)
+#define STMT_DLOG_E(param) qDebug("stmt:%p, " param, pStmt)
 */
 TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
 int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
-int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags);
-int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx);
+int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, SVCreateTbReq **pCreateTbReq);
+int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
+int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx, SVCreateTbReq *pCreateTbReq);
 int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
 int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
 int         stmtIsInsert2(TAOS_STMT2 *stmt, int *insert);
 TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
 const char *stmtErrstr2(TAOS_STMT2 *stmt);
+int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp, void *param);
+int         stmtAsyncBindThreadFunc(void *args);
 
 #ifdef __cplusplus
 }

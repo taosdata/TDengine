@@ -48,7 +48,7 @@ static int32_t vnodeBufPoolCreate(SVnode *pVnode, int32_t id, int64_t size, SVBu
     if (taosThreadSpinInit(pPool->lock, 0) != 0) {
       taosMemoryFree((void *)pPool->lock);
       taosMemoryFree(pPool);
-      return terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno = TAOS_SYSTEM_ERROR(ERRNO);
     }
   } else {
     pPool->lock = NULL;
@@ -227,7 +227,7 @@ void vnodeBufPoolAddToFreeList(SVBufPool *pPool) {
     SVBufPool *pNewPool = NULL;
     if (vnodeBufPoolCreate(pVnode, pPool->id, size, &pNewPool) < 0) {
       vWarn("vgId:%d, failed to change buffer pool of id %d size from %" PRId64 " to %" PRId64 " since %s",
-            TD_VID(pVnode), pPool->id, pPool->node.size, size, tstrerror(errno));
+            TD_VID(pVnode), pPool->id, pPool->node.size, size, tstrerror(ERRNO));
     } else {
       vInfo("vgId:%d, buffer pool of id %d size changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pPool->id,
             pPool->node.size, size);

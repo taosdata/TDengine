@@ -349,10 +349,10 @@ typedef int32_t (*TScriptCloseFunc)();
   extern int32_t udfDebugFlag;
   #define udfFatal(...) { if (udfDebugFlag & 1) { taosPrintLog("UDF FATAL ", 1, 255, __VA_ARGS__); }}
   #define udfError(...) { if (udfDebugFlag & 1) { taosPrintLog("UDF ERROR ", 1, 255, __VA_ARGS__); }}
-  #define udfWarn(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF WARN ",  2, 255, __VA_ARGS__); }}
-  #define udfInfo(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF ",       2, 255, __VA_ARGS__); }}
-  #define udfDebug(...) { if (udfDebugFlag & 4) { taosPrintLog("UDF ",       4, udfDebugFlag, __VA_ARGS__); }}
-  #define udfTrace(...) { if (udfDebugFlag & 8) { taosPrintLog("UDF ",       8, udfDebugFlag, __VA_ARGS__); }}
+  #define udfWarn(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF WARN  ", 2, 255, __VA_ARGS__); }}
+  #define udfInfo(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF INFO  ", 2, 255, __VA_ARGS__); }}
+  #define udfDebug(...) { if (udfDebugFlag & 4) { taosPrintLog("UDF DEBUG ", 4, udfDebugFlag, __VA_ARGS__); }}
+  #define udfTrace(...) { if (udfDebugFlag & 8) { taosPrintLog("UDF TRACE ", 8, udfDebugFlag, __VA_ARGS__); }}
 #endif
 // clang-format on
 

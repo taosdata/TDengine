@@ -9,7 +9,7 @@ MESSAGE(STATUS "build parser unit test")
 # ADD_EXECUTABLE(executorTest ${SOURCE_LIST})
 # TARGET_LINK_LIBRARIES(
 # executorTest
-# PRIVATE os util common transport gtest ${TAOS_LIB_STATIC} qcom executor function planner scalar nodes vnode
+# PRIVATE os util common transport gtest ${TAOS_NATIVE_LIB_STATIC} qcom executor function planner scalar nodes vnode
 # )
 #
 # TARGET_INCLUDE_DIRECTORIES(

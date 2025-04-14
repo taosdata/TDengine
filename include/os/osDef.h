@@ -108,6 +108,9 @@ void wordfree(wordexp_t *pwordexp);
 #define LOG_ERR  0
 #define LOG_INFO 1
 void syslog(int unused, const char *format, ...);
+#elif defined(TD_ASTRA)
+char *stpncpy(char *dest, const char *src, int n);
+char *strsep(char **stringp, const char *delim);
 #endif  // WINDOWS
 
 #ifndef WINDOWS
@@ -216,6 +219,9 @@ void syslog(int unused, const char *format, ...);
 // pthread_setname_np not defined
 #define setThreadName(name)
 #endif
+#elif defined(TD_ASTRA)
+#define setThreadName(name)
+#define getThreadName(name)
 #else
 // Linux, length of name must <= 16 (the last '\0' included)
 #define setThreadName(name)     \
@@ -237,12 +243,24 @@ void syslog(int unused, const char *format, ...);
 
 #if defined(_WIN32)
 #define TD_DIRSEP "\\"
+#elif defined(TD_ASTRA)
+#ifdef TD_ASTRA_TARGET
+#define TD_DIRSEP "/"
+#else
+#define TD_DIRSEP "\\"
+#endif
 #else
 #define TD_DIRSEP "/"
 #endif
 
 #if defined(_WIN32)
 #define TD_DIRSEP_CHAR '\\'
+#elif defined(TD_ASTRA)
+#ifdef TD_ASTRA_TARGET
+#define TD_DIRSEP_CHAR '/'
+#else
+#define TD_DIRSEP_CHAR '\\'
+#endif
 #else
 #define TD_DIRSEP_CHAR '/'
 #endif

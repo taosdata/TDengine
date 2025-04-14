@@ -21,28 +21,17 @@
 #include "tglobal.h"
 #include "version.h"
 #include "tconv.h"
-#ifdef TD_JEMALLOC_ENABLED
-#include "jemalloc/jemalloc.h"
-#endif
 #include "dmUtil.h"
 #include "tcs.h"
 #include "qworker.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#ifdef TD_JEMALLOC_ENABLED
+#define ALLOW_FORBID_FUNC
+#include "jemalloc/jemalloc.h"
+#endif
+
 #include "cus_name.h"
-#else
-#ifndef CUS_NAME
-#define CUS_NAME "TDengine"
-#endif
 
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
-
-#ifndef CUS_EMAIL
-#define CUS_EMAIL "<support@taosdata.com>"
-#endif
-#endif
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
@@ -86,6 +75,7 @@ static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
   // taosIgnSignal(SIGUSR2);
+#ifndef TD_ASTRA
   if (taosIgnSignal(SIGTERM) != 0) {
     dWarn("failed to ignore signal SIGTERM");
   }
@@ -101,15 +91,19 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
   if (taosIgnSignal(SIGBREAK) != 0) {
     dWarn("failed to ignore signal SIGBREAK");
   }
-
+#endif
   dInfo("shut down signal is %d", signum);
-#ifndef WINDOWS
-  dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
+  if (sigInfo != NULL) {
+    dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
         taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+  }
 #endif
 
   dmStop();
 }
+
+void dmStopDaemon() { dmStopDnode(SIGTERM, NULL, NULL); }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGTERM);
@@ -131,26 +125,9 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   if (taosIgnSignal(SIGSEGV) != 0) {
     dWarn("failed to ignore signal SIGABRT");
   }
-
-  char       *pMsg = NULL;
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;
-  int64_t     msgLen = -1;
-
-  if (tsEnableCrashReport) {
-    if (taosGenCrashJsonMsg(signum, &pMsg, dmGetClusterId(), global.startTime)) {
-      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
-      goto _return;
-    } else {
-      msgLen = strlen(pMsg);
-    }
-  }
-
-_return:
-
-  taosLogCrashInfo(CUS_PROMPT "d", pMsg, msgLen, signum, sigInfo);
-
+#ifdef USE_REPORT
+  writeCrashLogToFile(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
+#endif
 #ifdef _TD_DARWIN_64
   exit(signum);
 #elif defined(WINDOWS)
@@ -177,11 +154,23 @@ static void dmSetSignalHandle() {
   if (taosSetSignal(SIGBREAK, dmStopDnode) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
+  if (taosSetSignal(SIGABRT, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGFPE, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGSEGV, dmLogCrash) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
 #ifndef WINDOWS
   if (taosSetSignal(SIGTSTP, dmStopDnode) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
   if (taosSetSignal(SIGQUIT, dmStopDnode) != 0) {
+    dWarn("failed to set signal SIGUSR1");
+  }
+  if (taosSetSignal(SIGBUS, dmLogCrash) != 0) {
     dWarn("failed to set signal SIGUSR1");
   }
 #endif
@@ -314,10 +303,12 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
   char path[1024] = {0};
   taosGetCwd(path, sizeof(path));
 
-  char    args[1024] = {0};
-  int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
-  for (int32_t i = 1; i < argc; ++i) {
-    arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+  char args[1024] = {0};
+  if (argc > 0) {
+    int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
+    for (int32_t i = 1; i < argc; ++i) {
+      arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+    }
   }
 
   dInfo("startup path:%s args:%s", path, args);
@@ -383,7 +374,11 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
+#ifdef TAOSD_INTEGRATED
+int dmStartDaemon(int argc, char const *argv[]) {
+#else
 int main(int argc, char const *argv[]) {
+#endif
   int32_t code = 0;
 #ifdef TD_JEMALLOC_ENABLED
   bool jeBackgroundThread = true;
@@ -478,7 +473,7 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return code;
   }
-  
+
   if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
     dError("failed to init memPool, error:0x%x", code);
     taosCloseLog();
@@ -486,13 +481,14 @@ int mainWindows(int argc, char **argv) {
     return code;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();
     return code;
   }
-
+#endif
   if (global.checkS3) {
     code = dmCheckS3();
     taosCleanupCfg();
@@ -563,8 +559,6 @@ int mainWindows(int argc, char **argv) {
 
   dInfo("start to init service");
   dmSetSignalHandle();
-  tsDndStart = taosGetTimestampMs();
-  tsDndStartOsUptime = taosGetOsUptime();
 
   code = dmRun();
   dInfo("shutting down the service");

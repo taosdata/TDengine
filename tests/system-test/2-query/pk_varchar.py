@@ -153,7 +153,7 @@ class TDTestCase:
         tdSql.checkData(9, 1, '8')
         tdSql.checkData(9, 2, 8)
 
-        tdSql.query('select * from d1.st order by ts limit 2;')
+        tdSql.query('select * from d1.st order by ts,pk limit 2;')
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, datetime.datetime(2021, 4, 19, 0, 0))
         tdSql.checkData(0, 1, '1')
@@ -286,7 +286,7 @@ class TDTestCase:
         tdSql.checkData(9, 1, '8')
         tdSql.checkData(9, 2, 8)
 
-        tdSql.query('select * from d2.st order by ts limit 2;')
+        tdSql.query('select * from d2.st order by ts,pk limit 2;')
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, datetime.datetime(2021, 4, 19, 0, 0))
         tdSql.checkData(0, 1, '1')

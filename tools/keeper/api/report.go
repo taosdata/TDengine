@@ -332,7 +332,7 @@ func (r *Reporter) handlerFunc() gin.HandlerFunc {
 
 		logger.Tracef("report data:%s", string(data))
 		if e := json.Unmarshal(data, &report); e != nil {
-			logger.Errorf("error occurred while unmarshal request, data:%s, error:%s", data, err)
+			logger.Errorf("error occurred while unmarshal request, data:%s, error:%v", data, e)
 			return
 		}
 		var sqls []string

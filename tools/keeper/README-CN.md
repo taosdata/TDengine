@@ -1,267 +1,123 @@
-# TaosKeeper
+<!-- omit in toc -->
+# taosKeeper
 
-taosKeeper 是 TDengine 各项监控指标的导出工具，通过简单的几项配置即可获取 TDengine 的运行状态。并且 taosKeeper 企业版支持多种收集器，可以方便进行监控数据的展示。
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/TDengine)
+![GitHub License](https://img.shields.io/github/license/taosdata/TDengine)
+![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)
+<br />
+[![Twitter Follow](https://img.shields.io/twitter/follow/tdenginedb?label=TDengine&style=social)](https://twitter.com/tdenginedb)
+[![YouTube Channel](https://img.shields.io/badge/Subscribe_@tdengine--white?logo=youtube&style=social)](https://www.youtube.com/@tdengine)
+[![Discord Community](https://img.shields.io/badge/Join_Discord--white?logo=discord&style=social)](https://discord.com/invite/VZdSuUg4pS)
+[![LinkedIn](https://img.shields.io/badge/Follow_LinkedIn--white?logo=linkedin&style=social)](https://www.linkedin.com/company/tdengine)
+[![StackOverflow](https://img.shields.io/badge/Ask_StackOverflow--white?logo=stackoverflow&style=social&logoColor=orange)](https://stackoverflow.com/questions/tagged/tdengine)
 
-taosKeeper 使用 TDengine RESTful 接口，所以不需要安装 TDengine 客户端即可使用。
+简体中文 | [English](./README.md)
 
-## 构建
+<!-- omit in toc -->
+## 目录
 
-### 获取源码
+- [1. 简介](#1-简介)
+- [2. 文档](#2-文档)
+- [3. 前置条件](#3-前置条件)
+- [4. 构建](#4-构建)
+- [5. 测试](#5-测试)
+  - [5.1 运行测试](#51-运行测试)
+  - [5.2 添加用例](#52-添加用例)
+  - [5.3 性能测试](#53-性能测试)
+- [6. CI/CD](#6-cicd)
+- [7. 提交 Issues](#7-提交-issues)
+- [8. 提交 PR](#8-提交-pr)
+- [9. 引用](#9-引用)
+- [10. 许可证](#10-许可证)
 
-从 GitHub 克隆源码：
+## 1. 简介
 
-```sh
-git clone https://github.com/taosdata/TDengine
-cd TDengine/tools/keeper
-```
+taosKeeper 是 TDengine 3.0 版本全新引入的监控指标导出工具，旨在方便用户对 TDengine 的运行状态和性能指标进行实时监控。只需进行简单配置，TDengine 就能将自身的运行状态和各项指标等信息上报给 taosKeeper。taosKeeper 在接收到监控数据后，会利用 taosAdapter 提供的 RESTful 接口，将这些数据存储到 TDengine 中。
 
-### 编译
+taosKeeper 的一个重要价值在于，它能够将多个甚至一批 TDengine 集群的监控数据集中存储到一个统一的平台。如此一来，监控软件便能轻松获取这些数据，进而实现对 TDengine 集群的全面监控与实时分析。通过 taosKeeper，用户可以更加便捷地了解 TDengine 的运行状况，及时发现并解决潜在问题，确保系统的稳定性和高效性。
 
-taosKeeper 使用 `GO` 语言编写，在构建前需要配置好 `GO` 语言开发环境。
+## 2. 文档
 
-```sh
-go mod tidy
+- 使用 taosKeeper，请参考 [taosKeeper 参考手册](https://docs.taosdata.com/reference/components/taoskeeper/)，其中包括安装、配置、启动、数据收集与监控，以及集成 Prometheus 等方面的内容。
+- 本 README 主要面向希望自行贡献代码、编译和测试 taosKeeper 的开发者。如果想要学习 TDengine，可以浏览 [官方文档](https://docs.taosdata.com/)。
+
+## 3. 前置条件
+
+1. 已安装 Go 1.23 及以上版本。
+2. 本地已部署 TDengine，具体步骤请参考 [部署服务端](https://docs.taosdata.com/get-started/package/)，且已启动 taosd 与 taosAdapter。
+
+## 4. 构建
+
+在 `TDengine/tools/keeper` 目录下运行以下命令以构建项目：
+
+```bash
 go build
 ```
 
-## 安装
+## 5. 测试
 
-如果是自行构建的项目，仅需要拷贝 `taoskeeper` 文件到你的 `PATH` 中。
+### 5.1 运行测试
 
-```sh
-sudo install taoskeeper /usr/bin/
+在 `TDengine/tools/keeper` 目录下执行以下命令运行测试：
+
+```bash
+sudo go test ./...
 ```
 
-## 启动
+测试用例将连接到本地的 TDengine 服务器和 taosAdapter 进行测试。测试完成后，你将看到类似如下的结果摘要。如果所有测试用例均通过，输出中将不会出现 `FAIL` 字样。
 
-在启动前，应该做好如下配置：
-在 `/etc/taos/taoskeeper.toml` 配置 TDengine 连接参数以及监控指标前缀等其他信息。
-
-```toml
-# gin 框架是否启用 debug
-debug = false
-
-# 服务监听端口, 默认为 6043
-port = 6043
-
-# 日志级别，包含 panic、error、info、debug、trace等
-loglevel = "info"
-
-# 程序中使用协程池的大小
-gopoolsize = 50000
-
-# 查询 TDengine 监控数据轮询间隔
-RotationInterval = "15s"
-
-[tdengine]
-host = "127.0.0.1"
-port = 6041
-username = "root"
-password = "taosdata"
-
-# 需要被监控的 taosAdapter
-[taosAdapter]
-address = ["127.0.0.1:6041"]
-
-[metrics]
-# 监控指标前缀
-prefix = "taos"
-
-# 存放监控数据的数据库
-database = "log"
-
-# 指定需要监控的普通表
-tables = []
-
-[environment]
-# 是否在容器中运行，影响 taosKeeper 自身的监控数据
-incgroup = false
+```text
+ok      github.com/taosdata/taoskeeper/api      17.405s
+ok      github.com/taosdata/taoskeeper/cmd      1.819s
+ok      github.com/taosdata/taoskeeper/db       0.484s
+ok      github.com/taosdata/taoskeeper/infrastructure/config    0.417s
+ok      github.com/taosdata/taoskeeper/infrastructure/log       0.785s
+ok      github.com/taosdata/taoskeeper/monitor  4.623s
+ok      github.com/taosdata/taoskeeper/process  0.606s
+ok      github.com/taosdata/taoskeeper/system   3.420s
+ok      github.com/taosdata/taoskeeper/util     0.097s
+ok      github.com/taosdata/taoskeeper/util/pool        0.146s
 ```
 
-现在可以启动服务，输入：
+### 5.2 添加用例
 
-```sh
-taoskeeper
-```
+在以 `_test.go` 结尾的文件中添加测试用例，并且确保新增代码都有对应的测试用例覆盖。
 
-如果你使用 `systemd`，复制 `taoskeeper.service` 到 `/lib/systemd/system/`，并启动服务。
+### 5.3 性能测试
 
-```sh
-sudo cp taoskeeper.service /lib/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl start taoskeeper
-```
+性能测试正在开发中。
 
-让 taosKeeper 随系统开机自启动。
+## 6. CI/CD
 
-```sh
-sudo systemctl enable taoskeeper
-```
+- [Build Workflow](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
+- Code Coverage - TODO
 
-如果使用 `systemd`，你可以使用如下命令完成安装。
+## 7. 提交 Issues
 
-```sh
-go mod tidy
-go build
-sudo install taoskeeper /usr/bin/
-sudo cp taoskeeper.service /lib/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl start taoskeeper
-sudo systemctl enable taoskeeper
-```
+我们欢迎提交 [GitHub Issue](https://github.com/taosdata/TDengine/issues)。提交时请尽量提供以下信息，以便快速定位问题：
 
-## Docker
+- 问题描述：具体问题表现及是否必现，建议附上详细调用堆栈或日志信息。
+- taosKeeper 版本：可通过 `taoskeeper -V` 获取版本信息。
+- TDengine 服务端版本：可通过 `taos -V` 获取版本信息。
 
-如下介绍了如何在 docker 中构建 taosKeeper：
+如有其它相关信息（如环境配置、操作系统版本等），请一并补充，以便我们更全面地了解问题。
 
-在构建前请配置好 `./config/taoskeeper.toml` 中合适的参数，并编辑 Dockerfile ，示例如下。
+## 8. 提交 PR
 
-```dockerfile
-FROM golang:1.18.6-alpine as builder
+我们欢迎开发者共同参与本项目开发，提交 PR 时请按照以下步骤操作：
 
-WORKDIR /usr/src/taoskeeper
-COPY ./ /usr/src/taoskeeper/
-ENV GO111MODULE=on \
-    GOPROXY=https://goproxy.cn,direct
-RUN go mod tidy && go build
+1. Fork 仓库：请先 Fork 本仓库，具体步骤请参考 [如何 Fork 仓库](https://docs.github.com/en/get-started/quickstart/fork-a-repo)。
+2. 创建新分支：基于 `main` 分支创建一个新分支，并使用有意义的分支名称（例如：`git checkout -b feature/my_feature`）。请勿直接在 main 分支上进行修改。
+3. 开发与测试：完成代码修改后，确保所有单元测试都能通过，并为新增功能或修复的 Bug 添加相应的测试用例。
+4. 提交代码：将修改提交到远程分支（例如：`git push origin feature/my_feature`）。
+5. 创建 Pull Request：在 GitHub 上发起 [Pull Request](https://github.com/taosdata/TDengine/pulls)，具体步骤请参考 [如何创建 Pull Request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request)。
+6. 检查 CI：提交 PR 后，可在 Pull Request 中找到自己提交的 PR，点击对应的链接，即可查看该 PR 的 CI 是否通过。若通过，会显示 `All checks have passed`。无论 CI 是否通过，均可点击 `Show all checks -> Details` 查看详细的测试用例日志。
 
-FROM alpine:3
-RUN mkdir -p /etc/taos
-COPY --from=builder /usr/src/taoskeeper/taoskeeper /usr/bin/
-COPY ./config/taoskeeper.toml /etc/taos/taoskeeper.toml
-EXPOSE 6043
-CMD ["taoskeeper"]
-```
+## 9. 引用
 
-如果已经有 taosKeeper 可执行文件，在配置好 `taoskeeper.toml` 后你可以使用如下方式构建:
+[TDengine 官网](https://www.taosdata.com/)
 
-```dockerfile
-FROM ubuntu:18.04
-RUN mkdir -p /etc/taos
-COPY ./taoskeeper /usr/bin/
-COPY ./taoskeeper.toml /etc/taos/taoskeeper.toml
-EXPOSE 6043
-CMD ["taoskeeper"]
-```
+## 10. 许可证
 
-## 使用（**企业版**）
-
-### Prometheus (by scrape)
-
-taosKeeper 可以像 `node-exporter` 一样向 Prometheus 提供监控指标。\
-在 `/etc/prometheus/prometheus.yml` 添加配置：
-
-```yml
-global:
-  scrape_interval: 5s
-
-scrape_configs:
-  - job_name: "taoskeeper"
-    static_configs:
-      - targets: ["taoskeeper:6043"]
-```
-
-现在使用 PromQL 查询即可以显示结果，比如要查看指定主机（通过 FQDN 正则匹配表达式筛选）硬盘使用百分比：
-
-```promql
-taos_dn_disk_used / taos_dn_disk_total {fqdn=~ "tdengine.*"}
-```
-
-你可以使用 `docker-compose` 测试完整的链路。
-`docker-compose.yml`示例：
-
-```yml
-version: "3.7"
-
-services:
-  tdengine:
-    image: tdengine/tdengine
-    environment:
-      TAOS_FQDN: tdengine
-    volumes:
-    - taosdata:/var/lib/taos
-  taoskeeper:
-    build: ./
-    depends_on:
-    - tdengine
-    environment:
-      TDENGINE_HOST: tdengine
-      TDENGINE_PORT: 6041
-    volumes:
-      - ./config/taoskeeper.toml:/etc/taos/taoskeeper.toml
-    ports:
-      - 6043:6043
-  prometheus:
-    image: prom/prometheus
-    volumes:
-      - ./prometheus/:/etc/prometheus/
-    ports:
-      - 9090:9090
-volumes:
-  taosdata:
-```
-
-启动：
-
-```sh
-docker-compose up -d
-```
-
-现在通过访问 <http://localhost:9090> 来查询结果。访问[simple dashboard](https://grafana.com/grafana/dashboards/15164) 来查看TaosKeeper + Prometheus + Grafana 监控 TDengine 的快速启动实例。
-
-### Telegraf
-
-如果使用 telegraf 来收集各个指标，仅需要在配置中增加：
-
-```toml
-[[inputs.prometheus]]
-## An array of urls to scrape metrics from.
-urls = ["http://taoskeeper:6043/metrics"]
-```
-
-可以通过 `docker-compose` 来测试
-
-```sh
-docker-compose -f docker-compose.yml -f telegraf.yml up -d telegraf taoskeeper
-```
-
-由于可以在 `telegraf.conf` 设置日志为标准输出：
-
-```toml
-[[outputs.file]]
-files = ["stdout"]
-```
-
-所以你可以通过 `docker-compose logs` 在标准输出中追踪 TDengine 各项指标。
-
-```sh
-docker-compose -f docker-compose.yml -f telegraf.yml logs -f telegraf
-```
-
-### Zabbix
-
-1. 导入 zabbix 临时文件 `zbx_taos_keeper_templates.xml`。
-2. 使用 `TDengine` 模板来创建主机，修改宏 `{$TAOSKEEPER_HOST}` 和 `{$COLLECTION_INTERVAL}`。
-3. 等待并查看到自动创建的条目。
-
-### 常见问题
-
-* 启动报错，显示connection refused
-
-  **解析**：taosKeeper 依赖 restful 接口查询数据，请检查 taosAdapter 是否正常运行或 taoskeeper.toml 中 taosAdapter 地址是否正确。
-
-* taosKeeper 监控不同 TDengine 显示的检测指标数目不一致？
-
-  **解析**：如果 TDengine 中未创建某项指标，taoskeeper 不能获取对应的检测结果。
-
-* 不能接收到 TDengine 的监控日志。
-
-  **解析**: 修改 `/etc/taos/taos.cfg` 文件并增加如下参数：
-
-  ```cfg
-  monitor                  1          // 启用monitor
-  monitorInterval          30         // 发送间隔 (s)
-  monitorFqdn              localhost  // 接收消息的FQDN，默认为空
-  monitorPort              6043       // 接收消息的端口号
-  monitorMaxLogs           100        // 每个监控间隔缓存的最大日志数量
-  ```
+[AGPL-3.0 License](../../LICENSE)
