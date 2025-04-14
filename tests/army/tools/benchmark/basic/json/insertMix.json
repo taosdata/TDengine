@@ -56,7 +56,11 @@
                         { "type": "uint",        "name": "ui",  "max": 100, "min": 0 },
                         { "type": "ubigint",     "name": "ubi", "max": 100, "min": 0 },
                         { "type": "binary",      "name": "bin", "len": 32},
-                        { "type": "nchar",       "name": "nch", "len": 64}
+                        { "type": "nchar",       "name": "nch", "len": 64},
+                        { "type": "decimal", "name": "dec64e", "precision": 10, "scale": 6, "dec_max": "555.456789", "dec_min": "0.0"},
+                        { "type": "decimal", "name": "dec128e", "precision": 24, "scale": 10, "dec_max": "1234567890.5678912345", "dec_min": "0.0"},
+                        { "type": "timestamp","name": "ts1"},
+                        { "type": "geometry", "name": "geo"}
                     ],
                     "tags": [
                         {
