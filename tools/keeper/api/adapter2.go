@@ -36,9 +36,10 @@ type Adapter struct {
 	conn      *db.Connector
 	db        string
 	dbOptions map[string]interface{}
+	gm        *GeneralMetric
 }
 
-func NewAdapter(c *config.Config) *Adapter {
+func NewAdapter(c *config.Config, gm *GeneralMetric) *Adapter {
 	return &Adapter{
 		username:  c.TDengine.Username,
 		password:  c.TDengine.Password,
@@ -47,6 +48,7 @@ func NewAdapter(c *config.Config) *Adapter {
 		usessl:    c.TDengine.Usessl,
 		db:        c.Metrics.Database.Name,
 		dbOptions: c.Metrics.Database.Options,
+		gm:        gm,
 	}
 }
 
@@ -101,6 +103,16 @@ func (a *Adapter) handleFunc() gin.HandlerFunc {
 			adapterLog.Errorf("adapter report error, msg:%s", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
+		}
+
+		if len(report.ExtraMetrics) > 0 {
+			err = a.gm.handleBatchMetrics(report.ExtraMetrics, qid)
+
+			if err != nil {
+				adapterLog.Errorf("process records error. msg:%s", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("process records error. %s", err)})
+				return
+			}
 		}
 		c.JSON(http.StatusOK, gin.H{})
 	}
@@ -221,9 +233,10 @@ func (a *Adapter) createTable() error {
 }
 
 type AdapterReport struct {
-	Timestamp int64          `json:"ts"`
-	Metric    AdapterMetrics `json:"metrics"`
-	Endpoint  string         `json:"endpoint"`
+	Timestamp    int64             `json:"ts"`
+	Metric       AdapterMetrics    `json:"metrics"`
+	Endpoint     string            `json:"endpoint"`
+	ExtraMetrics []StableArrayInfo `json:"extra_metrics"`
 }
 
 type AdapterMetrics struct {
