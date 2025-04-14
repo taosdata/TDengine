@@ -358,7 +358,7 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
   SSubmitReq2*    pReq = NULL;
 
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);
+    SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // pDataBlock select查询到的结果
     if (NULL == pDataBlock) {
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
@@ -512,6 +512,10 @@ int32_t createDataInserter(SDataSinkManager* pManager, SDataSinkNode** ppDataSin
   SNode*  pNode = NULL;
   int32_t i = 0;
   FOREACH(pNode, pInserterNode->pCols) {
+    // 忽略tbname
+    if (pNode->type != QUERY_NODE_COLUMN) {
+      continue;
+    }
     SColumnNode* pCol = (SColumnNode*)pNode;
     QRY_ERR_JRET(taosHashPut(inserter->pCols, &pCol->colId, sizeof(pCol->colId), &pCol->slotId, sizeof(pCol->slotId)));
     if (inserter->fullOrderColList && pCol->colId != inserter->pSchema->columns[i].colId) {

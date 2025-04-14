@@ -6810,6 +6810,14 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
       return code;
     }
   } else if (mr.me.type == TSDB_NORMAL_TABLE) {  // do nothing
+  } else if (mr.me.type == TSDB_SUPER_TABLE) {
+    *suid = uid;
+    code = metaReaderGetTableEntryByUidCache(&mr, *suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      metaReaderClear(&mr);
+      return code;
+    }
   } else {
     code = TSDB_CODE_INVALID_PARA;
     tsdbError("invalid mr.me.type:%d, code:%s", mr.me.type, tstrerror(code));
