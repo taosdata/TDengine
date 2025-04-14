@@ -213,10 +213,11 @@ int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
 
   SWriteMetricsEx *pMetricEx = {0};
   int32_t          code = TSDB_CODE_SUCCESS;
+  SWriteMetricsEx **ppMetricEx = NULL;
 
-  pMetricEx = (SWriteMetricsEx *)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
+  ppMetricEx = (SWriteMetricsEx **)taosHashGet(gMetricsManager.pWriteMetrics, &vgId, sizeof(vgId));
 
-  if (pMetricEx == NULL) {
+  if (ppMetricEx == NULL) {
     pMetricEx = (SWriteMetricsEx *)taosMemoryMalloc(sizeof(SWriteMetricsEx));
     if (pMetricEx == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -227,11 +228,13 @@ int32_t addWriteMetrics(int32_t vgId, const SRawWriteMetrics *pRawMetrics) {
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pMetricEx);
       pMetricEx = NULL;
+      uError("VgId:%d Failed to add write metrics to hash table, code:%d", vgId, code);
+      return code;
     }
   } else {
+    pMetricEx = *ppMetricEx;
     updateFormattedFromRaw(pMetricEx, pRawMetrics, vgId);
   }
-
   return code;
 }
 
