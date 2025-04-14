@@ -842,8 +842,8 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
 
   char buffer[1024];
   epsetToString(pEpSet, buffer, sizeof(buffer));
-  sInfo("vgId:%d, sync get retry epset numOfEps:%d %s inUse:%d", pSyncNode->vgId, pEpSet->numOfEps, buffer,
-        pEpSet->inUse);
+  sDebug("vgId:%d, sync get retry epset numOfEps:%d %s inUse:%d", pSyncNode->vgId, pEpSet->numOfEps, buffer,
+         pEpSet->inUse);
   syncNodeRelease(pSyncNode);
 }
 
