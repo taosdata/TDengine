@@ -139,14 +139,14 @@ void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
-void    tColDataSortMerge(SArray **arr);
+int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
