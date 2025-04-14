@@ -403,8 +403,8 @@ taosAdapter reports monitoring indicators to taosKeeper, which will be written t
 The `adapter_requests` table records taosAdapter monitoring data, and the fields are as follows:
 
 | field            | type         | is_tag | comment                                   |
-| :--------------- | :----------- | :----- | :---------------------------------------- |
-| ts               | TIMESTAMP    |        | timestamp                                 |
+|:-----------------|:-------------|:-------|:------------------------------------------|
+| ts               | TIMESTAMP    |        | data collection timestamp                 |
 | total            | INT UNSIGNED |        | total number of requests                  |
 | query            | INT UNSIGNED |        | number of query requests                  |
 | write            | INT UNSIGNED |        | number of write requests                  |
@@ -423,6 +423,36 @@ The `adapter_requests` table records taosAdapter monitoring data, and the fields
 | endpoint         | VARCHAR      |        | request endpoint                          |
 | req_type         | NCHAR        | tag    | request type: 0 for REST, 1 for WebSocket |
 
+The `adapter_status` table records the status data of taosAdapter, and the fields are as follows:
+
+| field            | type      | is\_tag | comment                                                       |
+|:-----------------|:----------|:--------|:--------------------------------------------------------------|
+| _ts              | TIMESTAMP |         | data collection timestamp                                     |
+| go_heap_sys      | DOUBLE    |         | heap memory allocated by Go runtime (bytes)                   |
+| go_heap_inuse    | DOUBLE    |         | heap memory in use by Go runtime (bytes)                      |
+| go_stack_sys     | DOUBLE    |         | stack memory allocated by Go runtime (bytes)                  |
+| go_stack_inuse   | DOUBLE    |         | stack memory in use by Go runtime (bytes)                     |
+| rss              | DOUBLE    |         | actual physical memory occupied by the process (bytes)        |
+| ws_query_conn    | DOUBLE    |         | current WebSocket connections for `/rest/ws` endpoint         |
+| ws_stmt_conn     | DOUBLE    |         | current WebSocket connections for `/rest/stmt` endpoint       |
+| ws_sml_conn      | DOUBLE    |         | current WebSocket connections for `/rest/schemaless` endpoint |
+| ws_ws_conn       | DOUBLE    |         | current WebSocket connections for `/ws` endpoint              |
+| ws_tmq_conn      | DOUBLE    |         | current WebSocket connections for `/rest/tmq` endpoint        |
+| async_c_limit    | DOUBLE    |         | total concurrency limit for the C asynchronous interface      |
+| async_c_inflight | DOUBLE    |         | current concurrency for the C asynchronous interface          |
+| sync_c_limit     | DOUBLE    |         | total concurrency limit for the C synchronous interface       |
+| sync_c_inflight  | DOUBLE    |         | current concurrency for the C synchronous interface           |
+| endpoint         | NCHAR     | TAG     | request endpoint                                              |
+
+The `adapter_conn_pool` table records the connection pool monitoring data of taosAdapter, and the fields are as follows:
+
+| field            | type      | is\_tag | comment                                                     |
+|:-----------------|:----------|:--------|:------------------------------------------------------------|
+| _ts              | TIMESTAMP |         | data collection timestamp                                   |
+| conn_pool_total  | DOUBLE    |         | maximum connection limit for the connection pool            |
+| conn_pool_in_use | DOUBLE    |         | current number of connections in use in the connection pool |
+| endpoint         | NCHAR     | TAG     | request endpoint                                            |
+| user             | NCHAR     | TAG     | username to which the connection pool belongs               |
 
 ## Changes after upgrading httpd to taosAdapter
 

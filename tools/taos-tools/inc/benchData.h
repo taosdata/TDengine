@@ -56,7 +56,7 @@ void generateSmlJsonValues(
 // generateTag data from random or csv file, cnt is get count for each
 bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BArray* tagsStmt);
 // get tag from csv file
-FILE* openTagCsv(SSuperTable* stbInfo);
+FILE* openTagCsv(SSuperTable* stbInfo, uint64_t seek);
 
 //
 // STMT2 bind cols param progressive

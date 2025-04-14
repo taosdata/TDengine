@@ -35,7 +35,7 @@ TEST(testCase, linear_hash_Tests) {
   SLHashObj* pHashObj = tHashInit(4098 * 4 * 2, 512, fn, 40);
   for (int32_t i = 0; i < 1000000; ++i) {
     int32_t code = tHashPut(pHashObj, &i, sizeof(i), &i, sizeof(i));
-    assert(code == 0);
+    TD_ALWAYS_ASSERT(code == 0);
   }
 
   //  tHashPrint(pHashObj, LINEAR_HASH_STATIS);

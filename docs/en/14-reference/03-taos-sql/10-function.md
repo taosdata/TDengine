@@ -2233,7 +2233,7 @@ ignore_option: {
 - A single statement can use one or multiple diffs, and each diff can specify the same or different ignore_option; when there is more than one diff in a single statement, only when all diff results of a row are null and all ignore_options are set to ignore null values, the row is excluded from the result set
 - Can be used with associated columns. For example: select _rowts, DIFF() from.
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
-- When using composite primary keys, the timestamp and primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
+- When using composite primary keys, the timestamp and composite primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
 
 ### INTERP
 
