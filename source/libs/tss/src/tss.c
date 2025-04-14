@@ -91,6 +91,10 @@ int32_t tssCreateInstance(const char* as, SSharedStorage** ppSS) {
 
 // tssCloseInstance uninitializes a shared storage instance.
 int32_t tssCloseInstance(SSharedStorage* pSS) {
+    if (pSS == NULL) {
+        return TSDB_CODE_SUCCESS;
+    }
+
     int32_t code = pSS->type->closeInstance(pSS);
     if (code != TSDB_CODE_SUCCESS) {
         tssError("failed to uninitialize shared storage, code: %d\n", code);
@@ -104,10 +108,17 @@ int32_t tssCloseInstance(SSharedStorage* pSS) {
 // [tsSsAccessString] as the access string.
 int32_t tssCreateDefaultInstance() {
     extern char tsSsAccessString[];
+
+    if (strlen(tsSsAccessString) == 0) {
+        tssInfo("access string is empty, default shared storage is disabled\n");
+        return 0;
+    }
+
     if (g_default != NULL) {
         tssError("default shared storage already initialized\n");
         return 0; // already initialized
     }
+
     return tssCreateInstance(tsSsAccessString, &g_default);
 }
 
