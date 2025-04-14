@@ -22,6 +22,8 @@ extern "C" {
 
 #include "tlog.h"
 
+#define STREAM_MAX_GROUP_NUM 5
+
 enum {
   STREAM_STATUS_INIT = 1,
   STREAM_STATUS_RUNNING,
@@ -39,10 +41,10 @@ static const char *gTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
 typedef struct SStreamTask {
   EStreamTaskType type;
-  int64_t         vgId;      // ID of the vgroup
   int64_t         streamId;  // ID of the stream
   int64_t         taskId;    // ID of the current task
-  int64_t         cmdId;     // ID of the current command (real-time, historical, or recalculation)
+  int32_t         vgId;      // ID of the vgroup
+  int32_t         cmdId;     // ID of the current command (real-time, historical, or recalculation)
 } SStreamTask;
 
 typedef enum EStreamTriggerType {
@@ -56,6 +58,8 @@ typedef struct SStreamTriggerTask {
   EStreamTriggerType type;
 } SStreamTriggerTask;
 
+#define STREAM_GID(_streamId) ((_streamId) % STREAM_MAX_GROUP_NUM)
+
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
 #define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
@@ -66,27 +70,27 @@ typedef struct SStreamTriggerTask {
 // clang-format on
 
 #define ST_TASK_FLOG(param, ...)                                                                                      \
-  stFatal("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+  stFatal("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%d " param,             \
           gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
 #define ST_TASK_ELOG(param, ...)                                                                                      \
-  stError("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+  stError("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%d " param,             \
           gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
 #define ST_TASK_WLOG(param, ...)                                                                                     \
-  stWarn("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+  stWarn("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%d " param,             \
          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
          ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
 #define ST_TASK_ILOG(param, ...)                                                                                     \
-  stInfo("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+  stInfo("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%d " param,             \
          gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
          ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
 #define ST_TASK_DLOG(param, ...)                                                                                      \
-  stDebug("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+  stDebug("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%d " param,             \
           gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
 #define ST_TASK_TLOG(param, ...)                                                                                      \
-  stTrace("TYPE: %s, VGID:%" PRId64 ", STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%" PRId64 " " param,             \
+  stTrace("TYPE: %s, VGID:%d, STREAM:%" PRIx64 ", TASK:%" PRId64 ", COMMAND:%d " param,             \
           gTaskTypeStr[((SStreamTask *)pTask)->type], ((SStreamTask *)pTask)->vgId, ((SStreamTask *)pTask)->streamId, \
           ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->cmdId, __VA_ARGS__)
 

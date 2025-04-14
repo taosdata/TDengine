@@ -53,9 +53,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessResetStreamReq(SRpcMsg *pReq);
 static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeList);
 static void    doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId, int32_t code);
-static void    saveTaskAndNodeInfoIntoBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 
-static void     addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo);
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
 SSdbRaw       *mndStreamSeqActionEncode(SStreamObj *pStream);
@@ -936,68 +934,6 @@ static void addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
   }
 }
 
-void saveTaskAndNodeInfoIntoBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
-  SStreamTaskIter *pIter = NULL;
-  int32_t          code = createStreamTaskIter(pStream, &pIter);
-  if (code) {
-    mError("failed to create task iter for stream:%s", pStream->name);
-    return;
-  }
-
-  while (streamTaskIterNextTask(pIter)) {
-    SStreamTask *pTask = NULL;
-    code = streamTaskIterGetCurrent(pIter, &pTask);
-    if (code) {
-      break;
-    }
-
-    STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-    void   *p = taosHashGet(pExecNode->pTaskMap, &id, sizeof(id));
-    if (p == NULL) {
-      STaskStatusEntry entry = {0};
-      streamTaskStatusInit(&entry, pTask);
-
-      code = taosHashPut(pExecNode->pTaskMap, &id, sizeof(id), &entry, sizeof(entry));
-      if (code == 0) {
-        void   *px = taosArrayPush(pExecNode->pTaskList, &id);
-        int32_t num = (int32_t)taosArrayGetSize(pExecNode->pTaskList);
-        if (px) {
-          mInfo("s-task:0x%x add into task buffer, total:%d", (int32_t)entry.id.taskId, num);
-        } else {
-          mError("s-task:0x%x failed to add into task buffer, total:%d", (int32_t)entry.id.taskId, num);
-        }
-      } else {
-        mError("s-task:0x%x failed to add into task map, since out of memory", (int32_t)entry.id.taskId);
-      }
-
-      // add the new vgroups if not added yet
-      bool exist = false;
-      for (int32_t j = 0; j < taosArrayGetSize(pExecNode->pNodeList); ++j) {
-        SNodeEntry *pEntry = taosArrayGet(pExecNode->pNodeList, j);
-        if ((pEntry != NULL) && (pEntry->nodeId == pTask->info.nodeId)) {
-          exist = true;
-          break;
-        }
-      }
-
-      if (!exist) {
-        SNodeEntry nodeEntry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId, .lastHbMsgId = -1};
-        epsetAssign(&nodeEntry.epset, &pTask->info.epSet);
-
-        void *px = taosArrayPush(pExecNode->pNodeList, &nodeEntry);
-        if (px) {
-          mInfo("vgId:%d added into nodeList, total:%d", nodeEntry.nodeId, (int)taosArrayGetSize(pExecNode->pNodeList));
-        } else {
-          mError("vgId:%d failed to add into nodeList, total:%d", nodeEntry.nodeId,
-                 (int)taosArrayGetSize(pExecNode->pNodeList))
-        }
-      }
-    }
-  }
-
-  destroyStreamTaskIter(pIter);
-}
-
 static void doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId, int32_t code) {
   SRpcMsg rsp = {.code = code, .info = *pInfo, .contLen = msgSize};
   rsp.pCont = rpcMallocCont(rsp.contLen);
@@ -1075,41 +1011,48 @@ void mndUpdateStreamExecInfoRole(SMnode *pMnode, int32_t role) {
   }
 }
 
-void addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
-  SSdb       *pSdb = pMnode->pSdb;
-  SStreamObj *pStream = NULL;
-  void       *pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
-    if (pIter == NULL) {
-      break;
-    }
-
-    saveTaskAndNodeInfoIntoBuf(pStream, pExecInfo);
-    sdbRelease(pSdb, pStream);
-  }
-}
-
 #ifdef NEW_STREAM
 
-static void mndStreamStartToAct(SMnode *pMnode, int64_t streamId, char* streamName, int32_t msgType) {
-  int32_t contLen = strlen(streamName) + sizeof(streamId) + 1;
-  void *pReq = rpcMallocCont(contLen);
-  if (pReq == NULL) {
+bool mndStreamActionDequeue(SStreamActionQ* pQueue, SStreamQNode **param) {
+  while (0 == atomic_load_64(&pQueue->qRemainNum)) {
+    return false;
+  }
+
+  SStreamQNode *orig = pQueue->head;
+
+  SStreamQNode *node = pQueue->head->next;
+  pQueue->head = pQueue->head->next;
+
+  *param = node;
+
+  atomic_sub_fetch_64(&pQueue->qRemainNum, 1);
+
+  return true;
+}
+
+void mndStreamActionEnqueue(SStreamActionQ* pQueue, SStreamQNode* param) {
+  pQueue->tail->next = param;
+  pQueue->tail = param;
+
+  atomic_add_fetch_64(&pQueue->qRemainNum, 1);
+}
+
+
+static void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamName, MND_STREAM_ACTION action) {
+  SStreamQNode *pNode = taosMemoryMalloc(sizeof(SStreamQNode) + strlen(streamName) + 1);
+  if (NULL == pNode) {
     return;
   }
 
-  *(int64_t*)pReq = streamId;
+  pNode->streamId = streamId;
+  pNode->streamName = pNode + 1;
+  pNode->action = action;
   
-  TAOS_STRNCPY((char*)pReq + sizeof(streamId), streamName, contLen - sizeof(streamId));
+  pNode->next = NULL;
   
-  SRpcMsg rpcMsg = {.msgType = msgType, .pCont = pReq, .contLen = contLen};
+  TAOS_STRCPY(pNode->streamName, streamName);
 
-  if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-    mstError("failed to put deploy msg since %s", terrstr());
-    rpcFreeCont(pReq);
-  }
+  mndStreamActionEnqueue(&mStreamMgmt.actionQ[streamGetTargetQIdx(mStreamMgmt.qNum, STREAM_GID(streamId))], pNode);
 }
 
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
@@ -1169,6 +1112,8 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return code;
   }
+
+  mndStreamPostAction(pMnode, streamId, pStream->pCreate->name, STREAM_ACTION_UNDEPLOY);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -1239,6 +1184,8 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return code;
   }
+
+  mndStreamPostAction(pMnode, streamId, pStream->pCreate->name, STREAM_ACTION_DEPLOY);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -1312,6 +1259,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
+  mndStreamPostAction(pMnode, streamId, pStream->pCreate->name, STREAM_ACTION_UNDEPLOY);
+
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, &pTrans);
   if (pTrans == NULL || code) {
@@ -1341,10 +1290,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   auditRecord(pReq, pMnode->clusterId, "dropStream", "", pStream->pCreate->streamDB, dropReq.sql, strlen(dropReq.sql));
-
-  mndStreamStartToAct(pMnode, streamId, dropReq.name, TDMT_MND_STREAM_ACT_DROP);
-
-  atomic_add_fetch_64(&mStreamMgmt.actionNum, 1);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -1439,9 +1384,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   auditRecord(pReq, pMnode->clusterId, "createStream", pCreate->streamDB, pCreate->name, pCreate->sql, strlen(pCreate->sql));
 
-  mndStreamStartToAct(pMnode, streamId, pCreate->name, TDMT_MND_STREAM_ACT_DEPLOY);
-
-  atomic_add_fetch_64(&mStreamMgmt.actionNum, 1);
+  mndStreamPostAction(pMnode, streamId, pStream->pCreate->name, STREAM_ACTION_DEPLOY);
 
 _OVER:
 
@@ -1486,12 +1429,10 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_PAUSE_STREAM, mndProcessPauseStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESUME_STREAM, mndProcessResumeStreamReq);
-  
-  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_ACT_DEPLOY, msmLaunchStreamDepolyAction);
-  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_ACT_DROP, msmLaunchStreamDropAction);
+
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);  
 #endif  
 
-  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);
 
   mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessPauseStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessPauseStreamReq);
@@ -1502,7 +1443,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndRetrieveStreamTask);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndCancelGetNextStreamTask);
 
-  int32_t code = msmInitRuntimeInfo();
+  int32_t code = msmInitRuntimeInfo(pMnode);
   if (code) {
     return code;
   }

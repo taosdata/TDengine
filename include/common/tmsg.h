@@ -3198,13 +3198,17 @@ typedef union {
 } SStreamTrigger;
 
 typedef struct {
+  SArray* vgList;
+  void*   scanPlan;
+} SStreamCalcScan;
+
+typedef struct {
   char*    name;
   int64_t  streamId;
   char*    sql;
   
   char*   streamDB;
   char*   triggerDB;
-  char*   sourceDB;
   char*   outDB;
   
   char*   triggerTblName;  // table name
@@ -3236,7 +3240,6 @@ typedef struct {
   SStreamTrigger trigger;
 
   int8_t   triggerTblType;
-  int8_t   sourceTblType;
   int8_t   outTblType;
   int8_t   outStbExists;
   uint64_t outStbUid;
@@ -3245,18 +3248,17 @@ typedef struct {
   int64_t  tsmaId;
 
   // only for child table and normal table
-  SArray*  triggerTblVgroups;
-  SArray*  calcTblVgroups;
-  SArray*  outTblVgroups;
+  int32_t  triggerTblVgId;
+  int32_t  outTblVgId;
 
   // reader part
-  void*     prevFilter;
-  void*     walScan;
-  void*     triggerTsdbScan;  // for trigger action
-  void*     calcTsdbScan;     // for calc action
+  void*     triggerPrevFilter;
+  void*     triggerWalScanPlan;
+  void*     triggerTsdbScanPlan;  // for trigger action
+  SArray*   calcScanPlanList;     // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
-  SArray*  pVSubTables; // array of SVSubTablesRsp
+  SArray*   pVSubTables; // array of SVSubTablesRsp
   
   // runner part
   void*     calcPlan;      // for calc action

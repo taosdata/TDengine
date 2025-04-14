@@ -769,7 +769,7 @@ typedef struct {
   int32_t version;
   int32_t totalLevel;
 
-  int8_t  paused;
+  int8_t  stopped;
   int8_t  status;
   int64_t streamDBId;
   int64_t triggerDBId;

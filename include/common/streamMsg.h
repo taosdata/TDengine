@@ -25,7 +25,6 @@ extern "C" {
 typedef struct SStreamRetrieveReq SStreamRetrieveReq;
 typedef struct SStreamDispatchReq SStreamDispatchReq;
 typedef struct STokenBucket       STokenBucket;
-typedef struct SMetaHbInfo        SMetaHbInfo;
 
 typedef struct SNodeUpdateInfo {
   int32_t nodeId;
@@ -174,13 +173,17 @@ typedef struct SStreamTaskCheckpointReq {
 int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq);
 int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq);
 
+typedef struct SStreamStatus {
+  int64_t streamId;
+  int64_t taskId;
+  
+} SStreamStatus;
+
 typedef struct SStreamHbMsg {
-  int32_t vgId;
-  int32_t msgId;
-  int64_t ts;
-  int32_t numOfTasks;
-  SArray* pTaskStatus;   // SArray<STaskStatusEntry>
-  SArray* pUpdateNodes;  // SArray<int32_t>, needs update the epsets in stream tasks for those nodes.
+  int32_t dnodeId;
+  int32_t streamGId;
+  SArray* pVgToLeader;   // SArray<int32_t>
+  SArray* pStreamStatus;  // SArray<SStreamStatus>
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);

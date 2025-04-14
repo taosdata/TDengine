@@ -23,9 +23,16 @@
 extern "C" {
 #endif
 
+typedef enum {
+  STREAM_ACTION_DEPLOY,
+  STREAM_ACTION_UNDEPLOY,
+} MND_STREAM_ACTION;
+
 #define MND_STREAM_RESERVE_SIZE      64
-#define MND_STREAM_VER_NUMBER        5
+#define MND_STREAM_VER_NUMBER        6
 #define MND_STREAM_TRIGGER_NAME_SIZE 20
+#define MND_STREAM_DEFAULT_NUM       100
+#define MND_STREAM_DEFAULT_TASK_NUM  200
 
 #define MND_STREAM_CREATE_NAME       "stream-create"
 #define MND_STREAM_PAUSE_NAME        "stream-pause"
@@ -45,21 +52,47 @@ typedef struct SVgroupChangeInfo {
   SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
 } SVgroupChangeInfo;
 
+typedef struct SStreamQNode {
+  int64_t              streamId;
+  char*                streamName;
+  MND_STREAM_ACTION    action;
+  struct SStmtQNode*   next;
+} SStreamQNode;
+
+typedef struct SStreamActionQ {
+  bool          stopQueue;
+  SStreamQNode* head;
+  SStreamQNode* tail;
+  uint64_t      qRemainNum;
+} SStreamActionQ;
+
+typedef struct SStreamTaskState {
+  int64_t taskId;
+  int32_t nodeId;
+  int64_t lastUpTs;
+} SStreamTaskState;
+
+typedef struct SStreamTasksInfo {
+  SArray* readerTaskList;    // SArray<SStreamTaskState>
+  SArray* triggerTaskList;
+  SArray* runnerTaskList;
+} SStreamTasksInfo;
+
+
 typedef struct SStreamRuntime {
-  int64_t          actionNum;
-  int64_t          actionDone;
+  int32_t          qNum;
+  SStreamActionQ*  actionQ;
+
+  SHashObj*        streamMap;
+  SHashObj*        taskMap;
+  SHashObj*        vgroupMap;
+  SHashObj*        snodeMap;
+  SHashObj*        dnodeMap;
   
   int32_t          role;
   bool             switchFromFollower;
   bool             initTaskList;
-  SArray          *pNodeList;
-  SHashObj        *pTaskMap;
-  SArray          *pTaskList;
   TdThreadMutex    lock;
-  SHashObj        *pTransferStateStreams;
-  SHashObj        *pChkptStreams;  // use to update the checkpoint info, if all tasks send the checkpoint-report msgs
-  SHashObj        *pStreamConsensus;
-  SArray          *pKilledChkptTrans;  // SArray<SStreamTaskResetMsg>
 } SStreamRuntime;
 
 extern SStreamRuntime         mStreamMgmt;
