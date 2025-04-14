@@ -2553,13 +2553,6 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
             enableManualCommit->valuestring;
     }
 
-    tools_cJSON *enableHeartbeatBackground = tools_cJSON_GetObjectItem(
-            tmqInfo, "enable.heartbeat.background");
-    if (tools_cJSON_IsString(enableHeartbeatBackground)) {
-        g_tmqInfo.consumerInfo.enableHeartbeatBackground =
-            enableHeartbeatBackground->valuestring;
-    }
-
     tools_cJSON *snapshotEnable = tools_cJSON_GetObjectItem(
             tmqInfo, "experimental.snapshot.enable");
     if (tools_cJSON_IsString(snapshotEnable)) {
