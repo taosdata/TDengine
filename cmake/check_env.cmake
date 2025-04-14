@@ -1,3 +1,6 @@
+# NOTE: if you change this option later, that'll NOT effect unless you remove CMakeCache.txt beforehand
+option(TD_CHECK_SYSTEM_EXTERNALS "if check and externals installed on the system or not" OFF)
+
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
   if(NOT BREW_PREFIX)
       execute_process(COMMAND brew --prefix OUTPUT_VARIABLE BREW_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -51,6 +54,11 @@ macro(check_lib)
     set(CMAKE_REQUIRED_FLAGS)
   endif()
 endmacro()
+
+if(NOT TD_CHECK_SYSTEM_EXTERNALS)
+  message(STATUS "does not check and use externals installed on the system")
+  return()
+endif()
 
 # sudo apt install libgeos-dev
 check_lib(
