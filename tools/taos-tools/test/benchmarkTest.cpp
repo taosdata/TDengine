@@ -46,6 +46,7 @@ void appendResultBufToFile(char *resultBuf, char * filePath);
 int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
 void prompt(bool nonStopMode);
+void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res);
 
 #ifdef __cplusplus
 }
@@ -110,6 +111,13 @@ TEST(benchUtil, convertHostToServAddr) {
   struct sockaddr_in  serv_addr;
   ASSERT_EQ(convertHostToServAddr(NULL, 0, &serv_addr), -1);
   ASSERT_EQ(convertHostToServAddr((char *)"invalid.host", 0, &serv_addr), -1);
+}
+
+TEST(benchUtil, printErrCmdCodeStr) {
+  char msg[600];
+  memset(msg, 'a', sizeof(msg));
+  msg[sizeof(msg) - 1] = 0;
+  printErrCmdCodeStr(msg, 0, NULL);
 }
 
 // basic

@@ -1032,9 +1032,7 @@ FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {
     char buff[530];
     char *msg = cmd;
     if (strlen(cmd) >= sizeof(buff)) {
-        TOOLS_STRNCPY(buff, cmd, 500);
-        buff[500] = 0;
-        strcat(buff, "...");
+        snprintf(buff, sizeof(buff), "%s", cmd);
         msg = buff;
     }
     errorPrint("%s error code: 0x%08x, reason: %s command %s\n", TIP_ENGINE_ERR,
