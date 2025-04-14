@@ -59,27 +59,27 @@ pub async fn tmq_to_local(
 
     let interval = config.interval.unwrap_or(Duration::from_secs(60 * 10));
     loop {
-        tmq_to_local_impl(config.clone(), cancel.clone()).await?;
-        tokio::time::sleep(interval).await;
+        let next_upcoming = config.upcoming.unwrap_or(Utc::now()) + interval;
 
+        tmq_to_local_impl(config.clone(), cancel.clone()).await?;
         // update upcoming
-        config.upcoming = Some(Utc::now());
+        config.upcoming = Some(next_upcoming);
     }
 }
 
 async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) -> Result<()> {
     tracing::debug!("backup config: {:#?}", config);
 
-    // 如果是初始备份, 则创建备份计划使用的 topic，创建备份目录
-    if config.is_initial_backup().await? {
-        config.create_topic().await?;
-        config.create_backup_dir().await?;
-    }
-
     // 等待并更新 upcoming
     wait_for_upcoming_impl(config.upcoming).await?;
     if config.upcoming.is_some() {
         config.upcoming = Some(Utc::now());
+    }
+
+    // 如果是初始备份, 则创建备份计划使用的 topic，创建备份目录
+    if config.is_initial_backup().await? {
+        config.create_topic().await?;
+        config.create_backup_dir().await?;
     }
 
     // 创建 consumer
@@ -983,7 +983,7 @@ async fn backup(
     tracing::info!("[{id}] backup done");
     Ok(())
 }
-/*** DEPRECATED CODES START ***/
+/*** DEPRECATED CODES END ***/
 
 #[cfg(test)]
 mod tests {

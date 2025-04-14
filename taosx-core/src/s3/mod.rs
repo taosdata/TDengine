@@ -306,7 +306,7 @@ mod tests {
         for i in 0..10 {
             let f = format!(
                 "./abc-{}-1-1.z",
-                (now - Duration::from_secs((10 - i) * 60)).timestamp()
+                (now - Duration::from_secs((10 - i) * 60)).timestamp_millis()
             );
             files.push(ZFileName::from_path(f).unwrap());
         }
