@@ -60,13 +60,6 @@ IF(TD_LINUX)
     target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
     target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
-    # util depends
-    target_link_directories(
-        shell_ut
-        PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
-        PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
-    )
-
     # unit test
     IF(${BUILD_TEST})
         ADD_SUBDIRECTORY(test)

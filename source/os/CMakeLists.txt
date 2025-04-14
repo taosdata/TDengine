@@ -35,6 +35,9 @@ target_include_directories(
 )
 
 # iconv
+# NOTE: since we use DEP_ext_iconv under windows
+#       reconsider using find_path or not later!!!
+#       btw, on macos, `brew install iconv` is an prerequisite
 if(TD_WINDOWS)
     find_path(IconvApiIncludes iconv.h "${TD_SOURCE_DIR}/contrib/iconv")
 else()
@@ -55,10 +58,6 @@ endif()
 
 if(BUILD_ADDR2LINE)
     if(NOT TD_WINDOWS)
-        target_include_directories(
-            os
-            PUBLIC "${TD_SOURCE_DIR}/contrib/libdwarf/src/lib/libdwarf"
-        )
         target_link_libraries(
             os PUBLIC addr2line dl
         )
@@ -101,10 +100,6 @@ if(JEMALLOC_ENABLED)
     add_dependencies(os jemalloc)
 endif()
 
-# if(NOT ${TD_WINDOWS})
-# find_library(tz libtz.a "${TD_SOURCE_DIR}/contrib/tz")
-# target_link_libraries(os PUBLIC ${tz})
-# endif(NOT ${TD_WINDOWS})
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})

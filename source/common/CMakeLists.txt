@@ -72,12 +72,6 @@ if(${TD_WINDOWS})
       message(FATAL_ERROR "rpcrt4 library not found.")
   endif()
 
-  target_include_directories(
-    common
-    PRIVATE "${TD_SOURCE_DIR}/contrib/pthread"
-    PRIVATE "${TD_SOURCE_DIR}/contrib/msvcregex"
-  )
-
   target_link_libraries(
     common
 
@@ -138,11 +132,6 @@ if(${BUILD_S3})
     endif()
 
     include_directories(${APR_INCLUDE_DIR})
-    target_include_directories(
-      common
-      PUBLIC "${TD_SOURCE_DIR}/contrib/cos-c-sdk-v5/cos_c_sdk"
-      PUBLIC "$ENV{HOME}/.cos-local.1/include"
-    )
 
     add_definitions(-DUSE_COS)
   endif(${BUILD_WITH_COS})

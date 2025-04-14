@@ -1,5 +1,4 @@
 include_directories("${TD_SOURCE_DIR}/include/libs/function")
-include_directories("${TD_SOURCE_DIR}/contrib/libuv/include")
 include_directories("${TD_SOURCE_DIR}/include/util")
 include_directories("${TD_SOURCE_DIR}/include/common")
 include_directories("${TD_SOURCE_DIR}/include/client")

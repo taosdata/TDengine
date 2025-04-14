@@ -16,7 +16,6 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
@@ -46,7 +45,6 @@ target_include_directories(
     taosudf
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
