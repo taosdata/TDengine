@@ -944,7 +944,7 @@ void    tmfclose(FILE *fp);
 int64_t fetchResult(TAOS_RES *res, char *filePath);
 void    prompt(bool NonStopMode);
 int     getServerVersionRest(int16_t rest_port);
-int     postProceSql(char *sqlstr, char* dbName, int precision, int iface,
+int     postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
                     int protocol, uint16_t rest_port, bool tcp,
                     int sockfd, char* filePath);
 int     queryDbExecCall(SBenchConn *conn, char *command);

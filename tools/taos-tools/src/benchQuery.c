@@ -28,7 +28,7 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
     TOOLS_STRNCPY(dbName, g_queryInfo.dbName, TSDB_DB_NAME_LEN);
 
     if (g_queryInfo.iface == REST_IFACE) {
-        int retCode = postProceSql(command, g_queryInfo.dbName, 0, REST_IFACE,
+        int retCode = postProcessSql(command, g_queryInfo.dbName, 0, REST_IFACE,
                                    0, g_arguments->port, false,
                                    pThreadInfo->sockfd, pThreadInfo->filePath);
         if (0 != retCode) {

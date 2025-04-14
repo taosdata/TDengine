@@ -428,7 +428,7 @@ static void *queryStableAggrFunc(void *sarg) {
             double t = (double)toolsGetTimestampUs();
             int32_t code = -1;
             if (REST_IFACE == g_arguments->iface) {
-                code = postProceSql(command, NULL, 0, REST_IFACE,
+                code = postProcessSql(command, NULL, 0, REST_IFACE,
                                     0, g_arguments->port, 0,
                                     pThreadInfo->sockfd, NULL);
             } else {
@@ -506,7 +506,7 @@ static void *queryNtableAggrFunc(void *sarg) {
             double    t = (double)toolsGetTimestampUs();
             int32_t code = -1;
             if (REST_IFACE == g_arguments->iface) {
-                code = postProceSql(command, NULL, 0, REST_IFACE,
+                code = postProcessSql(command, NULL, 0, REST_IFACE,
                                     0, g_arguments->port, 0,
                                     pThreadInfo->sockfd, NULL);
             } else {

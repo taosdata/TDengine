@@ -52,7 +52,7 @@ static int getSuperTableFromServerRest(
         return -1;
     }
 
-    int code = postProceSql(command,
+    int code = postProcessSql(command,
                          database->dbName,
                          database->precision,
                          REST_IFACE,
@@ -645,7 +645,7 @@ int createDatabaseRest(SDataBase* database) {
                 ? "DROP DATABASE IF EXISTS `%s`;"
                 : "DROP DATABASE IF EXISTS %s;",
              database->dbName);
-    code = postProceSql(command,
+    code = postProcessSql(command,
                         database->dbName,
                         database->precision,
                         REST_IFACE,
@@ -661,7 +661,7 @@ int createDatabaseRest(SDataBase* database) {
     // create database
     int remainVnodes = INT_MAX;
     geneDbCreateCmd(database, command, remainVnodes);
-    code = postProceSql(command,
+    code = postProcessSql(command,
                         database->dbName,
                         database->precision,
                         REST_IFACE,
@@ -676,7 +676,7 @@ int createDatabaseRest(SDataBase* database) {
                 "re-create database %s\n",
                 g_arguments->trying_interval, database->dbName);
         toolsMsleep(g_arguments->trying_interval);
-        code = postProceSql(command,
+        code = postProcessSql(command,
                         database->dbName,
                         database->precision,
                         REST_IFACE,
@@ -1344,7 +1344,7 @@ int32_t execInsert(threadInfo *pThreadInfo, uint32_t k, int64_t *delay3) {
         // REST
         case REST_IFACE:
             debugPrint("buffer: %s\n", pThreadInfo->buffer);
-            code = postProceSql(pThreadInfo->buffer,
+            code = postProcessSql(pThreadInfo->buffer,
                                 database->dbName,
                                 database->precision,
                                 stbInfo->iface,
@@ -1357,7 +1357,7 @@ int32_t execInsert(threadInfo *pThreadInfo, uint32_t k, int64_t *delay3) {
                 infoPrint("will sleep %"PRIu32" milliseconds then re-insert\n",
                           trying_interval);
                 toolsMsleep(trying_interval);
-                code = postProceSql(pThreadInfo->buffer,
+                code = postProcessSql(pThreadInfo->buffer,
                                     database->dbName,
                                     database->precision,
                                     stbInfo->iface,
@@ -1455,7 +1455,7 @@ int32_t execInsert(threadInfo *pThreadInfo, uint32_t k, int64_t *delay3) {
         case SML_REST_IFACE: {
             if (TSDB_SML_JSON_PROTOCOL == protocol
                     || SML_JSON_TAOS_FORMAT == protocol) {
-                code = postProceSql(pThreadInfo->lines[0], database->dbName,
+                code = postProcessSql(pThreadInfo->lines[0], database->dbName,
                                     database->precision, stbInfo->iface,
                                     protocol, g_arguments->port,
                                     stbInfo->tcpTransfer,
@@ -1490,7 +1490,7 @@ int32_t execInsert(threadInfo *pThreadInfo, uint32_t k, int64_t *delay3) {
                 if (g_arguments->terminate) {
                     break;
                 }
-                code = postProceSql(pThreadInfo->buffer, database->dbName,
+                code = postProcessSql(pThreadInfo->buffer, database->dbName,
                         database->precision,
                         stbInfo->iface, protocol,
                         g_arguments->port,

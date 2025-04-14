@@ -1452,7 +1452,7 @@ int trimCaseCmp(char *str1, char *str2) {
 
 int32_t queryDbExecRest(char *command, char* dbName, int precision,
                     int iface, int protocol, bool tcp, int sockfd) {
-    int32_t code = postProceSql(command,
+    int32_t code = postProcessSql(command,
                          dbName,
                          precision,
                          iface,
@@ -1763,7 +1763,7 @@ int getCodeFromResp(char *responseBuf) {
     return code;
 }
 
-int postProceSql(char *sqlstr, char* dbName, int precision, int iface,
+int postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
                  int protocol, uint16_t rest_port,
                  bool tcp, int sockfd, char* filePath) {
     uint64_t response_length;
