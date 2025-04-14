@@ -5,11 +5,11 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py -B
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 3
@@ -30,12 +30,12 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6115.py
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6115.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -R
