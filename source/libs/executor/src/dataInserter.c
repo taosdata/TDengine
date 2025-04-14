@@ -512,6 +512,10 @@ int32_t createDataInserter(SDataSinkManager* pManager, SDataSinkNode** ppDataSin
   SNode*  pNode = NULL;
   int32_t i = 0;
   FOREACH(pNode, pInserterNode->pCols) {
+    // 忽略tbname
+    if (pNode->type != QUERY_NODE_COLUMN) {
+      continue;
+    }
     SColumnNode* pCol = (SColumnNode*)pNode;
     QRY_ERR_JRET(taosHashPut(inserter->pCols, &pCol->colId, sizeof(pCol->colId), &pCol->slotId, sizeof(pCol->slotId)));
     if (inserter->fullOrderColList && pCol->colId != inserter->pSchema->columns[i].colId) {
