@@ -842,6 +842,10 @@ static void destroyForecastInfo(void* param) {
 
   blockDataDestroy(pInfo->pRes);
   pInfo->pRes = NULL;
+
+  taosArrayDestroy(pInfo->forecastSupp.pCovariateSlotList);
+  pInfo->forecastSupp.pCovariateSlotList = NULL;
+
   cleanupExprSupp(&pInfo->scalarSup);
   taosAnalyBufDestroy(&pInfo->forecastSupp.analyBuf);
   taosMemoryFreeClear(param);

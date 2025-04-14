@@ -158,6 +158,7 @@ int32_t taosAnalyGetOpts(const char *pOption, SHashObj **pOptHash) {
     char  **pParts = strsplit(pList[i], "=", &parts);
 
     if (parts < 2) {  // invalid parameters, ignore and continue
+      taosMemoryFree(pParts);
       continue;
     }
 
@@ -169,10 +170,13 @@ int32_t taosAnalyGetOpts(const char *pOption, SHashObj **pOptHash) {
       // return error
       taosMemoryFree(pTmp);
       taosMemoryFree(pList);
+      taosMemoryFree(pParts);
       return code;
     } else {
       code = 0;
     }
+
+    taosMemoryFree(pParts);
   }
 
   taosMemoryFree(pTmp);
