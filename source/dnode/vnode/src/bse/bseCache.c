@@ -23,11 +23,11 @@ typedef struct {
   SHashObj *pCache;
   SList    *lruList;
 
-  CacheElemFn   freeElemFunc;
-  TdThreadMutex mutex;
+  SCacheFreeElemFn freeElemFunc;
+  TdThreadMutex    mutex;
 } SLruCache;
 
-static int32_t lruCacheCreate(int32_t cap, int32_t keySize, CacheElemFn freeElemFunc, SLruCache **pCache);
+static int32_t lruCacheCreate(int32_t cap, int32_t keySize, SCacheFreeElemFn freeElemFunc, SLruCache **pCache);
 static int32_t lruCacheGet(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void **pElem);
 static int32_t lruCachePut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pElem);
 static int32_t lruCacheRemove(SLruCache *pCache, SSeqRange *key, int32_t keyLen);
@@ -45,7 +45,7 @@ void freeItemInListNode(SListNode *pItem, CacheFreeFn fn) {
   }
 }
 
-int32_t lruCacheCreate(int32_t cap, int32_t keySize, CacheElemFn freeElemFunc, SLruCache **pCache) {
+int32_t lruCacheCreate(int32_t cap, int32_t keySize, SCacheFreeElemFn freeElemFunc, SLruCache **pCache) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -254,7 +254,7 @@ int32_t tableCacheOpen(int32_t cap, CacheFreeFn fn, STableCache **p) {
     return terrno;
   }
 
-  code = lruCacheCreate(cap, sizeof(SSeqRange), (CacheElemFn)fn, (SLruCache **)&pCache->pCache);
+  code = lruCacheCreate(cap, sizeof(SSeqRange), (SCacheFreeElemFn)fn, (SLruCache **)&pCache->pCache);
   if (code != 0) {
     TSDB_CHECK_CODE(code, line, _error);
   }
@@ -334,7 +334,7 @@ int32_t tableCacheResize(STableCache *pCache, int32_t newCap) {
   code = lruCacheResize((SLruCache *)pCache->pCache, newCap);
   return code;
 }
-int32_t blockCacheOpen(int32_t cap, CacheElemFn freeFn, SBlockCache **pCache) {
+int32_t blockCacheOpen(int32_t cap, SCacheFreeElemFn freeFn, SBlockCache **pCache) {
   int32_t code = 0;
   int32_t lino = 0;
 

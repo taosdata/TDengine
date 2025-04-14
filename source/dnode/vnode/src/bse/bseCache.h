@@ -24,12 +24,12 @@
 extern "C" {
 #endif
 
-typedef void (*CacheElemFn)(void *p);
+typedef void (*SCacheFreeElemFn)(void *p);
 typedef struct {
-  void       *pItem;
-  SSeqRange   pKey;
-  SListNode  *pNode;
-  CacheElemFn freeFunc;
+  void            *pItem;
+  SSeqRange        pKey;
+  SListNode       *pNode;
+  SCacheFreeElemFn freeFunc;
   T_REF_DECLARE()
 
 } SCacheItem;
