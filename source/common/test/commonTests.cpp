@@ -16,6 +16,7 @@
 #include "ttime.h"
 #include "ttokendef.h"
 #include "tvariant.h"
+#include "tanalytics.h"
 
 namespace {
 //
@@ -918,6 +919,90 @@ TEST(TaosSetSlowLogScopeTest, MixedScopesInputWithSpaces) {
   int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+}
+
+TEST(testCase, function_param_check) {
+  char* param = (char*) taosMemoryMalloc(1024);
+  strcpy(param, "'algorithm=arima, frows=12'");
+
+  SHashObj* p = NULL;
+  int32_t code = taosAnalyGetOpts(param, &p);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 2);
+
+    void* pVal = taosHashGet(p, "algo", strlen("algo"));
+    EXPECT_TRUE(pVal == NULL);
+
+    pVal = taosHashGet(p, "rows", strlen("rows"));
+    EXPECT_TRUE(pVal == NULL);
+
+    pVal = taosHashGet(p, "frows", strlen("frows"));
+    EXPECT_STREQ((char*) pVal, "12");
+
+    pVal = taosHashGet(p, "algorithm", strlen("algorithm"));
+    EXPECT_STREQ((char*) pVal, "arima");
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, " ");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 0);
+
+    void* pVal = taosHashGet(p, "algorithm", strlen("algorithm"));
+    EXPECT_TRUE(pVal == NULL);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, " , , ,");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 0);
+
+    void* pVal = taosHashGet(p, "algorithm", strlen("algorithm"));
+    EXPECT_TRUE(pVal == NULL);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, "a, b, c,");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 0);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, "\" a, b, c, d = 12 \"");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 1);
+
+    void* pVal = taosHashGet(p, "d", strlen("d"));
+    EXPECT_STREQ((char*) pVal, "12");
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, "\" a, b, c, d = , c = 911 \"");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 1);
+
+    void* pVal = taosHashGet(p, "d", strlen("d"));
+    EXPECT_STREQ((char*) pVal, "12");
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
 }
 
 #pragma GCC diagnostic pop

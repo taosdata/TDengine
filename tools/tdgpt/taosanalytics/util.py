@@ -17,9 +17,6 @@ def validate_pay_load(json_obj):
     if len(data) <= 1:
         raise ValueError('only one column, primary timestamp column should be provided')
 
-    if len(data) > 2:
-        raise ValueError('too many columns')
-
     rows = len(data[0])
 
     if rows != len(data[1]):

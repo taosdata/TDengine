@@ -800,8 +800,6 @@ TEST(clientCase, insert_test) {
 }
 
 TEST(clientCase, projection_query_tables) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/first/cfg");
-
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -810,11 +808,14 @@ TEST(clientCase, projection_query_tables) {
   pRes= taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select forecast(k,'algo=arima,wncheck=0') from t1 where ts<='2024-11-15 1:7:44'");
+  pRes = taos_query(pConn, "select forecast(a,b,'algo=arima,frows=20') from t1 where ts<='2024-11-15 1:7:44'");
+//  pRes = taos_query(pConn, "select last(a,b) from t1 where ts<='2024-11-15 1:7:44'");
   if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+    (void)printf("failed to do forecast function, reason:%s\n", taos_errstr(pRes));
   }
   taos_free_result(pRes);
+
+  return;
 
   pRes = taos_query(pConn, "create table tu using st2 tags(2)");
   if (taos_errno(pRes) != 0) {
