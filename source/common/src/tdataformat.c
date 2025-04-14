@@ -2376,7 +2376,7 @@ static int32_t (*tColDataGetValueImpl[])(SColData *pColData, int32_t iVal, SColV
     tColDataGetValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
 };
 int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
-  if (iVal >= 0 && iVal < pColData->nVal && pColData->flag) {
+  if (!(iVal >= 0 && iVal < pColData->nVal && pColData->flag)) {
     return TSDB_CODE_INVALID_PARA;
   }
   return tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
@@ -2703,25 +2703,36 @@ static int32_t tColDataCopyRowSingleCol(SColData *pFromColData, int32_t iFromRow
 
   switch (pFromColData->flag) {
     case HAS_NONE:
+      ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_NONE);
+      break;
     case HAS_NULL:
+      ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_NULL);
       break;
     case (HAS_NULL | HAS_NONE): {
       bit_val = GET_BIT1(pFromColData->pBitMap, iFromRow);
-      if ((HAS_VALUE | HAS_NULL | HAS_NONE) == pToColData->flag)
-          SET_BIT2(pToColData->pBitMap, iToRow, bit_val);
+      if (0 == bit_val)
+        ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_NONE);
       else
-          SET_BIT1(pToColData->pBitMap, iToRow, bit_val);
+        ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_NULL);
     } break;
     case HAS_VALUE: {
+      ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_VALUE);
       tColDataCopyRowCell(pFromColData, iFromRow, pToColData, iToRow);
     } break;
     case (HAS_VALUE | HAS_NONE):
+      bit_val = GET_BIT1(pFromColData->pBitMap, iFromRow);
+      if (0 == bit_val)
+        ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_NONE);
+      else
+        ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_VALUE);
+      tColDataCopyRowCell(pFromColData, iFromRow, pToColData, iToRow);
+      break;
     case (HAS_VALUE | HAS_NULL): {
       bit_val = GET_BIT1(pFromColData->pBitMap, iFromRow);
-      if ((HAS_VALUE | HAS_NULL | HAS_NONE) == pToColData->flag)
-          SET_BIT2(pToColData->pBitMap, iToRow, bit_val);
+      if (0 == bit_val)
+        ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_NULL);
       else
-          SET_BIT1(pToColData->pBitMap, iToRow, bit_val);
+        ROW_SET_BITMAP(pToColData->pBitMap, pToColData->flag, iToRow, BIT_FLG_VALUE);
       tColDataCopyRowCell(pFromColData, iFromRow, pToColData, iToRow);
     } break;
     case (HAS_VALUE | HAS_NULL | HAS_NONE): {
