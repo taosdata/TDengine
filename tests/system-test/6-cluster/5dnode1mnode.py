@@ -87,7 +87,7 @@ class TDTestCase:
             dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
             dnode_first_host = dnode.cfgDict["firstEp"].split(":")[0]
             dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
-            cmd = f"{self.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s \"create dnode \\\"{dnode_id}\\\"\""
+            cmd = f"{self.getBuildPath()}/build/bin/taos -h {dnode_first_host} -s \"create dnode \\\"{dnode_id}\\\"\""
             print(cmd)
             os.system(cmd)
 
