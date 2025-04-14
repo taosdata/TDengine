@@ -168,7 +168,7 @@ sc.exe stop taos-explorer # Windows
 
     Here is an example of a CORS setting in an Nginx configuration file:
 
-    ```conf
+    ```nginx
     http {
       server {
             listen 6060;
@@ -181,7 +181,6 @@ sc.exe stop taos-explorer # Windows
                     add_header 'Access-Control-Allow-Credentials' 'true';
                     add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
 
-```nginx
                     add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
 
                     add_header 'Access-Control-Max-Age' 86400;
@@ -217,7 +216,7 @@ sc.exe stop taos-explorer # Windows
             server 192.168.1.68:6060 ;
         }
     }
-```
+    ```
 
 ## Registration and Login
 

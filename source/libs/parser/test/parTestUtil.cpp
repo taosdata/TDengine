@@ -66,7 +66,8 @@ int32_t getLogLevel() { return g_logLevel; }
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {
-    assert(TSDB_CODE_SUCCESS == qInitKeywordsTable());
+    int32_t code = qInitKeywordsTable();
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == code);
     caseEnv_.numOfSkipSql_ = g_skipSql;
     caseEnv_.numOfLimitSql_ = g_limitSql;
   }

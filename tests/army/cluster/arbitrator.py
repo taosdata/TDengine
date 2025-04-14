@@ -28,21 +28,34 @@ class TDTestCase(TBase):
         self.db = "test"
         self.stb = "meters"
         self.childtable_count = 10
+        tdLog.info(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), logSql)  
 
     def run(self):
+        tdLog.info("create database")
         tdSql.execute('CREATE DATABASE db vgroups 1 replica 2;')
+
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"create db transaction not finished")
+            return False
 
         time.sleep(1)
 
         tdSql.execute("use db;")
 
+        tdLog.info("create stable")
         tdSql.execute("CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);")
 
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"create stable transaction not finished")
+            return False
+
+        tdLog.info("create table")
         tdSql.execute("CREATE TABLE d0 USING meters TAGS (\"California.SanFrancisco\", 2);");
 
         count = 0
 
+        tdLog.info("waiting vgroup is sync")
         while count < 100:        
             tdSql.query("show arbgroups;")
 
@@ -58,17 +71,26 @@ class TDTestCase(TBase):
             tdLog.exit("arbgroup sync failed")
             return 
             
+        count = 0
+        while count < 100:
+            tdSql.query("show db.vgroups;")
 
-        tdSql.query("show db.vgroups;")
+            if(tdSql.getData(0, 4) == "follower") and (tdSql.getData(0, 7) == "leader"):
+                tdLog.info("stop dnode2")
+                sc.dnodeStop(2)
+                break
 
-        if(tdSql.getData(0, 4) == "follower") and (tdSql.getData(0, 7) == "leader"):
-            tdLog.info("stop dnode2")
-            sc.dnodeStop(2)
+            if(tdSql.getData(0, 7) == "follower") and (tdSql.getData(0, 4) == "leader"):
+                tdLog.info("stop dnode 3")
+                sc.dnodeStop(3)
+                break
+            
+            time.sleep(1)
+            count += 1
 
-        if(tdSql.getData(0, 7) == "follower") and (tdSql.getData(0, 4) == "leader"):
-            tdLog.info("stop dnode 3")
-            sc.dnodeStop(3)
-
+        if count == 100:
+            tdLog.exit("check leader and stop node failed")
+            return    
         
         count = 0
         while count < 100:

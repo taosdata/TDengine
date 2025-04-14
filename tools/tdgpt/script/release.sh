@@ -79,7 +79,7 @@ cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/b
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 
 # copy model files
-model_dir=${model_dir:-"/pkgs/TDengine/anode/"}
+model_dir=${model_dir:-""}
 model_install_dir="${install_dir}/model"
 
 if [ -d "${model_dir}" ]; then

@@ -19,6 +19,7 @@ SArguments*    g_arguments;
 SQueryMetaInfo g_queryInfo;
 STmqMetaInfo   g_tmqInfo;
 bool           g_fail = false;
+bool           g_stopping = false;
 uint64_t       g_memoryUsage = 0;
 tools_cJSON*   root;
 extern char    g_configDir[MAX_PATH_LEN];
@@ -33,7 +34,13 @@ uint64_t        g_argFlag = 0;
 #ifdef LINUX
 void benchQueryInterruptHandler(int32_t signum, void* sigingo, void* context) {
     infoPrint("%s", "Receive SIGINT or other signal, quit benchmark\n");
+    if (g_stopping) {
+        infoPrint("%s", "Benchmark process forced exit!\n");
+        exit(1);
+    }
+    
     sem_post(&g_arguments->cancelSem);
+    g_stopping = true;
 }
 
 void* benchCancelHandler(void* arg) {
@@ -42,9 +49,9 @@ void* benchCancelHandler(void* arg) {
     }
 
     g_arguments->terminate = true;
-    toolsMsleep(10);
+    toolsMsleep(5 * 1000);
 
-    return NULL;
+    exit(1);
 }
 #endif
 

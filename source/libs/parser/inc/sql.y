@@ -858,6 +858,7 @@ column_stream_def_list(A) ::= column_stream_def_list(B)
 column_stream_def(A) ::= column_name(B) stream_col_options(C).                    { A = createColumnDefNode(pCxt, &B, createDataType(TSDB_DATA_TYPE_NULL), C); }
 stream_col_options(A) ::= .                                                       { A = createDefaultColumnOptions(pCxt); }
 stream_col_options(A) ::= stream_col_options(B) PRIMARY KEY.                      { A = setColumnOptionsPK(pCxt, B); }
+stream_col_options(A) ::= stream_col_options(B) COMPOSITE KEY.                    { A = setColumnOptionsPK(pCxt, B); }
 //column_stream_def(A) ::= column_def(B).                                         { A = B; }
 
 %type tag_def_or_ref_opt                                                          { SNodeList* }
@@ -1872,6 +1873,7 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 
 column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
 column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptionsPK(pCxt, B); }
+column_options(A) ::= column_options(B) COMPOSITE KEY.                            { A = setColumnOptionsPK(pCxt, B); }
 column_options(A) ::= column_options(B) NK_ID(C) NK_STRING(D).                    { A = setColumnOptions(pCxt, B, &C, &D); }
 column_options(A) ::= column_options(B) FROM column_ref(C).                       { A = setColumnReference(pCxt, B, C); }
 

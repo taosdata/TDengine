@@ -484,7 +484,7 @@ void mptDestroySession(uint64_t qId, int64_t tId, int32_t eId, int32_t taskIdx, 
 
 
 void mptDestroyTaskCtx(SMPTestJobCtx* pJobCtx, int32_t taskIdx) {
-  assert(gMemPoolHandle);
+  TD_ALWAYS_ASSERT(gMemPoolHandle);
 
   SMPTestTaskCtx* pTask = &pJobCtx->taskCtxs[taskIdx];
 
@@ -571,11 +571,11 @@ int32_t mptInitSession(uint64_t qId, uint64_t tId, int32_t eId, SMPTestJobCtx* p
   char id[sizeof(tId) + sizeof(eId) + 1] = {0};
   MPT_SET_TEID(id, tId, eId);
 
-  assert(0 == taosMemPoolInitSession(gMemPoolHandle, ppSession, pJob->memInfo, id));
+  TD_ALWAYS_ASSERT(0 == taosMemPoolInitSession(gMemPoolHandle, ppSession, pJob->memInfo, id));
 
   atomic_add_fetch_32(&pJob->memInfo->remainSession, 1);
 
-  assert(0 == taosHashPut(pJob->pSessions, id, sizeof(id), ppSession, POINTER_BYTES));
+  TD_ALWAYS_ASSERT(0 == taosHashPut(pJob->pSessions, id, sizeof(id), ppSession, POINTER_BYTES));
 
   atomic_store_8(&pJob->initDone, 1);
 
@@ -617,7 +617,7 @@ void mptInitJob(int32_t idx) {
   
   for (int32_t i = 0; i < pJobCtx->taskNum; ++i) {
     mptInitTask(i, 0, pJobCtx);
-    assert(pJobCtx->pJob);
+    TD_ALWAYS_ASSERT(pJobCtx->pJob);
   }
 
   atomic_add_fetch_64(&mptCtx.runStat.initNum, 1);
@@ -633,8 +633,8 @@ void mptDestroyTask(SMPTestJobCtx* pJobCtx, int32_t taskIdx) {
     taosMemPoolGetSessionStat(pJobCtx->pSessions[taskIdx], &pStat, &allocSize, NULL);
     int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
     
-    assert(allocSize == usedSize);
-    assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[taskIdx].stat, sizeof(*pStat)));
+    TD_ALWAYS_ASSERT(allocSize == usedSize);
+    TD_ALWAYS_ASSERT(0 == memcmp(pStat, &pJobCtx->taskCtxs[taskIdx].stat, sizeof(*pStat)));
   }
   
   mptDestroyTaskCtx(pJobCtx, taskIdx);
@@ -801,7 +801,7 @@ void mptRetireJobCb(uint64_t jobId, uint64_t clientId, int32_t errCode) {
 }
 
 void mptInitPool(void) {
-  assert(0 == taosMemoryPoolInit(mptRetireJobsCb, mptRetireJobCb));
+  TD_ALWAYS_ASSERT(0 == taosMemoryPoolInit(mptRetireJobsCb, mptRetireJobCb));
 }
 
 
@@ -909,7 +909,7 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
           break;
         }
 
-        assert(pTask->pMemList[pTask->memIdx - 1].p);
+        TD_ALWAYS_ASSERT(pTask->pMemList[pTask->memIdx - 1].p);
         osize = mptMemorySize(pTask->pMemList[pTask->memIdx - 1].p);
         size++;
         pTask->pMemList[pTask->memIdx - 1].p = mptMemoryRealloc(pTask->pMemList[pTask->memIdx - 1].p, size);
@@ -948,13 +948,13 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
           break;
         }
 
-        assert(pTask->pMemList[pTask->memIdx - 1].p);
+        TD_ALWAYS_ASSERT(pTask->pMemList[pTask->memIdx - 1].p);
         osize = mptMemorySize(pTask->pMemList[pTask->memIdx - 1].p);
 
         pTask->pMemList[pTask->memIdx - 1].p = mptMemoryRealloc(pTask->pMemList[pTask->memIdx - 1].p, 0);
         pTask->stat.times.memFree.exec++;
         pTask->stat.bytes.memFree.exec+=osize;  
-        assert(NULL == pTask->pMemList[pTask->memIdx - 1].p);
+        TD_ALWAYS_ASSERT(NULL == pTask->pMemList[pTask->memIdx - 1].p);
 
         pTask->stat.times.memFree.succ++;
         pTask->stat.bytes.memFree.succ+=osize;  
@@ -1007,7 +1007,7 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         size /= 10;
 
         MPT_LOCK(MPT_WRITE, &mptCtx.stringLock);
-        assert(strlen(mptCtx.pSrcString) > size);
+        TD_ALWAYS_ASSERT(strlen(mptCtx.pSrcString) > size);
         pTask->pMemList[pTask->memIdx].p = mptStrndup(mptCtx.pSrcString, size);
         MPT_UNLOCK(MPT_WRITE, &mptCtx.stringLock);
 
@@ -1020,7 +1020,7 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
           return;
         }
 
-        assert(strlen((char*)pTask->pMemList[pTask->memIdx].p) == size);
+        TD_ALWAYS_ASSERT(strlen((char*)pTask->pMemList[pTask->memIdx].p) == size);
         nsize = mptMemorySize(pTask->pMemList[pTask->memIdx].p);
 
         pTask->stat.times.memStrndup.exec++;
@@ -1040,7 +1040,7 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
           break;
         }
 
-        assert(pTask->pMemList[pTask->memIdx - 1].p);
+        TD_ALWAYS_ASSERT(pTask->pMemList[pTask->memIdx - 1].p);
         osize = mptMemorySize(pTask->pMemList[pTask->memIdx - 1].p);
         mptMemoryFree(pTask->pMemList[pTask->memIdx - 1].p);
         pTask->stat.times.memFree.exec++;
@@ -1100,7 +1100,7 @@ void mptSimulateAction(SMPTestJobCtx* pJobCtx, SMPTestTaskCtx* pTask) {
         break;
       }
       default:
-        assert(0);
+        TD_ALWAYS_ASSERT(0);
         break;
     }
   }
@@ -1228,14 +1228,14 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
           taosMemPoolGetSessionStat(pJobCtx->pSessions[m], &pStat, &allocSize, NULL);
           int64_t usedSize = MEMPOOL_GET_USED_SIZE(pStat);
           
-          assert(allocSize == usedSize);
-          assert(0 == memcmp(pStat, &pJobCtx->taskCtxs[m].stat, sizeof(*pStat)));
+          TD_ALWAYS_ASSERT(allocSize == usedSize);
+          TD_ALWAYS_ASSERT(0 == memcmp(pStat, &pJobCtx->taskCtxs[m].stat, sizeof(*pStat)));
 
           jobUsedSize += allocSize;
         }
       }
       
-      assert(pJobCtx->pJob->memInfo->allocMemSize == jobUsedSize);
+      TD_ALWAYS_ASSERT(pJobCtx->pJob->memInfo->allocMemSize == jobUsedSize);
 
       MPT_UNLOCK(MPT_READ, &pJobCtx->jobExecLock);
 
@@ -1248,7 +1248,7 @@ void mptCheckPoolUsedSize(int32_t jobNum) {
       continue;
     }
 
-    assert(poolUsedSize <= usedSize);
+    TD_ALWAYS_ASSERT(poolUsedSize <= usedSize);
     break;
   }  
 }
@@ -1552,7 +1552,7 @@ void mptPrintTestBeginInfo(char* caseName, SMPTestParam* param) {
 
 void mptFreeAddrList(void** pList, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
-    assert(pList[i]);
+    TD_ALWAYS_ASSERT(pList[i]);
     taosMemFree(pList[i]);
   }
 }
@@ -1579,7 +1579,7 @@ TEST(PerfTest, GetSysAvail) {
   int64_t lt = st;
   for (int32_t i = 0; i < loopTimes; ++i) {
     code = taosGetSysAvailMemory(&freeSize);
-    assert(0 == code);
+    TD_ALWAYS_ASSERT(0 == code);
     //taosMsleep(1);
   }
   totalUs = taosGetTimestampUs() - st;
@@ -1597,7 +1597,7 @@ TEST(MiscTest, monSysAvailSize) {
   int32_t loopTimes = 1000000000;
   for (int32_t i = 0; i < loopTimes; ++i) {
     code = taosGetSysAvailMemory(&freeSize);
-    assert(0 == code);
+    TD_ALWAYS_ASSERT(0 == code);
     printf(" %" PRId64, freeSize);
     if (i && 0 == (i % 10)) {
       struct tm      Tm, *ptm;
@@ -1648,8 +1648,8 @@ TEST(PerfTest, allocLatency) {
 
   memset(mptCtx.jobCtxs, 0, sizeof(*mptCtx.jobCtxs));
 
-  assert(0 == taosMemPoolCallocJob(0, 0, (void**)&pJob));
-  assert(0 == taosMemPoolInitSession(gMemPoolHandle, &pSession, pJob, "id"));
+  TD_ALWAYS_ASSERT(0 == taosMemPoolCallocJob(0, 0, (void**)&pJob));
+  TD_ALWAYS_ASSERT(0 == taosMemPoolInitSession(gMemPoolHandle, &pSession, pJob, "id"));
 
   int32_t loopTimes = 10000000;
   int64_t st = 0;
@@ -2061,8 +2061,8 @@ TEST(functionsTest, internalFunc) {
 
   memset(mptCtx.jobCtxs, 0, sizeof(*mptCtx.jobCtxs));
 
-  assert(0 == taosMemPoolCallocJob(0, 0, (void**)&pJob));
-  assert(0 == taosMemPoolInitSession(gMemPoolHandle, &pSession, pJob, "id"));
+  TD_ALWAYS_ASSERT(0 == taosMemPoolCallocJob(0, 0, (void**)&pJob));
+  TD_ALWAYS_ASSERT(0 == taosMemPoolInitSession(gMemPoolHandle, &pSession, pJob, "id"));
 
   int32_t loopTimes = 1;
   int64_t st = 0;

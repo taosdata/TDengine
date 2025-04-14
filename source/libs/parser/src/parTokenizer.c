@@ -206,6 +206,7 @@ static SKeyword keywordTable[] = {
     {"POSITION",             TK_POSITION},
     {"PPS",                  TK_PPS},
     {"PRIMARY",              TK_PRIMARY},
+    {"COMPOSITE",            TK_COMPOSITE},
     {"PRECISION",            TK_PRECISION},
     {"PREV",                 TK_PREV},
     {"PRIVILEGES",           TK_PRIVILEGES},
