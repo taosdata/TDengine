@@ -8,6 +8,8 @@
   "confirm_parameter_prompt": "no",
   "databases": "db",
   "query_times": 1,
+  "kill_slow_query_threshold": 1,
+  "kill_slow_query_interval": 1,
   "reset_query_cache": "yes",
   "specified_table_query":
   {
