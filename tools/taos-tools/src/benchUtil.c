@@ -955,13 +955,13 @@ void benchSetSignal(int32_t signum, ToolsSignalHandler sigfp) {
 
 FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {    
     char buff[512];
-    // NOTE: yes, snprintf has lower performance than strncpy
-    int n = snprintf(buff, sizeof(buff), "%s", cmd);
-    if (n >=0 && (size_t)n >= sizeof(buff)) {
-      strcpy(buff + sizeof(buff) - 4, "...");
+    char *msg = cmd;
+    if (strlen(cmd) >= sizeof(buff)) {
+        snprintf(buff, sizeof(buff), "%s", cmd);
+        msg = buff;
     }
     errorPrint("%s error code: 0x%08x, reason: %s command %s\n", TIP_ENGINE_ERR,
-               code, taos_errstr(res), buff);
+               code, taos_errstr(res), msg);
     taos_free_result(res);
 }
 

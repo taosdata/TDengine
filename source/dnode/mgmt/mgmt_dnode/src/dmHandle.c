@@ -270,7 +270,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {
-    dError("failed to SendRecv with timeout %d status req since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
+    dError("failed to SendRecv status req with timeout %d since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
     return;
   }
 

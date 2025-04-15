@@ -139,6 +139,7 @@ struct SSyncNode {
   SSyncFSM* pFsm;
   int32_t   quorum;
   SRaftId   leaderCache;
+  SEp           leaderCacheEp;
   ESyncFsmState fsmState;
 
   // life cycle

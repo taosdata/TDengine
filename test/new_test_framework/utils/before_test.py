@@ -269,7 +269,7 @@ class BeforeTest:
                     "version": "2.4.0.0",
                     "config_file": adapter_config_file,
                     "adapter_config": {
-                        "logLevel": "info",
+                        "logLevel": "debug",
                         "port": 6041,
                         "taosConfigDir": taos_config_file,
                         "log": {"path": adapter_log_dir}

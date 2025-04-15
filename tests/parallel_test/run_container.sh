@@ -105,6 +105,7 @@ MOUNT_DIR=""
 # packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
 mkdir -p $SOURCEDIR
+mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/var_taoslog
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coredump
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/coredump/*
