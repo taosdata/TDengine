@@ -236,7 +236,7 @@ function run_thread() {
             real_start_time=$(date +%s)
             # $cmd 2>&1 | tee -a $case_log_file
             # ret=${PIPESTATUS[0]}
-            $cmd >>"$case_log_file" 2>&1
+            $cmd 2>&1 | tee "$case_log_file"
             ret=$?
             local real_end_time
             real_end_time=$(date +%s)
