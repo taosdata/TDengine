@@ -26,3 +26,9 @@ ldd /tmp/udf/libbitand.so
 ldd ../../debug/build/bin/taosudf
 ldd ../../../debug/build/bin/taosudf
 
+nm -S /tmp/udf/libbitand.so
+nm -S ../../debug/build/bin/taosudf | grep taosPrint
+nm -S ../../../debug/build/bin/taosudf | grep taosPrint
+
+true
+
