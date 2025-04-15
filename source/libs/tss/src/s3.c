@@ -15,7 +15,6 @@
 
 #include "tssInt.h"
 #include "libs3.h"
-#include "tutil.h"
 
 
 // use multipart upload for files larger than this size
@@ -80,7 +79,8 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
             val = NULL;
         }
 
-        if (taosStrcasecmp(key, "hostname") == 0) {
+        if (taosStrcasecmp(key, "endpoint") == 0) {
+            // endpoint is the host name of the S3 service
             ss->bucketContext.hostName = val;
         } else if (taosStrcasecmp(key, "bucket") == 0) {
             ss->bucketContext.bucketName = val;
@@ -114,11 +114,6 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
         }
     }
 
-    if (ss->bucketContext.hostName == NULL) {
-        tssError("hostname is not configured in access string: %s", as);
-        return false;
-    }
-
     if (ss->bucketContext.bucketName == NULL) {
         tssError("bucket is not configured in access string: %s", as);
         return false;
@@ -144,7 +139,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
 
 // createInstance creates a SSharedStorageS3 instance from the access string.
 // access string format:
-//  s3:hostname=xxx.yyy.com;bucket=xxx;uriStyle=path;protocol=https;accessKeyId=xxx;secretAccessKey=xxx;region=xxx
+//  s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=xxx;secretAccessKey=xxx;region=xxx
 static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS) {
     size_t asLen = strlen(accessString) + 1;
     S3Status status = S3_initialize("tdengine", S3_INIT_ALL, NULL);
@@ -156,7 +151,7 @@ static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS)
     SSharedStorageS3* ss = (SSharedStorageS3*)taosMemCalloc(1, sizeof(SSharedStorageS3) + asLen);
     if (!ss) {
         tssError("failed to allocate memory for SSharedStorageS3");
-        s3_deinitialize();
+        S3_deinitialize();
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
@@ -166,7 +161,7 @@ static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS)
     }
 
     taosMemFree(ss);
-    s3_deinitialize();
+    S3_deinitialize();
     TAOS_RETURN(TSDB_CODE_FAILED);
 }
 
@@ -175,7 +170,7 @@ static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS)
 static int32_t closeInstance(SSharedStorage* ss) {
     SSharedStorageS3* s = (SSharedStorageS3*)ss;
     taosMemFree(s);
-    s3_deinitialize();
+    S3_deinitialize();
     return TSDB_CODE_SUCCESS;
 }
 
@@ -249,12 +244,12 @@ static int shouldRetry() {
 // The inner upload source is only used for multipart upload, in which
 // case the inner source represents the original source of data, while
 // the outer represents the current part being uploaded.
-typedef struct {
-    TdFilePtr      file;
-    const char*    buf;
-    SUploadSource* src;
-    uint64_t       size;
-    uint64_t       offset;
+typedef struct SUploadSource {
+    TdFilePtr             file;
+    const char*           buf;
+    struct SUploadSource* src;
+    uint64_t              size;
+    uint64_t              offset;
 } SUploadSource;
 
 
@@ -334,7 +329,7 @@ static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSo
         tssError("failed to upload %s: %d/%s", dstPath, ucbd.status, ucbd.errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     } else if (src->size > src->offset) {
-        tssError("failed to put remaining %llu bytes", src->size - src->offset);
+        tssError("failed to put remaining %lu bytes", src->size - src->offset);
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -389,7 +384,7 @@ static int32_t initMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SU
     };
 
     do {
-        S3_initiate_multipart(&ss->bucketContext, dstPath, 0, &mih, 0, 0, &ucbd);
+        S3_initiate_multipart(&ss->bucketContext, dstPath, 0, &mih, 0, 0, ucbd);
     } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
 
     int32_t code = 0;
@@ -428,7 +423,7 @@ static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCa
                            ucbd->src->size,
                            NULL,
                            0,
-                           &ucbd);
+                           ucbd);
         } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
 
         if (ucbd->status != S3StatusOK) {
@@ -515,17 +510,17 @@ static int32_t doMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUpl
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    int32_t code = initMultipartUpload(ss, dstPath, &ucbd);
+    int32_t code = initMultipartUpload(ss, dstPath, ucbd);
     if (code != TSDB_CODE_SUCCESS) {
         TAOS_RETURN(code);
     }
 
-    code = uploadChunks(ss, dstPath, &ucbd);
+    code = uploadChunks(ss, dstPath, ucbd);
     if (code != TSDB_CODE_SUCCESS) {
         TAOS_RETURN(code);
     }
 
-    return commitMultipartUpload(ss, dstPath, &ucbd);
+    return commitMultipartUpload(ss, dstPath, ucbd);
 }
 
 
@@ -545,8 +540,6 @@ static void abortMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUpl
     if (ucbd->status != S3StatusOK) {
         tssError("failed to abort multipart upload %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
     }
-
-    return TSDB_CODE_SUCCESS;
 }
 
 
@@ -564,12 +557,12 @@ static int32_t multipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploa
     }
 
     if (ucbd.uploadId) {
-        free(ucbd.uploadId);
+        taosMemFree(ucbd.uploadId);
     }
 
     if (ucbd.etags) {
-        for (int i = 0; i <= ucbd.numChunks; i++) {
-            free(ucbd.etags[i]);
+        for (int i = 0; i < ucbd.numChunks; i++) {
+            taosMemFree(ucbd.etags[i]);
         }
         taosMemFree(ucbd.etags);
     }
@@ -580,7 +573,7 @@ static int32_t multipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploa
 
 
 // upload uploads a block of data to the shared storage at the specified path.
-// It uploads an empty file if size is 0.
+// It uploads an empty file if [size] is 0.
 static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data, int64_t size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -596,8 +589,8 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
 
 
 // uploadFile uploads a file to the shared storage at the specified path.
-// offset is the offset in the file, size is the size of the data to be uploaded.
-// If size is negative, upload until the end of the file. If size is 0, upload an empty file.
+// [offset] is the start offset of the file, [size] is the size of the data to be uploaded.
+// If [size] is negative, upload until the end of the file. If [size] is 0, upload an empty file.
 static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* srcPath, int64_t offset, int64_t size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -621,7 +614,7 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
         TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
 
-    TdFilePtr file = taosOpenCFile(srcPath, TD_FILE_READ);
+    TdFilePtr file = taosOpenFile(srcPath, TD_FILE_READ);
     if (file == NULL) {
         tssError("failed to open file %s: ", srcPath);
         TAOS_RETURN(terrno);
@@ -718,7 +711,7 @@ static int32_t doDownload(SSharedStorageS3* ss, const char* path, int64_t offset
             }
         }
 
-        S3_get_object(&ss->bucketContext, path, NULL, start, bytes, NULL, 0, &goh, &dcbd);
+        S3_get_object(&ss->bucketContext, path, NULL, start, bytes, NULL, 0, &goh, dcbd);
 
         if( dcbd->status == S3StatusErrorSlowDown ) {
             taosMsleep(taosRand() % 2000 + 1000);
@@ -739,9 +732,9 @@ static int32_t doDownload(SSharedStorageS3* ss, const char* path, int64_t offset
 
 
 
-// readFile reads a file or a block of a file from the shared storage to the local buffer.
-// read starts at offset and reads *size bytes.
-// *size is updated to the number of bytes read when the function returns.
+// readFile reads a file or a block of a file from the shared storage to [buffer].
+// read starts at [offset] and reads [*size] bytes.
+// [*size] is updated to the number of bytes read when the function returns.
 static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset, char* buffer, int64_t* size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
@@ -759,7 +752,6 @@ static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset
 static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char* dstPath, int64_t offset, int64_t size) {
     SSharedStorageS3* ss = (SSharedStorageS3*)pss;
 
-    int32_t code = 0;
     TdFilePtr file = taosOpenFile(dstPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     if (file == NULL) {
         tssError("failed to open file %s: ", dstPath);
@@ -778,22 +770,22 @@ static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char
 // functions and data structures for list
 
 typedef struct {
-    S3Status  status;
-    char      errMsg[512];
-    int isTruncated;
+    S3Status status;
+    char     errMsg[512];
+    int      isTruncated;
     char     nextMarker[1024];
-    SArray* paths;
+    SArray*  paths;
 } SListCallbackData;
 
 
 
 static S3Status listFileCallback(int                        isTruncated,
-                             const char*                nextMarker,
-                             int                        contentsCount,
-                             const S3ListBucketContent* contents,
-                             int                        commonPrefixesCount,
-                             const char**               commonPrefixes,
-                             void*                      cbd) {
+                                 const char*                nextMarker,
+                                 int                        contentsCount,
+                                 const S3ListBucketContent* contents,
+                                 int                        commonPrefixesCount,
+                                 const char**               commonPrefixes,
+                                 void*                      cbd) {
     SListCallbackData* lcbd = (SListCallbackData*)cbd;
 
     lcbd->isTruncated = isTruncated;
@@ -806,16 +798,21 @@ static S3Status listFileCallback(int                        isTruncated,
 
     lcbd->status = S3StatusOK;
     for (int i = 0; i < contentsCount; i++) {
-        char* path = strdup(contents[i].key);
+        const char* key = contents[i].key;
+        if (key[strlen(key) - 1] == '/') { // skip directories
+            continue;
+        }
+        
+        char* path = strdup(key);
         if (path == NULL) {
             tssError("failed to allocate memory for list path");
             lcbd->status = S3StatusOutOfMemory;
             break;
         }
 
-        if (taosArrayAppend(lcbd->paths, path) != 0) {
+        if (taosArrayPush(lcbd->paths, &path) == NULL) {
             tssError("failed to append path to list");
-            free(path);
+            taosMemFree(path);
             lcbd->status = S3StatusOutOfMemory;
             break;
         }
@@ -826,7 +823,7 @@ static S3Status listFileCallback(int                        isTruncated,
 
 
 
-// listFile lists the files in the shared storage with the specified prefix.
+// listFile lists the files in the shared storage with the specified prefix [prefix].
 // [paths] is a pointer to a new initialized SArray, which will be filled with the paths.
 // If the call succeeds, the caller is responsible for freeing the items in [paths]
 // and [paths] itself.
@@ -853,7 +850,13 @@ static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) 
     int32_t code = 0;
     if (lcbd.status != S3StatusOK) {
         tssError("failed to list %s: %d/%s", prefix, lcbd.status, lcbd.errMsg);
-        taosArrayClearEx(paths, taosMemFree);
+
+        for(size_t i = 0; i < taosArrayGetSize(paths); i++) {
+            char* path = *(char**)taosArrayGet(paths, i);
+            taosMemFree(path);
+        }
+        taosArrayClear(paths);
+
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -939,11 +942,17 @@ static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size)
 // Amazon S3
 static int32_t s3CreateInstance(const char* as, SSharedStorage** ppSS);
 
-static const SSharedStorageType s3 = {
+static const SSharedStorageType sstS3 = {
     .name = "s3",
-    .createInstance = s3CreateInstance,
-    .closeInstance = closeInstance,
-    .upload = upload,
+    .createInstance = &s3CreateInstance,
+    .closeInstance = &closeInstance,
+    .upload = &upload,
+    .uploadFile = &uploadFile,
+    .readFile = &readFile,
+    .downloadFile = &downloadFile,
+    .listFile = &listFile,
+    .deleteFile = &deleteFile,
+    .getFileSize = &getFileSize,
 };
 
 static int32_t s3CreateInstance(const char* as, SSharedStorage** ppSS) {
@@ -953,7 +962,7 @@ static int32_t s3CreateInstance(const char* as, SSharedStorage** ppSS) {
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
-    ss->type = &s3;
+    ss->type = &sstS3;
 
     *ppSS = (SSharedStorage*)ss;
     return TSDB_CODE_SUCCESS;
@@ -963,11 +972,18 @@ static int32_t s3CreateInstance(const char* as, SSharedStorage** ppSS) {
 // Aliyun OSS
 static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS);
 
-static const SSharedStorageType oss = {
+static const SSharedStorageType sstOss = {
     .name = "oss",
-    .createInstance = ossCreateInstance,
-    .closeInstance = closeInstance,
-    .upload = upload,
+    .createInstance = &ossCreateInstance,
+    .closeInstance = &closeInstance,
+    .upload = &upload,
+    .upload = &upload,
+    .uploadFile = &uploadFile,
+    .readFile = &readFile,
+    .downloadFile = &downloadFile,
+    .listFile = &listFile,
+    .deleteFile = &deleteFile,
+    .getFileSize = &getFileSize,
 };
 
 static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS) {
@@ -977,7 +993,7 @@ static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS) {
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
-    ss->type = &oss;
+    ss->type = &sstOss;
     // OSS always uses path style URI
     ss->bucketContext.uriStyle = S3UriStylePath;
 
@@ -989,11 +1005,18 @@ static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS) {
 // Tencent COS
 static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS);
 
-static const SSharedStorageType cos = {
+static const SSharedStorageType sstCos = {
     .name = "cos",
-    .createInstance = cosCreateInstance,
-    .closeInstance = closeInstance,
-    .upload = upload,
+    .createInstance = &cosCreateInstance,
+    .closeInstance = &closeInstance,
+    .upload = &upload,
+    .upload = &upload,
+    .uploadFile = &uploadFile,
+    .readFile = &readFile,
+    .downloadFile = &downloadFile,
+    .listFile = &listFile,
+    .deleteFile = &deleteFile,
+    .getFileSize = &getFileSize,
 };
 
 static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS) {
@@ -1003,7 +1026,7 @@ static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS) {
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
-    ss->type = &cos;
+    ss->type = &sstCos;
 
     *ppSS = (SSharedStorage*)ss;
     return TSDB_CODE_SUCCESS;
@@ -1013,7 +1036,7 @@ static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS) {
 
 // register the S3, OSS and COS types
 void s3RegisterType() {
-    tssRegisterType(&s3);
-    tssRegisterType(&oss);
-    tssRegisterType(&cos);
+    tssRegisterType(&sstS3);
+    tssRegisterType(&sstOss);
+    tssRegisterType(&sstCos);
 }

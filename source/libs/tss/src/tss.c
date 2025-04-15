@@ -29,7 +29,7 @@ static SSharedStorage* g_default = NULL;
 // initialization function.
 void tssRegisterType(const SSharedStorageType* t) {
     for (int i = 0; i < countof(g_registry); ++i) {
-        SSharedStorageType* type = g_registry[i];
+        const SSharedStorageType* type = g_registry[i];
         if (type != NULL && strcmp(type->name, t->name) == 0) {
             tssFatal("shared storage type '%s' already registered\n", t->name);
             return;
@@ -48,23 +48,22 @@ void tssRegisterType(const SSharedStorageType* t) {
 
 
 
-// tssInit initializes the tss module.
 int32_t tssInit() {
+    void s3RegisterType();
+
     s3RegisterType();
     return TSDB_CODE_SUCCESS;
 }
 
 
 
-// tssUninit uninitializes the tss module.
 int32_t tssUninit() {
     return TSDB_CODE_SUCCESS;
 }
 
 
 
-// tssCreateInstance creates a shared storage instance according to the access string.
-int32_t tssCreateInstance(const char* as, SSharedStorage** ppSS) {
+int32_t tssCreateInstance(const char* as, SSharedStorage** pp) {
     size_t asLen = strlen(as);
 
     for (int i = 0; i < countof(g_registry); ++i) {
@@ -79,7 +78,7 @@ int32_t tssCreateInstance(const char* as, SSharedStorage** ppSS) {
             continue;
         }
 
-        return t->createInstance(as, ppSS);
+        return t->createInstance(as, pp);
     }
 
     tssError("shared storage type not found, access string is: %s\n", as);
@@ -87,15 +86,12 @@ int32_t tssCreateInstance(const char* as, SSharedStorage** ppSS) {
 }
 
 
-
-
-// tssCloseInstance uninitializes a shared storage instance.
-int32_t tssCloseInstance(SSharedStorage* pSS) {
-    if (pSS == NULL) {
+int32_t tssCloseInstance(SSharedStorage* ss) {
+    if (ss == NULL) {
         return TSDB_CODE_SUCCESS;
     }
 
-    int32_t code = pSS->type->closeInstance(pSS);
+    int32_t code = ss->type->closeInstance(ss);
     if (code != TSDB_CODE_SUCCESS) {
         tssError("failed to uninitialize shared storage, code: %d\n", code);
     }
@@ -103,9 +99,42 @@ int32_t tssCloseInstance(SSharedStorage* pSS) {
 }
 
 
+int32_t tssUpload(SSharedStorage* ss, const char* dstPath, const void* data, int64_t size) {
+    return ss->type->upload(ss, dstPath, data, size);
+}
 
-// tssCreateDefaultInstance creates the default shared storage instance using
-// [tsSsAccessString] as the access string.
+
+int32_t tssUploadFile(SSharedStorage* ss, const char* dstPath, const char* srcPath, int64_t offset, int64_t size) {
+    return ss->type->uploadFile(ss, dstPath, srcPath, offset, size);
+}
+
+
+int32_t tssReadFile(SSharedStorage* ss, const char* srcPath, int64_t offset, char* buffer, int64_t* size) {
+    return ss->type->readFile(ss, srcPath, offset, buffer, size);
+}
+
+
+int32_t tssDownloadFile(SSharedStorage* ss, const char* srcPath, const char* dstPath, int64_t offset, int64_t size) {
+    return ss->type->downloadFile(ss, srcPath, dstPath, offset, size);
+}
+
+
+int32_t tssListFile(SSharedStorage* ss, const char* prefix, struct SArray* paths) {
+    return ss->type->listFile(ss, prefix, paths);
+}
+
+
+int32_t tssDeleteFile(SSharedStorage* ss, const char* path) {
+    return ss->type->deleteFile(ss, path);
+}
+
+
+int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size) {
+    return ss->type->getFileSize(ss, path, size);
+}
+
+
+
 int32_t tssCreateDefaultInstance() {
     extern char tsSsAccessString[];
 
@@ -123,10 +152,43 @@ int32_t tssCreateDefaultInstance() {
 }
 
 
-
-// tssCloseDefaultInstance uninitializes the default shared storage instance.
 int32_t tssCloseDefaultInstance() {
     int32_t code = tssCloseInstance(g_default);
     g_default = NULL;
     return code;
+}
+
+
+int32_t tssUploadToDefault(const char* dstPath, const void* data, int64_t size) {
+    return g_default->type->upload(g_default, dstPath, data, size);
+}
+
+
+int32_t tssUploadFileToDefault(const char* dstPath, const char* srcPath, int64_t offset, int64_t size) {
+    return g_default->type->uploadFile(g_default, dstPath, srcPath, offset, size);
+}
+
+
+int32_t tssReadFileFromDefault(const char* srcPath, int64_t offset, char* buffer, int64_t* size) {
+    return g_default->type->readFile(g_default, srcPath, offset, buffer, size);
+}
+
+
+int32_t tssDownloadFileFromDefault(const char* srcPath, const char* dstPath, int64_t offset, int64_t size) {
+    return g_default->type->downloadFile(g_default, srcPath, dstPath, offset, size);
+}
+
+
+int32_t tssListFileOfDefault(const char* prefix, struct SArray* paths) {
+    return g_default->type->listFile(g_default, prefix, paths);
+}
+
+
+int32_t tssDeleteFileFromDefault(const char* path) {
+    return g_default->type->deleteFile(g_default, path);
+}
+
+
+int32_t tssGetFileSizeOfDefault(const char* path, int64_t* size) {
+    return g_default->type->getFileSize(g_default, path, size);
 }
