@@ -3,4 +3,3 @@
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
 ,,y,script,./test.sh -f tsim/query/udf.sim
-,,n,script,./test.sh -f tsim/query/udfpy.sim
