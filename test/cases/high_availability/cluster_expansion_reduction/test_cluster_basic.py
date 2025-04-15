@@ -15,7 +15,6 @@ import sys
 import time
 import random
 import taos
-
 from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
 
 
@@ -26,7 +25,6 @@ class TestClusterBasic:
         cls.vgroupNum = 3
 
     @pytest.mark.cluster
-    @pytest.mark.ci
     def test_check_cluster_empty_db(self):
         """测试多节点集群缩减
 

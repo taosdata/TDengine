@@ -1774,8 +1774,13 @@ int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
 
+typedef struct SDNodeAddr {
+  int32_t nodeId;  // dnodeId
+  SEpSet  epSet;
+} SDNodeAddr;
+
 typedef struct {
-  SArray* dnodeList;  // SArray<SEpSet>
+  SArray* dnodeList;  // SArray<SDNodeAddr>
 } SDnodeListRsp;
 
 int32_t tSerializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);

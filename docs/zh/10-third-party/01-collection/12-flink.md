@@ -24,10 +24,10 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 ## 版本历史
 | Flink Connector 版本 |                   主要变化         |   TDengine 版本   |
 | ------------------| ------------------------------------ | ---------------- |
-|        2.1.0      | 修复不同数据源varchar类型写入问题| - |
-|        2.0.2      | Table Sink 支持 RowKind.UPDATE_BEFORE、RowKind.UPDATE_AFTER 和 RowKind.DELETE 类型| - |
-|        2.0.1      | Sink 支持对所有继承自 RowData 并已实现的类型进行数据写入| - |
-|        2.0.0      | 1. Sink 支持自定义数据结构序列化，写入 TDengine <br/> 2. 支持 Table SQL 方式写入 TDengine 数据库| 3.3.5.1 及以上版本 |
+|        2.1.0      | 修复不同数据源 varchar 类型写入问题 | - |
+|        2.0.2      | Table Sink 支持 RowKind.UPDATE_BEFORE、RowKind.UPDATE_AFTER 和 RowKind.DELETE 类型 | - |
+|        2.0.1      | Sink 支持对所有继承自 RowData 并已实现的类型进行数据写入 | - |
+|        2.0.0      | 1. Sink 支持自定义数据结构序列化，写入 TDengine <br/> 2. 支持 Table SQL 方式写入 TDengine 数据库 | 3.3.5.1 及以上版本 |
 |        1.0.0      | 支持 Sink 功能，将来着其他数据源的数据写入到 TDengine| 3.3.2.0 及以上版本|
 
 ## 异常和错误码
@@ -91,7 +91,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Flink RowD
   - 由于 TDengine 采用时间戳作为主键，重复数据下游算子可以进行过滤操作，避免重复计算。
   - 采用 At-Least-Once（至少一次）确保达到较高的数据处理的性能和较低的数据延时，设置方式如下：
 
-使用方式:
+使用方式：
 
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -121,8 +121,8 @@ URL 规范格式为：
 - password：用户登录密码，默认值 'taosdata'。
 - database_name: 数据库名称。
 - timezone: 时区设置。
-- httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 60000。
-- messageWaitTimeout: 消息超时时间，单位 ms， 默认值为 60000。 
+- httpConnectTimeout: 连接超时时间，单位 ms，默认值为 60000。
+- messageWaitTimeout: 消息超时时间，单位 ms，默认值为 60000。 
 - useSSL: 连接中是否使用 SSL。
 
 ### Sink 
@@ -140,15 +140,15 @@ Properties 中配置参数如下：
 - TDengineConfigParams.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 'taosdata'。
 - TDengineConfigParams.PROPERTY_KEY_DBNAME：写入的数据库名称。
 - TDengineConfigParams.TD_SUPERTABLE_NAME：写入的超级表名称。写入的数据必须有 tbname 字段，确定写入那张子表。
-- TDengineConfigParams.TD_TABLE_NAME：写入子表或普通表的表名，此参数和TD_SUPERTABLE_NAME 仅需要设置一个即可。
-- TDengineConfigParams.VALUE_DESERIALIZER：接收结果集反序列化方法, 如果接收结果集类型是 Flink 的 `RowData`，仅需要设置为 `RowData`即可。也可继承 [TDengineSinkRecordSerializer](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/main/java/com/taosdata/flink/sink/serializer/TDengineSinkRecordSerializer.java) 并实现 `serialize` 方法，根据 接收的数据类型自定义反序列化方式。
+- TDengineConfigParams.TD_TABLE_NAME：写入子表或普通表的表名，此参数和 TD_SUPERTABLE_NAME 仅需要设置一个即可。
+- TDengineConfigParams.VALUE_DESERIALIZER：接收结果集反序列化方法，如果接收结果集类型是 Flink 的 `RowData`，仅需要设置为 `RowData`即可。也可继承 [TDengineSinkRecordSerializer](https://github.com/taosdata/flink-connector-tdengine/blob/main/src/main/java/com/taosdata/flink/sink/serializer/TDengineSinkRecordSerializer.java) 并实现 `serialize` 方法，根据 接收的数据类型自定义反序列化方式。
 - TDengineConfigParams.TD_BATCH_SIZE：设置一次写入 TDengine 数据库的批大小 | 当到达批的数量后进行写入，或是一个 checkpoint 的时间也会触发写入数据库。
-- TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。
+- TDengineConfigParams.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间，单位 ms，默认值为 60000。
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。true: 启用，false: 不启用。默认为 false。
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。true: 启用，false: 不启用。默认为 false。
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 true 时生效。
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 true 时生效。
-- TDengineConfigParams.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: 关闭 SSL 证书验证 。true: 启用，false: 不启用。默认为 false。
+- TDengineConfigParams.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: 关闭 SSL 证书验证。true: 启用，false: 不启用。默认为 false。
 
 使用示例：
 
@@ -190,7 +190,7 @@ Properties 中配置参数如下：
 
 ### Table Sink
 
-使用 Flink Table 的方式从多个不同的数据源数据库（如 MySQL、Oracle, Kafka 等）中提取数据后， 再进行自定义的算子操作（如数据清洗、格式转换、关联不同表的数据等），然后将处理后的结果写入到 TDengine 中。
+使用 Flink Table 的方式从多个不同的数据源数据库（如 MySQL、Oracle, Kafka 等）中提取数据后，再进行自定义的算子操作（如数据清洗、格式转换、关联不同表的数据等），然后将处理后的结果写入到 TDengine 中。
 
 
 参数配置说明：
@@ -198,8 +198,8 @@ Properties 中配置参数如下：
 |         参数名称          |  类型   | 参数说明      | 
 | ----------------------- | :-----: | ------------ |
 | connector  | string | 连接器标识，设置 `tdengine-connector` 。|
-| td.jdbc.url| string | 连接的 url 。| 
-| td.jdbc.mode | string | 连接器类型, 设置 `sink`。|
+| td.jdbc.url| string | 连接的 url。| 
+| td.jdbc.mode | string | 连接器类型，设置 `sink`。|
 | sink.db.name|string| 目标数据库名称。|
 | sink.batch.size | integer | 写入的批大小。|
 | sink.supertable.name|string |写入的超级表名称。|

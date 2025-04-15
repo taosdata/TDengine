@@ -1,16 +1,10 @@
-import pytest
 import time
 import os
 import threading
 import datetime
 from taos.tmq import Consumer
 from taos.error import TmqError
-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
-#from new_test_framework.utils.frame.log import tdLog
-#from new_test_framework.utils.frame.sql import tdSql
-#from new_test_framework.utils.frame import etool
-#from new_test_framework.utils.frame.common import tdCom
 
 
 class TaosConsumer:
@@ -303,8 +297,6 @@ class TestDropLostConsumers:
         tdLog.info("stop to test session_timeout_ms=12s and done ")
     
     
-    @pytest.mark.common
-    @pytest.mark.ci
     def test_case_max_poll_timeout(self):
         """session_timeout_ms 和 max_poll_interval_ms 到期后consumer关闭
         

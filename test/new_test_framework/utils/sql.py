@@ -461,6 +461,8 @@ class TDSql:
             sql (str): The SQL statement to be executed.
             expectedErrno (int, optional): The expected error number. Defaults to None.
             expectErrInfo (str, optional): The expected error information. Defaults to None.
+            fullMatched (bool, optional): If True, checks for exact matches of the expected error information. Defaults to True.
+            show (bool, optional): If True, the SQL statement will be logged before execution. Defaults to False.
 
         Returns:
             str: The error information if an error occurs.
@@ -691,7 +693,7 @@ class TDSql:
         Checks if the number of rows fetched by the last query matches the expected number of rows.
 
         Args:
-            expectRows (int): The expected number of rows.
+            expectedRows (int): The expected number of rows.
 
         Returns:
             bool: True if the number of rows matches the expected number, otherwise it exits the program.
@@ -705,9 +707,13 @@ class TDSql:
     def checkRows_not_exited(self, expectedRows):
         """
             Check if the query rows is equal to the expected rows
-            :param expectedRows: The expected number of rows.
-            :return: Returns True if the actual number of rows matches the expected number, otherwise returns False.
-            """
+        
+        Args:
+            expectedRows: The expected number of rows.
+        
+        Returns:
+            bool: Returns True if the actual number of rows matches the expected number, otherwise returns False.
+        """
         if self.queryRows == expectedRows:
             return True
         else:

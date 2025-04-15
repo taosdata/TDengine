@@ -104,6 +104,7 @@ class TDTestCase:
     updatecfgDict["monitorForceV2"]        = "0"
 
     updatecfgDict["audit"]            = '1'
+    updatecfgDict["uDebugFlag"]            = '143'
 
     print ("===================: ", updatecfgDict)
 
@@ -116,16 +117,23 @@ class TDTestCase:
         tdSql.prepare()
         # time.sleep(2)
         vgroups = "4"
+        tdLog.info("create database")
         sql = "create database db3 vgroups " + vgroups
         tdSql.query(sql)
+
+        tdLog.info("create stb")
         sql = "create table db3.stb (ts timestamp, f int) tags (t int)"
         tdSql.query(sql)
+
+        tdLog.info("create tb")
         sql = "create table db3.tb using db3.stb tags (1)"
         tdSql.query(sql)
 
+        tdLog.info("delete tb")
         sql = "delete from db3.tb"
         tdSql.query(sql)
 
+        tdLog.info("start http server")
         # create http server: bing ip/port , and  request processor
         if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
             RequestHandlerImplStr = base64.b64encode(pickle.dumps(RequestHandlerImpl)).decode()

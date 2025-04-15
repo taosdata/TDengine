@@ -119,7 +119,7 @@ grant read on power to test
 grant all on power.meters to test
 ```
 
-如下 SQL 将超级表 meters 离标签值 groupId 等于 1 的子表的 write 权限授权给用户test。
+如下 SQL 将超级表 meters 离标签值 groupId 等于 1 的子表的 write 权限授权给用户 test。
 ```sql
 grant all on power.meters with groupId=1 to test
 ```
@@ -134,7 +134,7 @@ grant all on power.meters with groupId=1 to test
 - 视图权限需要单独授权和回收，通过 db.* 进行的授权和回收不包含视图权限。
 - 视图可以嵌套定义和使用，对视图权限的校验也是递归进行的。
 
-为了方便视图的分享和使用，TDengine 引入了视图有效用户（即视图的创建用户）的概念。被授权用户可以使用视图有效用户的库、表及嵌套视图的读写权限。当视图被replace 后，有效用户也会被更新。
+为了方便视图的分享和使用，TDengine 引入了视图有效用户（即视图的创建用户）的概念。被授权用户可以使用视图有效用户的库、表及嵌套视图的读写权限。当视图被 replace 后，有效用户也会被更新。
 
 视图操作和权限要求的详细对应关系请见参考手册。
 

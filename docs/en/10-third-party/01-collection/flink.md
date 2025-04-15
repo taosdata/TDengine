@@ -121,8 +121,8 @@ Parameter description:
 
 - User: Login TDengine username, default value is' root '.
 - Password: User login password, default value 'taosdata'.
-- database_name: database name。
-- timezone: time zone。
+- database_name: database name.
+- timezone: time zone.
 - HttpConnectTimeout: The connection timeout time, measured in milliseconds, with a default value of 60000.
 - MessageWaitTimeout: The timeout period for a message, measured in milliseconds, with a default value of 60000.
 - UseSSL: Whether SSL is used in the connection.

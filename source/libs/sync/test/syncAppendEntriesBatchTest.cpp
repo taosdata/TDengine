@@ -12,7 +12,7 @@ void logTest() {
 
 SSyncRaftEntry *createEntry(int i) {
   SSyncRaftEntry *pEntry = syncEntryBuild(20);
-  assert(pEntry != NULL);
+  TD_ALWAYS_ASSERT(pEntry != NULL);
   pEntry->msgType = 1;
   pEntry->originalRpcType = 2;
   pEntry->seqNum = 3;

@@ -121,6 +121,7 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
     if (pVnode->blocked) {
+      (void)taosThreadMutexUnlock(&pVnode->lock);
       return TSDB_CODE_INTERNAL_ERROR;
     }
     pVnode->blocked = true;

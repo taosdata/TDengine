@@ -71,7 +71,7 @@ description: 对 JSON 类型如何使用的详细说明
 
    1. json 输入字符串可以为空（""、"\t"、" " 或 null）或 object，不能为非空的字符串，布尔型和数组。
    2. object 可为 {}，如果 object 为 {}，则整个 json 串记为空。key 可为 ""，若 key 为 ""，则 json 串中忽略该 k-v 对。
-   3. value 可以为数字(int/double)或字符串或 bool 或 null，暂不可以为数组。不允许嵌套。
+   3. value 可以为数字 (int/double) 或字符串或 bool 或 null，暂不可以为数组。不允许嵌套。
    4. 若 json 字符串中出现两个相同的 key，则第一个生效。
    5. json 字符串里暂不支持转义。
 

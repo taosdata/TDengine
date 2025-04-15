@@ -97,6 +97,7 @@ class TestCompactMeta:
         tdLog.info(
             f'case {inspect.currentframe().f_code.co_name}: randomly select 100 child tables to query')
         selected_tables = random.sample(range(1, num_child_tables + 1), 100)
+        selected_tables.extend([1, num_child_tables])
         for i, table_idx in enumerate(selected_tables):
             # Query data from the child table
             sql = f'select count(*) from {db_name}.{stb_name} where t1 = {table_idx + 1}'
@@ -202,9 +203,10 @@ class TestCompactMeta:
         tdLog.info(
             f'case {inspect.currentframe().f_code.co_name}: randomly select 100 child tables to query')
         selected_tables = random.sample(range(1, num_child_tables + 1), 100)
+        selected_tables.extend([1, num_child_tables])
         for i, table_idx in enumerate(selected_tables):
             # Query data from the child table
-            sql = f'select count(*) from {db_name}.{stb_name} where t1 = {table_idx + 1}'
+            sql = f'select count(*) from {db_name}.{stb_name} where t1 = {table_idx}'
             tdSql.query(sql)
             tdSql.checkData(0, 0, 1)  # Check c2 column value
 
@@ -239,7 +241,7 @@ class TestCompactMeta:
             f'case {inspect.currentframe().f_code.co_name}: query data again to verify')
         for i, table_idx in enumerate(selected_tables):
             # Query data from the child table
-            sql = f'select count(*) from {db_name}.{stb_name} where t1 = {table_idx + 1}'
+            sql = f'select count(*) from {db_name}.{stb_name} where t1 = {table_idx}'
             tdSql.query(sql)
             tdSql.checkData(0, 0, 2)  # Check c2 column value
 

@@ -5111,8 +5111,9 @@ int32_t tSerializeSDnodeListRsp(void *buf, int32_t bufLen, SDnodeListRsp *pRsp) 
   int32_t num = taosArrayGetSize(pRsp->dnodeList);
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, num));
   for (int32_t i = 0; i < num; ++i) {
-    SEpSet *pEpSet = taosArrayGet(pRsp->dnodeList, i);
-    TAOS_CHECK_EXIT(tEncodeSEpSet(&encoder, pEpSet));
+    SDNodeAddr *pAddr = taosArrayGet(pRsp->dnodeList, i);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pAddr->nodeId));
+    TAOS_CHECK_EXIT(tEncodeSEpSet(&encoder, &pAddr->epSet));
   }
   tEndEncode(&encoder);
 
@@ -5136,16 +5137,17 @@ int32_t tDeserializeSDnodeListRsp(void *buf, int32_t bufLen, SDnodeListRsp *pRsp
   int32_t num = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &num));
   if (NULL == pRsp->dnodeList) {
-    pRsp->dnodeList = taosArrayInit(num, sizeof(SEpSet));
+    pRsp->dnodeList = taosArrayInit(num, sizeof(SDNodeAddr));
     if (NULL == pRsp->dnodeList) {
       TAOS_CHECK_EXIT(terrno);
     }
   }
 
   for (int32_t i = 0; i < num; ++i) {
-    SEpSet epSet = {0};
-    TAOS_CHECK_EXIT(tDecodeSEpSet(&decoder, &epSet));
-    if (taosArrayPush(pRsp->dnodeList, &epSet) == NULL) {
+    SDNodeAddr addr = {0};
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &addr.nodeId));
+    TAOS_CHECK_EXIT(tDecodeSEpSet(&decoder, &addr.epSet));
+    if (taosArrayPush(pRsp->dnodeList, &addr) == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
   }

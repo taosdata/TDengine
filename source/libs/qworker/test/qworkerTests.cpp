@@ -168,7 +168,7 @@ int32_t qwtPutReqToFetchQueue(void *node, struct SRpcMsg *pMsg) {
   struct SRpcMsg *newMsg = (struct SRpcMsg *)taosMemoryCalloc(1, sizeof(struct SRpcMsg));
   if (NULL == newMsg) {
     printf("malloc failed");
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
   (void)memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
   qwtTestFetchQueue[qwtTestFetchQueueWIdx++] = newMsg;
@@ -180,13 +180,13 @@ int32_t qwtPutReqToFetchQueue(void *node, struct SRpcMsg *pMsg) {
 
   if (qwtTestFetchQueueWIdx == qwtTestFetchQueueRIdx) {
     printf("Fetch queue is full");
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
   taosWUnLockLatch(&qwtTestFetchQueueLock);
 
   if (tsem_post(&qwtTestFetchSem) < 0) {
     printf("tsem_post failed, errno:%d", errno);
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   return 0;
@@ -197,7 +197,7 @@ int32_t qwtPutReqToQueue(void *node, EQueueType qtype, struct SRpcMsg *pMsg) {
   struct SRpcMsg *newMsg = (struct SRpcMsg *)taosMemoryCalloc(1, sizeof(struct SRpcMsg));
   if (NULL == newMsg) {
     printf("malloc failed");
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
   (void)memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
   qwtTestQueryQueue[qwtTestQueryQueueWIdx++] = newMsg;
@@ -209,13 +209,13 @@ int32_t qwtPutReqToQueue(void *node, EQueueType qtype, struct SRpcMsg *pMsg) {
 
   if (qwtTestQueryQueueWIdx == qwtTestQueryQueueRIdx) {
     printf("query queue is full");
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
   taosWUnLockLatch(&qwtTestQueryQueueLock);
 
   if (tsem_post(&qwtTestQuerySem) < 0) {
     printf("tsem_post failed, errno:%d", errno);
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   return 0;
@@ -233,12 +233,12 @@ int qwtRpcSendResponse(const SRpcMsg *pRsp) {
       if (pRsp->code) {
         code = qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
         if (code) {
-          assert(0);
+          TD_ALWAYS_ASSERT(0);
           return code;
         }
         code = qwtPutReqToFetchQueue((void *)0x1, &qwtdropRpc);
         if (code) {
-          assert(0);
+          TD_ALWAYS_ASSERT(0);
           return code;
         }
       }
@@ -254,7 +254,7 @@ int qwtRpcSendResponse(const SRpcMsg *pRsp) {
         qwtBuildFetchReqMsg(&qwtfetchMsg, &qwtfetchRpc);
         code = qwtPutReqToFetchQueue((void *)0x1, &qwtfetchRpc);
         if (code) {
-          assert(0);
+          TD_ALWAYS_ASSERT(0);
           return code;
         }
         rpcFreeCont(rsp);
@@ -263,12 +263,12 @@ int qwtRpcSendResponse(const SRpcMsg *pRsp) {
 
       code = qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
       if (code) {
-        assert(0);
+        TD_ALWAYS_ASSERT(0);
         return code;
       }
       code = qwtPutReqToFetchQueue((void *)0x1, &qwtdropRpc);
       if (code) {
-        assert(0);
+        TD_ALWAYS_ASSERT(0);
         return code;
       }
       rpcFreeCont(rsp);
@@ -350,7 +350,7 @@ void qwtDestroyTask(qTaskInfo_t qHandle) {}
 
 int32_t qwtPutDataBlock(DataSinkHandle handle, const SInputData *pInput, bool *pContinue) {
   if (NULL == handle || NULL == pInput || NULL == pContinue) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   taosMemoryFree((void *)pInput->pData);
@@ -371,7 +371,7 @@ int32_t qwtPutDataBlock(DataSinkHandle handle, const SInputData *pInput, bool *p
 
 void qwtEndPut(DataSinkHandle handle, uint64_t useconds) {
   if (NULL == handle) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   qwtTestSinkQueryEnd = true;
@@ -381,13 +381,13 @@ void qwtGetDataLength(DataSinkHandle handle, int64_t *pLen, bool *pQueryEnd) {
   static int32_t in = 0;
 
   if (in > 0) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   atomic_add_fetch_32(&in, 1);
 
   if (NULL == handle) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   taosWLockLatch(&qwtTestSinkLock);
@@ -435,7 +435,7 @@ int32_t qwtGetDataBlock(DataSinkHandle handle, SOutputData *pOutput) {
     pOutput->useconds = taosRand() % 10 + 1;
     pOutput->precision = 1;
   } else {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
   taosWUnLockLatch(&qwtTestSinkLock);
 
@@ -776,7 +776,7 @@ void *queryQueueThread(void *param) {
     taosWLockLatch(&qwtTestQueryQueueLock);
     if (qwtTestQueryQueueNum <= 0 || qwtTestQueryQueueRIdx == qwtTestQueryQueueWIdx) {
       printf("query queue is empty\n");
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     queryRpc = qwtTestQueryQueue[qwtTestQueryQueueRIdx++];
@@ -802,7 +802,7 @@ void *queryQueueThread(void *param) {
       (void)qWorkerProcessCQueryMsg(mockPointer, mgmt, queryRpc, 0); //ignore error
     } else {
       printf("unknown msg in query queue, type:%d\n", queryRpc->msgType);
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     taosMemoryFree(queryRpc);
@@ -832,7 +832,7 @@ void *fetchQueueThread(void *param) {
     taosWLockLatch(&qwtTestFetchQueueLock);
     if (qwtTestFetchQueueNum <= 0 || qwtTestFetchQueueRIdx == qwtTestFetchQueueWIdx) {
       printf("Fetch queue is empty\n");
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     fetchRpc = qwtTestFetchQueue[qwtTestFetchQueueRIdx++];
@@ -868,7 +868,7 @@ void *fetchQueueThread(void *param) {
         break;
       default:
         printf("unknown msg type:%d in fetch queue", fetchRpc->msgType);
-        assert(0);
+        TD_ALWAYS_ASSERT(0);
         break;
     }
 
