@@ -106,6 +106,24 @@ def get_data_index(schema):
 
     return -1
 
+def get_past_dynamic_data(data, schema):
+    past_dynamic = []
+
+    for index, val in enumerate(schema):
+        if val[0].startWith("past_dynamic_real"):
+            past_dynamic.append(data[index])
+
+    return None if len(past_dynamic) == 0 else past_dynamic
+
+def get_dynamic_data(data, schema):
+    dynamic = []
+
+    for index, val in enumerate(schema):
+        if val[0].startWith("dynamic_real"):
+            dynamic.append(data[index])
+
+    return None if len(dynamic) == 0 else dynamic
+
 
 def get_ts_index(schema):
     """get the timestamp index according to the schema info"""

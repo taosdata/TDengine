@@ -11,7 +11,7 @@ from taosanalytics.conf import app_logger, conf
 from taosanalytics.servicemgmt import loader
 
 
-def do_forecast(input_list, ts_list, algo_name, params):
+def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real = None, dynamic_real = None):
     """ data fc handler """
     s = loader.get_service(algo_name)
 
@@ -21,7 +21,7 @@ def do_forecast(input_list, ts_list, algo_name, params):
     if s is None:
         raise ValueError(f"failed to load {algo_name} or holtwinters analysis service")
 
-    s.set_input_list(input_list, ts_list)
+    s.set_input_data(input_list, ts_list, past_dynamic_real, dynamic_real)
     s.set_params(params)
 
     start = time.time()

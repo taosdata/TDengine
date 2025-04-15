@@ -7,7 +7,7 @@ from taosanalytics.algo.tsfm import TsfmBaseService
 class _TimeMOEService(TsfmBaseService):
     name = 'timemoe-fc'
     desc = ("Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts; "
-            "Ref to https://github.com/Time-MoE/Time-MoE")
+            "Ref. to https://github.com/Time-MoE/Time-MoE")
 
     def __init__(self):
         super().__init__()
@@ -15,3 +15,8 @@ class _TimeMOEService(TsfmBaseService):
         if  self.service_host is not None:
             self.service_host = 'http://127.0.0.1:5001/timemoe'
 
+    def execute(self):
+        if len(self.past_dynamic_real):
+            raise ValueError("covariate forecast is not supported yet")
+
+        super().execute()

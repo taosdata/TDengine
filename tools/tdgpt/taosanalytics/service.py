@@ -29,10 +29,12 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
         self.list = None
         self.ts_list = None
 
+
     def set_input_list(self, input_list: list, input_ts_list: list = None):
         """ set the input list """
         self.list = input_list
         self.ts_list = input_ts_list
+
 
     def set_params(self, params: dict) -> None:
         """set the parameters for current algo """
@@ -81,6 +83,21 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
 
         self.return_conf = 1
         self.conf = 0.05
+
+        self.past_dynamic_real = []
+        self.dynamic_real = []
+
+    def set_input_data(self, input_list: list, input_ts_list: list = None, past_dynamic_real_list: list = None,
+                       dynamic_real_list: list = None):
+        """ set the input data """
+        if past_dynamic_real_list is not None:
+            self.past_dynamic_real.append(past_dynamic_real_list)
+
+        if dynamic_real_list is not None:
+            self.dynamic_real.append(dynamic_real_list)
+
+        self.set_input_list(input_list, input_ts_list)
+
 
     def set_params(self, params: dict) -> None:
         if not {'start_ts', 'time_step', 'rows'}.issubset(params.keys()):
