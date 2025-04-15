@@ -48,7 +48,7 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
     #output = child.readline()
     #print (output.decode())
     if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=600)
+        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=60)
     else:
         i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
 
