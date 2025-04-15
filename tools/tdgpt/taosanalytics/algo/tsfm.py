@@ -23,10 +23,10 @@ class TsfmBaseService(AbstractForecastService):
             raise ValueError("number of input data is less than the periods")
 
         if self.rows <= 0:
-            raise ValueError("fc rows is not specified yet")
+            raise ValueError("forecast rows is not specified yet")
 
         # let's request the gpt service
-        data = {"input": self.list, 'next_len': self.rows}
+        data = {"input": self.list, 'next_len': self.rows, 'past_dynamic_real': self.past_dynamic_real}
         try:
             response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
         except Exception as e:

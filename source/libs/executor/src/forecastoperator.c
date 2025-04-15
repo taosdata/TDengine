@@ -731,7 +731,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
     SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, i);
 
     char name[128] = {0};
-    (void) tsnprintf(name, tListLen(name), "covariate_%d", i + 1);
+    (void) tsnprintf(name, tListLen(name), "post_dynamic_real_%d", i + 1);
 
     code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
     if (code) {

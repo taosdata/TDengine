@@ -13,7 +13,7 @@ from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise, \
-    parse_options, convert_results_to_windows
+    parse_options, convert_results_to_windows, get_past_dynamic_data, get_dynamic_data
 
 app = Flask(__name__)
 
@@ -160,7 +160,10 @@ def handle_forecast_req():
         return {"msg": f"{e}", "rows": -1}
 
     try:
-        res1 = do_forecast(payload[data_index], payload[ts_index], algo, params)
+        res1 = do_forecast(payload[data_index], payload[ts_index], algo, params,
+                           get_past_dynamic_data(payload, req_json["schema"]),
+                           get_dynamic_data(payload, req_json["schema"]))
+
         res = {"option": options, "rows": params["rows"]}
         res.update(res1)
 
