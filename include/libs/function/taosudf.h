@@ -117,12 +117,20 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define varDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), varDataTLen(v))
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
+
+#define blobDataTLen(v)         (sizeof(BlobDataLenT) + blobDataLen(v))
+#define blobDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), blobDataTLen(v))
+#define blobDataLenByData(v)    (*(BlobDataLenT *)(((char *)(v)) - BLOBSTR_HEADER_SIZE))
+#define blobDataSetLen(v, _len) (((BlobDataLenT *)(v))[0] = (BlobDataLenT)(_len))
+
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY) || ((t) == TSDB_DATA_TYPE_BLOB) ||      \
    ((t) == TSDB_DATA_TYPE_MEDIUMBLOB))
 #define IS_STR_DATA_TYPE(t) \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
+
+#define IS_STR_DATA_BLOB(t) ((t) == TSDB_DATA_TYPE_BLOB || (t) == TSDB_DATA_TYPE_MEDIUMBLOB)
 
 static FORCE_INLINE char *udfColDataGetData(const SUdfColumn *pColumn, int32_t row) {
   if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {

@@ -48,19 +48,6 @@ typedef struct {
 #define STypeMod int32_t
 void extractTypeFromTypeMod(uint8_t type, STypeMod typeMod, uint8_t *prec, uint8_t *scale, int32_t *bytes);
 
-#define varDataTLen(v)         (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), varDataTLen(v))
-#define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
-#define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
-
-#define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
-#define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
-
-#define blobDataTLen(v)         (sizeof(BlobDataLenT) + blobDataLen(v))
-#define blobDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), blobDataTLen(v))
-#define blobDataLenByData(v)    (*(BlobDataLenT *)(((char *)(v)) - BLOBSTR_HEADER_SIZE))
-#define blobDataSetLen(v, _len) (((BlobDataLenT *)(v))[0] = (BlobDataLenT)(_len))
-
 #define DEFINE_TYPE_FROM_DECIMAL_FUNC(oType, decimalType) \
   oType oType##From##decimalType(const void *pDec, uint8_t prec, uint8_t scale)
 

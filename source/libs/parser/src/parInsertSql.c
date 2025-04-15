@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "decimal.h"
 #include "geosWrapper.h"
 #include "parInsertUtil.h"
 #include "parToken.h"
 #include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
-#include "decimal.h"
 
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
@@ -107,8 +107,8 @@ static int32_t skipTableOptions(SInsertParseContext* pCxt, const char** pSql) {
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
 static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   const char** pSql = &pStmt->pSql;
-  int32_t code = TSDB_CODE_SUCCESS;
-  SToken  token;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SToken       token;
   NEXT_TOKEN(*pSql, token);
 
   NEXT_TOKEN(*pSql, token);
@@ -1216,8 +1216,7 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, STableMet
       *pMissCache = true;
     } else if (bUsingTable && TSDB_SUPER_TABLE != (*pTableMeta)->tableType) {
       code = buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
-    } else if (((*pTableMeta)->virtualStb) ||
-               TSDB_VIRTUAL_CHILD_TABLE == (*pTableMeta)->tableType ||
+    } else if (((*pTableMeta)->virtualStb) || TSDB_VIRTUAL_CHILD_TABLE == (*pTableMeta)->tableType ||
                TSDB_VIRTUAL_NORMAL_TABLE == (*pTableMeta)->tableType) {
       code = TSDB_CODE_VTABLE_NOT_SUPPORT_STMT;
     }
@@ -1333,7 +1332,7 @@ static int32_t preParseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpS
 }
 
 static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* ctbCacheHit) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pStableMeta = NULL;
   STableMeta* pCtableMeta = NULL;
   if (pCxt->forceUpdate) {
@@ -1633,7 +1632,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, (uint64_t*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value));
+      int32_t code =
+          toUIntegerEx(pToken->z, pToken->n, pToken->type, (uint64_t*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned tinyint data", pToken->z);
       } else if (VALUE_GET_TRIVIAL_DATUM(&pVal->value) > UINT8_MAX) {
@@ -1826,7 +1826,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       uint8_t precision = 0, scale = 0;
       decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
       Decimal128 dec = {0};
-      int32_t code = decimal128FromStr(pToken->z, pToken->n, precision, scale, &dec);
+      int32_t    code = decimal128FromStr(pToken->z, pToken->n, precision, scale, &dec);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -1848,7 +1848,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       uint8_t precision = 0, scale = 0;
       decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
       Decimal64 dec = {0};
-      int32_t code = decimal64FromStr(pToken->z, pToken->n, precision, scale, &dec);
+      int32_t   code = decimal64FromStr(pToken->z, pToken->n, precision, scale, &dec);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -2066,7 +2066,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       if (pCols->pColIndex[i] < numOfCols) {
         const SSchema*    pSchema = &pSchemas[pCols->pColIndex[i]];
         const SSchemaExt* pExtSchema = pExtSchemas + pCols->pColIndex[i];
-        SColVal*       pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
+        SColVal*          pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
         code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, pExtSchema, precision, pVal);
         if (TK_NK_VARIABLE == pToken->type) {
           code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
@@ -3418,8 +3418,8 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
 static int32_t setNextStageInfo(SInsertParseContext* pCxt, SQuery* pQuery, SCatalogReq* pCatalogReq) {
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
   if (pCxt->missCache) {
-    parserDebug("QID:0x%" PRIx64 ", %d rows of %d tables will be inserted before obtain the cache", pCxt->pComCxt->requestId,
-                pStmt->totalRowsNum, pStmt->totalTbNum);
+    parserDebug("QID:0x%" PRIx64 ", %d rows of %d tables will be inserted before obtain the cache",
+                pCxt->pComCxt->requestId, pStmt->totalRowsNum, pStmt->totalTbNum);
 
     pQuery->execStage = QUERY_EXEC_STAGE_PARSE;
     return buildInsertCatalogReq(pCxt, pStmt, pCatalogReq);
