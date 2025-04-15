@@ -54,7 +54,7 @@ target_include_directories(
 
 target_link_libraries(
     taosudf
-    PRIVATE os util common nodes function
+    PRIVATE os util common nodes function ${TAOS_LIB}
 )
 
 if(${BUILD_TEST})
