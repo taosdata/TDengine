@@ -29,6 +29,23 @@
 #define CFG_RESERVE_SIZE  63
 #define CFG_ALTER_TIMEOUT 3 * 1000
 
+typedef struct {
+  const char  *optionName;
+  ECfgDataType dtype;
+  const char  *value;
+} upgradeConfig;
+
+static int32_t addUpgrade(SArray *upgradeArray, ECfgDataType dtype, const char *optionName, const char *value) {
+  upgradeConfig upgradeConfig = {0};
+  upgradeConfig.optionName = optionName;
+  upgradeConfig.dtype = dtype;
+  upgradeConfig.value = value;
+  if (taosArrayPush(upgradeArray, &upgradeConfig) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
@@ -372,6 +389,28 @@ int32_t mndSendRebuildReq(SMnode *pMnode) {
   return code;
 }
 
+static int32_t initUpgradeArray(SArray **upgradeArray) {
+  *upgradeArray = taosArrayInit(8, sizeof(upgradeConfig));
+  if (*upgradeArray == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  TAOS_CHECK_RETURN(addUpgrade(*upgradeArray, CFG_DTYPE_INT32, "arbSetAssignedTimeoutSec", "14"));
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool shouldUpgradeConfig(SConfigItem *item, SArray *upgradeArray, upgradeConfig **upgradeConfig) {
+  if (item->stype != CFG_STYPE_DEFAULT) {
+    return false;
+  }
+  for (int i = 0; i < taosArrayGetSize(upgradeArray); ++i) {
+    *upgradeConfig = taosArrayGet(upgradeArray, i);
+    if (strcmp((*upgradeConfig)->optionName, item->name) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   if (!mndIsLeader(pMnode)) {
@@ -382,6 +421,7 @@ static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
   STrans     *pTrans = NULL;
   SConfigObj *vObj = NULL;
   SArray     *addArray = NULL;
+  SArray     *upgradeArray = NULL;
 
   vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
@@ -390,6 +430,10 @@ static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
   } else {
     sz = taosArrayGetSize(taosGetGlobalCfg(tsCfg));
     addArray = taosArrayInit(4, sizeof(SConfigObj));
+    if (addArray == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
     for (int i = 0; i < sz; ++i) {
       SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
       SConfigObj  *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
@@ -402,6 +446,20 @@ static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
           goto _exit;
         }
       } else {
+        if (upgradeArray == NULL) {
+          code = initUpgradeArray(&upgradeArray);
+          if (code != 0) {
+            sdbRelease(pMnode->pSdb, obj);
+            goto _exit;
+          }
+        }
+        bool           shouldUpgrade = false;
+        upgradeConfig *upgradeConfig = NULL;
+        shouldUpgrade = shouldUpgradeConfig(item, upgradeArray, &upgradeConfig);
+        if (shouldUpgrade && upgradeConfig) {
+          mInfo("config:%s, should upgrade", item->name);
+          mndConfigUpdateTrans(pMnode, item->name, (char *)upgradeConfig->value, upgradeConfig->dtype, ++vObj->i64);
+        }
         sdbRelease(pMnode->pSdb, obj);
       }
     }
@@ -426,6 +484,7 @@ _exit:
   }
   sdbRelease(pMnode->pSdb, vObj);
   cfgObjArrayCleanUp(addArray);
+  taosArrayDestroy(upgradeArray);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
