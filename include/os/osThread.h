@@ -75,8 +75,8 @@ typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
 #endif
 #ifdef TD_ASTRA
-#define STACK_SIZE_DEFAULT    (1048576 << 2)
-#define STACK_SIZE_SMALL      (1048576)
+#define STACK_SIZE_DEFAULT    (1048576 << 1)
+#define STACK_SIZE_SMALL      (1048576 >> 2)
 #else
 #define STACK_SIZE_DEFAULT    (10485760)
 #endif
