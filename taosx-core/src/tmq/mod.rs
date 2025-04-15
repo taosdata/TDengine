@@ -870,8 +870,8 @@ pub struct BackupObject {
     pub task_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topic: Option<String>,
-    pub db_name: String,
-    pub db_sql: String,
+    pub db_name: Option<String>,
+    pub db_sql: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -884,10 +884,8 @@ impl TryFrom<&Dsn> for BackupObject {
     fn try_from(dsn: &Dsn) -> std::result::Result<Self, Self::Error> {
         let task_id = utils::parse_key_in_dsn::<String>(dsn, "task_id")?;
         let topic = utils::parse_key_in_dsn::<String>(dsn, "topic")?;
-        let db_name = utils::parse_key_in_dsn::<String>(dsn, "db_name")?
-            .ok_or(anyhow::anyhow!("parameter: db_name not found"))?;
-        let db_sql = utils::parse_key_in_dsn::<String>(dsn, "db_sql")?
-            .ok_or(anyhow::anyhow!("parameter: db_sql not found"))?;
+        let db_name = utils::parse_key_in_dsn::<String>(dsn, "db_name")?;
+        let db_sql = utils::parse_key_in_dsn::<String>(dsn, "db_sql")?;
         let stable_name = utils::parse_key_in_dsn::<String>(dsn, "stable_name")?;
         let stable_sql = utils::parse_key_in_dsn::<String>(dsn, "stable_sql")?;
         Ok(Self {
@@ -903,70 +901,67 @@ impl TryFrom<&Dsn> for BackupObject {
 
 impl BackupObject {
     /// 从 taos 中查询出 BackupObject，只支持查询 $DATABASE 和 $STABLE_NAME
-    /// dsn 的格式为： tmq://$HOST:$PORT/$DATABASE?stable=$STABLE_NAME
+    /// dsn 的格式为： taos://$HOST:$PORT/$DATABASE?stable=$STABLE_NAME
     /// $DATABASE 不能为空，$STABLE_NAME 可以为空
     pub async fn try_from_taos(dsn: &Dsn) -> Result<Option<BackupObject>> {
         let taos = connect_taos_root(dsn).await?;
 
-        let db_name = dsn.subject.as_ref();
-        if db_name.is_none() {
-            return Ok(None);
-        }
-        let db_name = db_name.unwrap();
-
-        // 查询 database
-        let sql = format!(
-            "SELECT name FROM information_schema.ins_databases WHERE name = '{}'",
-            db_name
-        );
-        tracing::debug!("query taos with sql: {}", sql);
-        let database: Option<String> = taos.query_one(sql).await?;
-        if database.is_none() {
-            return Ok(None);
-        }
-        let database = database.unwrap();
-
-        // 查询 database 的创建语句
-        let sql = format!("SHOW CREATE DATABASE `{}`", db_name);
-        tracing::debug!("query taos with sql: {}", sql);
-        let (_db, db_sql) = taos
-            .query_one::<_, (String, String)>(sql)
-            .await?
-            .ok_or(anyhow::anyhow!("failed to get create database sql"))?;
-
         let mut backup_obj = BackupObject {
             task_id: None,
             topic: None,
-            db_name: database,
-            db_sql,
+            db_name: None,
+            db_sql: None,
             stable_name: None,
             stable_sql: None,
         };
 
-        let stable = utils::parse_key_in_dsn::<String>(dsn, "stable")?;
-        if let Some(stable) = stable {
-            // 查询 stable
+        // database
+        let db_name = dsn.subject.as_ref();
+        if let Some(db_name) = db_name {
+            // 查询 database
             let sql = format!(
-                "SELECT stable_name FROM information_schema.ins_stables WHERE db_name = '{}' AND stable_name = '{}'",
-                db_name, stable
+                "SELECT name FROM information_schema.ins_databases WHERE name = '{}'",
+                db_name
             );
             tracing::debug!("query taos with sql: {}", sql);
-            let stable_name: Option<String> = taos.query_one(sql).await?;
-            if stable_name.is_none() {
-                return Ok(None);
-            }
-            let stable_name = stable_name.unwrap();
+            let database: Option<String> = taos.query_one(sql).await?;
+            if let Some(database) = database {
+                backup_obj.db_name = Some(database);
 
-            // 查询 stable 的创建语句
-            let sql = format!("SHOW CREATE STABLE `{}`.`{}`", db_name, stable);
-            tracing::debug!("query taos with sql: {}", sql);
-            let (_stable, stable_sql) = taos
-                .query_one::<_, (String, String)>(sql)
-                .await?
-                .ok_or(anyhow::anyhow!("failed to get create stable sql"))?;
-            backup_obj.stable_name = Some(stable_name);
-            backup_obj.stable_sql = Some(stable_sql);
-        }
+                // 查询 database 的创建语句
+                let sql = format!("SHOW CREATE DATABASE `{}`", db_name);
+                tracing::debug!("query taos with sql: {}", sql);
+                let (_db, db_sql) = taos
+                    .query_one::<_, (String, String)>(sql)
+                    .await?
+                    .ok_or(anyhow::anyhow!("failed to get create database sql"))?;
+                backup_obj.db_sql = Some(db_sql);
+            }
+
+            // stable
+            let stable = utils::parse_key_in_dsn::<String>(dsn, "stable")?;
+            if let Some(stable) = stable {
+                let sql = format!(
+                    "SELECT stable_name FROM information_schema.ins_stables WHERE db_name = '{}' AND stable_name = '{}'",
+                    db_name, stable
+                );
+                tracing::debug!("query taos with sql: {}", sql);
+                let stable_name: Option<String> = taos.query_one(sql).await?;
+
+                if let Some(stable_name) = stable_name {
+                    backup_obj.stable_name = Some(stable_name.clone());
+
+                    // 查询 stable 的创建语句
+                    let sql = format!("SHOW CREATE STABLE `{}`.`{}`", db_name, stable);
+                    tracing::debug!("query taos with sql: {}", sql);
+                    let (_stable, stable_sql) =
+                        taos.query_one::<_, (String, String)>(sql)
+                            .await?
+                            .ok_or(anyhow::anyhow!("failed to get create stable sql"))?;
+                    backup_obj.stable_sql = Some(stable_sql);
+                }
+            }
+        };
 
         Ok(Some(backup_obj))
     }
@@ -987,9 +982,13 @@ mod tests {
         }"#;
 
         let topic_meta: BackupObject = serde_json::from_str(topic_meta).unwrap();
+
         assert_eq!(topic_meta.topic, Some("x123".to_string()));
-        assert_eq!(topic_meta.db_name, "x123");
-        assert_eq!(topic_meta.db_sql, "CREATE DATABASE IF NOT EXISTS x123");
+        assert_eq!(topic_meta.db_name, Some("x123".to_string()));
+        assert_eq!(
+            topic_meta.db_sql,
+            Some("CREATE DATABASE IF NOT EXISTS x123".to_string())
+        );
         assert_eq!(topic_meta.stable_name, Some("x123_stable".to_string()));
         assert_eq!(
             topic_meta.stable_sql,

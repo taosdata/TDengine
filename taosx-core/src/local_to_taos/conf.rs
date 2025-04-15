@@ -35,115 +35,115 @@ pub struct LocalRestoreConfig {
     pub error_retry_interval: Duration,
     /// 恢复到指定的数据库，如果为 None，则使用 topic_meta.db_name
     pub database: Option<String>,
-    /// 强制恢复，如果为 true，则删除已存在的数据库或表。默认为 true
-    pub force: bool,
+    // 强制恢复，如果为 true，则删除已存在的数据库或表。默认为 true
+    // pub force: bool,
     /// S3 存储配置
     pub s3_config: Option<S3Config>,
 }
 
 impl LocalRestoreConfig {
-    /// 从目标 taosd 中查询备份对象
-    pub async fn is_obj_existed(&self) -> anyhow::Result<bool> {
-        Ok(self.query_obj().await?.is_some())
-    }
+    // 从目标 taosd 中查询备份对象
+    // pub async fn is_obj_existed(&self) -> anyhow::Result<bool> {
+    //     Ok(self.query_obj().await?.is_some())
+    // }
 
-    pub async fn query_obj(&self) -> anyhow::Result<Option<BackupObject>> {
-        // 如果target database 不为空，则使用target database; 否则使用backup object中的db_name
-        let db_name = match &self.database {
-            None => self.backup_obj.db_name.clone(),
-            Some(db_name) => db_name.clone(),
-        };
+    // pub async fn query_obj(&self) -> anyhow::Result<Option<BackupObject>> {
+    //     // 如果target database 不为空，则使用target database; 否则使用backup object中的db_name
+    //     let db_name = match &self.database {
+    //         Some(db_name) => db_name.clone(),
+    //         None => self.backup_obj.db_name,
+    //     };
+    //
+    //     // taos://xxx/db2?stable=stb
+    //     let mut dsn = Dsn {
+    //         subject: Some(db_name),
+    //         ..self.raw_to.clone()
+    //     };
+    //     if let Some(stable) = &self.backup_obj.stable_name {
+    //         dsn.params.insert("stable".to_string(), stable.to_string());
+    //     }
+    //
+    //     BackupObject::try_from_taos(&dsn)
+    //         .await
+    //         .context(format!("failed to query backup object from taos: {}", &dsn))
+    // }
 
-        // taos://xxx/db2?stable=stb
-        let mut dsn = Dsn {
-            subject: Some(db_name),
-            ..self.raw_to.clone()
-        };
-        if let Some(stable) = &self.backup_obj.stable_name {
-            dsn.params.insert("stable".to_string(), stable.to_string());
-        }
+    // 删除备份对象的元信息
+    // pub async fn delete_obj(&self) -> anyhow::Result<()> {
+    //     let taos = connect_taos_root(&self.raw_to).await?;
+    //
+    //     let db_name = match &self.database {
+    //         None => self.backup_obj.db_name.clone(),
+    //         Some(db_name) => db_name.clone(),
+    //     };
+    //
+    //     // drop topic
+    //     // if let Some(topic) = &self.backup_obj.topic {
+    //     //     let sql = format!("DROP TOPIC IF EXISTS `{}`", topic);
+    //     //     tracing::info!("exec sql: {sql}");
+    //     //     taos.exec(sql).await.context("failed to drop topic")?;
+    //     // }
+    //
+    //     // drop stable
+    //     match &self.backup_obj.stable_name {
+    //         Some(stable_name) => {
+    //             let sql = format!("DROP TABLE IF EXISTS `{}`.`{}`", db_name, stable_name);
+    //             tracing::info!("exec sql: {sql}");
+    //             taos.exec(sql).await.context("failed to drop stable")?;
+    //         }
+    //         None => {
+    //             let sql = format!("DROP DATABASE IF EXISTS `{}`", db_name);
+    //             tracing::info!("exec sql: {sql}");
+    //             taos.exec(sql).await.context("failed to drop database")?;
+    //         }
+    //     }
+    //
+    //     Ok(())
+    // }
 
-        BackupObject::try_from_taos(&dsn)
-            .await
-            .context(format!("failed to query backup object from taos: {}", &dsn))
-    }
-
-    /// 删除备份对象的元信息
-    pub async fn delete_obj(&self) -> anyhow::Result<()> {
-        let taos = connect_taos_root(&self.raw_to).await?;
-
-        let db_name = match &self.database {
-            None => self.backup_obj.db_name.clone(),
-            Some(db_name) => db_name.clone(),
-        };
-
-        // drop topic
-        // if let Some(topic) = &self.backup_obj.topic {
-        //     let sql = format!("DROP TOPIC IF EXISTS `{}`", topic);
-        //     tracing::info!("exec sql: {sql}");
-        //     taos.exec(sql).await.context("failed to drop topic")?;
-        // }
-
-        // drop stable
-        match &self.backup_obj.stable_name {
-            Some(stable_name) => {
-                let sql = format!("DROP TABLE IF EXISTS `{}`.`{}`", db_name, stable_name);
-                tracing::info!("exec sql: {sql}");
-                taos.exec(sql).await.context("failed to drop stable")?;
-            }
-            None => {
-                let sql = format!("DROP DATABASE IF EXISTS `{}`", db_name);
-                tracing::info!("exec sql: {sql}");
-                taos.exec(sql).await.context("failed to drop database")?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// 向 taosd 中写入备份对象的元信息
-    pub async fn restore_obj(&self) -> anyhow::Result<()> {
-        let taos = connect_taos_root(&self.raw_to).await?;
-
-        let db_name = match &self.database {
-            None => self.backup_obj.db_name.clone(),
-            Some(db_name) => db_name.clone(),
-        };
-
-        match &self.backup_obj.stable_sql {
-            None => {
-                // create database
-                let sql = self.backup_obj.db_sql.clone();
-                let sql = sql.replace(&self.backup_obj.db_name, &db_name);
-                tracing::info!("exec sql: {}", sql);
-                taos.exec(sql).await?;
-            }
-            Some(stable_sql) => {
-                // create stable
-                let sql = format!("USE `{}`", db_name);
-                tracing::info!("exec sql: {}", sql);
-                let res = taos.exec(sql.clone()).await;
-                if let Err(e) = res {
-                    if e.to_string().to_lowercase().contains("database not exist") {
-                        let db_sql = self.backup_obj.db_sql.clone();
-                        let db_sql = db_sql.replace(&self.backup_obj.db_name, &db_name);
-                        tracing::info!("exec sql: {}", db_sql);
-                        taos.exec(db_sql).await?;
-                        taos.exec(sql).await?;
-                    } else {
-                        return Err(anyhow::Error::from(e).context("failed to use database"));
-                    }
-                }
-
-                let sql = stable_sql.clone();
-                let sql = sql.replace(&self.backup_obj.db_name, &db_name);
-                tracing::info!("exec sql: {}", sql);
-                taos.exec(sql).await?;
-            }
-        }
-
-        Ok(())
-    }
+    // 向 taosd 中写入备份对象的元信息
+    // pub async fn restore_obj(&self) -> anyhow::Result<()> {
+    //     let taos = connect_taos_root(&self.raw_to).await?;
+    //
+    //     let db_name = match &self.database {
+    //         None => self.backup_obj.db_name.clone(),
+    //         Some(db_name) => db_name.clone(),
+    //     };
+    //
+    //     match &self.backup_obj.stable_sql {
+    //         None => {
+    //             // create database
+    //             let sql = self.backup_obj.db_sql.clone();
+    //             let sql = sql.replace(&self.backup_obj.db_name, &db_name);
+    //             tracing::info!("exec sql: {}", sql);
+    //             taos.exec(sql).await?;
+    //         }
+    //         Some(stable_sql) => {
+    //             // create stable
+    //             let sql = format!("USE `{}`", db_name);
+    //             tracing::info!("exec sql: {}", sql);
+    //             let res = taos.exec(sql.clone()).await;
+    //             if let Err(e) = res {
+    //                 if e.to_string().to_lowercase().contains("database not exist") {
+    //                     let db_sql = self.backup_obj.db_sql.clone();
+    //                     let db_sql = db_sql.replace(&self.backup_obj.db_name, &db_name);
+    //                     tracing::info!("exec sql: {}", db_sql);
+    //                     taos.exec(db_sql).await?;
+    //                     taos.exec(sql).await?;
+    //                 } else {
+    //                     return Err(anyhow::Error::from(e).context("failed to use database"));
+    //                 }
+    //             }
+    //
+    //             let sql = stable_sql.clone();
+    //             let sql = sql.replace(&self.backup_obj.db_name, &db_name);
+    //             tracing::info!("exec sql: {}", sql);
+    //             taos.exec(sql).await?;
+    //         }
+    //     }
+    //
+    //     Ok(())
+    // }
 
     pub async fn connect_taos(&self) -> anyhow::Result<Taos> {
         let taos = connect_taos_root(&self.raw_to).await?;
@@ -182,9 +182,9 @@ impl LocalRestoreConfigBuilder {
             "failed to parse backup object in dsn: {}",
             &self.from
         ))?;
-        if backup_obj.topic.is_none() {
-            return Err(anyhow::anyhow!("topic not found in dsn"));
-        }
+        // if backup_obj.topic.is_none() {
+        //     return Err(anyhow::anyhow!("topic not found in dsn"));
+        // }
 
         // backup directory
         let mut backup_dir = utils::parse_dir_in_dsn(&self.from, None)?
@@ -226,7 +226,7 @@ impl LocalRestoreConfigBuilder {
             .unwrap_or(Duration::from_secs(5));
 
         // force
-        let force = utils::parse_key_in_dsn::<bool>(&self.to, "force")?.unwrap_or(true);
+        // let force = utils::parse_key_in_dsn::<bool>(&self.to, "force")?.unwrap_or(true);
 
         Ok(LocalRestoreConfig {
             task_id: self.task_id.clone(),
@@ -240,7 +240,6 @@ impl LocalRestoreConfigBuilder {
             error_retry_max,
             error_retry_interval,
             database: self.to.subject.clone(),
-            force,
             s3_config,
         })
     }

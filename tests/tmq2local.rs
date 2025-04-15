@@ -57,14 +57,7 @@ mod test_tmq_to_local {
         dbg!(cmd.get_args().collect::<Vec<_>>());
 
         // 恢复数据
-        let from = from.into_dsn()?;
-        let to = to.into_dsn()?;
-        let backup_config = BackupConfigBuilder::new(None, &from, &to).build().await?;
-        let from = format!(
-            "local:{}?topic={}&db_name={SRC_DB}&db_sql=CREATE DATABASE `{SRC_DB}` VGROUPS {VGROUPS}&to=now",
-            backup_dir.to_string_lossy().into_owned(),
-            &backup_config.topic,
-        );
+        let from = format!("local:{}?to=now", backup_dir.to_string_lossy().into_owned(),);
         let to = format!("{taos_addr}/{DST_DB}");
         taos.exec(format!("CREATE DATABASE `{DST_DB}`")).await?;
         let mut cmd = Command::cargo_bin(&taosx_cmd)?;
@@ -288,7 +281,7 @@ mod test_tmq_to_local {
                 count += 1;
                 if let Err(err) = taos.exec(format!("DROP TOPIC IF EXISTS `{t}`")).await {
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    if count < 3 {
+                    if count < 30 {
                         continue;
                     }
                     bail!("failed to drop topic: {:#}", err);

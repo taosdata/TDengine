@@ -67,22 +67,23 @@ pub async fn local_to_taos(
         .context("parse local_to_taos config error")?;
     tracing::debug!("local_to_taos config: {:#?}", config);
 
+    // 如果配置了 S3 转储，则先从 S3 下载备份文件到本地
     if let Some(s3_config) = &config.s3_config {
         let s3_loader = S3Loader::try_from(s3_config).await?;
         s3_loader.load_to(config.backup_dir.as_path()).await?;
     }
 
     // 处理 backup object
-    if config.is_obj_existed().await? {
-        if config.force {
-            tracing::warn!("restore target exists, force to delete and recreate");
-            config.delete_obj().await?;
-        } else {
-            bail!("restore target already exists, please delete and recreate");
-        }
-    }
-    tracing::warn!("recreate backup object");
-    config.restore_obj().await?;
+    // if config.is_obj_existed().await? {
+    //     if config.force {
+    //         tracing::warn!("restore target exists, force to delete and recreate");
+    //         config.delete_obj().await?;
+    //     } else {
+    //         bail!("restore target already exists, please delete and recreate");
+    //     }
+    // }
+    // tracing::warn!("recreate backup object");
+    // config.restore_obj().await?;
 
     // 创建 watcher
     let watcher = FileWatcher::from(config.clone());
