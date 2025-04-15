@@ -19,6 +19,7 @@ from util.common import *
 from util.sqlset import *
 
 class TDTestCase:
+    updatecfgDict = {'forceReadConfig':'1','timezone':'Asia/Shanghai','arbSetAssignedTimeoutSec':'17'}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -28,6 +29,7 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdDnodes.cfg(1, 'forceReadConfig', '1')
         tdDnodes.cfg(1, 'timezone', 'Asia/Shaghai')
+        tdDnodes.cfg(1, 'arbSetAssignedTimeoutSec', '17')
         tdDnodes.start(1)
         time.sleep(10)
         tdSql.error("show databases")
@@ -36,9 +38,12 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdDnodes.cfg(1, 'forceReadConfig', '1')
         tdDnodes.cfg(1, 'timezone', 'Asia/Shanghai')
+        tdDnodes.cfg(1, 'arbSetAssignedTimeoutSec', '17')
         tdDnodes.start(1)
         time.sleep(10)
         tdSql.execute("show databases")
+        tdSql.query("show dnode 1 variables like 'arbSetAssignedTimeoutSec'")
+        tdSql.checkData(0, 2, 17)
 
         
     def run(self):
