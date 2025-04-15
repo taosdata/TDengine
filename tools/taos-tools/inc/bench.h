@@ -722,7 +722,6 @@ typedef struct SConsumerInfo_S {
     char*       enableManualCommit;
     char*       enableAutoCommit;
     uint32_t    autoCommitIntervalMs;  // ms
-    char*       enableHeartbeatBackground;
     char*       snapshotEnable;
     char*       msgWithTableName;
     char*       rowsFile;

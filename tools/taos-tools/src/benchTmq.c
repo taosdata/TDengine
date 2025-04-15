@@ -41,7 +41,6 @@ void printfTmqConfigIntoFile() {
   infoPrintToFile( "autoOffsetReset: %s\n", pConsumerInfo->autoOffsetReset);
   infoPrintToFile( "enableAutoCommit: %s\n", pConsumerInfo->enableAutoCommit);
   infoPrintToFile( "autoCommitIntervalMs: %d\n", pConsumerInfo->autoCommitIntervalMs);
-  infoPrintToFile( "enableHeartbeatBackground: %s\n", pConsumerInfo->enableHeartbeatBackground);
   infoPrintToFile( "snapshotEnable: %s\n", pConsumerInfo->snapshotEnable);
   infoPrintToFile( "msgWithTableName: %s\n", pConsumerInfo->msgWithTableName);
   infoPrintToFile( "rowsFile: %s\n", pConsumerInfo->rowsFile);
@@ -175,7 +174,6 @@ int buildConsumerAndSubscribe(tmqThreadInfo * pThreadInfo, char* groupId) {
     snprintf(tmpBuff, 16, "%d", pConsumerInfo->autoCommitIntervalMs);
     tmq_conf_set(conf, "auto.commit.interval.ms", tmpBuff);
 
-    tmq_conf_set(conf, "enable.heartbeat.background", pConsumerInfo->enableHeartbeatBackground);
     tmq_conf_set(conf, "experimental.snapshot.enable", pConsumerInfo->snapshotEnable);
     tmq_conf_set(conf, "msg.with.table.name", pConsumerInfo->msgWithTableName);
 
