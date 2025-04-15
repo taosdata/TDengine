@@ -236,7 +236,7 @@ function run_thread() {
             real_start_time=$(date +%s)
             # $cmd 2>&1 | tee -a $case_log_file
             # ret=${PIPESTATUS[0]}
-            $cmd 2>&1 | tee "$case_log_file"
+            $cmd >>"$case_log_file" 2>&1
             ret=$?
             local real_end_time
             real_end_time=$(date +%s)
@@ -248,32 +248,42 @@ function run_thread() {
             if [ $ret -eq 0 ]; then
                 break
             fi
+            echo ==========================
+            cat "$case_log_file"
+            echo ==========================
             redo=0
 
             if grep -q "wait too long for taosd start" "$case_log_file"; then
+                echo "wait too long for taosd start"
                 redo=1
             fi
 
             if grep -q "kex_exchange_identification: Connection closed by remote host" "$case_log_file"; then
+                echo "kex_exchange_identification: Connection closed by remote host"
                 redo=1
             fi
 
             if grep -q "ssh_exchange_identification: Connection closed by remote host" "$case_log_file"; then
+                echo "ssh_exchange_identification: Connection closed by remote host"
                 redo=1
             fi
 
             if grep -q "kex_exchange_identification: read: Connection reset by peer" "$case_log_file"; then
+                echo "kex_exchange_identification: read: Connection reset by peer"
                 redo=1
             fi
 
             if grep -q "Database not ready" "$case_log_file"; then
+                echo "Database not ready"
                 redo=1
             fi
 
             if grep -q "Unable to establish connection" "$case_log_file"; then
+                echo "Unable to establish connection"
                 redo=1
             fi
             if [ $redo_count -lt "$case_redo_time" ]; then
+                echo "=========unknown reason=========="
                 redo=1
             fi
             if [ $redo -eq 0 ]; then
