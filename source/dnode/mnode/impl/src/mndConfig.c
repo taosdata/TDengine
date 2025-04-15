@@ -33,13 +33,16 @@ typedef struct {
   const char  *optionName;
   ECfgDataType dtype;
   const char  *value;
+  const char  *oldValue;
 } upgradeConfig;
 
-static int32_t addUpgrade(SArray *upgradeArray, ECfgDataType dtype, const char *optionName, const char *value) {
+static int32_t addUpgrade(SArray *upgradeArray, ECfgDataType dtype, const char *optionName, const char *value,
+                          const char *oldValue) {
   upgradeConfig upgradeConfig = {0};
   upgradeConfig.optionName = optionName;
   upgradeConfig.dtype = dtype;
   upgradeConfig.value = value;
+  upgradeConfig.oldValue = oldValue;
   if (taosArrayPush(upgradeArray, &upgradeConfig) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -394,17 +397,38 @@ static int32_t initUpgradeArray(SArray **upgradeArray) {
   if (*upgradeArray == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  TAOS_CHECK_RETURN(addUpgrade(*upgradeArray, CFG_DTYPE_INT32, "arbSetAssignedTimeoutSec", "14"));
+  TAOS_CHECK_RETURN(addUpgrade(*upgradeArray, CFG_DTYPE_INT32, "arbSetAssignedTimeoutSec", "14", "10"));
   return TSDB_CODE_SUCCESS;
 }
 
-static bool shouldUpgradeConfig(SConfigItem *item, SArray *upgradeArray, upgradeConfig **upgradeConfig) {
-  if (item->stype != CFG_STYPE_DEFAULT) {
-    return false;
+static bool compareOldValue(SConfigObj *obj, const char *oldValue) {
+  bool tmp = false;
+
+  switch (obj->dtype) {
+    case CFG_DTYPE_INT32:
+      return obj->i32 == taosStr2Int32(oldValue, NULL, 10);
+    case CFG_DTYPE_INT64:
+      return obj->i64 == taosStr2Int64(oldValue, NULL, 10);
+    case CFG_DTYPE_FLOAT:
+      return obj->fval == taosStr2Float(oldValue, NULL);
+    case CFG_DTYPE_STRING:
+      return strcmp(obj->str, oldValue) == 0;
+    case CFG_DTYPE_BOOL:
+      if (strcasecmp(oldValue, "true") == 0) tmp = true;
+      int32_t val = 0;
+      if (taosStr2int32(oldValue, &val) == 0 && val > 0) {
+        tmp = true;
+      }
+      return obj->bval == tmp;
+    default:
+      return false;
   }
+}
+
+static bool shouldUpgradeConfig(SConfigObj *obj, SArray *upgradeArray, upgradeConfig **upgradeConfig) {
   for (int i = 0; i < taosArrayGetSize(upgradeArray); ++i) {
     *upgradeConfig = taosArrayGet(upgradeArray, i);
-    if (strcmp((*upgradeConfig)->optionName, item->name) == 0) {
+    if (strcmp((*upgradeConfig)->optionName, obj->name) == 0 && compareOldValue(obj, (*upgradeConfig)->oldValue)) {
       return true;
     }
   }
@@ -455,7 +479,7 @@ static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq) {
         }
         bool           shouldUpgrade = false;
         upgradeConfig *upgradeConfig = NULL;
-        shouldUpgrade = shouldUpgradeConfig(item, upgradeArray, &upgradeConfig);
+        shouldUpgrade = shouldUpgradeConfig(obj, upgradeArray, &upgradeConfig);
         if (shouldUpgrade && upgradeConfig) {
           mInfo("config:%s, should upgrade", item->name);
           mndConfigUpdateTrans(pMnode, item->name, (char *)upgradeConfig->value, upgradeConfig->dtype, ++vObj->i64);

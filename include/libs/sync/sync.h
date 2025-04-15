@@ -56,6 +56,8 @@ extern "C" {
 #define SYNC_INDEX_INVALID  -1
 #define SYNC_TERM_INVALID   -1
 
+#define APPLY_QUEUE_ERROR_THRESHOLD 50
+
 #define SYNC_LEARNER_CATCHUP 10
 
 typedef enum {

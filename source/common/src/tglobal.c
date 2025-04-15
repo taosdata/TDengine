@@ -2178,6 +2178,7 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
       }
       continue;
     }
+    pItem->stype = CFG_STYPE_CFG_FILE;
     switch (pItem->dtype) {
       {
         case CFG_DTYPE_NONE:
