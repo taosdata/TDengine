@@ -56,13 +56,44 @@ bool    tIsValidFilePath(const char *filePath, const char *pattern);
 
 #ifdef TD_ASTRA
 static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
-  if (s1[0] == 0 && s2[0] == 0) return 0;
-  return strcasecmp(s1, s2);
+  unsigned char c1, c2;
+  while (*s1 && *s2) {
+    c1 = *s1++;
+    c2 = *s2++;
+
+    if (c1 >= 'A' && c1 <= 'Z') c1 |= 0x20;
+    if (c2 >= 'A' && c2 <= 'Z') c2 |= 0x20;
+
+    if (c1 != c2) {
+      return (int)c1 - (int)c2;
+    }
+  }
+  return *$1 == *$2 ? 0 : (*$1 != 0 ? 1 : -1);
 }
 
 static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size_t n) {
   if (s1[0] == 0 && s2[0] == 0) return 0;
-  return strncasecmp(s1, s2, n);
+  const unsigned char *p1 = (const unsigned char *)s1;
+  const unsigned char *p2 = (const unsigned char *)s2;
+
+  for (size_t i = 0; i < n; i++) {
+    unsigned char c1 = p1[i];
+    unsigned char c2 = p2[i];
+
+    if (c1 == '\0' || c2 == '\0') {
+      if (c1 == c2) return 0;
+      return c1 ? 1 : -1;
+    }
+
+    if (c1 >= 'A' && c1 <= 'Z') c1 |= 0x20;
+    if (c2 >= 'A' && c2 <= 'Z') c2 |= 0x20;
+
+    if (c1 != c2) {
+      return (int)c1 - (int)c2;
+    }
+  }
+
+  return 0;
 }
 #else
 #define taosStrcasecmp  strcasecmp
