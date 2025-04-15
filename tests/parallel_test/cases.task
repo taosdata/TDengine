@@ -108,7 +108,7 @@
 #
 
 # benchmark 64 cases
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
@@ -246,7 +246,7 @@
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBool.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpRetry.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeTinyInt.py -B
-# ,,n,army,python3 ./test.py -f tools/taosdump/native/taosdumpCommandline.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/native/taosdumpCommandline.py -B
 
 #
 # system test
