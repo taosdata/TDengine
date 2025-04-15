@@ -1,7 +1,7 @@
 from new_test_framework.utils import tdLog, tdSql
 
 
-class TestIntColumn:
+class TestUIntColumn:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -10,12 +10,12 @@ class TestIntColumn:
     def test_static_create_table(self):
         """static create table
 
-        1. 使用 int 作为超级表的普通列、标签列
-        2. 当 int 作为标签列时，使用合法值、非法值创建子表
-        3. 当 int 作为标签列时，测试 show tags 的返回结果
+        1. 使用 uint 作为超级表的普通列、标签列
+        2. 当 uint 作为标签列时，使用合法值、非法值创建子表
+        3. 当 uint 作为标签列时，测试 show tags 的返回结果
 
         Catalog:
-            - DataTypes:Int
+            - DataTypes:UInt
             - Tables:Create
 
         Since: v3.0.0.0
@@ -168,11 +168,11 @@ class TestIntColumn:
     def test_insert_column_value(self):
         """insert column value
 
-        1. 使用 int 作为超级表的普通列、标签列
-        2. 当 int 作为普通列时，使用合法值、非法值向子表中写入数据
+        1. 使用 uint 作为超级表的普通列、标签列
+        2. 当 uint 作为普通列时，使用合法值、非法值向子表中写入数据
 
         Catalog:
-            - DataTypes:Int
+            - DataTypes:UInt
 
         Since: v3.0.0.0
         Labels: common,ci
@@ -321,11 +321,11 @@ class TestIntColumn:
     def test_dynamic_create_table(self):
         """dynamic create table
 
-        1. 使用 int 作为超级表的普通列、标签列
+        1. 使用 uint 作为超级表的普通列、标签列
         2. 使用合法值、非法值向子表中写入数据并自动建表
 
         Catalog:
-            - DataTypes:Int
+            - DataTypes:UInt
 
         Since: v3.0.0.0
         Labels: common,ci
@@ -619,11 +619,11 @@ class TestIntColumn:
     def test_alter_tag_value(self):
         """alter tag value
 
-        1. 使用 int 作为超级表的标签列
+        1. 使用 uint 作为超级表的标签列
         2. 使用合法值、非法值修改子表的标签值
 
         Catalog:
-            - DataTypes:Int
+            - DataTypes:UInt
 
         Since: v3.0.0.0
         Labels: common,ci
@@ -744,11 +744,11 @@ class TestIntColumn:
     def test_illegal_input(self):
         """illegal input
 
-        1. 使用 int 作为超级表的标签列
+        1. 使用 uint 作为超级表的标签列
         2. 使用非法标签值创建子表
 
         Catalog:
-            - DataTypes:Int
+            - DataTypes:UInt
 
         Since: v3.0.0.0
         Labels: common,ci
