@@ -5084,6 +5084,103 @@ void tFreeFetchTtlExpiredTbsRsp(void* p);
 void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
+typedef enum EStreamTriggerRequestType {
+  TRIGGER_REQUEST_NONE = 0,
+  TRIGGER_REQUEST_LAST_TS,
+  TRIGGER_REQUEST_FIRST_TS,
+  TRIGGER_REQUEST_TSDB_META,
+  TRIGGER_REQUEST_TSDB_META_NEXT,
+  TRIGGER_REQUEST_TSDB_TS_DATA,
+  TRIGGER_REQUEST_TSDB_TRIGGER_DATA,
+  TRIGGER_REQUEST_TSDB_TRIGGER_DATA_NEXT,
+  TRIGGER_REQUEST_TSDB_CALC_DATA,
+  TRIGGER_REQUEST_TSDB_CALC_DATA_NEXT,
+  TRIGGER_REQUEST_WAL_META,
+  TRIGGER_REQUEST_WAL_TS_DATA,
+  TRIGGER_REQUEST_WAL_TRIGGER_DATA,
+  TRIGGER_REQUEST_WAL_CALC_DATA,
+  TRIGGER_REQUEST_CALCULATION,
+  TRIGGER_REQUEST_MAX
+} EStreamTriggerRequestType;
+
+typedef struct SStreamTriggerRequest {
+  EStreamTriggerRequestType type;
+  int64_t                   streamId;
+  int64_t                   sessionId;
+} SStreamTriggerRequest;
+
+typedef struct SStreamLastTsRequest {
+  SStreamTriggerRequest base;
+} SStTriggerLastTsRequest;
+
+typedef struct SStreamFirstTsRequest {
+  SStreamTriggerRequest base;
+  int64_t               startTime;
+} SStreamFirstTsRequest;
+
+typedef struct SStreamTsdbMetaRequest {
+  SStreamTriggerRequest base;
+  int64_t               startTime;
+} SStreamTsdbMetaRequest;
+
+typedef struct SStreamTsdbMetaNextRequest {
+  SStreamTriggerRequest base;
+} SStreamTsdbMetaNextRequest;
+
+typedef struct SStreamTsdbTsDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               uid;
+  int64_t               skey;
+  int64_t               ekey;
+} SStreamTsdbTsDataRequest;
+
+typedef struct SStreamTsdbTriggerDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               startTime;
+} SStreamTsdbTriggerDataRequest;
+
+typedef struct SStreamTsdbTriggerDataNextRequest {
+  SStreamTriggerRequest base;
+} SStreamTsdbTriggerDataNextRequest;
+
+typedef struct SStreamTsdbCalcDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               gid;
+  int64_t               skey;
+  int64_t               ekey;
+} SStreamTsdbCalcDataRequest;
+
+typedef struct SStreamTsdbCalcDataNextRequest {
+  SStreamTriggerRequest base;
+} SStreamTsdbCalcDataNextRequest;
+
+typedef struct SStreamWalMetaRequest {
+  SStreamTriggerRequest base;
+  int64_t               lastVer;
+} SStreamWalMetaRequest;
+
+typedef struct SStreamWalTsDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               ver;
+} SStreamWalTsDataRequest;
+
+typedef struct SStreamWalTriggerDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               ver;
+} SStreamWalTriggerDataRequest;
+
+typedef struct SStreamWalCalcDataRequest {
+  SStreamTriggerRequest base;
+  int64_t               ver;
+  int64_t               skey;
+  int64_t               ekey;
+} SStreamWalCalcDataRequest;
+
+typedef struct SStreamCalculationRequest {
+  SStreamTriggerRequest base;
+  int64_t               params;
+} SStreamCalculationRequest;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
