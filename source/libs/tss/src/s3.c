@@ -346,9 +346,17 @@ static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSo
 // multipartInitialCallback saves the upload ID to callback data
 static S3Status multipartInitialCallback(const char *uploadId, void *cbd) {
     SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
-    ucbd->uploadId = strdup(uploadId);
-    ucbd->status = S3StatusOK;
-    return S3StatusOK;
+
+    char* id = strdup(uploadId);
+    if (id == NULL) {
+        tssError("failed to allocate memory for upload ID");
+        ucbd->status = S3StatusOutOfMemory;
+    } else {
+        ucbd->status = S3StatusOK;
+        ucbd->uploadId = id;
+    }
+
+    return ucbd->status;
 }
 
 
@@ -356,8 +364,17 @@ static S3Status multipartInitialCallback(const char *uploadId, void *cbd) {
 // multipartInitialCallback saves the eTag of current part to callback data
 static S3Status multipartResponseProperiesCallback(const S3ResponseProperties *properties, void *cbd) {
     SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
-    ucbd->etags[ucbd->seq] = strdup(properties->eTag);
-    return S3StatusOK;
+
+    char* etag = strdup(properties->eTag);
+    if (etag == NULL) {
+        tssError("failed to allocate memory for eTag");
+        ucbd->status = S3StatusOutOfMemory;
+    } else {
+        ucbd->status = S3StatusOK;
+        ucbd->etags[ucbd->seq] = etag;
+    }
+
+    return ucbd->status;
 }
 
 
@@ -755,6 +772,168 @@ static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char
 
     TAOS_RETURN(code);
 }
+
+
+
+// functions and data structures for list
+
+typedef struct {
+    S3Status  status;
+    char      errMsg[512];
+    int isTruncated;
+    char     nextMarker[1024];
+    SArray* paths;
+} SListCallbackData;
+
+
+
+static S3Status listFileCallback(int                        isTruncated,
+                             const char*                nextMarker,
+                             int                        contentsCount,
+                             const S3ListBucketContent* contents,
+                             int                        commonPrefixesCount,
+                             const char**               commonPrefixes,
+                             void*                      cbd) {
+    SListCallbackData* lcbd = (SListCallbackData*)cbd;
+
+    lcbd->isTruncated = isTruncated;
+    if (nextMarker != NULL) {
+        strncpy(lcbd->nextMarker, nextMarker, sizeof(lcbd->nextMarker));
+        lcbd->nextMarker[sizeof(lcbd->nextMarker) - 1] = 0;
+    } else {
+        lcbd->nextMarker[0] = 0;
+    }
+
+    lcbd->status = S3StatusOK;
+    for (int i = 0; i < contentsCount; i++) {
+        char* path = strdup(contents[i].key);
+        if (path == NULL) {
+            tssError("failed to allocate memory for list path");
+            lcbd->status = S3StatusOutOfMemory;
+            break;
+        }
+
+        if (taosArrayAppend(lcbd->paths, path) != 0) {
+            tssError("failed to append path to list");
+            free(path);
+            lcbd->status = S3StatusOutOfMemory;
+            break;
+        }
+    }
+
+    return lcbd->status;
+}
+
+
+
+// listFile lists the files in the shared storage with the specified prefix.
+// [paths] is a pointer to a new initialized SArray, which will be filled with the paths.
+// If the call succeeds, the caller is responsible for freeing the items in [paths]
+// and [paths] itself.
+// if the call fails, [paths] will be cleared and the function returns an error code,
+// the caller is responsible for freeing [paths] itself.
+static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    SListCallbackData lcbd = {.paths = paths};
+
+    S3ListBucketHandler lbh = {
+        .responseHandler = {
+            .propertiesCallback = &propertiesCallbackNop,
+            .completeCallback = &responseCompleteCallback,
+        },
+        .listBucketCallback = &listFileCallback,
+    };
+
+    do {
+        lcbd.isTruncated = 0;
+        S3_list_bucket(&ss->bucketContext, prefix, lcbd.nextMarker, NULL, 0, NULL, 0, &lbh, &lcbd);
+    } while(lcbd.status == S3StatusOK && lcbd.isTruncated);
+
+    int32_t code = 0;
+    if (lcbd.status != S3StatusOK) {
+        tssError("failed to list %s: %d/%s", prefix, lcbd.status, lcbd.errMsg);
+        taosArrayClearEx(paths, taosMemFree);
+        code = TAOS_SYSTEM_ERROR(EIO);
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+// functions and data structures for delete
+
+static int32_t deleteFile(SSharedStorage* pss, const char* path) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    S3ResponseHandler rh = {
+        .propertiesCallback = &propertiesCallbackNop,
+        .completeCallback = &responseCompleteCallback,
+    };
+
+    SCallbackData cbd = {0};
+    do {
+        S3_delete_object(&ss->bucketContext, path, NULL, 0, &rh, &cbd);
+    } while(S3_status_is_retryable(cbd.status) && shouldRetry());
+
+    if (cbd.status == S3StatusOK || cbd.status == S3StatusErrorNoSuchKey) {
+        TAOS_RETURN(TSDB_CODE_SUCCESS);
+    }
+
+    tssError("failed to delete %s: %d/%s", path, cbd.status, cbd.errMsg);
+    TAOS_RETURN(TSDB_CODE_FAILED);
+}
+
+
+// functions and data structures for file size
+
+typedef struct {
+    S3Status  status;
+    char      errMsg[512];
+    int64_t   size;
+} SSizeCallbackData;
+
+
+static S3Status sizePropertiesCallback(const S3ResponseProperties* properties, void* data) {
+    SSizeCallbackData* scbd = (SSizeCallbackData*)data;
+    if (properties->contentLength > 0) {
+        scbd->status = S3StatusOK;
+        scbd->size = properties->contentLength;
+    } else {
+        scbd->status = S3StatusErrorNoSuchKey;
+    }
+    return scbd->status;
+}
+
+
+static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    S3ResponseHandler rh = {
+        .propertiesCallback = &sizePropertiesCallback,
+        .completeCallback = &responseCompleteCallback,
+    };
+
+    SSizeCallbackData scbd = {0};
+    do {
+        S3_head_object(&ss->bucketContext, path, NULL, 0, &rh, &scbd);
+    } while(S3_status_is_retryable(scbd.status) && shouldRetry());
+
+    int code = 0;
+    if (scbd.status == S3StatusOK) {
+        *size = scbd.size;
+    } else if (scbd.status == S3StatusErrorNoSuchKey) {
+        tssError("file %s does not exist", path);
+        code = TSDB_CODE_NOT_FOUND;
+    } else {
+        tssError("failed to get size of %s: %d/%s", path, scbd.status, scbd.errMsg);
+        code = TSDB_CODE_FAILED;
+    }
+
+    TAOS_RETURN(code);
+}
+
 
 
 // Amazon S3
