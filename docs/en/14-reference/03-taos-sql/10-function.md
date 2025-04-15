@@ -1159,10 +1159,10 @@ taos> select repeat('abc',-1);
                   |
 ```
 
-#### BASE64
+#### TO_BASE64
 
 ```sql
-BASE64(expr)
+TO_BASE64(expr)
 ```
 
 **Function Description**: Returns the base64 encoding of the string `expr`s.
@@ -1184,20 +1184,20 @@ BASE64(expr)
 **Example**:
 
 ```sql
-taos> select base64("");
- base64("") |
-=============
-            |
+taos> select to_base64("");
+ to_base64("") |
+================
+               |
 
-taos> select base64("Hello, world!");
- base64("Hello, world!") |
-==========================
- SGVsbG8sIHdvcmxkIQ==    |
+taos> select to_base64("Hello, world!");
+ to_base64("Hello, world!") |
+=============================
+ SGVsbG8sIHdvcmxkIQ==       |
 
-taos> select base64("你好 世界");
- base64("你好 世界")      |
-==========================
- 5L2g5aW9IOS4lueVjA==    |
+taos> select to_base64("你好 世界");
+ to_base64("你好 世界")      |
+==============================
+ 5L2g5aW9IOS4lueVjA==        |
 ```
 
 ### Conversion Functions

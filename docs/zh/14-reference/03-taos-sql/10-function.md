@@ -1110,10 +1110,10 @@ UPPER(expr)
 
 **适用于**：表和超级表。
 
-#### BASE64
+#### TO_BASE64
 
 ```sql
-BASE64(expr)
+TO_BASE64(expr)
 ```
 
 **功能说明**: 传回字符串“expr”的 Base64 编码。
@@ -1135,20 +1135,20 @@ BASE64(expr)
 **举例**:
 
 ```sql
-taos> select base64("");
- base64("") |
-=============
-            |
+taos> select to_base64("");
+ to_base64("") |
+================
+               |
 
-taos> select base64("Hello, world!");
- base64("Hello, world!") |
-==========================
- SGVsbG8sIHdvcmxkIQ==    |
+taos> select to_base64("Hello, world!");
+ to_base64("Hello, world!") |
+=============================
+ SGVsbG8sIHdvcmxkIQ==       |
 
-taos> select base64("你好 世界");
- base64("你好 世界")      |
-==========================
- 5L2g5aW9IOS4lueVjA==    |
+taos> select to_base64("你好 世界");
+ to_base64("你好 世界")      |
+==============================
+ 5L2g5aW9IOS4lueVjA==        |
 ```
 
 ### 转换函数
