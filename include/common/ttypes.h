@@ -46,7 +46,7 @@ typedef struct {
 #pragma pack(pop)
 
 #define STypeMod int32_t
-void extractTypeFromTypeMod(uint8_t type, STypeMod typeMod, uint8_t *prec, uint8_t* scale, int32_t *bytes);
+void extractTypeFromTypeMod(uint8_t type, STypeMod typeMod, uint8_t *prec, uint8_t *scale, int32_t *bytes);
 
 #define varDataTLen(v)         (sizeof(VarDataLenT) + varDataLen(v))
 #define varDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), varDataTLen(v))
@@ -56,20 +56,25 @@ void extractTypeFromTypeMod(uint8_t type, STypeMod typeMod, uint8_t *prec, uint8
 #define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
 #define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
 
-#define DEFINE_TYPE_FROM_DECIMAL_FUNC(oType, decimalType) \
-  oType oType##From##decimalType(const void* pDec, uint8_t prec, uint8_t scale)
+#define blobDataTLen(v)         (sizeof(BlobDataLenT) + blobDataLen(v))
+#define blobDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), blobDataTLen(v))
+#define blobDataLenByData(v)    (*(BlobDataLenT *)(((char *)(v)) - BLOBSTR_HEADER_SIZE))
+#define blobDataSetLen(v, _len) (((BlobDataLenT *)(v))[0] = (BlobDataLenT)(_len))
 
-#define DEFINE_TYPE_FROM_DECIMAL_FUNCS(prefix, decimalType) \
-  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(bool, decimalType); \
-  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(int8_t, decimalType); \
-  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(uint8_t, decimalType); \
-  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(int16_t, decimalType); \
+#define DEFINE_TYPE_FROM_DECIMAL_FUNC(oType, decimalType) \
+  oType oType##From##decimalType(const void *pDec, uint8_t prec, uint8_t scale)
+
+#define DEFINE_TYPE_FROM_DECIMAL_FUNCS(prefix, decimalType)    \
+  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(bool, decimalType);     \
+  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(int8_t, decimalType);   \
+  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(uint8_t, decimalType);  \
+  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(int16_t, decimalType);  \
   prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(uint16_t, decimalType); \
-  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(int32_t, decimalType); \
+  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(int32_t, decimalType);  \
   prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(uint32_t, decimalType); \
-  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(int64_t, decimalType); \
+  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(int64_t, decimalType);  \
   prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(uint64_t, decimalType); \
-  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(float, decimalType); \
+  prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(float, decimalType);    \
   prefix DEFINE_TYPE_FROM_DECIMAL_FUNC(double, decimalType);
 
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(extern, Decimal64);
@@ -299,7 +304,8 @@ DEFINE_TYPE_FROM_DECIMAL_FUNCS(extern, Decimal128);
 #define IS_BOOLEAN_TYPE(_t)          ((_t) == TSDB_DATA_TYPE_BOOL)
 #define IS_DECIMAL_TYPE(_t)          ((_t) == TSDB_DATA_TYPE_DECIMAL || (_t) == TSDB_DATA_TYPE_DECIMAL64)
 
-#define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)) || (IS_DECIMAL_TYPE(_t)))
+#define IS_NUMERIC_TYPE(_t) \
+  ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)) || (IS_DECIMAL_TYPE(_t)))
 #define IS_MATHABLE_TYPE(_t) \
   (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
@@ -311,9 +317,8 @@ DEFINE_TYPE_FROM_DECIMAL_FUNCS(extern, Decimal128);
 #define IS_STR_DATA_TYPE(t) \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
-#define IS_STR_DATA_BLOB(t) ((t) == TSDB_DATA_TYPE_BLOB || (t) == TSDB_DATA_TYPE_MEDIUMBLOB)
-#define IS_COMPARE_STR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
+#define IS_STR_DATA_BLOB(t)         ((t) == TSDB_DATA_TYPE_BLOB || (t) == TSDB_DATA_TYPE_MEDIUMBLOB)
+#define IS_COMPARE_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)
@@ -415,7 +420,7 @@ void   *getDataMin(int32_t type, void *value);
 void   *getDataMax(int32_t type, void *value);
 
 STypeMod typeGetTypeMod(uint8_t type, uint8_t prec, uint8_t scale, int32_t bytes);
-STypeMod typeGetTypeModFromDataType(const SDataType* pDataType);
+STypeMod typeGetTypeModFromDataType(const SDataType *pDataType);
 uint8_t  decimalTypeFromPrecision(uint8_t precision);
 STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale);
 void     decimalFromTypeMod(STypeMod typeMod, uint8_t *precision, uint8_t *scale);
@@ -423,8 +428,8 @@ void     decimalFromTypeMod(STypeMod typeMod, uint8_t *precision, uint8_t *scale
 void    fillTypeFromTypeMod(SDataType *pType, STypeMod mod);
 uint8_t getScaleFromTypeMod(int32_t type, STypeMod mod);
 // TODO fix me!! for compatibility issue, save precision in scale in bytes, move it to somewhere else
-void    fillBytesForDecimalType(int32_t *pBytes, int32_t type, uint8_t precision, uint8_t scale);
-void    extractDecimalTypeInfoFromBytes(int32_t *pBytes, uint8_t *precision, uint8_t *scale);
+void fillBytesForDecimalType(int32_t *pBytes, int32_t type, uint8_t precision, uint8_t scale);
+void extractDecimalTypeInfoFromBytes(int32_t *pBytes, uint8_t *precision, uint8_t *scale);
 
 int32_t calcTypeBytesFromSchemaBytes(int32_t type, int32_t schemaBytes, bool isStmt);
 int32_t calcSchemaBytesFromTypeBytes(int32_t type, int32_t varTypeBytes, bool isStmt);

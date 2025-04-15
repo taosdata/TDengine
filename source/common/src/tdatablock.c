@@ -2127,7 +2127,7 @@ int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pC
   pDstBlock->info.blankFill = pDataBlock->info.blankFill;
 
   for (int32_t i = 0; i < taosArrayGetSize(pColArray); ++i) {
-    SColIdPair *pColPair = taosArrayGet(pColArray, i);
+    SColIdPair* pColPair = taosArrayGet(pColArray, i);
     QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);
 
     for (int32_t j = 0; j < taosArrayGetSize(pDataBlock->pDataBlock); ++j) {
@@ -2151,10 +2151,11 @@ _return:
   return code;
 }
 
-int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock, SSDataBlock** pResBlock) {
+int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock,
+                                       SSDataBlock** pResBlock) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
-  SSDataBlock *pDstBlock = NULL;
+  SSDataBlock* pDstBlock = NULL;
 
   QRY_PARAM_CHECK(pResBlock);
   QUERY_CHECK_NULL(pDataBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
@@ -2172,7 +2173,7 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDa
 
     bool found = false;
     for (int32_t j = 0; j < taosArrayGetSize(pDataBlock->pDataBlock); j++) {
-      SColumnInfoData *p = taosArrayGet(pDataBlock->pDataBlock, j);
+      SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, j);
       if (p->info.slotId == pSrc->info.slotId) {
         QUERY_CHECK_CODE(colDataAssign(pDst, p, (int32_t)pDataBlock->info.rows, &pDataBlock->info), lino, _return);
         found = true;
@@ -2182,7 +2183,6 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDa
     if (!found) {
       colDataSetNNULL(pDst, 0, pDataBlock->info.rows);
     }
-
   }
 
   pDstBlock->info.rows = pDataBlock->info.rows;
@@ -2534,6 +2534,8 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
         int32_t colSize = 0;
         if (pColData->info.type == TSDB_DATA_TYPE_JSON) {
           colSize = getJsonValueLen(pData);
+        } else if (IS_STR_DATA_BLOB(pColData->info.type)) {
+          colSize = blobDataTLen(pData);
         } else {
           colSize = varDataTLen(pData);
         }
@@ -2682,12 +2684,13 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
   }
 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
-  len += tsnprintf(dumpBuf + len, size - len,
-                  "%s===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64 "|rows:%" PRId64
-                  "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
-                  taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
-                  pDataBlock->info.id.groupId, pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
-                  pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey, pDataBlock->info.parTbName);
+  len +=
+      tsnprintf(dumpBuf + len, size - len,
+                "%s===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64 "|rows:%" PRId64
+                "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
+                taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId, pDataBlock->info.id.groupId,
+                pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version, pDataBlock->info.calWin.skey,
+                pDataBlock->info.calWin.ekey, pDataBlock->info.parTbName);
   goto _exit;
   if (len >= size - 1) {
     goto _exit;
@@ -2794,6 +2797,17 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
         } break;
+        case TSDB_DATA_TYPE_MEDIUMBLOB:
+        case TSDB_DATA_TYPE_BLOB: {
+          memset(pBuf, 0, sizeof(pBuf));
+          char*   pData = colDataGetVarData(pColInfoData, j);
+          int32_t dataSize = TMIN(sizeof(pBuf), blobDataLen(pData));
+          dataSize = TMIN(dataSize, 50);
+          memcpy(pBuf, blobDataVal(pData), dataSize);
+          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          if (len >= size - 1) goto _exit;
+          break;
+        }
       }
     }
     len += tsnprintf(dumpBuf + len, size - len, "%d\n", j);
@@ -2949,9 +2963,13 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             break;
           }
           case TSDB_DATA_TYPE_DECIMAL:
-          case TSDB_DATA_TYPE_BLOB:
-          case TSDB_DATA_TYPE_JSON:
           case TSDB_DATA_TYPE_MEDIUMBLOB:
+          case TSDB_DATA_TYPE_BLOB:
+            uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
+            terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            return terrno;
+            break;
+          case TSDB_DATA_TYPE_JSON:
             uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
             terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
             return terrno;
@@ -2976,19 +2994,23 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                   char tv[DATUM_MAX_SIZE] = {0};
                   if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
                     float v = 0;
-                    GET_TYPED_DATA(v, float, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
+                    GET_TYPED_DATA(v, float, pColInfoData->info.type, var,
+                                   typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else if (pColInfoData->info.type == TSDB_DATA_TYPE_DOUBLE) {
                     double v = 0;
-                    GET_TYPED_DATA(v, double, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
+                    GET_TYPED_DATA(v, double, pColInfoData->info.type, var,
+                                   typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else if (IS_SIGNED_NUMERIC_TYPE(pColInfoData->info.type)) {
                     int64_t v = 0;
-                    GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
+                    GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var,
+                                   typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else {
                     uint64_t v = 0;
-                    GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
+                    GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var,
+                                   typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   }
                   valueSetDatum(&sv, sv.type, tv, tDataTypes[pCol->type].bytes);
@@ -3045,9 +3067,9 @@ _end:
 
 // Construct the child table name in the form of <ctbName>_<stbName>_<groupId> and store it in `ctbName`.
 int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId, size_t cap) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   lino = 0;
-  char      tmp[TSDB_TABLE_NAME_LEN] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char    tmp[TSDB_TABLE_NAME_LEN] = {0};
 
   if (ctbName == NULL || cap < TSDB_TABLE_NAME_LEN) {
     code = TSDB_CODE_INTERNAL_ERROR;
@@ -3055,7 +3077,7 @@ int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t grou
   }
 
   if (stbName == NULL) {
-    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
+    snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%" PRIu64, groupId);
   } else {
     int32_t i = strlen(stbName) - 1;
     for (; i >= 0; i--) {
@@ -3254,9 +3276,12 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     // copy the null bitmap
     size_t metaSize = 0;
     if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
-      metaSize = numOfRows * sizeof(int32_t);
-      if (dataLen + metaSize > dataBuflen) goto _exit;
-      memcpy(data, pColRes->varmeta.offset, metaSize);
+      if (IS_STR_DATA_BLOB(pColRes->info.type)) {
+      } else {
+        metaSize = numOfRows * sizeof(int32_t);
+        if (dataLen + metaSize > dataBuflen) goto _exit;
+        memcpy(data, pColRes->varmeta.offset, metaSize);
+      }
     } else {
       metaSize = BitmapLen(numOfRows);
       if (dataLen + metaSize > dataBuflen) goto _exit;
@@ -3273,6 +3298,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
         int32_t colSize = 0;
         if (pColRes->info.type == TSDB_DATA_TYPE_JSON) {
           colSize = getJsonValueLen(pColData);
+        } else if (IS_STR_DATA_BLOB(pColRes->info.type)) {
         } else {
           colSize = varDataTLen(pColData);
         }
@@ -3409,20 +3435,26 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
     }
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-      memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
-      pStart += sizeof(int32_t) * numOfRows;
+      if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+        //   pColInfoData->varmeta.allocLen = colLen[i];
+        // } else {
+        //   pColInfoData->varmeta.allocLen = numOfRows * sizeof(int32_t);
+      } else {
+        memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
+        pStart += sizeof(int32_t) * numOfRows;
 
-      if (colLen[i] > 0 && pColInfoData->varmeta.allocLen < colLen[i]) {
-        char* tmp = taosMemoryRealloc(pColInfoData->pData, colLen[i]);
-        if (tmp == NULL) {
-          return terrno;
+        if (colLen[i] > 0 && pColInfoData->varmeta.allocLen < colLen[i]) {
+          char* tmp = taosMemoryRealloc(pColInfoData->pData, colLen[i]);
+          if (tmp == NULL) {
+            return terrno;
+          }
+
+          pColInfoData->pData = tmp;
+          pColInfoData->varmeta.allocLen = colLen[i];
         }
 
-        pColInfoData->pData = tmp;
-        pColInfoData->varmeta.allocLen = colLen[i];
+        pColInfoData->varmeta.length = colLen[i];
       }
-
-      pColInfoData->varmeta.length = colLen[i];
     } else {
       memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
       pStart += BitmapLen(numOfRows);
@@ -3514,8 +3546,8 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
         if (colDataIsNull_var(pDst, j)) {
           colDataSetNull_var(pDst, numOfRows);
         } else {
-          // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal, first
-          // copy it to p2
+          // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal,
+          // first copy it to p2
           char*   p1 = colDataGetVarData(pDst, j);
           int32_t len = 0;
           if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
@@ -3642,6 +3674,11 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
             j += 1;
           }
           break;
+        case TSDB_DATA_TYPE_BLOB:
+        case TSDB_DATA_TYPE_MEDIUMBLOB: {
+          // impl later
+          break;
+        }
       }
     }
 
@@ -3771,14 +3808,17 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
         } else {
           if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
             float v = 0;
-            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
+            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r),
+                           typeGetTypeModFromColInfo(&pCol->info));
           } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
             double v = 0;
-            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
+            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r),
+                           typeGetTypeModFromColInfo(&pCol->info));
           } else if (IS_DECIMAL_TYPE(pCol->info.type)) {
             // SKIP for decimal types
           } else {
-            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
+            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r),
+                           typeGetTypeModFromColInfo(&pCol->info));
           }
         }
       }
