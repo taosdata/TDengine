@@ -2,7 +2,10 @@ set +e
 
 # NOTE: debug for the moment
 date
-ll /tmp/udf/*.so
+pwd
+ls -l /tmp/udf/*.so
+ls -l ../../debug/build/bin/taosudf
+ls -l ../../../debug/build/bin/taosudf
 
 rm -rf /tmp/udf/libbitand.so /tmp/udf/libsqrsum.so /tmp/udf/libgpd.so
 mkdir -p /tmp/udf
@@ -16,6 +19,10 @@ ls /tmp/udf/*.so
 # NOTE: debug for the moment
 
 date
-ll /tmp/udf/*.so
+ls -l /tmp/udf/*.so
+ls -l ../../debug/build/bin/taosudf
+ls -l ../../../debug/build/bin/taosudf
 ldd /tmp/udf/libbitand.so
+ldd ../../debug/build/bin/taosudf
+ldd ../../../debug/build/bin/taosudf
 
