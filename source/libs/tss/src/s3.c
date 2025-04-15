@@ -24,7 +24,7 @@
 
 // S3 storage instance, also used for Aliyun OSS and Tencent COS
 typedef struct {
-    // 'type' is inherited from SSharedStorage, it must be the first member
+    // [type] is inherited from SSharedStorage, it must be the first member
     // to allow casting to SSharedStorage
     const SSharedStorageType* type;
 
@@ -235,7 +235,7 @@ static S3Status propertiesCallbackNop(const S3ResponseProperties *properties, vo
 
 
 static int shouldRetry() {
-    return 1;
+    return 0;
 }
 
 
@@ -303,8 +303,8 @@ typedef struct {
 
 
 
-// dataCallback reads data and returns it to the S3 library.
-static int dataCallback(int bufferSize, char* buffer, void* cbd) {
+// uploadCallback reads data and returns it to the S3 library.
+static int uploadCallback(int bufferSize, char* buffer, void* cbd) {
     SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
     return readUploadSource(ucbd->src, buffer, bufferSize);
 }
@@ -323,7 +323,7 @@ static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSo
             .propertiesCallback = &propertiesCallbackNop,
             .completeCallback = &responseCompleteCallback,
         },
-        .putObjectDataCallback = &dataCallback,
+        .putObjectDataCallback = &uploadCallback,
     };
 
     do {
@@ -392,7 +392,7 @@ static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCa
             .propertiesCallback = &multipartResponseProperiesCallback,
             .completeCallback = &responseCompleteCallback,
         },
-        .putObjectDataCallback = &dataCallback,
+        .putObjectDataCallback = &uploadCallback,
     };
 
     int32_t code = 0;
@@ -459,7 +459,7 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
             .propertiesCallback = &propertiesCallbackNop,
             .completeCallback = &responseCompleteCallback,
         },
-        .putObjectDataCallback = &dataCallback,
+        .putObjectDataCallback = &uploadCallback,
         .responseXmlCallback = NULL,
     };
 
@@ -629,6 +629,132 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     TAOS_RETURN(code);
 }
 
+
+
+// functions and data structures for download
+
+typedef struct {
+    S3Status  status;
+    char      errMsg[512];
+    // * [buf] & [file] are destination of the downloaded data, they are
+    //   mutually exclusive.
+    // * [offset] is the number of bytes already downloaded.
+    // * [size] is the total size to be downloaded:
+    //   - if [buf] is used, [size] is also the size of the buffer, a zero
+    //     [size] means no data to be downloaded.
+    //   - if [file] is used, a zero [size] means download until the end of
+    //     the file.
+    char*     buf;
+    TdFilePtr file;
+    int64_t   offset;
+    int64_t   size;
+} SDownloadCallbackData;
+
+
+
+static S3Status downloadCallback(int bufferSize, const char *buffer, void *cbd) {
+    SDownloadCallbackData* dcbd = cbd;
+
+    if (dcbd->buf != NULL) {
+        (void)memcpy(dcbd->buf + dcbd->offset, buffer, bufferSize);
+        dcbd->offset += bufferSize;
+        dcbd->status = S3StatusOK;
+        return S3StatusOK;
+    }
+
+    int64_t wrote = taosWriteFile(dcbd->file, buffer, bufferSize);
+    if (wrote > 0) {
+        dcbd->offset += wrote;
+    }
+
+    if (wrote == bufferSize) {
+        dcbd->status = S3StatusOK;
+    } else {
+        dcbd->status = S3StatusAbortedByCallback;
+    }
+
+    return dcbd->status;
+}
+
+
+
+static int32_t doDownload(SSharedStorageS3* ss, const char* path, int64_t offset, SDownloadCallbackData* dcbd) {
+    int32_t code = 0;
+
+    S3GetObjectHandler goh = {
+        .responseHandler = {
+            .propertiesCallback = &propertiesCallbackNop,
+            .completeCallback = &responseCompleteCallback,
+        },
+        .getObjectDataCallback = &downloadCallback,
+    };
+
+    for (int retry = 0; retry < 5; retry++) {
+        int64_t start = offset + dcbd->offset, bytes = 0;
+
+        // S3_get_object() will return data up to the end of the content if bytes is 0,
+        // this is only desired when (dcbd->file != NULL && dcbd->size == 0).
+        if (dcbd->buf != NULL || dcbd->size != 0) {
+            bytes = dcbd->size - dcbd->offset;
+            if (bytes == 0) { // have already read all the required data.
+                break;
+            }
+        }
+
+        S3_get_object(&ss->bucketContext, path, NULL, start, bytes, NULL, 0, &goh, &dcbd);
+
+        if( dcbd->status == S3StatusErrorSlowDown ) {
+            taosMsleep(taosRand() % 2000 + 1000);
+            tssInfo("retrying download %s, retry %d", path, retry + 1);
+            continue;
+        }
+
+        if( dcbd->status != S3StatusOK ) {
+            tssError("failed to download %s: %d/%s", path, dcbd->status, dcbd->errMsg);
+            code = TAOS_SYSTEM_ERROR(EIO);
+        }
+
+        break;
+    }
+
+    TAOS_RETURN(code);
+}
+
+
+
+// readFile reads a file or a block of a file from the shared storage to the local buffer.
+// read starts at offset and reads *size bytes.
+// *size is updated to the number of bytes read when the function returns.
+static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset, char* buffer, int64_t* size) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    SDownloadCallbackData dcbd = { .buf = buffer, .size = * size };
+    int32_t code = doDownload(ss, srcPath, offset, &dcbd);
+    *size = dcbd.offset;
+    return code;
+}
+
+
+
+// downloadFile downloads a file or a block of a file from the shared storage to the local file system.
+// download starts at offset and downloads size bytes.
+// If size is zero, download until the end of the file.
+static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char* dstPath, int64_t offset, int64_t size) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    int32_t code = 0;
+    TdFilePtr file = taosOpenFile(dstPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    if (file == NULL) {
+        tssError("failed to open file %s: ", dstPath);
+        TAOS_RETURN(terrno);
+    }
+
+    SDownloadCallbackData dcbd = { .file = file, .size = size };
+    int32_t code = doDownload(ss, srcPath, offset, &dcbd);
+    (void)taosCloseFile(&file);
+
+    TAOS_RETURN(code);
+}
 
 
 // Amazon S3
