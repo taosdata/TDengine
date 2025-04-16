@@ -13,8 +13,8 @@
             "dbinfo": {
                 "name": "test",
                 "drop": "yes",
-                "precision": "ns",
-                "   vgroups    ": 2
+                "precision": "us",
+                "vgroups": 2
             },
             "super_tables": [
                 {
@@ -26,7 +26,7 @@
                     "insert_mode": "taosc",
                     "insert_interval": 0,
                     "timestamp_step": 1000,
-                    "start_timestamp":1700000000000000000,
+                    "start_timestamp":1700000000000000,
                     "columns": [
                         { "type": "bool",        "name": "bc", "encode":"disabled", "compress":"disabled" },
                         { "type": "float",       "name": "fc", "encode":"delta-d", "compress":"zlib", "level":"medium", "max": 100, "min": 0 },

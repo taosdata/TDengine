@@ -16,6 +16,10 @@
 #ifndef INC_BENCHLOG_H_
 #define INC_BENCHLOG_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -279,5 +283,8 @@ void exitLog();
         }                                                                   \
     } while (0)
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif   // INC_BENCH_H_
