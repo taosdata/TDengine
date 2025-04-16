@@ -2913,31 +2913,49 @@ async fn realtime(
             "spawning retro task for range: {:?}.",
             time_range
         );
+
         let mut scanned = std::collections::HashSet::<LegacyTableItem>::new();
-        let todo_sender = &scheduler.sender;
-        let futures = futures::stream::FuturesUnordered::new();
+        let tasks = futures::stream::FuturesUnordered::new();
+        let mut receivers = futures::stream::FuturesUnordered::new();
         todo.tables
             .scan_async(|table| {
                 if scanned.contains(table) {
-                    tracing::warn!("table {} is already scanned.", table.table);
+                    warn!("table {} is already scanned.", table.table);
                     return;
                 }
                 scanned.insert(table.clone());
-                futures.push(todo_sender.send_async(Todo::Data(
+                // create retro task
+                let (tx, rx) = oneshot::channel();
+                let task = scheduler.send(Todo::Data(
                     table.stable.clone(),
                     table.table.clone(),
                     time_range,
-                    None,
-                )));
+                    Some(tx),
+                ));
+                tasks.push(task);
+                receivers.push(rx);
             })
             .await;
-        futures
+        // submit retro tasks
+        tasks
             .try_for_each(|v| futures::future::ready(Ok(v)))
             .await
-            .inspect_err(|err| tracing::warn!(error = %err, "restro task sent error"))?;
+            .context("failed to submit retro task")?;
+        // wait for retro task completion
+        while let Some(res) = receivers.next().await {
+            match res {
+                Ok(Ok(_)) => {}
+                Ok(Err(err)) => {
+                    bail!("restro task execution error: {err}");
+                }
+                Err(err) => {
+                    bail!("restro task channel error: {err}");
+                }
+            }
+        }
         info!(
             mode = "retrospect",
-            "restro tasks are all spawned. waiting..."
+            "restro tasks are all spawned successfully."
         );
     }
 
