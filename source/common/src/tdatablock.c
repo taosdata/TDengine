@@ -31,6 +31,8 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
         int32_t colSize = 0;
         if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
           colSize = getJsonValueLen(pColData);
+        } else if (pColumnInfoData->info.type) {
+          colSize = blobDataTLen(pColData);
         } else {
           colSize = varDataTLen(pColData);
         }
@@ -54,10 +56,13 @@ int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowI
   }
 
   if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) return pColumnInfoData->info.bytes;
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON)
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
     return getJsonValueLen(colDataGetData(pColumnInfoData, rowIdx));
-  else
+  } else if (IS_STR_DATA_BLOB(pColumnInfoData->info.type)) {
+    return blobDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+  } else {
     return varDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+  }
 }
 
 int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
@@ -91,6 +96,8 @@ static int32_t getDataLen(int32_t type, const char* pData) {
   int32_t dataLen = 0;
   if (type == TSDB_DATA_TYPE_JSON) {
     dataLen = getJsonValueLen(pData);
+  } else if (IS_STR_DATA_BLOB(type)) {
+    dataLen = blobDataTLen(pData);
   } else {
     dataLen = varDataTLen(pData);
   }
@@ -208,8 +215,14 @@ int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, co
   uint32_t len = pColumnInfoData->varmeta.length;
   pColumnInfoData->varmeta.offset[rowIndex] = len;
 
-  (void)memmove(varDataVal(pColumnInfoData->pData + len), pVarData, varDataLen);
-  varDataSetLen(pColumnInfoData->pData + len, varDataLen);
+  if (IS_STR_DATA_BLOB(pColumnInfoData->info.type)) {
+    (void)memmove(blobDataVal(pColumnInfoData->pData + len), pVarData, varDataLen);
+    blobDataSetLen(pColumnInfoData->pData + len, varDataLen);
+
+  } else {
+    (void)memmove(varDataVal(pColumnInfoData->pData + len), pVarData, varDataLen);
+    varDataSetLen(pColumnInfoData->pData + len, varDataLen);
+  }
   pColumnInfoData->varmeta.length += dataLen;
   return TSDB_CODE_SUCCESS;
 }
@@ -302,6 +315,8 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
       len = getJsonValueLen(pData);
+    } else if (IS_STR_DATA_BLOB(pColumnInfoData->info.type)) {
+      len = blobDataTLen(pData);
     } else {
       len = varDataTLen(pData);
     }
@@ -590,6 +605,8 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         int32_t dataLen = 0;
         if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
           dataLen = getJsonValueLen(pData);
+        } else if (IS_STR_DATA_BLOB(pSrc->info.type)) {
+          dataLen = blobDataTLen(pData);
         } else {
           dataLen = varDataTLen(pData);
         }
@@ -602,6 +619,8 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         int32_t dataLen = 0;
         if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
           dataLen = getJsonValueLen(pData);
+        } else if (IS_STR_DATA_TYPE(pSrc->info.type)) {
+          dataLen = blobDataTLen(pData);
         } else {
           dataLen = varDataTLen(pData);
         }
@@ -898,7 +917,11 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
         if (pColInfoData->varmeta.offset[j] != -1) {
           char* p = colDataGetData(pColInfoData, j);
-          size += varDataTLen(p);
+          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+            size += blobDataTLen(p);
+          } else {
+            size += varDataTLen(p);
+          }
         }
 
         size += sizeof(pColInfoData->varmeta.offset[0]);
@@ -1033,6 +1056,8 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
         int32_t colSize = 0;
         if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
           colSize = getJsonValueLen(pColData);
+        } else if (IS_STR_DATA_BLOB(pCol->info.type)) {
+          colSize = blobDataTLen(pColData);
         } else {
           colSize = varDataTLen(pColData);
         }
@@ -2454,6 +2479,8 @@ static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
           if (newLen != -1) {
             if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
               newLen += getJsonValueLen(pColInfoData->pData + newLen);
+            } else if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+              newLen += blobDataTLen(pColInfoData->pData + newLen);
             } else {
               newLen += varDataTLen(pColInfoData->pData + newLen);
             }
@@ -3277,6 +3304,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     size_t metaSize = 0;
     if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
       if (IS_STR_DATA_BLOB(pColRes->info.type)) {
+        metaSize = numOfRows * sizeof(int32_t);
+        if (dataLen + metaSize > dataBuflen) goto _exit;
+        memcpy(data, pColRes->varmeta.offset, metaSize);
       } else {
         metaSize = numOfRows * sizeof(int32_t);
         if (dataLen + metaSize > dataBuflen) goto _exit;
@@ -3299,6 +3329,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
         if (pColRes->info.type == TSDB_DATA_TYPE_JSON) {
           colSize = getJsonValueLen(pColData);
         } else if (IS_STR_DATA_BLOB(pColRes->info.type)) {
+          colSize = blobDataTLen(pColData);
         } else {
           colSize = varDataTLen(pColData);
         }
@@ -3435,26 +3466,20 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
     }
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-      if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-        //   pColInfoData->varmeta.allocLen = colLen[i];
-        // } else {
-        //   pColInfoData->varmeta.allocLen = numOfRows * sizeof(int32_t);
-      } else {
-        memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
-        pStart += sizeof(int32_t) * numOfRows;
+      memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
+      pStart += sizeof(int32_t) * numOfRows;
 
-        if (colLen[i] > 0 && pColInfoData->varmeta.allocLen < colLen[i]) {
-          char* tmp = taosMemoryRealloc(pColInfoData->pData, colLen[i]);
-          if (tmp == NULL) {
-            return terrno;
-          }
-
-          pColInfoData->pData = tmp;
-          pColInfoData->varmeta.allocLen = colLen[i];
+      if (colLen[i] > 0 && pColInfoData->varmeta.allocLen < colLen[i]) {
+        char* tmp = taosMemoryRealloc(pColInfoData->pData, colLen[i]);
+        if (tmp == NULL) {
+          return terrno;
         }
 
-        pColInfoData->varmeta.length = colLen[i];
+        pColInfoData->pData = tmp;
+        pColInfoData->varmeta.allocLen = colLen[i];
       }
+
+      pColInfoData->varmeta.length = colLen[i];
     } else {
       memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
       pStart += BitmapLen(numOfRows);
@@ -3552,6 +3577,8 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
           int32_t len = 0;
           if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
             len = getJsonValueLen(p1);
+          } else if (IS_STR_DATA_BLOB(pDst->info.type)) {
+            len = blobDataTLen(p1);
           } else {
             len = varDataTLen(p1);
           }
@@ -3783,47 +3810,47 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           int32_t colSize = 0;
           if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
             colLen = getJsonValueLen(pColData);
+          } else if (IS_STR_DATA_BLOB(pCol->info.type)) {
+            colLen = blobDataTLen(pColData);
           } else {
             colLen = varDataTLen(pColData);
           }
 
           if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
             BLOCK_DATA_CHECK_TRESSA(colLen >= CHAR_BYTES);
+          } else if (IS_STR_DATA_BLOB(pCol->info.type)) {
+            // check or not
           } else {
             BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
           }
-          if (pCol->info.type == TSDB_DATA_TYPE_BLOB) {
-          } else {
-            BLOCK_DATA_CHECK_TRESSA(colLen <= pCol->info.bytes);
-          }
+        }
 
-          if (pCol->reassigned) {
-            BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
-          } else {
-            nextPos += colLen;
-            BLOCK_DATA_CHECK_TRESSA(nextPos <= pCol->varmeta.length);
-          }
-
-          typeValue = *(char*)(pCol->pData + pCol->varmeta.offset[r] + colLen - 1);
+        if (pCol->reassigned) {
+          BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
         } else {
-          if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
-            float v = 0;
-            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r),
-                           typeGetTypeModFromColInfo(&pCol->info));
-          } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
-            double v = 0;
-            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r),
-                           typeGetTypeModFromColInfo(&pCol->info));
-          } else if (IS_DECIMAL_TYPE(pCol->info.type)) {
-            // SKIP for decimal types
-          } else {
-            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r),
-                           typeGetTypeModFromColInfo(&pCol->info));
-          }
+          nextPos += colLen;
+          BLOCK_DATA_CHECK_TRESSA(nextPos <= pCol->varmeta.length);
+        }
+
+        typeValue = *(char*)(pCol->pData + pCol->varmeta.offset[r] + colLen - 1);
+      } else {
+        if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
+          float v = 0;
+          GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
+        } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
+          double v = 0;
+          GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r),
+                         typeGetTypeModFromColInfo(&pCol->info));
+        } else if (IS_DECIMAL_TYPE(pCol->info.type)) {
+          // SKIP for decimal types
+        } else {
+          GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r),
+                         typeGetTypeModFromColInfo(&pCol->info));
         }
       }
     }
   }
+}
 
-  return TSDB_CODE_SUCCESS;
+return TSDB_CODE_SUCCESS;
 }

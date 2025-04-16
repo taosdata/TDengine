@@ -507,6 +507,40 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, 
   }
   return TSDB_CODE_SUCCESS;
 }
+static int32_t parseBlob(SToken* pToken, uint8_t** pData, uint32_t* nData, int32_t bytes) {
+  if (pToken->type != TK_NK_STRING) {
+    return TSDB_CODE_PAR_INVALID_VARBINARY;
+  }
+
+  if (isHex(pToken->z + 1, pToken->n - 2)) {
+    if (!isValidateHex(pToken->z + 1, pToken->n - 2)) {
+      return TSDB_CODE_PAR_INVALID_VARBINARY;
+    }
+
+    void*    data = NULL;
+    uint32_t size = 0;
+    if (taosHex2Ascii(pToken->z + 1, pToken->n - 2, &data, &size) < 0) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (size + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
+      taosMemoryFree(data);
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
+    *pData = data;
+    *nData = size;
+  } else {
+    *pData = taosMemoryCalloc(1, pToken->n);
+    if (!pData) return terrno;
+    int32_t len = trimString(pToken->z, pToken->n, *pData, pToken->n);
+    *nData = len;
+
+    if (*nData + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
                              SMsgBuf* pMsgBuf, timezone_t tz, void* charsetCxt) {
@@ -737,6 +771,11 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       }
 
       val->i64 = iv;
+      break;
+    }
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+    case TSDB_DATA_TYPE_BLOB: {
+      code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_BLOB_NOT_SUPPORT_TAG, pSchema->name);
       break;
     }
   }
@@ -1807,17 +1846,12 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_BLOB:
-    case TSDB_DATA_TYPE_MEDIUMBLOB:
-      if ((pToken->n + BLOBSTR_HEADER_SIZE) > TSDB_MAX_BLOB_LEN) {
-        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      int32_t code = parseBlob(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
+      if (code != TSDB_CODE_SUCCESS) {
+        return generateSyntaxErrMsg(&pCxt->msg, code, pSchema->name);
       }
-      pVal->value.pData = taosMemoryMalloc(pToken->n);
-      if (NULL == pVal->value.pData) {
-        return terrno;
-      }
-      memcpy(pVal->value.pData, pToken->z, pToken->n);
-      pVal->value.nData = pToken->n;
-      break;
+    } break;
     case TSDB_DATA_TYPE_DECIMAL: {
       if (!pExtSchema) {
         qError("Decimal type without ext schema info, cannot parse decimal values");

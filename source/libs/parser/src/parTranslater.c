@@ -2379,6 +2379,8 @@ static int32_t calcTypeBytes(SDataType dt) {
     return dt.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  } else if (IS_STR_DATA_BLOB(dt.type)) {
+    return dt.bytes + BLOBSTR_HEADER_SIZE;
   } else {
     return dt.bytes;
   }
