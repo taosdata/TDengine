@@ -26,7 +26,13 @@ class TsfmBaseService(AbstractForecastService):
             raise ValueError("forecast rows is not specified yet")
 
         # let's request the gpt service
-        data = {"input": self.list, 'next_len': self.rows, 'past_dynamic_real': self.past_dynamic_real}
+        data = {
+            "input": self.list,
+            "next_len": self.rows,
+            "past_dynamic_real": self.past_dynamic_real,
+            "interval": self.conf
+        }
+
         try:
             response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
         except Exception as e:
@@ -40,11 +46,24 @@ class TsfmBaseService(AbstractForecastService):
             app_logger.log_inst.error(f"failed to request the service: {self.service_host}, reason: {response.text}")
             raise ValueError(f"failed to request the service, {response.text}")
 
-        pred_y = response.json()['output']
+        resp_json = response.json()
 
-        res =  {
-            "res": [pred_y]
-        }
+        if self.return_conf == 0:
+            res = {
+                "res": [resp_json["output"]],
+                "conf": 0,
+            }
+        else:
+            if resp_json.get('upper') is None:
+                res =  {
+                    "res": [resp_json["output"], resp_json["output"], resp_json["output"]],
+                    "conf": self.conf,
+                }
+            else:  # return data with lower/upper interval value
+                res = {
+                    "res": [resp_json["output"], resp_json["lower"], resp_json["upper"]],
+                    "conf": self.conf,
+                }
 
         insert_ts_list(res["res"], self.start_ts, self.time_step, self.rows)
         return res
