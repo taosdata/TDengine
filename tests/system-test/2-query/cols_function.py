@@ -20,9 +20,10 @@ class TDTestCase:
         if condition:
             tdSql.checkData(row, col, expected_value)
 
-    def create_test_data(self):       
+    def create_test_data(self, cacheModel = 'node'):       
         tdSql.execute(f'create database if not exists {self.dbname};')
         tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f"alter database {self.dbname} cachemodel '{cacheModel}'")
         tdSql.execute(f'drop table if exists {self.dbname}.meters')
         
         # tdLog.info("create test data")
@@ -564,9 +565,10 @@ class TDTestCase:
         tdSql.error(f'select cols(last(vgroup_id), uid, `ttl`, create_time) from information_schema.ins_tables')
         tdSql.error(f'select cols(first(vgroup_id), uid, `ttl`, create_time) from information_schema.ins_tables')     
 
-    def funcSupperTableTest(self):
+    def funcSupperTableTest(self, cacheModel = "none"):
         tdSql.execute('create database if not exists db;')
         tdSql.execute('use db')
+        tdSql.execute(f"alter database db cachemodel '{cacheModel}'")
         tdSql.execute(f'drop table if exists db.st')
         
         tdSql.execute('create table db.st (ts timestamp, c0 int, c1 float, c2 nchar(30), c3 bool) tags (t1 nchar(30))')
@@ -591,9 +593,10 @@ class TDTestCase:
         tdSql.execute(f'drop table if exists db.st')
 
     
-    def funcNestTest(self):
+    def funcNestTest(self, cacheModel = "none"):
         tdSql.execute('create database db;')
         tdSql.execute('use db')
+        tdSql.execute(f"alter database db cachemodel '{cacheModel}'")
         tdSql.execute(f'drop table if exists db.d1')
         
         tdSql.execute('create table db.d1 (ts timestamp, c0 int, c1 float, c2 nchar(30), c3 bool)')
@@ -1087,9 +1090,10 @@ class TDTestCase:
         tdSql.checkData(2, 1, 1734574932000)
         tdSql.checkData(2, 2, 2)
     
-    def stream_cols_test2(self):
+    def stream_cols_test2(self, cacheModel = 'none'):
         db2 = "test2" 
         tdSql.execute(f'create database {db2}')
+        tdSql.execute(f"alter database {db2} cachemodel '{cacheModel}'")
         tdSql.execute(f'create table {db2}.st (ts timestamp, c0 int) tags (t1 int)')
         tdSql.execute(f'create table {db2}.st_1 using {db2}.st tags(1)')
         tdSql.execute(f'create table {db2}.st_2 using {db2}.st tags(2)')
@@ -1174,10 +1178,11 @@ class TDTestCase:
         self.orderby_test("(select *, tbname from test.long_col_test)", "longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888", True)
         tdLog.info("long_column_name_test subquery_test: one_cols_multi_output_with_group_test from meters")
                 
-    def test_in_interval(self):
+    def test_in_interval(self, cacheModel = 'none'):
         dbname = "db1"
         tdSql.execute(f"drop database if exists {dbname} ")
         tdSql.execute(f"create database {dbname} vgroups 6")
+        tdSql.execute(f"alter database {dbname} cachemodel '{cacheModel}'")
         tdSql.execute(f"use {dbname}")
 
         tdSql.execute(f" create stable {dbname}.sta (ts timestamp, f1 int, f2 binary(10), f3 bool) tags(t1 int, t2 bool, t3 binary(10));")
@@ -1331,11 +1336,12 @@ class TDTestCase:
         tdSql.error(f'select tbname, cols(last(ts), *) from test.meters group by tbname having cols(last(ts), *) = 1734574929000')
 
         
-    def test_null2(self):
+    def test_null2(self, cacheModel = 'none'):
         dbname = "test_null2"
         tdSql.execute(f"drop database if exists {dbname}")
         tdSql.execute(f"create database test_null2 vgroups 5")
         tdSql.execute(f"use test_null2")
+        tdSql.execute(f"alter database {dbname} cachemodel '{cacheModel}'")
         tdSql.execute(f"create stable {dbname}.stb_null1 (ts timestamp, c0 int, c1 int, c2 nchar(30), c3 bool) tags (t1 nchar(30))")
         tdSql.execute(f"create table {dbname}.sub_null_1 using {dbname}.stb_null1 tags('st1')")
         tdSql.execute(f"create table {dbname}.sub_null_2 using {dbname}.stb_null1 tags('st2')")
@@ -1387,29 +1393,41 @@ class TDTestCase:
         
         tdSql.error(f'select tbname, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1')
         tdSql.error(f'select t1, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1')
+     
+    def dropAllDatabase(self):
+        tdSql.execute(f'drop database if exists db')
+        tdSql.execute(f'drop database if exists test')
+        tdSql.execute(f'drop database if exists test_null2')
+        tdSql.execute(f'drop database if exists db1')
+        tdSql.execute(f'drop database if exists test2')
         
-    def run(self):
-        self.funcNestTest()
-        self.funcSupperTableTest()
-        self.create_test_data()
+    def runAllcase(self, cachemodel = 'none'):
+        self.funcNestTest(cachemodel)
+        self.funcSupperTableTest(cachemodel)
+        self.create_test_data(cachemodel)
         self.parse_test()
         self.one_cols_1output_test()
         self.multi_cols_output_test()
         self.subquery_test()
         self.window_test()
         self.join_test()
-        self.test_in_interval()
+        self.test_in_interval(cachemodel)
         self.include_null_test()
         self.long_column_name_test()
 
         self.having_test("test.meters", False)
         self.having_test("(select tbname, * from test.meters)", True)
         self.star_test()
-        self.test_null2()
+        self.test_null2(cachemodel)
         self.window_test2()
         self.stream_cols_test()
-        self.stream_cols_test2()
+        self.stream_cols_test2(cachemodel)
 
+    def run(self):
+        self.runAllcase('none')
+        self.dropAllDatabase()
+        
+        #self.runAllcase('both')
 
     def stop(self):
         tdSql.close()
