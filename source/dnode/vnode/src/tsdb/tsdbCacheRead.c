@@ -90,7 +90,8 @@ _end:
 }
 
 static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
-                          const int32_t* dstSlotIds, void** pRes, const char* idStr) {
+                          const int32_t* dstSlotIds, const int32_t* pTargetSlotBindIds, void** pRes,
+                          const char* idStr) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t numOfRows = 0;
@@ -107,7 +108,6 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
   numOfRows = pBlock->info.rows;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
-    uint64_t       ts = TSKEY_MIN;
     SFirstLastRes* p = NULL;
     col_id_t       colId = -1;
 
@@ -157,7 +157,6 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       p = (SFirstLastRes*)varDataVal(pRes[i]);
 
       p->ts = pColVal->rowKey.ts;
-      ts = p->ts;
       p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
       // allNullRow = p->isNull & allNullRow;
       if (!p->isNull) {
@@ -195,11 +194,12 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       }
 
       if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        if (ts == TSKEY_MIN) {
-          colDataSetNULL(pCol, numOfRows);
-        } else {
-          code = colDataSetVal(pCol, numOfRows, (const char*)&ts, false);
+        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, pTargetSlotBindIds[idx]);
+        if (pColVal != NULL) {
+          code = colDataSetVal(pCol, numOfRows, (const char*)&pColVal->rowKey.ts, false);
           TSDB_CHECK_CODE(code, lino, _end);
+        } else {
+          colDataSetNULL(pCol, numOfRows);
         }
         continue;
       } else if (pReader->numOfCols == 1 && idx != dstSlotIds[0] && (pCol->info.colId == colId || colId == -1)) {
@@ -478,7 +478,7 @@ static int32_t tsdbCacheQueryReseek(void* pQHandle) {
 }
 
 int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, const int32_t* dstSlotIds,
-                              SArray* pTableUidList, bool* pGotAll) {
+                              const int32_t* pTargetSlotBindIds, SArray* pTableUidList, bool* pGotAll) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
   bool              hasRes = false;
@@ -660,7 +660,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     }
 
     if (hasRes) {
-      code = saveOneRow(pLastCols, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
+      code = saveOneRow(pLastCols, pResBlock, pr, slotIds, dstSlotIds, pTargetSlotBindIds, pRes, pr->idstr);
       TSDB_CHECK_CODE(code, lino, _end);
     }
 
@@ -682,7 +682,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         continue;
       }
 
-      code = saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
+      code = saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pTargetSlotBindIds, pRes, pr->idstr);
       TSDB_CHECK_CODE(code, lino, _end);
 
       taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);

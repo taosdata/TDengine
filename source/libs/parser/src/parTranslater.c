@@ -7620,7 +7620,7 @@ static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
-static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* pTable, SNode** pPrimaryKey) {
+static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* pTable, SColumnNode** pPrimaryKey) {
   SColumnNode* pCol = NULL;
   int32_t      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (TSDB_CODE_SUCCESS != code) {
@@ -7633,11 +7633,11 @@ static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* p
   if (TSDB_CODE_SUCCESS != code || !found) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED);
   }
-  *pPrimaryKey = (SNode*)pCol;
+  *pPrimaryKey = pCol;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tranCreatePrimaryKeyCol(STranslateContext* pCxt, const char* tableAlias, SNode** pPrimaryKey) {
+static int32_t tranCreatePrimaryKeyCol(STranslateContext* pCxt, const char* tableAlias, SColumnNode** pPrimaryKey) {
   STableNode* pTable = NULL;
   int32_t     code = findTable(pCxt, tableAlias, &pTable);
   if (TSDB_CODE_SUCCESS == code) {
@@ -7691,7 +7691,7 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
         }
     */
 
-    SNode*     pPrimaryKey = NULL;
+    SColumnNode*     pPrimaryKey = NULL;
     SSHashObj* pTableAlias = NULL;
     nodesWalkExprs(pFunc->pParameterList, collectTableAlias, &pTableAlias);
     if (NULL == pTableAlias) {
@@ -7707,7 +7707,7 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
       tSimpleHashCleanup(pTableAlias);
     }
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-      pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrimaryKey);
+      pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pPrimaryKey);
     }
     return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
   }
@@ -8010,6 +8010,27 @@ static int32_t checkMultColsFuncParam(SNodeList* pParameterList) {
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes rewriteColBindExprId(SNode** pNode, void* pContext) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t bindExprId  = *(int32_t*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    ((SColumnNode*)*pNode)->node.bindExprID = bindExprId;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t pushDownFunctionBindExprId(SFunctionNode* pFunc) {
+  int32_t bindExprId = pFunc->node.bindExprID;
+  if (bindExprId == 0) return TSDB_CODE_SUCCESS;
+  
+  SNode* pNode = NULL;
+  FOREACH(pNode, pFunc->pParameterList) {
+    nodesRewriteExpr(&pNode, rewriteColBindExprId, &bindExprId);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (QUERY_NODE_FUNCTION != nodeType(*pNode)) {
@@ -8060,6 +8081,8 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
       code = nodesCloneNode(pSelectFunc, &pNewNode);
       if(code) goto _end;
       ((SExprNode*)pNewNode)->bindExprID = selectFuncIndex;
+      code = pushDownFunctionBindExprId((SFunctionNode*)pNewNode);
+      if(code) goto _end;
       code = nodesListMakeStrictAppend(pCxt->selectFuncList, pNewNode);
       if(code) goto _end;
     }
@@ -8099,6 +8122,7 @@ static int32_t rewriteHavingColsNode(STranslateContext* pCxt, SNode** pNode, SNo
   }
   return code;
 }
+
 
 static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, SNodeList** nodeList, SNodeList** selectFuncList) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -8160,8 +8184,10 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
           code = nodesCloneNode(pSelectFunc, &pNewNode);
           if(TSDB_CODE_SUCCESS != code) goto _end;
           ((SExprNode*)pNewNode)->bindExprID = selectFuncIndex;
+          code = pushDownFunctionBindExprId((SFunctionNode*)pNewNode);
+          if (TSDB_CODE_SUCCESS != code) goto _end;
           code = nodesListMakeStrictAppend(selectFuncList, pNewNode);
-          if(TSDB_CODE_SUCCESS != code) goto _end;
+          if (TSDB_CODE_SUCCESS != code) goto _end;
         }
         // start from index 1, because the first parameter is select function which needn't to output.
         for (int i = 1; i < pFunc->pParameterList->length; ++i) {

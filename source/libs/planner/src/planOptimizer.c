@@ -13,11 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
 #include "filter.h"
 #include "functionMgt.h"
+#include "nodes.h"
+#include "osString.h"
 #include "parser.h"
 #include "planInt.h"
+#include "querynodes.h"
 #include "systable.h"
+#include "taoserror.h"
+#include "tcommon.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "scalar.h"
@@ -4523,7 +4531,7 @@ static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCo
         break;
       }
     }
-    if (!found && nodeListNodeEqual(pLastRowCols, pTarget)) {
+    if (found || nodeListNodeEqual(pLastRowCols, pTarget)) {
       found = true;
     }
 
@@ -4595,6 +4603,57 @@ static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pCo
   }
 
   taosMemoryFree(pFuncTypeParam);
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes doRewriteLastScanTargets(SNode* pNode, void* pContext) {
+  const static int8_t releatedLen = 8;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    int32_t releatedTo = ((SColumnNode*)pNode)->node.relatedTo;
+    if (releatedTo == 0) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    char relatedToStr[releatedLen];
+    snprintf(relatedToStr, sizeof(relatedToStr), ".%d", releatedTo);
+
+    SNodeList* pTaragetList = *(SNodeList**)pContext;
+    SNode*     pTarget = NULL;
+    FOREACH(pTarget, pTaragetList) {
+      if (nodesEqualNode(pTarget, pNode) && releatedTo == ((SColumnNode*)pTarget)->node.relatedTo) {
+        TAOS_STRCAT(((SColumnNode*)pNode)->node.aliasName, relatedToStr);
+        TAOS_STRCAT(((SColumnNode*)pTarget)->node.aliasName, relatedToStr);
+        TAOS_STRCAT(((SColumnNode*)pNode)->colName, relatedToStr);
+        TAOS_STRCAT(((SColumnNode*)pTarget)->colName, relatedToStr);
+        return DEAL_RES_IGNORE_CHILD;
+      }
+    }
+    SNode* pNew = NULL;
+    TAOS_STRCAT(((SColumnNode*)pNode)->colName, relatedToStr);
+    int32_t code = nodesCloneNode(pNode, &pNew);
+    if (code != TSDB_CODE_SUCCESS) {
+      return DEAL_RES_ERROR;
+    }
+    code = nodesListMakeAppend((SNodeList**)pContext, pNew);
+    if (code != TSDB_CODE_SUCCESS) {
+      return DEAL_RES_ERROR;
+    }
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteLastScanTargets(SNodeList* pAggFuncs, SNodeList** ppLastScanTargets) {
+  int32_t code = 0;
+  SNode*  pNode;
+  FOREACH(pNode, pAggFuncs) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION || ((SFunctionNode*)pNode)->funcType != FUNCTION_TYPE_SELECT_VALUE) {
+      continue;
+    }
+
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SNode*         pParam = NULL;
+    FOREACH(pParam, pFunc->pParameterList) { nodesWalkExpr(pParam, doRewriteLastScanTargets, ppLastScanTargets); }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4824,6 +4883,9 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
 
     nodesClearList(cxt.pLastCols);
   }
+
+  rewriteLastScanTargets(pAgg->pAggFuncs, &pScan->node.pTargets);
+
   nodesClearList(cxt.pOtherCols);
 
   pAgg->hasLastRow = false;

@@ -13,8 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdint.h>
 #include "function.h"
+#include "nodes.h"
 #include "os.h"
+#include "tarray.h"
 #include "tname.h"
 
 #include "tdatablock.h"
@@ -37,6 +40,7 @@ typedef struct SCacheRowsScanInfo {
   SColMatchInfo   matchInfo;
   int32_t*        pSlotIds;
   int32_t*        pDstSlotIds;
+  int32_t*        pTargetSlotBindIds;
   SExprSupp       pseudoExprSup;
   int32_t         retrieveType;
   int32_t         currentGroupIndex;
@@ -91,6 +95,51 @@ static int32_t setColIdForCacheReadBlock(SSDataBlock* pBlock, SLastRowScanPhysiN
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t extractTargetsBindSlotId(const SNodeList* pTargets, SNodeList* pScanCols, int32_t** ppTargetSlotBindIds) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pTargets == NULL || pScanCols == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  
+  *ppTargetSlotBindIds = taosMemoryCalloc(pTargets->length, sizeof(int32_t*));
+  QUERY_CHECK_NULL(*ppTargetSlotBindIds, code, lino, _error, terrno);
+
+  SNode*  pTarget = NULL;
+  int32_t pTargetIndex = 0;
+  FOREACH(pTarget, pTargets) {
+    int32_t matchIndex = -1;
+    if (nodeType(pTarget) == QUERY_NODE_COLUMN) {
+      SNode* pCol = NULL;
+      bool   scanColIndex = 0;
+      FOREACH(pCol, pScanCols) {
+        if (nodeType(pCol) == QUERY_NODE_TARGET) {
+          STargetNode* pTargetCol = (STargetNode*)pCol;
+          if (pTargetCol->pExpr && nodeType(pTargetCol->pExpr) == QUERY_NODE_COLUMN) {
+            SColumnNode* pColNode = (SColumnNode*)pTargetCol->pExpr;
+            if (((SColumnNode*)pTarget)->node.relatedTo == pColNode->node.bindExprID) {
+              matchIndex = scanColIndex;
+              ++scanColIndex;
+              break;
+            }
+          }
+        }
+        ++scanColIndex;
+      }
+    }
+    (*ppTargetSlotBindIds)[pTargetIndex++] = matchIndex;
+  }
+_error:
+if(code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    taosMemoryFree(*ppTargetSlotBindIds);
+    *ppTargetSlotBindIds = NULL;
   }
   return code;
 }
@@ -175,6 +224,9 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds, &pInfo->pDstSlotIds);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  code = extractTargetsBindSlotId(pScanNode->pTargets, pScanCols, &pInfo->pTargetSlotBindIds);
   QUERY_CHECK_CODE(code, lino, _error);
 
   int32_t totalTables = 0;
@@ -298,7 +350,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       taosArrayClear(pInfo->pUidList);
 
       code = pReaderFn->retrieveRows(pInfo->pLastrowReader, pBufRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
-                                     pInfo->pUidList, &pInfo->gotAll);
+                                     pInfo->pTargetSlotBindIds, pInfo->pUidList, &pInfo->gotAll);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // check for tag values
@@ -391,7 +443,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       taosArrayClear(pInfo->pUidList);
 
       code = pReaderFn->retrieveRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
-                                     pInfo->pUidList, NULL);
+                                     pInfo->pTargetSlotBindIds, pInfo->pUidList, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       pInfo->currentGroupIndex += 1;
@@ -444,6 +496,7 @@ void destroyCacheScanOperator(void* param) {
   blockDataDestroy(pInfo->pBufferedRes);
   taosMemoryFreeClear(pInfo->pSlotIds);
   taosMemoryFreeClear(pInfo->pDstSlotIds);
+  taosMemoryFreeClear(pInfo->pTargetSlotBindIds);
   taosArrayDestroy(pInfo->pCidList);
   taosArrayDestroy(pInfo->pFuncTypeList);
   taosArrayDestroy(pInfo->pUidList);
