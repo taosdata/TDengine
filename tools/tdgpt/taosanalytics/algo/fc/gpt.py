@@ -18,4 +18,4 @@ class _GPTService(TsfmBaseService):
         if len(self.past_dynamic_real):
             raise ValueError("covariate forecast is not supported yet")
 
-        super().execute()
+        return super().execute()

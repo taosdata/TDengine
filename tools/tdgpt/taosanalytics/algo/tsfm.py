@@ -47,6 +47,7 @@ class TsfmBaseService(AbstractForecastService):
             raise ValueError(f"failed to request the service, {response.text}")
 
         resp_json = response.json()
+        app_logger.log_inst.debug(f"recv rsp, {resp_json}")
 
         if self.return_conf == 0:
             res = {

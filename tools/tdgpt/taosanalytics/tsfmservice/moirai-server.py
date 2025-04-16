@@ -65,7 +65,7 @@ def main():
     )
 
 
-def handle_univariate_forecast(input_data, prediction_length, interval):
+def handle_singlevariate_forecast(input_data, prediction_length, interval):
     """uni-variate forecasting processing"""
     # Time series values. Shape: (batch, time, variate)
     past_target = rearrange(
@@ -104,7 +104,7 @@ def handle_univariate_forecast(input_data, prediction_length, interval):
         'output': pred_y.tolist(),
         'lower': res.quantile(0.5 - interval/2, dim=0).tolist(),
         'upper': res.quantile(0.5 + interval/2, dim=0).tolist(),
-        'interval':interval
+        'conf_interval':interval
     }
 
 def handle_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real):
@@ -151,7 +151,7 @@ def handle_covariate_forecast(input_data, prediction_length, interval, past_dyna
         'output': forecasts_list[0].median.tolist(),
         'lower': forecasts_list[0].quantile(0.5 - interval / 2).tolist(),
         'upper': forecasts_list[0].quantile(0.5 + interval / 2).tolist(),
-        'interval': interval
+        'conf_interval': interval
     }
     
     
