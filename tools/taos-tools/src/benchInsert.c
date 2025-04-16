@@ -1444,7 +1444,7 @@ int32_t reConnectStmt2(threadInfo * pThreadInfo, int32_t w) {
     }
 
     // prepare
-    code = prepareStmt2(pThreadInfo->conn->stmt2, pThreadInfo->stbInfo, NULL, w, pThreadInfo->dbInfo->dbName);
+    code = prepareStmt2(pThreadInfo->conn->stmt2, pThreadInfo->stbInfo, NULL, w, pThreadInfo->dbInfo->dbName, NULL);
     if (code != 0) {
         return code;
     }

@@ -94,7 +94,7 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 0, 20)
 
         cmd = (
-            "%s -I stmt -t 2 -n 10 -b bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp -A bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp -y"
+            "%s -I stmt -Z 1 -t 2 -n 10 -b bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp -A bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp -y"
             % binPath
         )
         tdLog.info("%s" % cmd)
@@ -113,7 +113,7 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 0, 20)
 
         # add stmt2
-        cmd = "%s -F 700 -n 1000 -t 4 -y -M -I stmt2" % binPath
+        cmd = "%s -F 700 -n 1000 -t 4 -y -M -I stmt2 -Z 1" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("show test.tables")
@@ -158,7 +158,7 @@ class TDTestCase(TBase):
             tdLog.exit("expected sleep times 3, actual %d" % int(sleepTimes))
 
         cmd = (
-            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -I stmt 2>&1 | grep sleep | wc -l"
+            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -I stmt -Z 1 2>&1 | grep sleep | wc -l"
             % binPath
         )
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
@@ -168,7 +168,7 @@ class TDTestCase(TBase):
             tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
 
         cmd = (
-            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 -I stmt 2>&1 | grep sleep | wc -l"
+            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 -I stmt -Z 1 2>&1 | grep sleep | wc -l"
             % binPath
         )
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
@@ -184,7 +184,7 @@ class TDTestCase(TBase):
         tdSql.query("select last(ts) from test.meters")
         tdSql.checkData(0, 0, "2017-07-14 10:40:00.034")
 
-        cmd = "%s -N -I taosc -t 11 -n 11 -y -x -E -c abcde" % binPath
+        cmd = "%s -N -I taosc -t 11 -n 11 -y -x -Z 1 -E -c abcde" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use test")
