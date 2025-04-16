@@ -272,14 +272,14 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
         } else {
             // websocket
             char *bindTableName = stbInfo->stbName;            
-            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
-            if (ntb && tableName) {
+            // bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
+            if (!stbInfo->autoTblCreating && tableName) {
                 bindTableName = tableName;
             }
-            colNames = genColNames(stbInfo->cols, !ntb);
+            colNames = genColNames(stbInfo->cols, stbInfo->autoTblCreating);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
                 "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, bindTableName, colNames,
-                ntb ? "?" : "?,?", colQ);
+                stbInfo->autoTblCreating ? "?,?" : "?", colQ);
         }
     }
     len += n;
