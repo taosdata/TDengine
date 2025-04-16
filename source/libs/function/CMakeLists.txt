@@ -54,8 +54,16 @@ target_include_directories(
 
 target_link_libraries(
     taosudf
-    PRIVATE os util common nodes function ${TAOS_LIB}
+    PRIVATE os util common nodes function
 )
+
+if(UNIX AND NOT APPLE)
+    # NOTE: it's found -rdynamic in main branch compiling
+    #       adding -rdynamic now to make all symbols in dynamic symbol table
+    #       if it works, check the root cause why this PR `eat out` -rdynamic
+    # ref:  man gcc
+    target_link_options(taosudf PRIVATE -rdynamic)
+endif()
 
 if(${BUILD_TEST})
     add_subdirectory(test)
