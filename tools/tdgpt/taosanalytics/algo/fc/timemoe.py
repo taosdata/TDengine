@@ -12,7 +12,7 @@ class _TimeMOEService(TsfmBaseService):
     def __init__(self):
         super().__init__()
 
-        if  self.service_host is not None:
+        if  self.service_host is None:
             self.service_host = 'http://127.0.0.1:5001/timemoe'
 
     def execute(self):

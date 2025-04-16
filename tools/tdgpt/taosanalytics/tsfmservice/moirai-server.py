@@ -38,7 +38,7 @@ def uni2ts():
         input_data = input_data[:_max_input_length]
 
         prediction_length = data.get('next_len', 10)
-        interval = data.get('interval', 0.95)   # confidence interval
+        interval = data.get('conf_interval', 0.95)   # confidence interval
 
         past_dynamic_real = data.get('past_dynamic_real', [])
 

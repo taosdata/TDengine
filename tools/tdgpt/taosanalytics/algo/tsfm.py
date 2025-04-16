@@ -30,7 +30,7 @@ class TsfmBaseService(AbstractForecastService):
             "input": self.list,
             "next_len": self.rows,
             "past_dynamic_real": self.past_dynamic_real,
-            "interval": self.conf
+            "conf_interval": self.conf
         }
 
         try:
