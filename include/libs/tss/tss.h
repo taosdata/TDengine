@@ -46,6 +46,9 @@ struct SSharedStorageType {
      // the name of the shared storage type
     const char* name;
 
+    // printConfig prints the configuration of the shared storage instance.
+    void (*printConfig)(SSharedStorage* ss);
+
     // createInstance creates a shared storage instance
     int32_t (*createInstance)(const char* accessString, SSharedStorage** pp);
 
@@ -100,6 +103,7 @@ int32_t tssUninit();
 
 // these functions wrap the functions in SSharedStorageType, please refer to the
 // comments in SSharedStorageType for details.
+void tssPrintConfig(SSharedStorage* ss);
 int32_t tssCreateInstance(const char* accessString, SSharedStorage** pp);
 int32_t tssCloseInstance(SSharedStorage* ss);
 int32_t tssUpload(SSharedStorage* ss, const char* dstPath, const void* data, int64_t size);
@@ -111,6 +115,7 @@ int32_t tssDeleteFile(SSharedStorage* ss, const char* path);
 int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size);
 
 
+void tssPrintDefaultConfig();
 // tssCreateDefaultInstance creates the default shared storage instance using
 // [tsSsAccessString] as the access string.
 int32_t tssCreateDefaultInstance();
@@ -122,6 +127,14 @@ int32_t tssDownloadFileFromDefault(const char* srcPath, const char* dstPath, int
 int32_t tssListFileOfDefault(const char* prefix, struct SArray* paths);
 int32_t tssDeleteFileFromDefault(const char* path);
 int32_t tssGetFileSizeOfDefault(const char* path, int64_t* size);
+
+
+// tssCheckInstance checks the configuration of the shared storage instance by
+// uploading, listing, downloading, and deleting a test file.
+// if [largeFileSizeInMB] is greater than 0, a large test file of the specified size
+// will be checked.
+int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB);
+int32_t tssCheckDefaultInstance(uint32_t largeFileSizeInMB);
 
 
 #ifdef __cplusplus

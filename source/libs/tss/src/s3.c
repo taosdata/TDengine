@@ -17,17 +17,19 @@
 #include "libs3.h"
 
 
-// use multipart upload for files larger than this size
-#define MULTIPART_CHUNK_SIZE (64 * 1024 * 1024)
-
-
-// S3 storage instance, also used for Aliyun OSS and Tencent COS
+// S3 storage instance, also used for Aliyun OSS and Tencent COS.
 typedef struct {
     // [type] is inherited from SSharedStorage, it must be the first member
-    // to allow casting to SSharedStorage
+    // to allow casting to SSharedStorage.
     const SSharedStorageType* type;
 
     // type-specific data
+
+    // default chunk size in a multipart upload, files larger than this size
+    // will use multipart upload.
+    uint32_t        defaultChunkSizeInMB;
+    // max number of allowed chunks in a multipart upload.
+    uint32_t        maxChunks;
     S3BucketContext bucketContext;
     S3PutProperties putProperties;
 
@@ -37,11 +39,38 @@ typedef struct {
 
 
 
+// printConfig prints the configuration of the shared storage instance.
+static void printConfig(SSharedStorage* pss) {
+    SSharedStorageS3* ss = (SSharedStorageS3*)pss;
+
+    printf("type: %s\n", ss->type->name);
+
+    if (ss->bucketContext.hostName != NULL) {
+        printf("endpoint: %s\n", ss->bucketContext.hostName);
+    }
+
+    printf("bucket: %s\n", ss->bucketContext.bucketName);
+
+    if (ss->bucketContext.authRegion != NULL) {
+        printf("region: %s\n", ss->bucketContext.authRegion);
+    }
+
+    printf("uriStyle: %s\n", ss->bucketContext.uriStyle == S3UriStylePath ? "path" : "virtualHost");
+    printf("protocol: %s\n", ss->bucketContext.protocol == S3ProtocolHTTP ? "http" : "https");
+    printf("chunkSize: %uMB\n", ss->defaultChunkSizeInMB);
+    printf("maxChunks: %u\n", ss->maxChunks);
+}
+
+
+
 // initInstance initializes the SSharedStorageS3 instance from the access string.
 static bool initInstance(SSharedStorageS3* ss, const char* as) {
     strcpy(ss->buf, as);
 
     // set default values
+    ss->defaultChunkSizeInMB = 64;
+    ss->maxChunks = 10000;
+
     ss->bucketContext.uriStyle = S3UriStyleVirtualHost;
     ss->bucketContext.protocol = S3ProtocolHTTPS;
     ss->bucketContext.securityToken = NULL;
@@ -108,10 +137,24 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
             ss->bucketContext.secretAccessKey = val;
         } else if (taosStrcasecmp(key, "region") == 0) {
             ss->bucketContext.authRegion = val;
+        } else if (taosStrcasecmp(key, "chunkSize") == 0 && val != NULL) {
+            ss->defaultChunkSizeInMB = (uint64_t)atoll(val);
+        } else if (taosStrcasecmp(key, "maxChunks") == 0 && val != NULL) {
+            ss->maxChunks = (uint64_t)atoll(val);
         } else {
             tssError("unknown key '%s' in access string: %s", key, as);
             return false;
         }
+    }
+
+    if (ss->defaultChunkSizeInMB == 0) {
+        tssError("invalid chunkSize in access string: %s", as);
+        return false;
+    }
+
+    if (ss->maxChunks <= 1) {
+        tssError("invalid maxChunks in access string: %s", as);
+        return false;
     }
 
     if (ss->bucketContext.bucketName == NULL) {
@@ -290,8 +333,8 @@ typedef struct {
 
     // multipart upload specific fields
     uint64_t chunkSize;
-    int      numChunks;
-    int      seq;  // sequence number of current part
+    uint32_t numChunks;
+    uint32_t seq;  // sequence number of current part
     char*    uploadId;
     char**   etags;
 } SUploadCallbackData;
@@ -418,7 +461,7 @@ static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCa
                            dstPath,
                            &ss->putProperties,
                            &poh,
-                           ucbd->seq + 1,
+                           (int)(ucbd->seq + 1),
                            ucbd->uploadId,
                            ucbd->src->size,
                            NULL,
@@ -440,10 +483,10 @@ static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCa
 
 static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
     // calculate the size of the XML document
-    int64_t size = strlen("<CompleteMultipartUpload></CompleteMultipartUpload>");
+    size_t size = strlen("<CompleteMultipartUpload></CompleteMultipartUpload>");
     size += ucbd->numChunks * strlen("<Part><PartNumber></PartNumber><ETag></ETag></Part>");
     size += ucbd->numChunks * 5;   // for the part number, 5 digits should be enough
-    for (int i = 0; i < ucbd->numChunks; i++) {
+    for (uint32_t i = 0; i < ucbd->numChunks; i++) {
         size += strlen(ucbd->etags[i]);
     }
 
@@ -456,7 +499,7 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
     // build the XML document
     char* p = xml;
     p += sprintf(p, "<CompleteMultipartUpload>");
-    for (int i = 0; i < ucbd->numChunks; i++) {
+    for (uint32_t i = 0; i < ucbd->numChunks; i++) {
         p += sprintf(p, "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1, ucbd->etags[i]);
     }
     p += sprintf(p, "</CompleteMultipartUpload>");
@@ -494,13 +537,12 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
 
 
 static int32_t doMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploadCallbackData* ucbd) {
-    const int maxChunks = 10000;
     SUploadSource* src = ucbd->src->src; // inner source is the original source
 
-    ucbd->chunkSize = MULTIPART_CHUNK_SIZE;
+    ucbd->chunkSize = ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024;
     ucbd->numChunks = (src->size + ucbd->chunkSize - 1) / ucbd->chunkSize;
-    if (ucbd->numChunks > maxChunks) {
-        ucbd->chunkSize = (src->size + maxChunks - 1) / maxChunks;
+    if (ucbd->numChunks > ss->maxChunks) {
+        ucbd->chunkSize = (src->size + ss->maxChunks - 1) / ss->maxChunks;
         ucbd->numChunks = (src->size + ucbd->chunkSize - 1) / ucbd->chunkSize;
     }
 
@@ -561,7 +603,7 @@ static int32_t multipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploa
     }
 
     if (ucbd.etags) {
-        for (int i = 0; i < ucbd.numChunks; i++) {
+        for (uint32_t i = 0; i < ucbd.numChunks; i++) {
             taosMemFree(ucbd.etags[i]);
         }
         taosMemFree(ucbd.etags);
@@ -579,9 +621,10 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
 
     SUploadSource src = {.src = NULL, .buf = (const char*)data, .size = size, .offset = 0, .file = NULL};
 
-    if (size <= MULTIPART_CHUNK_SIZE) {
+    if (size <= ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024) {
         return simpleUpload(ss, dstPath, &src);
     } else {
+        tssInfo("multipart uploading: %s, size %ld", dstPath, size);
         return multipartUpload(ss, dstPath, &src);
     }
 }
@@ -629,10 +672,11 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     SUploadSource src = {.src = NULL, .buf = NULL, .size = size, .offset = 0, .file = file};
 
     int32_t code = 0;
-    if (size > MULTIPART_CHUNK_SIZE) {
-        code = multipartUpload(ss, dstPath, &src);
-    } else {
+    if (size <= ss->defaultChunkSizeInMB * (uint64_t)1024 * 1024) {
         code = simpleUpload(ss, dstPath, &src);
+    } else {
+        tssInfo("multipart uploading: %s to %s, size %ld", srcPath, dstPath, size);
+        code = multipartUpload(ss, dstPath, &src);
     }
 
     (void)taosCloseFile(&file);
@@ -944,6 +988,7 @@ static int32_t s3CreateInstance(const char* as, SSharedStorage** ppSS);
 
 static const SSharedStorageType sstS3 = {
     .name = "s3",
+    .printConfig = &printConfig,
     .createInstance = &s3CreateInstance,
     .closeInstance = &closeInstance,
     .upload = &upload,
@@ -974,9 +1019,9 @@ static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS);
 
 static const SSharedStorageType sstOss = {
     .name = "oss",
+    .printConfig = &printConfig,
     .createInstance = &ossCreateInstance,
     .closeInstance = &closeInstance,
-    .upload = &upload,
     .upload = &upload,
     .uploadFile = &uploadFile,
     .readFile = &readFile,
@@ -1007,9 +1052,9 @@ static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS);
 
 static const SSharedStorageType sstCos = {
     .name = "cos",
+    .printConfig = &printConfig,
     .createInstance = &cosCreateInstance,
     .closeInstance = &closeInstance,
-    .upload = &upload,
     .upload = &upload,
     .uploadFile = &uploadFile,
     .readFile = &readFile,

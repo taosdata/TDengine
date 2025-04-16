@@ -63,6 +63,11 @@ int32_t tssUninit() {
 
 
 
+void tssPrintConfig(SSharedStorage* ss) {
+    ss->type->printConfig(ss);
+}
+
+
 int32_t tssCreateInstance(const char* as, SSharedStorage** pp) {
     size_t asLen = strlen(as);
 
@@ -135,6 +140,11 @@ int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size) {
 
 
 
+void tssPrintDefaultConfig(SSharedStorage* ss) {
+    g_default->type->printConfig(g_default);
+}
+
+
 int32_t tssCreateDefaultInstance() {
     extern char tsSsAccessString[];
 
@@ -191,4 +201,172 @@ int32_t tssDeleteFileFromDefault(const char* path) {
 
 int32_t tssGetFileSizeOfDefault(const char* path, int64_t* size) {
     return g_default->type->getFileSize(g_default, path, size);
+}
+
+
+
+int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
+    const char* path = "shared-storage-instance-test-file";
+    char* smallData = "small data of the shared storage instance test file.";
+
+    char* data = smallData;
+    uint64_t dataSize = strlen(data);
+    char* fileData = NULL;
+    int64_t fileSize = 0;
+    
+    // upload the test file
+    printf("uploading test file to shared storage instance...\n");
+    int code = tssUpload(ss, path, data, dataSize);
+    if (code != TSDB_CODE_SUCCESS) {
+        printf("failed to upload test file, code: %d\n", code);
+        return code;
+    }
+
+    // get the size of the test file
+    printf("getting test file size...\n");
+    code = tssGetFileSize(ss, path, &fileSize);
+    if (code != TSDB_CODE_SUCCESS) {
+        printf("failed to get test file size, code: %d\n", code);
+        return code;
+    }
+    if (fileSize != dataSize) {
+        printf("test file size mismatch, expected: %zu, actual: %ld\n", dataSize, fileSize);
+        return TSDB_CODE_FAILED;
+    }
+
+    // list the test file
+    printf("listing files...\n");
+    SArray* paths = taosArrayInit(10, sizeof(char*));
+    code = tssListFile(ss, NULL, paths);
+    if (code != TSDB_CODE_SUCCESS) {
+        printf("failed to list file, code: %d\n", code);
+        taosArrayDestroy(paths);
+        return code;
+    }
+    bool found = false;
+    for(int i = 0; i < taosArrayGetSize(paths); i++) {
+        char* p = *(char**)taosArrayGet(paths, i);
+        if (strcmp(p, path) == 0) {
+            found = true;
+        }
+        taosMemFree(p);
+    }
+    taosArrayDestroy(paths);
+    if (!found) {
+        printf("test file not found in the list\n");
+        return TSDB_CODE_FAILED;
+    }
+
+    // download the test file
+    printf("downloading test file...\n");
+    fileSize = dataSize * 2;
+    data = (char*)taosMemoryCalloc(1, fileSize);
+    code = tssReadFile(ss, path, 0, data, &fileSize);
+    if (code != TSDB_CODE_SUCCESS) {
+        printf("failed to read test file, code: %d\n", code);
+        taosMemFree(data);
+        return code;
+    }
+    if( fileSize != dataSize ) {
+        printf("data size mismatch, expected: %zu, actual: %ld\n", dataSize, fileSize);
+        taosMemFree(data);
+        code = TSDB_CODE_FAILED;
+        return code;
+    }
+    if (memcmp(data, smallData, dataSize) != 0) {
+        printf("data mismatch\n");
+        taosMemFree(data);
+        return TSDB_CODE_FAILED;
+    }
+    taosMemFree(data);
+
+    // large file upload and download
+    if (largeFileSizeInMB > 0) {
+        dataSize = largeFileSizeInMB * (uint64_t)1024 * 1024;
+
+        data = taosMemoryMalloc(dataSize);
+        if (data == NULL) {
+            printf("failed to allocate memory for large file\n");
+            return TSDB_CODE_FAILED;
+        }
+        for (uint64_t i = 0; i < largeFileSizeInMB; i++) {
+            memset(data + i * 1024 * 1024, 'a' + i % 26, 1024 * 1024);
+        }
+
+        printf("uploading large test file of %dMB to shared storage instance...\n", largeFileSizeInMB);
+        code = tssUpload(ss, path, data, dataSize);
+        if (code != TSDB_CODE_SUCCESS) {
+            printf("failed to upload large test file, code: %d\n", code);
+            taosMemFree(data);
+            return code;
+        }
+
+        printf("getting large test file size...\n");
+        code = tssGetFileSize(ss, path, &fileSize);
+        if (code != TSDB_CODE_SUCCESS) {
+            printf("failed to get large test file size, code: %d\n", code);
+            return code;
+        }
+        if (fileSize != dataSize) {
+            printf("large test file size mismatch, expected: %zu, actual: %ld\n", dataSize, fileSize);
+            return TSDB_CODE_FAILED;
+        }
+
+        printf("downloading a block of the large test file...\n");
+        dataSize = 1024 * 1024;
+        code = tssReadFile(ss, path, 1024 * 1024, data, &dataSize);
+        if (code != TSDB_CODE_SUCCESS) {
+            printf("failed to read large test file, code: %d\n", code);
+            taosMemFree(data);
+            return code;
+        }
+        if(dataSize != 1024 * 1024) {
+            printf("large file data size mismatch, expected: %d, actual: %ld\n", 1024 * 1024, dataSize);
+            taosMemFree(data);
+            return TSDB_CODE_FAILED;
+        }
+        for(uint64_t i = 0; i < dataSize; i++) {
+            if(data[i] != 'b') {
+                printf("large file data mismatch\n");
+                taosMemFree(data);
+                return TSDB_CODE_FAILED;
+            }
+        }
+
+        taosMemFree(data);
+    }
+
+    // delete the test file
+    printf("deleting test file...\n");
+    code = tssDeleteFile(ss, path);
+    if (code != TSDB_CODE_SUCCESS) {
+        printf("failed to delete test file, code: %d\n", code);
+        return code;
+    }
+
+    // list the test file again, the test file should not be found
+    printf("listing files again...\n");
+    paths = taosArrayInit(10, sizeof(char*));
+    code = tssListFile(ss, NULL, paths);
+    if (code != TSDB_CODE_SUCCESS) {
+        printf("failed to list files, code: %d\n", code);
+        taosArrayDestroy(paths);
+        return code;
+    }
+    for(int i = 0; i < taosArrayGetSize(paths); i++) {
+        char* p = *(char**)taosArrayGet(paths, i);
+        if (strcmp(p, path) == 0) {
+            printf("test file was found in the list\n");
+            code = TSDB_CODE_FAILED;
+        }
+        taosMemFree(p);
+    }
+    taosArrayDestroy(paths);
+
+    return code;
+}
+
+
+int32_t tssCheckDefaultInstance(uint32_t largeFileSizeInMB) {
+    return tssCheckInstance(g_default, largeFileSizeInMB);
 }
