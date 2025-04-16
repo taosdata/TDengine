@@ -56,7 +56,7 @@ class TDTestCase(TBase):
     def dbInsertThread(self):
         tdLog.info(f"dbInsertThread start")
         # taosBenchmark run
-        cmd = "-d db -t 10000 -n 10000 -T 4 -I stmt -y"
+        cmd = "-Z 0 -d db -t 10000 -n 10000 -T 4 -I stmt -y"
         self._rlist = self.benchmark(cmd, checkRun=False)
 
     # run
