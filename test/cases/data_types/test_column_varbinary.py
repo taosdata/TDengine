@@ -19,7 +19,9 @@ class TestVarbinaryColumn:
             - Tables:Create
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -91,7 +93,9 @@ class TestVarbinaryColumn:
             - DataTypes:Varbinary
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -156,7 +160,9 @@ class TestVarbinaryColumn:
             - DataTypes:Varbinary
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -276,7 +282,9 @@ class TestVarbinaryColumn:
             - DataTypes:Varbinary
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -341,7 +349,9 @@ class TestVarbinaryColumn:
             - DataTypes:Varbinary
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:

@@ -19,7 +19,9 @@ class TestFloatColumn:
             - Tables:Create
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -182,7 +184,9 @@ class TestFloatColumn:
             - DataTypes:Float
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -325,7 +329,9 @@ class TestFloatColumn:
             - DataTypes:Float
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -536,7 +542,9 @@ class TestFloatColumn:
             - DataTypes:Float
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -624,7 +632,9 @@ class TestFloatColumn:
             - DataTypes:Float
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:

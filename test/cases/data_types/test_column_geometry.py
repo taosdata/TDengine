@@ -19,7 +19,9 @@ class TestGeometryColumn:
             - Tables:Create
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -87,7 +89,9 @@ class TestGeometryColumn:
             - DataTypes:Geometry
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -149,7 +153,9 @@ class TestGeometryColumn:
             - DataTypes:Geometry
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -254,7 +260,9 @@ class TestGeometryColumn:
             - DataTypes:Geometry
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -316,7 +324,9 @@ class TestGeometryColumn:
             - DataTypes:Geometry
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:

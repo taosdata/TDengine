@@ -19,7 +19,9 @@ class TestNcharColumn:
             - Tables:Create
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -109,7 +111,9 @@ class TestNcharColumn:
             - DataTypes:Nchar
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -193,7 +197,9 @@ class TestNcharColumn:
             - DataTypes:Nchar
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -357,7 +363,9 @@ class TestNcharColumn:
             - DataTypes:Nchar
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -440,7 +448,9 @@ class TestNcharColumn:
             - DataTypes:Nchar
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:

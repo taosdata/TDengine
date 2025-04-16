@@ -19,7 +19,9 @@ class TestTinyintColumn:
             - Tables:Create
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -104,7 +106,9 @@ class TestTinyintColumn:
             - DataTypes:Tinyint
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -199,7 +203,9 @@ class TestTinyintColumn:
             - DataTypes:Tinyint
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -337,7 +343,9 @@ class TestTinyintColumn:
             - DataTypes:Tinyint
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -357,7 +365,9 @@ class TestTinyintColumn:
             - DataTypes:Tinyint
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:

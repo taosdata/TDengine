@@ -19,7 +19,9 @@ class TestSmallintColumn:
             - Tables:Create
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -104,7 +106,9 @@ class TestSmallintColumn:
             - DataTypes:Smallint
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -180,7 +184,9 @@ class TestSmallintColumn:
             - DataTypes:Smallint
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -318,7 +324,9 @@ class TestSmallintColumn:
             - DataTypes:Smallint
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
@@ -500,7 +508,9 @@ class TestSmallintColumn:
             - DataTypes:Smallint
 
         Since: v3.0.0.0
+
         Labels: common,ci
+
         Jira: None
 
         History:
