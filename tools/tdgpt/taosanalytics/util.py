@@ -110,7 +110,7 @@ def get_past_dynamic_data(data, schema):
     past_dynamic = []
 
     for index, val in enumerate(schema):
-        if val[0].startWith("past_dynamic_real"):
+        if val[0].startswith("past_dynamic_real"):
             past_dynamic.append(data[index])
 
     return None if len(past_dynamic) == 0 else past_dynamic
@@ -119,7 +119,7 @@ def get_dynamic_data(data, schema):
     dynamic = []
 
     for index, val in enumerate(schema):
-        if val[0].startWith("dynamic_real"):
+        if val[0].startswith("dynamic_real"):
             dynamic.append(data[index])
 
     return None if len(dynamic) == 0 else dynamic

@@ -82,7 +82,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.rows = 0
 
         self.return_conf = 1
-        self.conf = 0.05
+        self.conf = 0.95
 
         self.past_dynamic_real = []
         self.dynamic_real = []
@@ -91,10 +91,10 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
                        dynamic_real_list: list = None):
         """ set the input data """
         if past_dynamic_real_list is not None:
-            self.past_dynamic_real.append(past_dynamic_real_list)
+            self.past_dynamic_real = past_dynamic_real_list
 
         if dynamic_real_list is not None:
-            self.dynamic_real.append(dynamic_real_list)
+            self.dynamic_real = dynamic_real_list
 
         self.set_input_list(input_list, input_ts_list)
 
@@ -119,11 +119,11 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         if self.period < 0:
             raise ValueError("periods should be greater than 0")
 
-        self.conf = float(params['conf']) if 'conf' in params else 95
+        self.conf = float(params['conf']) if 'conf' in params else 0.95
 
-        self.conf = 1.0 - self.conf / 100.0
+        # self.conf = 1.0 - self.conf / 100.0
         if self.conf < 0 or self.conf >= 1.0:
-            raise ValueError("invalid value of conf, should between 0 and 100")
+            raise ValueError("invalid value of conf, should between 0 and 1.0")
 
         self.return_conf = int(params['return_conf']) if 'return_conf' in params else 1
 

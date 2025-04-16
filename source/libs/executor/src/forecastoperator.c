@@ -54,7 +54,7 @@ typedef struct {
   int8_t       targetValType;
   int8_t       inputPrecision;
   int8_t       wncheck;
-  int8_t       conf;
+  double       conf;
   int64_t      startTs;
   int64_t      every;
   int8_t       setStart;
@@ -184,7 +184,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
   code = taosAnalyBufWriteOptInt(pBuf, "forecast_rows", pSupp->forecastRows);
   if (code != 0) return code;
 
-  code = taosAnalyBufWriteOptInt(pBuf, "conf", pSupp->conf);
+  code = taosAnalyBufWriteOptFloat(pBuf, "conf", pSupp->conf);
   if (code != 0) return code;
 
   int32_t len = strlen(pSupp->algoOpt);
@@ -612,11 +612,11 @@ static void initForecastOpt(SForecastSupp* pSupp) {
 static int32_t filterNotSupportForecast(SForecastSupp* pSupp) {
   if (taosArrayGetSize(pSupp->pCovariateSlotList) > 0) {
     if (taosStrcasecmp(pSupp->algoName, "holtwinters") == 0) {
-      return TSDB_CODE_ANA_INTERNAL_ERROR;
+      return TSDB_CODE_ANA_NOT_SUPPORT_FORECAST;
     } else if (taosStrcasecmp(pSupp->algoName, "arima") == 0) {
-      return TSDB_CODE_ANA_INTERNAL_ERROR;
+      return TSDB_CODE_ANA_NOT_SUPPORT_FORECAST;
     } else if (taosStrcasecmp(pSupp->algoName, "timemoe-fc") == 0) {
-      return TSDB_CODE_ANA_INTERNAL_ERROR;
+      return TSDB_CODE_ANA_NOT_SUPPORT_FORECAST;
     }
   }
 
@@ -670,13 +670,13 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
   char* pConf = taosHashGet(pHashMap, ALGO_OPT_CONF_NAME, strlen(ALGO_OPT_CONF_NAME));
   if (pConf != NULL) {
-    int64_t v = 0;
-    code = toInteger(pConf, taosHashGetValueSize(pConf), 10, &v);
+    char* endPtr = NULL;
+    double v = taosStr2Double(pConf, &endPtr);
     pSupp->conf = v;
 
-    if (v <= 0 || v >= 100) {
+    if (v <= 0 || v > 1.0) {
       pSupp->conf = ANALY_FORECAST_DEFAULT_CONF;
-      qDebug("%s valid conf range is [1, 99], user specified:%" PRId64 " out of range, set the default:%d", id, v,
+      qDebug("%s valid conf range is (0, 1], user specified:%" PRId64 " out of range, set the default:%d", id, v,
              pSupp->conf);
     } else {
       qDebug("%s forecast conf:%d", id, pSupp->conf);
@@ -731,7 +731,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
     SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, i);
 
     char name[128] = {0};
-    (void) tsnprintf(name, tListLen(name), "post_dynamic_real_%d", i + 1);
+    (void) tsnprintf(name, tListLen(name), "past_dynamic_real_%d", i + 1);
 
     code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
     if (code) {
