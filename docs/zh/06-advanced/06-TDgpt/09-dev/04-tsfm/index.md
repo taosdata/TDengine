@@ -124,7 +124,7 @@ class _TimeMOEService(TsfmBaseService):
             self.service_host = 'http://127.0.0.1:5001/timemoe'
 
     def execute(self):
-        # 检查是否支持历史协变量分析，如果不支持，触发异常。time-moe不支持历史协变量分析，因此触发异常
+        # 检查是否支持历史协变量分析，如果不支持，触发异常。time-moe 不支持历史协变量分析，因此触发异常
         if len(self.past_dynamic_real):
             raise ValueError("covariate forecast is not supported yet")
 
