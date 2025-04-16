@@ -389,7 +389,7 @@ TDengine 构建检查工作流可以在参考 [Github Action](https://github.com
 cd tests
 bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task 
 # on main branch and run cases in longtimeruning_cases.task 
-# for more infomation about options please refer to ./run_local_coverage.sh -h
+# for more information about options please refer to ./run_local_coverage.sh -h
 ```
 > **注意**：
 > 请注意，-b 和 -i 选项将使用 -DCOVER=true 选项重新编译 TDengine，这可能需要花费一些时间。

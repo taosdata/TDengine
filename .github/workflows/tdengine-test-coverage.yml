@@ -8,12 +8,12 @@ on:
         description: 'Enter the test branch of TDinternal'
         required: false
         type: string
-        default: '3.0' # default value for TDinternal test branch
+        default: 'cover/3.0' # default value for TDinternal test branch
       specified_tdengine_test_branch:
         description: 'Enter the test branch of TDengine'
         required: false
         type: string
-        default: '3.0' # default value for TDengine test branch
+        default: 'cover/3.0' # default value for TDengine test branch
   schedule:
     # - cron: '0 06 * * *'
     # - cron: '0 18 * * *'
@@ -21,7 +21,7 @@ on:
 
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.specified_tdinternal_test_branch || '3.0' }}-${{ github.event.inputs.specified_tdengine_test_branch || '3.0' }}-TDengine
+  group: ${{ github.workflow }}-${{ github.event.inputs.specified_tdinternal_test_branch || 'cover/3.0' }}-${{ github.event.inputs.specified_tdengine_test_branch || 'cover/3.0' }}-TDengine
   cancel-in-progress: true
 
 env:
@@ -33,5 +33,5 @@ jobs:
     uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
     with:
-      specified_tdinternal_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_tdinternal_test_branch || '3.0' }}
-      specified_tdengine_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_tdengine_test_branch || '3.0' }}
+      specified_tdinternal_test_branch: ${{ github.event_name == 'schedule' && 'cover/3.0' || github.event.inputs.specified_tdinternal_test_branch || 'cover/3.0' }}
+      specified_tdengine_test_branch: ${{ github.event_name == 'schedule' && 'cover/3.0' || github.event.inputs.specified_tdengine_test_branch || 'cover/3.0' }}

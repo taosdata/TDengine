@@ -252,6 +252,9 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     return;
   }
 
+  syncGetRetryEpSet(pMnode->syncMgmt.sync, pEpSet);
+
+  /*
   SSdb   *pSdb = pMnode->pSdb;
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 0) {
@@ -289,6 +292,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     }
     epsetSort(pEpSet);
   }
+    */
 }
 
 static int32_t mndSetCreateMnodeRedoLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {

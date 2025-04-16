@@ -29,6 +29,7 @@
 #define TRANS_VER2_NUMBER  2
 #define TRANS_ARRAY_SIZE   8
 #define TRANS_RESERVE_SIZE 42
+#define TRANS_ACTION_TIMEOUT 1000 * 1000 * 60 * 15
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
@@ -1377,9 +1378,16 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     if (pAction->msgSent && pAction->msgReceived &&
         (pAction->errCode == 0 || pAction->errCode == pAction->acceptableCode))
       continue;
+    if (pAction->msgSent && !pAction->msgReceived) {
+      int64_t timestamp = taosGetTimestampMs();
+      if (timestamp - pAction->startTime <= TRANS_ACTION_TIMEOUT) continue;
+    }
+
     if (pAction->rawWritten && (pAction->errCode == 0 || pAction->errCode == pAction->acceptableCode)) continue;
 
     mndTransResetAction(pMnode, pTrans, pAction);
+    mInfo("trans:%d, %s:%d reset, errCode:%d, startTime:%" PRId64, pTrans->id, mndTransStr(pAction->stage), pAction->id,
+          pAction->errCode, pAction->startTime);
   }
 }
 
@@ -1567,11 +1575,17 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
              mndTransStr(pAction->stage), pAction->id, pAction->msgSent, pAction->msgReceived, pAction->errCode,
              pAction->acceptableCode, pAction->retryCode);
       if (pAction->msgSent) {
+        bool reset = false;
         if (pAction->msgReceived) {
-          if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
-            mndTransResetAction(pMnode, pTrans, pAction);
-            mInfo("trans:%d, %s:%d reset", pTrans->id, mndTransStr(pAction->stage), pAction->id);
-          }
+          if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) reset = true;
+        } else {
+          int64_t timestamp = taosGetTimestampMs();
+          if (timestamp - pAction->startTime > TRANS_ACTION_TIMEOUT) reset = true;
+        }
+        if (reset) {
+          mndTransResetAction(pMnode, pTrans, pAction);
+          mInfo("trans:%d, %s:%d reset, errCode:%d, startTime:%" PRId64, pTrans->id, mndTransStr(pAction->stage),
+                pAction->id, pAction->errCode, pAction->startTime);
         }
       }
     }
@@ -1628,15 +1642,23 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf, false);
     if (code == 0) {
       if (pAction->msgSent) {
+        bool reset = false;
         if (pAction->msgReceived) {
           if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
             code = pAction->errCode;
-            mndTransResetAction(pMnode, pTrans, pAction);
+            reset = true;
           } else {
             mInfo("trans:%d, %s:%d execute successfully", pTrans->id, mndTransStr(pAction->stage), action);
           }
         } else {
+          int64_t timestamp = taosGetTimestampMs();
+          if (timestamp - pAction->startTime > TRANS_ACTION_TIMEOUT) reset = true;
           code = TSDB_CODE_ACTION_IN_PROGRESS;
+        }
+        if (reset) {
+          mndTransResetAction(pMnode, pTrans, pAction);
+          mInfo("trans:%d, %s:%d reset, errCode:%d, startTime:%" PRId64, pTrans->id, mndTransStr(pAction->stage),
+                pAction->id, pAction->errCode, pAction->startTime);
         }
       } else if (pAction->rawWritten) {
         if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
