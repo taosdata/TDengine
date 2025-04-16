@@ -1913,6 +1913,10 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void resetMergeJoinOperState(SOperatorInfo* pOper) {
+  //TODO wjm
+}
+
 int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);

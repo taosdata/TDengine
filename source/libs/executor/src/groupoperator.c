@@ -514,6 +514,12 @@ _end:
   return code;
 }
 
+static void resetGroupOperState(SOperatorInfo* pOper) {
+  SGroupbyOperatorInfo* pGroupby = pOper->info;
+  resetBasicOperatorState(&pGroupby->binfo);
+  pGroupby->isInit = false;
+}
+
 int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                 SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);

@@ -222,6 +222,8 @@ void *         getOperatorParam(int32_t opType, SOperatorParam* param, int32_t i
 void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId);
 void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex, uint64_t groupId);
 
+void resetOperatorState(SOperatorInfo* pOper);
+
 #ifdef __cplusplus
 }
 #endif

@@ -296,6 +296,16 @@ _end:
   return code;
 }
 
+static int32_t resetCountWindowOperatorState(SOperatorInfo* pOper) {
+  SCountWindowOperatorInfo* pCount = pOper->info;
+  resetBasicOperatorState(&pCount->binfo);
+  pCount->groupId = INT64_MAX;
+  pCount->countSup.stateIndex = 0;
+  pCount->pPreDataBlock = NULL;
+  pCount->preStateIndex = 0;
+  return 0;
+}
+
 int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
                                              SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);

@@ -28,6 +28,12 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 static void    destroyEWindowOperatorInfo(void* param);
 static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 
+static void resetEventWindowOperState(SOperatorInfo* pOper) {
+  SEventWindowOperatorInfo* pEvent = pOper->info;
+  resetBasicOperatorState(&pEvent->binfo);
+  pEvent->pPreDataBlock = NULL;
+}
+
 int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
                                              SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);

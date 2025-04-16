@@ -1502,6 +1502,12 @@ static int32_t groupCacheTableCacheEnd(SOperatorInfo* pOperator, SOperatorParam*
   return TSDB_CODE_SUCCESS;
 }
 
+static void resetGroupCacheOperState(SOperatorInfo* pOper) {
+  SGroupCacheOperatorInfo* pGC = pOper->info;
+  pGC->maxCacheSize = 0;
+  pGC->blkCache.writeDownstreamId = -1;
+}
+
 int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                      SGroupCachePhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {

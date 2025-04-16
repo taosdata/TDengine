@@ -1778,3 +1778,123 @@ void qResetTaskCode(qTaskInfo_t tinfo) {
   pTaskInfo->code = 0;
   qDebug("0x%" PRIx64 " reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
 }
+
+int32_t collectExprsToReplaceForStream(SOperatorInfo* pOper, SArray* pExprs) {
+  int32_t code = 0;
+  return code;
+}
+
+int32_t streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
+  int32_t code = collectExprsToReplaceForStream(pTaskInfo->pRoot, pExprs);
+  return code;
+}
+
+int32_t clearStatesForOperator(SOperatorInfo* pOper) {
+  int32_t code = 0;
+  pOper->status = OP_NOT_OPENED;
+  for (int32_t i = 0; i < pOper->numOfDownstream && code == 0; ++i) {
+    code = clearStatesForOperator(pOper->pDownstream[i]);
+  }
+  return code;
+}
+
+int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
+  int32_t code = 0;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
+  SOperatorInfo* pOper = pTaskInfo->pRoot;
+  code = clearStatesForOperator(pOper);
+  return code;
+}
+
+static int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
+  // loop all exprs for force output, execute all exprs
+  return 0;
+}
+
+int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t *useconds) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
+  int64_t        threadId = taosGetSelfPthreadId();
+  int64_t        curOwner = 0;
+
+  *pRes = NULL;
+
+  // todo extract method
+  taosRLockLatch(&pTaskInfo->lock);
+  bool isKilled = isTaskKilled(pTaskInfo);
+  if (isKilled) {
+    //clearStreamBlock(pTaskInfo->pRoot);
+    qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
+
+    taosRUnLockLatch(&pTaskInfo->lock);
+    return pTaskInfo->code;
+  }
+
+  if (pTaskInfo->owner != 0) {
+    qError("%s-%p execTask is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo, (void*)curOwner);
+    pTaskInfo->code = TSDB_CODE_QRY_IN_EXEC;
+
+    taosRUnLockLatch(&pTaskInfo->lock);
+    return pTaskInfo->code;
+  }
+
+  pTaskInfo->owner = threadId;
+  taosRUnLockLatch(&pTaskInfo->lock);
+
+  if (pTaskInfo->cost.start == 0) {
+    pTaskInfo->cost.start = taosGetTimestampUs();
+  }
+
+  // error occurs, record the error code and return to client
+  int32_t ret = setjmp(pTaskInfo->env);
+  if (ret != TSDB_CODE_SUCCESS) {
+    pTaskInfo->code = ret;
+    (void)cleanUpUdfs();
+    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+    atomic_store_64(&pTaskInfo->owner, 0);
+    return pTaskInfo->code;
+  }
+
+  qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
+
+  int64_t st = taosGetTimestampUs();
+
+  int32_t code = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot, pRes);
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  code = streamForceOutput(tInfo, pRes);
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+
+  code = blockDataCheck(*pRes);
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+
+  uint64_t el = (taosGetTimestampUs() - st);
+
+  pTaskInfo->cost.elapsedTime += el;
+  if (NULL == *pRes) {
+    *useconds = pTaskInfo->cost.elapsedTime;
+  }
+
+  (void) cleanUpUdfs();
+
+  int32_t  current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
+  uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
+
+  qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
+         GET_TASKID(pTaskInfo), current, total, 0, el / 1000.0);
+
+  atomic_store_64(&pTaskInfo->owner, 0);
+  return pTaskInfo->code;
+}
+
+void    streamDestroyExecTask(qTaskInfo_t tInfo) {
+
+}

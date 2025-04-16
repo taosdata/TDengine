@@ -441,6 +441,32 @@ static int32_t createPrimaryTsExprIfNeeded(SFillOperatorInfo* pInfo, SFillPhysiN
   return TSDB_CODE_SUCCESS;
 }
 
+static void resetFillOperState(SOperatorInfo* pOper) {
+  SFillOperatorInfo* pFill = pOper->info;
+  pFill->curGroupId = 0;
+  pFill->totalInputRows = 0;
+  blockDataCleanup(pFill->pRes);
+  blockDataCleanup(pFill->pFinalRes);
+  pFill->pFillInfo->currentKey = pFill->pFillInfo->start;
+  pFill->pFillInfo->numOfRows = 0;
+  pFill->pFillInfo->index = -1;
+  pFill->pFillInfo->numOfTotal = 0;
+  pFill->pFillInfo->numOfCurrent = 0;
+  pFill->pFillInfo->isFilled = false;
+  pFill->pFillInfo->prev.key = 0;
+  pFill->pFillInfo->next.key = 0;
+  int32_t size = taosArrayGetSize(pFill->pFillInfo->prev.pRowVal);
+  for (int32_t i = 0; i < size; ++i) {
+    SGroupKeys* pKey = taosArrayGet(pFill->pFillInfo->prev.pRowVal, i);
+    pKey->isNull = true;
+  }
+  size = taosArrayGetSize(pFill->pFillInfo->next.pRowVal);
+  for (int32_t i = 0; i < size; ++i) {
+    SGroupKeys* pKey = taosArrayGet(pFill->pFillInfo->next.pRowVal, i);
+    pKey->isNull = true;
+  }
+}
+
 int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode,
                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
