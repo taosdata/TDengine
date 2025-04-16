@@ -676,13 +676,13 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
     if (v <= 0 || v > 1.0) {
       pSupp->conf = ANALY_FORECAST_DEFAULT_CONF;
-      qDebug("%s valid conf range is (0, 1], user specified:%" PRId64 " out of range, set the default:%d", id, v,
+      qDebug("%s valid conf range is (0, 1], user specified:%" PRId64 " out of range, set the default:%.2f", id, v,
              pSupp->conf);
     } else {
-      qDebug("%s forecast conf:%d", id, pSupp->conf);
+      qDebug("%s forecast conf:%.2f", id, pSupp->conf);
     }
   } else {
-    qDebug("%s forecast conf not found:%s, use default:%d", id, pSupp->algoOpt, pSupp->conf);
+    qDebug("%s forecast conf not found:%s, use default:%.2f", id, pSupp->algoOpt, pSupp->conf);
   }
 
   char* pStart = taosHashGet(pHashMap, ALGO_OPT_START_NAME, strlen(ALGO_OPT_START_NAME));
