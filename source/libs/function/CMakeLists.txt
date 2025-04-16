@@ -58,11 +58,10 @@ target_link_libraries(
 )
 
 if(UNIX AND NOT APPLE)
-    # NOTE: it's found -rdynamic in main branch compiling
-    #       adding -rdynamic now to make all symbols in dynamic symbol table
-    #       if it works, check the root cause why this PR `eat out` -rdynamic
-    # ref:  man gcc
-    target_link_options(taosudf PRIVATE -rdynamic)
+    # ref: https://cmake.org/cmake/help/latest/release/3.4.html#deprecated-and-removed-features
+    set_target_properties(taosudf PROPERTIES
+        ENABLE_EXPORTS ON
+    )
 endif()
 
 if(${BUILD_TEST})
