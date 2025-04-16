@@ -15,3 +15,23 @@
 ,,y,.,./ci/pytest.sh pytest cases/tmq/test_drop_lost_comsumers.py
 ,,y,.,./ci/pytest.sh pytest cases/tmq/test_tmq_params.py
 ,,y,.,./ci/pytest.sh pytest cases/tmq/test_tmq_params.py -R
+
+# Data Types
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_bigint.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_bool.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_double.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_float.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_int.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_smallint.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_tinyint.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_unsign.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_uint.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_varchar.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_nchar.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_varibinary.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_json.py
+,,y,.,./ci/pytest.sh pytest cases/data_types/test_column_geometry.py
+
+#
+
