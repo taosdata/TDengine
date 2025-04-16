@@ -53,6 +53,17 @@ static void calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeLi
 
 static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc);
 
+static void resetSortOperState(SOperatorInfo* pOper) {
+  SSortOperatorInfo* pSort = pOper->info;
+  resetBasicOperatorState(&pSort->binfo);
+  tsortDestroySortHandle(pSort->pSortHandle);
+  pSort->pSortHandle = NULL;
+  if (pSort->pGroupIdCalc) {
+    pSort->pGroupIdCalc->lastGroupId = 0;
+    pSort->pGroupIdCalc->lastKeysLen = 0;
+  }
+}
+
 // todo add limit/offset impl
 int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);

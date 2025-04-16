@@ -71,6 +71,8 @@ static int32_t doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfO
 static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 
+static void resetAggregateOperatorState(SOperatorInfo* pOper);
+
 int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -826,4 +828,19 @@ void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
   pCtx->input.colDataSMAIsSet = pStatus->hasAgg;
   pCtx->input.numOfRows = pStatus->numOfRows;
   pCtx->input.startRowIndex = pStatus->startOffset;
+}
+
+static void resetAggregateOperatorState(SOperatorInfo* pOper) {
+  SAggOperatorInfo* pAgg = pOper->info;
+  pAgg->groupKeyOptimized = false;
+  pAgg->hasValidBlock = false;
+  pAgg->hasCountFunc = false;
+  pAgg->cleanGroupResInfo = false;
+  pAgg->groupId = INT64_MAX;
+  resetBasicOperatorState(&pAgg->binfo);
+}
+
+void resetBasicOperatorState(SOptrBasicInfo *pBasicInfo) {
+  blockDataCleanup(pBasicInfo->pRes);
+  initResultRowInfo(&pBasicInfo->resultRowInfo);
 }

@@ -19,6 +19,7 @@
 #include "tqCommon.h"
 #include "tsdb.h"
 #include "vnd.h"
+#include "tstream.h"
 
 #define BATCH_ENABLE 0
 

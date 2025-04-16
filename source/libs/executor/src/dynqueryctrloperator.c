@@ -1541,6 +1541,9 @@ _return:
   return code;
 }
 
+static void resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
+}
+
 int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                        SDynQueryCtrlPhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
                                        SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {

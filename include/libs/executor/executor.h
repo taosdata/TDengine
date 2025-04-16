@@ -236,6 +236,10 @@ void    qResetTaskInfoCode(qTaskInfo_t tinfo);
 int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral);
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
+int32_t streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
+int32_t streamClearStatesForOperators(qTaskInfo_t tInfo);
+int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t *ts);
+void    streamDestroyExecTask(qTaskInfo_t tInfo);
 
 #ifdef __cplusplus
 }

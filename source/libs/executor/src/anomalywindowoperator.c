@@ -59,6 +59,8 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator);
 static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 
+static int32_t resetAnomalyWindowOperatorState(SOperatorInfo* pOper);
+
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                         SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -684,3 +686,10 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 void destroyForecastInfo(void* param) {}
 
 #endif
+
+static int32_t resetAnomalyWindowOperatorState(SOperatorInfo* pOper) {
+  SAnomalyWindowOperatorInfo* pAno = pOper->info;
+  resetBasicOperatorState(&pAno->binfo);
+  return 0;
+}
+

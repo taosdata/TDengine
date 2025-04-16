@@ -385,10 +385,6 @@ void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 void    metaFetchEntryFree(SMetaEntry **ppEntry);
 
-typedef struct SStreamRunnerTask SStreamRunnerTask;
-typedef struct SStreamRunnerTaskExecution SStreamRunnerTaskExecution;
-int32_t buildStreamTaskExec(const struct SStreamRunnerTask* pTask, struct SStreamRunnerTaskExecution* pExec);
-
 #ifdef __cplusplus
 }
 #endif
