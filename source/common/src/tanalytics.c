@@ -188,6 +188,10 @@ bool taosAnalyGetOptStr(const char *option, const char *optName, char *optValue,
   SHashObj* p = NULL;
   int32_t code = taosAnalyGetOpts(option, &p);
   if (code != TSDB_CODE_SUCCESS) {
+    if (p != NULL) {
+      taosHashCleanup(p);
+      p = NULL;
+    }
     return false;
   }
 

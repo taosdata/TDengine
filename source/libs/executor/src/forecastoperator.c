@@ -676,7 +676,7 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
     if (v <= 0 || v > 1.0) {
       pSupp->conf = ANALY_FORECAST_DEFAULT_CONF;
-      qDebug("%s valid conf range is (0, 1], user specified:%.2f out of range, set the default:%.2f", id, v,
+      qWarn("%s valid conf range is (0, 1], user specified:%.2f out of range, set the default:%.2f", id, v,
              pSupp->conf);
     } else {
       qDebug("%s forecast conf:%.2f", id, pSupp->conf);
