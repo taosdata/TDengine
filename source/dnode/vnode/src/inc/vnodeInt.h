@@ -515,6 +515,7 @@ struct SVnode {
   int64_t       blockSeq;
   SQHandle*     pQuery;
   SVMonitorObj  monitor;
+  uint32_t      applyQueueErrorCount;
 
   // Notification Handles
   SStreamNotifyHandleMap* pNotifyHandleMap;
