@@ -254,7 +254,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   } else {
     code = initConfigArrayFromSdb(pMnode, array);
     if (code != 0) {
-      mError("failed to init config array from sdb, since %s", terrstr());
+      mError("failed to init config array from sdb, since %s", tstrerror(code));
       goto _OVER;
     }
     configRsp.array = array;
