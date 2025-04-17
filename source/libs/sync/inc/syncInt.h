@@ -136,9 +136,10 @@ struct SSyncNode {
   SRaftId replicasId[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
   // raft algorithm
-  SSyncFSM*     pFsm;
-  int32_t       quorum;
-  SRaftId       leaderCache;
+  SSyncFSM* pFsm;
+  int32_t   quorum;
+  SRaftId   leaderCache;
+  SEp           leaderCacheEp;
   ESyncFsmState fsmState;
 
   // life cycle
@@ -238,6 +239,8 @@ struct SSyncNode {
   int64_t sendCount;
   int64_t recvCount;
   int64_t slowCount;
+
+  int32_t applyQueueErrorCount;
 };
 
 // open/close --------------

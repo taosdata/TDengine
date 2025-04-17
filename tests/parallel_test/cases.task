@@ -38,6 +38,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
+,,y,army,./pytest.sh python3 ./test.py -f query/decimal/test_TS6333.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
@@ -100,6 +101,8 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
+,,y,army,./pytest.sh python3 ./test.py -f inspect-tools/taosinspect.py
+
 #
 # army/tools
 #
@@ -108,6 +111,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
 

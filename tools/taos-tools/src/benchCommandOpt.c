@@ -302,6 +302,7 @@ void initArgument() {
     g_arguments->keep_trying = 0;
     g_arguments->trying_interval = 0;
     g_arguments->iface = TAOSC_IFACE;
+    g_arguments->rest_server_ver_major = -1;
     g_arguments->inputted_vgroups = -1;
 
     g_arguments->mistMode = false;
@@ -367,7 +368,10 @@ void modifyArgument() {
 static void *queryStableAggrFunc(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
 
-    TAOS *taos = taos = pThreadInfo->conn->taos;
+    TAOS *taos = NULL;
+    if (REST_IFACE != g_arguments->iface) {
+        taos = pThreadInfo->conn->taos;
+    }
 #ifdef LINUX
     prctl(PR_SET_NAME, "queryStableAggrFunc");
 #endif
@@ -423,18 +427,24 @@ static void *queryStableAggrFunc(void *sarg) {
             }
             double t = (double)toolsGetTimestampUs();
             int32_t code = -1;
-            TAOS_RES *res = taos_query(taos, command);
-            code = taos_errno(res);
-            if (code != 0) {
-                printErrCmdCodeStr(command, code, res);
-                free(command);
-                return NULL;
+            if (REST_IFACE == g_arguments->iface) {
+                code = postProcessSql(command, NULL, 0, REST_IFACE,
+                                    0, g_arguments->port, 0,
+                                    pThreadInfo->sockfd, NULL);
+            } else {
+                TAOS_RES *res = taos_query(taos, command);
+                code = taos_errno(res);
+                if (code != 0) {
+                    printErrCmdCodeStr(command, code, res);
+                    free(command);
+                    return NULL;
+                }
+                int count = 0;
+                while (taos_fetch_row(res) != NULL) {
+                    count++;
+                }
+                taos_free_result(res);
             }
-            int count = 0;
-            while (taos_fetch_row(res) != NULL) {
-                count++;
-            }
-            taos_free_result(res);
             t = toolsGetTimestampUs() - t;
             if (fp) {
                 fprintf(fp, "| Speed: %12.2f(per s) | Latency: %.4f(ms) |\n",
@@ -495,17 +505,23 @@ static void *queryNtableAggrFunc(void *sarg) {
                     (uint64_t) DEFAULT_START_TIME);
             double    t = (double)toolsGetTimestampUs();
             int32_t code = -1;
-            TAOS_RES *res = taos_query(taos, command);
-            code = taos_errno(res);
-            if (code != 0) {
-                printErrCmdCodeStr(command, code, res);
-                free(command);
-                return NULL;
+            if (REST_IFACE == g_arguments->iface) {
+                code = postProcessSql(command, NULL, 0, REST_IFACE,
+                                    0, g_arguments->port, 0,
+                                    pThreadInfo->sockfd, NULL);
+            } else {
+                TAOS_RES *res = taos_query(taos, command);
+                code = taos_errno(res);
+                if (code != 0) {
+                    printErrCmdCodeStr(command, code, res);
+                    free(command);
+                    return NULL;
+                }
+                while (taos_fetch_row(res) != NULL) {
+                    count++;
+                }
+                taos_free_result(res);
             }
-            while (taos_fetch_row(res) != NULL) {
-                count++;
-            }
-            taos_free_result(res);
 
             t = toolsGetTimestampUs() - t;
             totalT += t;
@@ -544,19 +560,34 @@ void queryAggrFunc() {
         return;
     }
 
-    pThreadInfo->conn = initBenchConn();
-    if (pThreadInfo->conn == NULL) {
-        errorPrint("%s() failed to init connection\n", __func__);
-        free(pThreadInfo);
-        return;
-    }
+    // REST
+    if (REST_IFACE != g_arguments->iface) {
+        pThreadInfo->conn = initBenchConn();
+        if (pThreadInfo->conn == NULL) {
+            errorPrint("%s() failed to init connection\n", __func__);
+            free(pThreadInfo);
+            return;
+        }
+    } else {
+        pThreadInfo->sockfd = createSockFd();
+        if (pThreadInfo->sockfd < 0) {
+            free(pThreadInfo);
+            return;
+        }
+    }    
     if (stbInfo->use_metric) {
         pthread_create(&read_id, NULL, queryStableAggrFunc, pThreadInfo);
     } else {
         pthread_create(&read_id, NULL, queryNtableAggrFunc, pThreadInfo);
     }
     pthread_join(read_id, NULL);
-
-    closeBenchConn(pThreadInfo->conn);
+    // REST
+    if (REST_IFACE != g_arguments->iface) {
+        closeBenchConn(pThreadInfo->conn);
+    } else {
+        if (pThreadInfo->sockfd) {
+            destroySockFd(pThreadInfo->sockfd);
+        }
+    }
     free(pThreadInfo);
 }

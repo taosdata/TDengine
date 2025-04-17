@@ -1005,12 +1005,16 @@ void parseStringToIntArray(char *str, BArray *arr) {
 // get interface name
 uint16_t getInterface(char *name) {
     uint16_t iface = TAOSC_IFACE;
-    if (0 == strcasecmp(name, "stmt")) {
+    if (0 == strcasecmp(name, "rest")) {
+        iface = REST_IFACE;
+    } else if (0 == strcasecmp(name, "stmt")) {
         iface = STMT_IFACE;
     } else if (0 == strcasecmp(name, "stmt2")) {
         iface = STMT2_IFACE;
     } else if (0 == strcasecmp(name, "sml")) {
         iface = SML_IFACE;
+    } else if (0 == strcasecmp(name, "sml-rest")) {
+        iface = SML_REST_IFACE;
     }
 
     return iface;
@@ -1150,7 +1154,22 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                                g_arguments->reqPerReq, SML_MAX_BATCH);
                     return -1;
                 }
-            }
+            } else if (isRest(superTable->iface)) {
+                if (g_arguments->reqPerReq > SML_MAX_BATCH) {
+                    errorPrint("reqPerReq (%u) larger than maximum (%d)\n",
+                            g_arguments->reqPerReq, SML_MAX_BATCH);
+                    return -1;
+                }
+                if (0 != convertServAddr(REST_IFACE,
+                                        false,
+                                        1)) {
+                    errorPrint("%s", "Failed to convert server address\n");
+                    return -1;
+                }
+                encodeAuthBase64();
+                g_arguments->rest_server_ver_major =
+                    getServerVersionRest(g_arguments->port + TSDB_PORT_HTTP);
+            }            
         }
 
 
@@ -2425,7 +2444,9 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
 
     tools_cJSON *queryMode = tools_cJSON_GetObjectItem(json, "query_mode");
     if (tools_cJSON_IsString(queryMode)) {
-        if (0 == strcasecmp(queryMode->valuestring, "taosc")) {
+        if (0 == strcasecmp(queryMode->valuestring, "rest")) {
+            g_queryInfo.iface = REST_IFACE;
+        } else if (0 == strcasecmp(queryMode->valuestring, "taosc")) {
             g_queryInfo.iface = TAOSC_IFACE;
         } else {
             errorPrint("Invalid query_mode value: %s\n",
@@ -2551,13 +2572,6 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     if (tools_cJSON_IsString(enableManualCommit)) {
         g_tmqInfo.consumerInfo.enableManualCommit =
             enableManualCommit->valuestring;
-    }
-
-    tools_cJSON *enableHeartbeatBackground = tools_cJSON_GetObjectItem(
-            tmqInfo, "enable.heartbeat.background");
-    if (tools_cJSON_IsString(enableHeartbeatBackground)) {
-        g_tmqInfo.consumerInfo.enableHeartbeatBackground =
-            enableHeartbeatBackground->valuestring;
     }
 
     tools_cJSON *snapshotEnable = tools_cJSON_GetObjectItem(

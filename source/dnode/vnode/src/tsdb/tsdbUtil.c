@@ -1377,7 +1377,7 @@ int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   int64_t lversion = pBlockData->aVersion[pBlockData->nRow - 1];
   int64_t rversion = TSDBROW_VERSION(pRow);
   if (lversion == rversion) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_SUCCESS;
   }
   if (rversion > lversion) {
     pBlockData->aVersion[pBlockData->nRow - 1] = rversion;

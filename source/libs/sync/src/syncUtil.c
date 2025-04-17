@@ -523,11 +523,12 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
       }
     }
 
-    sHError(pSyncNode,
-            "recv sync-heartbeat from dnode:%d slow(%d ms) {term:%" PRId64 ", commit-index:%" PRId64
-            ", min-match:%" PRId64 ", ts:%s}, net elapsed:%" PRId64 "ms, timeDiff:%" PRId64 "ms, QID:0x%" PRIx64 ":0x%" PRIx64,
-            DID(&pMsg->srcId), SYNC_HEARTBEAT_SLOW_MS, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf,
-            netElapsed, timeDiff, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
+    sHWarn(pSyncNode,
+           "recv sync-heartbeat from dnode:%d slow(%d ms) {term:%" PRId64 ", commit-index:%" PRId64
+           ", min-match:%" PRId64 ", ts:%s}, net elapsed:%" PRId64 "ms, timeDiff:%" PRId64 "ms, QID:0x%" PRIx64
+           ":0x%" PRIx64,
+           DID(&pMsg->srcId), SYNC_HEARTBEAT_SLOW_MS, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf,
+           netElapsed, timeDiff, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
   } else {
     if (sDebugFlag & DEBUG_TRACE) {
       char pBuf[TD_TIME_STR_LEN] = {0};

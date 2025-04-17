@@ -1842,9 +1842,15 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
 
   uint32_t cap = pDst->info.capacity;
 
+  if (IS_VAR_DATA_TYPE(pDst->info.pks[0].type)) {
+    taosMemoryFreeClear(pDst->info.pks[0].pData);
+  }
+
+  if (IS_VAR_DATA_TYPE(pDst->info.pks[1].type)) {
+    taosMemoryFreeClear(pDst->info.pks[1].pData);
+  }
+
   pDst->info = pSrc->info;
-  pDst->info.pks[0].pData = NULL;
-  pDst->info.pks[1].pData = NULL;
   code = copyPkVal(&pDst->info, &pSrc->info);
   if (code != TSDB_CODE_SUCCESS) {
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
