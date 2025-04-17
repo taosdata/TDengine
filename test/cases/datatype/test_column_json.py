@@ -280,43 +280,43 @@ class TestJsonColumn:
         tdLog.info(f"case 4: illegal input")
 
         # case 04: illegal input
-        tdSql.error(f"error create table st_json_206 using mt_json tags(+0123)")
-        tdSql.error(f"error create table st_json_207 using mt_json tags(-01.23)")
-        tdSql.error(f"error create table st_json_208 using mt_json tags(+0x01)")
-        tdSql.error(f"error create table st_json_209 using mt_json tags(-0b01)")
-        tdSql.error(f"error create table st_json_2010 using mt_json tags(-0.1e-10)")
-        tdSql.error(f"error create table st_json_2011 using mt_json tags(+0.1E+2)")
-        tdSql.error(f"error create table st_json_2012 using mt_json tags(tRue)")
-        tdSql.error(f"error create table st_json_2013 using mt_json tags(FalsE)")
-        tdSql.error(f"error create table st_json_2014 using mt_json tags(noW)")
-        tdSql.error(f"error create table st_json_2015 using mt_json tags(toDay)")
+        tdSql.error(f"create table st_json_206 using mt_json tags(+0123)")
+        tdSql.error(f"create table st_json_207 using mt_json tags(-01.23)")
+        tdSql.error(f"create table st_json_208 using mt_json tags(+0x01)")
+        tdSql.error(f"create table st_json_209 using mt_json tags(-0b01)")
+        tdSql.error(f"create table st_json_2010 using mt_json tags(-0.1e-10)")
+        tdSql.error(f"create table st_json_2011 using mt_json tags(+0.1E+2)")
+        tdSql.error(f"create table st_json_2012 using mt_json tags(tRue)")
+        tdSql.error(f"create table st_json_2013 using mt_json tags(FalsE)")
+        tdSql.error(f"create table st_json_2014 using mt_json tags(noW)")
+        tdSql.error(f"create table st_json_2015 using mt_json tags(toDay)")
         tdSql.error(
-            f"error insert into st_json_206 using mt_json tags(+0123) values(now, NULL);"
+            f"insert into st_json_206 using mt_json tags(+0123) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_207 using mt_json tags(-01.23) values(now, NULL);"
+            f"insert into st_json_207 using mt_json tags(-01.23) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_208 using mt_json tags(+0x01) values(now, NULL);"
+            f"insert into st_json_208 using mt_json tags(+0x01) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_209 using mt_json tags(-0b01) values(now, NULL);"
+            f"insert into st_json_209 using mt_json tags(-0b01) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_2010 using mt_json tags(-0.1e-10) values(now, NULL);"
+            f"insert into st_json_2010 using mt_json tags(-0.1e-10) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_2011 using mt_json tags(+0.1E+2) values(now, NULL);"
+            f"insert into st_json_2011 using mt_json tags(+0.1E+2) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_2012 using mt_json tags(tRue) values(now, NULL);"
+            f"insert into st_json_2012 using mt_json tags(tRue) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_2013 using mt_json tags(FalsE) values(now, NULL);"
+            f"insert into st_json_2013 using mt_json tags(FalsE) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_2014 using mt_json tags(noW) values(now, NULL);"
+            f"insert into st_json_2014 using mt_json tags(noW) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_json_2015 using mt_json tags(toDay) values(now, NULL);"
+            f"insert into st_json_2015 using mt_json tags(toDay) values(now, NULL);"
         )

@@ -73,9 +73,7 @@ class TestVarbinaryColumn:
         tdSql.query(f"show tags from st_varbinary_8")
         tdSql.checkData(0, 5, "\\x")
 
-        tdSql.execute(
-            f'create table st_varbinary_9 using mt_varbinary tags("{str}aB")'
-        )
+        tdSql.execute(f'create table st_varbinary_9 using mt_varbinary tags("{str}aB")')
         tdSql.query(f"show tags from st_varbinary_9")
         tdSql.checkData(0, 5, "\\xAB")
 
@@ -361,111 +359,87 @@ class TestVarbinaryColumn:
 
         tdLog.info(f"case 4: illegal input")
 
+        tdSql.error(f"create table st_varbinary_106 using mt_varbinary tags(+0123)")
+        tdSql.error(f"create table st_varbinary_107 using mt_varbinary tags(-01.23)")
+        tdSql.error(f"create table st_varbinary_108 using mt_varbinary tags(+0x01)")
+        tdSql.error(f"create table st_varbinary_109 using mt_varbinary tags(-0b01)")
+        tdSql.error(f"create table st_varbinary_1010 using mt_varbinary tags(-0.1e-10)")
+        tdSql.error(f"create table st_varbinary_1011 using mt_varbinary tags(+0.1E+2)")
+        tdSql.error(f"create table st_varbinary_1012 using mt_varbinary tags(tRue)")
+        tdSql.error(f"create table st_varbinary_1013 using mt_varbinary tags(FalsE)")
+        tdSql.error(f"create table st_varbinary_1014 using mt_varbinary tags(noW)")
+        tdSql.error(f"create table st_varbinary_1015 using mt_varbinary tags(toDay)")
+        tdSql.error(f"create table st_varbinary_1016 using mt_varbinary tags(now()+1s)")
+        tdSql.error(f"create table st_varbinary_1017 using mt_varbinary tags(1+1s)")
         tdSql.error(
-            f"error create table st_varbinary_106 using mt_varbinary tags(+0123)"
+            f"insert into st_varbinary_106 using mt_varbinary tags(+0123) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_107 using mt_varbinary tags(-01.23)"
+            f"insert into st_varbinary_107 using mt_varbinary tags(-01.23) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_108 using mt_varbinary tags(+0x01)"
+            f"insert into st_varbinary_108 using mt_varbinary tags(+0x01) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_109 using mt_varbinary tags(-0b01)"
+            f"insert into st_varbinary_109 using mt_varbinary tags(-0b01) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_1010 using mt_varbinary tags(-0.1e-10)"
+            f"insert into st_varbinary_1010 using mt_varbinary tags(-0.1e-10) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_1011 using mt_varbinary tags(+0.1E+2)"
+            f"insert into st_varbinary_1011 using mt_varbinary tags(+0.1E+2) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_1012 using mt_varbinary tags(tRue)"
+            f"insert into st_varbinary_1012 using mt_varbinary tags(tRue) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_1013 using mt_varbinary tags(FalsE)"
+            f"insert into st_varbinary_1013 using mt_varbinary tags(FalsE) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_1014 using mt_varbinary tags(noW)"
+            f"insert into st_varbinary_1014 using mt_varbinary tags(noW) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_1015 using mt_varbinary tags(toDay)"
+            f"insert into st_varbinary_1015 using mt_varbinary tags(toDay) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_1016 using mt_varbinary tags(now()+1s)"
+            f"insert into st_varbinary_1016 using mt_varbinary tags(now()+1s) values(now, NULL);"
         )
         tdSql.error(
-            f"error create table st_varbinary_1017 using mt_varbinary tags(1+1s)"
+            f"insert into st_varbinary_1017 using mt_varbinary tags(1+1s) values(now, NULL);"
         )
         tdSql.error(
-            f"error insert into st_varbinary_106 using mt_varbinary tags(+0123) values(now, NULL);"
+            f"insert into st_varbinary_106 using mt_varbinary tags(NULL) values(now(), +0123)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_107 using mt_varbinary tags(-01.23) values(now, NULL);"
+            f"insert into st_varbinary_107 using mt_varbinary tags(NULL) values(now(), -01.23)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_108 using mt_varbinary tags(+0x01) values(now, NULL);"
+            f"insert into st_varbinary_108 using mt_varbinary tags(NULL) values(now(), +0x01)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_109 using mt_varbinary tags(-0b01) values(now, NULL);"
+            f"insert into st_varbinary_109 using mt_varbinary tags(NULL) values(now(), -0b01)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_1010 using mt_varbinary tags(-0.1e-10) values(now, NULL);"
+            f"insert into st_varbinary_1010 using mt_varbinary tags(NULL) values(now(), -0.1e-10)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_1011 using mt_varbinary tags(+0.1E+2) values(now, NULL);"
+            f"insert into st_varbinary_1011 using mt_varbinary tags(NULL) values(now(), +0.1E+2)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_1012 using mt_varbinary tags(tRue) values(now, NULL);"
+            f"insert into st_varbinary_1012 using mt_varbinary tags(NULL) values(now(), tRue)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_1013 using mt_varbinary tags(FalsE) values(now, NULL);"
+            f"insert into st_varbinary_1013 using mt_varbinary tags(NULL) values(now(), FalsE)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_1014 using mt_varbinary tags(noW) values(now, NULL);"
+            f"insert into st_varbinary_1014 using mt_varbinary tags(NULL) values(now(), noW)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_1015 using mt_varbinary tags(toDay) values(now, NULL);"
+            f"insert into st_varbinary_1015 using mt_varbinary tags(NULL) values(now(), toDay)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_1016 using mt_varbinary tags(now()+1s) values(now, NULL);"
+            f"insert into st_varbinary_1016 using mt_varbinary tags(NULL) values(now(), now()+1s)"
         )
         tdSql.error(
-            f"error insert into st_varbinary_1017 using mt_varbinary tags(1+1s) values(now, NULL);"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_106 using mt_varbinary tags(NULL) values(now(), +0123)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_107 using mt_varbinary tags(NULL) values(now(), -01.23)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_108 using mt_varbinary tags(NULL) values(now(), +0x01)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_109 using mt_varbinary tags(NULL) values(now(), -0b01)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_1010 using mt_varbinary tags(NULL) values(now(), -0.1e-10)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_1011 using mt_varbinary tags(NULL) values(now(), +0.1E+2)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_1012 using mt_varbinary tags(NULL) values(now(), tRue)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_1013 using mt_varbinary tags(NULL) values(now(), FalsE)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_1014 using mt_varbinary tags(NULL) values(now(), noW)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_1015 using mt_varbinary tags(NULL) values(now(), toDay)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_1016 using mt_varbinary tags(NULL) values(now(), now()+1s)"
-        )
-        tdSql.error(
-            f"error insert into st_varbinary_1017 using mt_varbinary tags(NULL) values(now(), 1+1s)"
+            f"insert into st_varbinary_1017 using mt_varbinary tags(NULL) values(now(), 1+1s)"
         )

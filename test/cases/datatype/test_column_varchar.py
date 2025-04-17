@@ -229,37 +229,37 @@ class TestVarcharColumn:
             f"insert into st_varchar_2 using mt_varchar tags('NULL') values(now, 'NULL')"
         )
         tdSql.query(f"show tags from st_varchar_2")
-        tdSql.checkData(0, 5, 'NULL')
+        tdSql.checkData(0, 5, "NULL")
 
         tdSql.query(f"select * from st_varchar_2")
-        tdSql.checkData(0, 1, 'NULL')
+        tdSql.checkData(0, 1, "NULL")
 
         tdSql.execute(
             f"insert into st_varchar_3 using mt_varchar tags('NULL') values(now, 'NULL')"
         )
         tdSql.query(f"show tags from st_varchar_3")
-        tdSql.checkData(0, 5, 'NULL')
+        tdSql.checkData(0, 5, "NULL")
 
         tdSql.query(f"select * from st_varchar_3")
-        tdSql.checkData(0, 1, 'NULL')
+        tdSql.checkData(0, 1, "NULL")
 
         tdSql.execute(
             f'insert into st_varchar_4 using mt_varchar tags("NULL") values(now, "NULL")'
         )
         tdSql.query(f"show tags from st_varchar_4")
-        tdSql.checkData(0, 5, 'NULL')
+        tdSql.checkData(0, 5, "NULL")
 
         tdSql.query(f"select * from st_varchar_4")
-        tdSql.checkData(0, 1, 'NULL')
+        tdSql.checkData(0, 1, "NULL")
 
         tdSql.execute(
             f'insert into st_varchar_5 using mt_varchar tags("NULL") values(now, "NULL")'
         )
         tdSql.query(f"show tags from st_varchar_5")
-        tdSql.checkData(0, 5, 'NULL')
+        tdSql.checkData(0, 5, "NULL")
 
         tdSql.query(f"select * from st_varchar_5")
-        tdSql.checkData(0, 1, 'NULL')
+        tdSql.checkData(0, 1, "NULL")
 
         tdSql.execute(
             f"insert into st_varchar_6 using mt_varchar tags(+0123) values(now, +0123)"
@@ -457,30 +457,24 @@ class TestVarcharColumn:
 
         """
 
-        tdSql.error(f"error create table st_varchar_100 using mt_varchar tags(now+1d)")
+        tdSql.error(f"create table st_varchar_100 using mt_varchar tags(now+1d)")
+        tdSql.error(f"create table st_varchar_101 using mt_varchar tags(toDay+1d)")
+        tdSql.error(f"create table st_varchar_102 using mt_varchar tags(1+1b)")
+        tdSql.error(f"create table st_varchar_103 using mt_varchar tags(0x01+1d)")
+        tdSql.error(f"create table st_varchar_104 using mt_varchar tags(0b01+1s)")
         tdSql.error(
-            f"error create table st_varchar_101 using mt_varchar tags(toDay+1d)"
-        )
-        tdSql.error(f"error create table st_varchar_102 using mt_varchar tags(1+1b)")
-        tdSql.error(
-            f"error create table st_varchar_103 using mt_varchar tags(0x01+1d)"
-        )
-        tdSql.error(
-            f"error create table st_varchar_104 using mt_varchar tags(0b01+1s)"
+            f"insert into st_varchar_1100 using mt_varchar tags('now') values(now(),now+1d)"
         )
         tdSql.error(
-            f"error insert into st_varchar_1100 using mt_varchar tags('now') values(now(),now+1d)"
+            f"insert into st_varchar_1101 using mt_varchar tags('now') values(now(),toDay+1d)"
         )
         tdSql.error(
-            f"error insert into st_varchar_1101 using mt_varchar tags('now') values(now(),toDay+1d)"
+            f"insert into st_varchar_1102 using mt_varchar tags('now') values(now(),1+1b)"
         )
         tdSql.error(
-            f"error insert into st_varchar_1102 using mt_varchar tags('now') values(now(),1+1b)"
+            f"insert into st_varchar_1103 using mt_varchar tags('now') values(now(),0x01+1d)"
         )
         tdSql.error(
-            f"error insert into st_varchar_1103 using mt_varchar tags('now') values(now(),0x01+1d)"
+            f"insert into st_varchar_1104 using mt_varchar tags('now') values(now(),0b01+1s)"
         )
-        tdSql.error(
-            f"error insert into st_varchar_1104 using mt_varchar tags('now') values(now(),0b01+1s)"
-        )
-        tdSql.error(f"error alter table st_varchar_15  set tag tagname=now()+1d")
+        tdSql.error(f"alter table st_varchar_15  set tag tagname=now()+1d")

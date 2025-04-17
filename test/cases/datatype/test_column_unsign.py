@@ -50,24 +50,22 @@ class TestUnsignColumn:
         tdSql.checkData(0, 2, 294967295)
         tdSql.checkData(0, 3, 446744073709551615)
 
-        tdSql.error(f"error sql alter table mt_unsigned_1 set tag t1 = 999;")
-        tdSql.error(f"error sql alter table mt_unsigned_1 set tag t2 = 95535;")
-        tdSql.error(f"error sql alter table mt_unsigned_1 set tag t3 = 8294967295l;")
-        tdSql.error(
-            f"error sql alter table mt_unsigned_1 set tag t4 = 19446744073709551615;"
-        )
+        tdSql.error(f"sql alter table mt_unsigned_1 set tag t1 = 999;")
+        tdSql.error(f"sql alter table mt_unsigned_1 set tag t2 = 95535;")
+        tdSql.error(f"sql alter table mt_unsigned_1 set tag t3 = 8294967295l;")
+        tdSql.error(f"sql alter table mt_unsigned_1 set tag t4 = 19446744073709551615;")
 
         tdSql.error(
-            f"error create table mt_unsigned_2 using mt_unsigned tags(-1, 0, 0, 0, 0, 0, 0, 0);"
+            f"create table mt_unsigned_2 using mt_unsigned tags(-1, 0, 0, 0, 0, 0, 0, 0);"
         )
         tdSql.error(
-            f"error create table mt_unsigned_3 using mt_unsigned tags(0, -1, 0, 0, 0, 0, 0, 0);"
+            f"create table mt_unsigned_3 using mt_unsigned tags(0, -1, 0, 0, 0, 0, 0, 0);"
         )
         tdSql.error(
-            f"error create table mt_unsigned_4 using mt_unsigned tags(0, 0, -1, 0, 0, 0, 0, 0);"
+            f"create table mt_unsigned_4 using mt_unsigned tags(0, 0, -1, 0, 0, 0, 0, 0);"
         )
         tdSql.error(
-            f"error create table mt_unsigned_5 using mt_unsigned tags(0, 0, 0, -1, 0, 0, 0, 0);"
+            f"create table mt_unsigned_5 using mt_unsigned tags(0, 0, 0, -1, 0, 0, 0, 0);"
         )
 
         tdSql.execute(
@@ -84,16 +82,16 @@ class TestUnsignColumn:
         )
 
         tdSql.error(
-            f"error create table mt_unsigned_2 using mt_unsigned tags(999, 0, 0, 0, 0, 0, 0, 0);"
+            f"create table mt_unsigned_2 using mt_unsigned tags(999, 0, 0, 0, 0, 0, 0, 0);"
         )
         tdSql.error(
-            f"error create table mt_unsigned_3 using mt_unsigned tags(0, 95535, 0, 0, 0, 0, 0, 0);"
+            f"create table mt_unsigned_3 using mt_unsigned tags(0, 95535, 0, 0, 0, 0, 0, 0);"
         )
         tdSql.error(
-            f"error create table mt_unsigned_4 using mt_unsigned tags(0, 0, 5294967295l, 0, 0, 0, 0, 0);"
+            f"create table mt_unsigned_4 using mt_unsigned tags(0, 0, 5294967295l, 0, 0, 0, 0, 0);"
         )
         tdSql.error(
-            f"error create table mt_unsigned_5 using mt_unsigned tags(0, 0, 0, 28446744073709551615u, 0, 0, 0, 0);"
+            f"create table mt_unsigned_5 using mt_unsigned tags(0, 0, 0, 28446744073709551615u, 0, 0, 0, 0);"
         )
 
         tdSql.execute(f"alter table mt_unsigned_1 set tag t1=NULL;")
@@ -113,16 +111,16 @@ class TestUnsignColumn:
             f"insert into mt_unsigned_1 values(now+2s, 1, 2, 3, 4, 5, 6, 7, 8, 9);"
         )
         tdSql.error(
-            f"error insert into mt_unsigned_1 values(now+3s, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);"
+            f"insert into mt_unsigned_1 values(now+3s, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);"
         )
         tdSql.error(
-            f"error insert into mt_unsigned_1 values(now+4s, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL);"
+            f"insert into mt_unsigned_1 values(now+4s, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL);"
         )
         tdSql.error(
-            f"error insert into mt_unsigned_1 values(now+5s, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL);"
+            f"insert into mt_unsigned_1 values(now+5s, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, NULL);"
         )
         tdSql.error(
-            f"error insert into mt_unsigned_1 values(now+6s, NULL, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL);"
+            f"insert into mt_unsigned_1 values(now+6s, NULL, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL);"
         )
         tdSql.execute(
             f"insert into mt_unsigned_1 values(now+7s, 255, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);"

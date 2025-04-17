@@ -377,20 +377,16 @@ class TestTinyintColumn:
 
         tdLog.info(f"case 4: illegal input")
 
-        tdSql.error(f"error create table st_tinyint_e0 using mt_tinyint tags(128)")
+        tdSql.error(f"create table st_tinyint_e0 using mt_tinyint tags(128)")
         tdSql.execute(f"create table st_tinyint_e0_1 using mt_tinyint tags(-128)")
-        tdSql.error(f"error create table st_tinyint_e0 using mt_tinyint tags(1280)")
-        tdSql.error(f"error create table st_tinyint_e0 using mt_tinyint tags(-1280)")
-        # sql_error create table st_tinyint_e0 using mt_tinyint tags(12.80)   truncate integer part
-        # sql_error create table st_tinyint_e0 using mt_tinyint tags(-11.80)
-        tdSql.error(f"error create table st_tinyint_e0 using mt_tinyint tags(123abc)")
-        tdSql.error(
-            f'error create table st_tinyint_e0 using mt_tinyint tags("123abc")'
-        )
-        tdSql.error(f"error create table st_tinyint_e0 using mt_tinyint tags(abc)")
-        tdSql.error(f'error create table st_tinyint_e0 using mt_tinyint tags("abc")')
-        tdSql.error(f'error create table st_tinyint_e0 using mt_tinyint tags(" ")')
-        tdSql.error(f"error create table st_tinyint_e0_2 using mt_tinyint tags('')")
+        tdSql.error(f"create table st_tinyint_e0 using mt_tinyint tags(1280)")
+        tdSql.error(f"create table st_tinyint_e0 using mt_tinyint tags(-1280)")
+        tdSql.error(f"create table st_tinyint_e0 using mt_tinyint tags(123abc)")
+        tdSql.error(f'create table st_tinyint_e0 using mt_tinyint tags("123abc")')
+        tdSql.error(f"create table st_tinyint_e0 using mt_tinyint tags(abc)")
+        tdSql.error(f'create table st_tinyint_e0 using mt_tinyint tags("abc")')
+        tdSql.error(f'create table st_tinyint_e0 using mt_tinyint tags(" ")')
+        tdSql.error(f"create table st_tinyint_e0_2 using mt_tinyint tags('')")
 
         tdSql.execute(f"create table st_tinyint_e0 using mt_tinyint tags(123)")
         tdSql.execute(f"create table st_tinyint_e1 using mt_tinyint tags(123)")
@@ -406,83 +402,77 @@ class TestTinyintColumn:
         tdSql.execute(f"create table st_tinyint_e11 using mt_tinyint tags(123)")
         tdSql.execute(f"create table st_tinyint_e12 using mt_tinyint tags(123)")
 
-        tdSql.error(f"error insert into st_tinyint_e0 values(now, 128)")
+        tdSql.error(f"insert into st_tinyint_e0 values(now, 128)")
         tdSql.execute(f"insert into st_tinyint_e1 values(now, -128)")
-        tdSql.error(f"error insert into st_tinyint_e2 values(now, 1280)")
-        tdSql.error(f"error insert into st_tinyint_e3 values(now, -1280)")
-        # sql_error insert into st_tinyint_e4 values(now, 12.80)
-        # sql_error insert into st_tinyint_e5 values(now, -11.80)
-        tdSql.error(f"error insert into st_tinyint_e6 values(now, 123abc)")
-        tdSql.error(f'error insert into st_tinyint_e7 values(now, "123abc")')
-        tdSql.error(f"error insert into st_tinyint_e9 values(now, abc)")
-        tdSql.error(f'error insert into st_tinyint_e10 values(now, "abc")')
-        tdSql.error(f'error insert into st_tinyint_e11 values(now, " ")')
-        tdSql.error(f"error insert into st_tinyint_e12 values(now, '')")
+        tdSql.error(f"insert into st_tinyint_e2 values(now, 1280)")
+        tdSql.error(f"insert into st_tinyint_e3 values(now, -1280)")
+        tdSql.error(f"insert into st_tinyint_e6 values(now, 123abc)")
+        tdSql.error(f'insert into st_tinyint_e7 values(now, "123abc")')
+        tdSql.error(f"insert into st_tinyint_e9 values(now, abc)")
+        tdSql.error(f'insert into st_tinyint_e10 values(now, "abc")')
+        tdSql.error(f'insert into st_tinyint_e11 values(now, " ")')
+        tdSql.error(f"insert into st_tinyint_e12 values(now, '')")
 
         tdSql.error(
-            f"error insert into st_tinyint_e13 using mt_tinyint tags(033) values(now, 128)"
+            f"insert into st_tinyint_e13 using mt_tinyint tags(033) values(now, 128)"
         )
         tdSql.execute(
             f"insert into st_tinyint_e14_1 using mt_tinyint tags(033) values(now, -128)"
         )
         tdSql.error(
-            f"error insert into st_tinyint_e15 using mt_tinyint tags(033) values(now, 1280)"
+            f"insert into st_tinyint_e15 using mt_tinyint tags(033) values(now, 1280)"
         )
         tdSql.error(
-            f"error insert into st_tinyint_e16 using mt_tinyint tags(033) values(now, -1280)"
-        )
-        # sql_error insert into st_tinyint_e17 using mt_tinyint tags(033) values(now, 12.80)
-        # sql_error insert into st_tinyint_e18 using mt_tinyint tags(033) values(now, -11.80)
-        tdSql.error(
-            f"error insert into st_tinyint_e19 using mt_tinyint tags(033) values(now, 123abc)"
+            f"insert into st_tinyint_e16 using mt_tinyint tags(033) values(now, -1280)"
         )
         tdSql.error(
-            f'error insert into st_tinyint_e20 using mt_tinyint tags(033) values(now, "123abc")'
+            f"insert into st_tinyint_e19 using mt_tinyint tags(033) values(now, 123abc)"
         )
         tdSql.error(
-            f"error insert into st_tinyint_e22 using mt_tinyint tags(033) values(now, abc)"
+            f'insert into st_tinyint_e20 using mt_tinyint tags(033) values(now, "123abc")'
         )
         tdSql.error(
-            f'error insert into st_tinyint_e23 using mt_tinyint tags(033) values(now, "abc")'
+            f"insert into st_tinyint_e22 using mt_tinyint tags(033) values(now, abc)"
         )
         tdSql.error(
-            f'error insert into st_tinyint_e24 using mt_tinyint tags(033) values(now, " ")'
+            f'insert into st_tinyint_e23 using mt_tinyint tags(033) values(now, "abc")'
         )
         tdSql.error(
-            f"error insert into st_tinyint_e25_2 using mt_tinyint tags(033) values(now, '')"
+            f'insert into st_tinyint_e24 using mt_tinyint tags(033) values(now, " ")'
+        )
+        tdSql.error(
+            f"insert into st_tinyint_e25_2 using mt_tinyint tags(033) values(now, '')"
         )
 
         tdSql.error(
-            f"error insert into st_tinyint_e13 using mt_tinyint tags(128) values(now, -033)"
+            f"insert into st_tinyint_e13 using mt_tinyint tags(128) values(now, -033)"
         )
         tdSql.execute(
             f"insert into st_tinyint_e14 using mt_tinyint tags(-128) values(now, -033)"
         )
         tdSql.error(
-            f"error insert into st_tinyint_e15 using mt_tinyint tags(1280) values(now, -033)"
+            f"insert into st_tinyint_e15 using mt_tinyint tags(1280) values(now, -033)"
         )
         tdSql.error(
-            f"error insert into st_tinyint_e16 using mt_tinyint tags(-1280) values(now, -033)"
-        )
-        # sql_error insert into st_tinyint_e17 using mt_tinyint tags(12.80) values(now, -033)
-        # sql_error insert into st_tinyint_e18 using mt_tinyint tags(-11.80) values(now, -033)
-        tdSql.error(
-            f"error insert into st_tinyint_e19 using mt_tinyint tags(123abc) values(now, -033)"
+            f"insert into st_tinyint_e16 using mt_tinyint tags(-1280) values(now, -033)"
         )
         tdSql.error(
-            f'error insert into st_tinyint_e20 using mt_tinyint tags("123abc") values(now, -033)'
+            f"insert into st_tinyint_e19 using mt_tinyint tags(123abc) values(now, -033)"
         )
         tdSql.error(
-            f"error insert into st_tinyint_e22 using mt_tinyint tags(abc) values(now, -033)"
+            f'insert into st_tinyint_e20 using mt_tinyint tags("123abc") values(now, -033)'
         )
         tdSql.error(
-            f'error insert into st_tinyint_e23 using mt_tinyint tags("abc") values(now, -033)'
+            f"insert into st_tinyint_e22 using mt_tinyint tags(abc) values(now, -033)"
         )
         tdSql.error(
-            f'error insert into st_tinyint_e24 using mt_tinyint tags(" ") values(now, -033)'
+            f'insert into st_tinyint_e23 using mt_tinyint tags("abc") values(now, -033)'
         )
         tdSql.error(
-            f"error insert into st_tinyint_e25 using mt_tinyint tags('') values(now, -033)"
+            f'insert into st_tinyint_e24 using mt_tinyint tags(" ") values(now, -033)'
+        )
+        tdSql.error(
+            f"insert into st_tinyint_e25 using mt_tinyint tags('') values(now, -033)"
         )
 
         tdSql.execute(
@@ -525,13 +515,13 @@ class TestTinyintColumn:
             f"insert into st_tinyint_e25 using mt_tinyint tags(033) values(now, 00062)"
         )
 
-        tdSql.error(f"error alter table st_tinyint_e13 set tag tagname=128")
+        tdSql.error(f"alter table st_tinyint_e13 set tag tagname=128")
         tdSql.execute(f"alter table st_tinyint_e14 set tag tagname=-128")
-        tdSql.error(f"error alter table st_tinyint_e15 set tag tagname=1280")
-        tdSql.error(f"error alter table st_tinyint_e16 set tag tagname=-1280")
-        tdSql.error(f"error alter table st_tinyint_e19 set tag tagname=123abc")
-        tdSql.error(f'error alter table st_tinyint_e20 set tag tagname="123abc"')
-        tdSql.error(f"error alter table st_tinyint_e22 set tag tagname=abc")
-        tdSql.error(f'error alter table st_tinyint_e23 set tag tagname="abc"')
-        tdSql.error(f'error alter table st_tinyint_e24 set tag tagname=" "')
-        tdSql.error(f"error alter table st_tinyint_e25 set tag tagname=''")
+        tdSql.error(f"alter table st_tinyint_e15 set tag tagname=1280")
+        tdSql.error(f"alter table st_tinyint_e16 set tag tagname=-1280")
+        tdSql.error(f"alter table st_tinyint_e19 set tag tagname=123abc")
+        tdSql.error(f'alter table st_tinyint_e20 set tag tagname="123abc"')
+        tdSql.error(f"alter table st_tinyint_e22 set tag tagname=abc")
+        tdSql.error(f'alter table st_tinyint_e23 set tag tagname="abc"')
+        tdSql.error(f'alter table st_tinyint_e24 set tag tagname=" "')
+        tdSql.error(f"alter table st_tinyint_e25 set tag tagname=''")
