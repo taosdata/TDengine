@@ -71,6 +71,9 @@ def handle_ad_request():
     # 1. validate the input data in json format
     try:
         validate_pay_load(req_json)
+        d = req_json["data"]
+        if len(d) > 2:
+            raise ValueError(f"invalid data format, too many columns for anomaly-detection, allowed:2, input:{len(d)}")
     except ValueError as e:
         return {"msg": str(e), "rows": -1}
 
