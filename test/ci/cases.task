@@ -33,5 +33,35 @@
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_json.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_geometry.py
 
-#
+# SuperTable
+## Tags query
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_3.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_4.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_5.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_6.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_bigint.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_binary_binary.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_binary.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_bool_binary.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_bool_int.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_bool.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_column.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_double.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_filter.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_float.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_int_binary.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_int_float.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_int.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_smallint.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_tbname_in.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagquery/test_tag_tinyint.py
+## Tags mgmt
+,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_add.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_change.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_commit.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_create.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_drop.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_drop_table.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_set_multi.py
+,,y,.,./ci/pytest.sh pytest cases/stable/tagmgmt/test_tag_set.py
 
