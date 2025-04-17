@@ -1,4 +1,4 @@
-name: TDengine taostools Coverage
+name: TDengine taostools coverage
 description: Coverage test for taostools
 
 on:
@@ -8,9 +8,8 @@ on:
       - '3.0'
     paths:
       - 'tools/taos-tools/**'
-    paths-ignore:
-      - '**/*.md'
-      - '.github/workflows/**'
+      - '!tools/taos-tools/**/*.md'
+      - '!.github/workflows/**'
   workflow_dispatch:
     inputs:
       specified_source_branch:
