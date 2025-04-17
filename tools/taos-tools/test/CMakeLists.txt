@@ -8,12 +8,25 @@ IF(TD_LINUX)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     # benchmark
-    ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp)
+    SET(BENCHMARK_SRC 
+        "../src/benchUtil.c"
+        "../src/benchLog.c"
+        "../src/toolstime.c"
+        "../../src/pub.c"
+    )
+
+    ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp ${BENCHMARK_SRC})
     DEP_ext_gtest(benchmarkTest)
+
+    TARGET_LINK_LIBRARIES(
+            benchmarkTest
+            PRIVATE taos toolscJson
+    )
 
     target_include_directories(
         benchmarkTest PRIVATE 
         "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
         "${CMAKE_CURRENT_SOURCE_DIR}/../deps/toolscJson/inc/"
     )
     
