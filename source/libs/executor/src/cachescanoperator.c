@@ -116,8 +116,8 @@ static int32_t extractTargetsBindSlotId(const SNodeList* pTargets, SNodeList* pS
   FOREACH(pTarget, pTargets) {
     int32_t matchIndex = -1;
     if (nodeType(pTarget) == QUERY_NODE_COLUMN) {
-      SNode* pCol = NULL;
-      bool   scanColIndex = 0;
+      SNode*  pCol = NULL;
+      int32_t scanColIndex = 0;
       FOREACH(pCol, pScanCols) {
         if (nodeType(pCol) == QUERY_NODE_TARGET) {
           STargetNode* pTargetCol = (STargetNode*)pCol;

@@ -1309,13 +1309,14 @@ class TDTestCase:
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 'd1')
         tdSql.checkData(0, 1, 1734574929000)
-        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(c0), ts) between 1734574929000 and 1734574929014')
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) between 1734574929000 and 1734574929014')
         tdSql.checkRows(2)
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 'd1')
         tdSql.checkData(0, 1, 1734574929000)
         tdSql.checkData(1, 0, 'd0')
         tdSql.checkData(1, 1, 1734574929014)
+        tdLog.info("having_test, {t1} finished!")
  
     def star_test(self):
         tdLog.info("star_test")
@@ -1425,9 +1426,15 @@ class TDTestCase:
 
     def run(self):
         self.runAllcase('none')
-        self.dropAllDatabase()
         
-        #self.runAllcase('both')
+        self.dropAllDatabase()
+        self.runAllcase('both')
+        
+        self.dropAllDatabase()
+        self.runAllcase('last_row')
+        
+        self.dropAllDatabase()
+        self.runAllcase('last_value')     
 
     def stop(self):
         tdSql.close()
