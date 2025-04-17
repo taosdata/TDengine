@@ -188,6 +188,11 @@ int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record);
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);
 int32_t tsdbUpdateSkmRow(STsdb *pTsdb, const TABLEID *tbid, int32_t sver, SSkmInfo *pSkmRow);
 
+typedef struct {
+  int64_t offset;
+  int64_t size;
+} SMetaEntryIndex;
+
 #ifdef __cplusplus
 }
 #endif

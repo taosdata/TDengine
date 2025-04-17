@@ -33,6 +33,15 @@ typedef struct {
   SFDataPtr rsrvd[2];
 } SSttFooter;
 
+typedef struct {
+  uint8_t   version;
+  int32_t   pageSize;
+  SFDataPtr sttBlkPtr;
+  SFDataPtr statisBlkPtr;
+  SFDataPtr tombBlkPtr;
+  SFDataPtr entryIndicsPtr;
+} SSttHeader;
+
 // SSttFileReader ==========================================
 typedef struct SSttFileReader       SSttFileReader;
 typedef struct SSttFileReaderConfig SSttFileReaderConfig;
@@ -68,6 +77,7 @@ typedef struct SSttFileWriterConfig SSttFileWriterConfig;
 
 int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer);
 int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArray *opArray);
+int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntry *entry);
 int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row);
 int32_t tsdbSttFileWriteBlockData(SSttFileWriter *writer, SBlockData *pBlockData);
 int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *record);

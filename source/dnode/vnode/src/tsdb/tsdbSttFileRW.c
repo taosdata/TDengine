@@ -21,12 +21,14 @@
 struct SSttFileReader {
   SSttFileReaderConfig config[1];
   STsdbFD             *fd;
+  SSttHeader           header;
   SSttFooter           footer[1];
   struct {
     bool sttBlkLoaded;
     bool statisBlkLoaded;
     bool tombBlkLoaded;
   } ctx[1];
+  SArray         *entryIndices;
   TSttBlkArray    sttBlkArray[1];
   TStatisBlkArray statisBlkArray[1];
   TTombBlkArray   tombBlkArray[1];
@@ -35,6 +37,67 @@ struct SSttFileReader {
 };
 
 // SSttFileReader
+static int32_t tsdbSttFileReadEntryIndices(SSttFileReader *reader) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (reader->entryIndices) {
+    return 0;
+  }
+
+  {
+    // TODO: check if the header is loaded
+  }
+
+  SBuffer *pBuffer = reader->buffers + 0;
+  int64_t  offset = reader->header.entryIndicsPtr.offset;
+  int64_t  size = reader->header.entryIndicsPtr.size;
+
+  if (size == 0) {
+    return 0;
+  } else {
+    reader->entryIndices = taosArrayInit(sizeof(SFDataPtr), size / sizeof(SFDataPtr));
+    if (NULL == reader->entryIndices) {
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    }
+  }
+
+  // Read binary data
+  tBufferClear(pBuffer);
+  code = tsdbReadFileToBuffer(reader->fd, offset, size, pBuffer, 0,
+                              reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm,
+                              reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // Decode binary data
+  SBufferReader br = BUFFER_READER_INITIALIZER(0, pBuffer);
+  int32_t       n = 0;
+  while (br.offset < size) {
+    SFDataPtr index = {0};
+
+    code = tBufferGetI64v(&br, &index.offset);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tBufferGetI64v(&br, &index.size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (NULL == taosArrayPush(reader->entryIndices, &index)) {
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    }
+  }
+
+  if (br.offset != size) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
+  }
+  return code;
+}
+
 int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -483,6 +546,7 @@ struct SSttFileWriter {
   STsdbFD *fd;
   STFile   file[1];
   // data
+  SSttHeader      header;
   SSttFooter      footer[1];
   TTombBlkArray   tombBlkArray[1];
   TSttBlkArray    sttBlkArray[1];
@@ -490,6 +554,8 @@ struct SSttFileWriter {
   STombBlock      tombBlock[1];
   STbStatisBlock  staticBlock[1];
   SBlockData      blockData[1];
+  SArray         *entryIndices;
+
   // helper data
   SSkmInfo skmTb[1];
   SSkmInfo skmRow[1];
@@ -849,6 +915,10 @@ static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
   TARRAY2_DESTROY(writer->tombBlkArray, NULL);
   TARRAY2_DESTROY(writer->statisBlkArray, NULL);
   TARRAY2_DESTROY(writer->sttBlkArray, NULL);
+  if (writer->entryIndices) {
+    taosArrayDestroy(writer->entryIndices);
+    writer->entryIndices = NULL;
+  }
 }
 
 static int32_t tsdbSttFileDoUpdateHeader(SSttFileWriter *writer) {
@@ -931,6 +1001,89 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer[0]->config->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tsdbSttFileWriteEntryIndices(SSttFileWriter *writer) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (taosArrayGetSize(writer->entryIndices) == 0) {
+    return 0;
+  }
+
+  // Encode entry indices
+  SBuffer *pBuffer = writer->buffers + 0;
+  tBufferClear(pBuffer);
+  for (int32_t i = 0; i < taosArrayGetSize(writer->entryIndices); ++i) {
+    SFDataPtr *index = (SFDataPtr *)taosArrayGet(writer->entryIndices, i);
+
+    code = tBufferPutI64v(pBuffer, index->offset);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tBufferPutI64v(pBuffer, index->size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // Write the entry indices to the file
+  writer->header.entryIndicsPtr = (SFDataPtr){
+      .offset = writer->file->size,
+      .size = pBuffer->size,
+  };
+  code = tsdbWriteFile(writer->fd, writer->header.entryIndicsPtr.offset, pBuffer->data, pBuffer->size,
+                       writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm,
+                       writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  writer->file->size += pBuffer->size;
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntry *entry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SFDataPtr index = {
+      .offset = writer->file->size,
+  };
+
+  // Encode entry
+  tEncodeSize(metaEncodeEntry, entry, index.size, code);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tBufferEnsureCapacity(&writer->buffers[0], index.size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  SEncoder encoder = {0};
+
+  tEncoderInit(&encoder, writer->buffers[0].data, index.size);
+
+  code = metaEncodeEntry(&encoder, entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  tEncoderClear(&encoder);
+
+  // Write the entry to the file
+  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  code = tsdbWriteFile(writer->fd, index.offset, writer->buffers[0].data, index.size, encryptAlgorithm, encryptKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // Add entry index
+  if (NULL == taosArrayPush(writer->pMetaEntryIndex, &index)) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    metaError("");
   }
   return code;
 }
