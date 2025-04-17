@@ -63,6 +63,18 @@ int checkArgumentValid() {
         g_arguments->reqPerReq = g_arguments->prepared_rand;
     }
 
+    if (isRest(g_arguments->iface)) {
+        if (0 != convertServAddr(g_arguments->iface,
+                                 false,
+                                 1)) {
+            errorPrint("%s", "Failed to convert server address\n");
+            return -1;
+        }
+        encodeAuthBase64();
+        g_arguments->rest_server_ver_major =
+            getServerVersionRest(g_arguments->port);
+    }    
+
     // check batch query
     if (g_arguments->test_mode == QUERY_TEST) {
         if (g_queryInfo.specifiedQueryInfo.batchQuery) {
@@ -165,7 +177,6 @@ int main(int argc, char* argv[]) {
     // check argument
     infoPrint("client version: %s\n", taos_get_client_info());
     if (checkArgumentValid()) {
-        errorPrint("failed to readJsonConfig %s\n", g_arguments->metaFile);
         exitLog();
         return -1;
     }
@@ -177,9 +188,7 @@ int main(int argc, char* argv[]) {
     }
 
     // check condition for set config dir
-    if (strlen(g_configDir)
-            && g_arguments->host_auto
-            && g_arguments->port_auto) {
+    if (strlen(g_configDir)) {
         // apply
         if(applyConfigDir(g_configDir) != TSDB_CODE_SUCCESS) {
             exitLog();
