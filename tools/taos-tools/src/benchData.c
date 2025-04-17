@@ -262,8 +262,8 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
         }
         n = snprintf(prepare + len,
                        TSDB_MAX_ALLOWED_SQL_LEN - len,
-                       "INSERT INTO ? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
-                       db, stbInfo->stbName, tagQ, ttl, colQ);
+                       "INSERT INTO `%s`.? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
+                       db, db, stbInfo->stbName, tagQ, ttl, colQ);
     } else {
         if (workingMode(g_arguments->connMode, g_arguments->dsn) == CONN_MODE_NATIVE) {
             // native
