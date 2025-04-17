@@ -374,7 +374,8 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
 _exit:
   if (code) {
-    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__,
+           lino, tstrerror(code));
   }
   return code;
 }
@@ -745,7 +746,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_BATCH_DEL:
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
-    /* TQ */
+      /* TQ */
 #if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
       if (tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len) < 0) {
@@ -1180,8 +1181,8 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids != 0) {
-    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId,
-          ttlReq.timestampSec, ttlReq.nUids);
+    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId, ttlReq.timestampSec,
+          ttlReq.nUids);
   }
 
   if (ttlReq.nUids > 0) {
@@ -1859,8 +1860,14 @@ static int32_t vnodeCellValConvertToColVal(STColumn *pCol, SCellVal *pCellVal, S
   }
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
-    pColVal->value.nData = varDataLen(pCellVal->val);
-    pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
+    if (IS_STR_DATA_BLOB(pCol->type)) {
+      pColVal->value.nData = blobDataLen(pCellVal->val);
+      pColVal->value.pData = (uint8_t *)blobDataVal(pCellVal->val);
+
+    } else {
+      pColVal->value.nData = varDataLen(pCellVal->val);
+      pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
+    }
   } else if (TSDB_DATA_TYPE_FLOAT == pCol->type) {
     float f = GET_FLOAT_VAL(pCellVal->val);
     valueSetDatum(&pColVal->value, pCol->type, &f, sizeof(f));

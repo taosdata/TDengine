@@ -1138,6 +1138,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
 
     // tag type
     int8_t tagType = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].type;
+
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     int32_t tagStrBufflen = 32;
@@ -1154,6 +1155,10 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
           varDataVal(tagTypeStr) + tagTypeLen, tagStrBufflen, "(%d)",
           (int32_t)(((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     } else if (IS_VAR_DATA_TYPE(tagType)) {
+      if (IS_STR_DATA_BLOB(tagType)) {
+        code = TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       tagTypeLen += tsnprintf(varDataVal(tagTypeStr) + tagTypeLen, tagStrBufflen, "(%d)",
                               (int32_t)((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
     }

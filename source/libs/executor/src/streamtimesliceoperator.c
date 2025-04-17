@@ -555,7 +555,8 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
         cur.val = taosMemoryCalloc(1, pCell->bytes);
         QUERY_CHECK_NULL(cur.val, code, lino, _end, terrno);
 
-        taosGetLinearInterpolationVal(&cur, pCell->type, &start, pEnd, pCell->type, typeGetTypeModFromColInfo(&pDstCol->info));
+        taosGetLinearInterpolationVal(&cur, pCell->type, &start, pEnd, pCell->type,
+                                      typeGetTypeModFromColInfo(&pDstCol->info));
         code = colDataSetVal(pDstCol, index, (const char*)cur.val, false);
         QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1348,7 +1349,12 @@ void transBlockToSliceResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY 
       pCell->bytes = pColData->info.bytes;
       char* val = colDataGetData(pColData, rowId);
       if (IS_VAR_DATA_TYPE(pCell->type)) {
-        memcpy(pCell->pData, val, varDataTLen(val));
+        if (IS_STR_DATA_BLOB(pCell->type)) {
+          memcpy(pCell->pData, val, blobDataTLen(val));
+
+        } else {
+          memcpy(pCell->pData, val, varDataTLen(val));
+        }
       } else {
         memcpy(pCell->pData, val, pCell->bytes);
       }
@@ -1360,7 +1366,11 @@ void transBlockToSliceResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY 
   if (pPkData != NULL) {
     void* pPkVal = POINTER_SHIFT(pRowVal, rowSize);
     if (IS_VAR_DATA_TYPE(pPkCol->info.type)) {
-      memcpy(pPkVal, pPkData, varDataTLen(pPkData));
+      if (IS_STR_DATA_BLOB(pPkCol->info.type)) {
+        memcpy(pPkVal, pPkData, blobDataTLen(pPkData));
+      } else {
+        memcpy(pPkVal, pPkData, varDataTLen(pPkData));
+      }
     } else {
       memcpy(pPkVal, pPkData, pPkCol->info.bytes);
     }

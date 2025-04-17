@@ -28,14 +28,7 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
       int32_t totalSize = 0;
       for (int32_t row = 0; row < numOfRows; ++row) {
         char*   pColData = pColumnInfoData->pData + pColumnInfoData->varmeta.offset[row];
-        int32_t colSize = 0;
-        if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-          colSize = getJsonValueLen(pColData);
-        } else if (pColumnInfoData->info.type) {
-          colSize = blobDataTLen(pColData);
-        } else {
-          colSize = varDataTLen(pColData);
-        }
+        int32_t colSize = calcStrBytesByType(pColumnInfoData->info.type, pColData);
         totalSize += colSize;
       }
       return totalSize;
@@ -55,14 +48,18 @@ int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowI
     return 0;
   }
 
-  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) return pColumnInfoData->info.bytes;
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-    return getJsonValueLen(colDataGetData(pColumnInfoData, rowIdx));
-  } else if (IS_STR_DATA_BLOB(pColumnInfoData->info.type)) {
-    return blobDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return pColumnInfoData->info.bytes;
   } else {
-    return varDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+    return calcStrBytesByType(pColumnInfoData->info.type, colDataGetData(pColumnInfoData, rowIdx));
   }
+  // if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+  //   return getJsonValueLen(colDataGetData(pColumnInfoData, rowIdx));
+  // } else if (IS_STR_DATA_BLOB(pColumnInfoData->info.type)) {
+  //   return blobDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+  // } else {
+  //   return varDataTLen(colDataGetData(pColumnInfoData, rowIdx));
+  // }
 }
 
 int32_t colDataGetFullLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
@@ -325,13 +322,14 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
                          bool trimValue) {
   int32_t len = pColumnInfoData->info.bytes;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-      len = getJsonValueLen(pData);
-    } else if (IS_STR_DATA_BLOB(pColumnInfoData->info.type)) {
-      len = blobDataTLen(pData);
-    } else {
-      len = varDataTLen(pData);
-    }
+    len = calcStrBytesByType(pColumnInfoData->info.type, (char*)pData);
+    // if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+    //   len = getJsonValueLen(pData);
+    // } else if (IS_STR_DATA_BLOB(pColumnInfoData->info.type)) {
+    //   len = blobDataTLen(pData);
+    // } else {
+    //   len = varDataTLen(pData);
+    // }
     if (pColumnInfoData->varmeta.allocLen < (numOfRows * len + pColumnInfoData->varmeta.length)) {
       int32_t code = colDataReserve(pColumnInfoData, (numOfRows * len + pColumnInfoData->varmeta.length));
       if (code != TSDB_CODE_SUCCESS) {
@@ -614,14 +612,14 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         if (NULL == srcAddr) {
           srcAddr = pData;
         }
-        int32_t dataLen = 0;
-        if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
-          dataLen = getJsonValueLen(pData);
-        } else if (IS_STR_DATA_BLOB(pSrc->info.type)) {
-          dataLen = blobDataTLen(pData);
-        } else {
-          dataLen = varDataTLen(pData);
-        }
+        int32_t dataLen = calcStrBytesByType(pSrc->info.type, pData);
+        // if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
+        //   dataLen = getJsonValueLen(pData);
+        // } else if (IS_STR_DATA_BLOB(pSrc->info.type)) {
+        //   dataLen = blobDataTLen(pData);
+        // } else {
+        //   dataLen = varDataTLen(pData);
+        // }
         pDst->varmeta.offset[dstIdx + i] = pDst->varmeta.length + allLen;
         allLen += dataLen;
       }
@@ -1065,14 +1063,14 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
     if (pCol->reassigned && IS_VAR_DATA_TYPE(pCol->info.type)) {
       for (int32_t row = 0; row < numOfRows; ++row) {
         char*   pColData = pCol->pData + pCol->varmeta.offset[row];
-        int32_t colSize = 0;
-        if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
-          colSize = getJsonValueLen(pColData);
-        } else if (IS_STR_DATA_BLOB(pCol->info.type)) {
-          colSize = blobDataTLen(pColData);
-        } else {
-          colSize = varDataTLen(pColData);
-        }
+        int32_t colSize = calcStrBytesByType(pCol->info.type, pColData);
+        // if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
+        //   colSize = getJsonValueLen(pColData);
+        // } else if (IS_STR_DATA_BLOB(pCol->info.type)) {
+        //   colSize = blobDataTLen(pColData);
+        // } else {
+        //   colSize = varDataTLen(pColData);
+        // }
         memcpy(pStart, pColData, colSize);
         pStart += colSize;
       }
@@ -2489,13 +2487,14 @@ static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
         for (int i = n - 1; i >= 0; --i) {
           newLen = pColInfoData->varmeta.offset[i];
           if (newLen != -1) {
-            if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-              newLen += getJsonValueLen(pColInfoData->pData + newLen);
-            } else if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-              newLen += blobDataTLen(pColInfoData->pData + newLen);
-            } else {
-              newLen += varDataTLen(pColInfoData->pData + newLen);
-            }
+            newLen += calcStrBytesByType(pColInfoData->info.type, pColInfoData->pData + newLen);
+            // if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+            //   newLen += getJsonValueLen(pColInfoData->pData + newLen);
+            // } else if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
+            //   newLen += blobDataTLen(pColInfoData->pData + newLen);
+            // } else {
+            //   newLen += varDataTLen(pColInfoData->pData + newLen);
+            // }
             break;
           }
         }
@@ -2570,14 +2569,14 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
     if (pColData->reassigned && IS_VAR_DATA_TYPE(pColData->info.type)) {
       for (int32_t row = 0; row < rows; ++row) {
         char*   pData = pColData->pData + pColData->varmeta.offset[row];
-        int32_t colSize = 0;
-        if (pColData->info.type == TSDB_DATA_TYPE_JSON) {
-          colSize = getJsonValueLen(pData);
-        } else if (IS_STR_DATA_BLOB(pColData->info.type)) {
-          colSize = blobDataTLen(pData);
-        } else {
-          colSize = varDataTLen(pData);
-        }
+        int32_t colSize = calcStrBytesByType(pColData->info.type, pData);
+        // if (pColData->info.type == TSDB_DATA_TYPE_JSON) {
+        //   colSize = getJsonValueLen(pData);
+        // } else if (IS_STR_DATA_BLOB(pColData->info.type)) {
+        //   colSize = blobDataTLen(pData);
+        // } else {
+        //   colSize = varDataTLen(pData);
+        // }
         tlen += taosEncodeBinary(buf, pData, colSize);
       }
     } else {
@@ -3586,14 +3585,14 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
           // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal,
           // first copy it to p2
           char*   p1 = colDataGetVarData(pDst, j);
-          int32_t len = 0;
-          if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
-            len = getJsonValueLen(p1);
-          } else if (IS_STR_DATA_BLOB(pDst->info.type)) {
-            len = blobDataTLen(p1);
-          } else {
-            len = varDataTLen(p1);
-          }
+          int32_t len = calcStrBytesByType(pDst->info.type, p1);
+          // if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
+          //   len = getJsonValueLen(p1);
+          // } else if (IS_STR_DATA_BLOB(pDst->info.type)) {
+          //   len = blobDataTLen(p1);
+          // } else {
+          //   len = varDataTLen(p1);
+          // }
 
           char* p2 = taosMemoryMalloc(len);
           if (p2 == NULL) {

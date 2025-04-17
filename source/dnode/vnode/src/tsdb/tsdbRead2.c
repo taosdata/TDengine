@@ -1478,9 +1478,9 @@ static int32_t copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpI
         break;
       }
       case TSDB_DATA_TYPE_DECIMAL: {
-        int32_t  mid = dumpedRows >> 1u;
+        int32_t      mid = dumpedRows >> 1u;
         DecimalWord* pDec = (DecimalWord*)pColData->pData;
-        DecimalWord tmp[2] = {0};
+        DecimalWord  tmp[2] = {0};
         for (int32_t j = 0; j < mid; ++j) {
           tmp[0] = pDec[2 * j];
           tmp[1] = pDec[2 * j + 1];
@@ -1527,11 +1527,20 @@ static void blockInfoToRecord(SBrinRecord* record, SFileDataBlockInfo* pBlockInf
     pLast->type = pSupp->pk.type;
 
     if (IS_VAR_DATA_TYPE(pFirst->type)) {
-      pFirst->pData = (uint8_t*)varDataVal(pBlockInfo->firstPk.pData);
-      pFirst->nData = varDataLen(pBlockInfo->firstPk.pData);
+      if (IS_STR_DATA_BLOB(pFirst->type)) {
+        pFirst->pData = (uint8_t*)blobDataVal(pBlockInfo->firstPk.pData);
+        pFirst->nData = blobDataLen(pBlockInfo->firstPk.pData);
 
-      pLast->pData = (uint8_t*)varDataVal(pBlockInfo->lastPk.pData);
-      pLast->nData = varDataLen(pBlockInfo->lastPk.pData);
+        pLast->pData = (uint8_t*)blobDataVal(pBlockInfo->lastPk.pData);
+        pLast->nData = blobDataLen(pBlockInfo->lastPk.pData);
+
+      } else {
+        pFirst->pData = (uint8_t*)varDataVal(pBlockInfo->firstPk.pData);
+        pFirst->nData = varDataLen(pBlockInfo->firstPk.pData);
+
+        pLast->pData = (uint8_t*)varDataVal(pBlockInfo->lastPk.pData);
+        pLast->nData = varDataLen(pBlockInfo->lastPk.pData);
+      }
     } else {
       VALUE_SET_TRIVIAL_DATUM(pFirst, pBlockInfo->firstPk.val);
       VALUE_SET_TRIVIAL_DATUM(pLast, pBlockInfo->lastPk.val);
@@ -1989,7 +1998,11 @@ static bool overlapWithNeighborBlock2(SFileDataBlockInfo* pBlock, SBrinRecord* p
       if (numOfPk > 0) {
         SValue v1 = {.type = pkType};
         if (IS_VAR_DATA_TYPE(pkType)) {
-          v1.pData = (uint8_t*)varDataVal(pBlock->lastPk.pData), v1.nData = varDataLen(pBlock->lastPk.pData);
+          if (IS_STR_DATA_BLOB(pkType)) {
+            v1.pData = (uint8_t*)blobDataVal(pBlock->lastPk.pData), v1.nData = blobDataLen(pBlock->lastPk.pData);
+          } else {
+            v1.pData = (uint8_t*)varDataVal(pBlock->lastPk.pData), v1.nData = varDataLen(pBlock->lastPk.pData);
+          }
         } else {
           VALUE_SET_TRIVIAL_DATUM(&v1, pBlock->lastPk.val);
         }
@@ -2005,7 +2018,12 @@ static bool overlapWithNeighborBlock2(SFileDataBlockInfo* pBlock, SBrinRecord* p
       if (numOfPk > 0) {
         SValue v1 = {.type = pkType};
         if (IS_VAR_DATA_TYPE(pkType)) {
-          v1.pData = (uint8_t*)varDataVal(pBlock->firstPk.pData), v1.nData = varDataLen(pBlock->firstPk.pData);
+          if (IS_STR_DATA_BLOB(pkType)) {
+            v1.pData = (uint8_t*)blobDataVal(pBlock->firstPk.pData), v1.nData = blobDataLen(pBlock->firstPk.pData);
+
+          } else {
+            v1.pData = (uint8_t*)varDataVal(pBlock->firstPk.pData), v1.nData = varDataLen(pBlock->firstPk.pData);
+          }
         } else {
           VALUE_SET_TRIVIAL_DATUM(&v1, pBlock->firstPk.val);
         }
@@ -7182,7 +7200,7 @@ _end:
 #endif
 
 int32_t tsdbReaderGetProgress(const STsdbReader* pReader, void** pBuf, uint64_t* pLen) {
-  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
 #if 0
   int32_t              lino = 0;
   void*                buf = NULL;

@@ -820,12 +820,22 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
         } else {
           void* colData = colDataGetData(pColData, j);
           if (IS_VAR_DATA_TYPE(pCol->type)) {  // address copy, no value
-            SValue sv =
-                (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
-            SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
-            void*   p = taosArrayPush(pVals, &cv);
-            if (p == NULL) {
-              return terrno;
+            if (IS_STR_DATA_BLOB(pCol->type)) {
+              SValue sv =
+                  (SValue){.type = pCol->type, .nData = blobDataLen(colData), .pData = (uint8_t*)blobDataVal(colData)};
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
+              void*   p = taosArrayPush(pVals, &cv);
+              if (p == NULL) {
+                return terrno;
+              }
+            } else {
+              SValue sv =
+                  (SValue){.type = pCol->type, .nData = varDataLen(colData), .pData = (uint8_t*)varDataVal(colData)};
+              SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
+              void*   p = taosArrayPush(pVals, &cv);
+              if (p == NULL) {
+                return terrno;
+              }
             }
           } else {
             SValue sv = {.type = pCol->type};
@@ -878,7 +888,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
     int64_t waitingDuration = taosGetTimestampSec() - start;
     if (waitingDuration > timeout) {
       tqError("s-task:%s wait for table-creating:%s more than %dsec, failed", id, dstTableName, timeout);
-      return  TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
 
     // wait for the table to be created
@@ -990,7 +1000,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         tqDebug("s-task:%s failed to build auto create table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
         return code;
       } else {
-        tqDebug("s-task:%s no table name given, generated sub-table-name:%s, groupId:0x%" PRId64, id, dstTableName, groupId);
+        tqDebug("s-task:%s no table name given, generated sub-table-name:%s, groupId:0x%" PRId64, id, dstTableName,
+                groupId);
       }
     } else {
       if (pTask->subtableWithoutMd5 != 1 && !isAutoTableName(dstTableName) &&

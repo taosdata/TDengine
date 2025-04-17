@@ -82,16 +82,16 @@ int32_t mJoinTrimKeepFirstRow(SSDataBlock* pBlock) {
       pDst->varmeta.length = 0;
 
       if (!colDataIsNull_var(pDst, 0)) {
-        char*   p1 = colDataGetVarData(pDst, 0);
-        int32_t len = 0;
-        if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
-          len = getJsonValueLen(p1);
-        } else if (IS_STR_DATA_BLOB(pDst->info.type)) {
-          len = blobDataTLen(p1);
-        } else {
-          len = varDataTLen(p1);
-        }
-        pDst->varmeta.length = len;
+        char* p1 = colDataGetVarData(pDst, 0);
+        // int32_t len = calcStrBytesByType(pDst->info.type, p1);
+        //  if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
+        //    len = getJsonValueLen(p1);
+        //  } else if (IS_STR_DATA_BLOB(pDst->info.type)) {
+        //    len = blobDataTLen(p1);
+        //  } else {
+        //    len = varDataTLen(p1);
+        //  }
+        pDst->varmeta.length = calcStrBytesByType(pDst->info.type, p1);
       }
     } else {
       bool isNull = colDataIsNull_f(pDst->nullbitmap, 0);
@@ -144,14 +144,14 @@ int32_t mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* 
           // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal, first
           // copy it to p2
           char*   p1 = colDataGetVarData(pDst, j);
-          int32_t len = 0;
-          if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
-            len = getJsonValueLen(p1);
-          } else if (IS_STR_DATA_BLOB(pDst->info.type)) {
-            len = blobDataTLen(p1);
-          } else {
-            len = varDataTLen(p1);
-          }
+          int32_t len = calcStrBytesByType(pDst->info.type, p1);
+          // if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
+          //   len = getJsonValueLen(p1);
+          // } else if (IS_STR_DATA_BLOB(pDst->info.type)) {
+          //   len = blobDataTLen(p1);
+          // } else {
+          //   len = varDataTLen(p1);
+          // }
           char* p2 = taosMemoryMalloc(len);
           if (NULL == p2) {
             MJ_ERR_RET(terrno);
