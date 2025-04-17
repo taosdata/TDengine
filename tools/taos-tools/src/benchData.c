@@ -238,7 +238,7 @@ void rand_string(char *str, int size, bool chinese) {
 }
 
 // generate prepare sql
-char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
+char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db, char *tableName) {
     int   len = 0;
     char *prepare = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
     int n;
@@ -262,8 +262,8 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
         }
         n = snprintf(prepare + len,
                        TSDB_MAX_ALLOWED_SQL_LEN - len,
-                       "INSERT INTO ? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
-                       db, stbInfo->stbName, tagQ, ttl, colQ);
+                       "INSERT INTO `%s`.? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
+                       db, db, stbInfo->stbName, tagQ, ttl, colQ);
     } else {
         if (workingMode(g_arguments->connMode, g_arguments->dsn) == CONN_MODE_NATIVE) {
             // native
@@ -271,11 +271,15 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
                 "INSERT INTO ? VALUES(?,%s)", colQ);
         } else {
             // websocket
-            bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
-            colNames = genColNames(stbInfo->cols, !ntb);
+            char *bindTableName = stbInfo->stbName;            
+            // bool ntb = stbInfo->tags == NULL || stbInfo->tags->size == 0; // normal table
+            if (!stbInfo->autoTblCreating && tableName) {
+                bindTableName = tableName;
+            }
+            colNames = genColNames(stbInfo->cols, stbInfo->autoTblCreating);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
-                "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, stbInfo->stbName, colNames,
-                ntb ? "?" : "?,?", colQ);
+                "INSERT INTO `%s`.`%s`(%s) VALUES(%s,%s)", db, bindTableName, colNames,
+                stbInfo->autoTblCreating ? "?,?" : "?", colQ);
         }
     }
     len += n;
@@ -302,8 +306,8 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
     return prepare;
 }
 
-int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
-    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db);
+int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db, char *tableName) {
+    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db, tableName);
     if (taos_stmt_prepare(stmt, prepare, strlen(prepare))) {
         errorPrint("taos_stmt_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt_errstr(stmt));
         tmfree(prepare);
@@ -314,8 +318,8 @@ int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t t
     return 0;
 }
 
-int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
-    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db);
+int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db, char *tableName) {
+    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db, tableName);
     if (taos_stmt2_prepare(stmt2, prepare, strlen(prepare))) {
         errorPrint("taos_stmt2_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt2_error(stmt2));
         tmfree(prepare);
