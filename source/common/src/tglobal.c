@@ -3092,6 +3092,9 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
       }
       continue;
     }
+    if (strcasecmp(item->name, "forceReadConfig") == 0) {
+      continue;
+    }
     switch (item->dtype) {
       {
         case CFG_DTYPE_NONE:
