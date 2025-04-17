@@ -9801,6 +9801,11 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
       code = TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE;
       break;
     }
+    if (((SColumnOptions*)pCol->pOptions)->bPrimaryKey && IS_STR_DATA_BLOB(pCol->dataType.type)) {
+      code = TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY;
+      break;
+    }
+
     SFieldWithOptions field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     if (calBytes) {
       field.bytes = calcTypeBytes(pCol->dataType);
@@ -9820,6 +9825,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     if (pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey) {
       field.flags |= COL_IS_KEY;
     }
+
     if (field.typeMod != 0) {
       field.flags |= COL_HAS_TYPE_MOD;
     }
