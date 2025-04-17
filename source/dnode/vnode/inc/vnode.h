@@ -388,6 +388,23 @@ void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 void    metaFetchEntryFree(SMetaEntry **ppEntry);
 
+// For LOAD FILE to database
+typedef struct {
+  struct SMetaEntryIterImpl *impl;
+} SMetaEntryIter;
+
+typedef struct {
+  SMetaEntry  entry;
+  const char *superTableName;
+} SMetaEntryWrapper;
+
+int32_t metaEntryIterOpen(SMeta *pMeta, int64_t startVersion, int64_t endVersion, SMetaEntryIter *iter);
+int32_t metaEntryIterNext(SMetaEntryIter *iter, SMetaEntryWrapper **ppEntry);
+void    metaEntryIterClose(SMetaEntryIter *iter);
+
+int32_t metaEncodeEntryWrapper(SEncoder *pEncoder, SMetaEntryWrapper *pEntry);
+int32_t metaDecodeEntryWrapper(SDecoder *pDecoder, SMetaEntryWrapper *pEntry);
+
 #ifdef __cplusplus
 }
 #endif

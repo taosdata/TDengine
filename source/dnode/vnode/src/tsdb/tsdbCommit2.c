@@ -105,6 +105,42 @@ static int32_t tsdbCommitCloseWriter(SCommitter2 *committer) {
   return tsdbFSetWriterClose(&committer->writer, 0, committer->fopArray);
 }
 
+static int32_t tsdbCommitMetaData(SCommitter2 *committer) {
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  SMetaEntryIter iter = {0};
+
+  // Only commit meta data when stt_trigger > 1
+  if (committer->sttTrigger <= 1) {
+    return 0;
+  }
+
+  SVnode *pVnode = committer->tsdb->pVnode;
+  SMeta  *pMeta = pVnode->pMeta;
+
+  // Loop to commit each entry
+  code = metaEntryIterOpen(pMeta, 0 /* TODO */, 0 /*TODO*/, &iter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  while (1) {
+    SMetaEntryWrapper *pEntry = NULL;
+    code = metaEntryIterNext(&iter, &pEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    // Commit the entry
+    code = tsdbFSetWriteMetaEntry(committer->writer, pEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  metaEntryIterClose(&iter);
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t tsdbCommitTSData(SCommitter2 *committer) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -368,6 +404,7 @@ static int32_t tsdbCommitFileSet(SCommitter2 *committer) {
   int32_t lino = 0;
 
   TAOS_CHECK_GOTO(tsdbCommitFileSetBegin(committer), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbCommitMetaData(committer), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbCommitTSData(committer), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbCommitTombData(committer), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbCommitFileSetEnd(committer), &lino, _exit);

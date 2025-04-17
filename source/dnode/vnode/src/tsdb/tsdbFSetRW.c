@@ -236,6 +236,10 @@ _exit:
   return code;
 }
 
+int32_t tsdbFSetWriteMetaEntry(SFSetWriter *writer, const SMetaEntryWrapper *entry) {
+  return tsdbSttFileWriteMetaEntry(writer->sttWriter, entry);
+}
+
 int32_t tsdbFSetWriteRow(SFSetWriter *writer, SRowInfo *row) {
   int32_t code = 0;
   int32_t lino = 0;

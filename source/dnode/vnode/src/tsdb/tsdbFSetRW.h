@@ -46,6 +46,7 @@ typedef struct {
 
 int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer);
 int32_t tsdbFSetWriterClose(SFSetWriter **writer, bool abort, TFileOpArray *fopArr);
+int32_t tsdbFSetWriteMetaEntry(SFSetWriter *writer, const SMetaEntryWrapper *entry);
 int32_t tsdbFSetWriteRow(SFSetWriter *writer, SRowInfo *row);
 int32_t tsdbFSetWriteTombRecord(SFSetWriter *writer, const STombRecord *tombRecord);
 

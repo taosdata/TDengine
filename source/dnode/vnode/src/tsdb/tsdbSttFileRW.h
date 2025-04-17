@@ -77,7 +77,7 @@ typedef struct SSttFileWriterConfig SSttFileWriterConfig;
 
 int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer);
 int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArray *opArray);
-int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntry *entry);
+int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntryWrapper *entry);
 int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row);
 int32_t tsdbSttFileWriteBlockData(SSttFileWriter *writer, SBlockData *pBlockData);
 int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *record);

@@ -1046,7 +1046,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntry *entry) {
+int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntryWrapper *entry) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -1055,6 +1055,7 @@ int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntry *entr
   };
 
   // Encode entry
+#if 0
   tEncodeSize(metaEncodeEntry, entry, index.size, code);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1069,6 +1070,7 @@ int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntry *entr
   TSDB_CHECK_CODE(code, lino, _exit);
 
   tEncoderClear(&encoder);
+#endif
 
   // Write the entry to the file
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;

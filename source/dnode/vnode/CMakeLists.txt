@@ -35,6 +35,7 @@ set(
     "src/meta/metaTtl.c"
     "src/meta/metaEntry2.c"
     "src/meta/metaTable2.c"
+    "src/meta/metaEntryIter.c"
 
     # sma
     "src/sma/smaEnv.c"
