@@ -2457,6 +2457,10 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = -1;
 
+  if (strcasecmp("timezone", name) == 0) {
+    goto _exit;
+  }
+
   if (strcasecmp(name, "resetlog") == 0) {
     // trigger, no item in cfg
     taosResetLog();
