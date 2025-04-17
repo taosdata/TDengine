@@ -3133,11 +3133,22 @@ typedef struct SColLocation {
 } SColLocation;
 
 #ifdef NEW_STREAM
+
+typedef enum EStreamPlaceholder {
+  SP_NONE = 0,
+  SP_CURRENT_TS = 1,
+  SP_WSTART,
+  SP_WEND,
+  SP_WDURATION,
+  SP_WROWNUM,
+  SP_LOCALTIME,
+  SP_PARTITION_IDX,
+  SP_PARTITION_TBNAME,
+  SP_PARTITION_ROWS
+} EStreamPlaceholder;
+
 typedef struct SStreamOutCol {
-  int16_t            slotId;
-  col_id_t           colId;
-  EStreamPlaceholder placeholder;
-  int8_t             type;
+  void*              expr;
 } SStreamOutCol;
 
 
@@ -3184,17 +3195,22 @@ typedef union {
 } SStreamTrigger;
 
 typedef struct {
+  SArray* vgList; // vgId, SArray<int32>
+  int8_t  readFromCache;
+  void*   scanPlan;
+} SStreamCalcScan;
+
+typedef struct {
   char*    name;
   int64_t  streamId;
   char*    sql;
   
   char*   streamDB;
   char*   triggerDB;
-  char*   sourceDB;
   char*   outDB;
   
   char*   triggerTblName;  // table name
-  char*   targetTblName;  // table name
+  char*   outTblName;      // table name
   
   int8_t  igExists;
   int8_t  triggerType;
@@ -3222,30 +3238,30 @@ typedef struct {
   SStreamTrigger trigger;
 
   int8_t   triggerTblType;
-  int8_t   sourceTblType;
   int8_t   outTblType;
   int8_t   outStbExists;
   uint64_t outStbUid;
-  int64_t  flag;
   int64_t  eventTypes;
+  int64_t  flags;
+  int64_t  tsmaId;
 
   // only for child table and normal table
-  SArray*  triggerTblVgroups;
-  SArray*  calcTblVgroups;
-  SArray*  outTblVgroups;
+  int32_t  triggerTblVgId;
+  int32_t  outTblVgId;
 
   // reader part
-  void*     prevFilter;
-  void*     walScan;
-  void*     triggerTsdbScan;  // for trigger action
-  void*     calcTsdbScan;     // for calc action
+  void*     triggerPrevFilter;
+  void*     triggerWalScanPlan;
+  void*     triggerTsdbScanPlan;  // for trigger action
+  SArray*   calcScanPlanList;     // for calc action, SArray<SStreamCalcScan>
 
   // trigger part
-  SArray*  pVSubTables; // array of SVSubTablesRsp
+  SArray*   pVSubTables; // array of SVSubTablesRsp
   
   // runner part
   void*     calcPlan;      // for calc action
   void*     subTblNameExpr;
+  void*     tagValueExpr;
   SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SCMCreateStreamReq;
 
@@ -4113,7 +4129,6 @@ typedef struct {
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   int8_t  igNotExists;
-  int32_t sqlLen;
   char*   sql;
 } SMDropStreamReq;
 
@@ -4266,7 +4281,7 @@ typedef struct {
 } SVResetStreamTaskReq;
 
 typedef struct {
-  char   name[TSDB_STREAM_FNAME_LEN];
+  char   name[TSDB_STREAM_NAME_LEN];
   int8_t igNotExists;
 } SMPauseStreamReq;
 
@@ -4285,7 +4300,7 @@ typedef struct {
 } SVResumeStreamTaskRsp;
 
 typedef struct {
-  char   name[TSDB_STREAM_FNAME_LEN];
+  char   name[TSDB_STREAM_NAME_LEN];
   int8_t igNotExists;
   int8_t igUntreated;
 } SMResumeStreamReq;

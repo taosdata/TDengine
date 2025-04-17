@@ -25,7 +25,6 @@ extern "C" {
 typedef struct SStreamRetrieveReq SStreamRetrieveReq;
 typedef struct SStreamDispatchReq SStreamDispatchReq;
 typedef struct STokenBucket       STokenBucket;
-typedef struct SMetaHbInfo        SMetaHbInfo;
 
 typedef struct SNodeUpdateInfo {
   int32_t nodeId;
@@ -174,13 +173,21 @@ typedef struct SStreamTaskCheckpointReq {
 int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq);
 int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq);
 
+typedef struct SStreamStatus {
+  int64_t streamId;
+  int64_t taskId;
+  
+} SStreamStatus;
+
+typedef struct SStreamMsg {
+  int32_t msgType;
+} SStreamMsg;
+
 typedef struct SStreamHbMsg {
-  int32_t vgId;
-  int32_t msgId;
-  int64_t ts;
-  int32_t numOfTasks;
-  SArray* pTaskStatus;   // SArray<STaskStatusEntry>
-  SArray* pUpdateNodes;  // SArray<int32_t>, needs update the epsets in stream tasks for those nodes.
+  int32_t dnodeId;
+  int32_t streamGId;
+  SArray* pVgLeaders;     // SArray<int32_t>
+  SArray* pStreamStatus;  // SArray<SStreamStatus>
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
@@ -188,9 +195,75 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
 void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
 
 typedef struct {
-  SMsgHead head;
+
+} SStreamReaderDeployMsg;
+
+typedef struct {
+
+} SStreamTriggerDeployMsg;
+
+typedef struct {
+
+} SStreamRunnerDeployMsg;
+
+typedef union {
+  SStreamReaderDeployMsg  reader;
+  SStreamTriggerDeployMsg trigger;
+  SStreamRunnerDeployMsg  runner;
+} SStreamDeployTaskMsg;
+
+typedef struct {
+  SStreamTask          task;
+  SStreamDeployTaskMsg msg;
+} SStreamDeployTaskInfo;
+
+typedef struct {
+  int64_t streamId;
+  SArray* readerTasks;   // SArray<SStreamDeployTaskInfo>
+  SArray* triggerTasks;
+  SArray* runnerTasks;
+} SStreamTasksDeploy;
+
+typedef struct {
+  SArray* taskList;      // SArray<SStreamTasksDeploy>
+} SStreamDeployActions;
+
+typedef struct {
+  SStreamMsg  header;
+  
+} SStreamStartTaskMsg;
+
+typedef struct {
+  SStreamTask         task;
+  SStreamStartTaskMsg startMsg;
+} SStreamTasksStart;
+
+typedef struct {
+  SArray* taskList;      // SArray<SStreamTasksStart>
+} SStreamStartActions;
+
+typedef struct {
+  SStreamMsg  header;
+  
+} SStreamUndeployTaskMsg;
+
+typedef struct {
+  SStreamTask             task;
+  SStreamUndeployTaskMsg  undeployMsg;
+} SStreamTasksUndeploy;
+
+typedef struct {
+  bool    undeployAll;
+  SArray* taskList;      // SArray<SStreamTasksUndeploy>
+} SStreamUndeployActions;
+
+
+typedef struct {
   int32_t  msgId;
-  SEpSet   mndEpset;
+  SStreamDeployActions   deploy;
+  SStreamStartActions    start;
+  SStreamUndeployActions undeploy;
+  SArray*              nodesVerion;
 } SMStreamHbRspMsg;
 
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);

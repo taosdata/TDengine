@@ -173,16 +173,18 @@ int32_t dmInit() {
     code = TSDB_CODE_INVALID_DATA_FMT;
     return code;
   }
+  SDnode* pDnode = dmInstance();
   if ((code = dmCheckDiskSpace()) != 0) return code;
-  if ((code = dmCheckRepeatInit(dmInstance())) != 0) return code;
+  if ((code = dmCheckRepeatInit(pDnode)) != 0) return code;
   if ((code = dmInitSystem()) != 0) return code;
   if ((code = dmInitMonitor()) != 0) return code;
   if ((code = dmInitAudit()) != 0) return code;
-  if ((code = dmInitDnode(dmInstance())) != 0) return code;
+  if ((code = dmInitDnode(pDnode)) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
 #if defined(USE_S3)
   if ((code = tcsInit()) != 0) return code;
-#endif
+#endif  
+  if ((code = streamInit(&pDnode->data, pDnode->data.dnodeId, dmGetMnodeEpSet)) != 0) return code;
 
   dInfo("dnode env is initialized");
   return 0;

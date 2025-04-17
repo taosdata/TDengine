@@ -83,7 +83,6 @@ int32_t dmInitDnode(SDnode *pDnode) {
   }
 
   indexInit(tsNumOfCommitThreads);
-  streamMetaInit();
 
   if ((code = dmInitStatusClient(pDnode)) != 0) {
     goto _OVER;

@@ -891,6 +891,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INTERNAL_ERROR,          "Stream internal err
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_LEADER,              "Stream task not on leader vnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INPUTQ_FULL,             "Task input queue is full")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVLD_CHKPT,             "Invalid checkpoint trigger msg")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_TASK_TYPE,       "Invalid stream task type")
+
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
@@ -914,6 +916,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE,   "Virtual table not s
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT,        "Virtual table not support in STMT query and STMT insert")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not support in topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")
+
+// NEW-STREAM
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "mnode stream internal error")
+
+
 #ifdef TAOS_ERROR_C
 };
 #endif

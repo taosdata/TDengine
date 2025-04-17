@@ -58,33 +58,6 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   return 0;
 }
 
-static int32_t doSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
-  SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
-  if (pReq == NULL) {
-    return terrno;
-  }
-
-  pReq->head.vgId = htonl(pTask->info.nodeId);
-  pReq->taskId = pTask->id.taskId;
-  pReq->streamId = pTask->id.streamId;
-
-  SEpSet  epset = {0};
-  bool    hasEpset = false;
-  int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
-  if (code != TSDB_CODE_SUCCESS || !hasEpset) {  // no valid epset, return directly without redoAction
-    return code;
-  }
-
-  // The epset of nodeId of this task may have been expired now, let's use the newest epset from mnode.
-  code = setTransAction(pTrans, pReq, sizeof(SVDropStreamTaskReq), TDMT_STREAM_TASK_DROP, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
-  if (code != 0) {
-    taosMemoryFree(pReq);
-    return code;
-  }
-
-  return 0;
-}
-
 static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pTask, int8_t igUntreated) {
   terrno = 0;
 
@@ -354,98 +327,6 @@ static int32_t doSetResetAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   }
 
   return code;
-}
-
-int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
-  SStreamTaskIter *pIter = NULL;
-
-  int32_t code = createStreamTaskIter(pStream, &pIter);
-  if (code) {
-    mError("failed to create stream task iter:%s", pStream->name);
-    return code;
-  }
-
-  while (streamTaskIterNextTask(pIter)) {
-    SStreamTask *pTask = NULL;
-    code = streamTaskIterGetCurrent(pIter, &pTask);
-    if (code) {
-      destroyStreamTaskIter(pIter);
-      return code;
-    }
-
-    code = doSetPauseAction(pMnode, pTrans, pTask);
-    if (code) {
-      destroyStreamTaskIter(pIter);
-      return code;
-    }
-
-    if (atomic_load_8(&pTask->status.taskStatus) != TASK_STATUS__PAUSE) {
-      atomic_store_8(&pTask->status.statusBackup, pTask->status.taskStatus);
-      atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
-    }
-  }
-
-  destroyStreamTaskIter(pIter);
-  return code;
-}
-
-int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
-  SStreamTaskIter *pIter = NULL;
-
-  int32_t code = createStreamTaskIter(pStream, &pIter);
-  if (code) {
-    mError("failed to create stream task iter:%s", pStream->name);
-    return code;
-  }
-
-  while(streamTaskIterNextTask(pIter)) {
-    SStreamTask *pTask = NULL;
-    code = streamTaskIterGetCurrent(pIter, &pTask);
-    if (code) {
-      destroyStreamTaskIter(pIter);
-      return code;
-    }
-
-    code = doSetDropAction(pMnode, pTrans, pTask);
-    if (code) {
-      destroyStreamTaskIter(pIter);
-      return code;
-    }
-  }
-  destroyStreamTaskIter(pIter);
-  return 0;
-}
-
-int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pStream, int8_t igUntreated) {
-  SStreamTaskIter *pIter = NULL;
-  int32_t          code = createStreamTaskIter(pStream, &pIter);
-  if (code) {
-    mError("failed to create stream task iter:%s", pStream->name);
-    return code;
-  }
-
-  mDebug("transId:%d start to create resume actions", pTrans->id);
-
-  while (streamTaskIterNextTask(pIter)) {
-    SStreamTask *pTask = NULL;
-    code = streamTaskIterGetCurrent(pIter, &pTask);
-    if (code || pTask == NULL) {
-      destroyStreamTaskIter(pIter);
-      return code;
-    }
-
-    code = doSetResumeAction(pTrans, pMnode, pTask, igUntreated);
-    if (code) {
-      destroyStreamTaskIter(pIter);
-      return code;
-    }
-
-    if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__PAUSE) {
-      atomic_store_8(&pTask->status.taskStatus, pTask->status.statusBackup);
-    }
-  }
-  destroyStreamTaskIter(pIter);
-  return 0;
 }
 
 // build trans to update the epset
