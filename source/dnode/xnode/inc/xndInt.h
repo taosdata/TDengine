@@ -33,7 +33,7 @@ typedef struct SXnode {
   SMsgCb  msgCb;
   int32_t dnodeId;
   int8_t  protocol[XNODE_OPTION_PROTOCOL_MAX];
-} SQnode;
+} SXnode;
 
 #ifdef __cplusplus
 }
