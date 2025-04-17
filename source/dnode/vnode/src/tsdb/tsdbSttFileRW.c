@@ -170,6 +170,7 @@ void tsdbSttFileReaderClose(SSttFileReader **reader) {
     TARRAY2_DESTROY(reader[0]->tombBlkArray, NULL);
     TARRAY2_DESTROY(reader[0]->statisBlkArray, NULL);
     TARRAY2_DESTROY(reader[0]->sttBlkArray, NULL);
+    taosArrayDestroy(reader[0]->entryIndices);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   }
@@ -1076,14 +1077,15 @@ int32_t tsdbSttFileWriteMetaEntry(SSttFileWriter *writer, const SMetaEntry *entr
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // Add entry index
-  if (NULL == taosArrayPush(writer->pMetaEntryIndex, &index)) {
+  if (NULL == taosArrayPush(writer->entryIndices, &index)) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
   if (code) {
-    metaError("");
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   return code;
 }
