@@ -881,7 +881,7 @@ int32_t taosAnalysisParseAlgo(const char *pOpt, char *pAlgoName, char *pUrl, int
   return 0;
 }
 
-int32_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) { return 0;}
+int8_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) { return 0;}
 int32_t taosAnalyGetOpts(const char *pOption, SHashObj **pOptHash) { return 0;}
 
 #endif
