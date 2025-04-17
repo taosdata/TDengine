@@ -156,7 +156,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
 
 static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                 const SSDataBlock* dataBlock, char* tName, SSchemaWrapper* schemaRow,
-                                                char* tableType, SColRefWrapper *colRef);
+                                                char* tableType, SColRefWrapper* colRef);
 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
@@ -755,7 +755,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       }
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
-    code = sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, schemaRow, typeName, colRef);
+    code =
+        sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, schemaRow, typeName, colRef);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1190,6 +1191,11 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
 
     char* tagVarChar = NULL;
     if (tagData != NULL) {
+      if (IS_STR_DATA_BLOB(tagType)) {
+        code = TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
+        goto _end;
+      }
+
       if (tagType == TSDB_DATA_TYPE_JSON) {
         char* tagJson = NULL;
         parseTagDatatoJson(tagData, &tagJson, NULL);
@@ -1237,7 +1243,7 @@ _end:
 
 static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                 const SSDataBlock* dataBlock, char* tName, SSchemaWrapper* schemaRow,
-                                                char* tableType, SColRefWrapper *colRef) {
+                                                char* tableType, SColRefWrapper* colRef) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (schemaRow == NULL) {
@@ -1324,7 +1330,7 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
       strcat(tmpColName, colRef->pColRef[i].refColName);
       STR_TO_VARSTR(refColName, tmpColName);
 
-      code = colDataSetVal(pColInfoData, numOfRows, (char *)refColName, false);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     ++numOfRows;
