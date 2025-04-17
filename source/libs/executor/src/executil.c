@@ -930,7 +930,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
               code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
               goto end;
             }
-            memcpy(pStart, data, varDataTLen(data));
+            memcpy(pStart, data, blobDataTLen(data));
             pStart += blobDataTLen(data);
           } else {
             if (varDataTLen(data) > pValue->info.bytes) {
