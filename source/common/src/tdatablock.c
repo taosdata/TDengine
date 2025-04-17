@@ -101,17 +101,7 @@ static int32_t getDataLen(int32_t type, const char* pData) {
   return dataLen;
 }
 
-int32_t calcStrBytesByType(int8_t type, char* data) {
-  int32_t bytes = 0;
-  if (type == TSDB_DATA_TYPE_JSON) {
-    bytes = getJsonValueLen(data);
-  } else if (IS_STR_DATA_BLOB(type)) {
-    bytes = blobDataTLen(data);
-  } else {
-    bytes = varDataTLen(data);
-  }
-  return bytes;
-}
+int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, data); }
 
 static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
   if (isNull || pData == NULL) {
