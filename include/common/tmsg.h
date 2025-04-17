@@ -5176,9 +5176,24 @@ typedef struct SStreamWalCalcDataRequest {
   int64_t               ekey;
 } SStreamWalCalcDataRequest;
 
+typedef struct SStreamCalculationParam {
+  // These fields only have values when used in the statement, otherwise they are 0
+  int64_t currentTs;
+  int64_t wstart;
+  int64_t wend;
+  int64_t wduration;
+  int64_t wrownum;
+  int64_t triggerTime;
+
+  bool  needNotify;
+  char* extraNotifyContent;  // NULL if not available
+} SStreamCalculationParam;
+
 typedef struct SStreamCalculationRequest {
   SStreamTriggerRequest base;
-  int64_t               params;
+  int64_t               gid;
+  SArray*               params;
+  SArray*               groupColVals; // only provided at the first calculation of the group
 } SStreamCalculationRequest;
 
 #pragma pack(pop)
