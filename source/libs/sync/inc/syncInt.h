@@ -239,6 +239,8 @@ struct SSyncNode {
   int64_t sendCount;
   int64_t recvCount;
   int64_t slowCount;
+
+  int32_t applyQueueErrorCount;
 };
 
 // open/close --------------
