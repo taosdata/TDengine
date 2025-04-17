@@ -5111,12 +5111,24 @@ typedef struct SStreamTriggerRequest {
 
 typedef struct SStreamLastTsRequest {
   SStreamTriggerRequest base;
-} SStTriggerLastTsRequest;
+} SStreamLastTsRequest;
+
+typedef struct SStreamLastTsResponse {
+  int64_t   lastTs;
+  int64_t   ver;
+  int32_t   vgId;
+} SStreamLastTsResponse;
 
 typedef struct SStreamFirstTsRequest {
   SStreamTriggerRequest base;
   int64_t               startTime;
 } SStreamFirstTsRequest;
+
+typedef struct SStreamFirstTsResponse {
+  int64_t   firstTs;
+  int64_t   ver;
+  int32_t   vgId;
+} SStreamFirstTsResponse;
 
 typedef struct SStreamTsdbMetaRequest {
   SStreamTriggerRequest base;

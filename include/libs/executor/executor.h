@@ -236,7 +236,8 @@ void    qResetTaskInfoCode(qTaskInfo_t tinfo);
 int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral);
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
-
+int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, SStorageAPI *storageAPI, void** pTableListInfo);
+int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 #ifdef __cplusplus
 }
 #endif

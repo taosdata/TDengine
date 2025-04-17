@@ -1874,3 +1874,29 @@ _error:
   pTaskInfo->code = code;
   return code;
 }
+
+int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, SStorageAPI *storageAPI, void** pTableListInfo){
+  STableListInfo* pList = tableListCreate();
+  if (pList == NULL){
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
+
+  SScanPhysiNode pScanNode = {.suid = suid, .uid = uid, .tableType = tableType};
+  SNodeList* pGroupTags = NULL;
+  SReadHandle pHandle = {.vnode = pVnode};
+  SExecTaskInfo pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
+
+  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, false, &pHandle, pList, NULL, NULL, &pTaskInfo);
+  if (code != 0) {
+    tableListDestroy(pList);
+    qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
+    return code;
+  }
+  *pTableListInfo = pList;
+  return 0;
+}
+
+int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size){
+  return tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
+}

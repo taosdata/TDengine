@@ -21,6 +21,7 @@ set(
     "src/vnd/vnodeInitApi.c"
     "src/vnd/vnodeAsync.c"
     "src/vnd/vnodeHash.c"
+    "src/vnd/vnodeStream.c"
 
     # meta
     "src/meta/metaOpen.c"
