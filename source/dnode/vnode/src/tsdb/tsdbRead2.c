@@ -1125,21 +1125,37 @@ _end:
   }
   return code;
 }
-static int32_t doReallocBuf(SBlockLoadSuppInfo* pSup, int32_t colIndex, int32_t bytes, int32_t len) {
+static int32_t doReallocBuf(SBlockLoadSuppInfo* pSup, int32_t colIndex, SColumnInfo* pInfo, int32_t len) {
   int32_t code = 0;
+  int32_t bytes = pInfo->bytes;
+  int32_t extraSize = VARSTR_HEADER_SIZE;
 
-  // if (len + VARSTR_HEADER_SIZE > bytes) {
-  //   tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pSup->colId[colIndex], len, bytes);
-  //   return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-  // }
+  if (IS_STR_DATA_BLOB(pInfo->type)) {
+    if (len + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
+      tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pSup->colId[colIndex], len, bytes);
+      return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    }
+    extraSize = BLOBSTR_HEADER_SIZE;
 
-  char* p = taosMemoryRealloc(pSup->buildBuf[colIndex], len + VARSTR_HEADER_SIZE);
+  } else {
+    if (len + VARSTR_HEADER_SIZE > pInfo->bytes) {
+      tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pSup->colId[colIndex], len, bytes);
+      return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    }
+  }
+
+  char* p = taosMemoryRealloc(pSup->buildBuf[colIndex], len + extraSize);
   if (p == NULL) {
     return terrno;
   }
 
   pSup->buildBuf[colIndex] = p;
-  varDataSetLen(pSup->buildBuf[colIndex], len);
+
+  if (IS_STR_DATA_BLOB(pInfo->type)) {
+    blobDataSetLen(pSup->buildBuf[colIndex], len);
+  } else {
+    varDataSetLen(pSup->buildBuf[colIndex], len);
+  }
 
   return code;
 }
@@ -1164,7 +1180,7 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
         }
 
         if (IS_STR_DATA_BLOB(pColVal->value.type)) {
-          code = doReallocBuf(pSup, colIndex, pColInfoData->info.bytes, len);
+          code = doReallocBuf(pSup, colIndex, &pColInfoData->info, len);
         } else {
           varDataSetLen(pSup->buildBuf[colIndex], len);
           if ((len + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
@@ -1176,7 +1192,11 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
         }
 
         if (len > 0) {
-          (void)memcpy(varDataVal(pSup->buildBuf[colIndex]), pValue, len);
+          if (IS_STR_DATA_BLOB(pColVal->value.type)) {
+            (void)memcpy(blobDataVal(pSup->buildBuf[colIndex]), pValue, len);
+          } else {
+            (void)memcpy(varDataVal(pSup->buildBuf[colIndex]), pValue, len);
+          }
         }
         code = colDataSetVal(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
         taosMemFreeClear(pValue);
