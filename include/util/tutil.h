@@ -65,10 +65,10 @@ static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
     if (c2 >= 'A' && c2 <= 'Z') c2 |= 0x20;
 
     if (c1 != c2) {
-      return (int)c1 - (int)c2;
+      return (int32_t)c1 - (int32_t)c2;
     }
   }
-  return *$1 == *$2 ? 0 : (*$1 != 0 ? 1 : -1);
+  return *s1 == *s2 ? 0 : (*s1 != 0 ? 1 : -1);
 }
 
 static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size_t n) {
@@ -89,7 +89,7 @@ static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size
     if (c2 >= 'A' && c2 <= 'Z') c2 |= 0x20;
 
     if (c1 != c2) {
-      return (int)c1 - (int)c2;
+      return (int32_t)c1 - (int32_t)c2;
     }
   }
 
