@@ -80,6 +80,9 @@ class TDTestCase(TBase):
         ]
         self.checkManyString(rlist, results)
 
+      # vec
+        rlist = self.taos(cmd + ' \G    ;"')
+        self.checkManyString(rlist, results)
 
         # -B have some problem need todo
         self.taos(f'{mode} -B -s "select * from {db}.{stb} where ts < 1"')
