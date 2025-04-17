@@ -75,19 +75,19 @@ static void setProcessProgress(SStreamTask* pTask, STaskStatusEntry* pEntry) {
   }
 }
 
-static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* pEpset) {
+static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   int32_t code = 0;
   int32_t tlen = 0;
 
   tEncodeSize(tEncodeStreamHbMsg, pMsg, tlen, code);
   if (code < 0) {
-    stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+    stError("vgId:%d encode stream hb msg failed, code:%s", tstrerror(code));
     return TSDB_CODE_FAILED;
   }
 
   void* buf = rpcMallocCont(tlen);
   if (buf == NULL) {
-    stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    stError("vgId:%d encode stream hb msg failed, code:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return TSDB_CODE_FAILED;
   }
 
@@ -96,15 +96,16 @@ static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* p
   if ((code = tEncodeStreamHbMsg(&encoder, pMsg)) < 0) {
     rpcFreeCont(buf);
     tEncoderClear(&encoder);
-    stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
+    stError("vgId:%d encode stream hb msg failed, code:%s", tstrerror(code));
     return TSDB_CODE_FAILED;
   }
   tEncoderClear(&encoder);
 
-  stDebug("vgId:%d send hb to mnode, numOfTasks:%d msgId:%d", pMeta->vgId, pMsg->numOfTasks, pMsg->msgId);
+  stDebug("vgId:%d send hb to mnode, numOfTasks:%d msgId:%d", pMsg->numOfTasks, pMsg->msgId);
 
   SRpcMsg msg = {0};
   initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
+  
   return tmsgSendReq(pEpset, &msg);
 }
 
@@ -169,163 +170,32 @@ static void streamTaskUpdateMndEpset(SStreamMeta* pMeta, SEpSet* pEpSet) {
   stDebug("vgId:%d update mnd epset for %d tasks completed", pMeta->vgId, numOfTasks);
 }
 
-// NOTE: this task should be executed within the SStreamMeta lock region.
-int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
-  SEpSet       epset = {0};
-  bool         hasMnodeEpset = false;
-  int32_t      numOfTasks = streamMetaGetNumOfTasks(pMeta);
-  SMetaHbInfo* pInfo = pMeta->pHbInfo;
-  int32_t      code = 0;
-  bool         setReqCheckpointId = false;
-
-  // not recv the hb msg rsp yet, send current hb msg again
-  if (pInfo->msgSendTs > 0) {
-    stDebug("vgId:%d hbMsg rsp not recv, send current hbMsg, msgId:%d, total:%d again", pMeta->vgId, pInfo->hbMsg.msgId,
-            pInfo->hbCount);
-
-    code = streamTaskGetMndEpset(pMeta, &epset);
-    if (code != 0) {
-      stError("vgId:%d failed to get the mnode epset, not retrying sending hbMsg, msgId:%d", pMeta->vgId,
-              pInfo->hbMsg.msgId);
-      return code;
-    }
-
-    pInfo->msgSendTs = taosGetTimestampMs();
-    return doSendHbMsgInfo(&pInfo->hbMsg, pMeta, &epset);
-  }
-
-  SStreamHbMsg* pMsg = &pInfo->hbMsg;
-  pMsg->vgId = pMeta->vgId;
-  pMsg->msgId = pMeta->pHbInfo->hbCount;
-  pMsg->ts = taosGetTimestampMs();
-
-  stDebug("vgId:%d build stream hbMsg, leader:%d HbMsgId:%d, HbMsgTs:%" PRId64, pMeta->vgId,
-          (pMeta->role == NODE_ROLE_LEADER), pMsg->msgId, pMsg->ts);
-
-  pMsg->pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
-  pMsg->pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
-
-  if (pMsg->pTaskStatus == NULL || pMsg->pUpdateNodes == NULL) {
-    return terrno;
-  }
-
-  for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-
-    STaskId      id = {.streamId = pId->streamId, .taskId = pId->taskId};
-    SStreamTask* pTask = NULL;
-    code = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
-    if (code != 0) {
-      continue;
-    }
-
-    // not report the status of fill-history task
-    if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
-      streamMetaReleaseTask(pMeta, pTask);
-      continue;
-    }
-
-    // todo: this lock may be blocked by lock in streamMetaStartOneTask function, which may lock a very long time when
-    // trying to load remote checkpoint data
-    streamMutexLock(&pTask->lock);
-    STaskStatusEntry entry = streamTaskGetStatusEntry(pTask);
-    streamMutexUnlock(&pTask->lock);
-
-    entry.inputRate = entry.inputQUsed * 100.0 / (2 * STREAM_TASK_QUEUE_CAPACITY_IN_SIZE);
-    if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-      entry.sinkQuota = pTask->outputInfo.pTokenBucket->quotaRate;
-      entry.sinkDataSize = SIZE_IN_MiB(pTask->execInfo.sink.dataSize);
-    }
-
-    SActiveCheckpointInfo* p = pTask->chkInfo.pActiveInfo;
-    if (p->activeId != 0) {
-      entry.checkpointInfo.failed = (p->failedId >= p->activeId) ? 1 : 0;
-      entry.checkpointInfo.activeId = p->activeId;
-      entry.checkpointInfo.activeTransId = p->transId;
-
-      if (entry.checkpointInfo.failed) {
-        stInfo("s-task:%s set kill checkpoint trans in hbMsg, transId:%d, clear the active checkpointInfo",
-               pTask->id.idStr, p->transId);
-
-        streamMutexLock(&pTask->lock);
-        streamTaskClearCheckInfo(pTask, true);
-        streamMutexUnlock(&pTask->lock);
-      }
-    }
-
-    streamMutexLock(&pTask->lock);
-    entry.checkpointInfo.consensusChkptId = streamTaskCheckIfReqConsenChkptId(pTask, pMsg->ts);
-    if (entry.checkpointInfo.consensusChkptId) {
-      entry.checkpointInfo.consensusTs = pTask->status.consenChkptInfo.statusTs;
-      setReqCheckpointId = true;
-    }
-    streamMutexUnlock(&pTask->lock);
-
-    setProcessProgress(pTask, &entry);
-    addUpdateNodeIntoHbMsg(pTask, pMsg);
-
-    p = taosArrayPush(pMsg->pTaskStatus, &entry);
-    if (p == NULL) {
-      stError("failed to add taskInfo:0x%x in hbMsg, vgId:%d", pTask->id.taskId, pMeta->vgId);
-    }
-
-    if (!hasMnodeEpset) {
-      epsetAssign(&epset, &pTask->info.mnodeEpset);
-      hasMnodeEpset = true;
-    }
-
-    streamMetaReleaseTask(pMeta, pTask);
-  }
-
-  if (setReqCheckpointId) {
-    if (pMeta->startInfo.curStage != START_MARK_REQ_CHKPID) {
-      stError("vgId:%d internal unknown error, current stage is:%d expected:%d", pMeta->vgId, pMeta->startInfo.curStage,
-              START_MARK_REQ_CHKPID);
-    }
-
-    pMeta->startInfo.curStage = START_WAIT_FOR_CHKPTID;
-    SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = pMsg->ts};
-    taosArrayPush(pMeta->startInfo.pStagesList, &info);
-
-    stDebug("vgId:%d mark_req stage -> wait_for_chkptId stage, reqTs:%" PRId64 " , numOfStageHist:%d", pMeta->vgId,
-            info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
-  }
-
-  pMsg->numOfTasks = taosArrayGetSize(pMsg->pTaskStatus);
-
-  if (hasMnodeEpset) {
-    pInfo->msgSendTs = taosGetTimestampMs();
-    code = doSendHbMsgInfo(pMsg, pMeta, &epset);
-  } else {
-    stDebug("vgId:%d no tasks or no mnd epset, not send stream hb to mnode", pMeta->vgId);
-    tCleanupStreamHbMsg(&pInfo->hbMsg);
-    pInfo->msgSendTs = -1;
-  }
-
-  return code;
+int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg) {
+  pMsg.dnodeId = gStreamMgmt.dnodeId;
+  pMsg.streamGId = gStreamMgmt.streamGrpIdx++;
+  
 }
 
 void streamHbStart(void* param, void* tmrId) {
-  int64_t rid = *(int64_t*)param;
   int32_t code = 0;
-  int32_t vgId = 0;
-  int32_t role = 0;
+  SStreamHbMsg reqMsg = {0};
+  
+  TAOS_CHECK_EXIT(streamHbBuildRequestMsg(&reqMsg));
+
+  TAOS_CHECK_EXIT(streamHbSendRequestMsg(reqMsg));
 
 
-  streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, gStreamMgmt.timer, &gStreamMgmt.hb.hbTmr, pMeta->vgId,
-                 "meta-hb-tmr");
+_exit:
 
+  streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &gStreamMgmt.hb.hbTmr, 0, "stream-hb");
+  
   if (code) {
     stError("vgId:%d in meta timer, failed to release the meta rid:%" PRId64, vgId, rid);
   }
 }
 
 int32_t streamHbInit(int64_t* pRid, SStreamHbInfo* pHb) {
-  pHb->tickCounter = 0;
-  pHb->msgSendTs = -1;
-  pHb->hbCount = 0;
-
-  streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, pRid, streamTimer, &pHb->hbTmr, 0, "stream-hb");
+  streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &pHb->hbTmr, 0, "stream-hb");
   
   return TSDB_CODE_SUCCESS;
 }
@@ -363,32 +233,24 @@ void streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSe
   *pSendCount = pInfo->hbCount;
 }
 
-int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
-  SMetaHbInfo* pInfo = pMeta->pHbInfo;
-  SEpSet       epset = {0};
+int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
   int32_t      code = 0;
 
-  stDebug("vgId:%d process hbMsg rsp, msgId:%d rsp confirmed", pMeta->vgId, pRsp->msgId);
-  streamMetaWLock(pMeta);
-
-  // current waiting rsp recved
-  if (pRsp->msgId == pInfo->hbCount) {
-    tCleanupStreamHbMsg(&pInfo->hbMsg);
-    stDebug("vgId:%d hbMsg msgId:%d sendTs:%" PRId64 " recved confirmed", pMeta->vgId, pRsp->msgId, pInfo->msgSendTs);
-
-    pInfo->hbCount += 1;
-    pInfo->msgSendTs = -1;
-
-    code = streamTaskGetMndEpset(pMeta, &epset);
-    if (!isEpsetEqual(&pRsp->mndEpset, &epset) && (code == 0)) {
-      // we need to update the mnode epset for each tasks
-      stInfo("vgId:%d mnode epset updated, update mnode epset for all tasks", pMeta->vgId);
-      streamTaskUpdateMndEpset(pMeta, &pRsp->mndEpset);
-    }
-  } else {
-    stWarn("vgId:%d recv expired hb rsp, msgId:%d, discarded", pMeta->vgId, pRsp->msgId);
+  if (pRsp->deploy.taskList) {
+    TAOS_CHECK_EXIT(streamMgmtDeployTasks(&pRsp->deploy));
   }
 
-  streamMetaWUnLock(pMeta);
-  return TSDB_CODE_SUCCESS;
+  if (pRsp->start.taskList) {
+    TAOS_CHECK_EXIT(streamMgmtStartTasks(&pRsp->start));
+  }
+
+  if (pRsp->undeploy.taskList) {
+    TAOS_CHECK_EXIT(streamMgmtUndeployTasks(&pRsp->undeploy));
+  }
+
+_exit:
+
+  stDebug("vgId:%d process hbMsg rsp, msgId:%d rsp confirmed", pRsp->msgId);
+
+  return code;
 }

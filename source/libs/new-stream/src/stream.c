@@ -22,20 +22,65 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
-int32_t streamOpen() {
+int32_t streamInit(void* pDnode, int32_t dnodeId, getMnodeEpsetFromDnode cb) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  TSDB_CHECK_CODE(streamTimerInit(&gStreamMgmt.timer));
+  gStreamMgmt.dnodeId = dnodeId;
+  gStreamMgmt.dnode = pDnode;
+  gStreamMgmt.cb = cb;
 
-  TSDB_CHECK_CODE(streamHbInit(&gStreamMgmt.hb), lino, _return);
+  initStorageAPI(&gStreamMgmt.api);
 
-_return:
+  gStreamMgmt.vgroupLeaders = taosArrayInit(20, sizeof(int32_t));
+  TSDB_CHECK_NULL(gStreamMgmt.vgroupLeaders, code, lino, _exit, terrno);
+  
+  TAOS_CHECK_EXIT(streamTimerInit(&gStreamMgmt.timer));
+
+  TAOS_CHECK_EXIT(streamHbInit(&gStreamMgmt.hb));
+
+_exit:
 
   if (code) {
     terrno = code;
+    stError("%s failed at line %d, error:%s", __func__, lino, tstrerror(code));
   }
 
   return code;
 }
+
+int32_t streamVgIdSort(void const *lp, void const *rp) {
+  int32_t* pVg1 = (int32_t*)lp;
+  int32_t* pVg2 = (int32_t*)rp;
+
+  if (*pVg1 < *pVg2) {
+    return -1;
+  } else if (*pVg1 > *pVg2) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
+void streamRemoveVnodeLeader(int32_t vgId) {
+  taosWLockLatch(&gStreamMgmt.vgroupLeadersLock);
+  int32_t idx = taosArraySearchIdx(gStreamMgmt.vgroupLeaders, &vgId, streamVgIdSort, TD_EQ);
+  if (idx >= 0) {
+    taosArrayRemove(gStreamMgmt.vgroupLeaders, idx);
+  }
+  taosWUnLockLatch(&gStreamMgmt.vgroupLeadersLock);
+  stInfo("remove vgroup %d from vgroupLeader %s", vgId, (idx < 0) ? "failed", "succeed");
+}
+
+void streamAddVnodeLeader(int32_t vgId) {
+  taosWLockLatch(&gStreamMgmt.vgroupLeadersLock);
+  void* p = taosArrayPush(gStreamMgmt.vgroupLeaders, &vgId);
+  if (p) {
+    taosArraySort(gStreamMgmt.vgroupLeaders, streamVgIdSort);
+  }
+  taosWUnLockLatch(&gStreamMgmt.vgroupLeadersLock);
+  stInfo("add vgroup %d to vgroupLeader %s, error:%s", vgId, p ? "succeed" : "failed", p ? "NULL" : tstrerror(terrno));
+}
+
 

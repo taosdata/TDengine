@@ -39,12 +39,15 @@ typedef enum EStreamTaskType {
 
 static const char *gTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
+typedef void (*getMnodeEpsetFromDnode)(void* pDnode, SEpSet* pEpset);
+
 typedef struct SStreamTask {
   EStreamTaskType type;
   int64_t         streamId;  // ID of the stream
   int64_t         taskId;    // ID of the current task
-  int32_t         vgId;      // ID of the vgroup
+  int32_t         nodeId;    // ID of the vgroup/snode
   int32_t         cmdId;     // ID of the current command (real-time, historical, or recalculation)
+  int16_t         taskIdx;
 } SStreamTask;
 
 typedef enum EStreamTriggerType {
@@ -53,10 +56,21 @@ typedef enum EStreamTriggerType {
   STREAM_WINDOW_TRIGGER,
 } EStreamTriggerType;
 
+typedef struct SStreamReaderTask {
+  SStreamTask        task;
+  
+} SStreamReaderTask;
+
 typedef struct SStreamTriggerTask {
   SStreamTask        task;
   EStreamTriggerType type;
 } SStreamTriggerTask;
+
+typedef struct SStreamRunnerTask {
+  SStreamTask        task;
+
+} SStreamRunnerTask;
+
 
 #define STREAM_GID(_streamId) ((_streamId) % STREAM_MAX_GROUP_NUM)
 

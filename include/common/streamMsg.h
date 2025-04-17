@@ -179,10 +179,14 @@ typedef struct SStreamStatus {
   
 } SStreamStatus;
 
+typedef struct SStreamMsg {
+  int32_t msgType;
+} SStreamMsg;
+
 typedef struct SStreamHbMsg {
   int32_t dnodeId;
   int32_t streamGId;
-  SArray* pVgToLeader;   // SArray<int32_t>
+  SArray* pVgLeaders;     // SArray<int32_t>
   SArray* pStreamStatus;  // SArray<SStreamStatus>
 } SStreamHbMsg;
 
@@ -191,9 +195,75 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
 void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
 
 typedef struct {
-  SMsgHead head;
+
+} SStreamReaderDeployMsg;
+
+typedef struct {
+
+} SStreamTriggerDeployMsg;
+
+typedef struct {
+
+} SStreamRunnerDeployMsg;
+
+typedef union {
+  SStreamReaderDeployMsg  reader;
+  SStreamTriggerDeployMsg trigger;
+  SStreamRunnerDeployMsg  runner;
+} SStreamDeployTaskMsg;
+
+typedef struct {
+  SStreamTask          task;
+  SStreamDeployTaskMsg msg;
+} SStreamDeployTaskInfo;
+
+typedef struct {
+  int64_t streamId;
+  SArray* readerTasks;   // SArray<SStreamDeployTaskInfo>
+  SArray* triggerTasks;
+  SArray* runnerTasks;
+} SStreamTasksDeploy;
+
+typedef struct {
+  SArray* taskList;      // SArray<SStreamTasksDeploy>
+} SStreamDeployActions;
+
+typedef struct {
+  SStreamMsg  header;
+  
+} SStreamStartTaskMsg;
+
+typedef struct {
+  SStreamTask         task;
+  SStreamStartTaskMsg startMsg;
+} SStreamTasksStart;
+
+typedef struct {
+  SArray* taskList;      // SArray<SStreamTasksStart>
+} SStreamStartActions;
+
+typedef struct {
+  SStreamMsg  header;
+  
+} SStreamUndeployTaskMsg;
+
+typedef struct {
+  SStreamTask             task;
+  SStreamUndeployTaskMsg  undeployMsg;
+} SStreamTasksUndeploy;
+
+typedef struct {
+  bool    undeployAll;
+  SArray* taskList;      // SArray<SStreamTasksUndeploy>
+} SStreamUndeployActions;
+
+
+typedef struct {
   int32_t  msgId;
-  SEpSet   mndEpset;
+  SStreamDeployActions   deploy;
+  SStreamStartActions    start;
+  SStreamUndeployActions undeploy;
+  SArray*              nodesVerion;
 } SMStreamHbRspMsg;
 
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);

@@ -69,25 +69,42 @@ typedef struct SStreamActionQ {
 typedef struct SStreamTaskState {
   int64_t taskId;
   int32_t nodeId;
+  int16_t taskIdx;
   int64_t lastUpTs;
 } SStreamTaskState;
 
+typedef struct SStreamReaderTasksState {
+  SArray* vgList;   // SArray<SStreamTaskState>, triger and calc list
+} SStreamReaderTasksState;
+
 typedef struct SStreamTasksInfo {
-  SArray* readerTaskList;    // SArray<SStreamTaskState>
-  SArray* triggerTaskList;
-  SArray* runnerTaskList;
+  SArray* readerTaskList;        // SArray<SStreamReaderTasksState>
+  SArray* triggerTaskList;       // SArray<SStreamTaskState>
+  SArray* runnerTaskList;        // SArray<SStreamTaskState>
 } SStreamTasksInfo;
 
+typedef struct SStreamSnodeTasks {
+  SRWLatch lock;
+  SArray*  triggerTaskList;  // SArray<SStreamTaskState*>
+  SArray*  runnerTaskList;   // SArray<SStreamTaskState*>
+} SStreamSnodeTasks;
+
+typedef struct SStreamVgReaderTasks {
+  SRWLatch lock;
+  int64_t  streamVer;
+  SArray*  taskList;       // SArray<SStreamTaskState*>
+} SStreamVgReaderTasks;
 
 typedef struct SStreamRuntime {
   int32_t          qNum;
   SStreamActionQ*  actionQ;
 
-  SHashObj*        streamMap;
-  SHashObj*        taskMap;
-  SHashObj*        vgroupMap;
-  SHashObj*        snodeMap;
-  SHashObj*        dnodeMap;
+  int64_t          lastTaskId;
+  SHashObj*        streamMap;  // streamId => SStreamTasksInfo
+  SHashObj*        taskMap;    // streamId + taskId => SStreamTaskState*
+  SHashObj*        vgroupMap;  // vgId => SStreamVgReaderTasks (only reader tasks)
+  SHashObj*        snodeMap;   // snodeId => SStreamSnodeTasks (only trigger and runner tasks)
+  SHashObj*        dnodeMap;   // dnodeId => lastUpTs
   
   int32_t          role;
   bool             switchFromFollower;

@@ -3148,10 +3148,7 @@ typedef enum EStreamPlaceholder {
 } EStreamPlaceholder;
 
 typedef struct SStreamOutCol {
-  int16_t            slotId;
-  col_id_t           colId;
-  EStreamPlaceholder placeholder;
-  int8_t             type;
+  void*              expr;
 } SStreamOutCol;
 
 
@@ -3198,7 +3195,8 @@ typedef union {
 } SStreamTrigger;
 
 typedef struct {
-  SArray* vgList;
+  SArray* vgList; // vgId, SArray<int32>
+  int8_t  readFromCache;
   void*   scanPlan;
 } SStreamCalcScan;
 
