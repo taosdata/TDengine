@@ -1,11 +1,6 @@
 #!/bin/bash
 set -e 
 
-# NOTE: debug for the moment
-echo "================================="
-echo "gcc --version"
-gcc --version
-
 function usage() {
     echo "$0"
     echo -e "\t -w work dir"
@@ -59,7 +54,6 @@ else
     
 fi
 date 
-# NOTE: adding VERBOSE=1 for the moment
 docker run \
     -v $REP_MOUNT_PARAM \
     -v /root/.cargo/registry:/root/.cargo/registry \
@@ -87,7 +81,7 @@ docker run \
     -v ${REP_REAL_PATH}/community/contrib/pcre2/:${REP_DIR}/community/contrib/pcre2 \
     -v ${REP_REAL_PATH}/community/contrib/zlib/:${REP_DIR}/community/contrib/zlib \
     -v ${REP_REAL_PATH}/community/contrib/zstd/:${REP_DIR}/community/contrib/zstd \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR; rm -rf debug; mkdir -p debug; cd debug; cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=ON -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ;make VERBOSE=1 -j|| exit 1"
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR; rm -rf debug; mkdir -p debug; cd debug; cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=ON -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ;make -j|| exit 1"
  # -v ${REP_REAL_PATH}/community/contrib/jemalloc/:${REP_DIR}/community/contrib/jemalloc \
 
 if [[ -d ${WORKDIR}/debugNoSan  ]] ;then
@@ -111,7 +105,6 @@ fi
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan
 date
-# NOTE: adding VERBOSE=1 for the moment
 docker run \
     -v $REP_MOUNT_PARAM \
     -v /root/.cargo/registry:/root/.cargo/registry \
@@ -140,7 +133,7 @@ docker run \
     -v ${REP_REAL_PATH}/community/contrib/pcre2/:${REP_DIR}/community/contrib/pcre2 \
     -v ${REP_REAL_PATH}/community/contrib/zlib/:${REP_DIR}/community/contrib/zlib \
     -v ${REP_REAL_PATH}/community/contrib/zstd/:${REP_DIR}/community/contrib/zstd \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR; rm -rf debug; mkdir -p debug; cd debug; cmake .. -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DBUILD_TEST=ON -DWEBSOCKET=true -DBUILD_SANITIZER=1 -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=OFF; make VERBOSE=1 -j|| exit 1 "
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "cd $REP_DIR; rm -rf debug; mkdir -p debug; cd debug; cmake .. -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DBUILD_TEST=ON -DWEBSOCKET=true -DBUILD_SANITIZER=1 -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=OFF; make -j|| exit 1 "
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
 
