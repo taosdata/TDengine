@@ -1150,18 +1150,34 @@ mod tests {
         drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
         let _ = taos.exec("create database if not exists test_no_wal").await;
 
+        loop {
+            if taos.database_exists("test_no_wal").await.unwrap() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+
         // create a topic
         let _ = taos
             .exec("create topic if not exists test_no_wal with meta as database test_no_wal")
             .await;
+        loop {
+            let res: Option<String> =
+                taos.query_one(
+                    "select topic_name from information_schema.ins_topics where topic_name = \"test_no_wal\"",
+                )
+                    .await
+                    .unwrap();
+            if res.is_some() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
 
         // alter database to disable wal, there should be an error
         let alter_database_res = taos
             .exec("alter database test_no_wal wal_retention_period 0")
             .await;
-
-        // clear the test data
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
 
         // assert the result
         assert!(alter_database_res.is_err());
@@ -1169,6 +1185,9 @@ mod tests {
             alter_database_res.unwrap_err().to_string(),
             "[0x038C] Error while querying with sql \"alter database test_no_wal wal_retention_period 0\": Internal error: `WAL retention period is zero`"
         );
+
+        // clear the test data
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
     }
 
     /// Test `check_wal_enabled` function

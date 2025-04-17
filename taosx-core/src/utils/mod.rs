@@ -15,6 +15,7 @@ pub mod defer;
 pub mod dsn;
 pub mod duration;
 pub mod files;
+pub mod futs_helper;
 pub mod interval;
 pub mod license;
 pub mod log_cache;

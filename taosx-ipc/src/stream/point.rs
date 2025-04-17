@@ -16,7 +16,7 @@ pub struct PointMessage {
 }
 
 impl PointMessage {
-    pub(crate) fn new(records: Vec<RecordMessage>) -> Self {
+    pub fn new(records: Vec<RecordMessage>) -> Self {
         PointMessage { records }
     }
 

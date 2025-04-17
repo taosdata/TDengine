@@ -623,6 +623,31 @@ export default {
           max: 60
         },
         {
+          label: 'Cache Real-time Data',
+          field: 'persist_data_enable',
+          description:
+            'After it is enabled, when taosX experiences performance issues or the downstream TDengine has slow write speeds, it will temporarily store the real-time data. Once the situation recovers, it will write the cached data back to the downstream TDengine.\n',
+          defaultValue: false,
+          required: false,
+          hint: {
+            type: 'bool'
+          },
+          type: 'switch'
+        },
+        {
+          label: 'Cache Data Directory',
+          field: 'persist_data_dir',
+          description:
+            'The directory to store the cached data. The default value is `$DATA_DIR/tasks/:id/persist_queue/`.\n',
+          placeholder: '$DATA_DIR/tasks/:id/persist_queue/',
+          required: false,
+          type: 'input',
+          displayDependsOn: ['advanced_options/persist_data_enable'],
+          displayDependsOnValues: {
+            persist_data_enable: [true]
+          }
+        },
+        {
           label: 'Keep Raw Data',
           field: 'keep_raw_data',
           description: 'Whether to keep the raw data. If enabled, the raw data will be stored.\n',
@@ -646,7 +671,11 @@ export default {
           },
           type: 'number',
           min: 1,
-          max: 365
+          max: 365,
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: 'Raw Data Directory',
@@ -657,7 +686,11 @@ export default {
           hint: {
             type: 'str'
           },
-          type: 'input'
+          type: 'input',
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: 'Health Check Duration',

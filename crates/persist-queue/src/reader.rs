@@ -67,21 +67,49 @@ where
         // 初始化时先尝试清理数据
         self.reader.vacuum().await?;
 
+        let mut ticker = tokio::time::interval(self.vacuum_interval);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
         loop {
-            tokio::select! {
-                res = self.reader.read_util(1, self.batch_size, Some(self.vacuum_interval)) => {
-                    let entries = res?;
-                    if entries.is_empty() {
-                        self.reader.vacuum().await?;
-                        continue;
-                    }
-                    for entry in entries {
-                        if self.send_entry(entry, token.child_token()).await.is_break() {
-                            break;
+            #[cfg(unix)]
+            {
+                tokio::select! {
+                    res = self.reader.read_util(1, self.batch_size, Some(self.vacuum_interval)) => {
+                        let entries = res?;
+                        if entries.is_empty() {
+                            self.reader.vacuum().await?;
+                            continue;
                         }
+                        for entry in entries {
+                            if self.send_entry(entry, token.child_token()).await.is_break() {
+                                break;
+                            }
+                        }
+                    },
+                    _ = token.cancelled() => break
+                }
+            }
+            #[cfg(windows)]
+            {
+                if token.is_cancelled() {
+                    break;
+                }
+                let entries = self.reader.read(self.batch_size).await?;
+                if entries.is_empty() {
+                    tokio::select! {
+                        _ = tokio::time::sleep(Duration::from_millis(10)) => {},
+                        _ = ticker.tick() => {
+                            self.reader.vacuum().await?;
+                        }
+                        _ = token.cancelled() => break,
                     }
-                },
-                _ = token.cancelled() => break
+                    continue;
+                }
+                for entry in entries {
+                    if self.send_entry(entry, token.child_token()).await.is_break() {
+                        break;
+                    }
+                }
             }
         }
 

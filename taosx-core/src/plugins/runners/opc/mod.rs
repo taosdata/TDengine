@@ -4,6 +4,7 @@ use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::model::{ModelType, OpcModelConfig};
 use crate::runners::opc::point_updater::PointsUpdater;
 use crate::runners::{get_logs_home_dir, log_rotation, new_rolling_file_appender};
+use crate::sink::persist::PersistConfig;
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{build_ipc, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
@@ -13,6 +14,7 @@ use csv::CsvParser;
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
 use itertools::Itertools;
+use schema::get_schema_path;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs::File;
@@ -32,6 +34,7 @@ pub mod config;
 pub mod csv;
 pub mod model;
 mod point_updater;
+mod schema;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
@@ -164,6 +167,27 @@ pub async fn opc_to_taos(
     config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
     config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
 
+    let tid = task_id
+        .or(with_agent.as_ref().map(|a| a.0))
+        .context("task id not found")?;
+    let persist_config = config.collect.as_ref().and_then(|c| {
+        c.persist_data.as_ref().map(|c| PersistConfig {
+            record_metrics: false,
+            schemas: get_schema_path(c.dir.clone().unwrap_or_else(|| {
+                get_data_dir()
+                    .join("tasks")
+                    .join(tid.to_string())
+                    .join("persist_queue")
+            })),
+            batch_size: config.report.batch_size.map(|v| v as _),
+            batch_timeout: config
+                .report
+                .batch_timeout
+                .map(|v| std::time::Duration::from_secs(v as u64)),
+            batch_chunk_size: None,
+        })
+    });
+
     // create IPC handler
     let connector = match config.opc_type {
         OpcType::OPCUA => Some("opc_ua"),
@@ -182,7 +206,7 @@ pub async fn opc_to_taos(
         transferred,
         task_id,
         notify,
-        None,
+        persist_config,
     )
     .await?;
 
