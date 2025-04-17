@@ -3834,29 +3834,28 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           } else {
             BLOCK_DATA_CHECK_TRESSA(colLen >= VARSTR_HEADER_SIZE);
           }
-        }
-
-        if (pCol->reassigned) {
-          BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
+          if (pCol->reassigned) {
+            BLOCK_DATA_CHECK_TRESSA((pCol->varmeta.offset[r] + colLen) <= pCol->varmeta.length);
+          } else {
+            nextPos += colLen;
+            BLOCK_DATA_CHECK_TRESSA(nextPos <= pCol->varmeta.length);
+          }
+          typeValue = *(char*)(pCol->pData + pCol->varmeta.offset[r] + colLen - 1);
         } else {
-          nextPos += colLen;
-          BLOCK_DATA_CHECK_TRESSA(nextPos <= pCol->varmeta.length);
-        }
-
-        typeValue = *(char*)(pCol->pData + pCol->varmeta.offset[r] + colLen - 1);
-      } else {
-        if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
-          float v = 0;
-          GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
-        } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
-          double v = 0;
-          GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r),
-                         typeGetTypeModFromColInfo(&pCol->info));
-        } else if (IS_DECIMAL_TYPE(pCol->info.type)) {
-          // SKIP for decimal types
-        } else {
-          GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r),
-                         typeGetTypeModFromColInfo(&pCol->info));
+          if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
+            float v = 0;
+            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r),
+                           typeGetTypeModFromColInfo(&pCol->info));
+          } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
+            double v = 0;
+            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r),
+                           typeGetTypeModFromColInfo(&pCol->info));
+          } else if (IS_DECIMAL_TYPE(pCol->info.type)) {
+            // SKIP for decimal types
+          } else {
+            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r),
+                           typeGetTypeModFromColInfo(&pCol->info));
+          }
         }
       }
     }
