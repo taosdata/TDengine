@@ -1468,7 +1468,6 @@ END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
   if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
-  taosMemoryFreeClear(oStbEntry.pExtSchemas);
   tDecoderClear(&dc);
   tdbFree(pData);
 
