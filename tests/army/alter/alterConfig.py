@@ -185,6 +185,7 @@ class TDTestCase(TBase):
     def alter_timezone_case(self):
         tdSql.execute("alter local 'timezone UTC'")
         tdSql.execute("alter all dnodes 'timezone UTC'")
+        # forbidden to alter one dnode timezone
         tdSql.error("alter dnode 1 'timezone UTC'")
         
         tdSql.query("show local variables like 'timezone'")

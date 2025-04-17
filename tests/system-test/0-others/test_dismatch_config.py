@@ -26,16 +26,20 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
     def update_cfg_success(self):
+        tdLog.info("start to update cfg")
         tdDnodes.stop(1)
         tdDnodes.cfg(1, 'timezone', 'UTC')
         tdDnodes.cfg(1, 'arbSetAssignedTimeoutSec', '17')
         tdDnodes.cfg(1, 'rpcQueueMemoryAllowed', '20971520')
         tdDnodes.start(1)
         time.sleep(10)
+        # global cfg use values from cluster
         tdSql.query("show dnode 1 variables like 'timezone'")
         tdSql.checkData(0, 2, "Asia/Shanghai (CST, +0800)")
         tdSql.query("show dnode 1 variables like 'arbSetAssignedTimeoutSec'")
         tdSql.checkData(0, 2, "10")
+
+        # dnode local cfg use values from cfg file while forceReadConfig is 1
         tdSql.query("show dnode 1 variables like 'rpcQueueMemoryAllowed'")
         tdSql.checkData(0, 2, "20971520")
 

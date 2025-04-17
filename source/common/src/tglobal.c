@@ -2458,7 +2458,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   int32_t lino = -1;
 
   if (strcasecmp("timezone", name) == 0) {
-    goto _exit;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   if (strcasecmp(name, "resetlog") == 0) {
@@ -2642,7 +2642,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t lino = 0;
 
   if (strcasecmp("charset", name) == 0 || strcasecmp("timezone", name) == 0) {
-    goto _out;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   cfgLock(pCfg);
