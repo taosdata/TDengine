@@ -4413,6 +4413,10 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode* pCol = (SColumnNode*)pParam;
         if (COLUMN_TYPE_COLUMN == pCol->colType && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+          if(pCol->node.relatedTo > 0) 
+          { // select cols(last_row(ts), ts, c0), min(c0) from st; c0 is not pk col or cache col
+            return false;
+          }
           if (selectNonPKColId != pCol->colId) {
             selectNonPKColId = pCol->colId;
             selectNonPKColNum++;
@@ -4607,13 +4611,13 @@ static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pCo
 }
 
 static EDealRes doRewriteLastScanTargets(SNode* pNode, void* pContext) {
-  const static int8_t releatedLen = 8;
+  #define RELEATED_LEN 8
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     int32_t releatedTo = ((SColumnNode*)pNode)->node.relatedTo;
     if (releatedTo == 0) {
       return DEAL_RES_IGNORE_CHILD;
     }
-    char relatedToStr[releatedLen];
+    char relatedToStr[RELEATED_LEN];
     snprintf(relatedToStr, sizeof(relatedToStr), ".%d", releatedTo);
 
     SNodeList* pTaragetList = *(SNodeList**)pContext;
@@ -4655,6 +4659,18 @@ static int32_t rewriteLastScanTargets(SNodeList* pAggFuncs, SNodeList** ppLastSc
     FOREACH(pParam, pFunc->pParameterList) { nodesWalkExpr(pParam, doRewriteLastScanTargets, ppLastScanTargets); }
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static void rewriteLastScanCols(SNodeList* pLastScanCols) {
+  SNode* pCol = NULL;
+  FOREACH(pCol, pLastScanCols) {
+    if (nodeType(pCol) == QUERY_NODE_COLUMN) {
+      SColumnNode* pColNode = (SColumnNode*)pCol;
+      if (pColNode->node.relatedTo > 0) {
+        pColNode->node.bindExprID = pColNode->node.relatedTo;
+      }
+    }
+  }
 }
 
 static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -4885,6 +4901,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   }
 
   rewriteLastScanTargets(pAgg->pAggFuncs, &pScan->node.pTargets);
+  rewriteLastScanCols(pScan->pScanCols);
 
   nodesClearList(cxt.pOtherCols);
 

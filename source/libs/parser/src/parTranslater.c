@@ -17,6 +17,7 @@
 #include "parInt.h"
 #include "parTranslater.h"
 #include <stdint.h>
+#include <time.h>
 #include "query.h"
 #include "querynodes.h"
 #include "taoserror.h"
@@ -32,6 +33,7 @@
 #include "tanalytics.h"
 #include "tcol.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "ttime.h"
 #include "decimal.h"
 
@@ -7941,16 +7943,65 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t getSelectFuncIndex(SNodeList* FuncNodeList, SNode* pSelectFunc) {
-  SNode* pNode = NULL;
+typedef struct SSlectFucnColCtx {
+  SColumnNode* pNode;
+  int32_t      num;
+} SSlectFucnColCtx;
+
+static EDealRes checkFuncCols(SNode** pNode, void* pContext) {
+  SSlectFucnColCtx* pCxt = (SSlectFucnColCtx*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    pCxt->num++;
+    if (pCxt->num > 1) {
+      return DEAL_RES_ERROR;
+    }
+    pCxt->pNode = (SColumnNode*)*pNode;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t getSelectFuncNodeCol(SFunctionNode* pFunc, SColumnNode** ppNode) {
+  SSlectFucnColCtx ctx = {0};
+  nodesRewriteExpr((SNode**)&pFunc, checkFuncCols, (void*)&ctx);
+  if (ctx.num != 1) {
+    return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+  } else {
+    *ppNode = ctx.pNode;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getSelectFuncIndex(SNodeList* FuncNodeList, SNode* pSelectFunc, int32_t* pSelectFuncIndex) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  *pSelectFuncIndex = 0;
+
+  SColumnNode* pColR = NULL;
+  code = getSelectFuncNodeCol((SFunctionNode*)pSelectFunc, &pColR);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SNode*  pNode = NULL;
   int32_t selectFuncIndex = 0;
   FOREACH(pNode, FuncNodeList) {
     ++selectFuncIndex;
-    if (nodesEqualNode(pNode, pSelectFunc)) {
-      return selectFuncIndex;
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SFunctionNode* pSelect = (SFunctionNode*)pSelectFunc;
+    SColumnNode*   pColL = NULL;
+    if (strcasecmp(pFunc->functionName, pSelect->functionName) == 0) {
+      code = getSelectFuncNodeCol(pFunc, &pColL);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    } else {
+      continue;
+    }
+    if (strcasecmp(pColL->colName, pColR->colName) == 0) {
+      *pSelectFuncIndex = selectFuncIndex;
+      return TSDB_CODE_SUCCESS;
     }
   }
-  return 0;
+
+  return code;
 }
 
 static EDealRes checkHasColsFunc(SNode** pNode, void* pContext){
@@ -8073,7 +8124,12 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
        }
     }
     int32_t selectFuncCount = (*pCxt->selectFuncList)->length;
-    int32_t selectFuncIndex = getSelectFuncIndex(*pCxt->selectFuncList, pSelectFunc);
+    int32_t selectFuncIndex = 0;
+    code = getSelectFuncIndex(*pCxt->selectFuncList, pSelectFunc, &selectFuncIndex);
+    if (TSDB_CODE_SUCCESS != code) {
+      pCxt->status = code;
+      return DEAL_RES_ERROR;
+    }
     if (selectFuncIndex == 0) {
       ++selectFuncCount;
       selectFuncIndex = selectFuncCount;
@@ -8177,7 +8233,11 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
           parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
           goto _end;
         }
-        int32_t selectFuncIndex = getSelectFuncIndex(*selectFuncList, pSelectFunc);
+        int32_t selectFuncIndex = 0;
+        code = getSelectFuncIndex(*selectFuncList, pSelectFunc, &selectFuncIndex);
+        if (TSDB_CODE_SUCCESS != code) {
+          goto _end;
+        }
         if (selectFuncIndex == 0) {
           ++selectFuncCount;
           selectFuncIndex = selectFuncCount;
