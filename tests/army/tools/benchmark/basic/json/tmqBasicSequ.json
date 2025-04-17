@@ -18,7 +18,6 @@
         "auto.offset.reset": "earliest",
         "enable.auto.commit": "true",
         "auto.commit.interval.ms": 1000,
-        "enable.heartbeat.background": "true",
         "experimental.snapshot.enable": "true",
         "msg.with.table.name": "false",
         "rows_file": "./rows_file_sequ",
