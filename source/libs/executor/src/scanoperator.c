@@ -4105,9 +4105,11 @@ FETCH_NEXT_BLOCK:
             code = checkUpdateData(pInfo, true, pSDB, false);
             QUERY_CHECK_CODE(code, lino, _end);
           }
-          printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
+
           code = calBlockTbName(pInfo, pSDB, 0);
           QUERY_CHECK_CODE(code, lino, _end);
+
+          printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
 
           if (pInfo->pCreateTbRes->info.rows > 0) {
             printSpecDataBlock(pInfo->pCreateTbRes, getStreamOpName(pOperator->operatorType), "update",

@@ -1268,6 +1268,8 @@ void doBuildForceFillResult(SOperatorInfo* pOperator, SStreamFillSupporter* pFil
 
   // clear the existed group id
   pBlock->info.id.groupId = 0;
+  memset(pBlock->info.parTbName, tListLen(pBlock->info.parTbName), 0);
+
   doBuildForceFillResultImpl(pOperator, pFillSup, pFillInfo, pBlock, pGroupResInfo);
 }
 
