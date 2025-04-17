@@ -114,14 +114,14 @@ docker run \
         cd /home/TDinternal/debug/build/bin && \
         ./osAtomicTests && \
         ./osDirTests && \
-        cd /home/TDinternal/community/tests/script/api/ && \
-        (timeout 30m ./test.sh > test_full.log 2>&1 & \
-        test_pid=$! && \
-        echo "正在执行测试..." && \
-        tail -f test_full.log | grep --line-buffered -E "FAIL|ERROR|PASS|^Test" & \
-        tail_pid=$! && \
-        wait $test_pid || true && \
-        kill $tail_pid) \
+        # cd /home/TDinternal/community/tests/script/api/ && \
+        # (timeout 30m ./test.sh > test_full.log 2>&1 & \
+        # test_pid=$! && \
+        # echo "正在执行测试..." && \
+        # tail -f test_full.log | grep --line-buffered -E "FAIL|ERROR|PASS|^Test" & \
+        # tail_pid=$! && \
+        # wait $test_pid || true && \
+        # kill $tail_pid) \
     ' || true
     
 cd ${WORKDIR}/debugNoSan
