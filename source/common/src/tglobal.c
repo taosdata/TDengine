@@ -2285,16 +2285,16 @@ int32_t tryLoadCfgFromDataDir(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
   TAOS_CHECK_GET_CFG_ITEM(tsCfg, pItem, "forceReadConfig");
   tsForceReadConfig = pItem->i32;
+  code = readCfgFile(tsDataDir, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   if (!tsForceReadConfig) {
     uInfo("load config from tsDataDir:%s", tsDataDir);
     code = readCfgFile(tsDataDir, false);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to read local config from %s since %s", tsDataDir, tstrerror(code));
-      TAOS_RETURN(code);
-    }
-    code = readCfgFile(tsDataDir, true);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
       TAOS_RETURN(code);
     }
   }
