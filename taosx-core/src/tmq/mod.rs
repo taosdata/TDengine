@@ -1120,13 +1120,15 @@ mod tests {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+        const DB_NAME: &str = "create_topic_no_wal";
+
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
 
         // create database without wal, then create a topic
         let res = taos
             .exec_many(vec![
-                "create database if not exists test_no_wal WAL_RETENTION_PERIOD 0",
-                "create topic if not exists test_no_wal with meta as database test_no_wal",
+                format!("create database if not exists {DB_NAME} WAL_RETENTION_PERIOD 0"),
+                format!("create topic if not exists {DB_NAME} with meta as database {DB_NAME}"),
             ])
             .await;
 
@@ -1137,7 +1139,7 @@ mod tests {
             .contains("WAL retention period is zero"));
 
         // clean
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
     }
 
     #[tokio::test]
@@ -1145,12 +1147,16 @@ mod tests {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 
+        const DB_NAME: &str = "alter_database_no_wal";
+
         // create a database, drop it first if exists
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
-        let _ = taos.exec("create database if not exists test_no_wal").await;
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
+        let _ = taos
+            .exec(format!("create database if not exists {DB_NAME}"))
+            .await;
 
         loop {
-            if taos.database_exists("test_no_wal").await.unwrap() {
+            if taos.database_exists(DB_NAME).await.unwrap() {
                 break;
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -1158,13 +1164,13 @@ mod tests {
 
         // create a topic
         let _ = taos
-            .exec("create topic if not exists test_no_wal with meta as database test_no_wal")
+            .exec(format!(
+                "create topic if not exists {DB_NAME} with meta as database {DB_NAME}"
+            ))
             .await;
         loop {
             let res: Option<String> =
-                taos.query_one(
-                    "select topic_name from information_schema.ins_topics where topic_name = \"test_no_wal\"",
-                )
+                taos.query_one(format!("select topic_name from information_schema.ins_topics where topic_name = '{DB_NAME}'"))
                     .await
                     .unwrap();
             if res.is_some() {
@@ -1175,18 +1181,18 @@ mod tests {
 
         // alter database to disable wal, there should be an error
         let alter_database_res = taos
-            .exec("alter database test_no_wal wal_retention_period 0")
+            .exec(format!("alter database {DB_NAME} wal_retention_period 0"))
             .await;
 
         // assert the result
         assert!(alter_database_res.is_err());
-        assert_eq!(
-            alter_database_res.unwrap_err().to_string(),
-            "[0x038C] Error while querying with sql \"alter database test_no_wal wal_retention_period 0\": Internal error: `WAL retention period is zero`"
-        );
+        assert!(alter_database_res
+            .unwrap_err()
+            .to_string()
+            .contains("WAL retention period is zero"));
 
         // clear the test data
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
     }
 
     /// Test `check_wal_enabled` function
@@ -1197,22 +1203,25 @@ mod tests {
     async fn test_check_wal_enabled_with_taos() {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
+        const DB_NAME: &str = "check_wal_enabled";
 
         // create a database, drop it first if exists
-        drop_topic_and_database(&taos, "test_with_wal", "test_with_wal").await;
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
         let _ = taos
-            .exec("create database if not exists test_with_wal")
+            .exec(format!("create database if not exists {DB_NAME}"))
             .await;
 
         // create a topic
         let _ = taos
-            .exec("create topic if not exists test_with_wal with meta as database test_with_wal")
+            .exec(format!(
+                "create topic if not exists {DB_NAME} with meta as database {DB_NAME}"
+            ))
             .await;
 
         // check if wal is enabled
         let topics = vec![Topic {
-            name: "test_with_wal".to_string(),
-            database: "test_with_wal".to_string(),
+            name: DB_NAME.to_string(),
+            database: DB_NAME.to_string(),
             database_sql: None,
             vgroups: 2,
             table: None,
@@ -1221,10 +1230,10 @@ mod tests {
         }];
         let res = check_wal_enabled(&taos_builder, &topics).await;
 
-        // clear the test data
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
-
         // assert the result
         assert!(res.is_ok());
+
+        // clear the test data
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
     }
 }
