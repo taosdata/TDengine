@@ -118,6 +118,9 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
 
+typedef int32_t  VarDataOffsetT;
+typedef uint32_t BlobDataLenT;  // maxVarDataLen: 2^32 - 1
+#define BLOBSTR_HEADER_SIZE     sizeof(BlobDataLenT)
 #define blobDataTLen(v)         (sizeof(BlobDataLenT) + blobDataLen(v))
 #define blobDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), blobDataTLen(v))
 #define blobDataLenByData(v)    (*(BlobDataLenT *)(((char *)(v)) - BLOBSTR_HEADER_SIZE))
