@@ -206,16 +206,14 @@ char *strendG(const char *pstr) {
     return NULL;
   }
 
-  char *p = (char *)pstr + len - 2;
-  if (strcmp(p, "\\G") == 0) {
-    return p;
+  for (int i = len - 1; i > 1; i--) {
+    if (pstr[i] != ';' && pstr[i] != ' ' && pstr[i] != '\t') {
+        if (pstr[i] == 'G' && pstr[i - 1] == '\\') {
+          return (char *)pstr + (i - 1);
+        }
+        return NULL;
+    }
   }
-
-  p = (char *)pstr + len - 3;
-  if (strcmp(p, "\\G;") == 0) {
-    return p;
-  }
-
   return NULL;
 }
 
