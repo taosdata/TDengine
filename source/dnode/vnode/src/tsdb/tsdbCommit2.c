@@ -129,6 +129,10 @@ static int32_t tsdbCommitMetaData(SCommitter2 *committer) {
     code = metaEntryIterNext(&iter, &pEntry);
     TSDB_CHECK_CODE(code, lino, _exit);
 
+    if (pEntry == NULL) {
+      break;
+    }
+
     // Commit the entry
     code = tsdbFSetWriteMetaEntry(committer->writer, pEntry);
     TSDB_CHECK_CODE(code, lino, _exit);

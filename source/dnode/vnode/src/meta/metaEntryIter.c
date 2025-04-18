@@ -76,7 +76,7 @@ int32_t metaEntryIterOpen(SMeta *pMeta, int64_t startVersion, int64_t endVersion
     goto _exit;
   }
 
-  if (c < 0 && tdbTbcMoveToNext(iter->impl->pTbc) != 0) {
+  if (c > 0 && tdbTbcMoveToNext(iter->impl->pTbc) != 0) {
     iter->impl->isEnd = true;
   }
 
@@ -97,9 +97,12 @@ int32_t metaEntryIterNext(SMetaEntryIter *iter, SMetaEntryWrapper **ppEntry) {
   }
 
   // Fetch the next entry
-  code =
-      tdbTbcGet(iter->impl->pTbc, &iter->impl->pKey, &iter->impl->keySize, &iter->impl->pValue, &iter->impl->valueSize);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (tdbTbcGet(iter->impl->pTbc, &iter->impl->pKey, &iter->impl->keySize, &iter->impl->pValue,
+                &iter->impl->valueSize) != 0) {
+    iter->impl->isEnd = true;
+    *ppEntry = NULL;
+    goto _exit;
+  }
 
   // Check if the entry is valid
   STbDbKey *pKey = (STbDbKey *)iter->impl->pKey;
@@ -131,9 +134,7 @@ int32_t metaEntryIterNext(SMetaEntryIter *iter, SMetaEntryWrapper **ppEntry) {
   tDecoderClear(&decoder);
 
   // Move the cursor to the next entry
-  if (tdbTbcMoveToNext(iter->impl->pTbc) != 0) {
-    iter->impl->isEnd = true;
-  }
+  (void)tdbTbcMoveToNext(iter->impl->pTbc);
 
   *ppEntry = &iter->impl->entry;
 
