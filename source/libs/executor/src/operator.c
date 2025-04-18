@@ -283,7 +283,10 @@ static ERetType doClearTbNameHashPtr(SOperatorInfo* pOperator, STraverParam* pPa
   SStorageAPI* pAPI = pParam->pParam;
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL) {
     SStreamFillOperatorInfo* pInfo = pOperator->info;
-    pInfo->pState->parNameMap = NULL;
+    if (pInfo->pState != NULL) {
+      pInfo->pState->parNameMap = NULL;
+    }
+
     qDebug("%s clear the parNameMap for fill operator", pIdStr);
     return OPTR_FN_RET_ABORT;
   }
