@@ -74,7 +74,10 @@ EOF
 
     # remove exclude paths (确保只保留 community 相关的文件)
     lcov --quiet --remove coverage_taostools.info \
-        '*/enterprise/*' '*/contrib/*' '*/test/*' '*/packaging/*' '*/docs/*' '*/debug/*' '*/sql.c' '*/sql.y'\
+        '*/enterprise/*' '*/contrib/*' '*/test/*' '*/packaging/*' '*/docs/*' '*/debug/*' '*/sql.c' '*/sql.y' \
+        '*/source/*' \
+        '*/include/*' \
+        '*/tools/src/*' \
         '*/taos-tools/deps/*' '*/taosadapter/*' '*/TSZ/*' \
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c' '/*/enterprise/*' '*/docs/*' '*/sim/*'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
