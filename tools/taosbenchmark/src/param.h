@@ -16,6 +16,7 @@ using json = nlohmann::json;
 struct ColumnMeta;
 struct TagMeta;
 struct DatabaseMeta;
+struct TaskMeta;
 class ParameterContext;
 
 // Parameter value type definition

@@ -734,3 +734,38 @@ int main(int argc, char* argv[]) {
     // 进入运行阶段...
 }
 
+
+// 参数上下文增强方法
+class ParameterContext {
+public:
+    template<typename T>
+    T parse_object(const std::string& json_path) const {
+        const json& j = get_json_value(json_path);
+        return parse_from_json<T>(j);
+    }
+
+    std::vector<DatabaseMeta> get_databases() const {
+        return parse_object<std::vector<DatabaseMeta>>("databases");
+    }
+};
+
+// 数据库元数据解析
+DatabaseMeta parse_from_json(const json& j) {
+    DatabaseMeta db;
+    db.dbinfo.name = j["dbinfo"]["name"];
+    db.dbinfo.vgroups = j["dbinfo"]["vgroups"];
+    
+    for (const auto& stb_j : j["super_tables"]) {
+        SuperTableMeta stb;
+        stb.name = stb_j["name"];
+        stb.childtable_count = stb_j["childtable_count"];
+        // 解析列和标签...
+        db.super_tables.push_back(stb);
+    }
+    return db;
+}
+
+
+ParameterContext params;
+params.merge_json_file("config.json");
+params.merge_commandline(argc, argv);
