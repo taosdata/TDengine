@@ -114,6 +114,8 @@ docker run \
         cd /home/TDinternal/debug/build/bin && \
         ./osAtomicTests && \
         ./osDirTests && \
+    ' || true
+
         # cd /home/TDinternal/community/tests/script/api/ && \
         # (timeout 30m ./test.sh > test_full.log 2>&1 & \
         # test_pid=$! && \
@@ -122,7 +124,6 @@ docker run \
         # tail_pid=$! && \
         # wait $test_pid || true && \
         # kill $tail_pid) \
-    ' || true
     
 cd ${WORKDIR}/debugNoSan
 if ls -lR ${WORKDIR}/debugNoSan | grep '\.gcda$'; then
