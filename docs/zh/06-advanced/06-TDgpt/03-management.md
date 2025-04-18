@@ -42,7 +42,7 @@ stop-timer-moe
 
 | 目录/文件                              | 说明                                              |
 | ---------------------------------- |-------------------------------------------------|
-| /usr/local/taos/taosanode/bin      | 可执行文件(脚本)目录                                     |
+| /usr/local/taos/taosanode/bin      | 可执行文件 (脚本) 目录                                   |
 | /usr/local/taos/taosanode/resource | 资源文件目录，链接到文件夹 /var/lib/taos/taosanode/resource/ |
 | /usr/local/taos/taosanode/lib      | 库文件目录                                           |
 | /usr/local/taos/taosanode/model/   | 模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model     |

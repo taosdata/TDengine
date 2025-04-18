@@ -188,6 +188,10 @@ bool taosAnalyGetOptStr(const char *option, const char *optName, char *optValue,
   SHashObj* p = NULL;
   int32_t code = taosAnalyGetOpts(option, &p);
   if (code != TSDB_CODE_SUCCESS) {
+    if (p != NULL) {
+      taosHashCleanup(p);
+      p = NULL;
+    }
     return false;
   }
 
@@ -881,7 +885,7 @@ int32_t taosAnalysisParseAlgo(const char *pOpt, char *pAlgoName, char *pUrl, int
   return 0;
 }
 
-int32_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) { return 0;}
+int8_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) { return 0;}
 int32_t taosAnalyGetOpts(const char *pOption, SHashObj **pOptHash) { return 0;}
 
 #endif

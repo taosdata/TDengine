@@ -462,6 +462,8 @@ TEST(testCase, var_dataBlock_split_test) {
 
     startIndex = stopIndex + 1;
   }
+
+  blockDataDestroy(b);
 }
 
 void check_tm(const STm* tm, int32_t y, int32_t mon, int32_t d, int32_t h, int32_t m, int32_t s, int64_t fsec) {
@@ -938,10 +940,17 @@ TEST(testCase, function_param_check) {
     EXPECT_TRUE(pVal == NULL);
 
     pVal = taosHashGet(p, "frows", strlen("frows"));
-    EXPECT_STREQ((char*) pVal, "12");
+
+    char* pStr = taosStrndup((const char*) pVal, taosHashGetValueSize(pVal));
+    EXPECT_STREQ(pStr, "12");
+
+    taosMemoryFree(pStr);
 
     pVal = taosHashGet(p, "algorithm", strlen("algorithm"));
-    EXPECT_STREQ((char*) pVal, "arima");
+    pStr = taosStrndup((const char*) pVal, taosHashGetValueSize(pVal));
+    EXPECT_STREQ(pStr, "arima");
+
+    taosMemoryFree(pStr);
   }
 
   taosHashCleanup(p);
@@ -986,7 +995,10 @@ TEST(testCase, function_param_check) {
     EXPECT_EQ(taosHashGetSize(p), 1);
 
     void* pVal = taosHashGet(p, "d", strlen("d"));
-    EXPECT_STREQ((char*) pVal, "12");
+    char* pStr = taosStrndup((const char*) pVal, taosHashGetValueSize(pVal));
+
+    EXPECT_STREQ(pStr, "12");
+    taosMemoryFree(pStr);
   }
 
   taosHashCleanup(p);
@@ -995,14 +1007,19 @@ TEST(testCase, function_param_check) {
   strcpy(param, "\" a, b, c, d = , c = 911 \"");
   code = taosAnalyGetOpts(param, &p);
   if (code == TSDB_CODE_SUCCESS) {
-    EXPECT_EQ(taosHashGetSize(p), 1);
+    EXPECT_EQ(taosHashGetSize(p), 2);
 
-    void* pVal = taosHashGet(p, "d", strlen("d"));
-    EXPECT_STREQ((char*) pVal, "12");
+    void* pVal = taosHashGet(p, "c", strlen("c"));
+    char* pStr = taosStrndup((const char*) pVal, taosHashGetValueSize(pVal));
+
+    EXPECT_STREQ((char*) pStr, "911");
+    taosMemoryFree(pStr);
   }
 
   taosHashCleanup(p);
   p = NULL;
+
+  taosMemoryFree(param);
 }
 
 #pragma GCC diagnostic pop

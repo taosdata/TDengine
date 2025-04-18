@@ -97,14 +97,14 @@ taos> select _flow, _fhigh, _frowts, forecast(val) from foo;
 
 ## 单变量分析预测与协变量分析预测
 
-TDgpt 支持单变量分析预测 (single-variable forecasting) 。 3.3.6.4 版本以后支持历史协变量分析预测 (co-variate forecasting) ，
+TDgpt 支持单变量分析预测 (single-variable forecasting) 。3.3.6.4 版本以后支持历史协变量分析预测 (co-variate forecasting) ，
 暂不支持**未来协变量**和**静态协变量**。协变量分析预测只能在使用 moirai 时序基础模型的时候能够调用，因此您需要首先部署 moirai 时序
-基础模型服务。后续我们将提供其他时序基础模型（例如 timesfm ）的协变量查询能力支持。
+基础模型服务。后续我们将提供其他时序基础模型（例如 timesfm）的协变量查询能力支持。
 
 调用协变量分析非常简单，使用如下语句即可调用协变量预测分析服务 (以下语句只能在 3.3.6.4 及以后的版本运行)。
 
 ```sql
----- 第一个列固定为主变量, 之后的列均为历史协变量, 调用 moirai 基础时序模型
+---- 第一个列固定为主变量，之后的列均为历史协变量，调用 moirai 基础时序模型
 select _frowts, forecast(val, post_co_val, 'algo=moirai') from foo;
 ```
 

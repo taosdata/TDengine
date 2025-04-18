@@ -123,7 +123,7 @@ jobs:
 
       - name: Run tests with taosBenchmark
         run: |
-          taosBenchmark -t 10 -n 10 -y 
+          taosBenchmark -t 10 -n 10 -s 1744951233012 -y 
           taos -s "select count(*) from test.meters"
 
       - name: Clean up

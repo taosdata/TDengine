@@ -977,7 +977,9 @@ static int32_t stmtResetStmtForPrepare(STscStmt2* pStmt) {
 
   if (pStmt->sql.fixValueTags) {
     tdDestroySVCreateTbReq(pStmt->sql.fixValueTbReq);
+    pStmt->sql.fixValueTbReq = NULL;
   }
+  pStmt->sql.fixValueTags = false;
 
   void* pIter = taosHashIterate(pStmt->sql.pTableCache, NULL);
   while (pIter) {

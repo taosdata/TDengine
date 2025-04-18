@@ -6,7 +6,7 @@ sidebar_label: "部署时序基础模型"
 由众多研究机构及企业开源时序基础模型极大地简化了时序数据分析的复杂程度，在数据分析算法、机器学习和深度学习模型之外，
 提供了一个时间序列数据高级分析的新选择。本章介绍部署并使用开源时序基础模型（Time Series Foundation Model, TSFM）。
 
-TDgpt 在 3.3.6.4 版本原生支持五种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm 。
+TDgpt 在 3.3.6.4 版本原生支持五种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm。
 在官方的安装包中，内置了 TDtsfm 和 time-moe 两个时序模型，如果使用其他的模型，需要您在本地部署服务。部署其他时序基础模型服务的文件，位于
 `< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含四个文件，分别用于本地部署启动对应的时序基础模型。
 
@@ -124,12 +124,12 @@ class _TimeMOEService(TsfmBaseService):
             self.service_host = 'http://127.0.0.1:5001/timemoe'
 
     def execute(self):
-        # 检查是否支持历史协变量分析，如果不支持，触发异常。 time-moe不支持历史协变量分析，因此触发异常
+        # 检查是否支持历史协变量分析，如果不支持，触发异常。time-moe 不支持历史协变量分析，因此触发异常
         if len(self.past_dynamic_real):
             raise ValueError("covariate forecast is not supported yet")
 
         # 调用父类的 execute 方法
-        super().execute()
+        return super().execute()
 ```
 
 将代码添加到 `/usr/local/taos/taosanode/lib/taosanalytics/algo/fc` 目录下。您可以在该路径下找到 `timemoe.py` 的文件，该文件即为系统内置的支持 `Time-MoE` 的适配文件。

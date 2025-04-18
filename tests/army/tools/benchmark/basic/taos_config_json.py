@@ -10,38 +10,45 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-import os
-import json
+
+import sys
+import time
+import random
+
+import taos
 import frame
 import frame.etool
+import json
+import threading
+
 from frame.log import *
 from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame import *
-
+from frame.autogen import *
+from frame.srvCtl import *
 
 class TDTestCase(TBase):
-    def caseDescription(self):
-        """
-        taosBenchmark insert->BindVGroup test cases
-        """
+    updatecfgDict = {
+        'slowLogScope' : "others"
+    }
 
-    # bugs ts
-    def checkBasic(self):
-        # thread equal vgroups
-        self.insertBenchJson("./tools/benchmark/basic/json/insertBindVGroup.json", "-g", True)
-        # thread is limited
-        self.insertBenchJson("./tools/benchmark/basic/json/insertBindVGroup.json", "-T 2", True)
-
+    def init(self, conn, logSql, replicaVar=1):
+        tdLog.info(f"start to init {__file__}")
+        self.replicaVar = int(replicaVar)
+        tdSql.init(conn.cursor(), logSql)  
+        
+    # run
     def run(self):
-        # basic
-        self.checkBasic()
-        # advance
+        tdLog.info(f"start to excute {__file__}")
+        cmd = "-f ./tools/benchmark/basic/json/taos_config.json"
+        rlist = self.benchmark(cmd, checkRun=True)
+        self.checkListString(rlist, "Set engine cfgdir successfully, dir:./tools/benchmark/basic/config")
 
     def stop(self):
         tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success(f"{__file__} successfully executed")
 
 
 tdCases.addWindows(__file__, TDTestCase())
