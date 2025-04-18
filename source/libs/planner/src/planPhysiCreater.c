@@ -979,6 +979,23 @@ static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                    SPhysiNode** pPhyNode) {
   pCxt->hasScan = true;
+  if (pCxt->pPlanCxt->streamTriggerQuery) {
+    pCxt->pPlanCxt->streamTriggerScanSubplan = (SNode*)pSubplan;
+  }
+  if (pCxt->pPlanCxt->streamCalcQuery) {
+    SStreamCalcScan pStreamCalcScan = {0};
+    pStreamCalcScan.vgList = taosArrayInit(1, sizeof(int32_t));
+    SVgroupsInfo *info = pScanLogicNode->pVgroupList;
+    for (int32_t i = 0; i < info->numOfVgroups; i++) {
+      taosArrayPush(pStreamCalcScan.vgList, &info->vgroups[i].vgId);
+    }
+    pStreamCalcScan.scanPlan = (void*)pSubplan;
+    taosArrayPush(pCxt->pPlanCxt->pStreamCalcVgArray, &pStreamCalcScan);
+    if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {
+      pSubplan->scanUseCache = true;
+    }
+  }
+
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
       return createTagScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
@@ -2232,8 +2249,7 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                          SInterpFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
   SInterpFuncPhysiNode* pInterpFunc = (SInterpFuncPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pFuncLogicNode,
-      pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC : QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC);
+      pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC);
   if (NULL == pInterpFunc) {
     return terrno;
   }
@@ -2276,10 +2292,6 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pFuncLogicNode, (SPhysiNode*)pInterpFunc);
-  }
-
-  if (pCxt->pPlanCxt->streamQuery) {
-    pInterpFunc->streamNodeOption = pFuncLogicNode->streamNodeOption;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -2474,11 +2486,7 @@ static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExc
 
 static int32_t createExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogicNode* pExchangeLogicNode,
                                        SPhysiNode** pPhyNode) {
-  if (pCxt->pPlanCxt->streamQuery) {
-    return createStreamScanPhysiNodeByExchange(pCxt, pExchangeLogicNode, pPhyNode);
-  } else {
-    return doCreateExchangePhysiNode(pCxt, pExchangeLogicNode, pPhyNode);
-  }
+  return doCreateExchangePhysiNode(pCxt, pExchangeLogicNode, pPhyNode);
 }
 
 static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowPhysiNode* pWindow,
@@ -2487,9 +2495,6 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   pWindow->watermark = pWindowLogicNode->watermark;
   pWindow->deleteMark = pWindowLogicNode->deleteMark;
   pWindow->igExpired = pWindowLogicNode->igExpired;
-  if (pCxt->pPlanCxt->streamQuery) {
-    pWindow->destHasPrimaryKey = pCxt->pPlanCxt->destHasPrimaryKey;
-  }
   pWindow->mergeDataBlock = (GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
   pWindow->node.inputTsOrder = pWindowLogicNode->node.inputTsOrder;
   pWindow->node.outputTsOrder = pWindowLogicNode->node.outputTsOrder;
@@ -2631,13 +2636,6 @@ static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   ENodeType type = QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE;
-  if (pCxt->pPlanCxt->streamQuery) {
-    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-      type = QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE;
-    } else {
-      type = QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE;
-    }
-  }
   SStateWinodwPhysiNode* pState = (SStateWinodwPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode, type);
   if (NULL == pState) {
@@ -2685,13 +2683,6 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   ENodeType type = QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT;
-  if (pCxt->pPlanCxt->streamQuery) {
-    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-      type = QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT;
-    } else {
-      type = QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT;
-    }
-  }
 
   SEventWinodwPhysiNode* pEvent = (SEventWinodwPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode, type);
@@ -2721,13 +2712,6 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   ENodeType type = QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT;
-  if (pCxt->pPlanCxt->streamQuery) {
-    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-      type = QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT;
-    } else {
-      type = QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT;
-    }
-  }
 
   SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode, type);
@@ -2750,8 +2734,7 @@ static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                             SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SAnomalyWindowPhysiNode* pAnomaly = (SAnomalyWindowPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode,
-      (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_ANOMALY : QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY));
+      pCxt, (SLogicNode*)pWindowLogicNode, QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY);
   if (NULL == pAnomaly) {
     return terrno;
   }
@@ -2953,17 +2936,13 @@ static int32_t createStreamPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList
 
 static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                         SPartitionLogicNode* pPartLogicNode, SPhysiNode** pPhyNode) {
-  if (pCxt->pPlanCxt->streamQuery) {
-    return createStreamPartitionPhysiNode(pCxt, pChildren, pPartLogicNode, pPhyNode);
-  }
   return createPartitionPhysiNodeImpl(pCxt, pChildren, pPartLogicNode, QUERY_NODE_PHYSICAL_PLAN_PARTITION, pPhyNode);
 }
 
 static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SFillLogicNode* pFillNode,
                                    SPhysiNode** pPhyNode) {
   SFillPhysiNode* pFill = (SFillPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pFillNode,
-      pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL : QUERY_NODE_PHYSICAL_PLAN_FILL);
+      pCxt, (SLogicNode*)pFillNode, QUERY_NODE_PHYSICAL_PLAN_FILL);
   if (NULL == pFill) {
     return terrno;
   }
@@ -3361,7 +3340,7 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
       pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
     }
     code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
-    if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->streamQuery && !pCxt->pPlanCxt->topicQuery) {
+    if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->topicQuery) {
       code = createDataDispatcher(pCxt, pSubplan->pNode, &pSubplan->pDataSink);
     }
   }

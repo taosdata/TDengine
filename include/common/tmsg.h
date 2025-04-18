@@ -242,6 +242,7 @@ typedef enum ENodeType {
   QUERY_NODE_REAL_TABLE,
   QUERY_NODE_TEMP_TABLE,
   QUERY_NODE_JOIN_TABLE,
+  QUERY_NODE_PLACE_HOLDER_TABLE,
   QUERY_NODE_GROUPING_SET,
   QUERY_NODE_ORDER_BY_EXPR,
   QUERY_NODE_LIMIT,
@@ -260,7 +261,7 @@ typedef enum ENodeType {
   QUERY_NODE_TABLE_OPTIONS,
   QUERY_NODE_INDEX_OPTIONS,
   QUERY_NODE_EXPLAIN_OPTIONS,
-  QUERY_NODE_STREAM_OPTIONS,
+  QUERY_NODE_STREAM_TRIGGER_OPTIONS,
   QUERY_NODE_LEFT_VALUE,
   QUERY_NODE_COLUMN_REF,
   QUERY_NODE_WHEN_THEN,
@@ -276,6 +277,12 @@ typedef enum ENodeType {
   QUERY_NODE_RANGE_AROUND,
   QUERY_NODE_STREAM_NOTIFY_OPTIONS,
   QUERY_NODE_VIRTUAL_TABLE,
+  QUERY_NODE_SLIDING_WINDOW,
+  QUERY_NODE_PERIOD_WINDOW,
+  QUERY_NODE_STREAM_EVENT_TYPE,
+  QUERY_NODE_STREAM_TRIGGER,
+  QUERY_NODE_STREAM,
+  QUERY_NODE_STREAM_TAG_DEF,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -532,6 +539,7 @@ typedef struct SField {
   int8_t  flags;
   int32_t bytes;
 } SField;
+
 typedef struct SFieldWithOptions {
   char     name[TSDB_COL_NAME_LEN];
   uint8_t  type;
@@ -3132,6 +3140,7 @@ typedef struct SColLocation {
   int8_t   type;
 } SColLocation;
 
+#define NEW_STREAM
 #ifdef NEW_STREAM
 
 typedef enum EStreamPlaceholder {
@@ -3149,8 +3158,8 @@ typedef enum EStreamPlaceholder {
 
 typedef struct SStreamOutCol {
   void*              expr;
+  SDataType          type;
 } SStreamOutCol;
-
 
 typedef struct SSessionTrigger {
   int16_t slotId;
@@ -3192,7 +3201,7 @@ typedef union {
   SEventTrigger    event;
   SCountTrigger    count;
   SPeriodTrigger   period;
-} SStreamTrigger;
+} SStreamTriggers;
 
 typedef struct {
   SArray* vgList; // vgId, SArray<int32>
@@ -3204,14 +3213,14 @@ typedef struct {
   char*    name;
   int64_t  streamId;
   char*    sql;
-  
+
   char*   streamDB;
   char*   triggerDB;
   char*   outDB;
   
   char*   triggerTblName;  // table name
   char*   outTblName;      // table name
-  
+
   int8_t  igExists;
   int8_t  triggerType;
   int8_t  igDisorder;
@@ -3222,7 +3231,8 @@ typedef struct {
   int8_t  calcNotifyOnly;
   int8_t  lowLatencyCalc;
   int8_t  forceOutput;
-  
+
+  // notify options
   SArray* pNotifyAddrUrls;
   int32_t notifyEventTypes;
   int32_t notifyErrorHandle;
@@ -3235,7 +3245,7 @@ typedef struct {
   int64_t        fillHistoryStartTime; // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;   // precision same with triggerDB
   int64_t        expiredTime; // precision same with triggerDB
-  SStreamTrigger trigger;
+  SStreamTriggers trigger;
 
   int8_t   triggerTblType;
   int8_t   outTblType;
@@ -3265,7 +3275,6 @@ typedef struct {
   SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SCMCreateStreamReq;
 
-#else
 
 
 typedef struct SVgroupVer {
@@ -3273,7 +3282,7 @@ typedef struct SVgroupVer {
   int64_t ver;
 } SVgroupVer;
 
-
+#else
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];
