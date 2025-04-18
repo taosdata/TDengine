@@ -3332,14 +3332,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
       colSizes[col] = 0;
       for (int32_t row = 0; row < numOfRows; ++row) {
         char*   pColData = pColRes->pData + pColRes->varmeta.offset[row];
-        int32_t colSize = 0;
-        if (pColRes->info.type == TSDB_DATA_TYPE_JSON) {
-          colSize = getJsonValueLen(pColData);
-        } else if (IS_STR_DATA_BLOB(pColRes->info.type)) {
-          colSize = blobDataTLen(pColData);
-        } else {
-          colSize = varDataTLen(pColData);
-        }
+        int32_t colSize = calcStrBytesByType(pColRes->info.type, pColData);
+
         colSizes[col] += colSize;
         dataLen += colSize;
         if (dataLen > dataBuflen) goto _exit;
