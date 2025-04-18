@@ -121,7 +121,11 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
                 errorPrint("option %s requires an argument\r\n", key);
                 return -1;
             }
-            benchParseSingleOpt(key[1], val);
+            
+            if (benchParseSingleOpt(key[1], val)) {
+                errorPrint("Invalid option %s\r\n", key);
+                return -1;
+            }
             i++;
         }
     }
@@ -614,7 +618,6 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             g_arguments->connMode = getConnMode(arg);
             break;
         default:
-            warnPrint("Invalid option %s\r\n", key)
             return ARGP_ERR_UNKNOWN;
     }
     return 0;
