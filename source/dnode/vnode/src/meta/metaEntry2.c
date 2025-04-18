@@ -12,8 +12,6 @@
 
 extern SDmNotifyHandle dmNotifyHdl;
 
-int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry);
-void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);

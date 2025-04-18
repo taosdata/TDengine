@@ -288,6 +288,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
   pInfo->info.config = pVnode->config;
+  pInfo->info.lastCommitVersion = lastCommitted;
   pInfo->info.state.committed = pVnode->state.applied;
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
   pInfo->info.state.commitID = ++pVnode->state.commitID;

@@ -428,6 +428,7 @@ struct SVStatis {
 
 struct SVnodeInfo {
   SVnodeCfg config;
+  int64_t   lastCommitVersion;
   SVState   state;
   SVStatis  statis;
 };

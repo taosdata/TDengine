@@ -394,7 +394,7 @@ typedef struct {
 } SMetaEntryIter;
 
 typedef struct {
-  SMetaEntry  entry;
+  SMetaEntry *pEntry;
   const char *superTableName;
 } SMetaEntryWrapper;
 

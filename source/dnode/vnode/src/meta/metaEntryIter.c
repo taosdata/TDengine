@@ -19,14 +19,27 @@ struct SMetaEntryIterImpl {
   SMeta             *pMeta;
   int64_t            startVersion;
   int64_t            endVersion;
+  bool               isEnd;
   TBC               *pTbc;
   int32_t            keySize;
   const void        *pKey;
   int32_t            valueSize;
   const void        *pValue;
-  SMetaEntryWrapper *pEntry;
+  SMetaEntryWrapper  entry;
 };
 
+static int32_t metaBuildEntryWrapper() {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // TODO
+
+_exit:
+  return code;
+}
+
+// startVersion: not included
+// endVersion: included
 int32_t metaEntryIterOpen(SMeta *pMeta, int64_t startVersion, int64_t endVersion, SMetaEntryIter *iter) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -39,6 +52,7 @@ int32_t metaEntryIterOpen(SMeta *pMeta, int64_t startVersion, int64_t endVersion
   iter->impl->pMeta = pMeta;
   iter->impl->startVersion = startVersion;
   iter->impl->endVersion = endVersion;
+  iter->impl->isEnd = false;
 
   metaRLock(pMeta);
   code = tdbTbcOpen(pMeta->pTbDb, &iter->impl->pTbc, NULL);
@@ -51,7 +65,7 @@ int32_t metaEntryIterOpen(SMeta *pMeta, int64_t startVersion, int64_t endVersion
 
   STbDbKey key = {
       .version = startVersion,
-      .uid = 0,
+      .uid = INT64_MAX,
   };
   int c = 0;
   code = tdbTbcMoveTo(iter->impl->pTbc, &key, sizeof(key), &c);
@@ -62,8 +76,8 @@ int32_t metaEntryIterOpen(SMeta *pMeta, int64_t startVersion, int64_t endVersion
     goto _exit;
   }
 
-  if (c < 0) {
-    // TODO
+  if (c < 0 && tdbTbcMoveToNext(iter->impl->pTbc) != 0) {
+    iter->impl->isEnd = true;
   }
 
 _exit:
@@ -77,22 +91,49 @@ int32_t metaEntryIterNext(SMetaEntryIter *iter, SMetaEntryWrapper **ppEntry) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tdbTbcMoveToNext(iter->impl->pTbc);
-  if (code) {
-    TSDB_CHECK_CODE(code, lino, _exit);
+  if (iter->impl->isEnd) {
+    *ppEntry = NULL;
+    goto _exit;
   }
 
+  // Fetch the next entry
   code =
       tdbTbcGet(iter->impl->pTbc, &iter->impl->pKey, &iter->impl->keySize, &iter->impl->pValue, &iter->impl->valueSize);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // Check if the entry is valid
+  STbDbKey *pKey = (STbDbKey *)iter->impl->pKey;
+  if (pKey->version > iter->impl->endVersion) {
+    iter->impl->isEnd = true;
+    *ppEntry = NULL;
+    goto _exit;
+  }
+
   // Decode the entry
   SDecoder   decoder = {0};
   SMetaEntry entry = {0};
-
+  metaCloneEntryFree(&iter->impl->entry.pEntry);
   tDecoderInit(&decoder, (uint8_t *)iter->impl->pValue, iter->impl->valueSize);
-  metaDecodeEntry(&decoder, &entry);
+  code = metaDecodeEntry(&decoder, &entry);
+  if (code) {
+    metaError("meta/entry: %s failed at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
+    tDecoderClear(&decoder);
+    goto _exit;
+  }
 
+  code = metaCloneEntry(&entry, &iter->impl->entry.pEntry);
+  if (code) {
+    metaError("meta/entry: %s failed at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
+    tDecoderClear(&decoder);
+    goto _exit;
+  }
+
+  tDecoderClear(&decoder);
+
+  // Move the cursor to the next entry
+  if (tdbTbcMoveToNext(iter->impl->pTbc) != 0) {
+    iter->impl->isEnd = true;
+  }
 
 _exit:
   if (code) {
@@ -107,6 +148,7 @@ void metaEntryIterClose(SMetaEntryIter *iter) {
     return;
   }
 
+  metaCloneEntryFree(&iter->impl->entry.pEntry);
   tdbTbcClose(iter->impl->pTbc);
   metaULock(iter->impl->pMeta);
   taosMemoryFree(iter->impl);

@@ -174,6 +174,9 @@ int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
 int  metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
 #endif
 
+int32_t metaCloneEntry(const SMetaEntry* pEntry, SMetaEntry** ppEntry);
+void    metaCloneEntryFree(SMetaEntry** ppEntry);
+
 #ifdef __cplusplus
 }
 #endif

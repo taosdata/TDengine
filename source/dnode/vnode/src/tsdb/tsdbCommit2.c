@@ -25,6 +25,8 @@ typedef struct {
   STsdb  *tsdb;
   int32_t minutes;
   int8_t  precision;
+  int64_t lastCommitVersion;
+  int64_t commitVersion;
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
@@ -119,7 +121,7 @@ static int32_t tsdbCommitMetaData(SCommitter2 *committer) {
   SMeta  *pMeta = pVnode->pMeta;
 
   // Loop to commit each entry
-  code = metaEntryIterOpen(pMeta, 0 /* TODO */, 0 /*TODO*/, &iter);
+  code = metaEntryIterOpen(pMeta, committer->lastCommitVersion, committer->commitVersion, &iter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   while (1) {
@@ -631,6 +633,8 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
   committer->tsdb = tsdb;
   committer->minutes = tsdb->keepCfg.days;
   committer->precision = tsdb->keepCfg.precision;
+  committer->lastCommitVersion = info->info.lastCommitVersion;
+  committer->commitVersion = info->info.state.committed;
   committer->minRow = info->info.config.tsdbCfg.minRows;
   committer->maxRow = info->info.config.tsdbCfg.maxRows;
   committer->cmprAlg = info->info.config.tsdbCfg.compression;
