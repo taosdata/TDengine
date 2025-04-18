@@ -1242,9 +1242,10 @@ void doBuildForceFillResultImpl(SOperatorInfo* pOperator, SStreamFillSupporter* 
     }
   }
 
-  if (pBlock->info.parTbName[0] == 0) {
+  if (pBlock->info.parTbName[0] == 0 && pBlock->info.id.groupId != 0) {
     void*   tbname = NULL;
     int32_t winCode = TSDB_CODE_SUCCESS;
+
     code = pInfo->stateStore.streamStateGetParName(pInfo->pState, pBlock->info.id.groupId, &tbname, false, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
     if (winCode == TSDB_CODE_SUCCESS) {

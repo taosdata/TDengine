@@ -606,10 +606,14 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
     (*pWinCode) = streamStateGetParName_rocksdb(pState, groupId, pVal);
     if ((*pWinCode) == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       code = tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
+      qDebug("put into parNameMap, total size:%d, groupId:%" PRId64 ", name:%s", tSimpleHashGetSize(pState->parNameMap),
+             groupId, (*pVal));
+
       QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
   }
+
   *pVal = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
   if (!(*pVal)) {
     code = terrno;
