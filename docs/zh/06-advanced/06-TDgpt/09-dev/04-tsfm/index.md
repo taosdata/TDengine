@@ -164,19 +164,19 @@ chronos, timesfm, chronos 时序基础服务，适配文件已经默认提供，
 
 ### 启动 moirai 服务
 
-为了避免依赖库冲突，准备一个干净的 python 虚拟环境，安装依赖库。
+为避免依赖库冲突，建议准备干净的 python 虚拟环境，在虚拟环境中安装依赖库。
 
 ```shell
 pip install uni2ts
 pip install flask
 ```
 
-在 moirai-server.py 文件中配置服务地址（配置服务地址方式见上），加载的模型。
+在 moirai-server.py 文件中配置服务地址（配置服务地址方式见上），设置加载的模型（如果需要）。
 
 ```python
 _model_list = [
     'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
-    'Salesforce/moirai-moe-1.0-R-base',  # base model with 205M parameters
+    'Salesforce/moirai-moe-1.0-R-base',   # base model with 205M parameters
 ]
 
 pretrained_model = MoiraiMoEModule.from_pretrained(
@@ -184,10 +184,68 @@ pretrained_model = MoiraiMoEModule.from_pretrained(
 ).to(device)
 ```
 
-执行命令启动服务，首次启动会自动下载模型文件，如果下载速度太慢，可使用国内镜像，配置方式见上。
+执行命令启动服务，首次启动会自动下载模型文件，如果下载速度太慢，可使用国内镜像（设置置方式见上）。
 
 ```shell
 nohup python moirai-server.py > service_output.out 2>&1 &
 ```
 
 检查服务状态的方式同上。
+
+
+### 启动 chronos 服务
+
+在干净的 python 虚拟环境中安装依赖库。
+
+```shell
+pip install chronos-forecasting
+pip install flask
+```
+
+在 chronos-server.py 文件中设置服务地址，设置加载模型。您也可以使用默认值。
+
+```python
+
+def main():
+    app.run(
+        host='0.0.0.0',
+        port=5002,
+        threaded=True,
+        debug=False
+    )
+```
+
+```python
+_model_list = [
+    'amazon/chronos-bolt-tiny',  # 9M parameters,   based on t5-efficient-tiny
+    'amazon/chronos-bolt-mini',  # 21M parameters,  based on t5-efficient-mini
+    'amazon/chronos-bolt-small', # 48M parameters,  based on t5-efficient-small
+    'amazon/chronos-bolt-base',  # 205M parameters, based on t5-efficient-base
+]
+
+model = BaseChronosPipeline.from_pretrained(
+    _model_list[0],   #  默认加载 tiny 模型，修改数值就可以调整加载启动的模型
+    device_map=device,
+    torch_dtype=torch.bfloat16,
+)
+```
+
+在 shell 中执行命令，启动服务。
+```shell
+nohup python chronos-server.py > service_output.out 2>&1 &
+```
+
+### 启动 timesfm 服务
+
+在干净的 python 虚拟环境中安装依赖库。
+
+```shell
+pip install timesfm
+pip intall flask
+```
+
+调整 timesfm-server.py 文件中设置服务地址（如果需要）。然后执行下述命令启动服务。
+
+```shell
+nohup python timesfm-server.py > service_output.out 2>&1 &
+```
