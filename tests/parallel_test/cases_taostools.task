@@ -80,6 +80,16 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
+,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_paramnum.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval_diff_tz.py
+,,y,army,./pytest.sh python3 ./test.py -f query/window/base.py
+,,y,army,./pytest.sh python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
+
 
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/bugs.py -B
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-retry.py
@@ -97,6 +107,7 @@
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_cancle.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
+,,n,army,python3 ./test.py -f cmdline/fullopt.py
 
 # taosdump 43 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py
