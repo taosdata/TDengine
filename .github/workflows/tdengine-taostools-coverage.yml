@@ -40,7 +40,6 @@ env:
 jobs:
   run-tests-on-linux:
     uses: taosdata/.github/.github/workflows/run-taostools-coverage-tests.yml@test_coverage
-    if: ${{ github.event_name == 'workflow_dispatch'}}
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
