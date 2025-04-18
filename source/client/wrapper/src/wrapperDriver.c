@@ -67,13 +67,21 @@ int32_t taosDriverInit(EDriverType driverType) {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
 
+  // load from develop env
   if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
     tsDriver = taosLoadDll(driverPath);
   }
 
-  if (tsDriver == NULL && taosGetInstallPath(driverPath, driverName) == 0) {
-    tsDriver = taosLoadDll(driverPath);
+  // load from system path
+  if (tsDriver == NULL) {
+    tsDriver = taosLoadDll(driverName);
   }
+
+  // load from install path
+#if defined(DARWIN)
+  snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s",driverName);
+  tsDriver = taosLoadDll(driverName);
+#endif
 
   if (tsDriver == NULL) {
     printf("failed to load %s since %s [0x%X]\r\n", driverName, terrstr(), terrno);
