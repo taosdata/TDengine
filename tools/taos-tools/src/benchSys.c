@@ -104,23 +104,13 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
             return -1;
         }
 
-        if (   key[1] == 'f' || key[1] == 'c'
-            || key[1] == 'h' || key[1] == 'P'
-            || key[1] == 'I' || key[1] == 'u'
-            || key[1] == 'p' || key[1] == 'o'
-            || key[1] == 'T' || key[1] == 'i'
-            || key[1] == 'S' || key[1] == 'B'
-            || key[1] == 'r' || key[1] == 't'
-            || key[1] == 'n' || key[1] == 'L'
-            || key[1] == 'd' || key[1] == 'l'
-            || key[1] == 'A' || key[1] == 'b'
-            || key[1] == 'w' || key[1] == 'm'
-            || key[1] == 'R' || key[1] == 'O'
-            || key[1] == 'a' || key[1] == 'F'
-            || key[1] == 'k' || key[1] == 'z'
-            || key[1] == 'W' || key[1] == 'v'
-            || key[1] == 'X' || key[1] == 'Z'
-        ) {
+        if (key[1] == 'E' || key[1] == 'C'
+            || key[1] == 'N' || key[1] == 'M'
+            || key[1] == 'x' || key[1] == 'y'
+            || key[1] == 'g' || key[1] == 'G'
+            || key[1] == 'V' || key[1] == 'Q') {
+            benchParseSingleOpt(key[1], NULL);
+        } else {
             // check input value
             if (i + 1 >= argc) {
                 errorPrint("option %s requires an argument\r\n", key);
@@ -133,15 +123,6 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
             }
             benchParseSingleOpt(key[1], val);
             i++;
-        } else if (key[1] == 'E' || key[1] == 'C'
-                || key[1] == 'N' || key[1] == 'M'
-                || key[1] == 'x' || key[1] == 'y'
-                || key[1] == 'g' || key[1] == 'G'
-                || key[1] == 'V' || key[1] == 'Q') {
-            benchParseSingleOpt(key[1], NULL);
-        } else {
-            errorPrint("Invalid option %s\r\n", key);
-            return -1;
         }
     }
     return 0;
@@ -633,6 +614,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             g_arguments->connMode = getConnMode(arg);
             break;
         default:
+            warnPrint("Invalid option %s\r\n", key)
             return ARGP_ERR_UNKNOWN;
     }
     return 0;
