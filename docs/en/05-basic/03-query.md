@@ -5,10 +5,10 @@ slug: /basic-features/data-querying
 ---
 
 import Image from '@theme/IdealImage';
-import windowModel from '../assets/data-querying-01.png';
-import slidingWindow from '../assets/data-querying-02.png';
-import sessionWindow from '../assets/data-querying-03.png';
-import eventWindow from '../assets/data-querying-04.png';
+import windowModel from '../assets/data-querying-01-window.png';
+import slidingWindow from '../assets/data-querying-02-time-window.webp';
+import sessionWindow from '../assets/data-querying-03-session-window.png';
+import eventWindow from '../assets/data-querying-04-event-window.png';
 
 Compared to many other time-series and real-time databases, a unique advantage of TDengine since its first release is its support for standard SQL queries. This feature significantly reduces the learning curve for users. This chapter will use the data model of smart meters as an example to demonstrate how to use SQL queries in TDengine to handle time-series data. For further details and features of SQL syntax, it is recommended to refer to the official TDengine documentation. By studying this chapter, you will be able to master TDengine's SQL querying techniques and efficiently operate and analyze time-series data.
 
