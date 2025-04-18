@@ -4,7 +4,7 @@ slug: /advanced-features/stream-processing
 ---
 
 import Image from '@theme/IdealImage';
-import watermarkImg from '../assets/stream-processing-01.png';
+import watermarkImg from '../assets/stream-processing-01-watermark.webp';
 
 In the processing of time-series data, it is often necessary to clean and preprocess the raw data before using a time-series database for long-term storage. Moreover, it is common to use the original time-series data to generate new time-series data through calculations. In traditional time-series data solutions, it is often necessary to deploy systems like Kafka, Flink, etc., for stream processing. However, the complexity of stream processing systems brings high development and operational costs.
 
