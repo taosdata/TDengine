@@ -511,34 +511,36 @@ static int32_t parseBlob(SToken* pToken, uint8_t** pData, uint32_t* nData, int32
   if (pToken->type != TK_NK_STRING) {
     return TSDB_CODE_PAR_INVALID_VARBINARY;
   }
-
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  uint32_t size = 0;
+  void*    data = NULL;
   if (isHex(pToken->z + 1, pToken->n - 2)) {
     if (!isValidateHex(pToken->z + 1, pToken->n - 2)) {
       return TSDB_CODE_PAR_INVALID_VARBINARY;
     }
-
-    void*    data = NULL;
-    uint32_t size = 0;
     if (taosHex2Ascii(pToken->z + 1, pToken->n - 2, &data, &size) < 0) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _error);
     }
-
-    if (size + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
-      taosMemoryFree(data);
-      return TSDB_CODE_PAR_VALUE_TOO_LONG;
-    }
-    *pData = data;
-    *nData = size;
   } else {
-    *pData = taosMemoryCalloc(1, pToken->n);
-    if (!pData) return terrno;
-    int32_t len = trimString(pToken->z, pToken->n, *pData, pToken->n);
-    *nData = len;
-
-    if (*nData + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
-      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    size = pToken->n;
+    data = taosMemoryCalloc(1, size);
+    if (data == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
     }
+    memcpy(data, pToken->z, size);
   }
+  if (size + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_PAR_VALUE_TOO_LONG, lino, _error);
+  }
+_error:
+  if (code != 0) {
+    taosMemoryFree(data);
+    uError("parseBlob failed at lino %s code: %d", lino, tstrerror(code));
+    return code;
+  }
+  *pData = data;
+  *nData = size;
   return TSDB_CODE_SUCCESS;
 }
 
