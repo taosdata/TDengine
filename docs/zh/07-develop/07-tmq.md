@@ -307,7 +307,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
 - `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
 - `ResultBean` 是我们自定义的一个内部类，其字段名和数据类型与列的名称和数据类型一一对应，这样根据 `value.deserializer` 属性对应的反序列化类可以反序列化出 `ResultBean` 类型的对象。
-- 如果订阅数据库，需要在创建消费者时设置 `value.deserializer` 为 `com.t，然后创建.MapEnhanceDeserializer`， 然后创建 `TaosConsumer<TMQEnhMap>` 类型的消费者。这样每行数据就可以反序列化为表名和一个 `Map`。
+- 如果订阅数据库，需要在创建消费者时设置 `value.deserializer` 为 `com.taosdata.jdbc.tmq.MapEnhanceDeserializer`，然后创建 `TaosConsumer<TMQEnhMap>` 类型的消费者。这样每行数据就可以反序列化为表名和一个 `Map`。
 
 </TabItem>
 
