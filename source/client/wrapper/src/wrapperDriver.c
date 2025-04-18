@@ -67,7 +67,7 @@ int32_t taosDriverInit(EDriverType driverType) {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
 
-  // load from develop env
+  // load from develop build path
   if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
     tsDriver = taosLoadDll(driverPath);
   }
@@ -77,10 +77,10 @@ int32_t taosDriverInit(EDriverType driverType) {
     tsDriver = taosLoadDll(driverName);
   }
 
-  // load from install path
+  // load from install path on mac
 #if defined(DARWIN)
   if (tsDriver == NULL) {
-    snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s",driverName);
+    snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s", driverName);
     tsDriver = taosLoadDll(driverPath);
   }
 #endif
