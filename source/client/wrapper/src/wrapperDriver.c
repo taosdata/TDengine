@@ -79,8 +79,10 @@ int32_t taosDriverInit(EDriverType driverType) {
 
   // load from install path
 #if defined(DARWIN)
-  snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s",driverName);
-  tsDriver = taosLoadDll(driverName);
+  if (tsDriver == NULL) {
+    snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s",driverName);
+    tsDriver = taosLoadDll(driverPath);
+  }
 #endif
 
   if (tsDriver == NULL) {
