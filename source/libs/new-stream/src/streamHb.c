@@ -171,9 +171,20 @@ static void streamTaskUpdateMndEpset(SStreamMeta* pMeta, SEpSet* pEpSet) {
 }
 
 int32_t streamHbBuildRequestMsg(SStreamHbMsg* pMsg) {
-  pMsg.dnodeId = gStreamMgmt.dnodeId;
-  pMsg.streamGId = gStreamMgmt.streamGrpIdx++;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   
+  pMsg.dnodeId = gStreamMgmt.dnodeId;
+  pMsg.snodeId = gStreamMgmt.snodeId;
+  pMsg.streamGId = streamAddFetchStreamGrpId();
+  pMsg.pVgLeaders = taosArrayDup(gStreamMgmt.vgroupLeaders, NULL);
+  TSDB_CHECK_NULL(pMsg.pVgLeaders, code, lino, _exit, terrno);
+  
+  TAOS_CHECK_EXIT(streamBuildStreamsStatus(pMsg->pStreamStatus, pMsg->streamGId));
+
+_exit:
+
+  return code;
 }
 
 void streamHbStart(void* param, void* tmrId) {

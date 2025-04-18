@@ -587,66 +587,6 @@ _end:
   return code;
 }
 
-
-static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
-  SMnode          *pMnode = pReq->info.node;
-  SStreamObj      *pStream = NULL;
-  int32_t          code = 0;
-  SMPauseStreamReq pauseReq = {0};
-
-  if (tDeserializeSMPauseStreamReq(pReq->pCont, pReq->contLen, &pauseReq) < 0) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  code = mndAcquireStream(pMnode, pauseReq.name, &pStream);
-  if (pStream == NULL || code != 0) {
-    if (pauseReq.igNotExists) {
-      mInfo("stream:%s, not exist, not restart stream", pauseReq.name);
-      return 0;
-    } else {
-      mError("stream:%s not exist, failed to restart stream", pauseReq.name);
-      TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
-    }
-  }
-
-  mInfo("stream:%s,%" PRId64 " start to restart stream", pauseReq.name, pStream->uid);
-  if ((code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb)) != 0) {
-    sdbRelease(pMnode->pSdb, pStream);
-    return code;
-  }
-
-  STrans *pTrans = NULL;
-  code = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_STOP_NAME, "stop the stream",
-                       &pTrans);
-  if (pTrans == NULL || code) {
-    mError("stream:%s failed to stop stream since %s", pauseReq.name, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
-    return code;
-  }
-
-  // if nodeUpdate happened, not send pause trans
-  code = mndStreamSetStopAction(pMnode, pTrans, pStream);
-  if (code) {
-    mError("stream:%s, failed to restart task since %s", pauseReq.name, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  code = mndTransPrepare(pMnode, pTrans);
-  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("trans:%d, failed to prepare restart stream trans since %s", pTrans->id, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  sdbRelease(pMnode->pSdb, pStream);
-  mndTransDrop(pTrans);
-
-  return TSDB_CODE_ACTION_IN_PROGRESS;
-}
-
 int32_t extractStreamNodeList(SMnode *pMnode) {
   if (taosArrayGetSize(execInfo.pNodeList) == 0) {
     int32_t code = refreshNodeListFromExistedStreams(pMnode, execInfo.pNodeList);
@@ -1052,7 +992,7 @@ static void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamNa
   
   TAOS_STRCPY(pNode->streamName, streamName);
 
-  mndStreamActionEnqueue(&mStreamMgmt.actionQ[streamGetTargetQIdx(mStreamMgmt.qNum, STREAM_GID(streamId))], pNode);
+  mndStreamActionEnqueue(mStreamMgmt.threadGrp[streamGetThreadIdx(mStreamMgmt.threadNum, STREAM_GID(streamId))].actionQ, pNode);
 }
 
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {

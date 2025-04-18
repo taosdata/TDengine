@@ -66,11 +66,15 @@ typedef struct SStreamActionQ {
   uint64_t      qRemainNum;
 } SStreamActionQ;
 
-typedef struct SStreamTaskState {
+typedef struct SStreamTaskId {
   int64_t taskId;
   int32_t nodeId;
   int16_t taskIdx;
-  int64_t lastUpTs;
+} SStreamTaskId;
+
+typedef struct SStreamTaskState {
+  SStreamTaskId id;
+  int64_t       lastUpTs;
 } SStreamTaskState;
 
 typedef struct SStreamReaderTasksState {
@@ -83,28 +87,60 @@ typedef struct SStreamTasksInfo {
   SArray* runnerTaskList;        // SArray<SStreamTaskState>
 } SStreamTasksInfo;
 
-typedef struct SStreamSnodeTasks {
+typedef struct SStreamSnodeTasksStatus {
   SRWLatch lock;
   SArray*  triggerTaskList;  // SArray<SStreamTaskState*>
   SArray*  runnerTaskList;   // SArray<SStreamTaskState*>
-} SStreamSnodeTasks;
+} SStreamSnodeTasksStatus;
 
-typedef struct SStreamVgReaderTasks {
+typedef struct SStreamVgReaderTasksStatus {
   SRWLatch lock;
   int64_t  streamVer;
   SArray*  taskList;       // SArray<SStreamTaskState*>
-} SStreamVgReaderTasks;
+} SStreamVgReaderTasksStatus;
+
+typedef struct SStreamDeployTaskExtInfo {
+  bool                  deployed;
+  SStreamDeployTaskInfo deploy;
+} SStreamDeployTaskExtInfo;
+
+typedef struct SStreamVgReaderTasksDeploy {
+  SRWLatch lock;
+  int64_t  streamVer;
+  int32_t  deployed;
+  SArray*  taskList;       // SArray<SStreamDeployTaskExtInfo>
+} SStreamVgReaderTasksDeploy;
+
+typedef struct SStreamSnodeTasksDeploy {
+  SRWLatch lock;
+  int32_t  triggerDeployed;
+  int32_t  runnerDeployed;
+  SArray*  triggerTaskList;  // SArray<SStreamDeployTaskInfo>
+  SArray*  runnerTaskList;   // SArray<SStreamDeployTaskInfo>
+} SStreamSnodeTasksDeploy;
+
+typedef struct SStreamThreadGrp {
+  SStreamActionQ*  actionQ;
+  SHashObj*        deployStm[STREAM_MAX_GROUP_NUM];  // streadId => SStreamTasksDeploy
+} SStreamThreadGrp;
 
 typedef struct SStreamRuntime {
-  int32_t          qNum;
-  SStreamActionQ*  actionQ;
+  int32_t          activeStreamNum;
+  
+  int32_t           threadNum;
+  SStreamThreadGrp* threadGrp;
 
   int64_t          lastTaskId;
   SHashObj*        streamMap;  // streamId => SStreamTasksInfo
   SHashObj*        taskMap;    // streamId + taskId => SStreamTaskState*
-  SHashObj*        vgroupMap;  // vgId => SStreamVgReaderTasks (only reader tasks)
+  SHashObj*        vgroupMap;  // vgId => SStreamVgReaderTasksStatus (only reader tasks)
   SHashObj*        snodeMap;   // snodeId => SStreamSnodeTasks (only trigger and runner tasks)
   SHashObj*        dnodeMap;   // dnodeId => lastUpTs
+
+  int32_t          toDeployVgTaskNum;
+  SHashObj*        toDeployVgMap;      // vgId => SStreamVgReaderTasksDeploy (only reader tasks)
+  int32_t          toDeploySnodeTaskNum;
+  SHashObj*        toDeploySnodeMap;   // snodeId => SStreamSnodeTasksDeploy (only trigger and runner tasks)
   
   int32_t          role;
   bool             switchFromFollower;
@@ -155,7 +191,6 @@ int32_t  doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnC
                        const char *pMsg, STrans **pTrans1);
 int32_t  mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
-int32_t  mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
 
 int32_t mndGetStreamObj(SMnode *pMnode, int64_t streamId, SStreamObj **pStream);
 int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);
@@ -165,7 +200,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq);
 int32_t extractStreamNodeList(SMnode *pMnode);
 int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
-int32_t mndStreamSetStopAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t checkpointId,
                                      int8_t mndTrigger);
 int32_t mndStreamSetStopStreamTasksActions(SMnode* pMnode, STrans *pTrans, uint64_t dbUid);

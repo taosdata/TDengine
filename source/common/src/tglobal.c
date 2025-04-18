@@ -282,9 +282,6 @@ int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 int64_t  tsMinDiskFreeSize = TFS_MIN_DISK_FREE_SIZE;
 
-// stream scheduler
-bool tsDeployOnSnode = true;
-
 /*
  * minimum scale for whole system, millisecond by default
  * for TSDB_TIME_PRECISION_MILLI: 60000L
@@ -861,7 +858,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfSnodeWriteThreads = TRANGE(tsNumOfSnodeWriteThreads, 2, 4);
 
   tsNumOfMnodeStreamMgmtThreads = tsNumOfCores / 4;
-  tsNumOfMnodeStreamMgmtThreads = TMAX(tsNumOfMnodeStreamMgmtThreads, 2);
+  tsNumOfMnodeStreamMgmtThreads = TRANGE(tsNumOfMnodeStreamMgmtThreads, 2, 5);
 
   tsNumOfStreamMgmtThreads = tsNumOfCores / 8;
   tsNumOfStreamMgmtThreads = TMAX(tsNumOfStreamMgmtThreads, 2);
@@ -920,7 +917,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfSnodeSharedThreads", tsNumOfSnodeStreamThreads, 2, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfSnodeUniqueThreads", tsNumOfSnodeWriteThreads, 2, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeStreamMgmtThreads", tsNumOfMnodeStreamMgmtThreads, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeStreamMgmtThreads", tsNumOfMnodeStreamMgmtThreads, 2, 5, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamMgmtThreads", tsNumOfStreamMgmtThreads, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeStreamReaderThreads", tsNumOfVnodeStreamReaderThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamTriggerThreads", tsNumOfStreamTriggerThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));

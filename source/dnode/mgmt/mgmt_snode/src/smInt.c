@@ -86,7 +86,9 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   return 0;
 }
 
-static int32_t smStartSnodes(SSnodeMgmt *pMgmt) { return sndInit(pMgmt->pSnode); }
+static int32_t smStartSnodes(SSnodeMgmt *pMgmt) { 
+  return sndInit(pMgmt->pSnode); 
+}
 
 SMgmtFunc smGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};

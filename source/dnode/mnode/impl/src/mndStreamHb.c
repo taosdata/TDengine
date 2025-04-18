@@ -51,6 +51,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   doSendHbMsgRsp(TSDB_CODE_SUCCESS, &pReq->info, &mnodeEpset, req.vgId, req.msgId);
 
+  msmCleanDeployedTasks(&req);
+
   return code;
 }
 

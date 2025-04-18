@@ -173,12 +173,6 @@ typedef struct SStreamTaskCheckpointReq {
 int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq);
 int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq);
 
-typedef struct SStreamStatus {
-  int64_t streamId;
-  int64_t taskId;
-  
-} SStreamStatus;
-
 typedef struct SStreamMsg {
   int32_t msgType;
 } SStreamMsg;
@@ -186,6 +180,7 @@ typedef struct SStreamMsg {
 typedef struct SStreamHbMsg {
   int32_t dnodeId;
   int32_t streamGId;
+  int32_t snodeId;
   SArray* pVgLeaders;     // SArray<int32_t>
   SArray* pStreamStatus;  // SArray<SStreamStatus>
 } SStreamHbMsg;

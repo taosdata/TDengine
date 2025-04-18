@@ -15,7 +15,19 @@
 
 #include "streamInt.h"
 
-int32_t streamGetTargetQIdx(int32_t qNum, int64_t streamId) {
-  return streamId % qNum;
+int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) {
+  return streamGId % threadNum;
+}
+
+int32_t streamAddFetchStreamGrpId(void) {
+  if (++gStreamMgmt.streamGrpIdx >= STREAM_MAX_GROUP_NUM) {
+    gStreamMgmt.streamGrpIdx = 0;
+  }
+
+  return gStreamMgmt.streamGrpIdx;
+}
+
+int32_t streamBuildStreamsStatus(SArray* pStatus, int32_t streamGId) {
+
 }
 

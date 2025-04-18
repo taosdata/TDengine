@@ -24,12 +24,12 @@ extern "C" {
 
 #define STREAM_MAX_GROUP_NUM 5
 
-enum {
+typedef enum {
   STREAM_STATUS_INIT = 1,
   STREAM_STATUS_RUNNING,
   STREAM_STATUS_STOPPED,
   STREAM_STATUS_FAILED,
-};
+} EStreamStatus;
 
 typedef enum EStreamTaskType {
   STREAM_READER_TASK = 0,
@@ -48,6 +48,7 @@ typedef struct SStreamTask {
   int32_t         nodeId;    // ID of the vgroup/snode
   int64_t         sessionId;  // ID of the current session (real-time, historical, or recalculation)
   int16_t         taskIdx;
+  EStreamStatus   status;
 } SStreamTask;
 
 typedef enum EStreamTriggerType {
