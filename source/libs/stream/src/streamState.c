@@ -607,7 +607,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
     if ((*pWinCode) == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       code = tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
       qDebug("put into parNameMap, total size:%d, groupId:%" PRId64 ", name:%s", tSimpleHashGetSize(pState->parNameMap),
-             groupId, (*pVal));
+             groupId, (char*) (*pVal));
 
       QUERY_CHECK_CODE(code, lino, _end);
     }
