@@ -64,8 +64,8 @@ int32_t metaEntryIterOpen(SMeta *pMeta, int64_t startVersion, int64_t endVersion
   }
 
   STbDbKey key = {
-      .version = startVersion,
-      .uid = INT64_MAX,
+      .version = startVersion + 1,
+      .uid = INT64_MIN,
   };
   int c = 0;
   code = tdbTbcMoveTo(iter->impl->pTbc, &key, sizeof(key), &c);
@@ -135,6 +135,8 @@ int32_t metaEntryIterNext(SMetaEntryIter *iter, SMetaEntryWrapper **ppEntry) {
     iter->impl->isEnd = true;
   }
 
+  *ppEntry = &iter->impl->entry;
+
 _exit:
   if (code) {
     metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(iter->impl->pMeta->pVnode), __func__, __FILE__, lino,
@@ -153,4 +155,41 @@ void metaEntryIterClose(SMetaEntryIter *iter) {
   metaULock(iter->impl->pMeta);
   taosMemoryFree(iter->impl);
   iter->impl = NULL;
+}
+
+int32_t metaEncodeEntryWrapper(SEncoder *pEncoder, const SMetaEntryWrapper *pEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tStartEncode(pEncoder);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = metaEncodeEntry(pEncoder, pEntry->pEntry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  tEndEncode(pEncoder);
+
+_exit:
+  if (code) {
+    metaError("%s failed at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t metaDecodeEntryWrapper(SDecoder *pDecoder, SMetaEntryWrapper *pEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tStartDecode(pDecoder);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  SMetaEntry entry = {0};
+  code = metaDecodeEntry(pDecoder, pEntry->pEntry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    metaError("%s failed at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
+  }
+  return code;
 }

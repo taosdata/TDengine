@@ -402,7 +402,7 @@ int32_t metaEntryIterOpen(SMeta *pMeta, int64_t startVersion, int64_t endVersion
 int32_t metaEntryIterNext(SMetaEntryIter *iter, SMetaEntryWrapper **ppEntry);
 void    metaEntryIterClose(SMetaEntryIter *iter);
 
-int32_t metaEncodeEntryWrapper(SEncoder *pEncoder, SMetaEntryWrapper *pEntry);
+int32_t metaEncodeEntryWrapper(SEncoder *pEncoder, const SMetaEntryWrapper *pEntry);
 int32_t metaDecodeEntryWrapper(SDecoder *pDecoder, SMetaEntryWrapper *pEntry);
 
 #ifdef __cplusplus

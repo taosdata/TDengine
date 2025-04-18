@@ -30,16 +30,14 @@ typedef struct {
   SFDataPtr sttBlkPtr[1];
   SFDataPtr statisBlkPtr[1];
   SFDataPtr tombBlkPtr[1];
-  SFDataPtr rsrvd[2];
+  SFDataPtr entryIndicsPtr;
+  SFDataPtr rsrvd;
 } SSttFooter;
 
 typedef struct {
   uint8_t   version;
   int32_t   pageSize;
-  SFDataPtr sttBlkPtr;
-  SFDataPtr statisBlkPtr;
-  SFDataPtr tombBlkPtr;
-  SFDataPtr entryIndicsPtr;
+  int64_t   footerOffset;
 } SSttHeader;
 
 // SSttFileReader ==========================================
