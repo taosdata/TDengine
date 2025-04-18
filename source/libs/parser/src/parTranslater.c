@@ -17605,7 +17605,10 @@ static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) 
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
   PAR_ERR_JRET(buildDropVirtualTableVgroupHashmap(pCxt, pStmt, &name, &tableType, pVgroupHashmap));
-
+  if (0 == taosHashGetSize(pVgroupHashmap)) {
+    taosHashCleanup(pVgroupHashmap);
+    return TSDB_CODE_SUCCESS;
+  }
   PAR_ERR_JRET(serializeVgroupsDropTableBatch(pVgroupHashmap, &pBufArray));
   PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
