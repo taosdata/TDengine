@@ -138,17 +138,15 @@ add_test(
 )
 
 
-IF($TD_LINUX)
-    add_executable(utilTests "utilTests.cpp")
+if(${TD_LINUX})
+    add_executable(utilTests utilTests.cpp stringTest.cpp)
     DEP_ext_gtest(utilTests)
     target_link_libraries(utilTests PRIVATE os util common)
     add_test(
         NAME utilTests
         COMMAND utilTests
     )
-ENDIF()
 
-if(${TD_LINUX})
     # terrorTest
     add_executable(terrorTest "terrorTest.cpp")
     DEP_ext_gtest(terrorTest)
