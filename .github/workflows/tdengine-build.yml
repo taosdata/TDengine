@@ -231,7 +231,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           taos -s "show databases"
-          taosBenchmark -t 10 -n 10 -y
+          taosBenchmark -t 10 -n 10 -s 1744951233012 -y
           taos -s "select count(*) from test.meters"
 
       - name: Clean up  on Linux and macOS
