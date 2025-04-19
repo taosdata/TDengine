@@ -688,7 +688,7 @@ def init_model():
 
 @app.route('/tdtsfm', methods=['POST'])
 def ds_predict():
-    print(f"predict")
+    print(f"start predict")
 
     global Taos_model
     """处理POST请求并返回模型预测结果"""
