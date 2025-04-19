@@ -14,7 +14,7 @@
  */
 
 #ifndef TDENGINE_STREAM_H
-#define TDENGINE_STREAM_H
+  #define TDENGINE_STREAM_H
 
 #ifdef __cplusplus
 extern "C" {

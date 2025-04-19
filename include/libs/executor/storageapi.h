@@ -186,15 +186,15 @@ struct SFileSetReader;
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
-  void         (*tsdReaderClose)();
+  void         (*tsdReaderClose)(void*);
   int32_t      (*tsdSetReaderTaskId)(void *pReader, const char *pId);
   int32_t      (*tsdSetQueryTableList)();
-  int32_t      (*tsdNextDataBlock)();
+  int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
-  int32_t      (*tsdReaderRetrieveDataBlock)();
+  int32_t      (*tsdReaderRetrieveDataBlock)(void* pReader, SSDataBlock** pBlock, SArray* pIdList);
 
-  void         (*tsdReaderReleaseDataBlock)();
+  void         (*tsdReaderReleaseDataBlock)(void* pReader);
 
   int32_t      (*tsdReaderResetStatus)();
   int32_t      (*tsdReaderGetDataBlockDistInfo)();

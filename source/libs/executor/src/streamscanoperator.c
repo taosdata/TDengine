@@ -1874,3 +1874,51 @@ _error:
   pTaskInfo->code = code;
   return code;
 }
+
+int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, SStorageAPI *storageAPI, void** pTableListInfo){
+  STableListInfo* pList = tableListCreate();
+  if (pList == NULL){
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
+
+  SScanPhysiNode pScanNode = {.suid = suid, .uid = uid, .tableType = tableType};
+  SNodeList* pGroupTags = NULL;
+  SReadHandle pHandle = {.vnode = pVnode};
+  SExecTaskInfo pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
+
+  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, false, &pHandle, pList, NULL, NULL, &pTaskInfo);
+  if (code != 0) {
+    tableListDestroy(pList);
+    qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
+    return code;
+  }
+  *pTableListInfo = pList;
+  return 0;
+}
+
+int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size){
+  return tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
+}
+
+void qStreamSetGroupId(void* pTableListInfo, SSDataBlock* pBlock) {
+  pBlock->info.id.groupId = tableListGetTableGroupId(pTableListInfo, pBlock->info.id.uid);
+}
+
+void qStreamGetGroup(void* pTableListInfo, int64_t gid) {
+  int32_t numOfTables = 0;
+  int32_t code = tableListGetSize(pTableListInfo, &numOfTables);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+  SArra
+  for (int32_t i = 0; i < numOfTables; ++i) {
+
+  }
+}
+
+void qStreamDestroyTableList(void* pTableListInfo) {
+  tableListDestroy(pTableListInfo);
+}
+
