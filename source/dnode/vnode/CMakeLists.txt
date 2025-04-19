@@ -182,6 +182,7 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
     PUBLIC tqCommon
+    PUBLIC new-stream
 )
 
 if(TD_GRANT)

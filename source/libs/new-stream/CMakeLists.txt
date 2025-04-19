@@ -5,6 +5,7 @@ target_include_directories(
     new-stream
     PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
     PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

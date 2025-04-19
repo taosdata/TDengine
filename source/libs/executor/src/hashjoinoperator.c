@@ -1169,6 +1169,13 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
   return TSDB_CODE_SUCCESS;
 }
 
+static void resetHashJoinOperState(SOperatorInfo* pOper) {
+  SHJoinOperatorInfo* pHjOper = pOper->info;
+  pHjOper->keyHashBuilt = false;
+  blockDataCleanup(pHjOper->midBlk);
+  blockDataCleanup(pHjOper->finBlk);
+  //TODO wjm reset more
+}
 
 int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {

@@ -1016,3 +1016,7 @@ int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
   }
   return pOperator->resultDataBlockId;
 }
+
+void resetOperatorState(SOperatorInfo *pOper) {
+  pOper->status = OP_NOT_OPENED;
+}

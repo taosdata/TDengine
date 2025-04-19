@@ -91,6 +91,17 @@ void streamOperatorReloadState(SOperatorInfo* pOperator) {
   }
 }
 
+static void resetProjectOperState(SOperatorInfo* pOper) {
+  SProjectOperatorInfo* pProject = pOper->info;
+  resetBasicOperatorState(&pProject->binfo);
+  pProject->limitInfo.currentGroupId = 0;
+  pProject->limitInfo.numOfOutputGroups = 0;
+  pProject->limitInfo.numOfOutputRows = 0;
+  pProject->limitInfo.remainGroupOffset = pProject->limitInfo.slimit.offset;
+  pProject->limitInfo.remainOffset = pProject->limitInfo.limit.offset;
+  blockDataCleanup(pProject->pFinalRes);
+}
+
 int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo,
                                   SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);

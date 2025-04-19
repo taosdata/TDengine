@@ -116,6 +116,11 @@ extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
 extern int64_t tsApplyMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
+extern int32_t tsNumOfMnodeStreamMgmtThreads;
+extern int32_t tsNumOfStreamMgmtThreads;
+extern int32_t tsNumOfVnodeStreamReaderThreads;
+extern int32_t tsNumOfStreamTriggerThreads;
+extern int32_t tsNumOfStreamRunnerThreads;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;

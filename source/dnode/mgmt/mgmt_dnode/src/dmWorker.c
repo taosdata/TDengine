@@ -626,16 +626,37 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     return code;
   }
 
+  SDispatchWorkerPool* pStMgmtpool = &pMgmt->streamMgmtWorker;
+  pStMgmtpool->max = tsNumOfStreamMgmtThreads;
+  pStMgmtpool->name = "dnode-st-mgmt";
+  code = tDispatchWorkerInit(pStMgmtpool);
+  if (code != 0) {
+    dError("failed to start dnode-stream-mgmt worker since %s", tstrerror(code));
+    return code;
+  }
+  code = tDispatchWorkerAllocQueue(pStMgmtpool, pMgmt, 0, 0); // TODO wjm set fp
+  if (code != 0) {
+    dError("failed to allocate dnode-stream-mgmt worker queue since %s", tstrerror(code));
+    return code;
+  }
+
   dDebug("dnode workers are initialized");
   return 0;
 }
 
 void dmStopWorker(SDnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
+  tDispatchWorkerCleanup(&pMgmt->streamMgmtWorker);
   dDebug("dnode workers are closed");
 }
 
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SSingleWorker *pWorker = &pMgmt->mgmtWorker;
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
+  return taosWriteQitem(pWorker->queue, pMsg);
+}
+
+int32_t dmPutMsgToStreamMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);

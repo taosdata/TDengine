@@ -1240,6 +1240,22 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   return code;
 }
 
+static void resetTimeSliceOperState(SOperatorInfo* pOper) {
+  STimeSliceOperatorInfo* pInterp = pOper->info;
+  blockDataCleanup(pInterp->pRes);
+
+  pInterp->current = pInterp->win.skey;
+  pInterp->prevTsSet = false;
+  pInterp->prevKey.ts = INT64_MIN;
+  pInterp->groupId = 0;
+  pInterp->pPrevGroupKeys = NULL;
+  pInterp->pNextGroupRes = NULL;
+  pInterp->pRemainRes = NULL;
+  pInterp->remainIndex = 0;
+  pInterp->prevKey.ts = INT64_MIN;
+  //TODO wjm reset more
+}
+
 int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 

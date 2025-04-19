@@ -15,6 +15,7 @@
 
 #include "tmsg.h"
 #include "tq.h"
+#include "tstream.h"
 
 static int32_t tqCollectPhysicalTables(STqReader* pReader, const char* idstr);
 

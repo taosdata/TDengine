@@ -27,34 +27,26 @@ static bool identicalName(const char *pDb, const char *pParam, int32_t len) {
   return (strlen(pDb) == len) && (strncmp(pDb, pParam, len) == 0);
 }
 
-int32_t mndStreamRegisterTrans(STrans *pTrans, const char *pTransName, int64_t streamId) {
-  SStreamTransInfo info = {
-      .transId = pTrans->id, .startTime = taosGetTimestampMs(), .name = pTransName, .streamId = streamId};
-  return taosHashPut(execInfo.transMgmt.pDBTrans, &streamId, sizeof(streamId), &info, sizeof(SStreamTransInfo));
-}
-
-int32_t doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name,
-                      const char *pMsg, STrans **pTrans1) {
-  *pTrans1 = NULL;
-  terrno = 0;
-
+int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans) {
+  int64_t streamId = pStream->pCreate->streamId;
   int32_t code = 0;
+
   STrans *p = mndTransCreate(pMnode, TRN_POLICY_RETRY, conflict, pReq, name);
   if (p == NULL) {
-    mError("failed to build trans:%s, reason: %s", name, tstrerror(terrno));
+    mstError("failed to build trans:%s, reason: %s", name, tstrerror(terrno));
     return terrno;
   }
 
-  mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, p->id);
+  mstInfo("start to build trans %s, transId:%d", name, p->id);
 
-  mndTransSetDbName(p, pStream->sourceDb, pStream->targetSTbName);
+  mndTransSetDbName(p, pStream->pCreate->streamDB, pStream->pCreate->outTblName);
   if ((code = mndTransCheckConflict(pMnode, p)) != 0) {
-    mError("failed to build trans:%s for stream:0x%" PRIx64 " code:%s", name, pStream->uid, tstrerror(terrno));
+    mstError("failed to build trans:%s for stream, code:%s", name, tstrerror(terrno));
     mndTransDrop(p);
     return code;
   }
 
-  *pTrans1 = p;
+  *ppTrans = p;
   return code;
 }
 
@@ -62,6 +54,7 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *buf = NULL;
+  int64_t streamId = pStream->pCreate->streamId;
 
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
@@ -94,37 +87,38 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   SDB_SET_DATALEN(pRaw, dataPos, _over);
 
 _over:
+
   taosMemoryFreeClear(buf);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("stream:%s, failed to encode to raw:%p at line:%d since %s", pStream->name, pRaw, lino, tstrerror(code));
+    mstError("failed to encode stream %s to raw:%p at line:%d since %s", pStream->pCreate->name, pRaw, lino, tstrerror(code));
     sdbFreeRaw(pRaw);
     terrno = code;
     return NULL;
   }
 
-  terrno = 0;
-  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64, pStream->name, pRaw, pStream,
-         pStream->checkpointId);
+  mstTrace("stream %s encoded to raw:%p", pStream->pCreate->name, pRaw);
+         
   return pRaw;
 }
 
-int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status) {
+int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status) {
+  int64_t streadId = pStream->pCreate->streamId;
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL) {
-    mError("failed to encode stream since %s", terrstr());
+    mstError("failed to encode stream since %s", terrstr());
     mndTransDrop(pTrans);
     return terrno;
   }
 
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mstError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
     return terrno;
   }
 
   if (sdbSetRawStatus(pCommitRaw, status) != 0) {
-    mError("stream trans:%d failed to set raw status:%d since %s", pTrans->id, status, terrstr());
+    mstError("stream trans:%d failed to set raw status:%d since %s", pTrans->id, status, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
     return terrno;
@@ -142,29 +136,4 @@ int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msg
                          .retryCode = retryCode,
                          .acceptableCode = acceptCode};
   return mndTransAppendRedoAction(pTrans, &action);
-}
-
-int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
-  void *pIter = NULL;
-
-  while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
-    SStreamTransInfo *pTransInfo = (SStreamTransInfo *)pIter;
-    if (strcmp(pTransInfo->name, MND_STREAM_CHECKPOINT_NAME) != 0) {
-      continue;
-    }
-
-    SStreamObj *pStream = NULL;
-    int32_t code = mndGetStreamObj(pMnode, pTransInfo->streamId, &pStream);
-    if (pStream != NULL && code == 0) {
-      if (identicalName(pStream->sourceDb, pDBName, len)) {
-        mndKillTransImpl(pMnode, pTransInfo->transId, pStream->sourceDb);
-      } else if (identicalName(pStream->targetDb, pDBName, len)) {
-        mndKillTransImpl(pMnode, pTransInfo->transId, pStream->targetDb);
-      }
-
-      mndReleaseStream(pMnode, pStream);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
 }

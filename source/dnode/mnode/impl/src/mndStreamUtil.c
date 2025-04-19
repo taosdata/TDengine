@@ -21,90 +21,7 @@
 #include "taoserror.h"
 #include "tmisce.h"
 
-struct SStreamTaskIter {
-  SStreamObj  *pStream;
-  int32_t      level;
-  int32_t      ordinalIndex;
-  int32_t      totalLevel;
-  SStreamTask *pTask;
-};
-
 int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId);
-
-int32_t createStreamTaskIter(SStreamObj *pStream, SStreamTaskIter **pIter) {
-  *pIter = taosMemoryCalloc(1, sizeof(SStreamTaskIter));
-  if (*pIter == NULL) {
-    return terrno;
-  }
-
-  (*pIter)->level = -1;
-  (*pIter)->ordinalIndex = 0;
-  (*pIter)->pStream = pStream;
-  (*pIter)->totalLevel = taosArrayGetSize(pStream->pTaskList);
-  (*pIter)->pTask = NULL;
-
-  return 0;
-}
-
-bool streamTaskIterNextTask(SStreamTaskIter *pIter) {
-  if (pIter->level >= pIter->totalLevel) {
-    pIter->pTask = NULL;
-    return false;
-  }
-
-  if (pIter->level == -1) {
-    pIter->level += 1;
-  }
-
-  while (pIter->level < pIter->totalLevel) {
-    SArray *pList = taosArrayGetP(pIter->pStream->pTaskList, pIter->level);
-    if (pIter->ordinalIndex >= taosArrayGetSize(pList)) {
-      pIter->level += 1;
-      pIter->ordinalIndex = 0;
-      pIter->pTask = NULL;
-      continue;
-    }
-
-    pIter->pTask = taosArrayGetP(pList, pIter->ordinalIndex);
-    pIter->ordinalIndex += 1;
-    return true;
-  }
-
-  pIter->pTask = NULL;
-  return false;
-}
-
-int32_t streamTaskIterGetCurrent(SStreamTaskIter *pIter, SStreamTask **pTask) {
-  if (pTask) {
-    *pTask = pIter->pTask;
-    if (*pTask != NULL) {
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
-  return TSDB_CODE_INVALID_PARA;
-}
-
-void destroyStreamTaskIter(SStreamTaskIter *pIter) { taosMemoryFree(pIter); }
-
-static bool checkStatusForEachReplica(SVgObj *pVgroup) {
-  for (int32_t i = 0; i < pVgroup->replica; ++i) {
-    if (!pVgroup->vnodeGid[i].syncRestore) {
-      mInfo("vgId:%d not restored, not ready for checkpoint or other operations", pVgroup->vgId);
-      return false;
-    }
-
-    ESyncState state = pVgroup->vnodeGid[i].syncState;
-    if (state == TAOS_SYNC_STATE_OFFLINE || state == TAOS_SYNC_STATE_ERROR || state == TAOS_SYNC_STATE_LEARNER ||
-        state == TAOS_SYNC_STATE_CANDIDATE) {
-      mInfo("vgId:%d state:%d , not ready for checkpoint or other operations, not check other vgroups", pVgroup->vgId,
-            state);
-      return false;
-    }
-  }
-
-  return true;
-}
 
 static int32_t mndAddSnodeInfo(SMnode *pMnode, SArray *pVgroupList) {
   SSnodeObj *pObj = NULL;
@@ -318,20 +235,6 @@ int32_t mndGetStreamObj(SMnode *pMnode, int64_t streamId, SStreamObj **pStream) 
   return TSDB_CODE_STREAM_TASK_NOT_EXIST;
 }
 
-void mndKillTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName) {
-  STrans *pTrans = mndAcquireTrans(pMnode, transId);
-  if (pTrans != NULL) {
-    mInfo("kill active transId:%d in Db:%s", transId, pDbName);
-    int32_t code = mndKillTrans(pMnode, pTrans);
-    mndReleaseTrans(pMnode, pTrans);
-    if (code) {
-      mError("failed to kill transId:%d, code:%s", pTrans->id, tstrerror(code));
-    }
-  } else {
-    mError("failed to acquire trans in Db:%s, transId:%d", pDbName, transId);
-  }
-}
-
 int32_t extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId) {
   *hasEpset = false;
 
@@ -441,39 +344,6 @@ static void freeTaskList(void *param) {
   taosArrayDestroy(*pList);
 }
 
-int32_t mndInitExecInfo() {
-  int32_t code = taosThreadMutexInit(&execInfo.lock, NULL);
-  if (code) {
-    return code;
-  }
-
-  _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
-
-  execInfo.pTaskList = taosArrayInit(4, sizeof(STaskId));
-  execInfo.pTaskMap = taosHashInit(64, fn, true, HASH_NO_LOCK);
-  execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
-  execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
-  execInfo.pChkptStreams = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  execInfo.pStreamConsensus = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  execInfo.pNodeList = taosArrayInit(4, sizeof(SNodeEntry));
-  execInfo.pKilledChkptTrans = taosArrayInit(4, sizeof(SStreamTaskResetMsg));
-
-  if (execInfo.pTaskList == NULL || execInfo.pTaskMap == NULL || execInfo.transMgmt.pDBTrans == NULL ||
-      execInfo.pTransferStateStreams == NULL || execInfo.pChkptStreams == NULL || execInfo.pStreamConsensus == NULL ||
-      execInfo.pNodeList == NULL || execInfo.pKilledChkptTrans == NULL) {
-    mError("failed to initialize the stream runtime env, code:%s", tstrerror(terrno));
-    return terrno;
-  }
-
-  execInfo.role = NODE_ROLE_UNINIT;
-  execInfo.switchFromFollower = false;
-
-  taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
-  taosHashSetFreeFp(execInfo.pChkptStreams, freeTaskList);
-  taosHashSetFreeFp(execInfo.pStreamConsensus, freeTaskList);
-  return 0;
-}
-
 void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
   SArray *pValidList = taosArrayInit(4, sizeof(SNodeEntry));
   if (pValidList == NULL) {  // not continue
@@ -557,54 +427,6 @@ void removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo) {
       mError("failed to remove task in buffer list, 0x%" PRIx64, pId->taskId);
     }
   }
-}
-
-void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
-  SStreamTaskIter *pIter = NULL;
-  streamMutexLock(&pExecNode->lock);
-
-  // 1. remove task entries
-  int32_t code = createStreamTaskIter(pStream, &pIter);
-  if (code) {
-    streamMutexUnlock(&pExecNode->lock);
-    mError("failed to create stream task iter:%s", pStream->name);
-    return;
-  }
-
-  while (streamTaskIterNextTask(pIter)) {
-    SStreamTask *pTask = NULL;
-    code = streamTaskIterGetCurrent(pIter, &pTask);
-    if (code) {
-      continue;
-    }
-
-    STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-    code = doRemoveTasks(pExecNode, &id);
-    if (code) {
-      mError("failed to remove task in buffer list, 0x%" PRIx64, id.taskId);
-    }
-  }
-
-  if (taosHashGetSize(pExecNode->pTaskMap) != taosArrayGetSize(pExecNode->pTaskList)) {
-    streamMutexUnlock(&pExecNode->lock);
-    destroyStreamTaskIter(pIter);
-    mError("task map size, task list size, not equal");
-    return;
-  }
-
-  // 2. remove stream entry in consensus hash table and checkpoint-report hash table
-  code = mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);
-  if (code) {
-    mError("failed to clear consensus checkpointId, code:%s", tstrerror(code));
-  }
-
-  code = mndClearChkptReportInfo(execInfo.pChkptStreams, pStream->uid);
-  if (code) {
-    mError("failed to clear the checkpoint report info, code:%s", tstrerror(code));
-  }
-
-  streamMutexUnlock(&pExecNode->lock);
-  destroyStreamTaskIter(pIter);
 }
 
 static bool taskNodeExists(SArray *pList, int32_t nodeId) {
@@ -1374,26 +1196,21 @@ _err:
 }
 
 
-int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb) {
+int32_t mndStreamCheckSnodeExists(SMnode *pMnode) {
   SSdb      *pSdb = pMnode->pSdb;
   void      *pIter = NULL;
   SSnodeObj *pObj = NULL;
 
-  if (pSrcDb->cfg.replications == 1) {
-    return TSDB_CODE_SUCCESS;
-  } else {
-    while (1) {
-      pIter = sdbFetch(pSdb, SDB_SNODE, pIter, (void **)&pObj);
-      if (pIter == NULL) {
-        break;
-      }
-
-      sdbRelease(pSdb, pObj);
-      sdbCancelFetch(pSdb, pIter);
-      return TSDB_CODE_SUCCESS;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) {
+      break;
     }
 
-    mError("snode not existed when trying to create stream in db with multiple replica");
-    return TSDB_CODE_SNODE_NOT_DEPLOYED;
+    sdbRelease(pSdb, pObj);
+    sdbCancelFetch(pSdb, pIter);
+    return TSDB_CODE_SUCCESS;
   }
+
+  return TSDB_CODE_SNODE_NOT_DEPLOYED;
 }

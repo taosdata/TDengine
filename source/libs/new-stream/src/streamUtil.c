@@ -13,33 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_SNODE_INT_H_
-#define _TD_SNODE_INT_H_
+#include "streamInt.h"
 
-#include "os.h"
-
-#include "tlog.h"
-#include "tmsg.h"
-#include "tqueue.h"
-#include "trpc.h"
-#include "tstream.h"
-
-#include "snode.h"
-#include "tworker.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct SSnode {
-  SStreamMeta* pMeta;
-  SMsgCb       msgCb;
-};
-
-void initStreamStateAPI(SStorageAPI* pAPI);
-
-#ifdef __cplusplus
+int32_t streamGetTargetQIdx(int32_t qNum, int64_t streamId) {
+  return streamId % qNum;
 }
-#endif
 
-#endif /*_TD_SNODE_INT_H_*/

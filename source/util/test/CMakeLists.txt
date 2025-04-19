@@ -150,7 +150,7 @@ add_test(
 )
 
 
-IF($TD_LINUX)
+IF(${TD_LINUX})
     add_executable(utilTests "utilTests.cpp")
     target_link_libraries(utilTests os util common gtest_main)
     add_test(

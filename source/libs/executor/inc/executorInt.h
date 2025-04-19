@@ -1245,6 +1245,7 @@ int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STime
 int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType type);
 int32_t doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex,
                     SSDataBlock** ppRes);
+void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
 #ifdef __cplusplus
 }
