@@ -47,7 +47,7 @@ def benchMarkFile():
 
 # taosAdapter
 def taosAdapterFile():
-    bmFile = frame.epath.binFile("taosAdapter")
+    bmFile = frame.epath.binFile("taosadapter")
     if frame.eos.isWin():
         bmFile += ".exe"
     return bmFile

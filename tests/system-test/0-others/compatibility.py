@@ -257,7 +257,7 @@ class TDTestCase:
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{self.deletedDataSql}" ')
 
 
-        cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
+        cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -Z0 -h localhost ;"
         tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
         if os.system(cmd) == 0:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
@@ -490,7 +490,7 @@ class TDTestCase:
         tdsql.execute(f"drop topic {db_topic};",queryTimes=10)
         tdsql.execute(f"drop topic {stable_topic};",queryTimes=10)
 
-        os.system(f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
+        os.system(f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taosBenchmark -Z0 -t {tableNumbers} -n {recordNumbers2} -y  ")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 

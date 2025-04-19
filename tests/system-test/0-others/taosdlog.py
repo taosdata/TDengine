@@ -190,6 +190,7 @@ class TDTestCase:
         self.openBin(f'{self.taosdPath} {args}', waitSec)
 
     def openTaos(self, args="", waitSec=5):
+        args = f"-Z 0 {args}"
         self.openBin(f'{self.taosPath} {args}', waitSec)
 
 

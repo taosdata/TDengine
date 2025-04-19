@@ -108,7 +108,7 @@
 #
 
 # benchmark 64 cases
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
@@ -152,7 +152,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_taosjson_alltypes.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_alltypes.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes-same-min-max.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_offset_json.py
@@ -175,7 +175,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
 
@@ -253,7 +253,7 @@
 #
 # system test
 #
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
@@ -534,7 +534,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32526.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32471.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6115.py
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6115.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_replay.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py

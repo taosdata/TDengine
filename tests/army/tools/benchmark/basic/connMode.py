@@ -69,7 +69,7 @@ class TDTestCase(TBase):
 
     def checkCommandLine(self):
         # default CONN_MODE
-        DEFAULT_CONN_MODE = "Native"
+        DEFAULT_CONN_MODE = "WebSocket"
 
         # modes
         modes = ["", "-Z 1 -B 1", "-Z websocket", "-Z 0", "-Z native -B 2"]
