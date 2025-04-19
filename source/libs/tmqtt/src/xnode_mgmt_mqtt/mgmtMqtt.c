@@ -14,7 +14,6 @@
  */
 
 // clang-format off
-
 #include "uv.h"
 #include "os.h"
 #include "tarray.h"
@@ -24,64 +23,25 @@
 #ifdef _TD_DARWIN_64
 #include <mach-o/dyld.h>
 #endif
-
 // clang-format on
 
-typedef struct SMqttdData {
+typedef struct {
   bool         startCalled;
   bool         needCleanUp;
   uv_loop_t    loop;
   uv_thread_t  thread;
   uv_barrier_t barrier;
   uv_process_t process;
-  /*
-#ifdef WINDOWS
-  HANDLE jobHandle;
-#endif
-  */
-  int32_t    spawnErr;
-  uv_pipe_t  ctrlPipe;
-  uv_async_t stopAsync;
-  int32_t    stopCalled;
-
-  int32_t dnodeId;
+  int32_t      spawnErr;
+  uv_pipe_t    ctrlPipe;
+  uv_async_t   stopAsync;
+  int32_t      stopCalled;
+  int32_t      dnodeId;
 } SMqttdData;
 
 SMqttdData mqttdGlobal = {0};
 
-int32_t mqttMgmtStart(int32_t startDnodeId);
-void    mqttMgmtStop(void);
-
 extern char **environ;
-
-static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData);
-void           mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
-static void    mqttMgmtMqttdCloseWalkCb(uv_handle_t *handle, void *arg);
-static void    mqttMgmtMqttdStopAsyncCb(uv_async_t *async);
-static void    mqttMgmtWatchMqttd(void *args);
-
-void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
-  TAOS_MQTT_MGMT_CHECK_PTR_RVOID(process);
-  xndInfo("taosmqtt process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
-  SMqttdData *pData = process->data;
-  if (pData == NULL) {
-    xndError("taosmqtt process data is NULL");
-    return;
-  }
-  if (exitStatus == 0 && termSignal == 0 || atomic_load_32(&pData->stopCalled)) {
-    xndInfo("taosmqtt process exit due to SIGINT or dnode-mgmt called stop");
-    if (uv_async_send(&pData->stopAsync) != 0) {
-      xndError("stop taosmqtt: failed to send stop async");
-    }
-
-  } else {
-    xndInfo("taosmqtt process restart");
-    int32_t code = mqttMgmtSpawnMqttd(pData);
-    if (code != 0) {
-      xndError("taosmqtt process restart failed with code:%d", code);
-    }
-  }
-}
 
 #ifdef WINDOWS
 #define TAOSMQTT_DEFAULT_PATH "C:\\TDengine"
@@ -90,6 +50,8 @@ void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSi
 #define TAOSMQTT_DEFAULT_PATH "/usr/bin"
 #define TAOSMQTT_DEFAULT_EXEC "/taosmqtt"
 #endif
+
+static void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
 
 static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   xndInfo("start to init taosmqtt");
@@ -118,7 +80,10 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   }
   TAOS_STRCAT(path, TAOSMQTT_DEFAULT_EXEC);
 
-  char *argsMqttd[] = {path, "-c", configDir, NULL};
+  char dnodeId[8] = "1";
+  snprintf(dnodeId, sizeof(dnodeId), "%d", pData->dnodeId);
+
+  char *argsMqttd[] = {path, "-c", configDir, "-d", dnodeId, NULL};
   options.args = argsMqttd;
   options.file = path;
 
@@ -236,6 +201,31 @@ _OVER:
   return err;
 }
 
+// static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData);
+
+static void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
+  TAOS_MQTT_MGMT_CHECK_PTR_RVOID(process);
+  xndInfo("taosmqtt process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
+  SMqttdData *pData = process->data;
+  if (pData == NULL) {
+    xndError("taosmqtt process data is NULL");
+    return;
+  }
+  if (exitStatus == 0 && termSignal == 0 || atomic_load_32(&pData->stopCalled)) {
+    xndInfo("taosmqtt process exit due to SIGINT or dnode-mgmt called stop");
+    if (uv_async_send(&pData->stopAsync) != 0) {
+      xndError("stop taosmqtt: failed to send stop async");
+    }
+
+  } else {
+    xndInfo("taosmqtt process restart");
+    int32_t code = mqttMgmtSpawnMqttd(pData);
+    if (code != 0) {
+      xndError("taosmqtt process restart failed with code:%d", code);
+    }
+  }
+}
+
 static void mqttMgmtMqttdCloseWalkCb(uv_handle_t *handle, void *arg) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(handle);
   if (!uv_is_closing(handle)) {
@@ -336,11 +326,6 @@ void mqttMgmtStopMqttd() {
   if (uv_thread_join(&pData->thread) != 0) {
     xndError("stop taosmqtt: failed to join taosmqtt thread");
   }
-  /*
-#ifdef WINDOWS
-  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
-#endif
-  */
   xndInfo("taosmqtt is cleaned up");
 
   pData->startCalled = false;

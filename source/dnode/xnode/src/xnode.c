@@ -27,17 +27,7 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
 
   (*pXnode)->msgCb = pOption->msgCb;
   (*pXnode)->dnodeId = pOption->dnodeId;
-  /*getDnodeEpFp
-  int32_t code = (*msgcb->putToQueueFp)(msgcb->mgmt, qtype, pMsg);
-  if (code != 0) {
-    SRpcMsg rsp = {.code = code, .info = pMsg->info};
-    if (rsp.info.handle != NULL) {
-      tmsgSendRsp(&rsp);
-    }
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
-  */
+
   // TODO: read config & start taosmqtt
   if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
     xndError("failed to start taosudf since %s", tstrerror(code));
