@@ -174,6 +174,11 @@ class TDTestCase(TBase):
 
         self.check_virtual_table_num(0, 29)
 
+    def test_drop_virtual_not_exists(self):
+        tdLog.info(f"test drop virtual not exists.")
+        tdSql.error("drop vtable vtb_virtual_not_exists;")
+        tdSql.execute("drop vtable if exists vtb_virtual_not_exists;")
+        
     def run(self):
             tdLog.debug(f"start to excute {__file__}")
 
@@ -181,7 +186,7 @@ class TDTestCase(TBase):
             self.test_drop_virtual_child_table()
             self.test_drop_virtual_normal_table()
             self.test_drop_virtual_super_table()
-
+            self.test_drop_virtual_not_exists()
             tdLog.success(f"{__file__} successfully executed")
 
 

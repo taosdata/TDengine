@@ -10,31 +10,32 @@ public class JdbcQueryDemo {
     private static final String user = "root";
     private static final String password = "taosdata";
 
-
     public static void main(String[] args) throws SQLException {
 
         final String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
 
-// get connection
+        // get connection
         Properties properties = new Properties();
         properties.setProperty("charset", "UTF-8");
         properties.setProperty("locale", "en_US.UTF-8");
         properties.setProperty("timezone", "UTC-8");
         System.out.println("get connection starting...");
-// ANCHOR: query_data
+        // ANCHOR: query_data
         String sql = "SELECT ts, current, location FROM power.meters limit 100";
         try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
-             Statement stmt = connection.createStatement();
-             // query data, make sure the database and table are created before
-             ResultSet resultSet = stmt.executeQuery(sql)) {
+                Statement stmt = connection.createStatement();
+                // query data, make sure the database and table are created before
+                ResultSet resultSet = stmt.executeQuery(sql)) {
 
             Timestamp ts;
             float current;
             String location;
             while (resultSet.next()) {
+                // we recommend using the column index to get the value for better performance
                 ts = resultSet.getTimestamp(1);
                 current = resultSet.getFloat(2);
-                // we recommend using the column name to get the value
+
+                // you can also use the column name to get the value
                 location = resultSet.getString("location");
 
                 // you can check data here
@@ -50,6 +51,6 @@ public class JdbcQueryDemo {
             ex.printStackTrace();
             throw ex;
         }
-// ANCHOR_END: query_data
+        // ANCHOR_END: query_data
     }
 }

@@ -1,4 +1,5 @@
 add_executable(walTest "")
+DEP_ext_gtest(walTest)
 target_sources(walTest
     PRIVATE
     "walMetaTest.cpp"
@@ -10,8 +11,9 @@ target_include_directories(walTest
 )
 
 target_link_libraries(walTest
+    PRIVATE
     wal
-    gtest_main
+    util
 )
 enable_testing()
 add_test(

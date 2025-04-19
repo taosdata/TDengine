@@ -180,6 +180,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         SPackedData  tmp = {.pDataBlock = pDataBlock};
         void*        tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
         QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
+        uTrace("%s,parName:%s, groupId:%"PRIu64, __FUNCTION__, pDataBlock->info.parTbName, pDataBlock->info.id.groupId)
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;

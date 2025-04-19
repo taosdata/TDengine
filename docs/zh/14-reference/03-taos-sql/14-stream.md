@@ -189,7 +189,7 @@ T = 最新事件时间 - watermark
 每次写入的数据都会以上述公式更新窗口关闭时间，并将窗口结束时间 < T 的所有打开的窗口关闭，若触发模式为 WINDOW_CLOSE 或 MAX_DELAY，则推送窗口聚合结果。
 
 
-![TDengine 流式计算窗口关闭示意图](./watermark.webp)
+![TDengine 流式计算窗口关闭示意图](./pic/watermark.webp)
 
 
 图中，纵轴表示不同时刻，对于不同时刻，我们画出其对应的 TDengine 收到的数据，即为横轴。

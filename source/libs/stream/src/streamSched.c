@@ -331,7 +331,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
     return;
   }
 
-  stDebug("s-task:%s acquire task, refId:%" PRId64, pTask->id.idStr, pTask->id.refId);
+  stTrace("s-task:%s acquire task, refId:%" PRId64, pTask->id.idStr, pTask->id.refId);
 
   id = pTask->id.idStr;
   nextTrigger = (int32_t)pTask->info.delaySchedParam;

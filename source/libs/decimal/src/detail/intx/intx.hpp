@@ -683,8 +683,18 @@ struct normalized_div_args
     unsigned shift;
 };
 
+// TODO: move to os/osDef.h?
+#if defined(_MSC_VER)
+#define TD_FORCEINLINE       __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+// [[gnu::always_inline]]
+#define TD_FORCEINLINE       __attribute__((always_inline)) inline
+#else
+#define TD_FORCEINLINE       inline
+#endif
+
 template <typename IntT>
-[[gnu::always_inline]] inline normalized_div_args<IntT::num_bits> normalize(
+TD_FORCEINLINE normalized_div_args<IntT::num_bits> normalize(
     const IntT& numerator, const IntT& denominator) noexcept
 {
     // FIXME: Make the implementation type independent

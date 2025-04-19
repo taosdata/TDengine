@@ -327,11 +327,6 @@ static int32_t doSetConf(SConfigItem *pItem, const char *value, ECfgSrcType styp
 }
 
 static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
-    uError("failed to config timezone, not support");
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
-  }
-
   if (value == NULL) {
     uError("cfg:%s, type:%s src:%s, value is null, skip to set timezone", pItem->name, cfgDtypeStr(pItem->dtype),
            cfgStypeStr(stype));

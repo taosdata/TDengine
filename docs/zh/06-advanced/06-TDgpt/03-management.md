@@ -18,7 +18,7 @@ systemctl status taosanoded
 
 ### 启停时间序列基础模型服务
 
-考虑到时序基础模型服务，需要较大的资源。避免启动过程中资源不足导致的启动失败，暂不提供自动启动时间序列基础模型。如果您希望体验时序基础模型服务，需要手动执行如下命令
+提供时序基础模型服务需要占用较大的内存资源。避免启动过程中资源不足导致失败，暂不提供自动启动时间序列基础模型的功能。如果您需要体验时序基础模型服务，需要手动执行如下命令
 
 ```bash
 # 启动涛思时序数据基础模型
@@ -36,13 +36,13 @@ stop-timer-moe
 
 > 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。
 
-### 目录及配置说明
+### 目录及配置文件说明
 
 安装完成后，Anode 主体目录结构如下：
 
 | 目录/文件                              | 说明                                              |
-| ---------------------------------- | ----------------------------------------------- |
-| /usr/local/taos/taosanode/bin      | 可执行文件目录                                         |
+| ---------------------------------- |-------------------------------------------------|
+| /usr/local/taos/taosanode/bin      | 可执行文件 (脚本) 目录                                   |
 | /usr/local/taos/taosanode/resource | 资源文件目录，链接到文件夹 /var/lib/taos/taosanode/resource/ |
 | /usr/local/taos/taosanode/lib      | 库文件目录                                           |
 | /usr/local/taos/taosanode/model/   | 模型文件目录，链接到文件夹 /var/lib/taos/taosanode/model     |
@@ -106,7 +106,7 @@ Anode 运行配置主要是以下：
 
 ### Anode 基本操作
 
-对于 Anode 的管理，用户需要通过 TDengine 的命令行接口 taos 进行。因此下述介绍的管理命令都需要先打开 taos, 连接到 TDengine 运行实例。 
+用户可通过 TDengine 的命令行工具 taos 进行 Anode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。 
 
 #### 创建 Anode
 
@@ -114,7 +114,7 @@ Anode 运行配置主要是以下：
 CREATE ANODE {node_url}
 ```
 
-node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6090'`。Anode 启动后还需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6090'`。Anode 启动后需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 
@@ -160,7 +160,7 @@ Query OK, 10 row(s) in set (0.028750s)
 | 异常检测 | shesd           | 季节性 ESD 算法模型          |
 | 异常检测 | ksigma          | 数学统计学检测模型           |
 | 异常检测 | iqr             | 数学统计学检测模型           |
-| 预测分析 | sample_ad_model | 基于自编码器的异常检测示例模型     |
+| 异常检测 | sample_ad_model | 基于自编码器的异常检测示例模型     |
 | 预测分析 | arima           | 移动平均自回归预测算法         |
 | 预测分析 | holtwinters     | 多次指数平滑预测算法          |
 | 预测分析 | tdtsfm_1        | 涛思时序数据基础模型 v1.0 版本  |
@@ -181,4 +181,4 @@ UPDATE ALL ANODES
 DROP ANODE {anode_id}
 ```
 
-删除 Anode 只是将 Anode 从 TDengine 集群中删除，管理 Anode 的启停仍然需要使用 `systemctl` 命令。卸载 Anode 则需要使用上面提到的 `rmtaosanode` 命令。
+删除 Anode 只是将 Anode 从 TDengine 集群中移除，管理 Anode 的启停仍然需要使用 `systemctl` 来操作。卸载 Anode 需要使用 `rmtaosanode` 命令。

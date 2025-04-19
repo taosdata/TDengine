@@ -36,6 +36,7 @@
 
 #include "storageapi.h"
 #include "wal.h"
+#include "function.h"
 
 int32_t scanDebug = 0;
 
@@ -1463,7 +1464,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
   QRY_PARAM_CHECK(ppRes);
-
+  qTrace("%s call", __FUNCTION__);
   if (pOperator->pOperatorGetParam) {
     pOperator->dynamicTask = true;
     if (isDynVtbScan(pOperator)) {
@@ -2710,13 +2711,18 @@ _end:
 }
 
 int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pInfo->pStreamScanOp->pTaskInfo;
+  const char*    idStr = GET_TASKID(pTaskInfo);
+
   blockDataCleanup(pInfo->pCreateTbRes);
+
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
     if (pInfo->hasPart == false) {
       pInfo->stateStore.streamStateSetParNameInvalid(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState);
+      clearParTbNameHashPtr(pTaskInfo->pRoot, idStr, &pTaskInfo->storageAPI);
     }
   } else {
     code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
@@ -2725,9 +2731,10 @@ int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowI
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  qTrace("%s %s child_table_name:%s,groupId:%" PRIu64, idStr, __func__, pBlock->info.parTbName, pBlock->info.id.groupId);
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", idStr, __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -3771,7 +3778,7 @@ static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
   SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
-  qDebug("stream scan started, %s", id);
+  qDebug("%s stream scan started, %s, recoverStep:%d", __FUNCTION__, id, pStreamInfo->recoverStep);
 
   if (pVtableInfos != NULL && pStreamInfo->recoverStep != STREAM_RECOVER_STEP__NONE) {
     qError("stream vtable source scan should not have recovery step: %d", pStreamInfo->recoverStep);
@@ -4104,9 +4111,11 @@ FETCH_NEXT_BLOCK:
             code = checkUpdateData(pInfo, true, pSDB, false);
             QUERY_CHECK_CODE(code, lino, _end);
           }
-          printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
+
           code = calBlockTbName(pInfo, pSDB, 0);
           QUERY_CHECK_CODE(code, lino, _end);
+
+          printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
 
           if (pInfo->pCreateTbRes->info.rows > 0) {
             printSpecDataBlock(pInfo->pCreateTbRes, getStreamOpName(pOperator->operatorType), "update",

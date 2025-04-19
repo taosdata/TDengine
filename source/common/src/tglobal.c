@@ -2285,16 +2285,16 @@ int32_t tryLoadCfgFromDataDir(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
   TAOS_CHECK_GET_CFG_ITEM(tsCfg, pItem, "forceReadConfig");
   tsForceReadConfig = pItem->i32;
+  code = readCfgFile(tsDataDir, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   if (!tsForceReadConfig) {
     uInfo("load config from tsDataDir:%s", tsDataDir);
     code = readCfgFile(tsDataDir, false);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to read local config from %s since %s", tsDataDir, tstrerror(code));
-      TAOS_RETURN(code);
-    }
-    code = readCfgFile(tsDataDir, true);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("failed to read global config from %s since %s", tsDataDir, tstrerror(code));
       TAOS_RETURN(code);
     }
   }
@@ -2456,6 +2456,10 @@ extern void tsdbAlterNumCompactThreads();
 static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = -1;
+
+  if (strcasecmp("timezone", name) == 0) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
 
   if (strcasecmp(name, "resetlog") == 0) {
     // trigger, no item in cfg
@@ -2638,7 +2642,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t lino = 0;
 
   if (strcasecmp("charset", name) == 0 || strcasecmp("timezone", name) == 0) {
-    goto _out;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   cfgLock(pCfg);
@@ -3090,6 +3094,9 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
         if (cJSON_AddNumberToObject(dataDir, "primary", disk->primary) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "disable", disk->disable) == NULL) goto _exit;
       }
+      continue;
+    }
+    if (strcasecmp(item->name, "forceReadConfig") == 0) {
       continue;
     }
     switch (item->dtype) {

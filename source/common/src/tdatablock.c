@@ -1789,6 +1789,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
   dst->info.capacity = cap;
+  uTrace("%s,parName:%s, groupId:%"PRIu64, __FUNCTION__, dst->info.parTbName, dst->info.id.groupId)
   return code;
 }
 
@@ -3078,7 +3079,7 @@ int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t grou
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    uError("%s failed at line %d since %s, ctbName:%s", __func__, lino, tstrerror(code), ctbName);
   }
   return code;
 }

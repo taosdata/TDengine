@@ -13,7 +13,7 @@ from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise, \
-    parse_options, convert_results_to_windows
+    parse_options, convert_results_to_windows, get_past_dynamic_data, get_dynamic_data
 
 app = Flask(__name__)
 
@@ -22,7 +22,7 @@ app_logger.set_handler(conf.get_log_path())
 app_logger.set_log_level(conf.get_log_level())
 loader.load_all_service()
 
-_ANODE_VER = 'TDgpt - TDengine© Time-Series Data Analytics Platform (ver 3.3.6.0)'
+_ANODE_VER = 'TDgpt - TDengine© Time-Series Data Analytics Platform (ver 3.3.6.1)'
 
 @app.route("/")
 def start():
@@ -71,6 +71,9 @@ def handle_ad_request():
     # 1. validate the input data in json format
     try:
         validate_pay_load(req_json)
+        d = req_json["data"]
+        if len(d) > 2:
+            raise ValueError(f"invalid data format, too many columns for anomaly-detection, allowed:2, input:{len(d)}")
     except ValueError as e:
         return {"msg": str(e), "rows": -1}
 
@@ -160,7 +163,10 @@ def handle_forecast_req():
         return {"msg": f"{e}", "rows": -1}
 
     try:
-        res1 = do_forecast(payload[data_index], payload[ts_index], algo, params)
+        res1 = do_forecast(payload[data_index], payload[ts_index], algo, params,
+                           get_past_dynamic_data(payload, req_json["schema"]),
+                           get_dynamic_data(payload, req_json["schema"]))
+
         res = {"option": options, "rows": params["rows"]}
         res.update(res1)
 

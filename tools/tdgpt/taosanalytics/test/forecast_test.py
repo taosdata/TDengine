@@ -44,7 +44,7 @@ class ForecastTest(unittest.TestCase):
         s.set_params({"rows": 10, "start_ts": 171000000, "time_step": 86400 * 30})
 
         r = s.execute()
-        draw_fc_results(data, len(r["res"]) > 2, r["res"], len(r["res"][0]), "holtwinters")
+        draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
 
     def test_holt_winters_forecast_2(self):
         """test holt winters with valid parameters"""
@@ -61,7 +61,7 @@ class ForecastTest(unittest.TestCase):
 
         r = s.execute()
 
-        draw_fc_results(data, len(r["res"]) > 2, r["res"], len(r["res"][0]), "holtwinters")
+        draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
 
     def test_holt_winter_invalid_params(self):
         """parameters validation check"""
@@ -109,7 +109,7 @@ class ForecastTest(unittest.TestCase):
         r = s.execute()
 
         rows = len(r["res"][0])
-        draw_fc_results(data, len(r["res"]) > 1, r["res"], rows, "arima")
+        draw_fc_results(data, len(r["res"]) > 1, s.conf, r["res"], "arima")
 
 
     def test_gpt_fc(self):

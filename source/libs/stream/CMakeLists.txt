@@ -6,17 +6,18 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+  DEP_ext_rocksdb(stream)
+else()
+  target_link_libraries(stream PRIVATE rocksdb)
+endif()
 
 if(${BUILD_WITH_ROCKSDB})
   if(${BUILD_CONTRIB})
     target_link_libraries(
       stream
-      PUBLIC rocksdb tdb tcs
+      PUBLIC tdb tcs
       PRIVATE os util transport qcom executor wal index
-    )
-    target_include_directories(
-      stream
-      PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     )
   else()
     if(TD_LINUX)
@@ -30,18 +31,14 @@ if(${BUILD_WITH_ROCKSDB})
       )
       target_link_libraries(
         stream
-        PUBLIC rocksdb tdb tcs
+        PUBLIC tdb tcs
         PRIVATE os util transport qcom executor wal index
       )
     else()
       target_link_libraries(
         stream
-        PUBLIC rocksdb tdb tcs
+        PUBLIC tdb tcs
         PRIVATE os util transport qcom executor wal index
-      )
-      target_include_directories(
-        stream
-        PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
       )
     endif()
   endif()

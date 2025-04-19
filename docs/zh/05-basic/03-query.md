@@ -4,9 +4,9 @@ title: TDengine 数据查询
 toc_max_heading_level: 4
 ---
 
-import win from './window.png';
-import swin from './session-window.png';
-import ewin from './event-window.png';
+import win from './pic/window.png';
+import swin from './pic/session_window.png';
+import ewin from './pic/event_window.png';
 
 相较于其他众多时序数据库和实时数据库，TDengine 的一个独特优势在于，自其首个版本发布之初便支持标准的 SQL 查询功能。这一特性极大地降低了用户在使用过程中的学习难度。本章将以智能电表的数据模型为例介绍如何在 TDengine 中运用 SQL 查询来处理时序数据。如果需要进一步了解 SQL 语法的细节和功能，建议参阅 TDengine 的官方文档。通过本章的学习，你将能够熟练掌握 TDengine 的 SQL 查询技巧，进而高效地对时序数据进行操作和分析。
 
@@ -226,7 +226,7 @@ Query OK, 12 row(s) in set (0.021265s)
 
 每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如下图，[t0s, t0e]、[t1s, t1e]、[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。
 
-![时间窗口示意图](./sliding-window.png)
+![时间窗口示意图](./pic/time_window.webp)
 
 **注意** 
 

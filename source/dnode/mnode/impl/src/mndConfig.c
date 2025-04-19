@@ -39,7 +39,7 @@ static int32_t mndSendRebuildReq(SMnode *pMnode);
 static int32_t mndTryRebuildConfigSdbRsp(SRpcMsg *pRsp);
 static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array);
 static int32_t mndTryRebuildConfigSdb(SRpcMsg *pReq);
-static void    cfgArrayCleanUp(SArray *array, bool needFree);
+static void    cfgArrayCleanUp(SArray *array);
 static void    cfgObjArrayCleanUp(SArray *array);
 int32_t        compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *diffArray);
 
@@ -247,33 +247,17 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
     goto _OVER;
   }
   SConfigRsp configRsp = {0};
-  configRsp.forceReadConfig = configReq.forceReadConfig;
-
   configRsp.cver = vObj->i32;
-  if (configRsp.forceReadConfig) {
-    // compare config array from configReq with current config array
-    code = compareSConfigItemArrays(pMnode, configReq.array, array);
-    if (code != TSDB_CODE_SUCCESS) {
-      mError("failed to compare config array, since %s", tstrerror(code));
+
+  if (configReq.cver == vObj->i32) {
+    configRsp.isVersionVerified = 1;
+  } else {
+    code = initConfigArrayFromSdb(pMnode, array);
+    if (code != 0) {
+      mError("failed to init config array from sdb, since %s", tstrerror(code));
       goto _OVER;
     }
-    if (taosArrayGetSize(array) > 0) {
-      configRsp.array = array;
-    } else {
-      configRsp.isConifgVerified = 1;
-    }
-  } else {
-    if (configReq.cver == vObj->i32) {
-      configRsp.isVersionVerified = 1;
-    } else {
-      needFree = true;
-      code = initConfigArrayFromSdb(pMnode, array);
-      if (code != 0) {
-        mError("failed to init config array from sdb, since %s", terrstr());
-        goto _OVER;
-      }
-      configRsp.array = array;
-    }
+    configRsp.array = array;
   }
 
   int32_t contLen = tSerializeSConfigRsp(NULL, 0, &configRsp);
@@ -300,8 +284,7 @@ _OVER:
     mError("failed to process config req, since %s", tstrerror(code));
   }
   sdbRelease(pMnode->pSdb, vObj);
-  cfgArrayCleanUp(array, needFree);
-
+  cfgArrayCleanUp(array);
   tFreeSConfigReq(&configReq);
   return code;
 }
@@ -781,7 +764,7 @@ _exit:
   return code;
 }
 
-static void cfgArrayCleanUp(SArray *array, bool needFree) {
+static void cfgArrayCleanUp(SArray *array) {
   if (array == NULL) {
     return;
   }
@@ -793,9 +776,7 @@ static void cfgArrayCleanUp(SArray *array, bool needFree) {
         item->dtype == CFG_DTYPE_CHARSET || item->dtype == CFG_DTYPE_TIMEZONE) {
       taosMemoryFreeClear(item->str);
     }
-    if (needFree) {
-      taosMemoryFreeClear(item->name);
-    }
+    taosMemoryFreeClear(item->name);
   }
 
   taosArrayDestroy(array);
@@ -991,36 +972,4 @@ int32_t compareSConfigItem(const SConfigObj *item1, SConfigItem *item2, bool *co
       return TSDB_CODE_INVALID_CFG;
   }
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *diffArray) {
-  int32_t code = 0;
-  int32_t dsz = taosArrayGetSize(dArray);
-  bool    compare = false;
-
-  for (int i = 0; i < dsz; i++) {
-    SConfigItem *dItem = (SConfigItem *)taosArrayGet(dArray, i);
-    SConfigObj  *mObj = sdbAcquire(pMnode->pSdb, SDB_CFG, dItem->name);
-    if (mObj == NULL) {
-      mError("failed to acquire config:%s from sdb, since %s", dItem->name, tstrerror(code));
-      continue;
-    }
-
-    code = compareSConfigItem(mObj, dItem, &compare);
-    if (code != TSDB_CODE_SUCCESS) {
-      sdbRelease(pMnode->pSdb, mObj);
-      return code;
-    }
-
-    if (!compare) {
-      if (taosArrayPush(diffArray, dItem) == NULL) {
-        sdbRelease(pMnode->pSdb, mObj);
-        return terrno;
-      }
-    }
-
-    sdbRelease(pMnode->pSdb, mObj);
-  }
-
-  return code;
 }

@@ -4,7 +4,7 @@ slug: /tdengine-reference/sql-manual/manage-streams
 ---
 
 import Image from '@theme/IdealImage';
-import imgStream from './assets/stream-processing-01.png';
+import imgStream from './assets/stream-processing-01-watermark.webp';
 
 ## Creating Stream Computing
 

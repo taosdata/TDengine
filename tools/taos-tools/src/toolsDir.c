@@ -17,6 +17,7 @@
 #endif
 #include "toolsdef.h"
 
+#include <stdlib.h>
 #define toolsMemoryFree free
 #define toolsMemoryMalloc malloc
 
@@ -117,7 +118,7 @@ TdDirPtr toolsOpenDir(const char *dirname) {
 #elif defined(DARWIN)
     DIR *pDir = opendir(dirname);
     if (pDir == NULL) return NULL;
-    TdDirPtr dirPtr = (TdDirPtr)taosMemoryMalloc(sizeof(TdDir));
+    TdDirPtr dirPtr = (TdDirPtr)toolsMemoryMalloc(sizeof(TdDir));
     dirPtr->dirEntryPtr = (TdDirEntryPtr) & (dirPtr->dirEntry1);
     dirPtr->pDir = pDir;
     return dirPtr;

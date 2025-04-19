@@ -22,9 +22,11 @@ SET(CMAKE_CXX_STANDARD 11)
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
 ADD_EXECUTABLE(joinTests joinTests.cpp)
+DEP_ext_gtest(joinTests)
+DEP_ext_cppstub(joinTests)
 TARGET_LINK_LIBRARIES(
         joinTests
-        PRIVATE os util common executor gtest_main qcom function planner scalar nodes vnode
+        PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
 )
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -34,9 +36,11 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 
 ADD_EXECUTABLE(queryPlanTests queryPlanTests.cpp)
+DEP_ext_gtest(queryPlanTests)
+DEP_ext_cppstub(queryPlanTests)
 TARGET_LINK_LIBRARIES(
         queryPlanTests
-        PRIVATE os util common executor gtest_main qcom function planner scalar nodes vnode
+        PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
 )
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -46,9 +50,10 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 
 ADD_EXECUTABLE(execUtilTests execUtilTests.cpp)
+DEP_ext_gtest(execUtilTests)
 TARGET_LINK_LIBRARIES(
         execUtilTests
-        PRIVATE os util common executor gtest_main qcom function planner scalar nodes vnode
+        PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
 )
 
 TARGET_INCLUDE_DIRECTORIES(

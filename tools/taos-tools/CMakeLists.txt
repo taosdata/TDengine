@@ -1,9 +1,9 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+# CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
-PROJECT(taos-tools
-        LANGUAGES C
-        VERSION 0.1.0
-        )
+# PROJECT(taos-tools
+#         LANGUAGES C
+#         VERSION 0.1.0
+#         )
 
 if(NOT WIN32)
     string(ASCII 27 Esc)
@@ -30,73 +30,6 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
 
     IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         SET(OS_INFO "Darwin")
-    ELSE()
-        find_package(ZLIB)
-        if (ZLIB_FOUND)
-            set(ZLIB_PKG zlib)
-            add_definitions(-DDEFLATE_CODEC)
-            include_directories(${ZLIB_INCLUDE_DIRS})
-            message("${Green} Enabled deflate codec ${ColourReset}")
-        else (ZLIB_FOUND)
-            set(ZLIB_PKG "")
-            set(ZLIB_LIBRARIES "")
-            message("${Red} Disabled deflate codec. zlib not found. ${ColourReset}")
-        endif (ZLIB_FOUND)
-
-        pkg_check_modules(SNAPPY snappy)
-        IF (SNAPPY_FOUND AND ZLIB_FOUND)  # Snappy borrows crc32 from zlib
-            set(SNAPPY_PKG libsnappy)
-            add_definitions(-DSNAPPY_CODEC)
-            include_directories(${SNAPPY_INCLUDE_DIRS})
-            message("${Green} Enabled snappy codec ${ColourReset}")
-        ELSE ()
-            execute_process(COMMAND chmod 777 ${PROJECT_SOURCE_DIR}/packaging/tools/get_os.sh)
-
-            EXECUTE_PROCESS(COMMAND readlink /bin/sh OUTPUT_VARIABLE SHELL_LINK)
-            MESSAGE(STATUS "The shell is: " ${SHELL_LINK})
-            IF (${SHELL_LINK} MATCHES "dash")
-                EXECUTE_PROCESS(COMMAND ${PROJECT_SOURCE_DIR}/packaging/tools/get_os.sh "" OUTPUT_VARIABLE OS_INFO)
-            ELSE ()
-                EXECUTE_PROCESS(COMMAND sh ${PROJECT_SOURCE_DIR}/packaging/tools/get_os.sh "" OUTPUT_VARIABLE OS_INFO)
-            ENDIF()
-            MESSAGE("Current OS is " ${OS_INFO})
-            set(SNAPPY_PKG "")
-            set(SNAPPY_LIBRARIES "")
-            MESSAGE("")
-            IF (${OS_INFO} MATCHES "CentOS")
-                MESSAGE("${Yellow}libsnappy not found or zlib not found.")
-                MESSAGE("NOTE: The snappy package lacks pkg-config support on CentOS Linux even it is already installed.")
-                MESSAGE("      It leads cmake prompt \"libsnappy not found.\", but it will works well.")
-                MESSAGE("      Please refer to https://github.com/google/snappy/pull/86.")
-                MESSAGE("${ColourReset}")
-            ELSE ()
-                MESSAGE("${Red}libsnappy not found or zlib not found.")
-                MESSAGE("${ColourReset}")
-            ENDIF ()
-        ENDIf (SNAPPY_FOUND AND ZLIB_FOUND)
-
-        find_package(PkgConfig)
-        pkg_check_modules(LZMA liblzma)
-        if (LZMA_FOUND)
-            set(LZMA_PKG liblzma)
-            add_definitions(-DLZMA_CODEC)
-            include_directories(${LZMA_INCLUDE_DIRS})
-            link_directories(${LZMA_LIBRARY_DIRS})
-            message("${Green} Enabled lzma codec ${ColourReset}")
-        else (LZMA_FOUND)
-            set(LZMA_PKG "")
-            set(LZMA_LIBRARIES "")
-            message("${Red} Disabled lzma codec. liblzma not found.${ColourReset}")
-        endif (LZMA_FOUND)
-
-        # Jansson JSON library
-        pkg_check_modules(JANSSON jansson>=2.3)
-        IF (JANSSON_FOUND)
-            MESSAGE("${Green} jansson found ${ColourReset}")
-            include_directories(${JANSSON_INCLUDE_DIRS})
-        ELSE()
-            MESSAGE(FATAL_ERROR "${Red} jansson not found ${ColourReset}")
-        ENDIF()
     ENDIF ()
 ENDIF ()
 
@@ -111,13 +44,14 @@ ADD_SUBDIRECTORY(src)
 
 ADD_DEPENDENCIES(taosBenchmark toolscJson)
 
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.sh")
-    INSTALL(CODE "execute_process(COMMAND bash ${MAKE_INSTALL_SH} ${CMAKE_BINARY_DIR})")
-ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.bat")
-    INSTALL(CODE "execute_process(COMMAND ${MAKE_INSTALL_SH} :needAdmin ${PROJECT_SOURCE_DIR} ${PROJECT_BINARY_DIR} Windows)")
-ENDIF ()
+# NOTE: seems conflict with cmake/install.cmake
+# IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+#     SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.sh")
+#     INSTALL(CODE "execute_process(COMMAND bash ${MAKE_INSTALL_SH} ${CMAKE_BINARY_DIR})")
+# ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+#     SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.bat")
+#     INSTALL(CODE "execute_process(COMMAND ${MAKE_INSTALL_SH} :needAdmin ${PROJECT_SOURCE_DIR} ${PROJECT_BINARY_DIR} Windows)")
+# ENDIF ()
 
 # add test
 IF(TD_LINUX)

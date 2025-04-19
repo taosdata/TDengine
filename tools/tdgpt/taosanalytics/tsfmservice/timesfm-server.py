@@ -3,7 +3,6 @@ from flask import Flask, request, jsonify
 import timesfm
 
 app = Flask(__name__)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 _model_list = [
     'google/timesfm-2.0-500m-pytorch',  # 499M parameters
@@ -11,7 +10,7 @@ _model_list = [
 
 tfm = timesfm.TimesFm(
     hparams=timesfm.TimesFmHparams(
-        backend=device,
+        backend="cpu",
         per_core_batch_size=32,
         horizon_len=128,
         num_layers=50,
@@ -52,6 +51,7 @@ def timesfm():
             'output': pred_y
         }
         return jsonify(response), 200
+
     except Exception as e:
         print(f"error:{e}")
         return jsonify({

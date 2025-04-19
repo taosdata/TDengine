@@ -463,9 +463,9 @@ int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32
     if (DECIMAL64_GET_VALUE(&frac) != 0 || DECIMAL64_GET_VALUE(&whole) != 0) {
       TAOS_STRCAT(buf + pos, ".");
       pos += 1;
-      char format[16] = "\%0";
-      snprintf(format + 2, 14, "%" PRIu8 PRIu64, scale);
-      snprintf(buf + pos, bufLen - pos, format, DECIMAL64_GET_VALUE(&frac));
+      // NOTE: never generate format string dynamically
+      //       decimalTest has been passed.
+      snprintf(buf + pos, bufLen - pos, "%0*" PRIu64, scale, DECIMAL64_GET_VALUE(&frac));
     }
   }
   TAOS_STRNCPY(pBuf, buf, bufLen);

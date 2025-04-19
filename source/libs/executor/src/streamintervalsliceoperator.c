@@ -418,7 +418,7 @@ static int32_t doStreamIntervalSliceNext(SOperatorInfo* pOperator, SSDataBlock**
   SExecTaskInfo*                    pTaskInfo = pOperator->pTaskInfo;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
 
-  qDebug("stask:%s  %s status: %d", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType), pOperator->status);
+  qDebug("%s stask:%s  %s status: %d", GET_TASKID(pTaskInfo), __FUNCTION__, getStreamOpName(pOperator->operatorType), pOperator->status);
 
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;

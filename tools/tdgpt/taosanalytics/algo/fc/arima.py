@@ -68,8 +68,7 @@ class _ArimaService(AbstractForecastService):
         fc = model.predict(n_periods=fc_rows, return_conf_int=self.return_conf,
                            alpha=self.conf)
 
-        res1 = [fc[0].tolist(), fc[1][:, 0].tolist(),
-                fc[1][:, 1].tolist()] if self.return_conf else [fc.tolist()]
+        res1 = [fc[0].tolist(), fc[1][:, 0].tolist(), fc[1][:, 1].tolist()] if self.return_conf else [fc.tolist()]
 
         return (
             res1,

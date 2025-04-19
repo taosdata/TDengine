@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.16)
 
 project(
   TDengine
@@ -6,6 +6,12 @@ project(
   DESCRIPTION
     "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
+
+# ref: https://cmake.org/cmake/help/latest/command/cmake_policy.html
+#     `CMake keeps policy settings on a stack`
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
 if(NOT DEFINED TD_ENTERPRISE_DIR)
   set(TD_COMMUNITY_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -19,11 +25,11 @@ if(NOT DEFINED TD_ENTERPRISE_DIR)
   message(STATUS "Contrib directory: " ${TD_CONTRIB_DIR})
 
   include(cmake/preinclude.cmake)
-  include(cmake/cmake.platform)
-  include(cmake/cmake.options)
+  include(cmake/platform.cmake)
+  include(cmake/options.cmake)
   include(cmake/check_env.cmake)
-  include(cmake/cmake.define)
-  include(cmake/cmake.version)
+  include(cmake/define.cmake)
+  include(cmake/version.cmake)
   include(cmake/external.cmake)
 endif()
 
@@ -46,5 +52,5 @@ add_subdirectory(tests)
 add_subdirectory(examples/c)
 add_subdirectory(docs/doxgen)
 
-include(cmake/cmake.install)
+include(cmake/install.cmake)
 include(CPack)
