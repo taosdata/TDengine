@@ -67,7 +67,7 @@ class TaosTSGenerationMixin(GenerationMixin):
         prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
         synced_gpus: Optional[bool] = None,
         assistant_model: Optional["PreTrainedModel"] = None,
-        streamer: Optional["BaseStreamer"] = None,
+        streamer = None,
         negative_prompt_ids: Optional[torch.Tensor] = None,
         negative_prompt_attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
@@ -97,6 +97,7 @@ class TaosTSGenerationMixin(GenerationMixin):
             output_logits: Optional[bool] = None,
             return_dict_in_generate: Optional[bool] = None,
             synced_gpus: bool = False,
+            streamer = None,
             **model_kwargs,
     ) -> Union[GenerateNonBeamOutput, torch.Tensor]:
         input_ids = input_ids.to(self.device)
