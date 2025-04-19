@@ -72,6 +72,29 @@ SSDataBlock* createTestBlock() {
   return b;
 }
 
+bool compareBlock(SSDataBlock* b1, SSDataBlock* b2) {
+  if (b1->info.rows != b2->info.rows) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < b1->info.rows; ++i) {
+    SColumnInfoData* p0 = (SColumnInfoData*)taosArrayGet(b1->pDataBlock, 0);
+    SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b2->pDataBlock, 0);
+
+    if (*(int32_t*)colDataGetData(p0, i) != *(int32_t*)colDataGetData(p1, i)) {
+      return false;
+    }
+  }
+  SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b1->pDataBlock, 1);
+  SColumnInfoData* p2 = (SColumnInfoData*)taosArrayGet(b2->pDataBlock, 1);
+
+  char* pData = colDataGetData(p1, 3);
+  printf("b1 the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  pData = colDataGetData(p1, 3);
+  printf("b2 the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  return true;
+}
+
 TEST(dataSinkTest, fileInit) {
   int32_t code = initStreamDataSinkOnce();
   ASSERT_EQ(code, 0);
@@ -80,6 +103,19 @@ TEST(dataSinkTest, fileInit) {
   destroyDataSinkManager2();
 }
 
+TEST(dataSinkTest, test_name) {
+  SSDataBlock* pBlock = createTestBlock();
+  ASSERT_NE(pBlock, nullptr);
+  int64_t streamId = 1;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = 1;
+  TSKEY wstart = 0;
+  TSKEY wend = 100;
+  void* pCache = NULL;
+  int32_t code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+}
 
 TEST(dataSinkTest, putStreamDataCacheTest) {
   SSDataBlock* pBlock = createTestBlock();
@@ -103,9 +139,61 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   ASSERT_EQ(code, 0);
   ASSERT_NE(pBlock1, nullptr);
   ASSERT_EQ(pIter, nullptr);
+  bool equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  streamId = 1;
+  taskId = 1;
+  groupID = 2;
+  cleanMode = 1;
+  wstart = 100;
+  wend = 200;
+  pCache = NULL;
+  code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  ASSERT_EQ(code, 0);
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  streamId = 2;
+  taskId = 1;
+  groupID = 2;
+  cleanMode = 1;
+  wstart = 100;
+  wend = 200;
+  pCache = NULL;
+  code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  ASSERT_EQ(code, 0);
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  equal = compareBlock(pBlock, pBlock1);
+  ASSERT_EQ(equal, true);
+  blockDataDestroy(pBlock1);
+  destroyDataSinkManager2();
+  blockDataDestroy(pBlock);
 }
 
 int main(int argc, char **argv) {
+  taos_init();
   ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  int ret = RUN_ALL_TESTS();
+  taos_cleanup();
+  return ret;
 }

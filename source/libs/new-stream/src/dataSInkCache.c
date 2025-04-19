@@ -26,9 +26,10 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
                      SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   int32_t code = 0;
 
-  SGroupDSManager* pGroupDataInfo =
-      (SGroupDSManager*)taosHashGet(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId));
-  if (pGroupDataInfo == NULL) {
+  SGroupDSManager*  pGroupDataInfo = NULL;
+  SGroupDSManager** ppGroupDataInfo =
+      (SGroupDSManager**)taosHashGet(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId));
+  if (ppGroupDataInfo == NULL) {
     pGroupDataInfo = (SGroupDSManager*)taosMemoryCalloc(1, sizeof(SGroupDSManager));
     if (pGroupDataInfo == NULL) {
       return terrno;
@@ -40,6 +41,8 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
       taosMemoryFree(pGroupDataInfo);
       return code;
     }
+  } else {
+    pGroupDataInfo = *ppGroupDataInfo;
   }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);

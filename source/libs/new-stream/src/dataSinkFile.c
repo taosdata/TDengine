@@ -23,19 +23,22 @@
 #include "tdatablock.h"
 #include "tdef.h"
 
-static char dataSinkFilePath[256] = "/tmp/taosStreamDataSink";
-
+char    gDataSinkFilePath[PATH_MAX] = {0};
 int32_t initDataSinkFileDir() {
-  // create data sink file path
-  // if the path is not exist, create it
   int32_t code = 0;
-  snprintf(dataSinkFilePath, sizeof(dataSinkFilePath), "%s", "/tmp/taosStreamDataSink");
-  if (!taosIsDir(dataSinkFilePath)) {
-    code = taosMulMkDir(dataSinkFilePath);
+  int     ret = tsnprintf(gDataSinkFilePath, sizeof(gDataSinkFilePath), "%s/tdengine_stream_data/", tsTempDir);
+  if (ret < 0) {
+    stError("failed to get stream data sink path ret:%d", ret);
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+
+  if (!taosIsDir(gDataSinkFilePath)) {
+    code = taosMulMkDir(gDataSinkFilePath);
   }
   if (code != 0) {
     return code;
   }
+  stInfo("create stream data sink path %s", gDataSinkFilePath);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -46,7 +49,7 @@ static int32_t createStreamDataSinkFile(SStreamTaskDSManager* pStreamDataSink) {
       return terrno;
     }
     int32_t now = taosGetTimestampSec();
-    snprintf(pStreamDataSink->pFile->fileName, FILENAME_MAX, "%s//%s_%d_%" PRId64, dataSinkFilePath, "stream", now,
+    snprintf(pStreamDataSink->pFile->fileName, FILENAME_MAX, "%s//%s_%d_%" PRId64, gDataSinkFilePath, "stream", now,
              pStreamDataSink->streamId);
 
     pStreamDataSink->pFile->pFile =

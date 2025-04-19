@@ -41,12 +41,13 @@ typedef struct DataSinkFileState {
 } DataSinkFileState;
 
 typedef struct SDataSinkManager2 {
+  int8_t    status;  // 0 - init, 1 - running
   int64_t   usedMemSize;
   int64_t   maxMemSize;
   int64_t   fileBlockSize;
   int64_t   readDataFromMemTimes;
   int64_t   readDataFromFileTimes;
-  SHashObj* DataSinkStreamList;  // hash <streamId + taskId, SStreamTaskDSManager>
+  SHashObj* DataSinkStreamTaskList;  // hash <streamId + taskId, SStreamTaskDSManager>
 } SDataSinkManager2;
 
 typedef struct SStreamTaskDSManager {

@@ -24,9 +24,9 @@
 static SDataSinkManager2 g_pDataSinkManager = {0};
 #define DATA_SINK_MAX_MEM_SIZE_DEFAULT (1024 * 1024 * 1024)  // 1G
 
-int32_t initStreamDataSinkOnce() {
-  static int8_t init = 0;
-  int8_t        flag = atomic_val_compare_exchange_8(&init, 0, 1);
+static void destroySStreamDataSinkManager(void* pData);
+int32_t     initStreamDataSinkOnce() {
+  int8_t flag = atomic_val_compare_exchange_8(&g_pDataSinkManager.status, 0, 1);
   if (flag != 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -43,12 +43,12 @@ int32_t initStreamDataSinkOnce() {
   g_pDataSinkManager.fileBlockSize = 0;
   g_pDataSinkManager.readDataFromMemTimes = 0;
   g_pDataSinkManager.readDataFromFileTimes = 0;
-  g_pDataSinkManager.DataSinkStreamList =
+  g_pDataSinkManager.DataSinkStreamTaskList =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-  if (g_pDataSinkManager.DataSinkStreamList == NULL) {
+  if (g_pDataSinkManager.DataSinkStreamTaskList == NULL) {
     return -1;
   }
-  init = true;
+  taosHashSetFreeFp(g_pDataSinkManager.DataSinkStreamTaskList, destroySStreamDataSinkManager);
   return TSDB_CODE_SUCCESS;
 };
 
@@ -61,18 +61,34 @@ SGroupDSManager* getGroupDataInfo(SStreamTaskDSManager* pStreamData, int64_t gro
   return *ppGroupData;
 }
 
+void destorySWindowData(void* pData) {
+  SWindowData* pWindowData = (SWindowData*)pData;
+  if (pWindowData == NULL) {
+    return;
+  }
+  if (pWindowData->pDataBuf) {
+    taosMemoryFree(pWindowData->pDataBuf);
+  }
+  taosMemoryFree(pWindowData);
+}
+
 void clearGroupExpiredData(SGroupDSManager* pGroupData, TSKEY start) {
   if (pGroupData->windowDataInMem == NULL) {
     return;
   }
-  // read lock SRWLatch
+
   int32_t size = taosArrayGetSize(pGroupData->windowDataInMem);
-  for (int32_t i = 0; i < size; ++i) {
-    SDataSinkFileHeader* pHeader = (SDataSinkFileHeader*)taosArrayGet(pGroupData->windowDataInMem, i);
-    if (pHeader->endTime < start) {
-      taosArrayRemove(pGroupData->windowDataInMem, i);
+  int     deleteCount = 0;
+  for (int i = 0; i < size; ++i) {
+    SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, i);
+    if (pWindowData && pWindowData->wend < start) {
+      deleteCount++;
+    } else {
+      break;
     }
   }
+
+  taosArrayRemoveBatch(pGroupData->windowDataInMem, 0, deleteCount, destorySWindowData);
 }
 
 int32_t getFirstDataIter(SGroupDSManager* pGroupDataInfo, TSKEY start, TSKEY end, void** ppResult) {
@@ -129,7 +145,7 @@ static bool shouldWriteIntoFile(SStreamTaskDSManager* pStreamDataSink, int64_t g
 }
 
 static bool isManagerReady() {
-  if (g_pDataSinkManager.DataSinkStreamList != NULL) {
+  if (g_pDataSinkManager.DataSinkStreamTaskList != NULL) {
     return true;
   }
   return false;
@@ -150,12 +166,34 @@ static int32_t createSStreamDataSinkManager(int64_t streamId, int64_t taskId, in
   return TSDB_CODE_SUCCESS;
 }
 
-static void destroySStreamDataSinkManager(SStreamTaskDSManager* pStreamDataSink) {
-  if (pStreamDataSink->pFile) {
-    taosCloseFile(pStreamDataSink->pFile->pFile);
-    taosMemoryFreeClear(pStreamDataSink->pFile);
+static void doDestoryStreamTaskDSManager(SStreamTaskDSManager* pStreamTaskDSManager) {
+  if (pStreamTaskDSManager->DataSinkGroupList) {
+    taosHashCleanup(pStreamTaskDSManager->DataSinkGroupList);
+    pStreamTaskDSManager->DataSinkGroupList = NULL;
   }
-  taosMemoryFreeClear(pStreamDataSink);
+  if (pStreamTaskDSManager->pFile) {
+    taosCloseFile(pStreamTaskDSManager->pFile->pFile);
+    taosMemoryFreeClear(pStreamTaskDSManager->pFile);
+  }
+  taosMemoryFreeClear(pStreamTaskDSManager);
+}
+
+static void destroySStreamDataSinkManager(void* pData) {
+  SStreamTaskDSManager* pStreamTaskDSManager = *(SStreamTaskDSManager**)pData;
+  doDestoryStreamTaskDSManager(pStreamTaskDSManager);
+}
+
+static void destroySGroupDSManager(void* pData) {
+  SGroupDSManager* pGroupData = *(SGroupDSManager**)pData;
+  if (pGroupData->windowDataInMem) {
+    taosArrayDestroyP(pGroupData->windowDataInMem, destorySWindowData);
+    pGroupData->windowDataInMem = NULL;
+  }
+  if (pGroupData->windowDataInFile) {
+    taosArrayDestroyP(pGroupData->windowDataInFile, destorySWindowData);
+    pGroupData->windowDataInFile = NULL;
+  }
+  taosMemoryFreeClear(pGroupData);
 }
 
 // @brief 初始化数据缓存
@@ -164,33 +202,37 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode,
   if (code != 0) {
     return code;
   }
-
-  char key[128] = {0};
+  *ppCache = NULL;
+  char key[64] = {0};
   snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64, streamId, taskId);
-  SStreamTaskDSManager* pStreamDataSink = NULL;
-  pStreamDataSink = (SStreamTaskDSManager*)taosHashGet(g_pDataSinkManager.DataSinkStreamList, key, strlen(key));
-  if (pStreamDataSink == NULL) {
-    code = createSStreamDataSinkManager(streamId, taskId, cleanMode, &pStreamDataSink);
+  SStreamTaskDSManager** ppStreamTaskDSManager =
+      (SStreamTaskDSManager**)taosHashGet(g_pDataSinkManager.DataSinkStreamTaskList, key, strlen(key));
+  if (ppStreamTaskDSManager == NULL) {
+    SStreamTaskDSManager* pStreamTaskDSManager = NULL;
+    code = createSStreamDataSinkManager(streamId, taskId, cleanMode, &pStreamTaskDSManager);
     if (code != 0) {
-      code = taosHashPut(g_pDataSinkManager.DataSinkStreamList, key, strlen(key), pStreamDataSink,
-                         sizeof(SStreamTaskDSManager));
-      if (code != 0) {
-        destroySStreamDataSinkManager(pStreamDataSink);
-        pStreamDataSink = NULL;
-        return code;
-      }
+      stError("failed to create stream task data sink manager, err: %s", terrMsg);
+      return code;
     }
-    pStreamDataSink->DataSinkGroupList =
+    code = taosHashPut(g_pDataSinkManager.DataSinkStreamTaskList, key, strlen(key), &pStreamTaskDSManager,
+                       sizeof(SStreamTaskDSManager*));
+    if (code != 0) {
+      doDestoryStreamTaskDSManager(pStreamTaskDSManager);
+      return code;
+    }
+    pStreamTaskDSManager->DataSinkGroupList =
         taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-    if (pStreamDataSink->DataSinkGroupList == NULL) {
-      destroySStreamDataSinkManager(pStreamDataSink);
-      pStreamDataSink = NULL;
+    if (pStreamTaskDSManager->DataSinkGroupList == NULL) {
+      doDestoryStreamTaskDSManager(pStreamTaskDSManager);
       return terrno;
     }
-    pStreamDataSink->usedMemSize = 0;
-    pStreamDataSink->cleanMode = cleanMode;
+    taosHashSetFreeFp(pStreamTaskDSManager->DataSinkGroupList, destroySGroupDSManager);
+    *ppCache = pStreamTaskDSManager;
+  } else {
+    stError("streamId: %" PRId64 " taskId: %" PRId64 " already exist", streamId, taskId);
+
+    *ppCache = *ppStreamTaskDSManager;
   }
-  *ppCache = pStreamDataSink;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -199,7 +241,7 @@ void destroyStreamDataCache(void* pCache) {}
 
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex) {
-  if (isManagerReady()) {
+  if (!isManagerReady()) {
     stError("DataSinkManager is not ready");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
@@ -212,7 +254,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
 }
 
 int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end, void** pIter) {
-  if (isManagerReady()) {
+  if (!isManagerReady()) {
     stError("DataSinkManager is not ready");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
@@ -247,7 +289,7 @@ void getNextIterator(SGroupDSManager* pGroupData, void** pIter) {
   if (pResult->dataPos == DATA_SINK_MEM) {
     pResult->offset++;
     if (pResult->offset < taosArrayGetSize(pGroupData->windowDataInMem)) {
-      SWindowData* pWindowData = (SWindowData*)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
+      SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
       if (pWindowData->wstart >= pResult->reqStartTime && pWindowData->wend <= pResult->reqEndTime) {
         return;
       } else if (pWindowData->wstart >= pResult->reqEndTime) {
@@ -309,11 +351,12 @@ _end:
 void cancelStreamDataCacheIterate(void** pIter) { releaseDataIterator(pIter); }
 
 int32_t destroyDataSinkManager2() {
-  // todo: destroy all data sink
-
-  if (g_pDataSinkManager.DataSinkStreamList) {
-    taosHashCleanup(g_pDataSinkManager.DataSinkStreamList);
-    g_pDataSinkManager.DataSinkStreamList = NULL;
+  int8_t flag = atomic_val_compare_exchange_8(&g_pDataSinkManager.status, 1, 0);
+  if (flag == 1) {
+    if (g_pDataSinkManager.DataSinkStreamTaskList) {
+      taosHashCleanup(g_pDataSinkManager.DataSinkStreamTaskList);
+      g_pDataSinkManager.DataSinkStreamTaskList = NULL;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
