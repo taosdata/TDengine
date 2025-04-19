@@ -746,7 +746,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
     taosArrayDestroy(tagName);
-  } else if (ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_CHILD_TABLE) {
+  } else if (ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_NORMAL_TABLE) {
     SVCreateTbReq req = {0};
     req.type = TSDB_NORMAL_TABLE;
     req.name = me.name;
