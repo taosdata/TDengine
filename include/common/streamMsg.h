@@ -177,12 +177,14 @@ typedef struct SStreamMsg {
   int32_t msgType;
 } SStreamMsg;
 
+typedef SStreamTask SStmTaskStatusMsg;
+
 typedef struct SStreamHbMsg {
   int32_t dnodeId;
   int32_t streamGId;
   int32_t snodeId;
   SArray* pVgLeaders;     // SArray<int32_t>
-  SArray* pStreamStatus;  // SArray<SStreamStatus>
+  SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
@@ -215,8 +217,8 @@ typedef struct {
 typedef struct {
   int64_t streamId;
   SArray* readerTasks;   // SArray<SStreamDeployTaskInfo>
-  SArray* triggerTasks;
-  SArray* runnerTasks;
+  SArray* triggerTasks;  // SArray<SStreamDeployTaskInfo>
+  SArray* runnerTasks;   // SArray<SStreamDeployTaskInfo>
 } SStreamTasksDeploy;
 
 typedef struct {
@@ -254,7 +256,7 @@ typedef struct {
 
 
 typedef struct {
-  int32_t  msgId;
+  int32_t  streamGId;
   SStreamDeployActions   deploy;
   SStreamStartActions    start;
   SStreamUndeployActions undeploy;

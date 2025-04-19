@@ -23,8 +23,12 @@ extern "C" {
 #include "tlog.h"
 
 #define STREAM_MAX_GROUP_NUM 5
+#define STREAM_MAX_THREAD_NUM 5
+
+#define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * 1000)
 
 typedef enum {
+  STREAM_STATUS_NA = 0,
   STREAM_STATUS_INIT = 1,
   STREAM_STATUS_RUNNING,
   STREAM_STATUS_STOPPED,
@@ -43,8 +47,12 @@ typedef void (*getMnodeEpsetFromDnode)(void* pDnode, SEpSet* pEpset);
 
 typedef struct SStreamTask {
   EStreamTaskType type;
+  
+  /** KEEP TOGETHER **/
   int64_t         streamId;  // ID of the stream
   int64_t         taskId;    // ID of the current task
+  /** KEEP TOGETHER **/
+      
   int32_t         nodeId;    // ID of the vgroup/snode
   int64_t         sessionId;  // ID of the current session (real-time, historical, or recalculation)
   int16_t         taskIdx;

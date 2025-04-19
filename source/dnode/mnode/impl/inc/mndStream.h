@@ -24,9 +24,13 @@ extern "C" {
 #endif
 
 typedef enum {
-  STREAM_ACTION_DEPLOY,
-  STREAM_ACTION_UNDEPLOY,
-} MND_STREAM_ACTION;
+  STM_ERR_TASK_NOT_EXISTS,
+} SStmStatusErrType;
+
+#define STREAM_ACT_DEPLOY (1 << 0)
+#define STREAM_ACT_UNDEPLOY (1 << 1)
+#define STREAM_ACT_START (1 << 2)
+#define STREAM_ACT_ERR_HANDLE (1 << 3)
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        6
@@ -40,12 +44,7 @@ typedef enum {
 #define MND_STREAM_DROP_NAME         "stream-drop"
 #define MND_STREAM_STOP_NAME         "stream-stop"
 
-typedef struct SStreamTransInfo {
-  int64_t     startTime;
-  int64_t     streamId;
-  const char *name;
-  int32_t     transId;
-} SStreamTransInfo;
+#define GOT_SNODE(_snodeId) ((_snodeId) != INT32_MIN)
 
 typedef struct SVgroupChangeInfo {
   SHashObj *pDBMap;
@@ -55,7 +54,7 @@ typedef struct SVgroupChangeInfo {
 typedef struct SStreamQNode {
   int64_t              streamId;
   char*                streamName;
-  MND_STREAM_ACTION    action;
+  int32_t              action;
   struct SStmtQNode*   next;
 } SStreamQNode;
 
@@ -72,31 +71,33 @@ typedef struct SStreamTaskId {
   int16_t taskIdx;
 } SStreamTaskId;
 
-typedef struct SStreamTaskState {
+typedef struct SStreamTaskStatus {
   SStreamTaskId id;
+  EStreamStatus status;
   int64_t       lastUpTs;
-} SStreamTaskState;
+} SStreamTaskStatus;
 
-typedef struct SStreamReaderTasksState {
-  SArray* vgList;   // SArray<SStreamTaskState>, triger and calc list
-} SStreamReaderTasksState;
+typedef struct SStmReadersStatus {
+  SArray* vgList;   // SArray<SStreamTaskStatus>, all readers from triger and calc list
+} SStmReadersStatus;
 
-typedef struct SStreamTasksInfo {
-  SArray* readerTaskList;        // SArray<SStreamReaderTasksState>
-  SArray* triggerTaskList;       // SArray<SStreamTaskState>
-  SArray* runnerTaskList;        // SArray<SStreamTaskState>
-} SStreamTasksInfo;
+typedef struct SStreamStatus {
+  int64_t           lastActTs;
+  SArray*           readerTaskList;        // SArray<SStreamTaskStatus>
+  SStreamTaskStatus triggerTask;
+  SArray*           runnerTaskList;        // SArray<SStreamTaskStatus>
+} SStreamStatus;
 
 typedef struct SStreamSnodeTasksStatus {
   SRWLatch lock;
-  SArray*  triggerTaskList;  // SArray<SStreamTaskState*>
-  SArray*  runnerTaskList;   // SArray<SStreamTaskState*>
+  SArray*  triggerTaskList;  // SArray<SStreamTaskStatus*>
+  SArray*  runnerTaskList;   // SArray<SStreamTaskStatus*>
 } SStreamSnodeTasksStatus;
 
 typedef struct SStreamVgReaderTasksStatus {
   SRWLatch lock;
   int64_t  streamVer;
-  SArray*  taskList;       // SArray<SStreamTaskState*>
+  SArray*  taskList;       // SArray<SStreamTaskStatus*>
 } SStreamVgReaderTasksStatus;
 
 typedef struct SStreamDeployTaskExtInfo {
@@ -119,33 +120,31 @@ typedef struct SStreamSnodeTasksDeploy {
   SArray*  runnerTaskList;   // SArray<SStreamDeployTaskInfo>
 } SStreamSnodeTasksDeploy;
 
-typedef struct SStreamThreadGrp {
+typedef struct SStreamThreadCtx {
   SStreamActionQ*  actionQ;
   SHashObj*        deployStm[STREAM_MAX_GROUP_NUM];  // streadId => SStreamTasksDeploy
-} SStreamThreadGrp;
+  SHashObj*        toHandleStm[STREAM_MAX_GROUP_NUM];  // streadId => actions
+} SStreamThreadCtx;
 
 typedef struct SStreamRuntime {
+  bool             initialized;
+  bool             isLeader;
   int32_t          activeStreamNum;
   
   int32_t           threadNum;
-  SStreamThreadGrp* threadGrp;
+  SStreamThreadCtx* threadCtx;
 
   int64_t          lastTaskId;
-  SHashObj*        streamMap;  // streamId => SStreamTasksInfo
-  SHashObj*        taskMap;    // streamId + taskId => SStreamTaskState*
+  SHashObj*        streamMap;  // streamId => SStreamStatus
+  SHashObj*        taskMap;    // streamId + taskId => SStreamTaskStatus*
   SHashObj*        vgroupMap;  // vgId => SStreamVgReaderTasksStatus (only reader tasks)
-  SHashObj*        snodeMap;   // snodeId => SStreamSnodeTasks (only trigger and runner tasks)
+  SHashObj*        snodeMap;   // snodeId => SStreamSnodeTasksStatus (only trigger and runner tasks)
   SHashObj*        dnodeMap;   // dnodeId => lastUpTs
 
   int32_t          toDeployVgTaskNum;
   SHashObj*        toDeployVgMap;      // vgId => SStreamVgReaderTasksDeploy (only reader tasks)
   int32_t          toDeploySnodeTaskNum;
   SHashObj*        toDeploySnodeMap;   // snodeId => SStreamSnodeTasksDeploy (only trigger and runner tasks)
-  
-  int32_t          role;
-  bool             switchFromFollower;
-  bool             initTaskList;
-  TdThreadMutex    lock;
 } SStreamRuntime;
 
 extern SStreamRuntime         mStreamMgmt;
@@ -183,8 +182,6 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 
 int32_t  mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams);
 int32_t  mndGetNumOfStreamTasks(const SStreamObj *pStream);
-int32_t  mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList, SHashObj* pTermMap);
-void     mndDestroyVgroupChangeInfo(SVgroupChangeInfo *pInfo);
 int32_t  setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
                         int32_t retryCode, int32_t acceptCode);
 int32_t  doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name,
@@ -195,36 +192,17 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
 int32_t mndGetStreamObj(SMnode *pMnode, int64_t streamId, SStreamObj **pStream);
 int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);
 
-int32_t extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);
 int32_t mndProcessStreamHb(SRpcMsg *pReq);
-int32_t extractStreamNodeList(SMnode *pMnode);
 int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
 int32_t mndStreamSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, int64_t checkpointId,
                                      int8_t mndTrigger);
 int32_t mndStreamSetStopStreamTasksActions(SMnode* pMnode, STrans *pTrans, uint64_t dbUid);
 
-void    removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo);
-int32_t mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList,
-                               SVgroupChangeInfo *pInfo);
-
-int32_t createStreamTaskIter(SStreamObj *pStream, SStreamTaskIter **pIter);
-void    destroyStreamTaskIter(SStreamTaskIter *pIter);
-bool    streamTaskIterNextTask(SStreamTaskIter *pIter);
-int32_t streamTaskIterGetCurrent(SStreamTaskIter *pIter, SStreamTask **pTask);
-
 int32_t mndInitExecInfo();
-void    mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo);
-void    mndStreamResetInitTaskListLoadFlag();
-void    mndUpdateStreamExecInfoRole(SMnode *pMnode, int32_t role);
-int32_t removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot);
 void    removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 
-int32_t mndClearConsensusCheckpointId(SHashObj *pHash, int64_t streamId);
-int32_t mndClearChkptReportInfo(SHashObj *pHash, int64_t streamId);
-
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
-int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t nRows, int32_t p);
 
 #ifdef __cplusplus
 }

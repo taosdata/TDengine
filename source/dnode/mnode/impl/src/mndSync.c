@@ -391,7 +391,7 @@ static void mndBecomeFollower(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  mndUpdateStreamExecInfoRole(pMnode, NODE_ROLE_FOLLOWER);
+  msmHandleBecomeNotLeader(pMnode);  
 }
 
 static void mndBecomeLearner(const SSyncFSM *pFsm) {
@@ -411,14 +411,15 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
     }
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
+
+  msmHandleBecomeNotLeader(pMnode);  
 }
 
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
   mInfo("vgId:1, become leader");
   SMnode *pMnode = pFsm->data;
 
-  mndUpdateStreamExecInfoRole(pMnode, NODE_ROLE_LEADER);
-  mndStreamResetInitTaskListLoadFlag();
+  msmHandleBecomeLeader(pMnode);
 }
 
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {

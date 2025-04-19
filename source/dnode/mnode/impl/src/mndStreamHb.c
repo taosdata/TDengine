@@ -18,8 +18,38 @@
 #include "mndMnode.h"
 #include "tmisce.h"
 
-static void    doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SEpSet* pEpset, int32_t vgId, int32_t msgId);
 
+void mndStreamHbSendRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg* pRsp) {
+  int32_t ret = 0;
+  int32_t tlen = 0;
+  void   *buf = NULL;
+
+  tEncodeSize(tEncodeStreamHbRsp, pRsp, tlen, ret);
+  if (ret < 0) {
+    stError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
+  }
+
+  buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    stError("encode stream hb msg rsp failed, code:%s", tstrerror(terrno));
+    return;
+  }
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, tlen);
+  if ((code = tEncodeStreamHbRsp(&encoder, pRsp)) < 0) {
+    rpcFreeCont(buf);
+    tEncoderClear(&encoder);
+    stError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
+    return;
+  }
+  tEncoderClear(&encoder);
+
+  SRpcMsg rsp = {.code = code, .info = *pRpcInfo, .contLen = tlen, .pCont = buf};
+
+  tmsgSendRsp(&rsp);
+  pRpcInfo->handle = NULL;  // disable auto rsp
+}
 
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
@@ -27,7 +57,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMStreamHbRspMsg rsp = {0};
   int32_t      code = 0;
   SDecoder     decoder = {0};
-  SEpSet       mnodeEpset = {0};
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     if (msmHandleGrantExpired(pMnode) < 0) {
@@ -44,63 +73,17 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
-  mDebug("receive stream-meta hb from vgId:%d, active numOfTasks:%d, HbMsgId:%d, HbMsgTs:%" PRId64, req.vgId,
-         req.numOfTasks, req.msgId, req.ts);
+  stDebug("receive stream-hb grp %d from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
+      req.streamGId, req.dnodeId, req.snodeId, taosArrayGetSize(req.pVgLeaders), taosArrayGetSize(req.pStreamStatus));
 
-  msmHandleStreamHbMsg(pMnode, &req, &rsp);
 
-  doSendHbMsgRsp(TSDB_CODE_SUCCESS, &pReq->info, &mnodeEpset, req.vgId, req.msgId);
+  int64_t currTs = taosGetTimestampMs();
+  
+  msmHandleStreamHbMsg(pMnode, currTs, &req, &rsp);
 
-  msmCleanDeployedTasks(&req);
+  mndStreamHbSendRsp(TSDB_CODE_SUCCESS, &pReq->info, &rsp);
+
+  msmCleanStreamGrpCtx(&req);
 
   return code;
-}
-
-bool validateHbMsg(const SArray *pNodeList, int32_t vgId) {
-  for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
-    SNodeEntry *pEntry = taosArrayGet(pNodeList, i);
-    if ((pEntry) && (pEntry->nodeId == vgId)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-void doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SEpSet* pMndEpset, int32_t vgId, int32_t msgId) {
-  int32_t ret = 0;
-  int32_t tlen = 0;
-  void   *buf = NULL;
-
-  SMStreamHbRspMsg msg = {.msgId = msgId};//, .mndEpset = *pMndEpset};
-  epsetAssign(&msg.mndEpset, pMndEpset);
-
-  tEncodeSize(tEncodeStreamHbRsp, &msg, tlen, ret);
-  if (ret < 0) {
-    mError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
-  }
-
-  buf = rpcMallocCont(tlen + sizeof(SMsgHead));
-  if (buf == NULL) {
-    mError("encode stream hb msg rsp failed, code:%s", tstrerror(terrno));
-    return;
-  }
-
-  ((SMStreamHbRspMsg *)buf)->head.vgId = htonl(vgId);
-  void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-
-  SEncoder encoder;
-  tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeStreamHbRsp(&encoder, &msg)) < 0) {
-    rpcFreeCont(buf);
-    tEncoderClear(&encoder);
-    mError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
-    return;
-  }
-  tEncoderClear(&encoder);
-
-  SRpcMsg rsp = {.code = code, .info = *pRpcInfo, .contLen = tlen + sizeof(SMsgHead), .pCont = buf};
-
-  tmsgSendRsp(&rsp);
-  pRpcInfo->handle = NULL;  // disable auto rsp
 }

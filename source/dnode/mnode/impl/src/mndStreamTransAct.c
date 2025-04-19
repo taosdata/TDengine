@@ -21,29 +21,6 @@
 #include "taoserror.h"
 #include "tmisce.h"
 
-static void initNodeUpdateMsg(SStreamTaskNodeUpdateMsg *pMsg, const SVgroupChangeInfo *pInfo, SArray* pTaskList, SStreamTaskId *pId,
-                              int32_t transId) {
-  int32_t code = 0;
-
-  pMsg->streamId = pId->streamId;
-  pMsg->taskId = pId->taskId;
-  pMsg->transId = transId;
-  pMsg->pNodeList = taosArrayInit(taosArrayGetSize(pInfo->pUpdateNodeList), sizeof(SNodeUpdateInfo));
-  if (pMsg->pNodeList == NULL) {
-    mError("failed to prepare node list, code:%s", tstrerror(terrno));
-    code = terrno;
-  }
-
-  pMsg->pTaskList = pTaskList;
-
-  if (code == 0) {
-    void *p = taosArrayAddAll(pMsg->pNodeList, pInfo->pUpdateNodeList);
-    if (p == NULL) {
-      mError("failed to add update node list into nodeList");
-    }
-  }
-}
-
 
 static int32_t doSetStopAllTasksAction(SMnode* pMnode, STrans* pTrans, SVgObj* pVgObj) {
   void   *pBuf = NULL;
