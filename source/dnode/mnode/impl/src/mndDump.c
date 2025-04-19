@@ -50,7 +50,7 @@ void dumpFunc(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "funcs");
+  SJson  *items = tjsonAddArrayToObject(json, "funcs");
 
   while (1) {
     SFuncObj *pObj = NULL;
@@ -79,8 +79,8 @@ _OVER:
 void dumpDb(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonCreateObject();
+  void   *pIter = NULL;
+  SJson  *items = tjsonCreateObject();
   TAOS_CHECK_GOTO(tjsonAddItemToObject(json, "dbs", items), &lino, _OVER);
 
   while (1) {
@@ -169,8 +169,8 @@ _OVER:
 void dumpStb(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "stbs");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "stbs");
 
   while (1) {
     SStbObj *pObj = NULL;
@@ -240,8 +240,8 @@ _OVER:
 void dumpSma(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "smas");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "smas");
 
   while (1) {
     SSmaObj *pObj = NULL;
@@ -280,8 +280,8 @@ _OVER:
 void dumpVgroup(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "vgroups");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "vgroups");
 
   while (1) {
     SVgObj *pObj = NULL;
@@ -316,8 +316,8 @@ _OVER:
 void dumpTopic(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "topics");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "topics");
 
   while (1) {
     SMqTopicObj *pObj = NULL;
@@ -351,8 +351,8 @@ _OVER:
 void dumpConsumer(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "consumers");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "consumers");
 
   while (1) {
     SMqConsumerObj *pObj = NULL;
@@ -372,8 +372,8 @@ _OVER:
 void dumpSubscribe(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "subscribes");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "subscribes");
 
   while (1) {
     SMqSubscribeObj *pObj = NULL;
@@ -395,7 +395,7 @@ void dumpStream(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "streams");
+  SJson  *items = tjsonAddArrayToObject(json, "streams");
 
   while (1) {
     SStreamObj *pObj = NULL;
@@ -435,8 +435,8 @@ _OVER:
 void dumpAcct(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "accts");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "accts");
 
   while (1) {
     SAcctObj *pObj = NULL;
@@ -462,8 +462,8 @@ void dumpAuth(SSdb *pSdb, SJson *json) {
 void dumpUser(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "users");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "users");
 
   while (1) {
     SUserObj *pObj = NULL;
@@ -492,8 +492,8 @@ _OVER:
 void dumpDnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "dnodes");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "dnodes");
 
   while (1) {
     SDnodeObj *pObj = NULL;
@@ -516,8 +516,8 @@ _OVER:
 void dumpSnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "snodes");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "snodes");
 
   while (1) {
     SSnodeObj *pObj = NULL;
@@ -535,11 +535,33 @@ _OVER:
   if (code != 0) mError("failed to dump snode info at line:%d since %s", lino, tstrerror(code));
 }
 
+void dumpXnode(SSdb *pSdb, SJson *json) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "xnodes");
+
+  while (1) {
+    SXnodeObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_XNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
+    sdbRelease(pSdb, pObj);
+  }
+_OVER:
+  if (code != 0) mError("failed to dump snode info at line:%d since %s", lino, tstrerror(code));
+}
+
 void dumpQnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "qnodes");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "qnodes");
 
   while (1) {
     SQnodeObj *pObj = NULL;
@@ -560,8 +582,8 @@ _OVER:
 void dumpMnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "mnodes");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "mnodes");
 
   while (1) {
     SMnodeObj *pObj = NULL;
@@ -607,8 +629,8 @@ _OVER:
 void dumpTrans(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "transactions");
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "transactions");
 
   while (1) {
     STrans *pObj = NULL;
@@ -651,7 +673,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   SJson *maxIdsJson = tjsonCreateObject();
   TAOS_CHECK_GOTO(tjsonAddItemToObject(json, "maxIds", maxIdsJson), &lino, _OVER);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
-    if(i == 5) continue;
+    if (i == 5) continue;
     int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
@@ -712,6 +734,7 @@ int32_t mndDumpSdb() {
   dumpUser(pSdb, json);
   dumpDnode(pSdb, json);
   dumpSnode(pSdb, json);
+  dumpXnode(pSdb, json);
   dumpQnode(pSdb, json);
   dumpMnode(pSdb, json);
   dumpCluster(pSdb, json);
