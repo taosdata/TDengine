@@ -67,7 +67,7 @@ class TaosTSGenerationMixin(GenerationMixin):
         prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
         synced_gpus: Optional[bool] = None,
         assistant_model: Optional["PreTrainedModel"] = None,
-        # streamer: Optional["BaseStreamer"] = None,
+        streamer: Optional["BaseStreamer"] = None,
         negative_prompt_ids: Optional[torch.Tensor] = None,
         negative_prompt_attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
@@ -551,7 +551,7 @@ class TaosForPrediction(TaosPreTrainedModel, TaosTSGenerationMixin):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        
+
         if revin:
             mean, std = input_ids.mean(dim=-1, keepdim=True), input_ids.std(dim=-1, keepdim=True)
             input_ids = (input_ids - mean) / std
@@ -594,7 +594,7 @@ class TaosForPrediction(TaosPreTrainedModel, TaosTSGenerationMixin):
             if output_token_len > max_output_length:
                 predictions = predictions[:, :max_output_length]
             if revin:
-                predictions = predictions * std + mean 
+                predictions = predictions * std + mean
         if not return_dict:
             output = (predictions,) + outputs[1:]
             return (loss) + output if loss is not None else output
@@ -674,11 +674,11 @@ def init_model():
         Taos_hidden_act="gelu",
         Taos_output_token_lens=[96],
     )
-    
+
     Taos_model = TaosForPrediction(config)
     weight_path = "taos.pth"
     state_dict = torch.load(weight_path, map_location=torch.device('cpu'))
-    
+
     # convert model weight
     Taos_model.load_state_dict(state_dict, strict=True)
     Taos_model = Taos_model.to(device)
