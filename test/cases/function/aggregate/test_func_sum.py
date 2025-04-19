@@ -9,10 +9,10 @@ class TestFuncSum:
     def test_func_sum(self):
         """Sum 函数
 
-        1. 创建包含一个 Int 普通数据列的超极表
+        1. 创建包含一个 Int 普通数据列的超级表
         2. 创建子表并写入数据
-        3. 对子表执行 Sum 查询，包括时间窗口、普通数据列筛选、标签列筛选
-        3. 对超级表执行 Sum 查询，包括时间窗口、普通数据列筛选、标签列筛选、Group By、Partition By
+        3. 对子表执行 Sum 查询，包括时间窗口、普通数据列筛选
+        4. 对超级表执行 Sum 查询，包括时间窗口、普通数据列筛选、标签列筛选、Group By、Partition By
 
         Catalog:
             - Function:Aggregate

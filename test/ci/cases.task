@@ -33,10 +33,29 @@
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_json.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_geometry.py
 
+# Function
+## Aggregate
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_avg.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_count.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_leastsquares.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_stddev.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_sum.py 
+## Selection
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_bottom.py
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_first.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_last_row.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_last.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_max.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_min.py 
+,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_top.py 
+
 #Index
 ,,y,.,./ci/pytest.sh pytest cases/index/test_index_create_drop.py 
 ,,y,.,./ci/pytest.sh pytest cases/index/test_index_overflow.py 
 ,,y,.,./ci/pytest.sh pytest cases/index/test_index_perf.py 
+
+#Show
+,,y,.,./ci/pytest.sh pytest cases/show/test_show_table_distributed.py 
 
 # SuperTable
 ## Columns query
