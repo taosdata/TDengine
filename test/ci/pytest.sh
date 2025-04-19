@@ -56,7 +56,7 @@ echo "Start TDengine Testing Case ..."
 echo "BUILD_DIR: $BUILD_DIR"
 echo "SIM_DIR  : $SIM_DIR"
 echo "CODE_DIR : $CODE_DIR"
-echo "ASAN_DIR  : $ASAN_DIR"
+echo "ASAN_DIR : $ASAN_DIR"
 
 # prevent delete / folder or /usr/bin
 if [ ${#SIM_DIR} -lt 10 ]; then
