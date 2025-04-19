@@ -1003,6 +1003,7 @@ Decimal128 tmpDecimal128Impl(Field *field, int32_t angle, int32_t k);
 int        tmpStr(char *tmp, int iface, Field *field, int64_t k);
 int        tmpGeometry(char *tmp, int iface, Field *field, int64_t k);
 int        tmpInt32ImplTag(Field *field, int i, int k);
+int        tmpBlobStr(char **t, int iface, Field *field, int64_t k);
 
 char *genQMark(int32_t QCnt);
 // get colNames , first is tbname if tbName is true
