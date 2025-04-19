@@ -107,6 +107,9 @@ typedef void *UdfcFuncHandle;
   do {                                                                                  \
     BMCharPos(pColumn->colData.fixLenCol.nullBitmap, r_) &= ~(1u << (7u - BitPos(r_))); \
   } while (0)
+
+
+
 #define udfColDataSetNull_var(pColumn, row) ((pColumn->colData.varLenCol.varOffsets)[row] = -1)
 
 typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
