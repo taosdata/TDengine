@@ -8,16 +8,18 @@
  * strictly prohibited.
  */
 
+#include "meta.h"
+#include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
-#include "vnd.h"
+
+#include "/root/workspace/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbSttFileRW.h"
 
 struct SSttFileReader;
 
 struct SLoadFileReaderImpl {
   SVnode                *pVnode;
-  const char            *fileName;
-  struct SSttFileReader *reader;
+  SSttFileReader        *reader;
 };
 
 typedef struct {
@@ -40,16 +42,28 @@ static int32_t vnodeLoadFileReaderOpen(SVnode *pVnode, const char *fname, SLoadF
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  //   SSttFileReaderConfig config = {
-  //       .tsdb = pVnode->pTsdb,
-  //       .szPage = pVnode->config.pageSize,
-  //       .fileName = fname,
-  //       .buffers = NULL,
-  //   };
-  //   int32_t code = tsdbSttFileReaderOpen(fname, &config, &pReader->impl->reader);
-  //   if (code) {
-  //     vnodeLoadFileReaderClose(pReader);
-  //   }
+  pReader->impl->pVnode = pVnode;
+
+  // Open the file reader
+  SSttFileReaderConfig config = {
+      .tsdb = pVnode->pTsdb,
+      .szPage = pVnode->config.tsdbPageSize,
+      .buffers = NULL,
+  };
+
+  code = tsdbGetSttFileFromName(fname, &config.file[0]);  // TODO
+  if (code) {
+    taosMemoryFreeClear(pReader->impl);
+    vError("vgId:%d, %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
+    goto _exit;
+  }
+
+  code = tsdbSttFileReaderOpen(NULL, &config, &pReader->impl->reader);
+  if (code) {
+    taosMemoryFreeClear(pReader->impl);
+    vError("vgId:%d, %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
+    goto _exit;
+  }
 
 _exit:
   if (code) {
@@ -66,8 +80,30 @@ static void vnodeLoadFileReaderClose(SLoadFileReader *pReader) {
 }
 
 static int32_t vnodeLoadFileMetaData(SLoadFileReader *pReader) {
-  // TODO
-  return 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+  SVnode *pVnode = pReader->impl->pVnode;
+
+  SMetaEntryWrapper *pEntry = NULL;
+  while (true) {
+    code = tsdbSttFileReadNextMetaEntry(pReader->impl->reader, &pEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (pEntry == NULL) {
+      break;
+    }
+
+    if (0) {
+      // TODO: check if the entry belongs to the current vnode
+      continue;
+    }
+
+    code = metaHandleEntry2(pVnode->pMeta, pEntry->pEntry);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  return code;
 }
 
 static int32_t vnodeLoadFileTimeseriesData(SLoadFileReader *pReader) {

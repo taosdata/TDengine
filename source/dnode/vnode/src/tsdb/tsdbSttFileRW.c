@@ -30,16 +30,18 @@ struct SSttFileReader {
     bool statisBlkLoaded;
     bool tombBlkLoaded;
   } ctx[1];
-  SArray         *entryIndices;
-  TSttBlkArray    sttBlkArray[1];
-  TStatisBlkArray statisBlkArray[1];
-  TTombBlkArray   tombBlkArray[1];
-  SBuffer         local[10];
-  SBuffer        *buffers;
+  int32_t           entryIndex;
+  SArray           *entryIndices;
+  TSttBlkArray      sttBlkArray[1];
+  TStatisBlkArray   statisBlkArray[1];
+  TTombBlkArray     tombBlkArray[1];
+  SBuffer           local[10];
+  SBuffer          *buffers;
+  SMetaEntryWrapper entry;
 };
 
 // SSttFileReader
-static int32_t tsdbSttFileReadEntryIndices(SSttFileReader *reader) {
+int32_t tsdbSttFileReadEntryIndices(SSttFileReader *reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -211,6 +213,75 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
 
   statisBlkArray[0] = reader->statisBlkArray;
   return 0;
+}
+
+int32_t tsdbSttFileReadNextMetaEntry(SSttFileReader *reader, SMetaEntryWrapper **entry) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  SBuffer *pBuffer = reader->buffers + 0;
+
+  if (reader->entryIndices == NULL) {
+    reader->entryIndices = taosArrayInit(0, sizeof(SFDataPtr));
+    if (NULL == reader->entryIndices) {
+      return terrno;
+    }
+
+    if (reader->footer->entryIndicsPtr.size > 0) {
+      tBufferClear(pBuffer);
+      code =
+          tsdbReadFileToBuffer(reader->fd, reader->footer->entryIndicsPtr.offset, reader->footer->entryIndicsPtr.size,
+                               pBuffer, 0, reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm,
+                               reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      SBufferReader br = BUFFER_READER_INITIALIZER(0, pBuffer);
+      int32_t       n = 0;
+      while (br.offset < reader->footer->entryIndicsPtr.size) {
+        SFDataPtr index = {0};
+
+        code = tBufferGetI64v(&br, &index.offset);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        code = tBufferGetI64v(&br, &index.size);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        if (NULL == taosArrayPush(reader->entryIndices, &index)) {
+          TSDB_CHECK_CODE(code = terrno, lino, _exit);
+        }
+      }
+      if (br.offset != reader->footer->entryIndicsPtr.size) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+      }
+    }
+
+    reader->entryIndex = 0;
+  }
+
+  if (reader->entryIndex >= taosArrayGetSize(reader->entryIndices)) {
+    entry[0] = NULL;
+    return 0;
+  }
+
+  SFDataPtr *pIndex = taosArrayGet(reader->entryIndices, reader->entryIndex);
+  tBufferClear(pBuffer);
+  code = tsdbReadFileToBuffer(reader->fd, pIndex->offset, pIndex->size, pBuffer, 0,
+                              reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm,
+                              reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // Decode binary data
+  SDecoder decoder = {0};
+  metaEntryWrapperFree(&reader->entry);
+  tDecoderInit(&decoder, (uint8_t *)pBuffer->data, pBuffer->size);
+  code = metaDecodeEntryWrapper(&decoder, &reader->entry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  tDecoderClear(&decoder);
+
+  *entry = &reader->entry;
+  reader->entryIndex++;
+
+_exit:
+  return code;
 }
 
 int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tombBlkArray) {

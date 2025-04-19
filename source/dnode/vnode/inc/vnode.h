@@ -404,6 +404,10 @@ void    metaEntryIterClose(SMetaEntryIter *iter);
 
 int32_t metaEncodeEntryWrapper(SEncoder *pEncoder, const SMetaEntryWrapper *pEntry);
 int32_t metaDecodeEntryWrapper(SDecoder *pDecoder, SMetaEntryWrapper *pEntry);
+void    metaEntryWrapperFree(SMetaEntryWrapper *pEntry);
+
+struct STFile;
+int32_t tsdbGetSttFileFromName(const char *fname, struct STFile *pFile);
 
 #ifdef __cplusplus
 }

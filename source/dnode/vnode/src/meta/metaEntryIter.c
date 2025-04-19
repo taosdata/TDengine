@@ -185,12 +185,26 @@ int32_t metaDecodeEntryWrapper(SDecoder *pDecoder, SMetaEntryWrapper *pEntry) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   SMetaEntry entry = {0};
-  code = metaDecodeEntry(pDecoder, pEntry->pEntry);
+  code = metaDecodeEntry(pDecoder, &entry);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = metaCloneEntry(&entry, &pEntry->pEntry);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  tEndDecode(pDecoder);
 
 _exit:
   if (code) {
     metaError("%s failed at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
   }
   return code;
+}
+
+void metaEntryWrapperFree(SMetaEntryWrapper *pEntry) {
+  if (pEntry == NULL) {
+    return;
+  }
+
+  metaCloneEntryFree(&pEntry->pEntry);
+  pEntry->pEntry = NULL;
 }

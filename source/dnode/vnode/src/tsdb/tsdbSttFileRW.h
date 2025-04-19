@@ -50,10 +50,10 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
 void    tsdbSttFileReaderClose(SSttFileReader **reader);
 
 // SSttSegReader
-// int32_t tsdbSttFileReadMetaIndex(SSttFileReader *reader, const SSttMetaIndex **metaIndex);
 int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBlkArray);
 int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray **statisBlkArray);
 int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **delBlkArray);
+int32_t tsdbSttFileReadNextMetaEntry(SSttFileReader *reader, SMetaEntryWrapper **entry);
 
 // int32_t tsdbSttFileReadMetaData(SSttFileReader *reader, const SSttMetaIndex *index, SMetaEntry *entry);
 int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, SBlockData *bData);

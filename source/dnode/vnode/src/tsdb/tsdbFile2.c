@@ -458,3 +458,38 @@ int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2) {
 }
 
 const char *tsdbFTypeLabel(tsdb_ftype_t ftype) { return g_tfile_info[ftype].suffix; }
+
+int32_t tsdbGetSttFileFromName(const char *fname, struct STFile *pFile) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (fname == NULL || pFile == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+
+  int32_t cid = 1;     // TODO
+  int32_t fid = 2019;  // TODO
+
+  *pFile = (STFile){
+      .type = TSDB_FTYPE_STT,
+      .did =
+          (SDiskID){
+              .level = 0,
+              .id = 0,
+          },
+      .lcn = 0,
+      .fid = fid,
+      .cid = cid,
+      .size = 1278,  // TODO
+      .minVer = VERSION_MAX,
+      .maxVer = VERSION_MIN,
+      .stt[0] =
+          {
+              .level = 0,
+          },
+  };
+
+_exit:
+  return code;
+}
