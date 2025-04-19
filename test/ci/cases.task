@@ -21,23 +21,25 @@
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_double.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_float.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_int.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_smallint.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_tinyint.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_unsign.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_uint.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_timestamp.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varchar.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_nchar.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varibinary.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_json.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_geometry.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_int.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_json.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_nchar.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_smallint.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_tinyint.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_uint.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_unsign.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varibinary.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varchar.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_null.py
 
 # Function
 ## Aggregate
 ,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_avg.py 
 ,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_count.py 
 ,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_leastsquares.py 
+,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_percentile.py 
 ,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_stddev.py 
 ,y,.,./ci/pytest.sh pytest cases/function/aggregate/test_func_sum.py 
 ## Selection
@@ -48,6 +50,9 @@
 ,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_max.py 
 ,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_min.py 
 ,y,.,./ci/pytest.sh pytest cases/function/selection/test_func_top.py 
+## Timeseries Specfic
+,y,.,./ci/pytest.sh pytest cases/function/timeseries/test_func_diff.py
+,y,.,./ci/pytest.sh pytest cases/function/timeseries/test_func_diff2.py
 
 #Index
 ,,y,.,./ci/pytest.sh pytest cases/index/test_index_create_drop.py 
@@ -55,6 +60,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/index/test_index_perf.py 
 
 #Show
+,,y,.,./ci/pytest.sh pytest cases/show/test_show_diskinfo.py 
 ,,y,.,./ci/pytest.sh pytest cases/show/test_show_table_distributed.py 
 
 # SuperTable
@@ -108,6 +114,12 @@
 ## NormalTable
 ,,y,.,./ci/pytest.sh pytest cases/table/normaltable/test_normaltable_query.py 
 ## SubTable
+
+# Timeseries Extensions
+## Timewindow
+,y,.,./ci/pytest.sh pytest cases/timeseries/timewindow/test_interval_bug.py
+,y,.,./ci/pytest.sh pytest cases/timeseries/timewindow/test_interval.py
+
 
 #View
 ,,y,.,./ci/pytest.sh pytest cases/view/test_view_mgmt.py

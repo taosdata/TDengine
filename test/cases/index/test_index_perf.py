@@ -25,7 +25,7 @@ class TestIndexPerf:
         Jira: None
 
         History:
-            - 2025-4-21 Simon Guan Migrated to new test framework
+            - 2025-4-21 Simon Guan Migrated to new test framework, from tests/script/tsim/tagindex/perf.sim
 
         """
 

@@ -24,7 +24,7 @@ class TestInterval:
         Jira: None
 
         History:
-            - 2025-4-23 Simon Guan Migrated to new test framework, from tsim/compute/interval1.sim
+            - 2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/interval1.sim
 
         """
 
