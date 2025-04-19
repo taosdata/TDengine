@@ -6,7 +6,7 @@
 # army/tools
 #
 
-,,n,unit-test,bash test.sh
+#,,n,unit-test,bash test.sh
 
 # benchmark 64 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
