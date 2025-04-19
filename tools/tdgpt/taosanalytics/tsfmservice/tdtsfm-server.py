@@ -67,7 +67,7 @@ class TaosTSGenerationMixin(GenerationMixin):
         prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
         synced_gpus: Optional[bool] = None,
         assistant_model: Optional["PreTrainedModel"] = None,
-        streamer: Optional["BaseStreamer"] = None,
+        # streamer: Optional["BaseStreamer"] = None,
         negative_prompt_ids: Optional[torch.Tensor] = None,
         negative_prompt_attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
@@ -663,9 +663,6 @@ class TaosForPrediction(TaosPreTrainedModel, TaosTSGenerationMixin):
 
 
 def init_model():
-    global Taos_model
-    if Taos_model != None:
-        return
 
     config = TaosConfig(
         Taos_input_token_len=96,
