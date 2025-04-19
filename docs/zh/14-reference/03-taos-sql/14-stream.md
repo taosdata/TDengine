@@ -379,6 +379,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887097,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000
         },
         {
@@ -387,6 +388,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887197,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000,
           "windowEnd": 1733284860000,
           "result": {
@@ -405,6 +407,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "triggerCondition": {
             "conditionIndex": 0,
@@ -420,6 +423,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
           "triggerCondition": {
@@ -463,6 +467,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 1. eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 1. windowId：字符串类型，窗口的唯一标识符，确保打开和关闭事件的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一窗口的 windowId 保持不变。
 1. windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
+1. groupId: 字符串类型，是对应分组的唯一标识符，如果是按表分组，则与对应表的 uid 一致。
 
 #### 时间窗口相关字段
 
