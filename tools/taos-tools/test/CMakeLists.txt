@@ -4,7 +4,7 @@ MESSAGE(STATUS "build taos-tools unit test")
 IF(TD_LINUX)
 
     # GoogleTest requires at least C++11
-    SET(CMAKE_CXX_STANDARD 11)
+    # SET(CMAKE_CXX_STANDARD 11)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     # benchmark
@@ -16,9 +16,11 @@ IF(TD_LINUX)
     )
 
     ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp ${BENCHMARK_SRC})
+    DEP_ext_gtest(benchmarkTest)
+
     TARGET_LINK_LIBRARIES(
             benchmarkTest
-            PRIVATE gtest taos toolscJson
+            PRIVATE taos toolscJson
     )
 
     target_include_directories(
@@ -35,9 +37,10 @@ IF(TD_LINUX)
 
     # taosdump
     ADD_EXECUTABLE(taosdumpTest taosdumpTest.cpp ../src/toolsSys.c)
-    TARGET_LINK_LIBRARIES(
+    DEP_ext_gtest(taosdumpTest)
+    target_link_libraries(
         taosdumpTest
-            PRIVATE gtest 
+        PRIVATE os
     )
 
     target_include_directories(

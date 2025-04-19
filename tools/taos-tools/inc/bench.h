@@ -20,7 +20,10 @@
 extern "C" {
 #endif
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 

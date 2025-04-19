@@ -16,7 +16,6 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
@@ -30,9 +29,10 @@ target_link_libraries(
     PRIVATE scalar
     PRIVATE geometry
     PRIVATE decimal
-    PRIVATE transport
-    PUBLIC uv_a
+    PUBLIC transport
 )
+
+# SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 
 if(${BUILD_WITH_UDF})
 add_executable(taosudf src/udfd.c)
@@ -45,7 +45,6 @@ target_include_directories(
     taosudf
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
@@ -55,9 +54,15 @@ target_include_directories(
 
 target_link_libraries(
     taosudf
-    PUBLIC uv_a
     PRIVATE os util common nodes function
 )
+
+if(UNIX AND NOT APPLE)
+    # ref: https://cmake.org/cmake/help/latest/release/3.4.html#deprecated-and-removed-features
+    set_target_properties(taosudf PROPERTIES
+        ENABLE_EXPORTS ON
+    )
+endif()
 
 if(${BUILD_TEST})
     add_subdirectory(test)
