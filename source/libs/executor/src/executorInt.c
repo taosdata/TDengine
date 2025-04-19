@@ -700,7 +700,7 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
       // the _wstart needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+      char* in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
       for (int32_t k = 0; k < pRow->numOfRows; ++k) {
         code = colDataSetValOrCover(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -1090,8 +1090,8 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
 }
 
 bool groupbyTbname(SNodeList* pGroupList) {
-  bool bytbname = false;
-  SNode*pNode = NULL;
+  bool   bytbname = false;
+  SNode* pNode = NULL;
   FOREACH(pNode, pGroupList) {
     if (pNode->type == QUERY_NODE_FUNCTION) {
       bytbname = (strcmp(((struct SFunctionNode*)pNode)->functionName, "tbname") == 0);
@@ -1153,7 +1153,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
           taosMemoryFree(pDeleterParam);
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
-        void*          tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
+        void* tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
         if (!tmp) {
           taosArrayDestroy(pDeleterParam->pUidList);
           taosMemoryFree(pDeleterParam);
@@ -1347,10 +1347,18 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
 
 bool compareVal(const char* v, const SStateKeys* pKey) {
   if (IS_VAR_DATA_TYPE(pKey->type)) {
-    if (varDataLen(v) != varDataLen(pKey->pData)) {
-      return false;
+    if (IS_STR_DATA_BLOB(pKey->type)) {
+      if (blobDataLen(v) != blobDataLen(pKey->pData)) {
+        return false;
+      } else {
+        return memcmp(blobDataVal(v), blobDataVal(pKey->pData), blobDataLen(v)) == 0;
+      }
     } else {
-      return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      if (varDataLen(v) != varDataLen(pKey->pData)) {
+        return false;
+      } else {
+        return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      }
     }
   } else {
     return memcmp(pKey->pData, v, pKey->bytes) == 0;

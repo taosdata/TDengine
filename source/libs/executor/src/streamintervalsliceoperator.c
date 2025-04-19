@@ -221,7 +221,8 @@ void doStreamSliceInterpolation(SSliceRowData* pPrevWinVal, TSKEY winKey, TSKEY 
     SResultCellData* pCell =
         getSliceResultCell((SResultCellData*)pPrevWinVal->pRowVal, pParam->pCol->slotId, pOffsetInfo);
     GET_TYPED_DATA(prevVal, double, pCell->type, pCell->pData, typeGetTypeModFromColInfo(&pColInfo->info));
-    GET_TYPED_DATA(curVal, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex), typeGetTypeModFromColInfo(&pColInfo->info));
+    GET_TYPED_DATA(curVal, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex),
+                   typeGetTypeModFromColInfo(&pColInfo->info));
 
     SPoint point1 = (SPoint){.key = pPrevWinVal->key, .val = &prevVal};
     SPoint point2 = (SPoint){.key = curTs, .val = &curVal};
