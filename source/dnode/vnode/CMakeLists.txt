@@ -75,10 +75,25 @@ set(
     "src/tq/tqSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
+
+    #bse
+    "src/bse/bseMgt.c"
+    "src/bse/bseTable.c"
+    "src/bse/bseCache.c"
+    "src/bse/bseTableMgt.c"
+    "src/bse/bseUtil.c"
+    "src/bse/bseSnapshot.c"
     "src/tq/tqStreamNotify.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
+list(
+    APPEND
+    VNODE_SOURCE_FILES
+    ${TSDB_SOURCE_FILES}
+)
+
+aux_source_directory("src/bse/" TSDB_SOURCE_FILES)
 list(
     APPEND
     VNODE_SOURCE_FILES
