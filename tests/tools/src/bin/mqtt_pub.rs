@@ -1,4 +1,5 @@
 use std::{
+    future::pending,
     path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
@@ -7,7 +8,7 @@ use std::{
 use anyhow::Context;
 use clap::Parser;
 use crossterm::event::EventStream;
-use futures::StreamExt;
+use futures::{future::Either, StreamExt};
 use rand::distributions::{Alphanumeric, DistString};
 use rumqttc::{
     v5::{
@@ -69,7 +70,9 @@ struct Args {
     payload: PayloadArgs,
     /// total messages count will send
     #[arg(long)]
-    total: Option<usize>,
+    total_count: Option<usize>,
+    #[arg(long, value_parser = fundu::parse_duration)]
+    exec_duration: Option<Duration>,
     #[arg(long = "csv-header", value_delimiter = ',', requires = "csv_file")]
     csv_headers: Option<Vec<String>>,
 }
@@ -317,7 +320,10 @@ async fn main() -> anyhow::Result<()> {
                     _ = token.cancelled() => break
                 }
 
-                if args.total.is_some_and(|total| published as usize >= total) {
+                if args
+                    .total_count
+                    .is_some_and(|total| published as usize >= total)
+                {
                     total_notifier.notify_waiters();
                     break;
                 }
@@ -369,7 +375,7 @@ async fn main() -> anyhow::Result<()> {
                             _ = token.cancelled() => break,
                         }
                         total += 1;
-                        if args.total.is_some_and(|c| total >= c) {
+                        if args.total_count.is_some_and(|c| total >= c) {
                             total_notifier.notified().await;
                             break
                         }
@@ -381,10 +387,15 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    let deadline = args.exec_duration.map(|v| tokio::time::Instant::now() + v);
     loop {
         tokio::select! {
             _ = ctrl_c() => {
                 println!("received ctrl_c signal");
+                break
+            },
+            _ = timeout_or_never(deadline) => {
+                println!("time expired");
                 break
             },
             res = join_set.join_next() => match res {
@@ -413,6 +424,15 @@ async fn main() -> anyhow::Result<()> {
 
 fn generate_random_string(length: usize) -> String {
     Alphanumeric.sample_string(&mut rand::thread_rng(), length)
+}
+
+fn timeout_or_never(
+    fut: Option<tokio::time::Instant>,
+) -> Either<tokio::time::Sleep, std::future::Pending<()>> {
+    match fut {
+        Some(instant) => Either::Left(tokio::time::sleep_until(instant)),
+        None => Either::Right(pending()),
+    }
 }
 
 #[cfg(test)]
