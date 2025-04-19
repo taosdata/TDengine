@@ -4,11 +4,11 @@ slug: /tdengine-reference/sql-manual/time-series-extensions
 ---
 
 import Image from '@theme/IdealImage';
-import imgStep01 from './assets/time-series-extensions-01.png';
-import imgStep02 from './assets/time-series-extensions-02.png';
-import imgStep03 from './assets/time-series-extensions-03.png';
-import imgStep04 from './assets/time-series-extensions-04.png';
-import imgStep05 from './assets/time-series-extensions-05.png';
+import imgStep01 from './assets/time-series-extensions-01-time-window.png';
+import imgStep02 from './assets/time-series-extensions-02-state-window.png';
+import imgStep03 from './assets/time-series-extensions-03-session-window.png';
+import imgStep04 from './assets/time-series-extensions-04-event-window.png';
+import imgStep05 from './assets/time-series-extensions-05-count-window.png';
 
 TDengine, in addition to supporting standard SQL, also offers a series of specialized query syntaxes tailored for time-series business scenarios, which greatly facilitate the development of applications in time-series contexts.
 
