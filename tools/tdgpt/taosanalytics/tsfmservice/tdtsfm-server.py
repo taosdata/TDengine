@@ -97,7 +97,6 @@ class TaosTSGenerationMixin(GenerationMixin):
             output_logits: Optional[bool] = None,
             return_dict_in_generate: Optional[bool] = None,
             synced_gpus: bool = False,
-            streamer: Optional["BaseStreamer"] = None,
             **model_kwargs,
     ) -> Union[GenerateNonBeamOutput, torch.Tensor]:
         input_ids = input_ids.to(self.device)
@@ -684,13 +683,12 @@ def init_model():
     Taos_model.load_state_dict(state_dict, strict=True)
     Taos_model = Taos_model.to(device)
 
-    # print(Taos_model)
+    # return Taos_model
 
 @app.route('/tdtsfm', methods=['POST'])
 def ds_predict():
     print(f"start predict")
 
-    global Taos_model
     """处理POST请求并返回模型预测结果"""
     try:
         # 获取POST请求中的JSON数据
