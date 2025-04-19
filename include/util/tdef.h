@@ -613,6 +613,8 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_MSG_SIZE (1024 * 1024 * 10)
 
+#define TSDB_BLOB_MEMORY_LIMIT (1024 * 1024 * 1024 * 1)  // 1GB
+
 #define TSDB_ARB_DUMMY_TIME 4765104000000  // 2121-01-01 00:00:00.000, :P
 
 #define TFS_MAX_TIERS              3
