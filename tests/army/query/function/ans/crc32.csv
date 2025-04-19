@@ -1,0 +1,80 @@
+
+taos> select CRC32('hello')
+ crc32('hello') |
+=================
+      907060870 |
+
+taos> select CRC32('hello world')
+ crc32('hello world') |
+=======================
+            222957957 |
+
+taos> select CRC32('hello world!')
+ crc32('hello world!') |
+========================
+              62177901 |
+
+taos> select CRC32('hello,world.你好，世界。')
+ crc32('hello,world.你好，世界。') |
+==========================================
+                              1785960545 |
+
+taos> select CRC32('北京涛思数据科技有限公司')
+ crc32('北京涛思数据科技有限公司') |
+================================================
+                                    1935136661 |
+
+taos> select CRC32('hello') from ts_4893.meters limit 5
+ crc32('hello') |
+=================
+      907060870 |
+      907060870 |
+      907060870 |
+      907060870 |
+      907060870 |
+
+taos> select CRC32('hello') + 1 from ts_4893.meters limit 1
+    crc32('hello') + 1     |
+============================
+                 907060871 |
+
+taos> select CRC32('hello') + CRC32('hello') from ts_4893.meters limit 1
+ crc32('hello') + crc32('hello') |
+==================================
+                      1814121740 |
+
+taos> select cast(CRC32('hello') as VARCHAR)
+ cast(crc32('hello') as varchar) |
+==================================
+ 907060870                       |
+
+taos> select CRC32(cast('hello' as VARCHAR))
+ crc32(cast('hello' as varchar)) |
+==================================
+                       907060870 |
+
+taos> select crc32('')
+  crc32('')  |
+==============
+           0 |
+
+taos> select crc32(NULL)
+ crc32(null) |
+==============
+ NULL        |
+
+taos> select crc32(1234)
+ crc32(1234) |
+==============
+  3579152923 |
+
+taos> select crc32(1234.567)
+ crc32(1234.567) |
+==================
+       751458230 |
+
+taos> select crc32(1234.567 + 0.1)
+ crc32(1234.567 + 0.1) |
+========================
+             894613740 |
+
