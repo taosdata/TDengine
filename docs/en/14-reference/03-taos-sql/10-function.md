@@ -639,7 +639,7 @@ CRC32(expr)
 ```
 **Function Description**: Returns the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
 
-**Return Type**: UINT. 
+**Return Type**: INT UNSIGNED. 
 
 **Applicable Data Types**: Suitable for any type.
 
@@ -681,10 +681,10 @@ taos> select crc32("This is a string");
 ============================
                  141976383 |
 
-taos> select crc32("這是一個字串");
- crc32("這是一個字串") |
-======================
-          1867394985 |
+taos> select crc32("这是一个字符串");
+ crc32("这是一个字符串") |
+========================
+            1902862441 |
 
 taos> select crc32(col_name) from ins_columns limit 10;
  crc32(col_name) |
