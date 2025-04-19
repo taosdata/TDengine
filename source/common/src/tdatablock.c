@@ -3452,7 +3452,9 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
     return terrno;
   }
 
-  *pEndPos = pStart;
+  if (pEndPos != NULL) {
+    *pEndPos = pStart;
+  }
 
   code = blockDataCheck(pBlock);
   if (code != TSDB_CODE_SUCCESS) {

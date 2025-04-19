@@ -841,8 +841,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    const char* pDummy = NULL;
-    code = blockDecode(pBlock, pStart, &pDummy);
+    code = blockDecode(pBlock, pStart, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataEnsureCapacity(pRes, pBlock->info.rows);

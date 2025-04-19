@@ -32,7 +32,6 @@ SSDataBlock* createTestBlock() {
   int32_t      code = createDataBlock(&b);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
-  taosArrayPush(b->pDataBlock, &infoData);
   blockDataAppendColInfo(b, &infoData);
 
   SColumnInfoData infoData1 = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
@@ -96,6 +95,14 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
   ASSERT_EQ(code, 0);
+  void* pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
 }
 
 int main(int argc, char **argv) {
