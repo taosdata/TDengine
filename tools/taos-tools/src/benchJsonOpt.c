@@ -452,8 +452,10 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             col = benchArrayGet(stbInfo->cols, stbInfo->cols->size - 1);
             col->type = type;
             col->length = length;
-            if (length == 0) {
-                col->null = true;
+            if (col->type != TSDB_DATA_TYPE_BLOB) {
+                if (length == 0) {
+                    col->null = true;
+                }
             }
             col->sma = sma;
             col->max = max;

@@ -531,12 +531,12 @@ static int32_t parseBlob(SToken* pToken, uint8_t** pData, uint32_t* nData, int32
     memcpy(data, pToken->z, size);
   }
   if (size + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_PAR_VALUE_TOO_LONG, lino, _error);
+    TSDB_CHECK_CODE(code = TSDB_CODE_BLOB_VALUE_TOO_LONG, lino, _error);
   }
 _error:
   if (code != 0) {
     taosMemoryFree(data);
-    uError("parseBlob failed at lino %s code: %d", lino, tstrerror(code));
+    uError("parseBlob failed at lino %d code: %s", lino, tstrerror(code));
     return code;
   }
   *pData = data;

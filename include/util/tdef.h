@@ -569,7 +569,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_GEOMETRY_LEN  TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_VARBINARY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
 
-#define TSDB_MAX_BLOB_LEN (1024 * 1024 * 8)
+#define TSDB_MAX_BLOB_LEN (1024 * 8)
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))

@@ -474,6 +474,9 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
         break;
       case TSDB_DATA_TYPE_JSON:
         len += field->length * fields->size;
+
+      case TSDB_DATA_TYPE_BLOB:
+        len += TSDB_MAX_BLOB_LEN - 4;
         return len;
     }
     len += 1;
@@ -523,8 +526,8 @@ int tmpBlobStr(char **t, int iface, Field *field, int64_t k) {
   if (field->type != TSDB_DATA_TYPE_BLOB) {
     return 0;
   }
-  int32_t len = taosRandom() % TSDB_MAX_BLOB_LEN;
-  char   *tmp = benchCalloc(1, len, false);
+  int32_t len = taosRandom() % (TSDB_MAX_BLOB_LEN - 4);
+  char   *tmp = benchCalloc(1, len + 4, false);
 
   if (tmp == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
@@ -1076,6 +1079,7 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf, int64_
 
           n = snprintf(sampleDataBuf + pos, bufLen - pos, "'%s',", tmp);
           tmfree(tmp);
+          break;
         }
       }
       if (TSDB_DATA_TYPE_JSON != field->type) {

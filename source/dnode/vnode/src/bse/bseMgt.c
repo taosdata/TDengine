@@ -449,6 +449,11 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   taosThreadRwlockRdlock(&pBse->rwlock);
   code = bseTableMgtGet(pBse->pTableMgt, seq, pValue, len);
   taosThreadRwlockUnlock(&pBse->rwlock);
+
+  if (code != 0) {
+    bseError("vgId:%d failed to get value from seq %" PRId64 " at line %d since %s", BSE_GET_VGID(pBse), seq, line,
+             tstrerror(code));
+  }
   return code;
 }
 
@@ -627,10 +632,11 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   taosThreadMutexLock(&pBse->mutex);
   sseq = pBse->seq;
   pBse->seq += nKeys;
-  code = bseBatchMgtGet(pBse->batchMgt, &p);
 
+  code = bseBatchMgtGet(pBse->batchMgt, &p);
   taosThreadMutexUnlock(&pBse->mutex);
 
+  bseWarn("bse seq start from: %" PRId64 " to %" PRId64 "", sseq, sseq + nKeys - 1);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = bseBatchSetParam(p, sseq, nKeys);
