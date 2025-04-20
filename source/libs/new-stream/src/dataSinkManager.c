@@ -254,6 +254,15 @@ int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end
     stError("DataSinkManager is not ready");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
+  if (pCache == NULL || pIter == NULL) {
+    stError("getStreamDataCache param invalid, pCache or pIter is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (start >= end) {
+    stError("getStreamDataCache param invalid, start > end");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
   SGroupDSManager* pGroupDataInfo = getGroupDataInfo((SStreamTaskDSManager*)pCache, groupId);
   if (pGroupDataInfo == NULL) {
     *pIter = NULL;
@@ -286,7 +295,9 @@ void getNextIterator(SGroupDSManager* pGroupData, void** pIter) {
     pResult->offset++;
     if (pResult->offset < taosArrayGetSize(pGroupData->windowDataInMem)) {
       SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
-      if (pWindowData->wstart >= pResult->reqStartTime && pWindowData->wend <= pResult->reqEndTime) {
+      if ((pResult->reqStartTime >= pWindowData->wstart && pResult->reqStartTime <= pWindowData->wend) ||
+          (pResult->reqEndTime >= pWindowData->wstart && pResult->reqEndTime <= pWindowData->wend) ||
+          (pWindowData->wstart >= pResult->reqStartTime && pWindowData->wend <= pResult->reqEndTime)) {
         return;
       } else if (pWindowData->wstart >= pResult->reqEndTime) {
         goto _nodata;
@@ -325,6 +336,10 @@ _nodata:
 }
 
 int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
+  if (ppBlock == NULL) {
+    stError("getNextStreamDataCache param invalid, ppBlock is NULL");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
   int32_t      code = 0;
   int32_t      lino = 0;
   SResultIter* pResult = (SResultIter*)*pIter;
@@ -340,6 +355,10 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
     // read from file
   }
   getNextIterator(pGroupData, pIter);
+
+  if (code == TSDB_CODE_SUCCESS && *ppBlock == NULL && *pIter != NULL) {
+    return getNextStreamDataCache(pIter, ppBlock);
+  }
 _end:
   return code;
 }

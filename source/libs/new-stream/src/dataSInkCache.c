@@ -35,6 +35,7 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
       stError("failed to create group data sink manager, err: %s", terrMsg);
       return code;
     }
+    pGroupDataInfo->pSinkManager = pStreamDataSink;
     code = taosHashPut(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId), &pGroupDataInfo,
                        sizeof(SGroupDSManager*));
     if (code != 0) {
@@ -85,27 +86,56 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock) {
-  int32_t          code = 0;
-  int32_t          lino = 0;
-  SGroupDSManager* pGroupData = pResult->groupData;
-  SWindowData**    ppWindowData = (SWindowData**)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
-  if (ppWindowData == NULL || *ppWindowData == NULL) {
-    stError("failed to get data from cache, offset:%" PRId64, pResult->offset);
-    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+static void freeWindowsBufferImmediate(SWindowData* pWindowData) {
+  if (pWindowData->pDataBuf) {
+    taosMemoryFree(pWindowData->pDataBuf);
+    pWindowData->pDataBuf = NULL;
   }
+  pWindowData->dataLen = 0;
+}
+
+static int32_t getWindowDataInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock, SCleanMode clearMode) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     return terrno;
   }
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = blockDecode(pBlock, (*ppWindowData)->pDataBuf, NULL);
+  code = blockDecode(pBlock, pWindowData->pDataBuf, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to get data from cache since %s, lino:%d", tstrerror(code), lino);
+    stError("failed to decode data since %s, lineno:%d", tstrerror(code), lino);
+    if (pBlock) {
+      blockDataDestroy(pBlock);
+    }
+  } else {
+    if (clearMode == DATA_SCLEAN_IMMEDIATE) {
+      freeWindowsBufferImmediate(pWindowData);
+    }
+    *ppBlock = pBlock;
+  }
+  return code;
+}
+
+static int32_t getSlidingWindowLaterDataInMem(SWindowData* pWindowData, TSKEY start, SSDataBlock** ppBlock) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    return terrno;
+  }
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = blockDecode(pBlock, pWindowData->pDataBuf, NULL);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to decode data since %s, lineno:%d", tstrerror(code), lino);
     if (pBlock) {
       blockDataDestroy(pBlock);
     }
@@ -113,6 +143,55 @@ _end:
     *ppBlock = pBlock;
   }
   return code;
+}
+
+static int32_t getSlidingWindowEarlierDataInMem(SWindowData* pWindowData, TSKEY end, SSDataBlock** ppBlock) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    return terrno;
+  }
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = blockDecode(pBlock, pWindowData->pDataBuf, NULL);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to decode data since %s, lineno:%d", tstrerror(code), lino);
+    if (pBlock) {
+      blockDataDestroy(pBlock);
+    }
+  } else {
+    *ppBlock = pBlock;
+  }
+  return code;
+}
+
+static int32_t getSlidingWindowDataInMem(SResultIter* pResult, SWindowData* pWindowData, SSDataBlock** ppBlock) {
+  if (pWindowData->wstart >= pResult->reqStartTime && pWindowData->wend <= pResult->reqEndTime) {
+    return getWindowDataInMem(pResult, pWindowData, ppBlock, DATA_SCLEAN_EXPIRED);
+  } else if (pResult->reqStartTime >= pWindowData->wstart && pResult->reqStartTime <= pWindowData->wend) {
+    return getSlidingWindowLaterDataInMem(pWindowData, pResult->reqStartTime, ppBlock);
+  } else {  // (pResult->reqEndTime >= pWindowData->wstart && pResult->reqEndTime <= pWindowData->wend)
+    return getSlidingWindowEarlierDataInMem(pWindowData, pResult->reqEndTime, ppBlock);
+  }
+}
+
+int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock) {
+  SGroupDSManager* pGroupData = pResult->groupData;
+  SWindowData**    ppWindowData = (SWindowData**)taosArrayGet(pGroupData->windowDataInMem, pResult->offset);
+  if (ppWindowData == NULL || *ppWindowData == NULL) {
+    stError("failed to get data from cache, offset:%" PRId64, pResult->offset);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  if (pGroupData->pSinkManager->cleanMode == DATA_SCLEAN_IMMEDIATE) {
+    return getWindowDataInMem(pResult, *ppWindowData, ppBlock, DATA_SCLEAN_IMMEDIATE);
+  } else {
+    return getSlidingWindowDataInMem(pResult, *ppWindowData, ppBlock);
+  }
 }
 
 void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start) {

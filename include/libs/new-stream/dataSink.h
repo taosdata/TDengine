@@ -40,6 +40,11 @@ typedef struct DataSinkFileState {
   void*   pFile;
 } DataSinkFileState;
 
+typedef enum {
+  DATA_SCLEAN_IMMEDIATE = 1,
+  DATA_SCLEAN_EXPIRED = 2,
+} SCleanMode;
+
 typedef struct SDataSinkManager2 {
   int8_t    status;  // 0 - init, 1 - running
   int64_t   usedMemSize;
@@ -54,7 +59,7 @@ typedef struct SStreamTaskDSManager {
   int64_t            streamId;
   int64_t            taskId;
   int64_t            usedMemSize;
-  int8_t             cleanMode;
+  SCleanMode         cleanMode;
   SHashObj*          DataSinkGroupList;  // hash <groupId, SGroupDSManager>
   DataSinkFileState* pFile;
 } SStreamTaskDSManager;
@@ -154,11 +159,14 @@ int32_t writeToFile(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKE
 int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSKEY wstart, TSKEY wend,
                      SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 
+// @brief 读取数据从内存
 int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock);
 
+// @brief 读取数据从文件
 int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo);
 
 void destorySWindowData(void* pData);
+
 void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start);
 
 

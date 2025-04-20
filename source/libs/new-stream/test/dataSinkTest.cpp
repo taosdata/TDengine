@@ -46,14 +46,14 @@ SSDataBlock* createTestBlock(int64_t timeOffset) {
   char  buf[128] = {0};
   char  varbuf[128] = {0};
 
-  int64_t ts = timeStart;
+  int64_t ts = baseTestTime;
   for (int32_t i = 0; i < 100; ++i) {
     SColumnInfoData* p0 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 0);
     SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
     ts = timeStart + i;
 
     if (i & 0x01) {
-      int32_t len = sprintf(buf, str, i);
+      int32_t len = sprintf(buf, str, timeOffset + i);
       STR_TO_VARSTR(varbuf, buf)
       colDataSetVal(p0, i, (const char*)&ts, false);
       colDataSetVal(p1, i, (const char*)varbuf, false);
@@ -131,17 +131,37 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = 1;
+  int32_t cleanMode = DATA_SCLEAN_IMMEDIATE;
   TSKEY wstart = baseTestTime + 0;
   TSKEY wend = baseTestTime + 100;
   void* pCache = NULL;
-  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+
+  // Test invalid parameters
+  int32_t code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  code = getStreamDataCache(pCache, groupID, wend, wstart, NULL);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+
+  // Test valid parameters
+  code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
   ASSERT_EQ(code, 0);
   void* pIter = NULL;
+
+  // Test invalid parameters
+  code = getStreamDataCache(pCache, groupID, wend, wstart, &pIter);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  code = getStreamDataCache(NULL, groupID, wstart, wend, &pIter);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  code = getStreamDataCache(pCache, groupID, wstart, wend, NULL);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
+
+  // Test valid parameters
   code = getStreamDataCache(pCache, groupID, wstart, wend, &pIter);
   ASSERT_EQ(code, 0);
+  code = getNextStreamDataCache(&pIter, NULL);
+  ASSERT_EQ(code, TSDB_CODE_STREAM_INTERNAL_ERROR);
   SSDataBlock* pBlock1 = NULL;
   code = getNextStreamDataCache(&pIter, &pBlock1);
   ASSERT_EQ(code, 0);
@@ -155,9 +175,9 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   streamId = 1;
   taskId = 1;
   groupID = 2;
-  cleanMode = 1;
-  wstart = 100;
-  wend = 200;
+  cleanMode = DATA_SCLEAN_IMMEDIATE;
+  wstart = baseTestTime + 100;
+  wend = baseTestTime + 200;
   pCache = NULL;
   code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
@@ -179,9 +199,9 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   streamId = 2;
   taskId = 1;
   groupID = 2;
-  cleanMode = 1;
-  wstart = 0;
-  wend = 100;
+  cleanMode = DATA_SCLEAN_IMMEDIATE;
+  wstart = baseTestTime + 0;
+  wend = baseTestTime + 100;
   pCache = NULL;
   code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
@@ -200,6 +220,47 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   blockDataDestroy(pBlock1);
   destroyDataSinkManager2();
   blockDataDestroy(pBlock);
+}
+
+TEST(dataSinkTest, getSlidingStreamData) {
+  SSDataBlock* pBlock = createTestBlock(0);
+  ASSERT_NE(pBlock, nullptr);
+  int64_t streamId = 1;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = DATA_SCLEAN_EXPIRED;
+  TSKEY wstart = baseTestTime + 0;
+  TSKEY wend = baseTestTime + 100;
+  void* pCache = NULL;
+  int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
+  ASSERT_EQ(code, 0);
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  ASSERT_EQ(code, 0);
+  blockDataDestroy(pBlock);
+
+  pBlock = createTestBlock(100);
+  cleanMode = DATA_SCLEAN_EXPIRED;
+  wstart = baseTestTime + 100;
+  wend = baseTestTime + 200;
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  ASSERT_EQ(code, 0);
+  void* pIter = NULL;
+  blockDataDestroy(pBlock);
+  code = getStreamDataCache(pCache, groupID, baseTestTime + 50, baseTestTime + 150, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+
+  blockDataDestroy(pBlock1);
+
+  destroyDataSinkManager2();
 }
 
 int main(int argc, char **argv) {
