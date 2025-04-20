@@ -313,7 +313,8 @@ async fn execute(
                         if persist_enable {
                             match message_tx.send_async(message.clone()).await {
                                 Ok(_) => {
-                                    mqtt_metrics.clone().add_unprocessed_messages();
+                                    mqtt_metrics.add_unprocessed_messages();
+                                    mqtt_metrics.add_received_bytes(message.payload.len() as _);
                                 }
                                 Err(_) => {
                                     tracing::warn!("MQTT task exit, stop polling...");
@@ -323,10 +324,11 @@ async fn execute(
                         } else {
                             match message_tx.try_send(message.clone()) {
                                 Ok(_) => {
-                                    mqtt_metrics.clone().add_unprocessed_messages();
+                                    mqtt_metrics.add_unprocessed_messages();
+                                    mqtt_metrics.add_received_bytes(message.payload.len() as _);
                                 }
                                 Err(TrySendError::Full(_)) => {
-                                    mqtt_metrics.clone().add_discarded_messages();
+                                    mqtt_metrics.add_discarded_messages();
                                 }
                                 Err(TrySendError::Disconnected(_)) => {
                                     tracing::warn!("MQTT task exit, stop polling...");
