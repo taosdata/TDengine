@@ -46,7 +46,7 @@ int32_t     initStreamDataSinkOnce() {
   g_pDataSinkManager.DataSinkStreamTaskList =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (g_pDataSinkManager.DataSinkStreamTaskList == NULL) {
-    return -1;
+    return terrno;
   }
   taosHashSetFreeFp(g_pDataSinkManager.DataSinkStreamTaskList, destroySStreamDataSinkManager);
   return TSDB_CODE_SUCCESS;
@@ -76,19 +76,7 @@ void clearGroupExpiredData(SGroupDSManager* pGroupData, TSKEY start) {
   if (pGroupData->windowDataInMem == NULL) {
     return;
   }
-
-  int32_t size = taosArrayGetSize(pGroupData->windowDataInMem);
-  int     deleteCount = 0;
-  for (int i = 0; i < size; ++i) {
-    SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, i);
-    if (pWindowData && pWindowData->wend < start) {
-      deleteCount++;
-    } else {
-      break;
-    }
-  }
-
-  taosArrayRemoveBatch(pGroupData->windowDataInMem, 0, deleteCount, destorySWindowData);
+  clearGroupExpiredDataInMem(pGroupData, start);
 }
 
 int32_t getFirstDataIter(SGroupDSManager* pGroupDataInfo, TSKEY start, TSKEY end, void** ppResult) {
@@ -151,7 +139,7 @@ static bool isManagerReady() {
   return false;
 }
 
-static int32_t createSStreamDataSinkManager(int64_t streamId, int64_t taskId, int32_t cleanMode,
+static int32_t createStreamTaskDSManager(int64_t streamId, int64_t taskId, int32_t cleanMode,
                                             SStreamTaskDSManager** ppStreamDataSink) {
   SStreamTaskDSManager* pStreamDataSink = taosMemoryCalloc(1, sizeof(SStreamTaskDSManager));
   if (pStreamDataSink == NULL) {
@@ -183,6 +171,15 @@ static void destroySStreamDataSinkManager(void* pData) {
   doDestoryStreamTaskDSManager(pStreamTaskDSManager);
 }
 
+int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo) {
+  *ppGroupDataInfo = (SGroupDSManager*)taosMemoryCalloc(1, sizeof(SGroupDSManager));
+  if (*ppGroupDataInfo == NULL) {
+    return terrno;
+  }
+  (*ppGroupDataInfo)->groupId = groupId;
+  return TSDB_CODE_SUCCESS;
+}
+
 static void destroySGroupDSManager(void* pData) {
   SGroupDSManager* pGroupData = *(SGroupDSManager**)pData;
   if (pGroupData->windowDataInMem) {
@@ -209,7 +206,7 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int32_t cleanMode,
       (SStreamTaskDSManager**)taosHashGet(g_pDataSinkManager.DataSinkStreamTaskList, key, strlen(key));
   if (ppStreamTaskDSManager == NULL) {
     SStreamTaskDSManager* pStreamTaskDSManager = NULL;
-    code = createSStreamDataSinkManager(streamId, taskId, cleanMode, &pStreamTaskDSManager);
+    code = createStreamTaskDSManager(streamId, taskId, cleanMode, &pStreamTaskDSManager);
     if (code != 0) {
       stError("failed to create stream task data sink manager, err: %s", terrMsg);
       return code;
@@ -249,7 +246,6 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
     return writeToFile((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock, startIndex, endIndex);
   } else {
     return writeToCache((SStreamTaskDSManager*)pCache, groupId, wstart, wend, pBlock, startIndex, endIndex);
-    ;
   }
 }
 

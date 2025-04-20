@@ -30,11 +30,11 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
   SGroupDSManager** ppGroupDataInfo =
       (SGroupDSManager**)taosHashGet(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId));
   if (ppGroupDataInfo == NULL) {
-    pGroupDataInfo = (SGroupDSManager*)taosMemoryCalloc(1, sizeof(SGroupDSManager));
-    if (pGroupDataInfo == NULL) {
-      return terrno;
+    code = createSGroupDSManager(groupId, &pGroupDataInfo);
+    if (code != 0) {
+      stError("failed to create group data sink manager, err: %s", terrMsg);
+      return code;
     }
-    pGroupDataInfo->groupId = groupId;
     code = taosHashPut(pStreamDataSink->DataSinkGroupList, &groupId, sizeof(groupId), &pGroupDataInfo,
                        sizeof(SGroupDSManager*));
     if (code != 0) {
@@ -113,4 +113,23 @@ _end:
     *ppBlock = pBlock;
   }
   return code;
+}
+
+void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start) {
+  if (pGroupData->windowDataInMem == NULL) {
+    return;
+  }
+
+  int32_t size = taosArrayGetSize(pGroupData->windowDataInMem);
+  int     deleteCount = 0;
+  for (int i = 0; i < size; ++i) {
+    SWindowData* pWindowData = *(SWindowData**)taosArrayGet(pGroupData->windowDataInMem, i);
+    if (pWindowData && pWindowData->wend <= start) {
+      deleteCount++;
+    } else {
+      break;
+    }
+  }
+
+  taosArrayRemoveBatch(pGroupData->windowDataInMem, 0, deleteCount, destorySWindowData);
 }

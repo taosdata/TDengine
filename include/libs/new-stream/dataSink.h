@@ -155,6 +155,13 @@ int32_t writeToCache(SStreamTaskDSManager* pStreamDataSink, int64_t groupId, TSK
                      SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 
 int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock);
+
+int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo);
+
+void destorySWindowData(void* pData);
+void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start);
+
+
 #ifdef __cplusplus
 }
 #endif

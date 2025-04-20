@@ -27,35 +27,41 @@
 #include "dataSink.h"
 #include "tdatablock.h"
 
-SSDataBlock* createTestBlock() {
+const int64_t baseTestTime = 1745142096000;
+
+SSDataBlock* createTestBlock(int64_t timeOffset) {
   SSDataBlock* b = NULL;
   int32_t      code = createDataBlock(&b);
 
-  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
+  int64_t timeStart = baseTestTime + timeOffset;
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
   blockDataAppendColInfo(b, &infoData);
 
   SColumnInfoData infoData1 = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
   blockDataAppendColInfo(b, &infoData1);
-  blockDataEnsureCapacity(b, 40);
+  blockDataEnsureCapacity(b, 100);
 
   char* str = "the value of: %d";
   char  buf[128] = {0};
   char  varbuf[128] = {0};
 
-  for (int32_t i = 0; i < 40; ++i) {
+  int64_t ts = timeStart;
+  for (int32_t i = 0; i < 100; ++i) {
     SColumnInfoData* p0 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 0);
     SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
+    ts = timeStart + i;
 
     if (i & 0x01) {
       int32_t len = sprintf(buf, str, i);
       STR_TO_VARSTR(varbuf, buf)
-      colDataSetVal(p0, i, (const char*)&i, false);
+      colDataSetVal(p0, i, (const char*)&ts, false);
       colDataSetVal(p1, i, (const char*)varbuf, false);
 
       memset(varbuf, 0, sizeof(varbuf));
       memset(buf, 0, sizeof(buf));
     } else {
-      colDataSetVal(p0, i, (const char*)&i, true);
+      colDataSetVal(p0, i, (const char*)&ts, false);
       colDataSetVal(p1, i, (const char*)varbuf, true);
     }
 
@@ -67,8 +73,10 @@ SSDataBlock* createTestBlock() {
 
   printf("binary column length:%d\n", *(int32_t*)p1->pData);
 
-  char* pData = colDataGetData(p1, 3);
+  char* pData = colDataGetData(p1, 2);
   printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  pData = colDataGetData(p1, 3);
+  printf("the third row: %s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
   return b;
 }
 
@@ -89,9 +97,9 @@ bool compareBlock(SSDataBlock* b1, SSDataBlock* b2) {
   SColumnInfoData* p2 = (SColumnInfoData*)taosArrayGet(b2->pDataBlock, 1);
 
   char* pData = colDataGetData(p1, 3);
-  printf("b1 the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  printf("b1 the third row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
   pData = colDataGetData(p1, 3);
-  printf("b2 the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
+  printf("b2 the third row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
   return true;
 }
 
@@ -104,7 +112,7 @@ TEST(dataSinkTest, fileInit) {
 }
 
 TEST(dataSinkTest, test_name) {
-  SSDataBlock* pBlock = createTestBlock();
+  SSDataBlock* pBlock = createTestBlock(0);
   ASSERT_NE(pBlock, nullptr);
   int64_t streamId = 1;
   int64_t taskId = 1;
@@ -118,14 +126,14 @@ TEST(dataSinkTest, test_name) {
 }
 
 TEST(dataSinkTest, putStreamDataCacheTest) {
-  SSDataBlock* pBlock = createTestBlock();
+  SSDataBlock* pBlock = createTestBlock(0);
   ASSERT_NE(pBlock, nullptr);
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
   int32_t cleanMode = 1;
-  TSKEY wstart = 0;
-  TSKEY wend = 100;
+  TSKEY wstart = baseTestTime + 0;
+  TSKEY wend = baseTestTime + 100;
   void* pCache = NULL;
   int32_t code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
@@ -142,6 +150,8 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   bool equal = compareBlock(pBlock, pBlock1);
   ASSERT_EQ(equal, true);
   blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock);
+  pBlock = createTestBlock(100);
   streamId = 1;
   taskId = 1;
   groupID = 2;
@@ -164,12 +174,14 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   equal = compareBlock(pBlock, pBlock1);
   ASSERT_EQ(equal, true);
   blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock);
+  pBlock = createTestBlock(0); 
   streamId = 2;
   taskId = 1;
   groupID = 2;
   cleanMode = 1;
-  wstart = 100;
-  wend = 200;
+  wstart = 0;
+  wend = 100;
   pCache = NULL;
   code = initStreamDataCache(streamId, taskId, cleanMode, &pCache);
   ASSERT_EQ(code, 0);
