@@ -96,6 +96,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/test_multi_file_commit.py
 
 # 07-DataQuerying
+## 01-Operator
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_operator_and_or.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_operator_in.py 
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/01-Operator/test_operator_casewhen.py 
+
 ## Project
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/project/test_project_column_1.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/project/test_project_column_7.py
@@ -118,6 +123,9 @@
 
 # 10-Functions
 ## 01-SingleRow
+,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_cast.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/01-SingleRow/test_func_truncate.py 
+
 ## 02-Aggregate
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_avg.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/02-Aggregate/test_func_count.py 
