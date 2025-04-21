@@ -676,7 +676,59 @@ class TDTestCase:
         tdSql.execute(f'drop topic t2')
         tdSql.execute(f'drop database d1')
 
+    def consumeTest_6376(self):
+        tdSql.execute(f'create database if not exists d1 vgroups 1')
+        tdSql.execute(f'use d1')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'create table vst(ts timestamp, i int) tags(t int) virtual 1')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
+        tdSql.execute(f'create vtable vt1(t1.i) using vst tags(1)')
+
+        tdSql.query("select * from st")
+        tdSql.checkRows(8)
+
+        tdSql.execute(f'create topic topic_all with meta as database d1')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+            "experimental.snapshot.enable": "true",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_all"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        index = 0
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    if index != 1:
+                        tdLog.exit("consume error")
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                cnt = 0;
+                for block in val:
+                    cnt += len(block.fetchall())
+
+                if cnt != 8:
+                    tdLog.exit("consume error")
+
+                index += 1
+        finally:
+            consumer.close()
+
     def run(self):
+        self.consumeTest_6376()
         self.consume_TS_5067_Test()
         self.consumeTest()
         self.consume_ts_4544()

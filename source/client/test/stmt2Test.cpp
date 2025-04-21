@@ -1346,6 +1346,7 @@ TEST(stmt2Case, stmt2_insert_db) {
 
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
+  // test 1
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
   const char* sql = "INSERT INTO `stmt2_testdb_12`.`stb1` (ts,int_tag,tbname)  VALUES (?,?,?)";
@@ -1385,12 +1386,13 @@ TEST(stmt2Case, stmt2_insert_db) {
   ASSERT_EQ(total_affect_rows, 12);
   taos_stmt2_close(stmt);
 
+  // test 2
   total_affect_rows = 0;
   option = {0, false, false, NULL, NULL};
+  do_query(taos, "use stmt2_testdb_12");
   stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
   sql = "INSERT INTO stb1 (ts,int_tag,tbname)  VALUES (?,?,?)";
-  do_query(taos, "use stmt2_testdb_12");
 
   for (int i = 0; i < 3; i++) {
     int code = taos_stmt2_prepare(stmt, sql, 0);
@@ -1964,6 +1966,181 @@ TEST(stmt2Case, geometry) {
 
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_13");
   taos_close(taos);
+}
+
+void testMultiPrepare(TAOS* taos, TAOS_STMT2_OPTION* option) {
+  TAOS_STMT2* stmt = taos_stmt2_init(taos, option);
+  ASSERT_NE(stmt, nullptr);
+  // 1 insert stb
+  char* sql = "insert into ? using stb tags(?,?) values(?,?)";
+  int   code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+  int total_affected = 0;
+
+  char*            tbname = "t1";
+  int64_t          tt = 1591060628000;
+  int32_t          tb = 100;
+  int              tag_len[2] = {sizeof(int64_t), sizeof(int32_t)};
+  TAOS_STMT2_BIND  tags[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tt, &tag_len[0], NULL, 1},
+                              {TSDB_DATA_TYPE_INT, &tb, &tag_len[1], NULL, 1}};
+  TAOS_STMT2_BIND* tagv = &tags[0];
+
+  int64_t          ts[2] = {1591060628000, 1591060629000};
+  int32_t          values[2] = {100, 200};
+  int              t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
+  int              val_len[2] = {sizeof(int32_t), sizeof(int32_t)};
+  TAOS_STMT2_BIND  col[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2},
+                             {TSDB_DATA_TYPE_INT, &values[0], &val_len[0], NULL, 2}};
+  TAOS_STMT2_BIND* cols = &col[0];
+  TAOS_STMT2_BINDV bindv = {1, &tbname, &tagv, &cols};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code);
+
+  int affected_rows;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code);
+  ASSERT_EQ(affected_rows, 2);
+
+  // 2 insert ntb
+  sql = "INSERT INTO t VALUES (?, ?)";
+  code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  TAOS_STMT2_BIND params[2];
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[0].buffer = &ts[0];
+  params[0].length = &t64_len[0];
+  params[0].is_null = NULL;
+  params[0].num = 2;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_INT;
+  params[1].buffer = &values[0];
+  params[1].length = &val_len[0];
+  params[1].is_null = NULL;
+  params[1].num = 2;
+  TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[1]};
+
+  bindv = {1, NULL, NULL, &paramv[0]};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code);
+
+  affected_rows = 0;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code);
+  ASSERT_EQ(affected_rows, 2);
+
+  // 3 select data
+  const char* query_sql = "SELECT * FROM t WHERE ts >= ? AND ts <= ?";
+  code = taos_stmt2_prepare(stmt, query_sql, 0);
+  checkError(stmt, code);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  checkError(stmt, code);
+  ASSERT_EQ(fieldNum, 2);
+
+  int64_t start_ts[2] = {1591060627000, 1591060630000};
+  int     t64_len_query[2] = {sizeof(int64_t), sizeof(int64_t)};
+
+  TAOS_STMT2_BIND  param3[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &start_ts[0], &t64_len_query[0], NULL, 1},
+                                {TSDB_DATA_TYPE_TIMESTAMP, &start_ts[1], &t64_len_query[1], NULL, 1}};
+  TAOS_STMT2_BIND* paramv2 = &param3[0];
+  TAOS_STMT2_BINDV bindv2 = {1, NULL, NULL, &paramv2};
+  code = taos_stmt2_bind_param(stmt, &bindv2, -1);
+  checkError(stmt, code);
+
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code);
+
+  TAOS_RES* res = taos_stmt2_result(stmt);
+  ASSERT_NE(res, nullptr);
+
+  TAOS_ROW row;
+  int      rows = 0;
+  while ((row = taos_fetch_row(res))) {
+    rows++;
+  }
+  ASSERT_EQ(rows, 2);  // 应该返回2条记录
+
+  taos_stmt2_close(stmt);
+}
+
+TEST(stmt2Case, prepare) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_prepare");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_prepare");
+  do_query(taos, "USE stmt2_testdb_prepare");
+  do_query(taos, "CREATE TABLE t (ts TIMESTAMP, b INT)");
+  do_query(taos, "CREATE STABLE stb (ts TIMESTAMP, b INT) TAGS (tt TIMESTAMP, tb INT)");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  testMultiPrepare(taos, &option);
+
+  option = {0, false, false, NULL, NULL};
+  testMultiPrepare(taos, &option);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_prepare");
+  taos_close(taos);
+}
+
+// TD-34593
+TEST(stmt2Case, prepare_fixedtags) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_prepare2");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_prepare2");
+  do_query(taos, "CREATE STABLE `stmt2_testdb_prepare2`.stb (ts TIMESTAMP, b INT) TAGS (tt TIMESTAMP, tb INT)");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  for (int i = 0; i < 10; i++) {
+    // 1 insert stb
+    char* sql = "insert into `stmt2_testdb_prepare2`.? using `stmt2_testdb_prepare2`.stb tags(now,1) values(?,?)";
+    int   code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+    int total_affected = 0;
+
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 3);
+
+    int64_t          tt = 1591060628000;
+    int32_t          tb = 100;
+    int              tag_len[2] = {sizeof(int64_t), sizeof(int32_t)};
+    TAOS_STMT2_BIND  tags[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tt, &tag_len[0], NULL, 1},
+                                {TSDB_DATA_TYPE_INT, &tb, &tag_len[1], NULL, 1}};
+    TAOS_STMT2_BIND* tagv = &tags[0];
+    char             tbname[10];
+    sprintf(tbname, "t%d", i);
+    char*            tbnames = &tbname[0];
+    int64_t          ts[2] = {1591060628000, 1591060629000};
+    int32_t          values[2] = {100, 200};
+    int              t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
+    int              val_len[2] = {sizeof(int32_t), sizeof(int32_t)};
+    TAOS_STMT2_BIND  col[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2},
+                               {TSDB_DATA_TYPE_INT, &values[0], &val_len[0], NULL, 2}};
+    TAOS_STMT2_BIND* cols = &col[0];
+    TAOS_STMT2_BINDV bindv = {1, &tbnames, NULL, &cols};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code);
+
+    int affected_rows;
+    code = taos_stmt2_exec(stmt, &affected_rows);
+    checkError(stmt, code);
+    ASSERT_EQ(affected_rows, 2);
+
+    taos_stmt2_free_fields(stmt, pFields);
+  }
+
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_prepare2");
+  taos_stmt2_close(stmt);
 }
 
 // TD-33582

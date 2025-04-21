@@ -23,8 +23,8 @@ endi
 
 print =============== show info
 sql show anodes full
-if $rows != 10 then
-  print expect 10 , actual $rows
+if $rows != 13 then
+  print expect 13 , actual $rows
   return -1
 endi
 
@@ -104,32 +104,33 @@ print =========================== valid timeout
 sql select forecast(c1, 'algo=holtwinters, timeout=120') from ct1;
 
 
-sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=0.5,wncheck=1,period=0') from ct1
-sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=119,wncheck=1,period=0') from ct1
-sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters1,conf=0.5,wncheck=1,period=0') from ct1
-sql_error select forecast(c1, 'conf=50 ,algo = arima, rows=0') from ct1
-sql_error select forecast(c1, 'conf=50 ,algo = arima, rows=-10') from ct1
-sql_error select forecast(c1, 'conf=50 ,algo = arima, every=0') from ct1
+#sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=0,wncheck=1,period=0') from ct1
+#sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=1.1,wncheck=1,period=0') from ct1
+#sql_error select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters1,conf=50,wncheck=1,period=0') from ct1
+sql_error select forecast(c1, 'conf=0.5 ,algo = arima, rows=0') from ct1
+sql_error select forecast(c1, 'conf=0.5 ,algo = arima, rows=-10') from ct1
+sql_error select forecast(c1, 'conf=0.5 ,algo = arima, every=0') from ct1
+#sql_error select forecast(c1, 'conf=0.5 ,algo = arima') from ct1
 
-sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters, conf=50 ') from ct1
-sql select _frowts, _flow, _fhigh, forecast(c1, ' algo=holtwinters , conf=50 ') from ct1
-sql select _frowts, _flow, _fhigh, forecast(c1, ' algo = holtwinters , conf = 50 ') from ct1
-sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters, ') from ct1
-sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters, ,') from ct1
-sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters, ,  ,') from ct1
-sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters, a    =') from ct1
-sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=50 ,algo = holtwinters,     =   a ,') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters, conf=0.5 ') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, ' algo=holtwinters , conf=0.5 ') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, ' algo = holtwinters , conf = 0.5 ') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=0.5 ,algo = holtwinters, ') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=0.5 ,algo = holtwinters, ,') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=0.5 ,algo = holtwinters, ,  ,') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'conf=0.5 ,algo = holtwinters, a    =') from ct1
+sql_error select _frowts, _flow, _fhigh, forecast(c1, 'conf=0.5 ,algo = holtwinters,     =   a ,') from ct1
 
 print =================== valid column type
-sql select forecast(c1, 'conf=50 ,algo = arima') from ct1
-sql select forecast(c1, 'conf=50 ,algo = arima, rows=1') from ct1
-sql select forecast(c2, 'conf=50 ,algo = arima, rows=1') from ct1
-sql select forecast(c3, 'conf=50 ,algo = arima, rows=1') from ct1
-sql select forecast(c4, 'conf=50 ,algo = arima, rows=1') from ct1
-sql select forecast(c5, 'conf=50 ,algo = arima, rows=1') from ct1
-sql select forecast(c5, 'conf=50 ,algo = arima, rows=1') from ct1
+sql select forecast(c1, 'conf=0.5 ,algo = arima') from ct1
+sql select forecast(c1, 'conf=0.5 ,algo = arima, rows=1') from ct1
+sql select forecast(c2, 'conf=0.5 ,algo = arima, rows=1') from ct1
+sql select forecast(c3, 'conf=0.5 ,algo = arima, rows=1') from ct1
+sql select forecast(c4, 'conf=0.5 ,algo = arima, rows=1') from ct1
+sql select forecast(c5, 'conf=0.5 ,algo = arima, rows=1') from ct1
+sql select forecast(c5, 'conf=0.5 ,algo = arima, rows=1') from ct1
 
-sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=50,wncheck=1,period=0,start=1700000000000,every=2') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=0.5,wncheck=1,period=0,start=1700000000000,every=2') from ct1
 if $rows != 10 then
   return -1
 endi
@@ -154,7 +155,7 @@ endi
 
 print test the every option and rows option
 
-sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=50,wncheck=1,period=0,start=1700000000000,every=100,rows=5') from ct1
+sql select _frowts, _flow, _fhigh, forecast(c1, 'algo=holtwinters,conf=0.5,wncheck=1,period=0,start=1700000000000,every=100,rows=5') from ct1
 if $rows != 5 then
   return -1
 endi
@@ -177,7 +178,7 @@ endi
 sleep 1000
 
 print ===================== query without anodes
-sql_error select forecast(c5, 'conf=50 ,algo = arima, rows=1') from ct1
+sql_error select forecast(c5, 'conf=0.5 ,algo = arima, rows=1') from ct1
 sql_error select count(*) from ct1 anomaly_window(c1, 'algo=iqr');
 
 

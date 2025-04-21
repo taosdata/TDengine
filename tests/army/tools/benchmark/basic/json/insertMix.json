@@ -22,6 +22,7 @@
                 "vgroups": 6,
                 "precision": "ms",
                 "keep": 3650,
+                "flush_each_batch": "yes",
                 "minRows": 100,
                 "maxRows": 4096
             },

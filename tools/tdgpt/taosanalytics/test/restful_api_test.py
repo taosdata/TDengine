@@ -91,7 +91,7 @@ class RestfulTest(TestCase):
             "wncheck": 1,
             "return_conf": 1,
             "forecast_rows": 10,
-            "conf": 95,
+            "conf": 0.95,
             "start": 1577808096000,
             "every": 1000,
             "rows": 96,

@@ -561,18 +561,19 @@ This document details the server error codes that may be encountered when using 
 
 ## TDgpt
 
-| Error Code | Description                                         | Possible Error Scenarios or Reasons                 | Recommended Actions for Users                                          |
-|------------|-----------------------------------------------------|-----------------------------------------------------|------------------------------------------------------------------------|
-| 0x80000440 | Analysis service response is NULL                   | The response content is empty                       | Check the taosanode.app.log for detailed response information          |
-| 0x80000441 | Analysis service can't access                       | Service is not work correctly, or network is broken | Check the status of taosanode and network status                       |
-| 0x80000442 | Analysis algorithm is missing                       | Algorithm used in analysis is not specified         | Add the "algo" parameter in forecast function or anomaly_window clause |
-| 0x80000443 | Analysis algorithm not loaded                       | The specified algorithm is not available            | Check for the specified algorithm                                      |
-| 0x80000444 | Analysis invalid buffer type                        | The buffered data type is invalid                   | Check the taosanode.app.log for more details                           |
-| 0x80000445 | Analysis failed since anode return error            | The responses from anode with error message         | Check the taosanode.app.log for more details                           |
-| 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many                              | Reduce the rows of input data to below than the threshold              |
-| 0x80000447 | white-noise data not processed                      | white noise data is not processed                   | Ignore the white noise check or use another input data                 |
-| 0x80000448 | Analysis internal error, not processed              | Internal error occurs                               | Check the taosanode.app.log for more details                           |
-| 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough           | Increase the number of input rows (10 rows for forecasting at least)   |
+| Error Code | Description                                         | Possible Error Scenarios or Reasons                           | Recommended Actions for Users                                          |
+|------------|-----------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
+| 0x80000440 | Analysis service response is NULL                   | The response content is empty                                 | Check the taosanode.app.log for detailed response information          |
+| 0x80000441 | Analysis service can't access                       | Service is not work correctly, or network is broken           | Check the status of taosanode and network status                       |
+| 0x80000442 | Analysis algorithm is missing                       | Algorithm used in analysis is not specified                   | Add the "algo" parameter in forecast function or anomaly_window clause |
+| 0x80000443 | Analysis algorithm not loaded                       | The specified algorithm is not available                      | Check for the specified algorithm                                      |
+| 0x80000444 | Analysis invalid buffer type                        | The buffered data type is invalid                             | Check the taosanode.app.log for more details                           |
+| 0x80000445 | Analysis failed since anode return error            | The responses from anode with error message                   | Check the taosanode.app.log for more details                           |
+| 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many                                        | Reduce the rows of input data to below than the threshold              |
+| 0x80000447 | white-noise data not processed                      | white noise data is not processed                             | Ignore the white noise check or use another input data                 |
+| 0x80000448 | Analysis internal error, not processed              | Internal error occurs                                         | Check the taosanode.app.log for more details                           |
+| 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
+| 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
 
 ## virtual table

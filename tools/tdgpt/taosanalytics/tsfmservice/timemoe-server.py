@@ -29,20 +29,24 @@ def time_moe():
         input_data = data['input']
         prediction_length = data['next_len']
 
-        seqs = torch.tensor(input_data).unsqueeze(0).float().to(device)
+        if len(set(input_data)) == 1:
+            # for identical array list, std is 0, return directly
+            pred_y = [input_data[0] for _ in range(prediction_length)]
+        else:
+            seqs = torch.tensor(input_data).unsqueeze(0).float().to(device)
 
-        mean, std = seqs.mean(dim=-1, keepdim=True), seqs.std(dim=-1, keepdim=True)
-        normed_seqs = (seqs - mean) / std
-        seqs = normed_seqs
+            mean, std = seqs.mean(dim=-1, keepdim=True), seqs.std(dim=-1, keepdim=True)
+            normed_seqs = (seqs - mean) / std
+            seqs = normed_seqs
 
-        pred_y = model.generate(seqs, max_new_tokens=prediction_length)
+            pred_y = model.generate(seqs, max_new_tokens=prediction_length)
 
-        normed_predictions = pred_y[:, -prediction_length:]
+            normed_predictions = pred_y[:, -prediction_length:]
 
-        # inverse normalize
-        predictions = normed_predictions * std + mean
-        print(predictions)
-        pred_y = predictions[0].numpy().tolist()
+            # inverse normalize
+            predictions = normed_predictions * std + mean
+            print(predictions)
+            pred_y = predictions[0].numpy().tolist()
 
         response = {
             'status': 'success',
