@@ -1,12 +1,12 @@
 from new_test_framework.utils import tdLog, tdSql, sc
 
 
-class TestSubTable:
+class TestSubTableBasic:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_sub_table(self):
+    def test_sub_table_basic(self):
         """子表创建、读写
 
         1. 创建包含 256 列的超级表

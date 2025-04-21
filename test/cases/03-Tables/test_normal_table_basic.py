@@ -1,12 +1,12 @@
 from new_test_framework.utils import tdLog, tdSql, sc
 
 
-class TestNormalTable:
+class TestNormalTableBasic:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_normal_table(self):
+    def test_normal_table_basic(self):
         """普通表创建、读写
 
         1. 创建包含 256 列的普通表

@@ -33,12 +33,15 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_varibinary.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_const.py
 
 # 02-Databases
 
 # 03-Tables
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_normal_table.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_sub_table.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_normal_table_alter.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_normal_table_basic.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_sub_table_alter.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_sub_table_basic.py
 
 # 04-SuperTables
 ## Columns query
@@ -125,6 +128,7 @@
 ## 03-Selection
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_bottom.py
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first.py 
+,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_lru.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_row.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last.py 
 ,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_max.py 
@@ -158,6 +162,7 @@
 # 18-ReservedKeywords
 
 # 19-ManageNodes
+,,y,.,./ci/pytest.sh pytest cases/19-ManageNodes/test_dnode_alter_debugflag.py 
 
 # 20-Metadata
 
@@ -188,6 +193,7 @@
 
 # 31-Views
 # ,,y,.,./ci/pytest.sh pytest cases/31-Views/test_view_mgmt.py
+,,y,.,./ci/pytest.sh pytest cases/31-Views/test_view_nested_join.py
 
 # 40-Tools
 
