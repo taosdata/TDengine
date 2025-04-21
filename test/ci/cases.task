@@ -54,12 +54,26 @@
 ,y,.,./ci/pytest.sh pytest cases/function/timeseries/test_func_diff.py
 ,y,.,./ci/pytest.sh pytest cases/function/timeseries/test_func_diff2.py
 
-#Index
+# Index
 ,,y,.,./ci/pytest.sh pytest cases/index/test_index_create_drop.py 
 ,,y,.,./ci/pytest.sh pytest cases/index/test_index_overflow.py 
 ,,y,.,./ci/pytest.sh pytest cases/index/test_index_perf.py 
 
-#Show
+# Query
+## Project
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_column_1.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_column_7.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_stable_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_stable_filter_column_tag_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_stable_filter_no.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_stable_filter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_stable_filter_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_table_filter_column.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_table_filter_column_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_table_filter_no.py
+,,y,.,./ci/pytest.sh pytest cases/query/project/test_project_table_filter_timestamp.py
+
+# Show
 ,,y,.,./ci/pytest.sh pytest cases/show/test_show_diskinfo.py 
 ,,y,.,./ci/pytest.sh pytest cases/show/test_show_table_distributed.py 
 
