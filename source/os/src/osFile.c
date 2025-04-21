@@ -56,6 +56,13 @@ typedef struct TdFile {
   FILE          *fp;
   int32_t        tdFileOptions;
 } TdFile;
+#elif defined(TD_ASTRA)
+typedef struct TdFile {
+  TdThreadRwlock rwlock;
+  TdThreadMutex  mutex;
+  FileFd         fd;
+  FILE          *fp;
+} TdFile;
 #else
 typedef struct TdFile {
   TdThreadRwlock rwlock;
@@ -924,6 +931,9 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
 #else  // TD_ASTRA_TODO
+  if ((code = taosThreadMutexLock(&(pFile->mutex))) != 0) {
+    goto _exit1;
+  }
   int64_t ret = -1;
   int64_t cur = lseek(pFile->fd, 0, SEEK_CUR);
   if (cur < 0) {
@@ -942,7 +952,11 @@ _exit:
   if (cur >= 0 && lseek(pFile->fd, cur, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
+  if ((code = taosThreadMutexUnlock(&(pFile->mutex))) != 0) {
+    goto _exit1;
+  }
 #endif
+_exit1:
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
@@ -1193,6 +1207,9 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockInit(&(pFile->rwlock), NULL);
 #endif
+#ifdef TD_ASTRA
+  (void)taosThreadMutexInit(&(pFile->mutex), NULL);
+#endif
   pFile->fp = fp;
 
 #ifdef WINDOWS
@@ -1253,6 +1270,9 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
   (void)taosThreadRwlockUnlock(&((*ppFile)->rwlock));
   (void)taosThreadRwlockDestroy(&((*ppFile)->rwlock));
 #endif
+#ifdef TD_ASTRA
+  (void)taosThreadMutexDestroy(&((*ppFile)->mutex));
+#endif
   taosMemoryFree(*ppFile);
   *ppFile = NULL;
   return code;
@@ -1310,6 +1330,9 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
 #else  // TD_ASTRA_TODO
+  if ((code = taosThreadMutexLock(&(pFile->mutex))) != 0) {
+    goto _exit1;
+  }
   int64_t ret = -1;
   int64_t cur = lseek(pFile->fd, 0, SEEK_CUR);
   if (cur < 0) {
@@ -1328,8 +1351,12 @@ _exit:
   if (cur >= 0 && lseek(pFile->fd, cur, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
+  if ((code = taosThreadMutexUnlock(&(pFile->mutex))) != 0) {
+    goto _exit1;
+  }
 #endif
 #endif
+_exit1:
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
