@@ -52,6 +52,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+      - name: Configure Git
+        run: git config --global --add safe.directory /github/workspace
       - name: AutoCorrect
         uses: huacnlee/autocorrect-action@v2
         with:
