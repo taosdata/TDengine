@@ -55,7 +55,6 @@ int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare
 int32_t streamDoCalcOutputTbName(SNode* pExpr, char* tbname, SArray* pPartColVals);
 int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes);
 
-int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes);
 #ifdef __cplusplus
 }
 #endif

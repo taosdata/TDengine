@@ -1001,7 +1001,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
       SScalarParam dest = {.columnData = &idata};
-      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest, 0); // TODO wjm
+      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtraParams);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroy(pBlockList);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -1140,7 +1140,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, 0); // TODO wjm
+        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, pExtraParams);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           TSDB_CHECK_CODE(code, lino, _exit);

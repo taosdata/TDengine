@@ -16,6 +16,7 @@
 #ifndef TDENGINE_STREAM_H
 #define TDENGINE_STREAM_H
 
+#include "executor.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,6 +35,12 @@ extern "C" {
 
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);
+
+typedef enum EStreamTriggerType {
+  STREAM_PERIODIC_TRIGGER,
+  STERAM_COMMIT_TRIGGER,
+  STREAM_WINDOW_TRIGGER,
+} EStreamTriggerType;
 
 typedef struct SStreamReaderTask {
   SStreamTask task;
