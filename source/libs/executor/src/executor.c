@@ -15,12 +15,10 @@
 
 #include "executor.h"
 #include "cmdnodes.h"
-#include "cmdnodes.h"
 #include "executorInt.h"
 #include "operator.h"
 #include "planner.h"
 #include "querytask.h"
-#include "streamexecutorInt.h"
 #include "streamexecutorInt.h"
 #include "tdatablock.h"
 #include "tref.h"

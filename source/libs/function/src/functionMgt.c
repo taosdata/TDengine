@@ -773,7 +773,6 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(pVal, pFirstParam->type));
   return code;
 }
-
 const SValue* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
   int32_t idx = fmGetStreamPseudoFuncType(funcId);
   if (idx < 0 || idx >= pStreamRuntimeFuncInfo->pStreamPesudoFuncVals->size) {

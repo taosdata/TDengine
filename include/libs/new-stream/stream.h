@@ -16,12 +16,12 @@
 #ifndef TDENGINE_STREAM_H
 #define TDENGINE_STREAM_H
 
-#include "executor.h"
-#include "executor.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "executor.h"
+#include "tlog.h"
 #include "streamMsg.h"
 #include "tlog.h"
 

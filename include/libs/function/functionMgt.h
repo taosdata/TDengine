@@ -350,6 +350,7 @@ int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
 int32_t fmGetFuncId(const char* name);
 bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
 bool    fmIsCountLikeFunc(int32_t funcId);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const void* pVals);
 
 typedef enum SStreamPseudoFuncType {
   STREAM_PSEUDO_FUNC_CURRENT_TS = 0,

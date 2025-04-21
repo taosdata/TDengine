@@ -244,7 +244,7 @@ int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
 bool     qStreamUidInTableList(void* pTableListInfo, uint64_t uid);
 void     initStorageAPI(SStorageAPI* pAPI);
 
-int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, void *pPartColVals);
+int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, SArray *pPartColVals);
 void    streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pRuntimeInfo);
 
 #ifdef __cplusplus

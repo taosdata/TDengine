@@ -906,4 +906,3 @@ void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
 bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo) {
   return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
 }
-
