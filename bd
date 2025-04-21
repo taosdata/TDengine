@@ -1,0 +1,20 @@
+#!/bin/bash
+
+if [ ! -d debug ]; then
+    mkdir debug || echo -e "failed to make directory for build"
+fi
+CFLAGS='-Werror=format-overflow'
+cd debug && \
+  cmake .. \
+  -DBUILD_HTTP=false \
+  -DBUILD_TOOLS=1 \
+  -DBUILD_SANITIZER=1 \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
+  -DBUILD_TEST=1 \
+  -DBUILD_WITH_COS=0\
+  -DBUILD_WITH_S3=0\
+  -DBUILD_CONTRIB=1\
+  && make -s -j4 && cp ./compile_commands.json ..
+
+
