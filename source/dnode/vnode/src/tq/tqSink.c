@@ -1005,9 +1005,9 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
 
     code = doCreateSinkTableInfo(dstTableName, &pTableSinkInfo);
     if (code == 0) {
-      tqDebug("s-task:%s build new sinkTableInfo to add cache, dstTable:%s", id, dstTableName);
+      tqDebug("s-task:%s build new sinkTableInfo to add cache, dstTable:%s, groupId:%" PRId64, id, dstTableName, groupId);
     } else {
-      tqDebug("s-task:%s failed to build new sinkTableInfo, dstTable:%s", id, dstTableName);
+      tqDebug("s-task:%s failed to build new sinkTableInfo, dstTable:%s, groupId:%" PRId64, id, dstTableName, groupId);
       return code;
     }
   }
