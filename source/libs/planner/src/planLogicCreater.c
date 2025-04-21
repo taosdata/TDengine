@@ -272,7 +272,7 @@ static int32_t createSelectRootLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 
 static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols, SNodeList* pScanCols,
                              int8_t tableType, bool tagScan) {
-  if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
+  if (pCxt->pPlanCxt->topicQuery) {
     return SCAN_TYPE_STREAM;
   }
 
@@ -494,15 +494,9 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   SScanLogicNode* pScan = NULL;
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
 
+  pScan->placeholderType = pRealTable->placeholderType;
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_GLOBAL;
-  if (pCxt->pPlanCxt->streamQuery) {
-    pScan->triggerType = pCxt->pPlanCxt->triggerType;
-    pScan->watermark = pCxt->pPlanCxt->watermark;
-    pScan->deleteMark = pCxt->pPlanCxt->deleteMark;
-    pScan->igExpired = pCxt->pPlanCxt->igExpired;
-    pScan->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
-  }
 
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
@@ -1012,11 +1006,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
 
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
-
-  if (pCxt->pPlanCxt->streamQuery) {
-    *pLogicNode = (SLogicNode*)pVtableScan;
-    return code;
-  }
   
   // Dynamic query control node -> Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
@@ -1140,11 +1129,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       break;
     case TSDB_VIRTUAL_NORMAL_TABLE:
     case TSDB_VIRTUAL_CHILD_TABLE:
-      if (pCxt->pPlanCxt->streamQuery) {
-        PLAN_ERR_JRET(createVirtualSuperTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
-      } else {
-        PLAN_ERR_JRET(createVirtualNormalChildTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
-      }
+      PLAN_ERR_JRET(createVirtualNormalChildTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
       break;
     default:
       PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_TABLE_TYPE);
@@ -1237,18 +1222,13 @@ static int32_t createGroupingSetNode(SNode* pExpr, SNode** ppNode) {
   return code;
 }
 
-static EGroupAction getDistinctGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
-  return (pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit || NULL != pSelect->pSlimit) ? GROUP_ACTION_KEEP
-                                                                                              : GROUP_ACTION_NONE;
-}
-
 static bool isWindowJoinStmt(SSelectStmt* pSelect) {
   return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable) &&
           IS_WINDOW_JOIN(((SJoinTableNode*)pSelect->pFromTable)->subType));
 }
 
 static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
-  return ((pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit || NULL != pSelect->pSlimit) && !pSelect->isDistinct)
+  return ((NULL != pSelect->pLimit || NULL != pSelect->pSlimit) && !pSelect->isDistinct)
              ? GROUP_ACTION_KEEP
              : GROUP_ACTION_NONE;
 }
@@ -1557,14 +1537,6 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
-  if (pCxt->pPlanCxt->streamQuery) {
-    pWindow->triggerType = pCxt->pPlanCxt->triggerType;
-    pWindow->watermark = pCxt->pPlanCxt->watermark;
-    pWindow->deleteMark = pCxt->pPlanCxt->deleteMark;
-    pWindow->igExpired = pCxt->pPlanCxt->igExpired;
-    pWindow->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
-    pWindow->recalculateInterval = pCxt->pPlanCxt->recalculateInterval;
-  }
   pWindow->node.inputTsOrder = ORDER_ASC;
   pWindow->node.outputTsOrder = ORDER_ASC;
 
@@ -1602,10 +1574,8 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
 
   pWindow->winType = WINDOW_TYPE_STATE;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
-  pWindow->node.requireDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
-  pWindow->node.resultDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
+  pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
   pWindow->pStateExpr = NULL;
   code = nodesCloneNode(pState->pExpr, &pWindow->pStateExpr);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1642,21 +1612,9 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
   pWindow->winType = WINDOW_TYPE_SESSION;
   pWindow->sessionGap = ((SValueNode*)pSession->pGap)->datum.i;
 
-  if (pCxt->pPlanCxt->streamQuery) {
-    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-      pWindow->windowAlgo = SESSION_ALGO_STREAM_CONTINUE_SINGLE;
-    } else {
-      pWindow->windowAlgo = SESSION_ALGO_STREAM_SINGLE;
-    }
-  } else {
-    pWindow->windowAlgo = SESSION_ALGO_MERGE;
-  }
-
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
-  pWindow->node.requireDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
-  pWindow->node.resultDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
+  pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
 
   pWindow->pTspk = NULL;
   code = nodesCloneNode((SNode*)pSession->pCol, &pWindow->pTspk);
@@ -1689,22 +1647,10 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
-  if (pCxt->pPlanCxt->streamQuery) {
-    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE || pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      pWindow->windowAlgo = INTERVAL_ALGO_STREAM_CONTINUE_SINGLE;
-    } else {
-      pWindow->windowAlgo = INTERVAL_ALGO_STREAM_SINGLE;
-    }
-  } else {
-    pWindow->windowAlgo = INTERVAL_ALGO_HASH;
-  }
+  pWindow->windowAlgo = INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
-  pWindow->node.requireDataOrder =
-      pCxt->pPlanCxt->streamQuery
-          ? DATA_ORDER_LEVEL_IN_BLOCK
-          : (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_IN_BLOCK);
-  pWindow->node.resultDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : getRequireDataOrder(true, pSelect);
+  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_IN_BLOCK);
+  pWindow->node.resultDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->pTspk = NULL;
   code = nodesCloneNode(pInterval->pCol, &pWindow->pTspk);
   if (NULL == pWindow->pTspk) {
@@ -1727,10 +1673,8 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
 
   pWindow->winType = WINDOW_TYPE_EVENT;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
-  pWindow->node.requireDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
-  pWindow->node.resultDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
+  pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder =  pWindow->node.requireDataOrder;
   pWindow->pStartCond = NULL;
   code = nodesCloneNode(pEvent->pStartCond, &pWindow->pStartCond);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1767,10 +1711,8 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
 
   pWindow->winType = WINDOW_TYPE_COUNT;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
-  pWindow->node.requireDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
-  pWindow->node.resultDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
+  pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
   pWindow->windowCount = pCount->windowCount;
   pWindow->windowSliding = pCount->windowSliding;
   pWindow->pTspk = NULL;
@@ -1792,10 +1734,8 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
 
   pWindow->winType = WINDOW_TYPE_ANOMALY;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
-  pWindow->node.requireDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
-  pWindow->node.resultDataOrder =
-      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
+  pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
 
   pWindow->pAnomalyExpr = NULL;
   code = nodesCloneNode(pAnomaly->pExpr, &pWindow->pAnomalyExpr);
@@ -1824,6 +1764,37 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
   return code;
 }
 
+
+static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExternalWindowNode* pExternal,
+                                               SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  SWindowLogicNode* pWindow = NULL;
+  int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
+  if (NULL == pWindow) {
+    return code;
+  }
+
+  pWindow->winType = WINDOW_TYPE_EXTERNAL;
+  pWindow->node.groupAction = GROUP_ACTION_NONE;
+  pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pWindow->isPartTb = 0;
+  pWindow->timeRange = pExternal->timeRange;
+
+  code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  if (!pWindow->pFuncs) {
+    code = nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL);
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      code = createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets);
+    }
+    pSelect->hasProject = false;
+  }
+  return code;
+}
+
 static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -1841,6 +1812,8 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
       return createWindowLogicNodeByCount(pCxt, (SCountWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     case QUERY_NODE_ANOMALY_WINDOW:
       return createWindowLogicNodeByAnomaly(pCxt, (SAnomalyWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     default:
       break;
   }
@@ -2137,6 +2110,9 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
 }
 
 static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (!pSelect->hasProject) {
+    return TSDB_CODE_SUCCESS;
+  }
   SProjectLogicNode* pProject = NULL;
   int32_t            code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pProject);
   if (NULL == pProject) {
@@ -2146,8 +2122,7 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
   pProject->ignoreGroupId = pSelect->isSubquery ? true : (NULL == pSelect->pPartitionByList);
-  pProject->node.groupAction =
-      (!pSelect->isSubquery && pCxt->pPlanCxt->streamQuery) ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
+  pProject->node.groupAction = GROUP_ACTION_CLEAR;
   pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 

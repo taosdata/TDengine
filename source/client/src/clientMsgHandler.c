@@ -956,9 +956,9 @@ int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t co
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
-  if (code == 0 && !pRequest->streamRunHistory &&
+  if (code == 0 && !pRequest->streamRunHistory /*&&
       ((SCreateStreamStmt*)(pRequest->pQuery->pRoot))->pOptions->fillHistory &&
-      ((SCreateStreamStmt*)(pRequest->pQuery->pRoot))->pOptions->runHistoryAsync){
+      ((SCreateStreamStmt*)(pRequest->pQuery->pRoot))->pOptions->runHistoryAsync)*/){
     processCreateStreamSecondPhase(pRequest);
   }
   

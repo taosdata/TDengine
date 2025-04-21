@@ -130,6 +130,7 @@ typedef struct SScanLogicNode {
   bool          needSplit;
   bool          noPseudoRefAfterGrp;  // no pseudo columns referenced ater group/partition clause
   bool          virtualStableScan;
+  EStreamPlaceholder placeholderType;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -324,26 +325,16 @@ typedef enum EWindowType {
   WINDOW_TYPE_STATE,
   WINDOW_TYPE_EVENT,
   WINDOW_TYPE_COUNT,
-  WINDOW_TYPE_ANOMALY
+  WINDOW_TYPE_ANOMALY,
+  WINDOW_TYPE_EXTERNAL
 } EWindowType;
 
 typedef enum EWindowAlgorithm {
   INTERVAL_ALGO_HASH = 1,
   INTERVAL_ALGO_MERGE,
-  INTERVAL_ALGO_STREAM_FINAL,
-  INTERVAL_ALGO_STREAM_SEMI,
-  INTERVAL_ALGO_STREAM_SINGLE,
-  SESSION_ALGO_STREAM_SEMI,
-  SESSION_ALGO_STREAM_FINAL,
-  SESSION_ALGO_STREAM_SINGLE,
   SESSION_ALGO_MERGE,
-  INTERVAL_ALGO_STREAM_MID,
-  INTERVAL_ALGO_STREAM_CONTINUE_SINGLE,
-  INTERVAL_ALGO_STREAM_CONTINUE_FINAL,
-  INTERVAL_ALGO_STREAM_CONTINUE_SEMI,
-  SESSION_ALGO_STREAM_CONTINUE_SINGLE,
-  SESSION_ALGO_STREAM_CONTINUE_FINAL,
-  SESSION_ALGO_STREAM_CONTINUE_SEMI,
+  EXTERNAL_ALGO_HASH,
+  EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
@@ -376,6 +367,7 @@ typedef struct SWindowLogicNode {
   SNode*           pAnomalyExpr;
   char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
   int64_t          recalculateInterval;
+  SNodeList*       pProjs; // for external window
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -733,6 +725,7 @@ typedef struct SWindowPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of parameter expression of function
   SNodeList* pFuncs;
+  SNodeList* pProjs;  // only for external window
   SNode*     pTspk;   // timestamp primary key
   SNode*     pTsEnd;  // window end timestamp
   int8_t     triggerType;
@@ -818,6 +811,11 @@ typedef struct SAnomalyWindowPhysiNode {
   SNode*           pAnomalyKey;
   char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowPhysiNode;
+
+typedef struct SExternalWindowPhysiNode {
+  SWindowPhysiNode window;
+  STimeWindow      timeRange;
+} SExternalWindowPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;
@@ -909,6 +907,7 @@ typedef struct SSubplan {
   bool           dynamicRowThreshold;
   int32_t        rowsThreshold;
   bool           processOneBlock;
+  bool           scanUseCache;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

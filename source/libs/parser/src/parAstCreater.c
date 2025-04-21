@@ -414,13 +414,13 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
 }
 
 SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode, SNodeList* pNodeList, SToken* pAlias) {
+  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+  SNode*        pFuncNode = pRawExpr->pNode;
   CHECK_PARSER_STATUS(pCxt);
     if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   }
   CHECK_PARSER_STATUS(pCxt);
-  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
-  SNode*        pFuncNode = pRawExpr->pNode;
   if(pFuncNode->type != QUERY_NODE_FUNCTION) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   }
@@ -479,6 +479,21 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
   }
   COPY_STRING_FORM_ID_TOKEN(col->colName, pColumnName);
   return (SNode*)col;
+_err:
+  return NULL;
+}
+
+SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* pFunc = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  CHECK_PARSER_STATUS(pCxt);
+  tstrncpy(pFunc->functionName, "_placeholder_column", TSDB_FUNC_NAME_LEN);
+  pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, pColId);
+  CHECK_PARSER_STATUS(pCxt);
+  pFunc->tz = pCxt->pQueryCxt->timezone;
+  pFunc->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  return (SNode*)pFunc;
 _err:
   return NULL;
 }
@@ -1123,6 +1138,9 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   if (0 == strncasecmp("_rowts", pFuncName->z, pFuncName->n) || 0 == strncasecmp("_c0", pFuncName->z, pFuncName->n)) {
     return createPrimaryKeyCol(pCxt, pFuncName);
   }
+  if (0 == strncasecmp("_tcurrent_ts", pFuncName->z, pFuncName->n) || 0 == strncasecmp("_twstart", pFuncName->z, pFuncName->n)) {
+    return createPrimaryKeyCol(pCxt, NULL);
+  }
   SFunctionNode* func = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
@@ -1307,6 +1325,37 @@ _err:
   return NULL;
 }
 
+SNode* createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SPlaceHolderTableNode * phTable = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_PLACE_HOLDER_TABLE, (SNode**)&phTable);
+  CHECK_MAKE_NODE(phTable);
+
+  phTable->placeholderType = type;
+  return (SNode*)phTable;
+_err:
+  return NULL;
+}
+
+SNode* createStreamNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pStreamName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pDbName, true));
+  CHECK_NAME(checkStreamName(pCxt, pStreamName));
+  SStreamNode* pStream = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM, (SNode**)&pStream);
+  CHECK_MAKE_NODE(pStream);
+  if (NULL != pDbName) {
+    COPY_STRING_FORM_ID_TOKEN(pStream->dbName, pDbName);
+  } else {
+    snprintf(pStream->dbName, sizeof(pStream->dbName), "%s", pCxt->pQueryCxt->db);
+  }
+  COPY_STRING_FORM_ID_TOKEN(pStream->streamName, pStreamName);
+  return (SNode*)pStream;
+_err:
+  return NULL;
+}
+
 SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTableName(pCxt, pTableAlias)) {
@@ -1451,7 +1500,7 @@ _err:
   return NULL;
 }
 
-SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken) {
+SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken, SNodeList* pColList) {
   SCountWindowNode* pCount = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COUNT_WINDOW, (SNode**)&pCount);
@@ -1485,6 +1534,24 @@ _err:
   return NULL;
 }
 
+SNode* createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode* pSliding) {
+  SIntervalWindowNode* pInterval = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  if (pInter) {
+    pInterval = (SIntervalWindowNode*)pInter;
+  } else {
+    pCxt->errCode = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW, (SNode**)&pInterval);
+    CHECK_MAKE_NODE(pInterval);
+  }
+  pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
+  pInterval->pOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
+_err:
+  nodesDestroyNode((SNode*)pInter);
+  nodesDestroyNode((SNode*)pInterval);
+  nodesDestroyNode((SNode*)pSliding);
+  return NULL;
+}
+
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                 SNode* pFill) {
   SIntervalWindowNode* interval = NULL;
@@ -1506,6 +1573,21 @@ _err:
   nodesDestroyNode(pOffset);
   nodesDestroyNode(pSliding);
   nodesDestroyNode(pFill);
+  return NULL;
+}
+
+SNode* createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode* pOffset) {
+  SPeriodWindowNode* pPeriod = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_PERIOD_WINDOW, (SNode**)&pPeriod);
+  CHECK_MAKE_NODE(pPeriod);
+  pPeriod->pOffset = pOffset;
+  pPeriod->pPeroid = pPeriodTime;
+  return (SNode*)pPeriod;
+_err:
+  nodesDestroyNode((SNode*)pOffset);
+  nodesDestroyNode((SNode*)pPeriodTime);
+  nodesDestroyNode((SNode*)pPeriod);
   return NULL;
 }
 
@@ -4029,79 +4111,147 @@ _err:
   return NULL;
 }
 
-SNode* createStreamOptions(SAstCreateContext* pCxt) {
+SNode* createStreamTriggerNode(SAstCreateContext *pCxt, SNode* pTriggerWindow, SNode* pTriggerTable, SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification) {
+  SStreamTriggerNode* pTrigger = NULL;
   CHECK_PARSER_STATUS(pCxt);
-  SStreamOptions* pOptions = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_OPTIONS, (SNode**)&pOptions);
-  CHECK_MAKE_NODE(pOptions);
-  pOptions->triggerType = STREAM_TRIGGER_WINDOW_CLOSE;
-  pOptions->fillHistory = STREAM_DEFAULT_FILL_HISTORY;
-  pOptions->ignoreExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
-  pOptions->ignoreUpdate = STREAM_DEFAULT_IGNORE_UPDATE;
-  pOptions->runHistoryAsync = false;
-  return (SNode*)pOptions;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TRIGGER, (SNode**)&pTrigger);
+  CHECK_MAKE_NODE(pTrigger);
+
+  pTrigger->pOptions = pOptions;
+  pTrigger->pNotify = pNotification;
+  pTrigger->pTrigerTable = pTriggerTable;
+  pTrigger->pPartitionList = pPartitionList;
+  pTrigger->pTriggerWindow = pTriggerWindow;
+  return (SNode*)pTrigger;
+
 _err:
+  nodesDestroyNode((SNode*)pTrigger);
+  nodesDestroyNode(pTriggerWindow);
+  nodesDestroyNode(pTriggerTable);
+  nodesDestroyNode(pOptions);
+  nodesDestroyNode(pNotification);
+  nodesDestroyList(pPartitionList);
   return NULL;
 }
 
-static int8_t getTriggerType(uint32_t tokenType) {
-  switch (tokenType) {
-    case TK_AT_ONCE:
-      return STREAM_TRIGGER_AT_ONCE;
-    case TK_WINDOW_CLOSE:
-      return STREAM_TRIGGER_WINDOW_CLOSE;
-    case TK_MAX_DELAY:
-      return STREAM_TRIGGER_MAX_DELAY;
-    case TK_FORCE_WINDOW_CLOSE:
-      return STREAM_TRIGGER_FORCE_WINDOW_CLOSE;
-    case TK_CONTINUOUS_WINDOW_CLOSE:
-      return STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE;
-    default:
-      break;
-  }
-  return STREAM_TRIGGER_WINDOW_CLOSE;
+SNode* createSlidingWindowNode(SAstCreateContext* pCxt, SNode* pSlidingVal, SNode* pOffset) {
+  SSlidingWindowNode* pSliding = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SLIDING_WINDOW, (SNode**)&pSliding);
+  CHECK_MAKE_NODE(pSliding);
+  pSliding->pSlidingVal = pSlidingVal;
+  pSliding->pOffset = pOffset;
+  return (SNode*)pSliding;
+_err:
+  nodesDestroyNode(pSlidingVal);
+  nodesDestroyNode(pOffset);
+  nodesDestroyNode((SNode*)pSliding);
+  return NULL;
 }
 
-SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptionsSetFlag setflag, SToken* pToken,
-                        SNode* pNode, bool runHistoryAsync) {
-  SStreamOptions* pStreamOptions = (SStreamOptions*)pOptions;
-  if (BIT_FLAG_TEST_MASK(setflag, pStreamOptions->setFlag)) {
-    pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "stream options each item is only set once");
-    return pOptions;
-  }
+SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
+  SStreamTriggerOptions* pOptions = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TRIGGER_OPTIONS, (SNode**)&pOptions);
+  CHECK_MAKE_NODE(pOptions);
+  pOptions->pPreFilter = NULL;
+  pOptions->pWaterMark = NULL;
+  pOptions->pMaxDelay = NULL;
+  pOptions->pEventType = EVENT_NONE;
+  pOptions->calcNotifyOnly = false;
+  pOptions->deleteOutputTable = false;
+  pOptions->deleteRecalc = false;
+  pOptions->fillHistory = false;
+  pOptions->fillHistoryFirst = false;
+  pOptions->lowLatencyCalc = false;
+  pOptions->forceOutput = false;
+  pOptions->ignoreDisorder = false;
+  pOptions->expiredTime = 0;
+  pOptions->fillHistoryStartTime = 0;
+  return (SNode*)pOptions;
+_err:
+  nodesDestroyNode((SNode*)pOptions);
+  return NULL;
+}
 
-  switch (setflag) {
-    case SOPT_TRIGGER_TYPE_SET:
-      pStreamOptions->triggerType = getTriggerType(pToken->type);
-      if (STREAM_TRIGGER_MAX_DELAY == pStreamOptions->triggerType) {
-        pStreamOptions->pDelay = pNode;
+SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* tagExpression) {
+  SStreamTagDefNode* pTagDef = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef);
+  CHECK_MAKE_NODE(pTagDef);
+  tstrncpy(pTagDef->tagName, pTagName->z, sizeof(pTagDef->tagName));
+  pTagDef->dataType = dataType;
+  pTagDef->pTagExpr = tagExpression;
+  return (SNode*)pTagDef;
+_err:
+  nodesDestroyNode(tagExpression);
+  nodesDestroyNode((SNode*)pTagDef);
+  return NULL;
+}
+
+SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStreamTriggerOption* pOptionUnit) {
+  CHECK_PARSER_STATUS(pCxt);
+  SStreamTriggerOptions* pStreamOptions = (SStreamTriggerOptions*)pOptions;
+  switch (pOptionUnit->type) {
+    case STREAM_TRIGGER_OPTION_CALC_NOTIFY_ONLY:
+      pStreamOptions->calcNotifyOnly = true;
+      break;
+    case STREAM_TRIGGER_OPTION_DELETE_OUTPUT_TABLE:
+      pStreamOptions->deleteOutputTable = true;
+      break;
+    case STREAM_TRIGGER_OPTION_DELETE_RECALC:
+      pStreamOptions->deleteRecalc = true;
+      break;
+    case STREAM_TRIGGER_OPTION_EXPIRED_TIME:
+      pStreamOptions->expiredTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
+      break;
+    case STREAM_TRIGGER_OPTION_FORCE_OUTPUT:
+      pStreamOptions->forceOutput = true;
+      break;
+    case STREAM_TRIGGER_OPTION_FILL_HISTORY:
+      if (pStreamOptions->fillHistoryFirst) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "FILL_HISTORY_FIRST and FILL_HISTORY cannot be used at the same time");
+        goto _err;
       }
-      if (STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE == pStreamOptions->triggerType) {
-        pStreamOptions->pRecInterval = pNode;
+      pStreamOptions->fillHistory = true;
+      pStreamOptions->fillHistoryStartTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
+      break;
+    case STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST:
+      if (pStreamOptions->fillHistory) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "FILL_HISTORY_FIRST and FILL_HISTORY cannot be used at the same time");
+        goto _err;
       }
+      pStreamOptions->fillHistoryFirst = true;
+      pStreamOptions->fillHistoryStartTime = taosStr2Int32((&pOptionUnit->val)->z, NULL, 10);
       break;
-    case SOPT_WATERMARK_SET:
-      pStreamOptions->pWatermark = pNode;
+    case STREAM_TRIGGER_OPTION_IGNORE_DISORDER:
+      pStreamOptions->ignoreDisorder = true;
       break;
-    case SOPT_DELETE_MARK_SET:
-      pStreamOptions->pDeleteMark = pNode;
+    case STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC:
+      pStreamOptions->lowLatencyCalc = true;
       break;
-    case SOPT_FILL_HISTORY_SET:
-      pStreamOptions->fillHistory = taosStr2Int8(pToken->z, NULL, 10);
+    case STREAM_TRIGGER_OPTION_MAX_DELAY:
+      pStreamOptions->pMaxDelay = pOptionUnit->pNode;
       break;
-    case SOPT_IGNORE_EXPIRED_SET:
-      pStreamOptions->ignoreExpired = taosStr2Int8(pToken->z, NULL, 10);
+    case STREAM_TRIGGER_OPTION_WATERMARK:
+      pStreamOptions->pWaterMark = pOptionUnit->pNode;
       break;
-    case SOPT_IGNORE_UPDATE_SET:
-      pStreamOptions->ignoreUpdate = taosStr2Int8(pToken->z, NULL, 10);
+    case STREAM_TRIGGER_OPTION_PRE_FILTER:
+      pStreamOptions->pPreFilter = pOptionUnit->pNode;
+      break;
+    case STREAM_TRIGGER_OPTION_EVENT_TYPE:
+      pStreamOptions->pEventType = pOptionUnit->flag;
       break;
     default:
       break;
   }
-  BIT_FLAG_SET_MASK(pStreamOptions->setFlag, setflag);
-  pStreamOptions->runHistoryAsync = runHistoryAsync;
   return pOptions;
+_err:
+  nodesDestroyNode(pOptionUnit->pNode);
+  nodesDestroyNode(pOptions);
+  return NULL;
 }
 
 static bool validateNotifyUrl(const char* url) {
@@ -4120,12 +4270,8 @@ static bool validateNotifyUrl(const char* url) {
   return (host != NULL) && (*host != '\0') && (*host != '/');
 }
 
-SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, SNodeList* pEventTypes) {
-  SNode*                 pNode = NULL;
-  EStreamNotifyEventType eventTypes = 0;
-  const char*            eWindowOpenStr = "WINDOW_OPEN";
-  const char*            eWindowCloseStr = "WINDOW_CLOSE";
-
+SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, int64_t eventType, int64_t notifyType) {
+  SNode* pNode = NULL;
   CHECK_PARSER_STATUS(pCxt);
 
   if (LIST_LENGTH(pAddrUrls) == 0) {
@@ -4149,95 +4295,48 @@ SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, 
     }
   }
 
-  if (LIST_LENGTH(pEventTypes) == 0) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "event types must be specified for notification");
-    goto _err;
-  }
-
-  FOREACH(pNode, pEventTypes) {
-    char *eventStr = ((SValueNode *)pNode)->literal;
-    if (taosStrncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
-      BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_OPEN);
-    } else if (taosStrncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
-      BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
-    } else {
-      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                              "invalid event type '%s' for notification", eventStr);
-      goto _err;
-    }
-  }
 
   SStreamNotifyOptions* pNotifyOptions = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_NOTIFY_OPTIONS, (SNode**)&pNotifyOptions);
   CHECK_MAKE_NODE(pNotifyOptions);
   pNotifyOptions->pAddrUrls = pAddrUrls;
-  pNotifyOptions->eventTypes = eventTypes;
-  pNotifyOptions->errorHandle = SNOTIFY_ERROR_HANDLE_PAUSE;
-  pNotifyOptions->notifyHistory = false;
-  nodesDestroyList(pEventTypes);
+  pNotifyOptions->eventType = eventType;
+  pNotifyOptions->notifyType = notifyType;
   return (SNode*)pNotifyOptions;
 _err:
   nodesDestroyList(pAddrUrls);
-  nodesDestroyList(pEventTypes);
   return NULL;
 }
 
-SNode* setStreamNotifyOptions(SAstCreateContext* pCxt, SNode* pNode, EStreamNotifyOptionSetFlag setFlag,
-                              SToken* pToken) {
-  CHECK_PARSER_STATUS(pCxt);
-
-  SStreamNotifyOptions* pNotifyOption = (SStreamNotifyOptions*)pNode;
-  if (BIT_FLAG_TEST_MASK(pNotifyOption->setFlag, setFlag)) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                         "stream notify options each item can only be set once");
-    goto _err;
-  }
-  switch (setFlag) {
-    case SNOTIFY_OPT_ERROR_HANDLE_SET:
-      pNotifyOption->errorHandle = (pToken->type == TK_DROP) ? SNOTIFY_ERROR_HANDLE_DROP : SNOTIFY_ERROR_HANDLE_PAUSE;
-      break;
-    case SNOTIFY_OPT_NOTIFY_HISTORY_SET:
-      pNotifyOption->notifyHistory = taosStr2Int8(pToken->z, NULL, 10);
-      break;
-    default:
-      break;
-  }
-  BIT_FLAG_SET_MASK(pNotifyOption->setFlag, setFlag);
-  return pNode;
-_err:
-  nodesDestroyNode(pNode);
-  return NULL;
-}
-
-SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols,
-                              SNode* pNotifyOptions) {
-  CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkStreamName(pCxt, pStreamName));
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pStream, SNode* pTrigger,
+                              SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList, SNodeList* pTagList, SNode* pQuery) {
   SCreateStreamStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
-  tstrncpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
-  nodesDestroyNode(pRealTable);
+
+  tstrncpy(pStmt->targetDbName, ((SRealTableNode*)pIntoTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->targetTabName, ((SRealTableNode*)pIntoTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+  nodesDestroyNode(pIntoTable);
+  nodesDestroyNode(pStream);
+
   pStmt->ignoreExists = ignoreExists;
-  pStmt->pOptions = (SStreamOptions*)pOptions;
+  pStmt->pTrigger = pTrigger;
   pStmt->pQuery = pQuery;
-  pStmt->pTags = pTags;
-  pStmt->pSubtable = pSubtable;
-  pStmt->pCols = pCols;
-  pStmt->pNotifyOptions = (SStreamNotifyOptions*)pNotifyOptions;
+  pStmt->pTags = pTagList;
+  pStmt->pSubtable = pOutputSubTable;
+  pStmt->pCols = pColList;
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pIntoTable);
   nodesDestroyNode(pQuery);
-  nodesDestroyNode(pOptions);
-  nodesDestroyList(pTags);
-  nodesDestroyNode(pSubtable);
-  nodesDestroyList(pCols);
-  nodesDestroyNode(pNotifyOptions);
+  nodesDestroyNode(pTrigger);
+  nodesDestroyList(pTagList);
+  nodesDestroyNode(pOutputSubTable);
+  nodesDestroyList(pColList);
+  nodesDestroyNode(pQuery);
   return NULL;
 }
 
@@ -4281,20 +4380,6 @@ SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, boo
 _err:
   return NULL;
 }
-
-SNode* createResetStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
-  CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkStreamName(pCxt, pStreamName));
-  SPauseStreamStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_RESET_STREAM_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
-  pStmt->ignoreNotExists = ignoreNotExists;
-  return (SNode*)pStmt;
-_err:
-  return NULL;
-}
-
 
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
   CHECK_PARSER_STATUS(pCxt);

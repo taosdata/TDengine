@@ -242,6 +242,7 @@ typedef enum ENodeType {
   QUERY_NODE_REAL_TABLE,
   QUERY_NODE_TEMP_TABLE,
   QUERY_NODE_JOIN_TABLE,
+  QUERY_NODE_PLACE_HOLDER_TABLE,
   QUERY_NODE_GROUPING_SET,
   QUERY_NODE_ORDER_BY_EXPR,
   QUERY_NODE_LIMIT,
@@ -260,7 +261,7 @@ typedef enum ENodeType {
   QUERY_NODE_TABLE_OPTIONS,
   QUERY_NODE_INDEX_OPTIONS,
   QUERY_NODE_EXPLAIN_OPTIONS,
-  QUERY_NODE_STREAM_OPTIONS,
+  QUERY_NODE_STREAM_TRIGGER_OPTIONS,
   QUERY_NODE_LEFT_VALUE,
   QUERY_NODE_COLUMN_REF,
   QUERY_NODE_WHEN_THEN,
@@ -276,6 +277,13 @@ typedef enum ENodeType {
   QUERY_NODE_RANGE_AROUND,
   QUERY_NODE_STREAM_NOTIFY_OPTIONS,
   QUERY_NODE_VIRTUAL_TABLE,
+  QUERY_NODE_SLIDING_WINDOW,
+  QUERY_NODE_PERIOD_WINDOW,
+  QUERY_NODE_STREAM_EVENT_TYPE,
+  QUERY_NODE_STREAM_TRIGGER,
+  QUERY_NODE_STREAM,
+  QUERY_NODE_STREAM_TAG_DEF,
+  QUERY_NODE_EXTERNAL_WINDOW,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -498,7 +506,6 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_ANOMALY,
   QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
-  QUERY_NODE_RESET_STREAM_STMT,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION,
@@ -508,6 +515,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT,
   QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW,
 } ENodeType;
 
 typedef struct {
@@ -532,6 +540,7 @@ typedef struct SField {
   int8_t  flags;
   int32_t bytes;
 } SField;
+
 typedef struct SFieldWithOptions {
   char     name[TSDB_COL_NAME_LEN];
   uint8_t  type;
@@ -3149,8 +3158,8 @@ typedef enum EStreamPlaceholder {
 
 typedef struct SStreamOutCol {
   void*              expr;
+  SDataType          type;
 } SStreamOutCol;
-
 
 typedef struct SSessionTrigger {
   int16_t slotId;
@@ -3222,7 +3231,8 @@ typedef struct {
   int8_t  calcNotifyOnly;
   int8_t  lowLatencyCalc;
   int8_t  forceOutput;
-  
+
+  // notify options
   SArray* pNotifyAddrUrls;
   int32_t notifyEventTypes;
   int32_t notifyErrorHandle;
@@ -3265,15 +3275,12 @@ typedef struct {
   SArray*   forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
 } SCMCreateStreamReq;
 
-#else
-
-
 typedef struct SVgroupVer {
   int32_t vgId;
   int64_t ver;
 } SVgroupVer;
 
-
+#else
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];
@@ -4307,15 +4314,6 @@ typedef struct {
 
 int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);
 int32_t tDeserializeSMResumeStreamReq(void* buf, int32_t bufLen, SMResumeStreamReq* pReq);
-
-typedef struct {
-  char   name[TSDB_STREAM_FNAME_LEN];
-  int8_t igNotExists;
-  int8_t igUntreated;
-} SMResetStreamReq;
-
-int32_t tSerializeSMResetStreamReq(void* buf, int32_t bufLen, const SMResetStreamReq* pReq);
-int32_t tDeserializeSMResetStreamReq(void* buf, int32_t bufLen, SMResetStreamReq* pReq);
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];

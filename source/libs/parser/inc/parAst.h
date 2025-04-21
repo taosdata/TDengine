@@ -36,6 +36,22 @@ typedef struct SAstCreateContext {
   int32_t        errCode;
 } SAstCreateContext;
 
+typedef enum EStreamOptionType {
+  STREAM_TRIGGER_OPTION_WATERMARK = 1,
+  STREAM_TRIGGER_OPTION_EXPIRED_TIME,
+  STREAM_TRIGGER_OPTION_IGNORE_DISORDER,
+  STREAM_TRIGGER_OPTION_DELETE_RECALC,
+  STREAM_TRIGGER_OPTION_DELETE_OUTPUT_TABLE,
+  STREAM_TRIGGER_OPTION_FILL_HISTORY,
+  STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST,
+  STREAM_TRIGGER_OPTION_CALC_NOTIFY_ONLY,
+  STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC,
+  STREAM_TRIGGER_OPTION_PRE_FILTER,
+  STREAM_TRIGGER_OPTION_FORCE_OUTPUT,
+  STREAM_TRIGGER_OPTION_MAX_DELAY,
+  STREAM_TRIGGER_OPTION_EVENT_TYPE,
+} EStreamOptionType;
+
 typedef enum EDatabaseOptionType {
   DB_OPTION_BUFFER = 1,
   DB_OPTION_CACHEMODEL,
@@ -101,6 +117,13 @@ typedef struct SAlterOption {
   SNodeList* pList;
 } SAlterOption;
 
+typedef struct SStreamTriggerOption {
+  int32_t    type;
+  int64_t    flag;
+  SToken     val;
+  SNode*     pNode;
+} SStreamTriggerOption;
+
 typedef struct STokenPair {
   SToken first;
   SToken second;
@@ -130,6 +153,7 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
 
+SNode*     createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId);
 SNode*     createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName);
 SNode*     createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral);
 SNode*     createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pNode);
@@ -156,6 +180,8 @@ SNode*     createSubstrFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SN
 SNode*     createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList);
 SNode*     createNodeListNodeEx(SAstCreateContext* pCxt, SNode* p1, SNode* p2);
 SNode*     createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTableName, SToken* pTableAlias);
+SNode*     createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type);
+SNode*     createStreamNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pStreamName);
 SNode*     createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pTableAlias);
 SNode*     createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
                                SNode* pJoinCond);
@@ -165,10 +191,13 @@ SNode*     createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder o
 SNode*     createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap);
 SNode*     createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode *pTrueForLimit);
 SNode*     createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode *pTrueForLimit);
-SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken);
+SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken, SNodeList* pColList);
 SNode*     createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt);
+SNode*     createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode* pSliding);
 SNode*     createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                     SNode* pFill);
+SNode*     createSlidingWindowNode(SAstCreateContext* pCxt, SNode* pSlidingVal, SNode* pOffset);
+SNode*     createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode* pOffset);
 SNode*     createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset);
 SNode*     createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
 SNode*     createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
@@ -324,19 +353,17 @@ SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool
                                 const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage,
                                 bool orReplace);
 SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pFuncName);
-SNode* createStreamOptions(SAstCreateContext* pCxt);
-SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptionsSetFlag setflag, SToken* pToken,
-                        SNode* pNode, bool runHistoryAsync);
-SNode* createStreamNotifyOptions(SAstCreateContext *pCxt, SNodeList* pAddrUrls, SNodeList* pEventTypes);
-SNode* setStreamNotifyOptions(SAstCreateContext* pCxt, SNode* pNode, EStreamNotifyOptionSetFlag setFlag,
-                              SToken* pToken);
-SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols,
-                              SNode* pNotifyOptions);
+SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataType dataType, SNode* tagExpression);
+SNode* createStreamTriggerOptions(SAstCreateContext* pCxt);
+SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStreamTriggerOption* pStreamOptionUnit);
+SNode* createStreamNotifyOptions(SAstCreateContext *pCxt, SNodeList* pAddrUrls, int64_t eventType, int64_t notifyType);
+SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pStream, SNode* pTrigger,
+                              SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList, SNodeList* pTagList,
+                              SNode* pQuery);
+SNode* createStreamTriggerNode(SAstCreateContext *pCxt, SNode* pTriggerWindow, SNode* pTriggerTable, SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification);
 SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName);
 SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName);
 SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, bool ignoreUntreated, SToken* pStreamName);
-SNode* createResetStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName);
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
