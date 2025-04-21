@@ -879,6 +879,34 @@ _end:
   return code;
 }
 
+void setFinalOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
+}
+
+bool isFinalOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
+}
+
+void setRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+void unsetRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_UNSET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
+void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
+}
+
+bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo) {
+  return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
+}
+
 static int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, void* pExtraParams) {
   int32_t    code = 0;
   SNode*     pNode = 0;
@@ -1008,3 +1036,4 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
   }
   return code;
 }
+

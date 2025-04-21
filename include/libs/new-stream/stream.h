@@ -17,6 +17,7 @@
 #define TDENGINE_STREAM_H
 
 #include "executor.h"
+#include "executor.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
