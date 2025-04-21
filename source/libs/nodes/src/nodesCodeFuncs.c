@@ -43,6 +43,20 @@ const char* nodesNodeName(ENodeType type) {
       return "RealTable";
     case QUERY_NODE_VIRTUAL_TABLE:
       return "VirtualTable";
+    case QUERY_NODE_SLIDING_WINDOW :
+      return "SlidingWindow";
+    case QUERY_NODE_PERIOD_WINDOW:
+      return "PeriodWindow";
+    case QUERY_NODE_STREAM_EVENT_TYPE:
+      return "StreamEventType";
+    case QUERY_NODE_STREAM_TRIGGER:
+      return "StreamTrigger";
+    case QUERY_NODE_STREAM:
+      return "Stream";
+    case QUERY_NODE_STREAM_TAG_DEF:
+      return "StreamTagDef";
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      return "ExternalWindow";
     case QUERY_NODE_TEMP_TABLE:
       return "TempTable";
     case QUERY_NODE_JOIN_TABLE:
@@ -85,8 +99,8 @@ const char* nodesNodeName(ENodeType type) {
       return "IndexOptions";
     case QUERY_NODE_EXPLAIN_OPTIONS:
       return "ExplainOptions";
-    case QUERY_NODE_STREAM_OPTIONS:
-      return "StreamOptions";
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
+      return "StreamTriggerOptions";
     case QUERY_NODE_LEFT_VALUE:
       return "LeftValue";
     case QUERY_NODE_COLUMN_REF:
@@ -207,8 +221,6 @@ const char* nodesNodeName(ENodeType type) {
       return "PauseStreamStmt";
     case QUERY_NODE_RESUME_STREAM_STMT:
       return "ResumeStreamStmt";
-    case QUERY_NODE_RESET_STREAM_STMT:
-      return "ResetStreamStmt";
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return "BalanceVgroupStmt";
     case QUERY_NODE_ASSIGN_LEADER_STMT:
@@ -500,6 +512,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiStreamContinueEvent";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
       return "PhysiStreamContinueCount";
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return "PhysiExternalWindow";
     default:
       break;
   }
@@ -5458,6 +5472,203 @@ static int32_t jsonToVirtualTableNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkSlidingWindowOffset = "Offset";
+static const char* jkSlidingWindowSlidingVal = "SlidingVal";
+
+static int32_t slidingWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SSlidingWindowNode* pNode = (const SSlidingWindowNode*)pObj;
+  int32_t                   code = tjsonAddObject(pJson, jkSlidingWindowOffset, nodeToJson, pNode->pOffset);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSlidingWindowSlidingVal, nodeToJson, pNode->pSlidingVal);
+  }
+  return code;
+}
+
+static int32_t jsonToSlidingWindowNode(const SJson* pJson, void* pObj) {
+  SSlidingWindowNode* pNode = (SSlidingWindowNode*)pObj;
+  int32_t code = jsonToNodeObject(pJson, jkSlidingWindowOffset, (SNode**)&pNode->pOffset);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkSlidingWindowSlidingVal, (SNode**)&pNode->pSlidingVal);
+  }
+
+  return code;
+}
+
+static const char* jkPeriodWindowOffset = "Offset";
+static const char* jkPeriodWindowPeriod = "Period";
+
+static int32_t periodWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SPeriodWindowNode* pNode = (const SPeriodWindowNode*)pObj;
+  int32_t                   code = tjsonAddObject(pJson, jkPeriodWindowPeriod, nodeToJson, pNode->pPeroid);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkPeriodWindowOffset, nodeToJson, pNode->pOffset);
+  }
+  return code;
+}
+
+static int32_t jsonToPeriodWindowNode(const SJson* pJson, void* pObj) {
+  SPeriodWindowNode* pNode = (SPeriodWindowNode*)pObj;
+  int32_t code = jsonToNodeObject(pJson, jkPeriodWindowPeriod, (SNode**)&pNode->pPeroid);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkPeriodWindowOffset, (SNode**)&pNode->pOffset);
+  }
+
+  return code;
+}
+
+static const char* jkStreamEventTypewindowOpen = "WindowOpen";
+static const char* jkStreamEventTypewindowClose = "WindowClose";
+
+static int32_t streamEventTypeNodeToJson(const void* pObj, SJson* pJson) {
+  const SStreamEventTypes* pNode = (const SStreamEventTypes*)pObj;
+  int32_t                  code = tjsonAddBoolToObject(pJson, jkStreamEventTypewindowOpen, pNode->windowOpen);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkStreamEventTypewindowClose, pNode->windowClose);
+  }
+  return code;
+}
+
+static int32_t jsonToStreamEventTypeNode(const SJson* pJson, void* pObj) {
+  SStreamEventTypes* pNode = (SStreamEventTypes*)pObj;
+  int32_t code = tjsonGetBoolValue(pJson, jkStreamEventTypewindowOpen, &pNode->windowOpen);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkStreamEventTypewindowClose, &pNode->windowClose);
+  }
+
+  return code;
+}
+
+static const char* jkStreamTriggerTriggerWindow = "TriggerWindow";
+static const char* jkStreamTriggerTriggerTable = "TriggerTable";
+static const char* jkStreamTriggerOptions = "Options";
+static const char* jkStreamTriggerNotify = "Notify";
+static const char* jkStreamTriggerPartitionList= "PartitionList";
+
+static int32_t streamTriggerNodeToJson(const void* pObj, SJson* pJson) {
+  const SStreamTriggerNode* pNode = (const SStreamTriggerNode*)pObj;
+  int32_t                   code = tjsonAddObject(pJson, jkStreamTriggerTriggerWindow, nodeToJson, pNode->pTriggerWindow);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkStreamTriggerTriggerTable, nodeToJson, pNode->pTrigerTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkStreamTriggerOptions, nodeToJson, pNode->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkStreamTriggerNotify, nodeToJson, pNode->pNotify);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkStreamTriggerPartitionList, pNode->pPartitionList);
+  }
+  return code;
+}
+
+static int32_t jsonToStreamTriggerNode(const SJson* pJson, void* pObj) {
+  SStreamTriggerNode* pNode = (SStreamTriggerNode*)pObj;
+  int32_t             code = jsonToNodeObject(pJson, jkStreamTriggerTriggerWindow, (SNode**)&pNode->pTriggerWindow);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkStreamTriggerTriggerTable, (SNode**)&pNode->pTrigerTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkStreamTriggerOptions, (SNode**)&pNode->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkStreamTriggerNotify, (SNode**)&pNode->pNotify);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkStreamTriggerPartitionList, &pNode->pPartitionList);
+  }
+  return code;
+}
+
+static const char* jkStreamDbName = "DbName";
+static const char* jkStreamStreamName = "StreamName";
+
+static int32_t streamNodeToJson(const void* pObj, SJson* pJson) {
+  const SStreamNode* pNode = (const SStreamNode*)pObj;
+  int32_t            code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkStreamDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkStreamStreamName, pNode->streamName);
+  }
+  return code;
+}
+
+static int32_t jsonToStreamNode(const SJson* pJson, void* pObj) {
+  SStreamNode* pNode = (SStreamNode*)pObj;
+  int32_t      code = jsonToExprNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkStreamDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkStreamStreamName, pNode->streamName);
+  }
+  return code;
+}
+
+static const char* jkStreamTagDefTagName = "TagName";
+static const char* jkStreamTagDefDataType = "DataType";
+static const char* jkStreamTagDefTagExpr = "DataType";
+
+static int32_t streamTagDefNodeToJson(const void* pObj, SJson* pJson) {
+  const SStreamTagDefNode* pNode = (const SStreamTagDefNode*)pObj;
+  int32_t                  code = tjsonAddStringToObject(pJson, jkStreamTagDefTagName, pNode->tagName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkStreamTagDefDataType, dataTypeToJson, &pNode->dataType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkStreamTagDefTagExpr, nodeToJson, pNode->pTagExpr);
+  }
+  return code;
+}
+
+static int32_t jsonToStreamTagDefNode(const SJson* pJson, void* pObj) {
+  SStreamTagDefNode* pNode = (SStreamTagDefNode*)pObj;
+  int32_t            code = tjsonGetStringValue(pJson, jkStreamTagDefTagName, pNode->tagName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkStreamTagDefDataType, jsonToDataType, &pNode->dataType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkStreamTagDefTagExpr, &pNode->pTagExpr);
+  }
+  return code;
+}
+
+static const char* jkExternalWindowProjectionList = "ProjectionList";
+static const char* jkExternalWindowAggFuncList = "AggFuncList";
+static const char* jkExternalWindowStartTime = "StartTime";
+static const char* jkExternalWindowEndTime = "EndTime";
+
+static int32_t externalWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SExternalWindowNode* pNode = (const SExternalWindowNode*)pObj;
+  int32_t                    code = nodeListToJson(pJson, jkExternalWindowProjectionList, pNode->pProjectionList);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkExternalWindowAggFuncList, pNode->pAggFuncList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkExternalWindowStartTime, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkExternalWindowEndTime, pNode->timeRange.ekey);
+  }
+  return code;
+}
+
+static int32_t jsonToExternalWindowNode(const SJson* pJson, void* pObj) {
+  SExternalWindowNode* pNode = (SExternalWindowNode*)pObj;
+  int32_t              code = jsonToNodeList(pJson, jkExternalWindowProjectionList, &pNode->pProjectionList);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkExternalWindowAggFuncList, &pNode->pAggFuncList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkExternalWindowStartTime, &pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkExternalWindowEndTime, &pNode->timeRange.ekey);
+  }
+  return code;
+}
 
 static const char* jkGroupingSetType = "GroupingSetType";
 static const char* jkGroupingSetParameter = "Parameters";
@@ -6368,55 +6579,15 @@ static const char* jkStreamOptionsIgnoreExpired = "IgnoreExpired";
 static const char* jkStreamOptionsRecInterval = "RecInterval";
 
 static int32_t streamOptionsToJson(const void* pObj, SJson* pJson) {
-  const SStreamOptions* pNode = (const SStreamOptions*)pObj;
+  const SStreamTriggerOptions* pNode = (const SStreamTriggerOptions*)pObj;
 
-  int32_t code = tjsonAddIntegerToObject(pJson, jkStreamOptionsTriggerType, pNode->triggerType);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamOptionsDelay, nodeToJson, pNode->pDelay);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamOptionsWatermark, nodeToJson, pNode->pWatermark);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamOptionsDeleteMark, nodeToJson, pNode->pDeleteMark);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkStreamOptionsFillHistory, pNode->fillHistory);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkStreamOptionsIgnoreExpired, pNode->ignoreExpired);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkStreamOptionsRecInterval, nodeToJson, pNode->pRecInterval);
-  }
-
-  return code;
+  return 0;
 }
 
 static int32_t jsonToStreamOptions(const SJson* pJson, void* pObj) {
-  SStreamOptions* pNode = (SStreamOptions*)pObj;
+  SStreamTriggerOptions* pNode = (SStreamTriggerOptions*)pObj;
 
-  int32_t code = tjsonGetTinyIntValue(pJson, jkStreamOptionsTriggerType, &pNode->triggerType);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamOptionsDelay, &pNode->pDelay);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamOptionsWatermark, &pNode->pWatermark);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamOptionsDeleteMark, &pNode->pDeleteMark);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkStreamOptionsFillHistory, &pNode->fillHistory);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkStreamOptionsIgnoreExpired, &pNode->ignoreExpired);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkStreamOptionsRecInterval, &pNode->pRecInterval);
-  }
-
-  return code;
+  return 0;
 }
 
 static const char* jkStreamNotifyOptionsAddrUrls = "AddrUrls";
@@ -6427,15 +6598,6 @@ static const char* jkStreamNotifyOptionsNotifyHistory = "NotifyHistory";
 static int32_t streamNotifyOptionsToJson(const void* pObj, SJson* pJson) {
   const SStreamNotifyOptions* pNotifyOption = (const SStreamNotifyOptions*)pObj;
   int32_t                     code = nodeListToJson(pJson, jkStreamNotifyOptionsAddrUrls, pNotifyOption->pAddrUrls);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonAddIntegerToObject(pJson, jkStreamNotifyOptionsEventType, pNotifyOption->eventTypes);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonAddIntegerToObject(pJson, jkStreamNotifyOptionsErrorHandle, pNotifyOption->errorHandle);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonAddBoolToObject(pJson, jkStreamNotifyOptionsNotifyHistory, pNotifyOption->notifyHistory);
-  }
 
   return code;
 }
@@ -6444,17 +6606,6 @@ static int32_t jsonToStreamNotifyOptions(const SJson* pJson, void* pObj) {
   SStreamNotifyOptions* pNotifyOption = (SStreamNotifyOptions*)pObj;
   int32_t               code = jsonToNodeList(pJson, jkStreamNotifyOptionsAddrUrls, &pNotifyOption->pAddrUrls);
   int32_t               val = 0;
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonGetIntValue(pJson, jkStreamNotifyOptionsEventType, &val);
-    pNotifyOption->eventTypes = val;
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonGetIntValue(pJson, jkStreamNotifyOptionsErrorHandle, &val);
-    pNotifyOption->errorHandle = val;
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tjsonGetBoolValue(pJson, jkStreamNotifyOptionsNotifyHistory, &pNotifyOption->notifyHistory);
-  }
 
   return code;
 }
@@ -8055,9 +8206,6 @@ static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkCreateStreamStmtIgnoreExists, pNode->ignoreExists);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkCreateStreamStmtOptions, nodeToJson, pNode->pOptions);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkCreateStreamStmtQuery, nodeToJson, pNode->pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -8065,9 +8213,6 @@ static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkCreateStreamStmtSubtable, nodeToJson, pNode->pSubtable);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkCreateStreamStmtNotifyOptions, nodeToJson, pNode->pNotifyOptions);
   }
 
   return code;
@@ -8087,9 +8232,6 @@ static int32_t jsonToCreateStreamStmt(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkCreateStreamStmtIgnoreExists, &pNode->ignoreExists);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkCreateStreamStmtOptions, (SNode**)&pNode->pOptions);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkCreateStreamStmtQuery, &pNode->pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -8098,10 +8240,6 @@ static int32_t jsonToCreateStreamStmt(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkCreateStreamStmtSubtable, &pNode->pSubtable);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkCreateStreamStmtNotifyOptions, (SNode**)&pNode->pNotifyOptions);
-  }
-
   return code;
 }
 
@@ -8129,32 +8267,6 @@ static int32_t jsonToDropStreamStmt(const SJson* pJson, void* pObj) {
 
   return code;
 }
-
-static const char* jkResetStreamStmtStreamName = "StreamName";
-static const char* jkResetStreamStmtIgnoreNotExists = "IgnoreNotExists";
-
-static int32_t resetStreamStmtToJson(const void* pObj, SJson* pJson) {
-  const SResetStreamStmt* pNode = (const SResetStreamStmt*)pObj;
-
-  int32_t code = tjsonAddStringToObject(pJson, jkResetStreamStmtStreamName, pNode->streamName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkResetStreamStmtIgnoreNotExists, pNode->ignoreNotExists);
-  }
-
-  return code;
-}
-
-static int32_t jsonToResetStreamStmt(const SJson* pJson, void* pObj) {
-  SResetStreamStmt* pNode = (SResetStreamStmt*)pObj;
-
-  int32_t code = tjsonGetStringValue(pJson, jkResetStreamStmtStreamName, pNode->streamName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkResetStreamStmtIgnoreNotExists, &pNode->ignoreNotExists);
-  }
-
-  return code;
-}
-
 
 static const char* jkMergeVgroupStmtVgroupId1 = "VgroupId1";
 static const char* jkMergeVgroupStmtVgroupId2 = "VgroupId2";
@@ -8816,6 +8928,20 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return joinTableNodeToJson(pObj, pJson);
     case QUERY_NODE_VIRTUAL_TABLE:
       return virtualTableNodeToJson(pObj, pJson);
+    case QUERY_NODE_SLIDING_WINDOW :
+      return slidingWindowNodeToJson(pObj, pJson);
+    case QUERY_NODE_PERIOD_WINDOW:
+      return periodWindowNodeToJson(pObj, pJson);
+    case QUERY_NODE_STREAM_EVENT_TYPE:
+      return streamEventTypeNodeToJson(pObj, pJson);
+    case QUERY_NODE_STREAM_TRIGGER:
+      return streamTriggerNodeToJson(pObj, pJson);
+    case QUERY_NODE_STREAM:
+      return streamNodeToJson(pObj, pJson);
+    case QUERY_NODE_STREAM_TAG_DEF:
+      return streamTagDefNodeToJson(pObj, pJson);
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      return jsonToExternalWindowNode(pObj, pJson);
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeToJson(pObj, pJson);
     case QUERY_NODE_ORDER_BY_EXPR:
@@ -8854,7 +8980,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return indexOptionsToJson(pObj, pJson);
     case QUERY_NODE_EXPLAIN_OPTIONS:
       return explainOptionsToJson(pObj, pJson);
-    case QUERY_NODE_STREAM_OPTIONS:
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
       return streamOptionsToJson(pObj, pJson);
     case QUERY_NODE_LEFT_VALUE:
       return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to serialize.
@@ -9220,6 +9346,20 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToJoinTableNode(pJson, pObj);
     case QUERY_NODE_VIRTUAL_TABLE:
       return jsonToVirtualTableNode(pJson, pObj);
+    case QUERY_NODE_SLIDING_WINDOW :
+      return jsonToSlidingWindowNode(pJson, pObj);
+    case QUERY_NODE_PERIOD_WINDOW:
+      return jsonToPeriodWindowNode(pJson, pObj);
+    case QUERY_NODE_STREAM_EVENT_TYPE:
+      return jsonToStreamEventTypeNode(pJson, pObj);
+    case QUERY_NODE_STREAM_TRIGGER:
+      return jsonToStreamTriggerNode(pJson, pObj);
+    case QUERY_NODE_STREAM:
+      return jsonToStreamNode(pJson, pObj);
+    case QUERY_NODE_STREAM_TAG_DEF:
+      return jsonToStreamTagDefNode(pJson, pObj);
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      return jsonToExternalWindowNode(pJson, pObj);
     case QUERY_NODE_GROUPING_SET:
       return jsonToGroupingSetNode(pJson, pObj);
     case QUERY_NODE_ORDER_BY_EXPR:
@@ -9256,7 +9396,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToIndexOptions(pJson, pObj);
     case QUERY_NODE_EXPLAIN_OPTIONS:
       return jsonToExplainOptions(pJson, pObj);
-    case QUERY_NODE_STREAM_OPTIONS:
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS:
       return jsonToStreamOptions(pJson, pObj);
     case QUERY_NODE_LEFT_VALUE:
       return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to deserialize.

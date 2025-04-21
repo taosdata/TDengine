@@ -68,6 +68,14 @@ extern "C" {
 #define PRIVILEGE_TYPE_SUBSCRIBE BIT_FLAG_MASK(3)
 #define PRIVILEGE_TYPE_ALTER     BIT_FLAG_MASK(4)
 
+#define EVENT_NONE               0
+#define EVENT_WINDOW_CLOSE       BIT_FLAG_MASK(0)
+#define EVENT_WINDOW_OPEN        BIT_FLAG_MASK(1)
+
+#define NOTIFY_NONE              0
+#define NOTIFY_HISTORY           BIT_FLAG_MASK(0)
+#define NOTIFY_ON_FAILURE_PAUSE  BIT_FLAG_MASK(1)
+
 typedef struct SDatabaseOptions {
   ENodeType   type;
   int32_t     buffer;
@@ -226,6 +234,13 @@ typedef struct SColumnDefNode {
   SNode*    pOptions;
   bool      sma;
 } SColumnDefNode;
+
+typedef struct SStreamTagDefNode {
+  ENodeType type;
+  char      tagName[TSDB_COL_NAME_LEN];
+  SDataType dataType;
+  SNode*    pTagExpr;
+} SStreamTagDefNode;
 
 typedef struct SCreateTableStmt {
   ENodeType      type;
@@ -602,19 +617,23 @@ typedef enum EStreamOptionsSetFlag {
   SOPT_IGNORE_UPDATE_SET = BIT_FLAG_MASK(5),
 } EStreamOptionsSetFlag;
 
-typedef struct SStreamOptions {
+typedef struct SStreamTriggerOptions {
   ENodeType type;
-  int8_t    triggerType;
-  SNode*    pDelay;
-  SNode*    pWatermark;
-  SNode*    pDeleteMark;
-  SNode*    pRecInterval;
-  int8_t    fillHistory;
-  bool      runHistoryAsync;
-  int8_t    ignoreExpired;
-  int8_t    ignoreUpdate;
-  int64_t   setFlag;
-} SStreamOptions;
+  SNode*    pPreFilter;
+  SNode*    pWaterMark;
+  SNode*    pMaxDelay;
+  int64_t   pEventType;
+  int64_t   expiredTime;
+  int64_t   fillHistoryStartTime;
+  bool      ignoreDisorder;
+  bool      deleteRecalc;
+  bool      deleteOutputTable;
+  bool      fillHistory;
+  bool      fillHistoryFirst;
+  bool      calcNotifyOnly;
+  bool      lowLatencyCalc;
+  bool      forceOutput;
+} SStreamTriggerOptions;
 
 typedef enum EStreamNotifyOptionSetFlag {
   SNOTIFY_OPT_ERROR_HANDLE_SET = BIT_FLAG_MASK(0),
@@ -632,28 +651,31 @@ typedef enum EStreamNotifyErrorHandleType {
   SNOTIFY_ERROR_HANDLE_DROP,
 } EStreamNotifyErrorHandleType;
 
+typedef struct SStreamEventTypes {
+  ENodeType type;
+  bool      windowOpen;
+  bool      windowClose;
+} SStreamEventTypes;
+
 typedef struct SStreamNotifyOptions {
   ENodeType                    type;
   SNodeList*                   pAddrUrls;
-  EStreamNotifyEventType       eventTypes;
-  EStreamNotifyErrorHandleType errorHandle;
-  bool                         notifyHistory;
-  EStreamNotifyOptionSetFlag   setFlag;
+  int64_t                      eventType;
+  int64_t                      notifyType;
 } SStreamNotifyOptions;
 
 typedef struct SCreateStreamStmt {
   ENodeType             type;
+  char                  streamDbName[TSDB_DB_NAME_LEN];
   char                  streamName[TSDB_TABLE_NAME_LEN];
   char                  targetDbName[TSDB_DB_NAME_LEN];
   char                  targetTabName[TSDB_TABLE_NAME_LEN];
   bool                  ignoreExists;
-  SStreamOptions*       pOptions;
+  SNode*                pTrigger; // SStreamTriggerNode
   SNode*                pQuery;
-  SNode*                pPrevQuery;
-  SNodeList*            pTags;
   SNode*                pSubtable;
-  SNodeList*            pCols;
-  SStreamNotifyOptions* pNotifyOptions;
+  SNodeList*            pTags; // SStreamTagDefNode
+  SNodeList*            pCols; // SColumnDefNode
   SCMCreateStreamReq*   pReq;
 } SCreateStreamStmt;
 
@@ -675,12 +697,6 @@ typedef struct SResumeStreamStmt {
   bool      ignoreNotExists;
   bool      ignoreUntreated;
 } SResumeStreamStmt;
-
-typedef struct SResetStreamStmt {
-  ENodeType type;
-  char      streamName[TSDB_TABLE_NAME_LEN];
-  bool      ignoreNotExists;
-} SResetStreamStmt;
 
 typedef struct SCreateFunctionStmt {
   ENodeType type;

@@ -265,7 +265,6 @@
   TD_DEF_MSG_TYPE(TDMT_MND_AUDIT, "audit", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG, "init-config", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG_SDB, "config-sdb", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_RESET_STREAM, "reset-stream", NULL, NULL)
   // do not add new message type here, since mnode msg overload. you can add new message type after dnode msg
   TD_CLOSE_MSG_SEG(TDMT_END_MND_MSG)
 
