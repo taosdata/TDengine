@@ -1569,7 +1569,7 @@ static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFunc
   tstrncpy((*pFuncNode)->functionName, "tbname", TSDB_FUNC_NAME_LEN);
   (*pFuncNode)->node.resType.type = TSDB_DATA_TYPE_BINARY;
   (*pFuncNode)->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
-
+  (*pFuncNode)->funcType = FUNCTION_TYPE_TBNAME;
   if (pCol->tableAlias[0] != '\0') {
     snprintf((*pFuncNode)->node.userAlias, sizeof((*pFuncNode)->node.userAlias), "%s.tbname", pCol->tableAlias);
   } else {
@@ -5956,7 +5956,7 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       }
     } else if (isMultiResFunc(pNode)) {
       SNodeList* pNodeList = NULL;
-      if (FUNCTION_TYPE_TAGS == ((SFunctionNode*)pNode)->funcType) {
+      if (FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType) {
         code = createTags(pCxt, &pNodeList);
       } else {
         code = createMultiResFuncsFromStar(pCxt, (SFunctionNode*)pNode, &pNodeList);
