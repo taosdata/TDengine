@@ -188,7 +188,7 @@ typedef struct TsdReader {
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
   void         (*tsdReaderClose)(void*);
   int32_t      (*tsdSetReaderTaskId)(void *pReader, const char *pId);
-  int32_t      (*tsdSetQueryTableList)();
+  int32_t      (*tsdSetQueryTableList)(void* pReader, const void* pTableList, int32_t num);
   int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
@@ -196,7 +196,7 @@ typedef struct TsdReader {
 
   void         (*tsdReaderReleaseDataBlock)(void* pReader);
 
-  int32_t      (*tsdReaderResetStatus)();
+  int32_t      (*tsdReaderResetStatus)(void* pReader, SQueryTableDataCond* pCond);
   int32_t      (*tsdReaderGetDataBlockDistInfo)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();

@@ -5128,11 +5128,15 @@ typedef struct SStreamLastTsRequest {
   SStreamTriggerRequest base;
 } SStreamLastTsRequest;
 
-// typedef struct SStreamLastTsResponse {
-  // int64_t   lastTs;
-  // int64_t   ver;
-  // int32_t   vgId;
-// } SStreamLastTsResponse;
+typedef struct STsInfo {
+  int32_t   vgId;
+  int64_t   ts;
+} STsInfo;
+
+typedef struct SStreamLastTsResponse {
+  int64_t   ver;
+  SArray*   tsInfo;       //element is <STsInfo>
+} SStreamLastTsResponse;
 
 typedef struct SStreamFirstTsRequest {
   SStreamTriggerRequest base;

@@ -63,28 +63,23 @@ typedef struct SStreamReaderTaskOptions{
   uint64_t          suid;
   uint64_t          uid;
   int8_t            tableType;
+  bool              groupSort;
   int32_t           pNum;
   STableKeyInfo*    pList;
 }SStreamReaderTaskOptions;
 
-typedef struct SLastTsTaskInfo {
-  SSHashObj*          groupIdTs;
-  void*               pIter;
-  int64_t             ver;
-}SLastTsTaskInfo;
-
 typedef struct SStreamReaderTask {
-  int64_t             streamId;
-  int64_t             sessionId;
-  SStorageAPI         api;
-  STsdbReader*        pReader;
-  SHashObj*           pIgnoreTables;
-  SSDataBlock*        pResBlock;
-  SSDataBlock*        pResBlockDst;
-  void*               pTableList;
-  int32_t             currentGroupIndex;
-  char*               idStr;
-  SLastTsTaskInfo     lastTsInfo;
+  int64_t                     streamId;
+  int64_t                     sessionId;
+  SStorageAPI                 api;
+  STsdbReader*                pReader;
+  SHashObj*                   pIgnoreTables;
+  SSDataBlock*                pResBlock;
+  SSDataBlock*                pResBlockDst;
+  SStreamReaderTaskOptions    options;
+  void*                       pTableList;
+  int32_t                     currentGroupIndex;
+  char*                       idStr;
 }SStreamReaderTask;
 
 static int32_t insertTableToIgnoreList(SHashObj **pIgnoreTables, uint64_t uid) {
@@ -217,7 +212,6 @@ static SSDataBlock* createDataBlockForStream(SArray *schemas) {
 
 static void releaseStreamTask(SStreamReaderTask *pTask) {
   taosHashCleanup(pTask->pIgnoreTables);
-  taosHashCleanup(pTask->lastTsInfo.groupIdTs);
   blockDataDestroy(pTask->pResBlock);
   blockDataDestroy(pTask->pResBlockDst);
   qStreamDestroyTableList(pTask->pTableList);
@@ -236,14 +230,10 @@ static int32_t createStreamTask(SVnode *pVnode, SStreamReaderTaskOptions* option
   if (NULL == pTask->pIgnoreTables) {
     return terrno;
   }
-  pTask->lastTsInfo.groupIdTs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  if (pTask->lastTsInfo.groupIdTs == NULL) {
-    return terrno;
-  }
-  pTask->lastTsInfo.pIter = NULL;
+  pTask->options = *options;
   pTask->pResBlock = createDataBlockForStream(options->schemas);
   pTask->pResBlockDst = createDataBlockForStream(options->schemas);
-  code = qStreamCreateTableListForReader(pVnode, options->suid, options->uid, options->tableType, &pTask->api, &pTask->pTableList);
+  code = qStreamCreateTableListForReader(pVnode, options->suid, options->uid, options->tableType, options.groupSort, &pTask->api, &pTask->pTableList);
   if (code != TSDB_CODE_SUCCESS){
     return code;
   }
@@ -335,6 +325,33 @@ static int32_t buildRsp(SSDataBlock* pBlock, void** data, size_t* size) {
   return 0;
 }
 
+static int32_t resetTsdbReader(SStreamReaderTask* pTask) {
+  int32_t pNum = 1;
+  STableKeyInfo* pList = NULL;
+  int32_t code = qStreamGetTableList(pTask->pTableList, pTask->currentGroupIndex, &pList, &pNum);
+  if (code != TSDB_CODE_SUCCESS){
+    return code;
+  }
+  code = pTask->api.tsdReader.tsdSetQueryTableList(pTask->pReader, pList, pNum);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  SQueryTableDataCond pCond = {0};
+  code = initQueryTableDataCond(&pCond, pTask->options.order, pTask->options.schemas, pTask->options.twindows, pTask->options.suid);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("tsdReader open failed, code:%s", tstrerror(code));
+    return code;
+  }
+
+  code = pTask->api.tsdReader.tsdReaderResetStatus(pTask->pReader, &pCond);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+}
+
 static int32_t vnodeProcessStreamLastTsReq(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -355,54 +372,53 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode *pVnode, SRpcMsg *pMsg) {
     if (schemas == NULL){
       return terrno;
     }
-    STREAM_CHECK_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 0))
-    STREAM_CHECK_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 1))
+    STREAM_CHECK_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 0))     // gid
+    STREAM_CHECK_GOTO(buildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 1))     // last ts
 
     SStreamReaderTask* pTask = NULL;
     SStreamReaderTaskOptions options = {
       .suid       = sStreamInfo->suid,
       .uid        = sStreamInfo->uid,
       .tableType  = sStreamInfo->tableType,
+      .groupSort  = true,
       .order      = TSDB_ORDER_DESC,
       .twindows   = sStreamInfo->twindows,
       .schemas    = schemas
     };
     STREAM_CHECK_GOTO(createStreamTask(pVnode, &options, &pTask));
-    while(true){
-      bool hasNext = false;
-      code = getTableDataInfo(pTask, &hasNext);
-      if (code != 0 && !hasNext){
-        break;
-      }
-
-      qStreamSetGroupId(pTask->pTableList, pTask->pResBlock);
-      void *p = taosHashGet(pTask->lastTsInfo.groupIdTs, &pTask->pResBlock->info.id.groupId, LONG_BYTES);
-      if (p == NULL) {
-        STREAM_CHECK_GOTO(putTs2Hash(pTask->lastTsInfo.groupIdTs, &pTask->pResBlock->info.id.groupId, pTask->pResBlock->info.window.ekey));
-      } else {
-        if (pTask->pResBlock->info.window.ekey > *(int64_t*)p){
-          STREAM_CHECK_GOTO(putTs2Hash(pTask->lastTsInfo.groupIdTs, &pTask->pResBlock->info.id.groupId, pTask->pResBlock->info.window.ekey));
-        }
-      }
-      STREAM_CHECK_GOTO(taosHashPut(pTask->pIgnoreTables, &pTask->pResBlock->info.id.uid, LONG_BYTES, &pTask->pResBlock->info.id.uid, LONG_BYTES));
-      pTask->lastTsInfo.ver = 1;
-    }
   }
 
-
-  int32_t num = 0;
-  while (1) {
-    pTask->lastTsInfo.pIter = taosHashIterate(pTask->lastTsInfo.groupIdTs, pTask->lastTsInfo.pIter);
-    if (pTask->lastTsInfo.pIter == NULL) break;
-    int64_t* groupId = taosHashGetKey(pTask->lastTsInfo.groupIdTs, NULL);
-
-    addColData(pTask->pResBlockDst, 0, groupId);
-    addColData(pTask->pResBlockDst, 1, pTask->lastTsInfo.pIter);
-
-    if (++num > STREAM_RETURN_ROWS_NUM) {
-      // taosHashCancelIterate(pTask->lastTsInfo.groupIdTs, pTask->lastTsInfo.pIter);
-      break;
+  int64_t ts = INT64_MIN;
+  while(true){
+    bool hasNext = false;
+    code = getTableDataInfo(pTask, &hasNext);
+    if (code != 0) {
+      goto end;
     }
+    if (!hasNext){
+      if (ts != INT64_MIN) {
+        addColData(pTask->pResBlockDst, 0, &pTask->pResBlock->info.id.groupId);
+        addColData(pTask->pResBlockDst, 1, &ts);
+        pTask->pResBlockDst->info.rows ++;
+      }
+
+      pTask->currentGroupIndex++;
+      if (pTask->currentGroupIndex >= qStreamGetTableListGroupNum(pTask->pTableList)) {
+        break;
+      }
+      code = resetTsdbReader(pTask);
+      if (code != 0) {
+        goto end;
+      }
+      if (pTask->pResBlockDst->info.rows > STREAM_RETURN_ROWS_NUM) {
+        break;
+      }
+      continue;
+    }
+    if (pTask->pResBlock->info.window.ekey > ts) {
+      ts = pTask->pResBlock->info.window.ekey;
+    }
+    qStreamSetGroupId(pTask->pTableList, pTask->pResBlock);
   }
 
 

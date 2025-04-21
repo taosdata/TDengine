@@ -21,6 +21,7 @@ include(${TD_SUPPORT_DIR}/cmake.version)
 include(${TD_SUPPORT_DIR}/cmake.install)
 enable_testing()
 
+add_definitions(-DNEW_STREAM)
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 add_subdirectory(contrib)
 

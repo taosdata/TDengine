@@ -1875,7 +1875,7 @@ _error:
   return code;
 }
 
-int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, SStorageAPI *storageAPI, void** pTableListInfo){
+int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType, bool groupSort, SStorageAPI *storageAPI, void** pTableListInfo){
   STableListInfo* pList = tableListCreate();
   if (pList == NULL){
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
@@ -1887,7 +1887,7 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   SReadHandle pHandle = {.vnode = pVnode};
   SExecTaskInfo pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, false, &pHandle, pList, NULL, NULL, &pTaskInfo);
+  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, NULL, NULL, &pTaskInfo);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
@@ -1921,4 +1921,9 @@ void qStreamGetGroup(void* pTableListInfo, int64_t gid) {
 void qStreamDestroyTableList(void* pTableListInfo) {
   tableListDestroy(pTableListInfo);
 }
+
+int32_t qStreamGetTableListGroupNum(const void* pTableList) {
+  return ((STableListInfo*)pTableList)->numOfOuputGroups;
+}
+
 
