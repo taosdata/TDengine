@@ -49,9 +49,7 @@ jobs:
   check-docs-linter-formatter:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       pull-requests: write
-      issues: write
     steps:
       - uses: actions/checkout@v4
       - name: AutoCorrect
