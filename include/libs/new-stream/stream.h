@@ -16,6 +16,7 @@
 #ifndef TDENGINE_STREAM_H
 #define TDENGINE_STREAM_H
 
+#include "executor.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,6 +37,45 @@ typedef int32_t (*getDnodeId_f)(void *pData);
 typedef struct SStreamReaderTask {
   SStreamTask task;
 } SStreamReaderTask;
+
+typedef struct SStreamTriggerTask {
+  SStreamTask        task;
+  EStreamTriggerType type;
+} SStreamTriggerTask;
+
+
+typedef struct SStreamRunnerTaskExecution {
+  const char* pPlan;
+  void*       pExecutor;
+  void*       notifyEventSup;
+} SStreamRunnerTaskExecution; // TODO wjm move back into Runner.c
+
+typedef struct SStreamRunnerTaskOutput {
+  struct SSDataBlock* pBlock;
+} SStreamRunnerTaskOutput;
+
+typedef struct SStreamRunnerTaskNotification {
+} SStreamRunnerTaskNotification;
+
+typedef struct SStreamRunnerTaskExecMgr {
+  SList*        pFreeExecs;
+  SList*        pRunningExecs;
+  TdThreadMutex lock;
+  bool          exit;
+} SStreamRunnerTaskExecMgr;
+
+typedef struct SStreamRunnerTask {
+  SStreamTask        task;
+  SStreamRunnerTaskExecMgr      pExecMgr;
+  SStreamRunnerTaskOutput       output;
+  SStreamRunnerTaskNotification notification;
+  bool                          forceWindowClose;
+  const char*                   pPlan;
+  int32_t                       parallelExecutionNun;
+  SReadHandle                   handle;
+  void*                         pSubTableExpr;
+} SStreamRunnerTask;
+
 
 #define STREAM_GID(_streamId) ((_streamId) % STREAM_MAX_GROUP_NUM)
 

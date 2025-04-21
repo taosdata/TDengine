@@ -80,6 +80,12 @@ typedef struct {
   SArray              * pVTables;            // used to store merge info for merge task, SArray<SVCTableMergeInfo>
 } SStreamTaskInfo;
 
+typedef struct {
+  int32_t  idx;
+  int64_t* wstart;
+  int64_t* wend;
+} SStreamPseudoColInfo;
+
 struct SExecTaskInfo {
   STaskIdInfo           id;
   uint32_t              status;
@@ -105,6 +111,7 @@ struct SExecTaskInfo {
   SOperatorParam*       pOpParam;
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
+  SStreamPseudoColInfo  streamPseudoColInfo;
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);

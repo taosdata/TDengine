@@ -14,10 +14,12 @@
  */
 
 #include "executor.h"
+#include "cmdnodes.h"
 #include "executorInt.h"
 #include "operator.h"
 #include "planner.h"
 #include "querytask.h"
+#include "streamexecutorInt.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "trpc.h"
@@ -1572,9 +1574,32 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   return code;
 }
 
-static int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes) {
-  // loop all exprs for force output, execute all exprs
-  return 0;
+static int32_t streamDoNotification(qTaskInfo_t tInfo, const SSDataBlock* pBlock) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (!pBlock || pBlock->info.rows <= 0) return code;
+
+  EStreamNotifyEventType eventType = SNOTIFY_EVENT_WINDOW_CLOSE;
+  SStreamNotifyEventSupp* pSupp = NULL;
+  STaskNotifyEventStat stats = {0};
+  pSupp->pWindowEventHashMap =
+      taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pSupp->pWindowEventHashMap, code, lino, _end, terrno);
+  // TODO wjm pSupp->windowType = ???
+
+  code = addAggResultNotifyEvent(pBlock, NULL, NULL, pSupp, &stats);
+  if (code == 0) {
+    code = buildNotifyEventBlock(tInfo, pSupp, &stats);
+  }
+  // add NotifyEvent
+  //
+  // build notify block
+  //
+  // send events
+
+  return code;
+_end:
+  return code;
 }
 
 int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t *useconds) {
@@ -1628,14 +1653,21 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t *useco
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  } else {
+    code = streamForceOutput(tInfo, pRes);
   }
-  code = streamForceOutput(tInfo, pRes);
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  } else {
+    code = blockDataCheck(*pRes);
   }
-
-  code = blockDataCheck(*pRes);
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
+  } else {
+    code = streamDoNotification(tInfo, *pRes);
+  }
   if (code) {
     pTaskInfo->code = code;
     qError("%s failed at line %d, code:%s %s", __func__, __LINE__, tstrerror(code), GET_TASKID(pTaskInfo));
@@ -1660,8 +1692,8 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** pRes, uint64_t *useco
   return pTaskInfo->code;
 }
 
-void    streamDestroyExecTask(qTaskInfo_t tInfo) {
-
+int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, SArray *pPartColVals) {
+  return streamDoCalcOutputTbName(pExpr, tbname, pPartColVals);
 }
 
 int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
@@ -1730,3 +1762,5 @@ bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
 return tableListGetTableGroupId(pTableListInfo, uid) != -1;
 }
 
+
+void streamDestroyExecTask(qTaskInfo_t tInfo) {}

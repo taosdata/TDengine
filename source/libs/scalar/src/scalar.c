@@ -502,8 +502,45 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sclInitStreamPseudoFuncParamList(int32_t funcId, SScalarParam **ppParams, SNodeList *pParamNodes,
+                                                SScalarCtx *pCtx, int32_t *pParamNum, int32_t *pRowNum) {
+  int32_t code = 0;
+  SNode*  pNode = 0;
+  *pParamNum = LIST_LENGTH(pParamNodes);
+  if (*pParamNum < 1) {
+    sclError("invalid func param size: %d, should at least one", *pParamNum);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  code = fmSetStreamPseudoFuncParamVal(funcId, pParamNodes, pCtx->pStreamPseudoFuncVals);
+  if (code != 0) {
+    sclError("failed to set stream pseudo func param vals: %s", tstrerror(code));
+    return code;
+  }
+
+  SScalarParam* pParamsList = taosMemoryCalloc(*pParamNum, sizeof(SScalarParam));
+  if (!pParamsList) {
+    sclError("calloc %d failed", (int32_t)(*pParamNum * sizeof(SScalarParam)));
+    SCL_ERR_RET(terrno);
+  }
+
+  int32_t i = 0;
+  FOREACH(pNode, pParamNodes) {
+    SCL_ERR_JRET(sclInitParam(pNode, &pParamsList[i], pCtx, pRowNum));
+    ++i;
+  }
+
+  *ppParams = pParamsList;
+  return code;
+
+_return:
+  sclFreeParamList(pParamsList, *pParamNum);
+  return code;
+}
+
 int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarCtx *ctx, int32_t *paramNum,
                          int32_t *rowNum) {
+  //if (isStreamPseudoFunc(funcId)) return sclInitStreamPseudoFuncParamList(func_id_t, pParams, pParamList, ctx, paramNum, rowNum);
   int32_t code = 0;
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
@@ -1905,13 +1942,13 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcCon
 
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, pRes); }
 
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* extraParam) {
   if (NULL == pNode || NULL == pBlockList) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   int32_t    code = 0;
-  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL};
+  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL, .pStreamPseudoFuncVals = extraParam};
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);

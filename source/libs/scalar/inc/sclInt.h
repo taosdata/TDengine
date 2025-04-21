@@ -38,6 +38,7 @@ typedef struct SScalarCtx {
   SHashObj*          pRes;       /* element is SScalarParam */
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
   SOperatorValueType type;
+  const void*        pStreamPseudoFuncVals; // used for stream pesudo funcs, it contains the output values for pesudo-funcs
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000

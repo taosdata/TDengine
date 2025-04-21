@@ -56,6 +56,14 @@ typedef struct SStreamRunnerTask {
   SReadHandle                   handle;
 } SStreamRunnerTask;
 
+typedef struct SStreamRunnerDeployMsg {
+  SStreamTask           task;
+  const char*           pPlan;
+  SReadHandle           handle;
+  bool                  forceOutput;
+  const char*           pSubTableExpr;
+} SStreamRunnerDeployMsg;
+struct SStreamRunnerUndeployMsg;
 struct SStreamRunnerTaskStatus;
 
 typedef struct SStreamRunnerTaskStatus  SStreamRunnerTaskStatus;

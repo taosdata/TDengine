@@ -594,7 +594,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   QUERY_CHECK_CODE(code, lino, _err);
 
   int32_t status = 0;
-  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  code =
+      filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
   code = extractQualifiedTupleByFilterResult(pBlock, p, status);
