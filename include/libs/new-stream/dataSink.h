@@ -41,8 +41,8 @@ typedef struct DataSinkFileState {
 } DataSinkFileState;
 
 typedef enum {
-  DATA_SCLEAN_IMMEDIATE = 1,
-  DATA_SCLEAN_EXPIRED = 2,
+  DATA_CLEAN_IMMEDIATE = 1,
+  DATA_CLEAN_EXPIRED = 2,
 } SCleanMode;
 
 typedef struct SDataSinkManager2 {
@@ -165,7 +165,8 @@ int32_t readDataFromCache(SResultIter* pResult, SSDataBlock** ppBlock);
 // @brief 读取数据从文件
 int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo);
 
-void destorySWindowData(void* pData);
+void destorySWindowDataP(void* pData);
+void destorySWindowDataPP(void* pData);
 
 void clearGroupExpiredDataInMem(SGroupDSManager* pGroupData, TSKEY start);
 

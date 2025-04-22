@@ -299,6 +299,8 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
 
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
+int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, TSKEY start, TSKEY end);
+
 #ifdef __cplusplus
 }
 #endif

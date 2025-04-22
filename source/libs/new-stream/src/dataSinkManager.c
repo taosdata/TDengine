@@ -61,7 +61,18 @@ SGroupDSManager* getGroupDataInfo(SStreamTaskDSManager* pStreamData, int64_t gro
   return *ppGroupData;
 }
 
-void destorySWindowData(void* pData) {
+void destorySWindowDataPP(void* pData) {
+  SWindowData** ppWindowData = (SWindowData**)pData;
+  if (ppWindowData == NULL || (*ppWindowData) == NULL) {
+    return;
+  }
+  if ((*ppWindowData)->pDataBuf) {
+    taosMemoryFree((*ppWindowData)->pDataBuf);
+  }
+  taosMemoryFree((*ppWindowData));
+}
+
+void destorySWindowDataP(void* pData) {
   SWindowData* pWindowData = (SWindowData*)pData;
   if (pWindowData == NULL) {
     return;
@@ -69,7 +80,7 @@ void destorySWindowData(void* pData) {
   if (pWindowData->pDataBuf) {
     taosMemoryFree(pWindowData->pDataBuf);
   }
-  taosMemoryFree(pWindowData);
+  taosMemoryFree((pWindowData));
 }
 
 void clearGroupExpiredData(SGroupDSManager* pGroupData, TSKEY start) {
@@ -183,11 +194,11 @@ int32_t createSGroupDSManager(int64_t groupId, SGroupDSManager** ppGroupDataInfo
 static void destroySGroupDSManager(void* pData) {
   SGroupDSManager* pGroupData = *(SGroupDSManager**)pData;
   if (pGroupData->windowDataInMem) {
-    taosArrayDestroyP(pGroupData->windowDataInMem, destorySWindowData);
+    taosArrayDestroyP(pGroupData->windowDataInMem, destorySWindowDataP);
     pGroupData->windowDataInMem = NULL;
   }
   if (pGroupData->windowDataInFile) {
-    taosArrayDestroyP(pGroupData->windowDataInFile, destorySWindowData);
+    taosArrayDestroyP(pGroupData->windowDataInFile, destorySWindowDataP);
     pGroupData->windowDataInFile = NULL;
   }
   taosMemoryFreeClear(pGroupData);

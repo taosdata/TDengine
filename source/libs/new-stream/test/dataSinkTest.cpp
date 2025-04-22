@@ -103,6 +103,18 @@ bool compareBlock(SSDataBlock* b1, SSDataBlock* b2) {
   return true;
 }
 
+bool compareBlockRow(SSDataBlock* b1, SSDataBlock* b2, int32_t row1, int32_t row2) {
+  for (int32_t i = 0; i < b1->pDataBlock->size; ++i) {
+    SColumnInfoData* p0 = (SColumnInfoData*)taosArrayGet(b1->pDataBlock, i);
+    SColumnInfoData* p1 = (SColumnInfoData*)taosArrayGet(b2->pDataBlock, i);
+
+    if (*(int32_t*)colDataGetData(p0, row1) != *(int32_t*)colDataGetData(p1, row2)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 TEST(dataSinkTest, fileInit) {
   int32_t code = initStreamDataSinkOnce();
   ASSERT_EQ(code, 0);
@@ -131,7 +143,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_SCLEAN_IMMEDIATE;
+  int32_t cleanMode = DATA_CLEAN_IMMEDIATE;
   TSKEY wstart = baseTestTime + 0;
   TSKEY wend = baseTestTime + 100;
   void* pCache = NULL;
@@ -175,7 +187,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   streamId = 1;
   taskId = 1;
   groupID = 2;
-  cleanMode = DATA_SCLEAN_IMMEDIATE;
+  cleanMode = DATA_CLEAN_IMMEDIATE;
   wstart = baseTestTime + 100;
   wend = baseTestTime + 200;
   pCache = NULL;
@@ -199,7 +211,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
   streamId = 2;
   taskId = 1;
   groupID = 2;
-  cleanMode = DATA_SCLEAN_IMMEDIATE;
+  cleanMode = DATA_CLEAN_IMMEDIATE;
   wstart = baseTestTime + 0;
   wend = baseTestTime + 100;
   pCache = NULL;
@@ -228,7 +240,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   int64_t streamId = 1;
   int64_t taskId = 1;
   int64_t groupID = 1;
-  int32_t cleanMode = DATA_SCLEAN_EXPIRED;
+  int32_t cleanMode = DATA_CLEAN_EXPIRED;
   TSKEY wstart = baseTestTime + 0;
   TSKEY wend = baseTestTime + 100;
   void* pCache = NULL;
@@ -239,7 +251,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
   blockDataDestroy(pBlock);
 
   pBlock = createTestBlock(100);
-  cleanMode = DATA_SCLEAN_EXPIRED;
+  cleanMode = DATA_CLEAN_EXPIRED;
   wstart = baseTestTime + 100;
   wend = baseTestTime + 200;
   code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
@@ -253,11 +265,43 @@ TEST(dataSinkTest, getSlidingStreamData) {
   ASSERT_EQ(code, 0);
   ASSERT_NE(pBlock1, nullptr);
   ASSERT_NE(pIter, nullptr);
+  int rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 50);
+  blockDataDestroy(pBlock1);
   code = getNextStreamDataCache(&pIter, &pBlock1);
   ASSERT_EQ(code, 0);
   ASSERT_NE(pBlock1, nullptr);
   ASSERT_EQ(pIter, nullptr);
+  rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 51);
+  blockDataDestroy(pBlock1);
 
+  pBlock = createTestBlock(200);
+  cleanMode = DATA_CLEAN_EXPIRED;
+  wstart = baseTestTime + 200;
+  wend = baseTestTime + 300;
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 1);
+  ASSERT_EQ(code, 0);
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupID, baseTestTime + 150, baseTestTime + 249, &pIter);
+  ASSERT_EQ(code, 0);
+  pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_NE(pIter, nullptr);
+  rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 50);
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 50);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 0, 0), true);
+  ASSERT_EQ(compareBlockRow(pBlock, pBlock1, 1, 1), true);
+
+  blockDataDestroy(pBlock);
   blockDataDestroy(pBlock1);
 
   destroyDataSinkManager2();
