@@ -4,7 +4,7 @@ description: Coverage test for taostools
 on:
   pull_request:
     branches:
-      - '3.0'
+      - 'cover/tools-3.0'
       - 'cover/3.0'
     paths:
       - 'tools/taos-tools/**'
