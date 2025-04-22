@@ -826,15 +826,10 @@ if(NOT ${TD_WINDOWS})       # {
         set(ext_ssl_static libssl.a)
         set(ext_crypto_static libcrypto.a)
     endif()
-    if(${TD_LINUX})
-      set(_lib lib64)
-    else()
-      set(_lib lib)
-    endif()
     INIT_EXT(ext_ssl
         INC_DIR          include
-        LIB              ${_lib}/${ext_ssl_static}
-                         ${_lib}/${ext_crypto_static}
+        LIB              lib/${ext_ssl_static}
+                         lib/${ext_crypto_static}
         # debugging github working flow
         # CHK_NAME         SSL
     )
@@ -853,7 +848,7 @@ if(NOT ${TD_WINDOWS})       # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ./Configure --prefix=${_ins} no-shared
+            COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
         BUILD_COMMAND
             COMMAND make -j4
         INSTALL_COMMAND
