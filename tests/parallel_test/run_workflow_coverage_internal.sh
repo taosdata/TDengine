@@ -47,9 +47,8 @@ EOF
     cat lcov_internal.config
 
     # 收集数据时仅处理 enterprise 开头的文件
-    # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。
+    # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。 --rc lcov_branch_coverage=1 \
     lcov --quiet -d $TDINTERNAL_DIR/debug/ -capture \
-        --rc lcov_branch_coverage=1 \
         --rc genhtml_branch_coverage=1 \
         --no-external \
         --config-file lcov_internal.config \
@@ -60,7 +59,8 @@ EOF
     # remove exclude paths (确保只保留 enterprise 相关的文件)
     lcov --quiet --remove $TDINTERNAL_DIR/coverage_internal.info \
         '*/community/*' '*/contrib/*' '*/test/*' '*/packaging/*' '*/docs/*' '*/debug/*' '*/sql.c' '*/sql.y'\
-         --rc lcov_branch_coverage=1  -o $TDINTERNAL_DIR/coverage_internal.info 
+        -o $TDINTERNAL_DIR/coverage_internal.info 
+        #--rc lcov_branch_coverage=1  -o $TDINTERNAL_DIR/coverage_internal.info 
 
     sed -i "s|SF:/home/TDinternal/|SF:|g" $TDINTERNAL_DIR/coverage_internal.info
 
@@ -72,7 +72,8 @@ EOF
     # generate result
     echo "generate result"
     cat $TDINTERNAL_DIR/coverage_internal.info | grep SF
-    lcov -l --rc lcov_branch_coverage=1 $TDINTERNAL_DIR/coverage_internal.info    
+    lcov -l --rc $TDINTERNAL_DIR/coverage_internal.info    
+    #lcov -l --rc lcov_branch_coverage=1 $TDINTERNAL_DIR/coverage_internal.info  
 
     # push result to https://app.codecov.io/
     pip install codecov
