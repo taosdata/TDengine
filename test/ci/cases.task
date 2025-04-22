@@ -29,7 +29,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_nchar.py
-,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varibinary.py
+,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_varbinary.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_json.py
 ,,y,.,./ci/pytest.sh pytest cases/datatype/test_column_geometry.py
 
