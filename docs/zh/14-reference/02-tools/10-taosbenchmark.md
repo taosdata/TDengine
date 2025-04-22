@@ -237,7 +237,7 @@ taosBenchmark -f <json file>
 
 - **dec_max**：字符串类型，指定 DECIMAL 数据类型的列的最大值。当 max 无法表达足够的精度时，使用此字段。生成的值将小于最大值。
 
-- **precision**：数字的总位数（包括小数点前后的所有数字），仅适用于 DECIMAL 类型，其有效值范围为 0 至 38。。
+- **precision**：数字的总位数（包括小数点前后的所有数字），仅适用于 DECIMAL 类型，其有效值范围为 0 至 38。
 
 - **scale**：小数点右边的数字位数。对于 FLOAT 类型，scale 的有效范围是 0 至 6；对于 DOUBLE 类型，该范围是 0 至 15；而对于 DECIMAL 类型，scale 的有效范围是 0 至其 precision 值。
 
