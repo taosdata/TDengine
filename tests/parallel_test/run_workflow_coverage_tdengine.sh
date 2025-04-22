@@ -89,6 +89,10 @@ EOF
     sed -i 's/\/home\/TDinternal\/community\/sql.y/\/home\/TDinternal\/community\/source\/libs\/parser\/inc\/sql.y/g' coverage.info
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info
 
+    # push result to coveralls.io
+    echo "push result to coveralls.io"
+    /usr/local/bin/coveralls-lcov $TDENGINE_DIR/coverage_tdengine.info -b $BRANCH -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps
+
     # 确保 coverage_tdengine.info 文件不为空
     if [ ! -s $TDENGINE_DIR/coverage_tdengine.info ]; then
         echo "Error: coverage_tdengine.info 文件为空，无法上传到 Codecov"
