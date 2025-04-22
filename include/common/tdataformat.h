@@ -287,6 +287,7 @@ struct SBlobRow {
 };
 
 struct SBlobRow2 {
+  SHashObj *pSeqToffset;
   int64_t  seq;
   int64_t  len;
   int32_t  cap;

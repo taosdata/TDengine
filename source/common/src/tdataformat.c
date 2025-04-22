@@ -808,6 +808,11 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
     TAOS_CHECK_EXIT(terrno);
   }
 
+  p->pSeqToffset = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+  if (p->pSeqToffset == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
   p->cap = cap;
   p->len = 0;
   p->seq = 1;
@@ -815,6 +820,7 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
   *ppBlobRow = p;
 _exit:
   if (code != 0) {
+    taosHashCleanup(p->pSeqToffset);
     taosArrayDestroy(p->pSeqTable);
     taosMemoryFree(p->data);
     taosMemoryFree(p);
@@ -858,8 +864,19 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_
     TAOS_CHECK_EXIT(terrno);
   }
 
+  int32_t sz = taosArrayGetSize(pBlobRow->pSeqTable);
+  code = taosHashPut(pBlobRow->pSeqToffset, seq, sizeof(int64_t), &sz, sizeof(int32_t));
+  if (code != 0) {
+    TAOS_CHECK_EXIT(code);
+  }
+
 _exit:
 
+  return code;
+}
+
+int32_t tBlowRowRebuild(SBlobRow2 *pBlobRow) {
+  int32_t code = 0;
   return code;
 }
 int32_t tBlobRowSize(SBlobRow2 *pBlobRow) {
@@ -871,6 +888,7 @@ int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow) {
   int32_t code = 0;
   taosMemoryFree(pBlowRow->data);
   taosArrayDestroy(pBlowRow->pSeqTable);
+  taosHashCleanup(pBlowRow->pSeqToffset);
   taosMemoryFree(pBlowRow);
   return code;
 }
@@ -1325,9 +1343,12 @@ static int32_t tRowMergeImpl(SArray *aRowP, STSchema *pTSchema, int32_t iStart, 
 
   // build
   SRowBuildScanInfo sinfo = {0};
-  if (hasBlob) sinfo.hasBlob = 1;
-
-  code = tRowBuild(aColVal, pTSchema, &pRow, &sinfo);
+  if (hasBlob) {
+    sinfo.hasBlob = 1;
+    code = tRowBuildWithBlob(aColVal, pTSchema, &pRow, NULL, &sinfo);
+  } else {
+    code = tRowBuild(aColVal, pTSchema, &pRow, &sinfo);
+  }
   if (code) goto _exit;
 
   taosArrayRemoveBatch(aRowP, iStart, nRow, (FDelete)tRowPDestroy);
