@@ -34,7 +34,7 @@ typedef struct {
 } SMStreamNodeCheckMsg;
 
 static int32_t  mndNodeCheckSentinel = 0;
-SStreamRuntime  mStreamMgmt;
+SStmRuntime  mStreamMgmt;
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
@@ -576,14 +576,14 @@ static void doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId,
 
 #ifdef NEW_STREAM
 
-bool mndStreamActionDequeue(SStreamActionQ* pQueue, SStreamQNode **param) {
+bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
   while (0 == atomic_load_64(&pQueue->qRemainNum)) {
     return false;
   }
 
-  SStreamQNode *orig = pQueue->head;
+  SStmQNode *orig = pQueue->head;
 
-  SStreamQNode *node = pQueue->head->next;
+  SStmQNode *node = pQueue->head->next;
   pQueue->head = pQueue->head->next;
 
   *param = node;
@@ -593,7 +593,7 @@ bool mndStreamActionDequeue(SStreamActionQ* pQueue, SStreamQNode **param) {
   return true;
 }
 
-void mndStreamActionEnqueue(SStreamActionQ* pQueue, SStreamQNode* param) {
+void mndStreamActionEnqueue(SStmActionQ* pQueue, SStmQNode* param) {
   pQueue->tail->next = param;
   pQueue->tail = param;
 
@@ -602,7 +602,7 @@ void mndStreamActionEnqueue(SStreamActionQ* pQueue, SStreamQNode* param) {
 
 
 static void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamName, int32_t action) {
-  SStreamQNode *pNode = taosMemoryMalloc(sizeof(SStreamQNode) + strlen(streamName) + 1);
+  SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode) + strlen(streamName) + 1);
   if (NULL == pNode) {
     return;
   }
@@ -615,7 +615,7 @@ static void mndStreamPostAction(SMnode *pMnode, int64_t streamId, char* streamNa
   
   TAOS_STRCPY(pNode->streamName, streamName);
 
-  mndStreamActionEnqueue(mStreamMgmt.threadCtx[streamGetThreadIdx(mStreamMgmt.threadNum, STREAM_GID(streamId))].actionQ, pNode);
+  mndStreamActionEnqueue(mStreamMgmt.tCtx[streamGetThreadIdx(mStreamMgmt.threadNum, STREAM_GID(streamId))].actionQ, pNode);
 }
 
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {

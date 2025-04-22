@@ -248,19 +248,11 @@ void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 void    tqScanWalAsync(STQ* pTq);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
 int32_t tqStopStreamAllTasksAsync(SStreamMeta* pMeta, SMsgCb* pMsgCb);
-int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
-int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveTriggerRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessAllTaskStopReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
-int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
 
 // injection error
@@ -281,20 +273,8 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 
 // tq-stream
-int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqStreamProgressRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskUpdateCheckpointReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskConsenChkptIdReq(STQ* pTq, SRpcMsg* pMsg);
 
 // sma

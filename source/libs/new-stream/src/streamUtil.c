@@ -19,15 +19,58 @@ int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) {
   return streamGId % threadNum;
 }
 
-int32_t streamAddFetchStreamGrpId(void) {
-  if (++gStreamMgmt.streamGrpIdx >= STREAM_MAX_GROUP_NUM) {
-    gStreamMgmt.streamGrpIdx = 0;
+int32_t stmAddFetchStreamGid(void) {
+  if (++gStreamMgmt.stmGrpIdx >= STREAM_MAX_GROUP_NUM) {
+    gStreamMgmt.stmGrpIdx = 0;
   }
 
-  return gStreamMgmt.streamGrpIdx;
+  return gStreamMgmt.stmGrpIdx;
 }
 
-int32_t streamBuildStreamsStatus(SArray* pStatus, int32_t streamGId) {
+int32_t stmAddStreamStatus(SArray** ppStatus, SStreamTasksInfo* pStream) {
+  if (pStream->taskNum <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  *ppStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));
+  TSDB_CHECK_NULL(*ppStatus, code, lino, _exit, terrno);
+
+  int32_t taskNum = taosArrayGetSize(pStream->readerList);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SStreamReaderTask* pReader = taosArrayGet(pStream->readerList, i);
+    TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
+  }
+
+  return code;
+
+_exit:
+
+  stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+
+  return code;
+}
+
+int32_t stmBuildStreamsStatus(SArray** ppStatus, int32_t gid) {
+  SHashObj* pHash = gStreamMgmt.stmGrp[gid];
+  if (NULL == pHash) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  void *pIter = NULL;
+  while (true) {
+    pIter = taosHashIterate(pHash, pIter);
+    if (NULL == pIter) {
+      break;
+    }
+
+    SStreamTasksInfo* pStream = (SStreamTasksInfo*)pIter;
+
+    stmAddStreamStatus(ppStatus, pStream);
+  }
+
+  return code;
 }
 

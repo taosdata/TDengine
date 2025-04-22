@@ -27,19 +27,23 @@ extern "C" {
 #endif
 
 #define STREAM_HB_INTERVAL_MS             1000
-#define STREAM_GRP_DEFAULT_STREAM_NUM     20
+#define STREAM_GRP_STREAM_NUM             20
+#define STREAM_HB_ERR_HANDLE_MAX_DELAY    300000
 
 typedef void (*taskUndeplyCallback)(void*);
 
 typedef struct SStreamHbInfo {
+  int32_t      lastErrCode;
+  int64_t      lastErrTs;
   tmr_h        hbTmr;
   SStreamHbMsg hbMsg;
 } SStreamHbInfo;
 
 typedef struct SStreamTasksInfo {
-  SArray* readerTaskList;        // SArray<SStreamReaderTask>
-  SArray* triggerTaskList;       // SArray<SStreamTriggerTask>
-  SArray* runnerTaskList;        // SArray<SStreamRunnerTask>
+  int32_t             taskNum;
+  SArray*             readerList;        // SArray<SStreamReaderTask>
+  SStreamTriggerTask* triggerTask;
+  SArray*             runnerList;        // SArray<SStreamRunnerTask>
 } SStreamTasksInfo;
 
 typedef struct SStreamVgReaderTasks {
@@ -58,11 +62,11 @@ typedef struct SStreamMgmtInfo {
   getMnodeEpsetFromDnode cb;
   SStreamHbInfo          hb;
 
-  SRWLatch               vgroupLeadersLock;
-  SArray*                vgroupLeaders;
+  SRWLatch               vgLeadersLock;
+  SArray*                vgLeaders;
 
-  int8_t                 streamGrpIdx;
-  SHashObj*              streamGrp[STREAM_MAX_GROUP_NUM]; // streamId => SStreamTasksInfo
+  int8_t                 stmGrpIdx;
+  SHashObj*              stmGrp[STREAM_MAX_GROUP_NUM];    // streamId => SStreamTasksInfo
   SHashObj*              taskMap;                         // streamId + taskId => SStreamTask*
   SHashObj*              vgroupMap;                       // vgId => SStreamVgReaderTasks
 

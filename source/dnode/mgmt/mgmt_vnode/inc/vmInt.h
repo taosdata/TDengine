@@ -81,7 +81,6 @@ typedef struct {
   STaosQueue  *pStreamQ;
   STaosQueue  *pStreamCtrlQ;
   STaosQueue  *pStreamLongExecQ;
-  STaosQueue  *pStreamChkQ;
   STaosQueue  *pFetchQ;
   STaosQueue  *pMultiMgmQ;
   STaosQueue  *pStreamRunnerQ;
@@ -144,7 +143,6 @@ int32_t vmPutMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToSyncRdQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamLongExecQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 

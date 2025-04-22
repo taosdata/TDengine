@@ -321,22 +321,6 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
         code = taosWriteQitem(pVnode->pQueryQ, pMsg);
       }
       break;
-    case STREAM_QUEUE:
-      dGTrace("vgId:%d, msg:%p, put into vnode-stream queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
-      code = taosWriteQitem(pVnode->pStreamQ, pMsg);
-      break;
-    case STREAM_CTRL_QUEUE:
-      dGTrace("vgId:%d, msg:%p, put into vnode-stream-ctrl queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
-      code = taosWriteQitem(pVnode->pStreamCtrlQ, pMsg);
-      break;
-    case STREAM_LONG_EXEC_QUEUE:
-      dGTrace("vgId:%d, msg:%p, put into vnode-stream-long-exec queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
-      code = taosWriteQitem(pVnode->pStreamLongExecQ, pMsg);
-      break;
-    case STREAM_CHKPT_QUEUE:
-      dGTrace("vgId:%d, msg:%p, put into vnode-stream-chkpt queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
-      code = taosWriteQitem(pVnode->pStreamChkQ, pMsg);
-      break;
     case FETCH_QUEUE:
       dGTrace("vgId:%d, msg:%p, put into vnode-fetch queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       code = taosWriteQitem(pVnode->pFetchQ, pMsg);
@@ -403,14 +387,6 @@ int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsg
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, QUERY_QUEUE); }
 
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, FETCH_QUEUE); }
-
-int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, STREAM_QUEUE); }
-
-int32_t vmPutMsgToStreamCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, STREAM_CTRL_QUEUE); }
-
-int32_t vmPutMsgToStreamLongExecQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, STREAM_LONG_EXEC_QUEUE); }
-
-int32_t vmPutMsgToStreamChkQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, STREAM_CHKPT_QUEUE); }
 
 int32_t vmPutMsgToMultiMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
@@ -481,18 +457,6 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
       case FETCH_QUEUE:
         size = taosQueueItemSize(pVnode->pFetchQ);
         break;
-      case STREAM_QUEUE:
-        size = taosQueueItemSize(pVnode->pStreamQ);
-        break;
-      case STREAM_CTRL_QUEUE:
-        size = taosQueueItemSize(pVnode->pStreamCtrlQ);
-        break;
-      case STREAM_LONG_EXEC_QUEUE:
-        size = taosQueueItemSize(pVnode->pStreamLongExecQ);
-        break;
-      case STREAM_CHKPT_QUEUE:
-        size = taosQueueItemSize(pVnode->pStreamChkQ);
-        break;
       case STREAM_RUNNER_QUEUE:
         size = taosQueueItemSize(pVnode->pStreamRunnerQ);
         break;
@@ -547,13 +511,12 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pStreamQ = tAutoQWorkerAllocQueue(&pMgmt->streamPool, pVnode, (FItem)vmProcessStreamQueue, 2);
   pVnode->pStreamCtrlQ = tWWorkerAllocQueue(&pMgmt->streamCtrlPool, pVnode, (FItems)vmProcessStreamCtrlQueue);
   pVnode->pStreamLongExecQ = tAutoQWorkerAllocQueue(&pMgmt->streamLongExecPool, pVnode, (FItem)vmProcessStreamLongExecQueue, 1);
-  pVnode->pStreamChkQ = tWWorkerAllocQueue(&pMgmt->streamChkPool, pVnode, (FItems)vmProcessStreamChkptQueue);
   pVnode->pStreamRunnerQ = tWWorkerAllocQueue(&pMgmt->streamRunnerPool, pVnode, 0);// TODO wjm fp??
   pVnode->pStreamReaderQ = tWWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, 0);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
       pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pStreamQ == NULL || pVnode->pFetchQ == NULL ||
-      pVnode->pStreamCtrlQ == NULL || pVnode->pStreamLongExecQ == NULL || pVnode->pStreamChkQ == NULL ||
+      pVnode->pStreamCtrlQ == NULL || pVnode->pStreamLongExecQ == NULL || 
       !pVnode->pStreamRunnerQ || !pVnode->pStreamReaderQ) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -573,8 +536,6 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   dInfo("vgId:%d, stream-long-exec-queue:%p is alloced", pVnode->vgId, pVnode->pStreamLongExecQ);
   dInfo("vgId:%d, stream-ctrl-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamCtrlQ,
         taosQueueGetThreadId(pVnode->pStreamCtrlQ));
-  dInfo("vgId:%d, stream-chk-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamChkQ,
-        taosQueueGetThreadId(pVnode->pStreamChkQ));
   dInfo("vgId:%d, stream-runner-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamRunnerQ,
         taosQueueGetThreadId(pVnode->pStreamRunnerQ));
   dInfo("vgId:%d, stream-reader-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamReaderQ,
@@ -587,7 +548,6 @@ void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   tAutoQWorkerFreeQueue(&pMgmt->streamPool, pVnode->pStreamQ);
   tAutoQWorkerFreeQueue(&pMgmt->streamLongExecPool, pVnode->pStreamLongExecQ);
   tWWorkerFreeQueue(&pMgmt->streamCtrlPool, pVnode->pStreamCtrlQ);
-  tWWorkerFreeQueue(&pMgmt->streamChkPool, pVnode->pStreamChkQ);
   tWWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
   tWWorkerFreeQueue(&pMgmt->streamRunnerPool, pVnode->pStreamRunnerQ);
   tWWorkerFreeQueue(&pMgmt->streamReaderPool, pVnode->pStreamReaderQ);
@@ -598,7 +558,6 @@ void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pStreamCtrlQ = NULL;
   pVnode->pStreamLongExecQ = NULL;
 
-  pVnode->pStreamChkQ = NULL;
   pVnode->pFetchQ = NULL;
   pVnode->pStreamRunnerQ = NULL;
   pVnode->pStreamReaderQ = NULL;

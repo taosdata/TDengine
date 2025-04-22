@@ -22,6 +22,15 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
+void streamSetSnodeEnabled() {
+  gStreamMgmt.snodeId = gStreamMgmt.dnodeId;
+}
+
+void streamSetSnodeDisabled() {
+  gStreamMgmt.snodeId = INT32_MIN;
+}
+
+
 int32_t streamInit(void* pDnode, int32_t dnodeId, getMnodeEpsetFromDnode cb) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -32,8 +41,8 @@ int32_t streamInit(void* pDnode, int32_t dnodeId, getMnodeEpsetFromDnode cb) {
 
   initStorageAPI(&gStreamMgmt.api);
 
-  gStreamMgmt.vgroupLeaders = taosArrayInit(20, sizeof(int32_t));
-  TSDB_CHECK_NULL(gStreamMgmt.vgroupLeaders, code, lino, _exit, terrno);
+  gStreamMgmt.vgLeaders = taosArrayInit(20, sizeof(int32_t));
+  TSDB_CHECK_NULL(gStreamMgmt.vgLeaders, code, lino, _exit, terrno);
   
   TAOS_CHECK_EXIT(streamTimerInit(&gStreamMgmt.timer));
 
@@ -64,22 +73,22 @@ int32_t streamVgIdSort(void const *lp, void const *rp) {
 
 
 void streamRemoveVnodeLeader(int32_t vgId) {
-  taosWLockLatch(&gStreamMgmt.vgroupLeadersLock);
-  int32_t idx = taosArraySearchIdx(gStreamMgmt.vgroupLeaders, &vgId, streamVgIdSort, TD_EQ);
+  taosWLockLatch(&gStreamMgmt.vgLeadersLock);
+  int32_t idx = taosArraySearchIdx(gStreamMgmt.vgLeaders, &vgId, streamVgIdSort, TD_EQ);
   if (idx >= 0) {
-    taosArrayRemove(gStreamMgmt.vgroupLeaders, idx);
+    taosArrayRemove(gStreamMgmt.vgLeaders, idx);
   }
-  taosWUnLockLatch(&gStreamMgmt.vgroupLeadersLock);
+  taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
   stInfo("remove vgroup %d from vgroupLeader %s", vgId, (idx < 0) ? "failed", "succeed");
 }
 
 void streamAddVnodeLeader(int32_t vgId) {
-  taosWLockLatch(&gStreamMgmt.vgroupLeadersLock);
-  void* p = taosArrayPush(gStreamMgmt.vgroupLeaders, &vgId);
+  taosWLockLatch(&gStreamMgmt.vgLeadersLock);
+  void* p = taosArrayPush(gStreamMgmt.vgLeaders, &vgId);
   if (p) {
-    taosArraySort(gStreamMgmt.vgroupLeaders, streamVgIdSort);
+    taosArraySort(gStreamMgmt.vgLeaders, streamVgIdSort);
   }
-  taosWUnLockLatch(&gStreamMgmt.vgroupLeadersLock);
+  taosWUnLockLatch(&gStreamMgmt.vgLeadersLock);
   stInfo("add vgroup %d to vgroupLeader %s, error:%s", vgId, p ? "succeed" : "failed", p ? "NULL" : tstrerror(terrno));
 }
 

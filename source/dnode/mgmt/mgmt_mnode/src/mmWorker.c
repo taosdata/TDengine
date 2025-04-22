@@ -98,6 +98,20 @@ static void mmProcessSyncMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+static void mmProcessStreamHbMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+  pMsg->info.node = pMgmt->pMnode;
+
+  dGTrace("msg:%p, get from mnode-stream-mgmt queue", pMsg);
+
+  (void)mndProcessStreamHb(pMsg);
+
+  dTrace("msg:%p, is freed", pMsg);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
+
 static inline int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   int32_t         code = 0;
@@ -216,6 +230,13 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   return code;
 }
 
+int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
+  SRpcMsg* pMsg = (SRpcMsg*)pParam;
+  SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
+  *pWorkerIdx = pHeader->streamGid % tsNumOfMnodeStreamMgmtThreads;
+}
+
+
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   int32_t          code = 0;
   SSingleWorkerCfg qCfg = {
@@ -325,7 +346,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode stream-mgmt worker since %s", tstrerror(code));
     return code;
   }
-  code = tDispatchWorkerAllocQueue(pPool, pMgmt, NULL, NULL); // TODO wjm set fp
+  code = tDispatchWorkerAllocQueue(pPool, pMgmt, (FItems)mmProcessStreamHbMsg, mmDispatchStreamHbMsg);
   if (code != 0) {
     dError("failed to start mnode stream-mgmt worker since %s", tstrerror(code));
     return code;

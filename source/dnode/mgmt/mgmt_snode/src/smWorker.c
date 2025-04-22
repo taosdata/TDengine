@@ -26,37 +26,11 @@ static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
   tmsgSendRsp(&rsp);
 }
 
-static void smProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
-  SSnodeMgmt *pMgmt = pInfo->ahandle;
-
-  for (int32_t i = 0; i < numOfMsgs; i++) {
-    SRpcMsg        *pMsg = NULL;
-    int32_t         num = taosGetQitem(qall, (void **)&pMsg);
-    const STraceId *trace = &pMsg->info.traceId;
-
-    dTrace("msg:%p, get from snode-write queue", pMsg);
-    int32_t code = sndProcessWriteMsg(pMgmt->pSnode, pMsg, NULL);
-    // if (code < 0) {
-    //   dGError("snd, msg:%p failed to process write since %s", pMsg, tstrerror(code));
-    //   if (pMsg->info.handle != NULL) {
-    //     tmsgSendRsp(pMsg);
-    //   }
-    // } else {
-    //   smSendRsp(pMsg, 0);
-    // }
-    smSendRsp(pMsg, code);
-
-    dTrace("msg:%p, is freed", pMsg);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
-  }
-}
-
-static void smProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt     *pMgmt = pInfo->ahandle;
   const STraceId *trace = &pMsg->info.traceId;
 
-  dTrace("msg:%p, get from snode-stream queue", pMsg);
+  dTrace("msg:%p, get from snode-stream-runner queue", pMsg);
   int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pMsg);
   if (code < 0) {
     dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), tstrerror(code));
@@ -70,53 +44,14 @@ static void smProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
 int32_t smStartWorker(SSnodeMgmt *pMgmt) {
   int32_t code = 0;
-  pMgmt->writeWroker = taosArrayInit(0, sizeof(SMultiWorker *));
-  if (pMgmt->writeWroker == NULL) {
-    code = terrno;
-    return code;
-  }
-
-  for (int32_t i = 0; i < tsNumOfSnodeWriteThreads; i++) {
-    SMultiWorker *pWriteWorker = taosMemoryMalloc(sizeof(SMultiWorker));
-    if (pWriteWorker == NULL) {
-      code = terrno;
-      return code;
-    }
-
-    SMultiWorkerCfg cfg = {
-        .max = 1,
-        .name = "snode-write",
-        .fp = smProcessWriteQueue,
-        .param = pMgmt,
-    };
-    if ((code = tMultiWorkerInit(pWriteWorker, &cfg)) != 0) {
-      dError("failed to start snode-unique worker since %s", tstrerror(code));
-      return code;
-    }
-    if (taosArrayPush(pMgmt->writeWroker, &pWriteWorker) == NULL) {
-      code = terrno;
-      return code;
-    }
-  }
 
   SSingleWorkerCfg cfg = {
-      .min = tsNumOfSnodeStreamThreads,
-      .max = tsNumOfSnodeStreamThreads,
-      .name = "snode-stream",
-      .fp = (FItem)smProcessStreamQueue,
+      .min = tsNumOfStreamRunnerThreads,
+      .max = tsNumOfStreamRunnerThreads,
+      .name = "snode-stream-runner",
+      .fp = (FItem)smProcessRunnerQueue,
       .param = pMgmt,
   };
-
-  if ((code = tSingleWorkerInit(&pMgmt->streamWorker, &cfg)) != 0) {
-    dError("failed to start snode shared-worker since %s", tstrerror(code));
-    return code;
-  }
-
-  cfg.min = tsNumOfStreamRunnerThreads;
-  cfg.max = tsNumOfStreamRunnerThreads;
-  cfg.name = "snode-st-runner";
-  cfg.fp = NULL;// TODO wjm add fp
-  cfg.param = pMgmt;
 
   if ((code = tSingleWorkerInit(&pMgmt->runnerWorker, &cfg)) != 0) {
     dError("failed to start snode runner worker since %s", tstrerror(code));
@@ -125,7 +60,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
 
   SDispatchWorkerPool* pTriggerPool = &pMgmt->triggerWorkerPool;
   pTriggerPool->max = tsNumOfStreamTriggerThreads;
-  pTriggerPool->name = "snode-st-trigger";
+  pTriggerPool->name = "snode-stream-trigger";
   code = tDispatchWorkerInit(pTriggerPool);
   if (code != 0) {
     dError("failed to start snode stream-trigger worker since %s", tstrerror(code));
@@ -142,13 +77,6 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
 }
 
 void smStopWorker(SSnodeMgmt *pMgmt) {
-  for (int32_t i = 0; i < taosArrayGetSize(pMgmt->writeWroker); i++) {
-    SMultiWorker *pWorker = taosArrayGetP(pMgmt->writeWroker, i);
-    tMultiWorkerCleanup(pWorker);
-    taosMemoryFree(pWorker);
-  }
-  taosArrayDestroy(pMgmt->writeWroker);
-  tSingleWorkerCleanup(&pMgmt->streamWorker);
   tSingleWorkerCleanup(&pMgmt->runnerWorker);
   tDispatchWorkerCleanup(&pMgmt->triggerWorkerPool);
   dDebug("snode workers are closed");
@@ -183,17 +111,8 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   pRpc->pCont = NULL;
 
   switch (qtype) {
-    case STREAM_QUEUE:
-      code = smPutNodeMsgToStreamQueue(pMgmt, pMsg);
-      break;
-    case WRITE_QUEUE:
-      code = smPutNodeMsgToWriteQueue(pMgmt, pMsg);
-      break;
-    case STREAM_CHKPT_QUEUE:
-      code = smPutNodeMsgToStreamQueue(pMgmt, pMsg);
-      break;
     case STREAM_RUNNER_QUEUE:
-      code = smPutMsgToStreamRunnerQueue(pMgmt, pMsg);
+      code = smPutMsgToRunnerQueue(pMgmt, pMsg);
       break;
     default:
       code = TSDB_CODE_INVALID_PARA;
@@ -204,41 +123,7 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   return code;
 }
 
-int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SMultiWorker *pWorker = taosArrayGetP(pMgmt->writeWroker, 0);
-  if (pWorker == NULL) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  return taosWriteQitem(pWorker->queue, pMsg);
-}
-
-int32_t smPutNodeMsgToWriteQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SMultiWorker *pWorker = taosArrayGetP(pMgmt->writeWroker, 0);
-  if (pWorker == NULL) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  return taosWriteQitem(pWorker->queue, pMsg);
-}
-
-int32_t smPutNodeMsgToStreamQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SSingleWorker *pWorker = &pMgmt->streamWorker;
-
-  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  return taosWriteQitem(pWorker->queue, pMsg);
-}
-
-//int32_t smPutNodeMsgToChkptQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-//  SSingleWorker *pWorker = &pMgmt->chkptWorker;
-//
-//  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-//  return taosWriteQitem(pWorker->queue, pMsg);
-//}
-
-int32_t smPutMsgToStreamRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+int32_t smPutMsgToRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->runnerWorker;
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);

@@ -29,14 +29,17 @@ void mndStreamHbSendRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspMsg
     stError("encode stream hb msg rsp failed, code:%s", tstrerror(code));
   }
 
-  buf = rpcMallocCont(tlen);
+  buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
   if (buf == NULL) {
     stError("encode stream hb msg rsp failed, code:%s", tstrerror(terrno));
     return;
   }
 
+  ((SStreamMsgGrpHeader *)buf)->streamGid = htonl(pRsp->streamGId);
+  void *abuf = POINTER_SHIFT(buf, sizeof(SStreamMsgGrpHeader));
+
   SEncoder encoder;
-  tEncoderInit(&encoder, buf, tlen);
+  tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeStreamHbRsp(&encoder, pRsp)) < 0) {
     rpcFreeCont(buf);
     tEncoderClear(&encoder);
@@ -57,33 +60,34 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMStreamHbRspMsg rsp = {0};
   int32_t      code = 0;
   SDecoder     decoder = {0};
+  char*        msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
+  int32_t      len = pReq->contLen - sizeof(SStreamMsgGrpHeader);
+  int64_t      currTs = taosGetTimestampMs();
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
-    if (msmHandleGrantExpired(pMnode) < 0) {
-      return code;
-    }
+    TAOS_CHECK_EXIT(msmHandleGrantExpired(pMnode));
   }
 
-  tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
-
-  if (tDecodeStreamHbMsg(&decoder, &req) < 0) {
+  tDecoderInit(&decoder, msg, len);
+  code = tDecodeStreamHbMsg(&decoder, &req);
+  if (code < 0) {
+    stError("failed to decode stream hb msg, error:%s", tstrerror(terrno));
     tCleanupStreamHbMsg(&req);
     tDecoderClear(&decoder);
-    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
   tDecoderClear(&decoder);
 
   stDebug("receive stream-hb grp %d from dnode:%d, snodeId:%d, vgLeaders:%d, streamStatus:%d", 
       req.streamGId, req.dnodeId, req.snodeId, taosArrayGetSize(req.pVgLeaders), taosArrayGetSize(req.pStreamStatus));
-
-
-  int64_t currTs = taosGetTimestampMs();
   
-  msmHandleStreamHbMsg(pMnode, currTs, &req, &rsp);
-
-  mndStreamHbSendRsp(TSDB_CODE_SUCCESS, &pReq->info, &rsp);
+  (void)msmHandleStreamHbMsg(pMnode, currTs, &req, &rsp);
 
   msmCleanStreamGrpCtx(&req);
+
+_exit:
+
+  mndStreamHbSendRsp(code, &pReq->info, &rsp);
 
   return code;
 }

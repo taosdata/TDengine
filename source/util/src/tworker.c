@@ -1199,15 +1199,15 @@ void tDispatchWorkerCleanup(SDispatchWorkerPool *pPool) {
   (void)taosThreadMutexDestroy(&pPool->poolLock);
 }
 
-int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool *pPool, void* pTask) {
+int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool *pPool, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t idx = 0;
   (void)taosThreadMutexLock(&pPool->poolLock);
-  code = pPool->dispatchFp(pPool, pTask, &idx);
+  code = pPool->dispatchFp(pPool, pMsg, &idx);
   if (code == 0) {
     SDispatchWorker *pWorker = pPool->pWorkers + idx;
     if (pWorker->queue) {
-      code = taosWriteQitem(pWorker->queue, pTask);
+      code = taosWriteQitem(pWorker->queue, pMsg);
     } else {
       code = TSDB_CODE_INTERNAL_ERROR;
     }

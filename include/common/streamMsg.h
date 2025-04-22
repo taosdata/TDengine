@@ -212,17 +212,17 @@ typedef union {
 typedef struct {
   SStreamTask          task;
   SStreamDeployTaskMsg msg;
-} SStreamDeployTaskInfo;
+} SStmTaskDeploy;
 
 typedef struct {
-  int64_t streamId;
-  SArray* readerTasks;   // SArray<SStreamDeployTaskInfo>
-  SArray* triggerTasks;  // SArray<SStreamDeployTaskInfo>
-  SArray* runnerTasks;   // SArray<SStreamDeployTaskInfo>
-} SStreamTasksDeploy;
+  int64_t         streamId;
+  SArray*         readerTasks;   // SArray<SStmTaskDeploy*>
+  SStmTaskDeploy* triggerTask;
+  SArray*         runnerTasks;   // SArray<SStmTaskDeploy*>
+} SStmStreamDeploy;
 
 typedef struct {
-  SArray* taskList;      // SArray<SStreamTasksDeploy>
+  SArray* streamList;      // SArray<SStmStreamDeploy>
 } SStreamDeployActions;
 
 typedef struct {
@@ -254,13 +254,17 @@ typedef struct {
   SArray* taskList;      // SArray<SStreamTasksUndeploy>
 } SStreamUndeployActions;
 
+typedef struct {
+  int32_t streamGid;
+} SStreamMsgGrpHeader;
+
 
 typedef struct {
-  int32_t  streamGId;
+  int32_t                streamGId;
   SStreamDeployActions   deploy;
   SStreamStartActions    start;
   SStreamUndeployActions undeploy;
-  SArray*              nodesVerion;
+  SArray*                nodesVerion;
 } SMStreamHbRspMsg;
 
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);
