@@ -8,7 +8,7 @@ use crate::{
     taoz::{RawType, ZFile},
     tmq::*,
 };
-use anyhow::{bail, Context as AnyhowContext, Result};
+use anyhow::{Context as AnyhowContext, Result};
 use chrono::{DateTime, Local, Utc};
 use dashmap::DashMap;
 use scc::HashMap;
@@ -16,17 +16,15 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::RwLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{
     path::{Path, PathBuf},
-    str::FromStr,
     sync::Arc,
 };
-use taos::taos_query::tmq::{Assignment, VGroupId};
+use taos::taos_query::tmq::VGroupId;
 use taos::*;
 use taos_query::common::RawData;
 use tokio::select;
-use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -54,7 +52,9 @@ pub async fn tmq_to_local(
         ))?;
 
     if !config.self_repeat {
-        return tmq_to_local_impl(config, cancel).await;
+        return tmq_to_local_impl(config, cancel).await.inspect_err(|err| {
+            tracing::error!("tmq_to_local error: {:#}", err);
+        });
     }
 
     let interval = config.interval.unwrap_or(Duration::from_secs(60 * 10));
@@ -83,7 +83,13 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
     }
 
     // 创建 consumer
-    let consumers = config.create_consumer().await?;
+    let consumers = config
+        .create_consumer()
+        .await
+        .context("failed to create consumer")?;
+
+    let file_timeout = config.interval.unwrap_or(Duration::from_secs(1));
+
     // 创建 ZFileMan
     let man = ZFileMan {
         api_version: crate::build::PKG_VERSION.to_owned(),
@@ -94,6 +100,7 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
         compression_level: config.backup_comp_level,
         max_file_size: config.backup_max_size,
         move_to: config.move_to.clone(),
+        timeout: file_timeout,
         sync: tokio::sync::Mutex::new(()),
         writers: Default::default(),
     };
@@ -175,6 +182,7 @@ pub(crate) struct LocalConfig {
 }
 
 impl LocalConfig {
+    #[allow(unused)]
     pub fn new(
         topics: Vec<Topic>,
         group_id: impl Into<String>,
@@ -188,6 +196,8 @@ impl LocalConfig {
             topics,
         }
     }
+
+    #[allow(unused)]
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let config = config::Config::builder()
@@ -197,6 +207,7 @@ impl LocalConfig {
         Ok(config)
     }
 
+    #[allow(unused)]
     pub fn write_to(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         let bytes = toml::to_string(self)?;
@@ -257,19 +268,19 @@ impl BackupWorker {
     }
 
     async fn run(&mut self) -> Result<()> {
-        tracing::info!("tmq_to_local worker[{}] start", self.id);
+        tracing::info!("tmq_to_local [{}] start", self.id);
         let run_impl = self.run_impl().in_current_span();
         select! {
             _ = self.cancel.cancelled() => {
-                tracing::warn!("tmq_to_local worker[{}] cancelled", self.id);
+                tracing::warn!("tmq_to_local [{}] cancelled", self.id);
             }
             res = run_impl => {
                 match res {
                     Ok(_) => {
-                        tracing::info!("tmq_to_local worker[{}] completed", self.id);
+                        tracing::info!("tmq_to_local [{}] completed", self.id);
                     }
                     Err(err) => {
-                        tracing::error!(?err, "tmq_to_local worker[{}] exit with error: {:#}", self.id, err);
+                        tracing::error!(?err, "tmq_to_local [{}] exit with error: {:#}", self.id, err);
                         return Err(err);
                     }
                 }
@@ -282,85 +293,116 @@ impl BackupWorker {
     async fn run_impl(&self) -> Result<()> {
         let metrics = self.metrics.tmq();
 
-        let mut stream = self.consumer.stream();
-
-        while let Some((offset, message)) = stream.try_next().await? {
-            // 通过 topic, vg_id 可以获取到当前的 offset
-            let vg_id = offset.vgroup_id();
-            if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
-                let topic = offset.topic();
-                // let cur_offset = self.consumer.position(topic, vg_id).await?;
-                let position = self.config.position(topic, vg_id).await?;
-
-                if let Some((current, latest)) = position {
-                    // 获取 topic, vgroup 对应的 end_offset
-                    let end_offset = self.get_end_offset(topic.to_string(), vg_id).await;
-
-                    let end_offset = match end_offset {
-                        Some(offset) => offset,
-                        None => {
-                            // 如果 end_offset 不存在，设置为当前的 latest offset
-                            self.set_end_offset(topic.to_string(), vg_id, latest).await;
-                            latest
+        let timeout = self.consumer.default_timeout();
+        let mut last = Instant::now();
+        while let Ok(msg) = self.consumer.recv_timeout(Timeout::from_millis(500)).await {
+            match msg {
+                None => {
+                    self.man.check_or_next().await?;
+                    // 如果超过了 consumer.timeout 没有收到消息，则退出
+                    match timeout {
+                        Timeout::Duration(d) => {
+                            if last.elapsed() > d {
+                                tracing::info!("tmq_to_local [{}] timeout", self.id);
+                                break;
+                            }
                         }
-                    };
-
-                    // 如果 cur_offset == end_offset，表示当前 vgroup 已经备份完成
-                    if current == end_offset {
-                        self.set_complete(topic.to_string(), vg_id).await;
-                    }
-                    // 如果所有 vgroup 都备份完成，退出
-                    if self.is_all_complete().await {
-                        break;
+                        Timeout::None => {
+                            break;
+                        }
+                        Timeout::Never => {
+                            // do nothing
+                        }
                     }
                 }
-            }
+                Some((offset, message)) => {
+                    // 更新最后一次收到消息的时间
+                    last = Instant::now();
 
-            // 处理 message，写入本地文件
-            match message {
-                MessageSet::Meta(meta) => {
-                    let raw = meta.as_raw_meta().await?;
-                    tracing::debug!("backup meta, len: {}", raw.raw_len());
-                    self.man
-                        .write_vgroup_with_raw(vg_id, &raw, RawType::Meta)
-                        .await
-                        .context("Backup raw meta message failed")?;
-                    self.man
-                        .flush_vgroup(vg_id)
-                        .await
-                        .context("Flush vgroup error")?;
-                    metrics.add_messages_of_meta(1);
-                }
-                MessageSet::Data(data) => {
-                    let raw = data.as_raw_data().await?;
-                    tracing::debug!("backup data, len: {}", raw.raw_len());
-                    self.man
-                        .write_vgroup_with_raw(vg_id, &raw, RawType::Data)
-                        .await
-                        .context("Backup raw data message failed")?;
-                    self.man
-                        .flush_vgroup(vg_id)
-                        .await
-                        .context("Flush vgroup error")?;
-                    metrics.add_messages_of_data(1);
-                }
-                MessageSet::MetaData(_meta, data) => {
-                    let raw = data.as_raw_data().await?;
-                    tracing::debug!("backup raw data, len: {}", raw.raw_len());
-                    self.man
-                        .write_vgroup_with_raw(vg_id, &raw, RawType::Both)
-                        .await
-                        .context("Backup raw metadata message failed")?;
-                    self.man
-                        .flush_vgroup(vg_id)
-                        .await
-                        .context("Flush vgroup error")?;
-                    metrics.add_messages_of_data(1);
+                    // 通过 topic, vg_id 可以获取到当前的 offset
+                    let vg_id = offset.vgroup_id();
+                    if self.config.backup_point_gen_mode == BackupPointGenMode::ByOffset {
+                        let topic = offset.topic();
+                        // let cur_offset = self.consumer.position(topic, vg_id).await?;
+                        let position = self.config.position(topic, vg_id).await?;
+
+                        if let Some((current, latest)) = position {
+                            // 获取 topic, vgroup 对应的 end_offset
+                            let end_offset = self.get_end_offset(topic.to_string(), vg_id).await;
+
+                            let end_offset = match end_offset {
+                                Some(offset) => offset,
+                                None => {
+                                    // 如果 end_offset 不存在，设置为当前的 latest offset
+                                    self.set_end_offset(topic.to_string(), vg_id, latest).await;
+                                    latest
+                                }
+                            };
+
+                            // 如果 cur_offset == end_offset，表示当前 vgroup 已经备份完成
+                            if current == end_offset {
+                                self.set_complete(topic.to_string(), vg_id).await;
+                            }
+                            // 如果所有 vgroup 都备份完成，退出
+                            if self.is_all_complete().await {
+                                break;
+                            }
+                        }
+                    }
+
+                    // 处理 message，写入本地文件
+                    match message {
+                        MessageSet::Meta(meta) => {
+                            let raw = meta.as_raw_meta().await?;
+                            tracing::debug!("backup meta, len: {}", raw.raw_len());
+                            self.man
+                                .write_vgroup_with_raw(vg_id, &raw, RawType::Meta)
+                                .await
+                                .context("Backup raw meta message failed")?;
+                            self.man
+                                .flush_vgroup(vg_id)
+                                .await
+                                .context("Flush vgroup error")?;
+                            metrics.add_messages_of_meta(1);
+                        }
+                        MessageSet::Data(data) => {
+                            let raw = data.as_raw_data().await?;
+                            tracing::debug!("backup data, len: {}", raw.raw_len());
+                            self.man
+                                .write_vgroup_with_raw(vg_id, &raw, RawType::Data)
+                                .await
+                                .context("Backup raw data message failed")?;
+                            self.man
+                                .flush_vgroup(vg_id)
+                                .await
+                                .context("Flush vgroup error")?;
+                            metrics.add_messages_of_data(1);
+                        }
+                        MessageSet::MetaData(_meta, data) => {
+                            let raw = data.as_raw_data().await?;
+                            tracing::debug!("backup raw data, len: {}", raw.raw_len());
+                            self.man
+                                .write_vgroup_with_raw(vg_id, &raw, RawType::Both)
+                                .await
+                                .context("Backup raw metadata message failed")?;
+                            self.man
+                                .flush_vgroup(vg_id)
+                                .await
+                                .context("Flush vgroup error")?;
+                            metrics.add_messages_of_data(1);
+                        }
+                    }
+                    self.consumer.commit(offset).await?;
+                    metrics.add_messages(1);
                 }
             }
-            self.consumer.commit(offset).await?;
-            metrics.add_messages(1);
         }
+
+        tracing::info!(
+            "tmq_to_local processed messages: {}, total_messages: {} ",
+            metrics.messages.load(SeqCst),
+            metrics.total_messages.load(SeqCst),
+        );
 
         Ok(())
     }
@@ -403,6 +445,8 @@ struct ZFileMan {
     max_file_size: u64,
     /// 在文件写满后，将文件移动到 move_to 目录
     move_to: Option<PathBuf>,
+    /// 写入超时，当文件不为空，且超过 timeout 没有写入数据，则关闭当前文件
+    timeout: Duration,
 
     sync: tokio::sync::Mutex<()>,
     writers: DashMap<i32, tokio::sync::Mutex<ZFile>>,
@@ -457,6 +501,7 @@ impl ZFileMan {
                     self.compression_level,
                     self.max_file_size,
                     self.move_to.clone(),
+                    self.timeout,
                 )
                 .await
                 .inspect_err(|error| {
@@ -557,7 +602,17 @@ impl ZFileMan {
         Ok(())
     }
 
+    /// 遍历所有 writer check_or_next
+    async fn check_or_next(&self) -> Result<()> {
+        for entry in self.writers.iter() {
+            let mut writer = entry.value().lock().await;
+            writer.check_or_next().await?;
+        }
+        Ok(())
+    }
+
     /// write data to file and return the number of rows and whether to stop
+    #[allow(unused)]
     async fn stop_at(
         &self,
         vgroup: i32,
@@ -619,6 +674,7 @@ impl ZFileMan {
 }
 
 /*** DEPRECATED CODES START ***/
+/*
 #[deprecated(note = "use the new tmq_to_local instead")]
 pub async fn tmq_to_local_previous(
     from: Dsn,
@@ -983,6 +1039,7 @@ async fn backup(
     tracing::info!("[{id}] backup done");
     Ok(())
 }
+*/
 /*** DEPRECATED CODES END ***/
 
 #[cfg(test)]

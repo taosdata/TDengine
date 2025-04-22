@@ -1,45 +1,28 @@
 use anyhow::{bail, Context, Result};
-use faststr::FastStr;
 use flume::Receiver;
 use itertools::Itertools;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder};
+use taos::{AsyncQueryable, Dsn, Taos};
 use taosx_ipc::types::dsv::DataSourceValidation;
-use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::core_metrics::{get_metrics_arc, CoreMetrics};
+use crate::core_metrics::get_metrics_arc;
 use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
 use crate::local_to_taos::file_watcher::FileWatcher;
+use crate::local_to_taos::metrics::LocalToTaosMetrics;
 use crate::s3::{S3Config, S3Loader};
 use crate::taoz::{ZCodec, ZFile, ZMessage};
 use crate::tmq::BackupObject;
-use crate::tmq_to_local::LocalConfig;
 use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
 use crate::{s3, utils};
 
 mod conf;
 mod file_watcher;
-
-/// local_to_taos 的 metrics 统计信息
-/// 处理过的文件数量
-const PROCESSED_FILES: FastStr = FastStr::from_static_str("backup_processed_files");
-/// 处理过的文件的字节数
-const PROCESSED_BYTES: FastStr = FastStr::from_static_str("backup_processed_bytes");
-/// 处理过的数据行数
-const PROCESSED_ROWS: FastStr = FastStr::from_static_str("backup_processed_rows");
-/// 处理成功的最后一条记录的时间戳
-#[allow(unused)]
-const PROCESSED_CURRENT: FastStr = FastStr::from_static_str("backup_processed_current");
-/// 处理过但失败的数据行数
-#[allow(unused)]
-const FAILED_ROWS: FastStr = FastStr::from_static_str("backup_failed_rows");
+mod metrics;
 
 /// # 从本地备份恢复到 taos
 /// 1. 备份文件对应某个备份对象：database 或 database.stable，在 target 中：
@@ -99,7 +82,7 @@ pub async fn local_to_taos(
         rx,
         backup_config: config.clone(),
         backup_obj: config.backup_obj.clone(),
-        metrics: metrics_arc.clone(),
+        metrics: LocalToTaosMetrics::new(metrics_arc.clone()),
     };
     let restore_worker = tokio::spawn(async move { worker.run().await }.in_current_span());
 
@@ -180,7 +163,7 @@ struct RestoreWorker {
     backup_config: LocalRestoreConfig,
     backup_obj: BackupObject,
     rx: Receiver<Vec<PathBuf>>,
-    metrics: Arc<CoreMetrics>,
+    metrics: LocalToTaosMetrics,
 }
 
 impl RestoreWorker {
@@ -189,7 +172,7 @@ impl RestoreWorker {
         tracing::info!("RestoreWorker started");
 
         while let Ok(files) = self.rx.recv() {
-            let file_length = files.len();
+            let file_count = files.len();
 
             // 按照 ts 分组，按照 ts 的先后顺序执行
             let files = files
@@ -222,11 +205,22 @@ impl RestoreWorker {
                     let taos = self.backup_config.connect_taos().await?;
                     let stable = self.backup_obj.stable_name.clone();
                     let metrics = self.metrics.clone();
+                    let retry_interval = self.backup_config.error_retry_interval;
+                    let retry_max = self.backup_config.error_retry_max;
 
                     join_set.spawn(async move {
                         for f in files {
                             tracing::debug!("worker[{idx}] restore files: {:?}", f);
-                            restore(idx, f, &taos, stable.clone(), metrics.clone()).await?;
+                            restore(
+                                idx,
+                                f,
+                                &taos,
+                                stable.clone(),
+                                metrics.clone(),
+                                retry_max,
+                                retry_interval,
+                            )
+                            .await?;
                         }
                         Ok(())
                     });
@@ -241,14 +235,14 @@ impl RestoreWorker {
                 }
             }
 
-            let metrics = self.metrics.ipc();
-            metrics.add_extra_metric(&PROCESSED_FILES, file_length as u64);
+            self.metrics.add_processed_files(file_count as u64);
         }
         tracing::info!("RestoreWorker stopped");
         Ok(())
     }
 }
 
+/*
 #[allow(unused)]
 #[deprecated(note = "use new local_to_taos")]
 pub async fn local_to_taos_previous(from: Dsn, mut to: Dsn) -> Result<()> {
@@ -442,6 +436,7 @@ pub async fn local_to_taos_previous(from: Dsn, mut to: Dsn) -> Result<()> {
     }
     Ok(())
 }
+*/
 
 #[async_backtrace::framed]
 async fn restore(
@@ -449,10 +444,12 @@ async fn restore(
     path: impl AsRef<Path>,
     taos: &Taos,
     table: Option<String>,
-    metrics: Arc<CoreMetrics>,
+    metrics: LocalToTaosMetrics,
+    retry_max: u32,
+    retry_interval: Duration,
 ) -> Result<()> {
     let path = path.as_ref();
-    tracing::info!("[{}] restore with file: {:?}", idx, path.display());
+    tracing::info!("[{idx}] restore with file: {:?}", path.display());
     let reader = tokio::fs::File::open(path).await?;
     let reader = tokio::io::BufReader::new(reader);
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
@@ -476,16 +473,15 @@ async fn restore(
         }
     }
 
-    let metrics = metrics.ipc();
-
-    let mut rows = 0;
-    loop {
+    'READ_LOOP: loop {
         let res = reader.read_message_async().await;
         match res {
             Ok(message) => {
+                metrics.add_received_batch();
                 match message {
                     ZMessage::Meta(meta) => {
-                        tracing::debug!("restore meta, len: {}", meta.raw_len());
+                        tracing::debug!("[{idx}] restore meta, len: {}", meta.raw_len());
+
                         if let Err(err) = taos.write_raw_meta(&meta).await {
                             let code: i32 = err.code().into();
                             match code {
@@ -494,78 +490,101 @@ async fn restore(
                                     tracing::debug!("Table already exists");
                                     // do nothing and continue
                                 }
-                                0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
+                                0x032C | 0x0115 | 0x03C7 | 0x03D3 | 0x2603 => {
                                     // 0x032C: object is creating
                                     // 0x0115: invalid msg
                                     // 0x03C7: stable uid not match
                                     // 0x03D3: conflict transaction not completed
+                                    // 0x2603: the table does not exist: 写 meta 时报表不存在，重试
                                     tracing::debug!("Found recoverable error: {err:#}, retry once");
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                    let res = taos.write_raw_meta(&meta).await;
-                                    if res.is_ok() {
-                                        tracing::debug!("Retry success");
-                                    } else {
-                                        tracing::debug!(
-                                            "Retry failed: {:#}, continue",
-                                            res.unwrap_err()
-                                        );
-                                        Err(err).context("restore meta error")?;
+                                    let mut retry = retry_max;
+                                    loop {
+                                        if retry == 0 {
+                                            tracing::error!("Retry failed: {:#}, skip", err);
+                                            metrics.add_failed_batch();
+                                            continue 'READ_LOOP;
+                                        }
+                                        retry -= 1;
+
+                                        tokio::time::sleep(retry_interval).await;
+                                        tracing::debug!("Retrying... {retry} times left");
+                                        let res = taos.write_raw_meta(&meta).await;
+                                        if res.is_ok() {
+                                            tracing::debug!("Retry success");
+                                            break;
+                                        } else {
+                                            tracing::warn!("Retry failed: {:#}", res.unwrap_err());
+                                        }
                                     }
                                 }
-                                0x2603 => {
-                                    // 0x2603: the table does not exist
-                                    tracing::debug!("Found 0x2603 error: {err:#}, retry once");
-                                    taos.write_raw_meta(&meta)
-                                        .await
-                                        .context("restore meta error")?;
-                                }
                                 _ => {
-                                    Err(err).context("write raw error while restore")?;
+                                    tracing::error!("restore meta error: {:#}", err);
+                                    metrics.add_failed_batch();
+                                    continue 'READ_LOOP;
                                 }
                             }
                         };
-                        metrics.add_extra_metric(&PROCESSED_BYTES, meta.raw_len() as u64);
+                        metrics.add_processed_batch();
+                        metrics.add_processed_bytes(meta.raw_len() as u64);
                     }
                     ZMessage::Data(data) => {
-                        tracing::debug!("restore data, len: {}", data.len());
+                        tracing::debug!("[{idx}] restore data, len: {}", data.len());
                         for mut raw in data {
                             if let Some(name) = &table {
                                 raw.with_table_name(name.as_str());
                             }
                             let bytes = raw.as_raw_bytes().len() as u64;
-                            rows += raw.nrows();
                             if let Err(err) = taos.write_raw_block(&raw).await {
                                 let code: i32 = err.code().into();
                                 match code {
                                     0x2603 => {
-                                        // 0x2603: the table does not exist
+                                        // 0x2603: the table does not exist：写 data 时表不存在，尝试建表+重试
                                         if let Some(meta) = raw.to_create() {
                                             if let Err(err) = taos.exec(format!("{}", meta)).await {
-                                                if err.to_string().contains("0x032C") {
-                                                    tokio::time::sleep(Duration::from_millis(100))
-                                                        .await;
-                                                } else {
-                                                    Err(err).context("create table error")?;
-                                                }
+                                                tracing::error!("restore data error: {:#}", err);
+                                                metrics.add_failed_batch();
+                                                continue 'READ_LOOP;
                                             };
-                                            taos.write_raw_block(&raw)
-                                                .await
-                                                .context("write raw block error")?;
                                         } else {
-                                            Err(err).context("write raw block error")?;
+                                            tracing::error!("restore data error: {:#}", err);
+                                            metrics.add_failed_batch();
+                                            continue 'READ_LOOP;
+                                        }
+
+                                        let mut retry = retry_max;
+                                        loop {
+                                            if retry == 0 {
+                                                tracing::error!("Retry failed: {:#}, skip", err);
+                                                metrics.add_failed_batch();
+                                                continue 'READ_LOOP;
+                                            }
+                                            retry -= 1;
+
+                                            match taos.write_raw_block(&raw).await {
+                                                Ok(_) => {
+                                                    tracing::debug!("Retry success");
+                                                    break;
+                                                }
+                                                Err(err) => {
+                                                    tracing::warn!("Retry failed: {:#}", err);
+                                                }
+                                            }
+                                            tokio::time::sleep(retry_interval).await;
                                         }
                                     }
                                     _ => {
-                                        Err(err).context("write raw block error")?;
+                                        tracing::error!("restore data err: {:#}", err);
+                                        metrics.add_failed_batch();
+                                        continue 'READ_LOOP;
                                     }
                                 }
                             };
-                            metrics.add_extra_metric(&PROCESSED_BYTES, bytes);
+                            metrics.add_processed_batch();
+                            metrics.add_processed_bytes(bytes);
                         }
-                        tracing::debug!("[{idx}] current rows: {}", rows);
                     }
                     ZMessage::Raw(raw_type, raw) => {
-                        tracing::debug!("restore raw, len: {}", raw.raw_len());
+                        tracing::debug!("[{idx}] restore raw, len: {}", raw.raw_len());
                         if let Err(err) = taos.write_raw_meta(&raw).await {
                             let code: i32 = err.code().into();
                             match code {
@@ -576,48 +595,57 @@ async fn restore(
                                     // 0x03C7: stable uid not match
                                     // 0x03D3: conflict transaction not completed
                                     // 0x2603: the table does not exist
-                                    tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {:#}, retry once", err);
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                    match taos.write_raw_meta(&raw).await {
-                                        Ok(_) => {
-                                            tracing::debug!("retry success");
+                                    tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {:#}, retry", err);
+                                    let mut retry = retry_max;
+                                    'RETRY_LOOP: loop {
+                                        if retry == 0 {
+                                            tracing::error!("Retry failed: {:#}, skip", err);
+                                            metrics.add_failed_batch();
+                                            continue 'READ_LOOP;
                                         }
-                                        Err(err) => {
-                                            tracing::debug!("retry failed: {:#?}", err);
-                                            Err(err)
-                                                .context("write raw meta error while restore")?;
+                                        retry -= 1;
+
+                                        tokio::time::sleep(retry_interval).await;
+                                        tracing::debug!("Retrying... {retry} times left");
+                                        match taos.write_raw_meta(&raw).await {
+                                            Ok(_) => {
+                                                tracing::debug!("Retry success");
+                                                break 'RETRY_LOOP;
+                                            }
+                                            Err(err) => {
+                                                tracing::warn!("Retry failed: {:#}", err);
+                                            }
                                         }
                                     }
                                 }
                                 _ => {
-                                    Err(err).context("write raw meta error while restore")?;
+                                    tracing::error!("restore raw error: {:#}", err);
+                                    metrics.add_failed_batch();
+                                    continue 'READ_LOOP;
                                 }
                             }
                         };
-                        metrics.add_extra_metric(&PROCESSED_BYTES, raw.raw_len() as u64);
+                        metrics.add_processed_batch();
+                        metrics.add_processed_bytes(raw.raw_len() as u64);
                     }
                 }
             }
             Err(err) => {
+                // 如果是 EOF，表示文件读取完成
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {
                     tracing::info!("[{idx}] reading file {} done", path.display());
                     break;
                 }
-                tracing::debug!("[{idx}] Reading data error: {}", &err);
+                // 其他错误，打印错误信息
+                tracing::debug!("[{idx}] reading data error: {}", &err);
                 break;
             }
         }
+
+        tracing::debug!("local_to_taos metrics detail\n{}", metrics);
     }
 
     drop(reader);
-
-    metrics.add_extra_metric(&PROCESSED_ROWS, rows as u64);
-    tracing::info!(
-        "[{}] totally write {} rows from file {}",
-        idx,
-        rows,
-        path.display()
-    );
     Ok(())
 }
 
@@ -653,6 +681,7 @@ pub async fn is_local_valid_impl(dsn: &Dsn) -> Result<()> {
     Ok(())
 }
 
+/*
 #[allow(unused /* previous version */)]
 pub async fn is_local_valid_previous(dsn: &Dsn) -> DataSourceValidation {
     if dsn.driver != "local" {
@@ -692,6 +721,7 @@ pub async fn is_local_valid_previous(dsn: &Dsn) -> DataSourceValidation {
         namespaces: None,
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {

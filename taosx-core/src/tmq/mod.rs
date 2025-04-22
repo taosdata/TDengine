@@ -98,6 +98,7 @@ pub const METRIC_TMQ_POINTS: &str = "metrics.tmq.points";
 /// - `+1s` means stop at now + 1s.
 /// - `2021-09-01T00:00:00+08:00` means stop at the specific time.
 /// - `1000rows` means stop when received 1000 rows.
+#[allow(unused)]
 #[derive(Debug, Clone)]
 pub(crate) enum StopAt {
     DateTime(chrono::DateTime<Local>),
