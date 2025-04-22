@@ -33,6 +33,8 @@ IF(TD_WEBSOCKET)
                 COMMAND git clean -f -d
             BUILD_COMMAND
                 # COMMAND cargo update        # TODO: why update?
+                message("PATH 环境变量值为: $ENV{PATH}")
+                message("CARGO 环境变量值为: $ENV{CARGO_HOME}")
                 COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
