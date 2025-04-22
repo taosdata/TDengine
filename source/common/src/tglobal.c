@@ -2524,7 +2524,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
 
-  if (strcasecmp(name, "memPoolReservedSizeMB") == 0) {
+  if (strcasecmp(name, "minReservedMemorySize") == 0) {
     tsMinReservedMemorySize = pItem->i32;
     taosMemoryCfgUpdateReservedSize(tsMinReservedMemorySize);
     code = TSDB_CODE_SUCCESS;
