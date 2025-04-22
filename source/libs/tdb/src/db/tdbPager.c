@@ -746,6 +746,7 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   int   code = 0;
   SPgno pgno = TDB_PAGE_PGNO(pPage);
 
+#if ENABLE_PAGE_RECYLING
   if (pPager->frps) {
     if (taosArrayPush(pPager->frps, &pgno) == NULL) {
       return terrno;
@@ -785,6 +786,7 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   pPager->frps = NULL;
 
   pPage->pPager = NULL;
+#endif
 
   return code;
 }
@@ -839,7 +841,11 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
 
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
   // Allocate a page from the free list
+#if ENABLE_PAGE_RECYLING
   return tdbPagerRemoveFreePage(pPager, ppgno, pTxn);
+#else
+  return 0;
+#endif
 }
 
 static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {
