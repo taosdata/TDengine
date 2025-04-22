@@ -72,6 +72,7 @@ typedef enum EColumnType {
   COLUMN_TYPE_WINDOW_DURATION,
   COLUMN_TYPE_GROUP_KEY,
   COLUMN_TYPE_IS_WINDOW_FILLED,
+  COLUMN_TYPE_PLACE_HOLDER,
 } EColumnType;
 
 typedef struct SColumnNode {
@@ -123,13 +124,13 @@ typedef struct STargetNode {
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
 
 typedef struct SValueNode {
-  SExprNode node;  // QUERY_NODE_VALUE
-  char*     literal;
-  int32_t   flag;
-  bool      translate;
-  bool      notReserved;
-  bool      isNull;
-  int16_t   placeholderNo;
+  SExprNode  node;  // QUERY_NODE_VALUE
+  char*      literal;
+  int32_t    flag;
+  bool       translate;
+  bool       notReserved;
+  bool       isNull;
+  int16_t    placeholderNo;
   union {
     bool     b;
     int64_t  i;
@@ -140,7 +141,7 @@ typedef struct SValueNode {
   int64_t    typeData;
   int8_t     unit;
   timezone_t tz;
-  void      *charsetCxt;
+  void*      charsetCxt;
 } SValueNode;
 
 typedef struct SLeftValueNode {
@@ -217,7 +218,14 @@ typedef struct STableNode {
   uint8_t   precision;
   bool      singleTable;
   bool      inJoin;
+  bool      isPlaceHolder;
 } STableNode;
+
+typedef struct SStreamNode {
+  SExprNode node;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      streamName[TSDB_STREAM_NAME_LEN];
+} SStreamNode;
 
 struct STableMeta;
 
@@ -238,12 +246,20 @@ typedef struct SRealTableNode {
   SArray*            pTsmas;
   SArray*            tsmaTargetTbVgInfo;  // SArray<SVgroupsInfo*>, used for child table or normal table only
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
+  EStreamPlaceholder placeholderType;
 } SRealTableNode;
 
 typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
 } STempTableNode;
+
+typedef struct SPlaceHolderTableNode {
+  STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  EStreamPlaceholder placeholderType;
+} SPlaceHolderTableNode;
 
 typedef struct SVirtualTableNode {
   STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
@@ -387,6 +403,35 @@ typedef struct SAnomalyWindowNode {
   char      anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowNode;
 
+typedef struct SSlidingWindowNode {
+  ENodeType type;
+  SNode*    pSlidingVal;
+  SNode*    pOffset;
+} SSlidingWindowNode;
+
+typedef struct SExternalWindowNode {
+  ENodeType   type;       // QUERY_NODE_EXTERNAL_WINDOW
+  SNodeList*  pProjectionList;
+  SNodeList*  pAggFuncList;
+  STimeWindow timeRange;
+  void*       timezone;
+} SExternalWindowNode;
+
+typedef struct SStreamTriggerNode {
+  ENodeType   type;
+  SNode*      pTriggerWindow;
+  SNode*      pTrigerTable;
+  SNode*      pOptions; // SStreamTriggerOptions
+  SNode*      pNotify;
+  SNodeList*  pPartitionList;
+} SStreamTriggerNode;
+
+typedef struct SPeriodWindowNode {
+  ENodeType type;  // QUERY_NODE_PERIOD_WINDOW
+  SNode*    pPeroid;
+  SNode*    pOffset;
+} SPeriodWindowNode;
+
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,
@@ -507,6 +552,7 @@ typedef struct SSelectStmt {
   bool          tagScan;
   bool          joinContains;
   bool          mixSysTableAndActualTable;
+  bool          hasProject;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -711,8 +757,9 @@ int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);
 int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode);
+int32_t nodesMakeValueNodeFromTimestamp(int64_t value, SNode** ppNode);
 
-char*   nodesGetFillModeString(EFillMode mode);
+    char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
 
 const char* operatorTypeStr(EOperatorType type);

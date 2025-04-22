@@ -29,7 +29,8 @@ typedef struct SPlanContext {
   SEpSet      mgmtEpSet;
   SNode*      pAstRoot;
   bool        topicQuery;
-  bool        streamQuery;
+  bool        streamCalcQuery;
+  bool        streamTriggerQuery;
   bool        rSmaQuery;
   bool        showRewrite;
   bool        isView;
@@ -54,6 +55,9 @@ typedef struct SPlanContext {
   char        pGroupIdName[TSDB_COL_NAME_LEN];
   char        pIsWindowFilledName[TSDB_COL_NAME_LEN];
   bool        virtualStableQuery;
+  SNode*      streamTriggerScanSubplan;
+  SNodeList*  streamCalcScanSubplanList;
+  SArray*     pStreamCalcVgArray;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.
