@@ -124,7 +124,7 @@ function lcovFunc {
         '*/community/*' '*/contrib/*' '*/test/*' '*/packaging/*' '*/docs/*' '*/debug/*' '*/sql.c' '*/sql.y'\
          --rc lcov_branch_coverage=1  -o $TDINTERNAL_DIR/coverage_internal_2.info 
 
-    sed -i "s|SF:/home/TDinternal/|SF:|g" $TDINTERNAL_DIR/coverage_internal.info
+    sed -i "s|SF:/home/TDinternal/|SF:|g" $TDINTERNAL_DIR/coverage_internal_2.info
 
     # 确保 coverage_internal_2.info 文件不为空
     if [ ! -s $TDINTERNAL_DIR/coverage_internal_2.info ]; then
