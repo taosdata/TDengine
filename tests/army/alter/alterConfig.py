@@ -194,7 +194,13 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 2, "UTC (UTC, +0000)")
         tdSql.query("show variables like 'timezone'")
         tdSql.checkData(0, 1, "UTC (UTC, +0000)")
-        
+
+    def alter_memPoolReservedSizeMB_case(self):
+        tdSql.query("alter all dnodes 'minReservedMemorySize 100'")
+        tdSql.checkData(0, 1, "100")
+
+        tdSql.error("alter all dnodes 'minReservedMemorySize 0'")
+        tdSql.error("alter all dnodes 'minReservedMemorySize 100000000000'")
 
     # run
     def run(self):
@@ -211,6 +217,9 @@ class TDTestCase(TBase):
         # TS-5007
         self.alter_err_case()
         self.alter_dnode_1_case()
+
+        #TS-6363
+        self.alter_memPoolReservedSizeMB_case()
 
         self.alter_timezone_case()
         tdLog.success(f"{__file__} successfully executed")
