@@ -7,14 +7,14 @@ class TestSubTableBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_sub_table_basic(self):
-        """子表创建、读写
+        """create read write sub table
 
-        1. 创建包含 256 列的超级表
-        2. 创建两个子表，各写入十几条记录
-        3. 进行投影查询
-        4. 增加时间戳筛选、普通列筛选进行查询
-        5. 进行聚合查询
-        6. Kill -9 重启后再次查询
+        1. create table
+        2. insert data
+        3. project query
+        4. filter
+        5. aggregate query
+        6. Kill -9 then restart
 
         Catalog:
             - Tables

@@ -1,20 +1,17 @@
 from new_test_framework.utils import tdLog, tdSql, sc
 
 
-class TestNormalTableAlter:
+class TestNormalTableAlter1:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_normal_table_alter(self):
-        """普通表修改
+    def test_normal_table_alter_1(self):
+        """alter normal table 1
 
-        1. 创建普通表
-        2. 写入十几条记录
-        3. 增加列
-        4. 删除列
-        5. 修改列宽
-        6. Kill -9 重启后再次查询
+        1. add column
+        2. drop column
+        3. modify column
 
         Catalog:
             - Tables

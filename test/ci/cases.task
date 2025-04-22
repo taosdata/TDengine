@@ -38,7 +38,8 @@
 # 02-Databases
 
 # 03-Tables
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_normal_table_alter.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_normal_table_alter_1.py 
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_normal_table_alter_2.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_normal_table_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_sub_table_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/test_sub_table_basic.py

@@ -7,14 +7,12 @@ class TestSubTableAlter:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_sub_table_alter(self):
-        """子表修改
+        """alter sub table
 
-        1. 创建超级表
-        2. 创建子表并写入数据
-        3. 修改子表(增加超级表的列)
-        4. 修改后的子表写数据（Schema 缓存更新）
-        5. 查询数据
-        6. Kill -9 重启后再次查询
+        1. add column
+        2. insert data
+        3. query data
+        4. Kill -9 then restart
 
         Catalog:
             - Tables
