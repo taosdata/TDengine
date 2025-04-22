@@ -16,7 +16,7 @@
 #ifndef _TD_COMMON_TOKEN_H_
 #define _TD_COMMON_TOKEN_H_
 
-#include "ttokenauto.h"
+#include "taos_lemon_token.h"
 
 #define TK_NK_SPACE   600
 #define TK_NK_COMMENT 601

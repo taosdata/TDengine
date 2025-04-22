@@ -45,4 +45,4 @@ DB error: Analysis service can't access[0x80000441] (60.195613s)
 
 ### 4. 返回结果出现非法 JSON 格式错误 (Invalid json format)
 
-从 anode 返回到 TDengine 的分析结果有误，请检查 anode 运行日志 `/var/log/taos/taosanode/taosanode.app.log`，以便于获得具体的错误信息。
+从 anode 返回到 TDengine 的分析结果有误，请检查 anode 运行日志 `/var/log/taos/taosanode/taosanode.app.log` 获得具体的错误信息。

@@ -106,7 +106,7 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 
 INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗口向前滑动的时间。每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如图，[t0s, t0e] ，[t1s , t1e]，[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。当 SLIDING 与 INTERVAL 相等的时候，滑动窗口即为翻转窗口。默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从“Unix time 0 + interval_offset”开始。
 
-![TDengine Database 时间窗口示意图](./timewindow-1.webp)
+![TDengine Database 时间窗口示意图](./pic/time_window.webp)
 
 INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用。以下 SQL 语句非法：
 
@@ -145,7 +145,7 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 
 使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。如下图所示，根据状态量确定的状态窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12] 两个。
 
-![TDengine Database 时间窗口示意图](./timewindow-3.webp)
+![TDengine Database 状态窗口示意图](./pic/state_window.png)
 
 使用 STATE_WINDOW 来确定状态窗口划分的列。例如 
 
@@ -175,7 +175,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是 [2019-04-28 14:22:10，2019-04-28 14:22:30] 和 [2019-04-28 14:23:10，2019-04-28 14:23:30]。因为 2019-04-28 14:22:30 与 2019-04-28 14:23:10 之间的时间间隔是 40 秒，超过了连续时间间隔（12 秒）。
 
-![TDengine Database 时间窗口示意图](./timewindow-2.webp)
+![TDengine Database 会话窗口示意图](./pic/session_window.png)
 
 在 tol_value 时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过 tol_val，则自动开启下一个窗口。
 
@@ -200,7 +200,7 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![TDengine Database 事件窗口示意图](./event_window.webp)
+![TDengine Database 事件窗口示意图](./pic/event_window.png)
 
 事件窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个事件窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
 
@@ -217,9 +217,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 select _wstart, _wend, count(*) from t count_window(4);
 ```
 
-![count_window](https://github.com/taosdata/TDengine/assets/38781207/ff86278e-cbff-477f-a866-6e5cc150b712)
-
-
+![TDengine Database 计数窗口示意图](./pic/count_window.png)
 
 ### 时间戳伪列
 

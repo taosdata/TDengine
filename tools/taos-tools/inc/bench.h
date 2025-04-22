@@ -20,7 +20,10 @@
 extern "C" {
 #endif
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 
@@ -750,8 +753,6 @@ typedef struct SArguments_S {
     char *              host;
     uint16_t            port;
     uint16_t            telnet_tcp_port;
-    bool                host_auto;
-    bool                port_auto;
     bool                port_inputted;
     bool                cfg_inputted;
     char *              user;
