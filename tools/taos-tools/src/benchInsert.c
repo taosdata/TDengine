@@ -2069,7 +2069,7 @@ static void *syncWriteInterlace(void *sarg) {
                     bindv->tbnames[i] = childTbl->name;
 
                     // tags
-                    if (stbInfo->autoTblCreating) {
+                    if (stbInfo->autoTblCreating && firstInsertTb) {
                         // create
                         if (w == 0) {
                             // recreate sample tags
@@ -2078,6 +2078,13 @@ static void *syncWriteInterlace(void *sarg) {
                             }
                         }
 
+                        if (csvFile) {
+                            if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName)) {
+                                g_fail = true;
+                                goto free_of_interlace;
+                            }
+                        }
+                        
                         // first insert table need bring tags
                         if (firstInsertTb) {
                             bindVTags(bindv, i, w, pThreadInfo->tagsStmt);
