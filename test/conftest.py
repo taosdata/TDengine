@@ -11,6 +11,8 @@ import taosws
 import yaml
 
 
+
+
 def pytest_addoption(parser):
     parser.addoption("--yaml_file", action="store",
                     help="config YAML file in env directory")

@@ -41,7 +41,6 @@ class Test5dnode3mnodeStop:
                     break
         return buildPath
 
-
     @pytest.mark.cluster
     def test_five_dnode_three_mnode(self):
         """测试多节点集群缩扩容后mnode状态
@@ -125,6 +124,8 @@ class Test5dnode3mnodeStop:
         clusterComCheck.check3mnodeoff(3,3)
         tdDnodes[2].starttaosd()
         clusterComCheck.checkMnodeStatus(3)
+
+
 
         tdDnodes[0].stoptaosd()
         clusterComCheck.check3mnodeoff(1,3)
