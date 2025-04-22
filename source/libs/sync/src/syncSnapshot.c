@@ -1074,6 +1074,8 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // data
   if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
+    sInfo("vgId:%d, begin snapshot receive. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
+          pMsg->startTime);
     code = syncNodeOnSnapshotReceive(pSyncNode, ppMsg);
     goto _out;
   }
