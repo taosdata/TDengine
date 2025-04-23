@@ -26,6 +26,8 @@ extern "C" {
 #include "tversion.h"
 
 #else
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 #include <uv.h>
 #include "theap.h"
 #include "tmsg.h"
@@ -33,6 +35,7 @@ extern "C" {
 #include "transportInt.h"
 #include "trpc.h"
 #include "ttrace.h"
+
 #endif
 
 typedef bool (*FilteFunc)(void* arg);
