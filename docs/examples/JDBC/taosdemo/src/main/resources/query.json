@@ -7,7 +7,7 @@
   "password": "taosdata",
   "databases": "db01",
   "super_table_query":
-    {"rate":1, "concurrent":1,"time":10000,
+    {"rate":1, "threads":1,"time":10000,
      "sqls": [{"sql": "select count(*) from stb01", "result": "./query_res0.txt"}]
     },
   "sub_table_query":

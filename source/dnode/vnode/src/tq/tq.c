@@ -1264,7 +1264,8 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   tDecoderClear(&decoder);
 
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
-    tqDebug("vgId:%d not leader, ignore checkpoint-source msg, s-task:0x%x", vgId, req.taskId);
+    tqDebug("vgId:%d not leader, ignore checkpoint-source msg, checkpontId:%" PRId64 ", s-task:0x%x", vgId,
+            req.checkpointId, req.taskId);
     doSendChkptSourceRsp(&req, &pMsg->info, TSDB_CODE_SUCCESS, req.taskId);
     return TSDB_CODE_SUCCESS;  // always return success to mnode
   }

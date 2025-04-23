@@ -12,3 +12,10 @@ class _GPTService(TsfmBaseService):
 
         if  self.service_host is None:
             self.service_host = 'http://127.0.0.1:5000/tdtsfm'
+
+
+    def execute(self):
+        if len(self.past_dynamic_real):
+            raise ValueError("covariate forecast is not supported yet")
+
+        return super().execute()
