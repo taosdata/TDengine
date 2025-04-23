@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../../timeseries/timewindow/">
+        <link rel="prev" href="../../data_write/sql_statement/">
       
       
-        <link rel="next" href="../../../util_funcs_docs/new_test_framework/utils/">
+        <link rel="next" href="../selection/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -20,7 +20,7 @@
     
     
       
-        <title>Benchmark - TDengine Case List</title>
+        <title>Aggregate - TDengine Case List</title>
       
     
     
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#tools.benchmark.test_taosdemo_query_with_json" class="md-skip">
+        <a href="#function.aggregate.test_func_avg" class="md-skip">
           Skip to content
         </a>
       
@@ -102,7 +102,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Benchmark
+              Aggregate
             
           </span>
         </div>
@@ -601,6 +601,8 @@
                 
   
   
+    
+  
   
   
     
@@ -611,11 +613,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_10" checked>
         
           
           <label class="md-nav__link" for="__nav_2_10" id="__nav_2_10_label" tabindex="0">
@@ -631,7 +633,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_10_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_10_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2_10">
             <span class="md-nav__icon md-icon"></span>
             Function
@@ -642,10 +644,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../function/aggregate/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Aggregate
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -656,6 +678,258 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_avg" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_avg
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_avg">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_avg.TestFuncAvg" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncAvg
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncAvg">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_avg.TestFuncAvg.test_func_avg" class="md-nav__link">
+    <span class="md-ellipsis">
+      Avg 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_count" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_count
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_count">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_count.TestFuncCount" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncCount
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncCount">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_count.TestFuncCount.test_func_count" class="md-nav__link">
+    <span class="md-ellipsis">
+      Count 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_leastsquares" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_leastsquares
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_leastsquares">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_leastsquares.TestFuncLeastsquares" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncLeastsquares
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncLeastsquares">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="md-nav__link">
+    <span class="md-ellipsis">
+      Leastsquares 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_percentile" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_percentile
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_percentile">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_percentile.TestFuncPercentile" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncPercentile
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncPercentile">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_percentile.TestFuncPercentile.test_func_percentile" class="md-nav__link">
+    <span class="md-ellipsis">
+      Percentile 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_stddev" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_stddev
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_stddev">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_stddev.TestFuncStddev" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncStddev
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncStddev">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_stddev.TestFuncStddev.test_func_stddev" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stddev 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_sum" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_sum
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_sum">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_sum.TestFuncSum" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncSum
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncSum">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_sum.TestFuncSum.test_func_sum" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sum 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -668,7 +942,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../function/selection/" class="md-nav__link">
+      <a href="../selection/" class="md-nav__link">
         
   
   
@@ -691,7 +965,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../function/timeseries/" class="md-nav__link">
+      <a href="../timeseries/" class="md-nav__link">
         
   
   
@@ -1243,8 +1517,6 @@
                 
   
   
-    
-  
   
   
     
@@ -1255,11 +1527,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_17" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_17" >
         
           
           <label class="md-nav__link" for="__nav_2_17" id="__nav_2_17_label" tabindex="0">
@@ -1275,7 +1547,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_17_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_17_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2_17">
             <span class="md-nav__icon md-icon"></span>
             Tools
@@ -1286,30 +1558,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Benchmark
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../tools/benchmark/" class="md-nav__link">
         
   
   
@@ -1320,33 +1572,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#tools.benchmark.test_taosdemo_query_with_json" class="md-nav__link">
-    <span class="md-ellipsis">
-      test_taosdemo_query_with_json
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1512,11 +1737,236 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#tools.benchmark.test_taosdemo_query_with_json" class="md-nav__link">
+  <a href="#function.aggregate.test_func_avg" class="md-nav__link">
     <span class="md-ellipsis">
-      test_taosdemo_query_with_json
+      test_func_avg
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="test_func_avg">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_avg.TestFuncAvg" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncAvg
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncAvg">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_avg.TestFuncAvg.test_func_avg" class="md-nav__link">
+    <span class="md-ellipsis">
+      Avg 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_count" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_count
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_count">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_count.TestFuncCount" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncCount
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncCount">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_count.TestFuncCount.test_func_count" class="md-nav__link">
+    <span class="md-ellipsis">
+      Count 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_leastsquares" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_leastsquares
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_leastsquares">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_leastsquares.TestFuncLeastsquares" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncLeastsquares
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncLeastsquares">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="md-nav__link">
+    <span class="md-ellipsis">
+      Leastsquares 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_percentile" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_percentile
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_percentile">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_percentile.TestFuncPercentile" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncPercentile
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncPercentile">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_percentile.TestFuncPercentile.test_func_percentile" class="md-nav__link">
+    <span class="md-ellipsis">
+      Percentile 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_stddev" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_stddev
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_stddev">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_stddev.TestFuncStddev" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncStddev
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncStddev">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_stddev.TestFuncStddev.test_func_stddev" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stddev 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_sum" class="md-nav__link">
+    <span class="md-ellipsis">
+      test_func_sum
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="test_func_sum">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_sum.TestFuncSum" class="md-nav__link">
+    <span class="md-ellipsis">
+      TestFuncSum
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TestFuncSum">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function.aggregate.test_func_sum.TestFuncSum.test_func_sum" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sum 函数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1536,17 +1986,17 @@
 
 
 
-  <h1>Benchmark</h1>
+  <h1>Aggregate</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<h2 id="tools.benchmark.test_taosdemo_query_with_json" class="doc doc-heading">
-            <code>tools.benchmark.test_taosdemo_query_with_json</code>
+<h2 id="function.aggregate.test_func_avg" class="doc doc-heading">
+            <code>function.aggregate.test_func_avg</code>
 
 
-<a href="#tools.benchmark.test_taosdemo_query_with_json" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#function.aggregate.test_func_avg" class="headerlink" title="Permanent link">&para;</a></h2>
 
     <div class="doc doc-contents first">
 
@@ -1566,6 +2016,673 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="function.aggregate.test_func_avg.TestFuncAvg" class="doc doc-heading">
+            <code>TestFuncAvg</code>
+
+
+<a href="#function.aggregate.test_func_avg.TestFuncAvg" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="function.aggregate.test_func_avg.TestFuncAvg.test_func_avg" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_func_avg</span><span class="p">()</span></code>  
+  
+<a href="#function.aggregate.test_func_avg.TestFuncAvg.test_func_avg" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>Avg 函数</p>
+<ol>
+<li>创建包含一个 Int 普通数据列的超级表</li>
+<li>创建子表并写入数据</li>
+<li>对子表执行 Avg 查询，包括时间窗口、普通数据列筛选</li>
+<li>对超级表执行 Avg 查询，包括时间窗口、普通数据列筛选、标签列筛选、Group By、Partition By</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Function:Aggregate</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/avg.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="function.aggregate.test_func_count" class="doc doc-heading">
+            <code>function.aggregate.test_func_count</code>
+
+
+<a href="#function.aggregate.test_func_count" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="function.aggregate.test_func_count.TestFuncCount" class="doc doc-heading">
+            <code>TestFuncCount</code>
+
+
+<a href="#function.aggregate.test_func_count.TestFuncCount" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="function.aggregate.test_func_count.TestFuncCount.test_func_count" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_func_count</span><span class="p">()</span></code>  
+  
+<a href="#function.aggregate.test_func_count.TestFuncCount.test_func_count" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>Count 函数</p>
+<ol>
+<li>创建包含一个 Int 普通数据列的超级表</li>
+<li>创建子表并写入数据</li>
+<li>对子表执行 Count 查询，包括时间窗口、普通数据列筛选</li>
+<li>对超级表执行 Count 查询，包括时间窗口、普通数据列筛选、标签列筛选、Group By、Partition By</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Function:Aggregate</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/count.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="function.aggregate.test_func_leastsquares" class="doc doc-heading">
+            <code>function.aggregate.test_func_leastsquares</code>
+
+
+<a href="#function.aggregate.test_func_leastsquares" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="function.aggregate.test_func_leastsquares.TestFuncLeastsquares" class="doc doc-heading">
+            <code>TestFuncLeastsquares</code>
+
+
+<a href="#function.aggregate.test_func_leastsquares.TestFuncLeastsquares" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="function.aggregate.test_func_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_func_leastsquares</span><span class="p">()</span></code>  
+  
+<a href="#function.aggregate.test_func_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>Leastsquares 函数</p>
+<ol>
+<li>创建包含一个 Int 普通数据列的超级表</li>
+<li>创建子表并写入数据</li>
+<li>对子表执行 Leastsquares 查询，包括时间窗口、时间戳列筛选</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Function:Aggregate</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/leastsquare.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="function.aggregate.test_func_percentile" class="doc doc-heading">
+            <code>function.aggregate.test_func_percentile</code>
+
+
+<a href="#function.aggregate.test_func_percentile" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="function.aggregate.test_func_percentile.TestFuncPercentile" class="doc doc-heading">
+            <code>TestFuncPercentile</code>
+
+
+<a href="#function.aggregate.test_func_percentile.TestFuncPercentile" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="function.aggregate.test_func_percentile.TestFuncPercentile.test_func_percentile" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_func_percentile</span><span class="p">()</span></code>  
+  
+<a href="#function.aggregate.test_func_percentile.TestFuncPercentile.test_func_percentile" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>Percentile 函数</p>
+<ol>
+<li>创建包含一个 Int 普通数据列的超级表</li>
+<li>创建子表并写入数据</li>
+<li>对子表执行 Percentile 查询，包括时间窗口、时间戳列筛选</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Function:Aggregate</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/percentile.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="function.aggregate.test_func_stddev" class="doc doc-heading">
+            <code>function.aggregate.test_func_stddev</code>
+
+
+<a href="#function.aggregate.test_func_stddev" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="function.aggregate.test_func_stddev.TestFuncStddev" class="doc doc-heading">
+            <code>TestFuncStddev</code>
+
+
+<a href="#function.aggregate.test_func_stddev.TestFuncStddev" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="function.aggregate.test_func_stddev.TestFuncStddev.test_func_stddev" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_func_stddev</span><span class="p">()</span></code>  
+  
+<a href="#function.aggregate.test_func_stddev.TestFuncStddev.test_func_stddev" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>Stddev 函数</p>
+<ol>
+<li>创建包含一个 Int 普通数据列的超级表</li>
+<li>创建子表并写入数据</li>
+<li>对子表执行 Stddev 查询，包括时间窗口、时间戳列筛选</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Function:Aggregate</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/stddev.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="function.aggregate.test_func_sum" class="doc doc-heading">
+            <code>function.aggregate.test_func_sum</code>
+
+
+<a href="#function.aggregate.test_func_sum" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="function.aggregate.test_func_sum.TestFuncSum" class="doc doc-heading">
+            <code>TestFuncSum</code>
+
+
+<a href="#function.aggregate.test_func_sum.TestFuncSum" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h4 id="function.aggregate.test_func_sum.TestFuncSum.test_func_sum" class="doc doc-heading">  
+                <code class="highlight language-python"><span class="n">test_func_sum</span><span class="p">()</span></code>  
+  
+<a href="#function.aggregate.test_func_sum.TestFuncSum.test_func_sum" class="headerlink" title="Permanent link">&para;</a></h4>    
+    
+
+        <div class="doc doc-contents ">
+
+        <p>Sum 函数</p>
+<ol>
+<li>创建包含一个 Int 普通数据列的超级表</li>
+<li>创建子表并写入数据</li>
+<li>对子表执行 Sum 查询，包括时间窗口、普通数据列筛选</li>
+<li>对超级表执行 Sum 查询，包括时间窗口、普通数据列筛选、标签列筛选、Group By、Partition By</li>
+</ol>
+
+
+<details class="catalog" open>
+  <summary>Catalog</summary>
+  <ul>
+<li>Function:Aggregate</li>
+</ul>
+</details>        <p>Since: v3.0.0.0</p>
+<p>Labels: common,ci</p>
+<p>Jira: None</p>
+
+
+<details class="history" open>
+  <summary>History</summary>
+  <ul>
+<li>2025-4-23 Simon Guan Migrated to new test framework, from tests/script/tsim/compute/sum.sim</li>
+</ul>
+</details>        </div>
+  </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 
